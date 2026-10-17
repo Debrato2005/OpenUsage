@@ -9,8 +9,9 @@
     "dev": "vite --config apps/desktop/vite.config.ts",
     "build": "tsc --noEmit && vite build --config apps/desktop/vite.config.ts",
     "typecheck": "tsc --noEmit",
+    "test:contract": "node tests/contract/bootstrap.test.mjs",
     "test:renderer": "playwright test",
-    "check": "npm run build && npm run test:renderer"
+    "check": "npm run build && npm run test:contract && npm run test:renderer"
   },
   "dependencies": {
     "react": "19.3.0",

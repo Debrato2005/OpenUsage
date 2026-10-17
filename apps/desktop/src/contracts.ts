@@ -39,8 +39,8 @@ export async function invoke<K extends keyof Commands>(
 function isBootstrap(value: unknown): value is Bootstrap {
   if (typeof value !== 'object' || value === null) return false;
   const v = value as Record<string, unknown>;
-  return ['setup_required', 'locked', 'ready', 'recovery_required'].includes(String(v.storage))
-    && ['system', 'light', 'dark'].includes(String(v.theme))
+  return typeof v.storage === 'string' && ['setup_required', 'locked', 'ready', 'recovery_required'].includes(v.storage)
+    && typeof v.theme === 'string' && ['system', 'light', 'dark'].includes(v.theme)
     && (v.schemaVersion === null || (Number.isSafeInteger(v.schemaVersion) && Number(v.schemaVersion) > 0))
     && (v.activeProfiles === null || (Number.isSafeInteger(v.activeProfiles) && Number(v.activeProfiles) >= 0 && Number(v.activeProfiles) <= 10))
     && v.monitoring === 'stopped' && v.provider === 'not_configured'
