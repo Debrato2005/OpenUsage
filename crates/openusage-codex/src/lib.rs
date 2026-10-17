@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::{collections::BTreeSet, fmt, path::Path};
 use url::Url;
 
+pub mod session;
+
 pub const PROTOCOL_BASELINE: &str = "rust-v0.163.0";
 pub const MAX_MESSAGE_BYTES: usize = 1_048_576;
 
