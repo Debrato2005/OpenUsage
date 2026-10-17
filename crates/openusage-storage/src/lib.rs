@@ -5,6 +5,14 @@ use zeroize::Zeroizing;
 pub mod keywrap;
 
 const MIGRATIONS: &[&str] = &[include_str!("schema.sql")];
+const MAX_BACKUP_SNAPSHOT_SIZE: u64 = 5 * 1024 * 1024 * 1024;
+
+/// All records from the current schema, without credential homes, key files, or retained evidence.
+/// The SQLite image exists only in Rust memory. Feed it directly to the authenticated archive codec.
+pub struct BackupSnapshot {
+    pub schema_version: u32,
+    pub bytes: Zeroizing<Vec<u8>>,
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Theme {
@@ -42,6 +50,8 @@ pub enum StorageError {
     MigrationFailed,
     ReadFailed,
     WriteFailed,
+    SnapshotFailed,
+    SnapshotTooLarge,
 }
 
 impl fmt::Display for StorageError {
@@ -67,6 +77,10 @@ impl fmt::Display for StorageError {
             }
             Self::ReadFailed => "The database records could not be read.",
             Self::WriteFailed => "The database change could not be saved.",
+            Self::SnapshotFailed => "The database backup snapshot could not be created.",
+            Self::SnapshotTooLarge => {
+                "The database backup snapshot exceeds the 5 GiB restored-size limit."
+            }
         })
     }
 }
@@ -218,6 +232,84 @@ impl Storage {
             return Err(StorageError::WriteFailed);
         }
         Ok(())
+    }
+
+    /// Copy a consistent, WAL-aware view into an attached memory database with SQLCipher's export API.
+    /// This current-schema operation holds the storage service until the memory snapshot is complete.
+    /// Large-history memory use and performance require separate acceptance tests.
+    pub fn backup_snapshot(&mut self) -> Result<BackupSnapshot, StorageError> {
+        self.connection
+            .execute_batch("ATTACH DATABASE ':memory:' AS openusage_backup KEY '';")
+            .map_err(|_| StorageError::SnapshotFailed)?;
+        let result = (|| {
+            self.connection
+                .execute_batch(
+                    "PRAGMA openusage_backup.page_size = 4096; \
+                     PRAGMA openusage_backup.max_page_count = 1310720;",
+                )
+                .map_err(|_| StorageError::SnapshotFailed)?;
+            let page_limit: i64 = self
+                .connection
+                .pragma_query_value(Some("openusage_backup"), "max_page_count", |row| row.get(0))
+                .map_err(|_| StorageError::SnapshotFailed)?;
+            let page_size: i64 = self
+                .connection
+                .pragma_query_value(Some("openusage_backup"), "page_size", |row| row.get(0))
+                .map_err(|_| StorageError::SnapshotFailed)?;
+            if page_limit.checked_mul(page_size) != Some(MAX_BACKUP_SNAPSHOT_SIZE as i64) {
+                return Err(StorageError::SnapshotFailed);
+            }
+            let transaction = self
+                .connection
+                .transaction()
+                .map_err(|_| StorageError::SnapshotFailed)?;
+            let schema_version: u32 = transaction
+                .pragma_query_value(Some("main"), "user_version", |row| row.get(0))
+                .map_err(|_| StorageError::SnapshotFailed)?;
+            if schema_version as usize != MIGRATIONS.len() {
+                return Err(StorageError::UnsupportedSchema);
+            }
+            transaction
+                .execute_batch("SELECT sqlcipher_export('openusage_backup', 'main');")
+                .map_err(|error| match error {
+                    rusqlite::Error::SqliteFailure(error, _)
+                        if error.code == rusqlite::ErrorCode::DiskFull =>
+                    {
+                        StorageError::SnapshotTooLarge
+                    }
+                    _ => StorageError::SnapshotFailed,
+                })?;
+            // sqlcipher_export does not copy user_version, so preserve it explicitly.
+            transaction
+                .pragma_update(Some("openusage_backup"), "user_version", schema_version)
+                .map_err(|_| StorageError::SnapshotFailed)?;
+            transaction
+                .commit()
+                .map_err(|_| StorageError::SnapshotFailed)?;
+            let serialized = self
+                .connection
+                .serialize("openusage_backup")
+                .map_err(|_| StorageError::SnapshotFailed)?;
+            if serialized.len() as u64 > MAX_BACKUP_SNAPSHOT_SIZE {
+                return Err(StorageError::SnapshotTooLarge);
+            }
+            let mut bytes = Zeroizing::new(Vec::new());
+            bytes
+                .try_reserve_exact(serialized.len())
+                .map_err(|_| StorageError::SnapshotFailed)?;
+            bytes.extend_from_slice(&serialized);
+            // cipher_memory_security wipes SQLite-owned buffers when serialize data and the attachment close.
+            drop(serialized);
+            Ok(BackupSnapshot {
+                schema_version,
+                bytes,
+            })
+        })();
+        let detached = self
+            .connection
+            .execute_batch("DETACH DATABASE openusage_backup;");
+        detached.map_err(|_| StorageError::SnapshotFailed)?;
+        result
     }
 }
 
@@ -448,5 +540,68 @@ mod tests {
             ));
             assert_eq!(fs::read(&path).unwrap(), before);
         }
+    }
+
+    #[test]
+    fn memory_snapshot_includes_active_wal_records_and_reopens_at_the_same_point_in_time() {
+        let directory = private_directory();
+        let path = directory.path().join("usage.db");
+        let mut storage = Storage::create(&path, &KEY).unwrap();
+        storage
+            .connection
+            .pragma_update(None, "wal_autocheckpoint", 0)
+            .unwrap();
+        storage.set_theme(Theme::Dark).unwrap();
+        storage.connection.execute(
+            "INSERT INTO profiles VALUES (?1,NULL,'Synthetic profile','native','synthetic-home','authentication_required',0,'2026-10-18T00:00:00Z','2026-10-18T00:00:00Z')",
+            ["00000000-0000-0000-0000-000000000001"],
+        ).unwrap();
+        let page_count: i64 = storage
+            .connection
+            .pragma_query_value(None, "page_count", |row| row.get(0))
+            .unwrap();
+        let page_size: String = storage
+            .connection
+            .pragma_query_value(None, "page_size", |row| row.get(0))
+            .unwrap();
+        let page_size = page_size.parse::<i64>().unwrap();
+        assert!(fs::metadata(&path).unwrap().len() < (page_count * page_size) as u64);
+        assert!(
+            fs::metadata(path.with_file_name("usage.db-wal"))
+                .unwrap()
+                .len()
+                > 0
+        );
+
+        let snapshot = storage.backup_snapshot().unwrap();
+        assert_eq!(snapshot.schema_version, 1);
+        assert!(snapshot.bytes.starts_with(b"SQLite format 3\0"));
+        assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 3);
+        storage.set_theme(Theme::Light).unwrap();
+        let mut restored = Connection::open_in_memory().unwrap();
+        restored
+            .deserialize_read_exact(
+                "main",
+                std::io::Cursor::new(snapshot.bytes.as_slice()),
+                snapshot.bytes.len(),
+                true,
+            )
+            .unwrap();
+        let theme: String = restored
+            .query_row("SELECT theme FROM settings WHERE id=1", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        let profiles: i64 = restored
+            .query_row("SELECT count(*) FROM profiles", [], |row| row.get(0))
+            .unwrap();
+        let version: u32 = restored
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .unwrap();
+        assert_eq!(theme, "dark");
+        assert_eq!(profiles, 1);
+        assert_eq!(version, 1);
+        assert_eq!(storage.metadata().unwrap().theme, Theme::Light);
+        assert!(storage.backup_snapshot().is_ok());
     }
 }
