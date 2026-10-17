@@ -17,7 +17,7 @@ Sources:
 
 ## Isolated provider probe
 
-`session::probe_account` takes an approved absolute executable path and an existing private managed directory. It creates fresh temporary homes and removes them after the probe. It never opens an existing provider home.
+`session::probe_account` takes an approved absolute executable path and an existing private managed directory. It creates fresh temporary homes. A successful probe removes those homes. Cleanup failure returns a typed error. It never opens an existing provider home.
 
 The blocking probe checks the executable version, completes `initialize` and `initialized`, then sends `account/read` with `refreshToken: false`. Readiness permits 15 seconds. Account reads permit 30 seconds. Each response permits 1 MiB, with at most 32 unrelated notifications and 4 MiB per request. The probe discards notifications without actions.
 

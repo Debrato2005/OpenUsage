@@ -17,6 +17,7 @@ pub enum SessionError {
     UnexpectedExit,
     NotificationLimit,
     TerminationFailed,
+    CleanupFailed,
     Protocol(ProtocolError),
 }
 
@@ -39,6 +40,7 @@ impl fmt::Display for SessionError {
             Self::UnexpectedExit => "The provider exited before its response completed.",
             Self::NotificationLimit => "The provider exceeded the notification limit.",
             Self::TerminationFailed => "The owned provider process could not be reaped.",
+            Self::CleanupFailed => "The temporary provider home could not be removed.",
             Self::Protocol(_) => "The provider response failed the protocol check.",
         })
     }
@@ -361,6 +363,18 @@ mod unix {
             return Err(SessionError::InvalidExecutable);
         }
         let sandbox = Sandbox::new(parent)?;
+        let result = probe_in_sandbox(executable, &sandbox);
+        sandbox
+            .root
+            .close()
+            .map_err(|_| SessionError::CleanupFailed)?;
+        result
+    }
+
+    fn probe_in_sandbox(
+        executable: &Path,
+        sandbox: &Sandbox,
+    ) -> Result<ProviderProbe, SessionError> {
         let mut version = sandbox.command(executable);
         version.arg("--version");
         let mut version = OwnedProcess::start(version)?;
@@ -491,6 +505,52 @@ mod unix {
                 Some(libc::ESRCH)
             );
             assert_eq!(unsafe { libc::killpg(id, 0) }, -1);
+            assert_eq!(
+                std::io::Error::last_os_error().raw_os_error(),
+                Some(libc::ESRCH)
+            );
+        }
+
+        #[test]
+        fn synthetic_cleanup_fault_is_reported_after_reaping_the_child() {
+            use std::os::unix::fs::PermissionsExt;
+
+            let temporary = tempfile::tempdir().unwrap();
+            let parent = temporary.path().join("managed");
+            fs::create_dir(&parent).unwrap();
+            fs::set_permissions(&parent, fs::Permissions::from_mode(0o700)).unwrap();
+            let parent = parent.canonicalize().unwrap();
+            let executable = temporary.path().join("synthetic-provider");
+            fs::write(&executable, r##"#!/bin/sh
+if [ "$1" = "--version" ]; then
+    printf 'codex-cli 0.163.0\n'
+    exit 0
+fi
+IFS= read -r request
+printf '{"id":1,"result":{"userAgent":"synthetic cleanup fixture","codexHome":"%s","platformFamily":"unix","platformOs":"linux"}}\n' "$CODEX_HOME"
+IFS= read -r notification
+IFS= read -r request
+printf '%s' "$$" > "$CODEX_HOME/synthetic-child-pid"
+owned_root=${CODEX_HOME%/codex}
+mv "$owned_root" "$owned_root-moved"
+printf '{"id":2,"result":{"account":null,"requiresOpenaiAuth":true}}\n'
+exec /bin/sleep 60
+"##).unwrap();
+            fs::set_permissions(&executable, fs::Permissions::from_mode(0o700)).unwrap();
+            let executable = executable.canonicalize().unwrap();
+            assert!(matches!(
+                probe(&executable, &parent),
+                Err(SessionError::CleanupFailed)
+            ));
+            let entries: Vec<_> = fs::read_dir(&parent).unwrap().collect();
+            assert_eq!(entries.len(), 1);
+            let moved_home = entries[0].as_ref().unwrap().path().join("codex");
+            let pid: libc::pid_t = fs::read_to_string(moved_home.join("synthetic-child-pid"))
+                .unwrap()
+                .parse()
+                .unwrap();
+            // Signal0 checks only this fixture's recorded child identity.
+            assert_eq!(unsafe { libc::kill(pid, 0) }, -1);
             assert_eq!(
                 std::io::Error::last_os_error().raw_os_error(),
                 Some(libc::ESRCH)
