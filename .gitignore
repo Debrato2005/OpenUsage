@@ -1,0 +1,13 @@
+node_modules/
+dist/
+target/
+.tools/
+.npm-cache/
+playwright-report/
+test-results/
+*.db
+*.db-shm
+*.db-wal
+*.key
+.env
+.env.*
