@@ -195,7 +195,7 @@ fn validate_uuid(value: &str) -> Result<(), ()> {
 }
 
 fn validate_label(value: &str) -> Result<&str, ProfileError> {
-    if value.chars().any(char::is_control) {
+    if value.len() > 1024 || value.chars().any(char::is_control) {
         return Err(ProfileError::InvalidLabel);
     }
     let label = value.trim();
@@ -411,6 +411,23 @@ mod tests {
         assert_eq!(
             created.connection_state,
             ProfileConnectionState::AuthenticationRequired
+        );
+        let padded_boundary = format!("{}A", " ".repeat(1023));
+        assert_eq!(
+            storage
+                .rename_profile(&id(1), &padded_boundary)
+                .unwrap()
+                .label,
+            "A"
+        );
+        let oversized = format!("{}A", " ".repeat(1024));
+        assert_eq!(
+            storage.create_profile(&id(2), &oversized, &id(2)),
+            Err(ProfileError::InvalidLabel)
+        );
+        assert_eq!(
+            storage.rename_profile(&id(1), &oversized),
+            Err(ProfileError::InvalidLabel)
         );
         let boundary = "é".repeat(100);
         assert_eq!(
