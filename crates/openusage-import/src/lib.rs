@@ -125,6 +125,23 @@ impl Header {
     }
 }
 
+/// Return the complete encrypted archive size for a validated manifest, without key derivation or file operations.
+pub fn encoded_size(manifest: &Manifest) -> Result<u64, BackupError> {
+    let manifest_bytes = encode_manifest(manifest)?;
+    Ok(manifest_header(manifest, manifest_bytes.len())?.encoded_size())
+}
+
+fn manifest_header(manifest: &Manifest, manifest_size: usize) -> Result<Header, BackupError> {
+    let mut bytes = [0u8; HEADER_SIZE];
+    bytes[..8].copy_from_slice(MAGIC);
+    bytes[8..12].copy_from_slice(&manifest.schema_version.to_le_bytes());
+    bytes[12..16].copy_from_slice(&(manifest.entries.len() as u32).to_le_bytes());
+    let restored_size = manifest.entries.iter().map(|entry| entry.size).sum::<u64>();
+    bytes[16..24].copy_from_slice(&restored_size.to_le_bytes());
+    bytes[24..28].copy_from_slice(&(manifest_size as u32).to_le_bytes());
+    Header::parse(bytes)
+}
+
 /// The source contains entry bytes in manifest order, without file headers.
 /// The caller must discard partial output after an error and verify the completed archive before publication.
 pub fn encrypt<R: Read, W: Write>(
@@ -135,18 +152,11 @@ pub fn encrypt<R: Read, W: Write>(
     available_space: u64,
 ) -> Result<(), BackupError> {
     let manifest_bytes = encode_manifest(manifest)?;
-    let mut bytes = [0u8; HEADER_SIZE];
-    bytes[..8].copy_from_slice(MAGIC);
-    bytes[8..12].copy_from_slice(&manifest.schema_version.to_le_bytes());
-    bytes[12..16].copy_from_slice(&(manifest.entries.len() as u32).to_le_bytes());
-    let restored_size = manifest.entries.iter().map(|entry| entry.size).sum::<u64>();
-    bytes[16..24].copy_from_slice(&restored_size.to_le_bytes());
-    bytes[24..28].copy_from_slice(&(manifest_bytes.len() as u32).to_le_bytes());
-    getrandom::fill(&mut bytes[28..]).map_err(|_| BackupError::RandomnessUnavailable)?;
-    let header = Header::parse(bytes)?;
+    let mut header = manifest_header(manifest, manifest_bytes.len())?;
     if header.encoded_size() > available_space {
         return Err(BackupError::InsufficientSpace);
     }
+    getrandom::fill(&mut header.bytes[28..]).map_err(|_| BackupError::RandomnessUnavailable)?;
     let key = derive_key(password, &header.bytes[28..44])?;
     let cipher = XChaCha20Poly1305::new_from_slice(key.as_ref())
         .map_err(|_| BackupError::KeyDerivationFailed)?;
@@ -500,6 +510,7 @@ mod tests {
             u64::MAX,
         )
         .unwrap();
+        assert_eq!(encoded_size(&expected).unwrap(), first.len() as u64);
         let mut second = Vec::new();
         encrypt(
             &expected,
@@ -659,6 +670,12 @@ mod tests {
 
     #[test]
     fn authenticated_unsafe_or_inconsistent_manifests_cannot_be_accepted() {
+        let mut unsafe_manifest = manifest(0);
+        unsafe_manifest.entries[0].name = "../records.sqlite".into();
+        assert_eq!(
+            encoded_size(&unsafe_manifest),
+            Err(BackupError::InvalidManifest)
+        );
         let original = encrypted(b"safe synthetic data");
         let header = Header::parse(original[..HEADER_SIZE].try_into().unwrap()).unwrap();
         let key = derive_key(PASSWORD, &header.bytes[28..44]).unwrap();
