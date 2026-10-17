@@ -3,6 +3,8 @@ use std::{fmt, fs, path::Path, time::Duration};
 use zeroize::Zeroizing;
 
 pub mod keywrap;
+mod profiles;
+pub use profiles::{ProfileConnectionState, ProfileEnvironment, ProfileError, ProfileSummary};
 
 const MIGRATIONS: &[&str] = &[include_str!("schema.sql")];
 const MAX_BACKUP_SNAPSHOT_SIZE: u64 = 5 * 1024 * 1024 * 1024;
@@ -382,7 +384,7 @@ mod tests {
 
     const KEY: [u8; 32] = [0x2a; 32];
 
-    fn private_directory() -> tempfile::TempDir {
+    pub(super) fn private_directory() -> tempfile::TempDir {
         let mut builder = tempfile::Builder::new();
         #[cfg(unix)]
         {
