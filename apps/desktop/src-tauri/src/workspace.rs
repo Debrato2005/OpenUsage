@@ -482,7 +482,10 @@ pub fn validate_profile_id(id: &str) -> Result<(), CommandError> {
 }
 
 pub fn validate_profile_label(label: &str) -> Result<(), CommandError> {
-    if label.chars().any(char::is_control) || !(1..=100).contains(&label.trim().chars().count()) {
+    if label.len() > 1024
+        || label.chars().any(char::is_control)
+        || !(1..=100).contains(&label.trim().chars().count())
+    {
         return Err(CommandError::InvalidProfileLabel);
     }
     Ok(())
@@ -977,6 +980,33 @@ mod tests {
                 0o700
             );
         }
+        let padded_boundary = format!("{}A", " ".repeat(1023));
+        assert_eq!(
+            workspace
+                .rename_profile(&id, &padded_boundary)
+                .unwrap()
+                .profiles[0]
+                .label,
+            "A"
+        );
+        let oversized = format!("{}A", " ".repeat(1024));
+        assert_eq!(
+            workspace.create_profile(&oversized),
+            Err(CommandError::InvalidProfileLabel)
+        );
+        assert_eq!(
+            workspace.rename_profile(&id, &oversized),
+            Err(CommandError::InvalidProfileLabel)
+        );
+        let unicode_boundary = "é".repeat(100);
+        assert_eq!(
+            workspace
+                .rename_profile(&id, &unicode_boundary)
+                .unwrap()
+                .profiles[0]
+                .label,
+            unicode_boundary
+        );
         workspace.rename_profile(&id, "Renamed profile").unwrap();
         let second = workspace.create_profile("Second profile").unwrap();
         assert_ne!(second.profiles[0].id, second.profiles[1].id);
