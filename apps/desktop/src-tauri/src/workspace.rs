@@ -1113,4 +1113,97 @@ mod tests {
             Err(CommandError::InvalidProfileLabel)
         );
     }
+
+    #[test]
+    fn native_profile_write_contention_preserves_records_and_cleans_new_home() {
+        use std::{collections::BTreeSet, fmt::Write as _};
+
+        let temporary = tempfile::tempdir().unwrap();
+        let directory = temporary.path().join("workspace");
+        let vault = FakeVault::new(&directory, true);
+        let mut workspace = Workspace::new(directory.clone()).unwrap();
+        workspace.setup(Ok(&vault), None).unwrap();
+        let original = workspace
+            .create_profile("Existing synthetic profile")
+            .unwrap();
+        let parent = directory.join("profiles");
+        let marker = parent
+            .join(&original.profiles[0].id)
+            .join("synthetic-marker");
+        fs::write(&marker, b"preserve this existing synthetic home").unwrap();
+        let homes_before: BTreeSet<_> = fs::read_dir(&parent)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name())
+            .collect();
+
+        let holder = rusqlite::Connection::open_with_flags(
+            &vault.database,
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE | rusqlite::OpenFlags::SQLITE_OPEN_NOFOLLOW,
+        )
+        .unwrap();
+        let key = vault.load().unwrap().unwrap();
+        let mut raw_key = Zeroizing::new(String::with_capacity(67));
+        raw_key.push_str("x'");
+        for byte in key.iter() {
+            write!(&mut *raw_key, "{byte:02x}").unwrap();
+        }
+        raw_key.push('\'');
+        holder.pragma_update(None, "key", raw_key.as_str()).unwrap();
+        drop(raw_key);
+        drop(key);
+        holder.execute_batch("BEGIN IMMEDIATE;").unwrap();
+
+        assert_eq!(
+            workspace.create_profile("Contended synthetic profile"),
+            Err(CommandError::ProfileUnavailable)
+        );
+        assert_eq!(workspace.list_profiles().unwrap(), original);
+        let homes_after: BTreeSet<_> = fs::read_dir(&parent)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name())
+            .collect();
+        assert_eq!(homes_after, homes_before);
+        assert_eq!(
+            fs::read(&marker).unwrap(),
+            b"preserve this existing synthetic home"
+        );
+        assert_eq!(
+            holder
+                .query_row("SELECT count(*) FROM profiles", [], |row| row
+                    .get::<_, u32>(0))
+                .unwrap(),
+            1
+        );
+
+        holder.execute_batch("ROLLBACK;").unwrap();
+        let recovered = workspace
+            .create_profile("Retried synthetic profile")
+            .unwrap();
+        assert_eq!(recovered.active_profiles, 2);
+        assert_eq!(recovered.profiles.len(), 2);
+        assert_eq!(
+            recovered
+                .profiles
+                .iter()
+                .find(|profile| profile.id == original.profiles[0].id),
+            Some(&original.profiles[0])
+        );
+        assert_eq!(fs::read_dir(&parent).unwrap().count(), 2);
+        let new_profile = recovered
+            .profiles
+            .iter()
+            .find(|profile| profile.id != original.profiles[0].id)
+            .unwrap();
+        assert_eq!(
+            fs::read_dir(parent.join(&new_profile.id)).unwrap().count(),
+            0
+        );
+        assert_eq!(
+            holder
+                .query_row("SELECT count(*) FROM profiles", [], |row| row
+                    .get::<_, u32>(0))
+                .unwrap(),
+            2
+        );
+    }
 }
