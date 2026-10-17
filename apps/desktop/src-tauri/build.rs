@@ -12,6 +12,8 @@ fn main() {
             "set_profile_archived",
             "list_backups",
             "inspect_backup",
+            "prepare_restore_preview",
+            "cancel_restore_preview",
         ]),
     ))
     .expect("Failed to build the OpenUsage application manifest");

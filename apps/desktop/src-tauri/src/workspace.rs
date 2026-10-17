@@ -1,4 +1,5 @@
 use crate::keyvault::{KeyVault, VaultError};
+use crate::restore::{self, Cancelled, RestoreCache, RestorePreview};
 use openusage_storage::{
     ProfileConnectionState, ProfileEnvironment, ProfileError, Storage, StorageError, Theme, keywrap,
 };
@@ -64,6 +65,10 @@ pub enum CommandError {
     ProfileCapacityReached,
     ProfileNotFound,
     ProfileUnavailable,
+    UnsupportedBackupContents,
+    InvalidBackupContents,
+    RestoreCheckpointFailed,
+    StaleRestorePreview,
 }
 
 #[derive(Debug, Eq, PartialEq, Serialize)]
@@ -133,10 +138,19 @@ pub struct Workspace {
     _lock: File,
     storage: Option<Storage>,
     protection: KeyProtection,
+    restore_preview: RestoreCache,
 }
 
 impl Workspace {
+    #[cfg(test)]
     pub fn new(directory: PathBuf) -> Result<Self, CommandError> {
+        Self::with_restore_cache(directory, RestoreCache::default())
+    }
+
+    pub fn with_restore_cache(
+        directory: PathBuf,
+        restore_preview: RestoreCache,
+    ) -> Result<Self, CommandError> {
         prepare_directory(&directory)?;
         let lock_path = directory.join(".instance.lock");
         let lock = secure_open(&lock_path, true, false)?;
@@ -149,6 +163,7 @@ impl Workspace {
             _lock: lock,
             storage: None,
             protection: KeyProtection::Unavailable,
+            restore_preview,
         })
     }
 
@@ -328,6 +343,7 @@ impl Workspace {
             .ok_or(CommandError::WorkspaceLocked)?
             .set_theme(theme)
             .map_err(|_| CommandError::StorageUnavailable)?;
+        self.restore_preview.clear();
         Ok(self.ready())
     }
 
@@ -413,6 +429,7 @@ impl Workspace {
             let _ = fs::remove_dir(&home);
             return Err(error);
         }
+        self.restore_preview.clear();
         self.list_profiles()
     }
 
@@ -424,6 +441,7 @@ impl Workspace {
             .ok_or(CommandError::WorkspaceLocked)?
             .rename_profile(id, label)
             .map_err(profile_error)?;
+        self.restore_preview.clear();
         self.list_profiles()
     }
 
@@ -438,12 +456,38 @@ impl Workspace {
             .ok_or(CommandError::WorkspaceLocked)?
             .set_profile_archived(id, archived)
             .map_err(profile_error)?;
+        self.restore_preview.clear();
         self.list_profiles()
     }
 
     pub fn backup_inspection_directory(&self) -> Result<PathBuf, CommandError> {
         self.storage.as_ref().ok_or(CommandError::WorkspaceLocked)?;
         Ok(self.directory.join("backup-inspection"))
+    }
+
+    pub fn prepare_restore_preview(
+        &mut self,
+        source_directory: &Path,
+        file_name: &str,
+        password: Zeroizing<String>,
+    ) -> Result<RestorePreview, CommandError> {
+        self.restore_preview.require_open()?;
+        self.restore_preview.clear();
+        let storage = self.storage.as_mut().ok_or(CommandError::WorkspaceLocked)?;
+        let prepared = restore::prepare(
+            storage,
+            &self.directory,
+            source_directory,
+            file_name,
+            password,
+        )?;
+        self.restore_preview.install(prepared)
+    }
+
+    pub fn cancel_restore_preview(&mut self, id: &str) -> Result<Cancelled, CommandError> {
+        restore::validate_preview_id(id)?;
+        self.storage.as_ref().ok_or(CommandError::WorkspaceLocked)?;
+        self.restore_preview.cancel(id)
     }
 
     fn ready(&self) -> Bootstrap {
@@ -734,6 +778,24 @@ mod tests {
         );
         assert!(!directory.join("backup-inspection").exists());
         assert_eq!(
+            workspace
+                .prepare_restore_preview(
+                    &temporary.path().join("missing-downloads"),
+                    "openusage-backup-0123456789abcdef.oubackup",
+                    Zeroizing::new("synthetic archive password".into()),
+                )
+                .err(),
+            Some(CommandError::WorkspaceLocked)
+        );
+        assert_eq!(
+            workspace
+                .cancel_restore_preview("00000000-0000-4000-8000-000000000001")
+                .err(),
+            Some(CommandError::WorkspaceLocked)
+        );
+        assert!(!directory.join("restore-staging").exists());
+        assert!(!directory.join("restore-checkpoints").exists());
+        assert_eq!(
             workspace.setup(Ok(&vault), None).unwrap().storage,
             StorageState::Ready
         );
@@ -761,6 +823,81 @@ mod tests {
         assert_eq!(ready.active_profiles, Some(0));
         assert_eq!(ready.schema_version, Some(1));
         assert_eq!(ready.monitoring, "stopped");
+    }
+
+    #[test]
+    fn failed_preview_replacement_and_live_mutation_invalidate_cached_confirmation() {
+        let temporary = tempfile::tempdir().unwrap();
+        let directory = temporary.path().join("workspace");
+        let source = temporary.path().join("Downloads/OpenUsage");
+        let vault = FakeVault::new(&directory, true);
+        let mut workspace = Workspace::new(directory.clone()).unwrap();
+        workspace.setup(Ok(&vault), None).unwrap();
+        let profiles = workspace
+            .create_profile("Synthetic current profile")
+            .unwrap();
+        let id = &profiles.profiles[0].id;
+        let archive = crate::backup::create(
+            &source,
+            workspace.backup_snapshot().unwrap(),
+            Zeroizing::new("synthetic restore password".into()),
+        )
+        .unwrap();
+        let preview = workspace
+            .prepare_restore_preview(
+                &source,
+                &archive.file_name,
+                Zeroizing::new("synthetic restore password".into()),
+            )
+            .unwrap();
+        assert_eq!(
+            workspace
+                .prepare_restore_preview(
+                    &source,
+                    "openusage-backup-0000000000000000.oubackup",
+                    Zeroizing::new("synthetic restore password".into()),
+                )
+                .err(),
+            Some(CommandError::BackupNotFound)
+        );
+        assert!(
+            !workspace
+                .cancel_restore_preview(&preview.preview_id)
+                .unwrap()
+                .cancelled
+        );
+        let preview = workspace
+            .prepare_restore_preview(
+                &source,
+                &archive.file_name,
+                Zeroizing::new("synthetic restore password".into()),
+            )
+            .unwrap();
+        workspace
+            .rename_profile(id, "Synthetic changed profile")
+            .unwrap();
+        assert!(
+            !workspace
+                .cancel_restore_preview(&preview.preview_id)
+                .unwrap()
+                .cancelled
+        );
+        assert_eq!(
+            workspace.list_profiles().unwrap().profiles[0].label,
+            "Synthetic changed profile"
+        );
+        assert_eq!(
+            fs::read_dir(directory.join("restore-checkpoints"))
+                .unwrap()
+                .count(),
+            2
+        );
+        assert_eq!(
+            fs::read_dir(directory.join("restore-staging"))
+                .unwrap()
+                .count(),
+            0
+        );
     }
 
     #[test]

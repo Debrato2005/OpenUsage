@@ -17,6 +17,8 @@
     "allow-rename-profile",
     "allow-set-profile-archived",
     "allow-list-backups",
-    "allow-inspect-backup"
+    "allow-inspect-backup",
+    "allow-prepare-restore-preview",
+    "allow-cancel-restore-preview"
   ]
 }

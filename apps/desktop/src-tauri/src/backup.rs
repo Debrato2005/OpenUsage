@@ -186,7 +186,7 @@ pub(crate) fn available_space(directory: &Path) -> Result<u64, CommandError> {
 }
 
 #[cfg(unix)]
-fn publish_noclobber(source: &Path, destination: &Path) -> Result<(), CommandError> {
+pub(crate) fn publish_noclobber(source: &Path, destination: &Path) -> Result<(), CommandError> {
     use std::os::unix::ffi::OsStrExt;
     let source = std::ffi::CString::new(source.as_os_str().as_bytes())
         .map_err(|_| CommandError::BackupUnavailable)?;
@@ -214,7 +214,7 @@ fn publish_noclobber(source: &Path, destination: &Path) -> Result<(), CommandErr
 }
 
 #[cfg(target_os = "windows")]
-fn publish_noclobber(source: &Path, destination: &Path) -> Result<(), CommandError> {
+pub(crate) fn publish_noclobber(source: &Path, destination: &Path) -> Result<(), CommandError> {
     use std::os::windows::ffi::OsStrExt;
     use windows_sys::Win32::Storage::FileSystem::{
         FILE_ATTRIBUTE_NORMAL, MOVEFILE_WRITE_THROUGH, MoveFileExW, SetFileAttributesW,
@@ -243,7 +243,7 @@ fn publish_noclobber(source: &Path, destination: &Path) -> Result<(), CommandErr
     Ok(())
 }
 
-fn sync_directory(directory: &Path) -> Result<(), CommandError> {
+pub(crate) fn sync_directory(directory: &Path) -> Result<(), CommandError> {
     #[cfg(unix)]
     File::open(directory)
         .and_then(|file| file.sync_all())

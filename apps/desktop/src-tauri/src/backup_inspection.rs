@@ -13,7 +13,10 @@ use crate::{
     },
 };
 use openusage_import::{BackupError, VerifiedArchive, prepare_restore};
-use openusage_storage::{BackupValidationError, CURRENT_SCHEMA_VERSION, validate_backup_snapshot};
+use openusage_storage::{
+    BackupValidationError, CURRENT_SCHEMA_VERSION, validate_backup_snapshot,
+    validate_native_restore_snapshot,
+};
 use serde::Serialize;
 use std::{
     fs::{self, File, OpenOptions},
@@ -65,7 +68,7 @@ pub struct BackupInspection {
     pub restore_available: bool,
 }
 
-#[derive(Debug, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ContentSummary {
     pub active_profiles: u32,
@@ -144,6 +147,37 @@ pub fn inspect(
     file_name: &str,
     password: Zeroizing<String>,
 ) -> Result<BackupInspection, CommandError> {
+    Ok(authenticate_retained(
+        directory,
+        staging_directory,
+        file_name,
+        password,
+        0,
+        ContentCheck::Inspect,
+    )?
+    .inspection)
+}
+
+#[derive(Clone, Copy)]
+pub(crate) enum ContentCheck {
+    Inspect,
+    NativeRestore,
+}
+
+/// The archive owns ciphertext staging and its Rust-only key until the caller drops it.
+pub(crate) struct AuthenticatedBackup {
+    pub archive: VerifiedArchive,
+    pub inspection: BackupInspection,
+}
+
+pub(crate) fn authenticate_retained(
+    directory: &Path,
+    staging_directory: &Path,
+    file_name: &str,
+    password: Zeroizing<String>,
+    reserved_space: u64,
+    content_check: ContentCheck,
+) -> Result<AuthenticatedBackup, CommandError> {
     validate_file_name(file_name)?;
     validate_unlock_passphrase(&password)?;
     require_supported_platform()?;
@@ -160,12 +194,15 @@ pub fn inspect(
         return Err(CommandError::InvalidBackup);
     }
     prepare_directory(staging_directory).map_err(|_| CommandError::BackupUnavailable)?;
-    authenticate(
+    authenticate_archive(
         &mut source,
         staging_directory,
         file_name,
         password.as_bytes(),
-        available_space(staging_directory)?,
+        available_space(staging_directory)?
+            .checked_sub(reserved_space)
+            .ok_or(CommandError::InsufficientSpace)?,
+        content_check,
     )
 }
 
@@ -196,6 +233,7 @@ fn open_candidate(directory: &Path, file_name: &str) -> Result<File, CommandErro
     Ok(file)
 }
 
+#[cfg(test)]
 fn authenticate(
     source: &mut File,
     staging_directory: &Path,
@@ -203,13 +241,32 @@ fn authenticate(
     password: &[u8],
     available: u64,
 ) -> Result<BackupInspection, CommandError> {
+    Ok(authenticate_archive(
+        source,
+        staging_directory,
+        file_name,
+        password,
+        available,
+        ContentCheck::Inspect,
+    )?
+    .inspection)
+}
+
+fn authenticate_archive(
+    source: &mut File,
+    staging_directory: &Path,
+    file_name: &str,
+    password: &[u8],
+    available: u64,
+    content_check: ContentCheck,
+) -> Result<AuthenticatedBackup, CommandError> {
     let original_size = source
         .metadata()
         .map_err(|_| CommandError::BackupUnavailable)?
         .len();
     let mut verified = prepare_restore(source, password, staging_directory, available)
         .map_err(inspection_error)?;
-    let (database_validation, content_summary) = inspect_database(&mut verified)?;
+    let (database_validation, content_summary) = inspect_database(&mut verified, content_check)?;
     let manifest = verified.manifest();
     let total = manifest.entries.iter().try_fold(0u64, |total, entry| {
         total
@@ -234,7 +291,6 @@ fn authenticate(
         content_summary,
         restore_available: false,
     };
-    drop(verified);
     require_private_file(source)?;
     if source
         .metadata()
@@ -244,11 +300,15 @@ fn authenticate(
     {
         return Err(CommandError::InvalidBackup);
     }
-    Ok(result)
+    Ok(AuthenticatedBackup {
+        archive: verified,
+        inspection: result,
+    })
 }
 
 fn inspect_database(
     archive: &mut VerifiedArchive,
+    content_check: ContentCheck,
 ) -> Result<(&'static str, Option<ContentSummary>), CommandError> {
     let manifest = archive.manifest();
     if manifest.schema_version != CURRENT_SCHEMA_VERSION
@@ -270,7 +330,13 @@ fn inspect_database(
     if snapshot.bytes.len() != limit {
         return Err(CommandError::InvalidBackup);
     }
-    match validate_backup_snapshot(&snapshot.bytes, schema_version) {
+    let validation = match content_check {
+        ContentCheck::Inspect => validate_backup_snapshot(&snapshot.bytes, schema_version),
+        ContentCheck::NativeRestore => {
+            validate_native_restore_snapshot(&snapshot.bytes, schema_version)
+        }
+    };
+    match validation {
         Ok(summary) => Ok((
             "valid",
             Some(ContentSummary {

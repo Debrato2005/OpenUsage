@@ -3,6 +3,7 @@
 mod backup;
 mod backup_inspection;
 mod keyvault;
+mod restore;
 mod workspace;
 
 use keyvault::OsVault;
@@ -16,7 +17,7 @@ use workspace::{Bootstrap, CommandError, ProfileView, Workspace};
 use zeroize::Zeroizing;
 
 #[derive(Default)]
-struct WorkspaceService(Arc<Mutex<Option<Workspace>>>);
+struct WorkspaceService(Arc<Mutex<Option<Workspace>>>, restore::RestoreCache);
 
 struct Passphrase(Zeroizing<String>);
 
@@ -56,6 +57,12 @@ struct BackupArgs {
 struct InspectBackupArgs {
     file_name: String,
     password: Passphrase,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CancelRestorePreviewArgs {
+    preview_id: String,
 }
 
 #[derive(Deserialize)]
@@ -136,7 +143,10 @@ async fn run_workspace(
                 .app_local_data_dir()
                 .map_err(|_| CommandError::StorageUnavailable)?
                 .join("workspace");
-            match Workspace::new(directory) {
+            match Workspace::with_restore_cache(
+                directory,
+                app.state::<WorkspaceService>().1.clone(),
+            ) {
                 Ok(workspace) => *state = Some(workspace),
                 Err(error) if matches!(operation, Operation::Bootstrap) => {
                     return Ok(Bootstrap::blocked(error));
@@ -381,6 +391,53 @@ async fn inspect_backup(
     .map_err(|_| CommandError::BackupUnavailable)?
 }
 
+#[tauri::command]
+async fn prepare_restore_preview(
+    request: tauri::ipc::Request<'_>,
+    app: AppHandle,
+    service: State<'_, WorkspaceService>,
+) -> Result<restore::RestorePreview, CommandError> {
+    let args: InspectBackupArgs = arguments(&request)?;
+    backup_inspection::validate_file_name(&args.file_name)?;
+    workspace::validate_unlock_passphrase(&args.password.0)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut state = service
+            .lock()
+            .map_err(|_| CommandError::BackupUnavailable)?;
+        let workspace = state.as_mut().ok_or(CommandError::WorkspaceLocked)?;
+        let directory = app
+            .path()
+            .download_dir()
+            .map_err(|_| CommandError::BackupUnavailable)?
+            .join("OpenUsage");
+        workspace.prepare_restore_preview(&directory, &args.file_name, args.password.0)
+    })
+    .await
+    .map_err(|_| CommandError::BackupUnavailable)?
+}
+
+#[tauri::command]
+async fn cancel_restore_preview(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<restore::Cancelled, CommandError> {
+    let args: CancelRestorePreviewArgs = arguments(&request)?;
+    restore::validate_preview_id(&args.preview_id)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut state = service
+            .lock()
+            .map_err(|_| CommandError::BackupUnavailable)?;
+        state
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .cancel_restore_preview(&args.preview_id)
+    })
+    .await
+    .map_err(|_| CommandError::BackupUnavailable)?
+}
+
 fn is_bundled_url(url: &tauri::Url) -> bool {
     url.username().is_empty()
         && url.password().is_none()
@@ -403,7 +460,9 @@ fn main() {
             rename_profile,
             set_profile_archived,
             list_backups,
-            inspect_backup
+            inspect_backup,
+            prepare_restore_preview,
+            cancel_restore_preview
         ])
         .setup(|app| {
             let window = &app.config().app.windows[0];
@@ -413,19 +472,34 @@ fn main() {
                 .build()?;
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("Failed to start OpenUsage");
+        .build(tauri::generate_context!())
+        .expect("Failed to start OpenUsage")
+        .run(|app, event| {
+            if matches!(event, tauri::RunEvent::Exit) {
+                app.state::<WorkspaceService>().1.close();
+            }
+        });
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        ArchiveProfileArgs, BackupArgs, CreateProfileArgs, InspectBackupArgs, ListProfilesArgs,
-        RenameProfileArgs, SetupArgs, ThemeArgs, UnlockArgs, is_bundled_url,
+        ArchiveProfileArgs, BackupArgs, CancelRestorePreviewArgs, CreateProfileArgs,
+        InspectBackupArgs, ListProfilesArgs, RenameProfileArgs, SetupArgs, ThemeArgs, UnlockArgs,
+        is_bundled_url,
     };
 
     #[test]
     fn storage_commands_reject_unexpected_fields_and_incorrect_value_types() {
+        for invalid in [
+            r#"{}"#,
+            r#"{"previewId":null}"#,
+            r#"{"previewId":[]}"#,
+            r#"{"previewId":"synthetic","path":"/external"}"#,
+            r#"{"previewId":"synthetic","apply":true}"#,
+        ] {
+            assert!(serde_json::from_str::<CancelRestorePreviewArgs>(invalid).is_err());
+        }
         assert!(serde_json::from_str::<ListProfilesArgs>(r#"{"home":"/external"}"#).is_err());
         for invalid in [
             r#"{}"#,
