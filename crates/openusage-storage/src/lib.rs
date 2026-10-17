@@ -1,5 +1,5 @@
 use rusqlite::{Connection, OpenFlags, TransactionBehavior};
-use std::{fmt, fs, path::Path, time::Duration};
+use std::{fmt, fs, path::Path, sync::Arc, time::Duration};
 use zeroize::Zeroizing;
 
 mod backup_validation;
@@ -7,10 +7,13 @@ mod checkpoint;
 pub mod keywrap;
 pub use backup_validation::{
     BackupContentSummary, BackupValidationError, validate_backup_snapshot,
+    validate_native_restore_snapshot,
 };
 pub use checkpoint::{CheckpointError, CheckpointMetadata};
 mod profiles;
 pub use profiles::{ProfileConnectionState, ProfileEnvironment, ProfileError, ProfileSummary};
+mod restore_state;
+pub use restore_state::{RestoreState, StorageRevision};
 
 const MIGRATIONS: &[&str] = &[include_str!("schema.sql")];
 pub const CURRENT_SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
@@ -98,6 +101,7 @@ impl std::error::Error for StorageError {}
 
 pub struct Storage {
     connection: Connection,
+    revision_scope: Arc<()>,
 }
 
 impl Storage {
@@ -203,7 +207,10 @@ impl Storage {
             return Err(StorageError::ConfigurationFailed);
         }
         migrate(&mut connection, MIGRATIONS)?;
-        Ok(Self { connection })
+        Ok(Self {
+            connection,
+            revision_scope: Arc::new(()),
+        })
     }
 
     pub fn metadata(&self) -> Result<StorageMetadata, StorageError> {

@@ -48,6 +48,23 @@ pub fn validate_backup_snapshot(
     bytes: &[u8],
     manifest_schema_version: u32,
 ) -> Result<BackupContentSummary> {
+    validate_snapshot(bytes, manifest_schema_version, false)
+}
+
+/// Apply the same content checks, then require native profiles for the current restore capability.
+/// WSL records remain valid for inspection but need a separate approval flow before restore.
+pub fn validate_native_restore_snapshot(
+    bytes: &[u8],
+    manifest_schema_version: u32,
+) -> Result<BackupContentSummary> {
+    validate_snapshot(bytes, manifest_schema_version, true)
+}
+
+fn validate_snapshot(
+    bytes: &[u8],
+    manifest_schema_version: u32,
+    native_only: bool,
+) -> Result<BackupContentSummary> {
     if manifest_schema_version != CURRENT_SCHEMA_VERSION {
         return Err(BackupValidationError::UnsupportedSchema);
     }
@@ -90,8 +107,22 @@ pub fn validate_backup_snapshot(
             BackupValidationError::InvalidDatabase
         });
     }
-    let checked = validate_connection(&connection, manifest_schema_version);
-    // Every statement is local to validate_connection and has finished before this explicit close.
+    let checked = validate_connection(&connection, manifest_schema_version).and_then(|summary| {
+        if native_only {
+            let has_other_environment: bool = connection
+                .query_row(
+                    "SELECT EXISTS(SELECT 1 FROM profiles WHERE environment != 'native')",
+                    [],
+                    |row| row.get(0),
+                )
+                .map_err(sql_error)?;
+            if has_other_environment {
+                return Err(BackupValidationError::UnsupportedContent);
+            }
+        }
+        Ok(summary)
+    });
+    // All validation statements have finished before this explicit close.
     connection
         .close()
         .map_err(|_| BackupValidationError::Unavailable)?;
@@ -566,6 +597,10 @@ mod tests {
                 accounts: 1
             }
         );
+        assert_eq!(
+            validate_native_restore_snapshot(&snapshot.bytes, snapshot.schema_version),
+            validate_backup_snapshot(&snapshot.bytes, snapshot.schema_version)
+        );
         assert_eq!(*snapshot.bytes, *original);
         let mut after: Vec<_> = std::fs::read_dir(temporary.path())
             .unwrap()
@@ -579,6 +614,37 @@ mod tests {
             .collect();
         after.sort_by(|left, right| left.0.cmp(&right.0));
         assert_eq!(after, before);
+    }
+
+    #[test]
+    fn wsl_profiles_are_inspectable_but_require_a_future_restore_approval_flow() {
+        let connection = fixture();
+        add_profile(&connection, 1);
+        connection
+            .execute_batch("UPDATE profiles SET environment='wsl',archived=1")
+            .unwrap();
+        let bytes = image(&connection);
+        let original = bytes.clone();
+        assert_eq!(
+            validate_backup_snapshot(&bytes, CURRENT_SCHEMA_VERSION).unwrap(),
+            BackupContentSummary {
+                active_profiles: 0,
+                archived_profiles: 1,
+                accounts: 0,
+            }
+        );
+        assert_eq!(
+            validate_native_restore_snapshot(&bytes, CURRENT_SCHEMA_VERSION),
+            Err(BackupValidationError::UnsupportedContent)
+        );
+        assert_eq!(*bytes, *original);
+        connection
+            .execute_batch("UPDATE profiles SET approved_home_reference='../unsafe'")
+            .unwrap();
+        assert_eq!(
+            validate_native_restore_snapshot(&image(&connection), CURRENT_SCHEMA_VERSION),
+            Err(BackupValidationError::InvalidDatabase)
+        );
     }
 
     #[test]
