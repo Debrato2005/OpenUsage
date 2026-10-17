@@ -144,8 +144,17 @@ export function BackupInspection({ busy, setBusy }: Props) {
         <dt>Schema version</dt><dd>{receipt.manifestSchemaVersion}</dd>
         <dt>Files</dt><dd>{receipt.entryCount}</dd>
         <dt>Total size</dt><dd>{receipt.totalBytes} bytes</dd>
+        {receipt.contentSummary && <>
+          <dt>Active profiles</dt><dd>{receipt.contentSummary.activeProfiles}</dd>
+          <dt>Archived profiles</dt><dd>{receipt.contentSummary.archivedProfiles}</dd>
+          <dt>Accounts</dt><dd>{receipt.contentSummary.accounts}</dd>
+        </>}
       </dl>
-      <p>Database contents have not been checked. Restore is not available.</p>
+      <p className={`backup-content-status${receipt.databaseValidation === 'invalid' ? ' operation-error' : ''}`}>
+        {receipt.databaseValidation === 'valid' ? 'Database checks passed. Restore is not available.'
+          : receipt.databaseValidation === 'unsupported' ? 'This version cannot check the database contents in this archive. Restore is not available.'
+          : 'Database checks failed. Keep the backup file; restore is not available.'}
+      </p>
     </div>}
   </div>;
 }

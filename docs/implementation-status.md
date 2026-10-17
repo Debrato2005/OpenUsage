@@ -1,6 +1,6 @@
 # Implementation status
 
-Updated: October 18, 2026. The mission remains ongoing. Current milestone: authenticated backup inspection verified on Linux. Next slice: native provider supervision and restore content validation.
+Updated: October 18, 2026. The mission remains ongoing. Current milestone: native backup content checks verified on Linux. Next slice: encrypted checkpoints and native provider supervision.
 
 ## Implemented and executed
 
@@ -18,18 +18,21 @@ Profile creation, renaming, archiving, and restoration now use Rust commands and
 
 `NATIVE-BACKUP-INSPECTION-001` passed through the actual Tauri UI. Rust lists bounded candidates from the managed backup folder and authenticates the entire selected archive before returning metadata. Wrong passwords, tampering, truncation, trailing bytes, symlinks, hardlinks, and unsafe file modes were rejected. Inspection preserved workspace and source hashes and left no staging files. The receipt explicitly leaves database contents unchecked and restore unavailable. Six native screenshots cover errors, successful inspection, and both narrow themes. See `evidence/native-backup-inspection/`.
 
+That earlier inspection milestone now has content validation. `NATIVE-BACKUP-CONTENT-001` passed on the rebuilt application. A GUI export of three profiles, including one archived profile, returned the expected counts after validation. Authenticated non-database bytes and broken foreign keys showed failed database checks; future manifest and database versions showed unsupported contents. Metadata remained visible, with no record counts for either warning state. Nine native captures show the resulting views. Workspace and archive hashes stayed unchanged. See `evidence/native-backup-content/` and the [content review](reviews/2026-10-18-backup-content-validation.md).
+
 ## Verification
 
 | Check | Executed result |
 |---|---|
-| `npm run check` | Passed: build/type check, 9 contract checks, 12 renderer checks |
-| `cargo test --workspace --offline --locked` | Passed: 44 Rust tests, including 18 native service checks. |
+| `npm run check` | Passed: build/type check, 10 contract checks, 12 renderer checks |
+| `cargo test --workspace --offline --locked` | Passed: 48 Rust tests, including 19 native service checks. |
 | `cargo clippy --workspace --all-targets --offline --locked -- -D warnings` | Passed |
 | Native startup | Passed with the production credential namespace and no key-store service in its private fixture |
 | Native persistence | Passed again on the backup binary with a real private Secret Service |
 | Native backup export | Passed again on the refined UI, with archive authentication and no plaintext disk staging |
 | Native profiles | GUI lifecycle, ten-active limit, Unicode clipboard input, restart, private homes, and failure preservation passed on Linux |
 | Native backup inspection | Full archive authentication, private source checks, failure preservation, narrow themes, and password/error focus passed on Linux |
+| Native backup content | Valid counts, invalid records, unsupported versions, retained metadata, private staging, and source preservation passed on Linux |
 | Native design | 46 captures passed font, overflow, keyboard focus, and field-error checks. Text scaling uses test-side CSS, not OS zoom. |
 | Windows, macOS, live provider, release performance | Not run |
 
@@ -47,6 +50,6 @@ SQLCipher 4 with WAL remains mandatory. The [SQLite proposal](proposals/sqlite-w
 
 The isolated probe also passed transport and cleanup-failure checks. Its real-process receipt matches the integrated source in `crates/openusage-codex/tests/evidence/real-isolated-probe.json`. Windows is unsupported by this probe. macOS and native application supervision remain untested.
 
-Next: advance native provider supervision and validate authenticated database contents before implementing checkpoints and restore preview. Archive inspection does not establish restore preview or database content validity. Restore and full acceptance remain open. Large-history backup memory use needs separate qualification.
+Next: add encrypted checkpoints, then advance restore preview and native provider supervision. Current-schema content checks run only in isolated memory and do not approve or apply a restore. Other timezone/locale settings remain unsupported until their writers and validators are implemented. Restore and full acceptance remain open. Large-history backup memory use needs separate qualification.
 
 Local commits live in `/tmp/openusage-native-acceptance-01a14ad0`, branch `codex/native-bootstrap`. Primary Git metadata is read-only in this executor. Verified source is copied back to the primary worktree after each milestone. No existing Codex credential homes were inspected. No remote writes occurred.

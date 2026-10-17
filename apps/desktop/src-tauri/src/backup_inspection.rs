@@ -1,5 +1,5 @@
-//! Inspect archive metadata after complete authentication. This operation does not validate
-//! database contents, create a restore checkpoint, or restore records. It does not complete AT-32.
+//! Inspect archive metadata and supported database contents after complete authentication.
+//! This operation creates no restore checkpoint and restores no records. It does not complete AT-32.
 //! Only current export filenames in the managed Downloads folder are selectable.
 //! Renamed and imported archives are outside this slice.
 //! The list returns at most 100 candidates and scans at most 1024 entries.
@@ -12,11 +12,12 @@ use crate::{
         CommandError, existing_private_directory, prepare_directory, validate_unlock_passphrase,
     },
 };
-use openusage_import::{BackupError, prepare_restore};
+use openusage_import::{BackupError, VerifiedArchive, prepare_restore};
+use openusage_storage::{BackupValidationError, CURRENT_SCHEMA_VERSION, validate_backup_snapshot};
 use serde::Serialize;
 use std::{
     fs::{self, File, OpenOptions},
-    io,
+    io::{self, Write},
     path::Path,
 };
 use zeroize::Zeroizing;
@@ -60,7 +61,16 @@ pub struct BackupInspection {
     pub total_bytes: String,
     pub entries: Vec<InspectedEntry>,
     pub database_validation: &'static str,
+    pub content_summary: Option<ContentSummary>,
     pub restore_available: bool,
+}
+
+#[derive(Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ContentSummary {
+    pub active_profiles: u32,
+    pub archived_profiles: String,
+    pub accounts: String,
 }
 
 pub fn validate_file_name(name: &str) -> Result<(), CommandError> {
@@ -197,8 +207,9 @@ fn authenticate(
         .metadata()
         .map_err(|_| CommandError::BackupUnavailable)?
         .len();
-    let verified = prepare_restore(source, password, staging_directory, available)
+    let mut verified = prepare_restore(source, password, staging_directory, available)
         .map_err(inspection_error)?;
+    let (database_validation, content_summary) = inspect_database(&mut verified)?;
     let manifest = verified.manifest();
     let total = manifest.entries.iter().try_fold(0u64, |total, entry| {
         total
@@ -219,7 +230,8 @@ fn authenticate(
                 bytes: entry.size.to_string(),
             })
             .collect(),
-        database_validation: "not_checked",
+        database_validation,
+        content_summary,
         restore_available: false,
     };
     drop(verified);
@@ -233,6 +245,72 @@ fn authenticate(
         return Err(CommandError::InvalidBackup);
     }
     Ok(result)
+}
+
+fn inspect_database(
+    archive: &mut VerifiedArchive,
+) -> Result<(&'static str, Option<ContentSummary>), CommandError> {
+    let manifest = archive.manifest();
+    if manifest.schema_version != CURRENT_SCHEMA_VERSION
+        || manifest.entries.len() != 1
+        || manifest.entries[0].name != "records.sqlite"
+    {
+        return Ok(("unsupported", None));
+    }
+    let schema_version = manifest.schema_version;
+    let limit =
+        usize::try_from(manifest.entries[0].size).map_err(|_| CommandError::BackupUnavailable)?;
+    let mut snapshot = SnapshotBuffer {
+        bytes: Zeroizing::new(Vec::new()),
+        limit,
+    };
+    archive
+        .copy_payload(&mut snapshot)
+        .map_err(inspection_error)?;
+    if snapshot.bytes.len() != limit {
+        return Err(CommandError::InvalidBackup);
+    }
+    match validate_backup_snapshot(&snapshot.bytes, schema_version) {
+        Ok(summary) => Ok((
+            "valid",
+            Some(ContentSummary {
+                active_profiles: summary.active_profiles,
+                archived_profiles: summary.archived_profiles.to_string(),
+                accounts: summary.accounts.to_string(),
+            }),
+        )),
+        Err(
+            BackupValidationError::UnsupportedSchema | BackupValidationError::UnsupportedContent,
+        ) => Ok(("unsupported", None)),
+        Err(BackupValidationError::InvalidDatabase) => Ok(("invalid", None)),
+        Err(BackupValidationError::Unavailable) => Err(CommandError::BackupUnavailable),
+    }
+}
+
+struct SnapshotBuffer {
+    bytes: Zeroizing<Vec<u8>>,
+    limit: usize,
+}
+
+impl Write for SnapshotBuffer {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        let length = self
+            .bytes
+            .len()
+            .checked_add(bytes.len())
+            .filter(|length| *length <= self.limit)
+            .ok_or_else(|| io::Error::other("The snapshot exceeds its authenticated size."))?;
+        let additional = length - self.bytes.len();
+        self.bytes
+            .try_reserve_exact(additional)
+            .map_err(|_| io::Error::other("The snapshot memory is unavailable."))?;
+        self.bytes.extend_from_slice(bytes);
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
 }
 
 fn inspection_error(error: BackupError) -> CommandError {
@@ -306,6 +384,23 @@ mod tests {
     }
 
     #[test]
+    fn validation_buffer_refuses_bytes_outside_the_authenticated_size() {
+        let mut buffer = SnapshotBuffer {
+            bytes: Zeroizing::new(Vec::new()),
+            limit: 4,
+        };
+        buffer.write_all(b"safe").unwrap();
+        assert!(buffer.write_all(b"extra").is_err());
+        assert_eq!(buffer.bytes.as_slice(), b"safe");
+        let mut empty = SnapshotBuffer {
+            bytes: Zeroizing::new(Vec::new()),
+            limit: 0,
+        };
+        assert!(empty.write_all(b"x").is_err());
+        assert!(empty.bytes.is_empty());
+    }
+
+    #[test]
     fn complete_authentication_returns_manifest_without_claiming_database_validity() {
         let fixture = fixture();
         let source = fixture.directory.join(FILE_NAME);
@@ -331,10 +426,11 @@ mod tests {
         assert_eq!(inspection.entry_count, 1);
         assert_eq!(inspection.entries[0].name, "records.sqlite");
         assert_eq!(inspection.total_bytes, inspection.entries[0].bytes);
-        assert_eq!(inspection.database_validation, "not_checked");
+        assert_eq!(inspection.database_validation, "unsupported");
+        assert_eq!(inspection.content_summary, None);
         assert!(!inspection.restore_available);
         let response = serde_json::to_value(inspection).unwrap();
-        assert_eq!(response.as_object().unwrap().len(), 8);
+        assert_eq!(response.as_object().unwrap().len(), 9);
         assert!(
             !response
                 .to_string()

@@ -43,7 +43,8 @@ export interface BackupInspectionResult {
   entryCount: number;
   totalBytes: string;
   entries: { name: string; bytes: string }[];
-  databaseValidation: 'not_checked';
+  databaseValidation: 'valid' | 'invalid' | 'unsupported';
+  contentSummary: { activeProfiles: number; archivedProfiles: string; accounts: string } | null;
   restoreAvailable: false;
 }
 
@@ -162,12 +163,21 @@ function isBackupList(value: unknown): value is BackupList {
 function isBackupInspection(value: unknown): value is BackupInspectionResult {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   const v = value as Record<string, unknown>;
-  if (Object.keys(v).some(key => !['fileName', 'archiveVersion', 'manifestSchemaVersion', 'entryCount', 'totalBytes', 'entries', 'databaseValidation', 'restoreAvailable'].includes(key))
+  if (Object.keys(v).some(key => !['fileName', 'archiveVersion', 'manifestSchemaVersion', 'entryCount', 'totalBytes', 'entries', 'databaseValidation', 'contentSummary', 'restoreAvailable'].includes(key))
     || !isArchiveFileName(v.fileName) || v.archiveVersion !== 1
     || !Number.isSafeInteger(v.manifestSchemaVersion) || Number(v.manifestSchemaVersion) < 1 || Number(v.manifestSchemaVersion) > 4294967295
     || !Number.isSafeInteger(v.entryCount) || Number(v.entryCount) < 1 || Number(v.entryCount) > 10000
     || !isByteCount(v.totalBytes) || !Array.isArray(v.entries) || v.entries.length !== v.entryCount
-    || v.databaseValidation !== 'not_checked' || v.restoreAvailable !== false) return false;
+    || !['valid', 'invalid', 'unsupported'].some(state => state === v.databaseValidation)
+    || v.restoreAvailable !== false) return false;
+  if (v.databaseValidation === 'valid') {
+    if (typeof v.contentSummary !== 'object' || v.contentSummary === null || Array.isArray(v.contentSummary)) return false;
+    const summary = v.contentSummary as Record<string, unknown>;
+    if (Object.keys(summary).some(key => !['activeProfiles', 'archivedProfiles', 'accounts'].includes(key))
+      || !Number.isSafeInteger(summary.activeProfiles) || Number(summary.activeProfiles) < 0 || Number(summary.activeProfiles) > 10
+      || typeof summary.archivedProfiles !== 'string' || !/^(0|[1-9]\d{0,19})$/.test(summary.archivedProfiles)
+      || typeof summary.accounts !== 'string' || !/^(0|[1-9]\d{0,19})$/.test(summary.accounts)) return false;
+  } else if (v.contentSummary !== null) return false;
   const names = new Set<string>();
   for (const value of v.entries) {
     if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;

@@ -205,7 +205,8 @@ impl VerifiedArchive {
         &self.manifest
     }
 
-    /// Copy entries in manifest order to a staging destination after preview approval.
+    /// Copy entries in manifest order for validation in memory or approved restore staging.
+    /// The caller must keep unvalidated contents away from live records and filesystem paths.
     /// This method does not replace a live database or create archive paths.
     pub fn copy_payload<W: Write>(&mut self, destination: &mut W) -> Result<u64, BackupError> {
         self.encrypted

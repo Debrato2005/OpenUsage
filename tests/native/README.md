@@ -151,14 +151,19 @@ This test does not establish provider collection, remote history, or other-platf
 
 Run `node tests/native/backup-inspection.mjs` with the same private display, driver, binary, and source settings.
 This test uses passphrase fallback and starts no Secret Service.
+Build the standalone package above first, then set `OPENUSAGE_BACKUP_FIXTURE_GENERATOR` to its `target/debug/openusage-native-backup-fixtures` binary.
 
-`NATIVE-BACKUP-INSPECTION-001` checks the empty catalog, native export, wrong password, authenticated metadata, and recovery after a malformed archive.
+`NATIVE-BACKUP-CONTENT-001` extends the archive checks in `NATIVE-BACKUP-INSPECTION-001`.
+It creates three profiles through the GUI, archives one, exports a backup, and checks two active profiles, one archived profile, and no account records.
+It checks the empty catalog, wrong password, authenticated metadata, and recovery after a malformed archive.
 The GUI checks cleared passwords, error association, focus, and both themes at 360 pixels.
 It checks focus after pointer and keyboard appearance saves.
 Direct IPC checks malformed requests, tampering, truncation, trailing bytes, symlinks, hardlinks, and unsafe file modes.
 The test checks that inspection preserves the source archive and encrypted workspace, then removes all temporary fixtures.
 The evidence directory keeps the encrypted archive and native images.
 
-Archive authentication stops before database checks.
-The receipt must say that database contents remain unchecked and restore is unavailable.
+The fixture generator authenticates the exported snapshot and changes records only in memory.
+It writes encrypted fixtures for non-SQLite content, a future manifest, a future database schema, and a broken account relation.
+Invalid or unsupported contents must retain authenticated archive metadata, show a useful warning, and omit record counts.
+The receipt must state that restore is unavailable for every result.
 This test does not establish restore or other-platform acceptance.

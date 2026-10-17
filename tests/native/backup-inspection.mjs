@@ -11,13 +11,14 @@ import { NativeDriver, waitFor } from './webdriver.mjs';
 const harness = dirname(fileURLToPath(import.meta.url));
 const repository = resolve(process.env.OPENUSAGE_NATIVE_SOURCE_ROOT ?? join(harness, '../..'));
 const application = resolve(process.env.OPENUSAGE_NATIVE_BINARY ?? join(repository, 'target/debug/openusage-desktop'));
+const generator = resolve(process.env.OPENUSAGE_BACKUP_FIXTURE_GENERATOR ?? join(harness, 'backup-verifier/target/debug/openusage-native-backup-fixtures'));
 const output = resolve(process.env.OPENUSAGE_NATIVE_EVIDENCE ?? join(tmpdir(), `openusage-backup-inspection-evidence-${randomUUID()}`));
 const password = 'OpenUsage synthetic inspection password 2026';
 const passphrase = 'OpenUsage synthetic inspection workspace 2026';
 const missingName = 'openusage-backup-0000000000000000.oubackup';
 const evidence = {
-  requirement: 'NATIVE-BACKUP-INSPECTION-001', startedAt: new Date().toISOString(), result: 'failed',
-  scope: 'Actual native archive listing and authentication from an exported synthetic workspace. GUI wrong-password and successful inspection; direct production IPC fault checks. Database records remain not checked. No restore, provider login, or cross-platform acceptance.',
+  requirement: 'NATIVE-BACKUP-CONTENT-001', startedAt: new Date().toISOString(), result: 'failed',
+  scope: 'Actual native archive authentication and read-only content checks from a GUI-exported synthetic workspace. GUI profiles, wrong-password handling, valid counts, and authenticated invalid/unsupported fixtures. Direct production IPC fault checks. No restore, provider login, or cross-platform acceptance.',
   platform: { os: platform(), release: release(), architecture: arch() }, steps: [], screenshots: [],
 };
 const hash = async path => createHash('sha256').update(await readFile(path)).digest('hex');
@@ -54,6 +55,21 @@ async function workspaceHashes() {
 }
 
 const newName = () => `openusage-backup-${randomUUID().replaceAll('-', '').slice(0, 16)}.oubackup`;
+
+async function inspectGui(fileName, status) {
+  await driver.click(`#backup-file option[value="${fileName}"]`);
+  await driver.type('#backup-inspection-password', password);
+  await driver.click('.backup-inspection-form button[type="submit"]');
+  await waitFor(async () => Boolean(await driver.execute('return document.querySelector(".backup-inspection-receipt")?.textContent.includes(arguments[0]);', [fileName])), 'native authenticated content receipt', 30000);
+  await waitFor(async () => Boolean(await driver.execute('return document.activeElement?.matches(".backup-inspection-receipt");')), 'focus after content inspection');
+  const view = await driver.execute('const receipt=document.querySelector(".backup-inspection-receipt"),password=document.querySelector("#backup-inspection-password");return {text:receipt.textContent,status:receipt.querySelector(".backup-content-status")?.textContent,metadata:Object.fromEntries([...receipt.querySelectorAll("dt")].map(node=>[node.textContent,node.nextElementSibling?.textContent])),password:password.value,passwordInvalid:password.getAttribute("aria-invalid")};');
+  assert.match(view.text, /archive authenticated/i);
+  assert.equal(view.status, status);
+  assert.equal(view.metadata.File, fileName);
+  assert.equal(view.password, '');
+  assert.notEqual(view.passwordInvalid, 'true');
+  return view;
+}
 
 async function setTheme(theme, mode = 'pointer') {
   if ((await driver.execute('return document.querySelector("#theme").value;')) === theme) return;
@@ -99,12 +115,13 @@ process.once('exit', () => { driver?.kill('SIGKILL'); stopGroup(fixture?.bus, 'S
 try {
   assert.equal(platform(), 'linux');
   evidence.application = { path: application, sha256: await hash(application), commit: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repository, encoding: 'utf8' }).trim() };
+  evidence.fixtureGenerator = { path: generator, sha256: await hash(generator) };
   evidence.sourceDirtyPaths = execFileSync('git', ['status', '--porcelain'], { cwd: repository, encoding: 'utf8' }).trim().split('\n').filter(Boolean);
   evidence.sourceHashes = {};
   const sources = execFileSync('rg', ['--files', 'apps/desktop/src', 'apps/desktop/src-tauri/src', 'crates/openusage-storage/src', 'crates/openusage-import/src'], { cwd: repository, encoding: 'utf8' }).trim().split('\n');
-  for (const path of [...sources, 'Cargo.lock', 'apps/desktop/src-tauri/Cargo.toml', 'apps/desktop/src-tauri/build.rs', 'apps/desktop/src-tauri/capabilities/main-window.json']) evidence.sourceHashes[path] = await hash(join(repository, path));
+  for (const path of [...sources, 'Cargo.toml', 'Cargo.lock', 'crates/openusage-storage/Cargo.toml', 'crates/openusage-import/Cargo.toml', 'apps/desktop/src-tauri/Cargo.toml', 'apps/desktop/src-tauri/tauri.conf.json', 'apps/desktop/src-tauri/build.rs', 'apps/desktop/src-tauri/capabilities/main-window.json']) evidence.sourceHashes[path] = await hash(join(repository, path));
   evidence.harnessHashes = {};
-  for (const path of ['backup-inspection.mjs', 'private-fixture.mjs', 'webdriver.mjs']) evidence.harnessHashes[path] = await hash(join(harness, path));
+  for (const path of ['backup-inspection.mjs', 'private-fixture.mjs', 'webdriver.mjs', 'backup-verifier/Cargo.toml', 'backup-verifier/Cargo.lock', 'backup-verifier/src/bin/openusage-native-backup-fixtures.rs']) evidence.harnessHashes[path] = await hash(join(harness, path));
   fixture = await createFixture('backup-inspection');
   driver = new NativeDriver(application, fixture.environment, join(output, 'driver.log'));
   await driver.start();
@@ -125,6 +142,22 @@ try {
   await rejected('inspect_backup', { fileName: missingName, password: 'é'.repeat(600) }, 'passphrase_too_long');
   assert.deepEqual(await readdir(fixture.dirs.downloads), [], 'Listing or inspecting a missing archive must not create Downloads/OpenUsage.');
   evidence.steps.push({ lockedAndMalformedCommandsRejected: true, missingCatalogDoesNotCreateDirectory: true, singleCharacterPasswordReachesMissingFileCheck: true });
+
+  for (const [index, label] of ['Content synthetic active one', 'Content synthetic active two', 'Content synthetic archived'].entries()) {
+    await driver.type('#profile-label', label);
+    await driver.click('.profile-create-form button[type="submit"]');
+    await waitFor(async () => (await driver.invoke('list_profiles')).value?.profiles.length === index + 1, 'GUI-created backup fixture profile');
+    await waitFor(async () => (await driver.execute('const input=document.querySelector("#profile-label");return !input.disabled&&input.value==="";')) === true, 'profile creation form ready');
+  }
+  const profiles = (await driver.invoke('list_profiles')).value;
+  assert.equal(profiles.activeProfiles, 3);
+  const archived = profiles.profiles.find(profile => profile.label === 'Content synthetic archived');
+  assert.ok(archived);
+  await driver.click(`[data-profile-id="${archived.id}"] [data-profile-action="archive"]`);
+  await waitFor(async () => (await driver.invoke('list_profiles')).value?.activeProfiles === 2, 'GUI-archived backup fixture profile');
+  await waitFor(async () => (await driver.execute('return !document.querySelector("#theme").disabled;')) === true, 'archive save completed');
+  evidence.expectedContentSummary = { activeProfiles: 2, archivedProfiles: '1', accounts: '0' };
+  evidence.steps.push({ contentFixtureProfilesCreatedThroughGui: 3, archivedThroughGui: 1, noProviderLogin: true });
 
   await setTheme('dark');
   await clickButton('Inspect a backup');
@@ -176,12 +209,13 @@ try {
   const inspected = await driver.invoke('inspect_backup', { fileName, password });
   assert.equal(inspected.ok, true);
   const metadata = inspected.value;
-  assert.deepEqual(Object.keys(metadata).sort(), ['archiveVersion', 'databaseValidation', 'entries', 'entryCount', 'fileName', 'manifestSchemaVersion', 'restoreAvailable', 'totalBytes']);
+  assert.deepEqual(Object.keys(metadata).sort(), ['archiveVersion', 'contentSummary', 'databaseValidation', 'entries', 'entryCount', 'fileName', 'manifestSchemaVersion', 'restoreAvailable', 'totalBytes']);
   assert.equal(metadata.fileName, fileName);
   assert.equal(metadata.archiveVersion, 1);
   assert.equal(metadata.manifestSchemaVersion, 1);
   assert.equal(metadata.entryCount, 1);
-  assert.equal(metadata.databaseValidation, 'not_checked');
+  assert.equal(metadata.databaseValidation, 'valid');
+  assert.deepEqual(metadata.contentSummary, evidence.expectedContentSummary);
   assert.equal(metadata.restoreAvailable, false);
   assert.deepEqual(metadata.entries.map(entry => Object.keys(entry).sort()), [['bytes', 'name']]);
   assert.equal(metadata.entries[0].name, 'records.sqlite');
@@ -190,10 +224,12 @@ try {
   const receipt = await driver.execute('return document.querySelector(".backup-inspection-receipt").textContent;');
   assert.ok(receipt.includes(fileName));
   assert.match(receipt, /archive authenticated/i);
-  assert.match(receipt, /not (?:been )?checked/i);
+  assert.match(receipt, /database checks passed/i);
   assert.match(receipt, /restore.*not available/i);
   assert.equal(await driver.execute('return [...document.querySelectorAll("#backup-inspection button, #backup-inspection a")].some(node=>/restore|replace/i.test(node.textContent));'), false);
   assert.equal(await driver.execute('return document.querySelector("#backup-inspection-password")?.value??"";'), '');
+  const counts = await driver.execute('return Object.fromEntries([...document.querySelectorAll(".backup-inspection-metadata dt")].map(node=>[node.textContent,node.nextElementSibling?.textContent]));');
+  assert.deepEqual([counts['Active profiles'], counts['Archived profiles'], counts.Accounts], ['2', '1', '0']);
   evidence.inspection = metadata;
   evidence.wrongPasswordView = failedView;
   await driver.execute('document.querySelector(".backup-inspection-receipt").scrollIntoView({block:"center"});return true;');
@@ -207,6 +243,44 @@ try {
   await waitFor(async () => Boolean(await driver.execute('return document.querySelector("#backup-inspection-password");')), 'inspection form after disclosure switch');
   assert.equal(await driver.execute('return document.querySelector("#backup-inspection-password").value;'), '');
   evidence.steps.push({ backupDisclosureSwitchClearsPassword: true, inspectionOffersNoRestoreAction: true });
+
+  const generatorStaging = join(fixture.root, 'fixture-generator-staging');
+  await mkdir(generatorStaging, { mode: 0o700 });
+  const generated = JSON.parse(execFileSync(generator, [archive, generatorStaging, directory], { input: password, encoding: 'utf8', env: fixture.environment, cwd: fixture.root, timeout: 60000, maxBuffer: 1024 * 1024 }));
+  assert.equal(generated.authenticatedFixtures, 4);
+  assert.equal(generated.plaintextDiskStaging, false);
+  assert.equal(generated.files.length, 4);
+  assert.deepEqual(await readdir(generatorStaging), []);
+  evidence.contentFixtures = [];
+  for (const [fixtureName, state, schema, screenshot] of [
+    ['openusage-backup-FixtureNonSqlite.oubackup', 'invalid', 1, 'inspection-invalid-database-dark.png'],
+    ['openusage-backup-FixtureManifest2.oubackup', 'unsupported', 77, 'inspection-unsupported-manifest-dark.png'],
+    ['openusage-backup-FixtureFutureDB1.oubackup', 'unsupported', 1, null],
+    ['openusage-backup-FixtureBadRows01.oubackup', 'invalid', 1, 'inspection-invalid-relation-dark.png'],
+  ]) {
+    assert.ok(generated.files.includes(fixtureName));
+    const path = join(directory, fixtureName);
+    assert.equal((await lstat(path)).mode & 0o777, 0o600);
+    const digest = await hash(path);
+    const result = await driver.invoke('inspect_backup', { fileName: fixtureName, password });
+    assert.equal(result.ok, true);
+    assert.equal(result.value.fileName, fixtureName);
+    assert.equal(result.value.manifestSchemaVersion, schema);
+    assert.equal(result.value.databaseValidation, state);
+    assert.equal(result.value.contentSummary, null);
+    assert.equal(result.value.restoreAvailable, false);
+    await clickButton('Refresh backups');
+    await waitFor(async () => Boolean(await driver.execute('const select=document.querySelector("#backup-file");return select&&!select.disabled&&[...select.options].some(node=>node.value===arguments[0]);', [fixtureName])), 'authenticated synthetic content fixture listed and ready');
+    const view = await inspectGui(fixtureName, state === 'invalid' ? 'Database checks failed. Keep the backup file; restore is not available.' : 'This version cannot check the database contents in this archive. Restore is not available.');
+    assert.equal(view.metadata['Schema version'], String(schema));
+    assert.deepEqual([view.metadata['Archive version'], view.metadata.Files, view.metadata['Total size']], ['1', '1', `${result.value.totalBytes} bytes`]);
+    for (const field of ['Active profiles', 'Archived profiles', 'Accounts']) assert.equal(Object.hasOwn(view.metadata, field), false);
+    assert.equal(await hash(path), digest);
+    if (screenshot) await captureReceipt(screenshot, 'dark', 360, 800);
+    await copyFile(path, join(output, fixtureName));
+    await chmod(join(output, fixtureName), 0o600);
+    evidence.contentFixtures.push({ fileName: fixtureName, sha256: digest, manifestSchemaVersion: schema, databaseValidation: state, contentSummary: null, sourcePreserved: true, guiAuthenticatedMetadataVisible: true });
+  }
 
   const bytes = await readFile(archive);
   const fixtures = [];
@@ -261,7 +335,7 @@ try {
   const staging = join(dirname(fixture.database), 'backup-inspection');
   assert.equal((await lstat(staging)).mode & 0o777, 0o700);
   assert.deepEqual(await readdir(staging), []);
-  evidence.steps.push({ guiEmptyCatalog: true, guiWrongPasswordRejectedAndCleared: true, guiArchiveAuthenticated: true, guiStructuralFailureFocusWithoutPasswordInvalid: true, databaseValidationNotChecked: true, restoreAvailable: false, corruptedArchiveFixtures: fixtures, unsafeFileFixtures: ['Synthetic symlink.', 'Synthetic hardlink.', 'Synthetic file with group/other read permission.'], unsafeFilesExcludedFromCatalog: true, sourceArchiveAndWorkspacePreserved: true, workspacePreservationScope: 'Workspace hashes match across inspection and fault checks. Later theme selection is a separate GUI write.', noRetainedInspectionStaging: true });
+  evidence.steps.push({ guiEmptyCatalog: true, guiWrongPasswordRejectedAndCleared: true, guiArchiveAuthenticated: true, guiStructuralFailureFocusWithoutPasswordInvalid: true, validContentCountsMatchGuiProfiles: true, authenticatedInvalidAndUnsupportedContentRetainsMetadata: true, restoreAvailable: false, corruptedArchiveFixtures: fixtures, unsafeFileFixtures: ['Synthetic symlink.', 'Synthetic hardlink.', 'Synthetic file with group/other read permission.'], unsafeFilesExcludedFromCatalog: true, sourceArchiveAndWorkspacePreserved: true, workspacePreservationScope: 'Workspace hashes match across inspection and fault checks. Later theme selection is a separate GUI write.', noRetainedInspectionStaging: true });
   await copyFile(archive, join(output, fileName)); await chmod(join(output, fileName), 0o600);
   evidence.archive = { fileName, sha256: archiveHash, fileBytes: (await stat(archive, { bigint: true })).size.toString() };
   assert.deepEqual(await readdir(fixture.dirs.codex), ['synthetic-fixture.txt']);
@@ -270,6 +344,7 @@ try {
   await captureReceipt('inspection-authenticated-dark-360.png', 'dark', 360, 800);
   await captureReceipt('inspection-authenticated-light-360.png', 'light', 360, 800);
   assert.equal(await hash(application), evidence.application.sha256);
+  assert.equal(await hash(generator), evidence.fixtureGenerator.sha256);
   for (const [path, digest] of Object.entries(evidence.sourceHashes)) assert.equal(await hash(join(repository, path)), digest, `Source changed during inspection: ${path}`);
   for (const [path, digest] of Object.entries(evidence.harnessHashes)) assert.equal(await hash(join(harness, path)), digest, `Harness changed during inspection: ${path}`);
   evidence.result = 'passed';

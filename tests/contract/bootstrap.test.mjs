@@ -109,21 +109,43 @@ test('accepts bounded backup candidates and rejects duplicate or path-based sele
   }
 });
 
-test('inspection metadata preserves unknown database validity and keeps restore unavailable', async () => {
+test('inspection metadata keeps unsupported database contents distinct from valid records', async () => {
   const metadata = {
     fileName: 'openusage-backup-0123456789abcdef.oubackup', archiveVersion: 1,
     manifestSchemaVersion: 77, entryCount: 1, totalBytes: '51',
     entries: [{ name: 'records.sqlite', bytes: '51' }],
-    databaseValidation: 'not_checked', restoreAvailable: false,
+    databaseValidation: 'unsupported', contentSummary: null, restoreAvailable: false,
   };
   desktopResponse(metadata);
   assert.deepEqual(await invoke('inspect_backup', { fileName: metadata.fileName, password: 'x' }), metadata);
   for (const changes of [
     { restoreAvailable: true }, { databaseValidation: 'verified' }, { archiveVersion: 2 },
+    { databaseValidation: 'valid' }, { contentSummary: { activeProfiles: 0, archivedProfiles: '0', accounts: '0' } },
     { entryCount: 2 }, { totalBytes: 51 }, { entries: [] },
     { fileName: '/private/archive.oubackup' }, { path: '/private/archive.oubackup' },
   ]) {
     desktopResponse({ ...metadata, ...changes });
     await assert.rejects(invoke('inspect_backup', { fileName: metadata.fileName, password: 'x' }), /desktop response is incompatible/);
   }
+});
+
+test('validated content counts stay exact and cannot enable restore', async () => {
+  const metadata = {
+    fileName: 'openusage-backup-0123456789abcdef.oubackup', archiveVersion: 1,
+    manifestSchemaVersion: 1, entryCount: 1, totalBytes: '28672',
+    entries: [{ name: 'records.sqlite', bytes: '28672' }],
+    databaseValidation: 'valid', contentSummary: { activeProfiles: 2, archivedProfiles: '1', accounts: '0' },
+    restoreAvailable: false,
+  };
+  desktopResponse(metadata);
+  assert.deepEqual(await invoke('inspect_backup', { fileName: metadata.fileName, password: 'x' }), metadata);
+  for (const contentSummary of [null, [], { activeProfiles: 11, archivedProfiles: '1', accounts: '0' },
+    { activeProfiles: 2, archivedProfiles: 1, accounts: '0' },
+    { activeProfiles: 2, archivedProfiles: '01', accounts: '0' },
+    { activeProfiles: 2, archivedProfiles: '1', accounts: '0', home: '/private' }]) {
+    desktopResponse({ ...metadata, contentSummary });
+    await assert.rejects(invoke('inspect_backup', { fileName: metadata.fileName, password: 'x' }), /desktop response is incompatible/);
+  }
+  desktopResponse({ ...metadata, databaseValidation: 'invalid', contentSummary: null });
+  assert.equal((await invoke('inspect_backup', { fileName: metadata.fileName, password: 'x' })).databaseValidation, 'invalid');
 });
