@@ -6,6 +6,7 @@ import { DesktopUnavailable, invoke } from '../../apps/desktop/src/contracts.ts'
 const ready = {
   storage: 'ready', theme: 'system', schemaVersion: 1, activeProfiles: 0,
   monitoring: 'stopped', provider: 'not_configured',
+  keyProtection: 'os_store', storageIssue: null,
 };
 
 function desktopResponse(value) {
@@ -28,6 +29,8 @@ test('rejects array enums instead of treating them as native state strings', asy
   for (const value of [
     { ...ready, storage: ['ready'], schemaVersion: null, activeProfiles: null },
     { ...ready, theme: ['dark'] },
+    { ...ready, keyProtection: ['os_store'] },
+    { ...ready, storageIssue: ['missing_key'] },
   ]) {
     desktopResponse(value);
     await assert.rejects(invoke('bootstrap'), /desktop response is incompatible/);
@@ -39,6 +42,7 @@ test('rejects incomplete ready state and invalid numeric metadata', async () => 
     { schemaVersion: null }, { activeProfiles: null }, { schemaVersion: 0 },
     { activeProfiles: -1 }, { activeProfiles: 11 }, { activeProfiles: 0.5 },
     { activeProfiles: '0' }, { schemaVersion: Number.MAX_SAFE_INTEGER + 1 },
+    { keyProtection: undefined }, { storageIssue: undefined },
   ]) {
     desktopResponse({ ...ready, ...fields });
     await assert.rejects(invoke('bootstrap'), /desktop response is incompatible/);

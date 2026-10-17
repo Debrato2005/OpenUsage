@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main-window",
-  "description": "The bundled main window can read the startup state.",
+  "description": "The bundled main window can set up and unlock encrypted storage and save its theme.",
   "windows": ["main"],
   "local": true,
-  "permissions": ["allow-bootstrap"]
+  "permissions": ["allow-bootstrap", "allow-setup-workspace", "allow-unlock-workspace", "allow-set-theme"]
 }

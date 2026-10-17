@@ -11,6 +11,7 @@ async function bootstrap(page: Page, value: unknown) {
 const locked = {
   storage: 'locked', theme: 'system', schemaVersion: null, activeProfiles: null,
   monitoring: 'stopped', provider: 'not_configured',
+  keyProtection: 'os_store', storageIssue: null,
 };
 
 test('browser mode explains that native access is unavailable', async ({ page }) => {

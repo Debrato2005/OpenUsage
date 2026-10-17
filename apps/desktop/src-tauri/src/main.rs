@@ -1,64 +1,179 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use serde::Serialize;
-use tauri::{WebviewWindowBuilder, ipc::InvokeBody, webview::NewWindowResponse};
+mod keyvault;
+mod workspace;
 
-#[derive(Serialize)]
-#[serde(rename_all = "snake_case")]
-enum StorageState {
-    SetupRequired,
+use keyvault::OsVault;
+use openusage_storage::Theme;
+use serde::{Deserialize, Deserializer};
+use std::sync::{Arc, Mutex};
+use tauri::{
+    AppHandle, Manager, State, WebviewWindowBuilder, ipc::InvokeBody, webview::NewWindowResponse,
+};
+use workspace::{Bootstrap, CommandError, Workspace};
+use zeroize::Zeroizing;
+
+#[derive(Default)]
+struct WorkspaceService(Arc<Mutex<Option<Workspace>>>);
+
+struct Passphrase(Zeroizing<String>);
+
+impl<'de> Deserialize<'de> for Passphrase {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        String::deserialize(deserializer).map(|value| Self(Zeroizing::new(value)))
+    }
 }
 
-#[derive(Serialize)]
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SetupArgs {
+    #[serde(deserialize_with = "optional_passphrase")]
+    passphrase: Option<Passphrase>,
+}
+
+fn optional_passphrase<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<Passphrase>, D::Error> {
+    Option::deserialize(deserializer)
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct UnlockArgs {
+    passphrase: Passphrase,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ThemeArgs {
+    theme: ThemeChoice,
+}
+
+#[derive(Deserialize)]
 #[serde(rename_all = "snake_case")]
-enum Theme {
+enum ThemeChoice {
     System,
+    Light,
+    Dark,
 }
 
-#[derive(Serialize)]
-#[serde(rename_all = "snake_case")]
-enum Monitoring {
-    Stopped,
+enum Operation {
+    Bootstrap,
+    Setup(Option<Zeroizing<String>>),
+    Unlock(Zeroizing<String>),
+    SetTheme(Theme),
 }
 
-#[derive(Serialize)]
-#[serde(rename_all = "snake_case")]
-enum Provider {
-    NotConfigured,
+fn arguments<'a, T: Deserialize<'a>>(
+    request: &'a tauri::ipc::Request<'_>,
+) -> Result<T, CommandError> {
+    match request.body() {
+        InvokeBody::Json(body) => T::deserialize(body).map_err(|_| CommandError::InvalidArguments),
+        _ => Err(CommandError::InvalidArguments),
+    }
 }
 
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct Bootstrap {
-    storage: StorageState,
-    theme: Theme,
-    schema_version: Option<u32>,
-    active_profiles: Option<u8>,
-    monitoring: Monitoring,
-    provider: Provider,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "snake_case")]
-enum CommandError {
-    InvalidArguments,
+async fn run_workspace(
+    app: AppHandle,
+    service: Arc<Mutex<Option<Workspace>>>,
+    operation: Operation,
+) -> Result<Bootstrap, CommandError> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut state = service
+            .lock()
+            .map_err(|_| CommandError::StorageUnavailable)?;
+        if state.is_none() {
+            let directory = app
+                .path()
+                .app_local_data_dir()
+                .map_err(|_| CommandError::StorageUnavailable)?
+                .join("workspace");
+            match Workspace::new(directory) {
+                Ok(workspace) => *state = Some(workspace),
+                Err(error) if matches!(operation, Operation::Bootstrap) => {
+                    return Ok(Bootstrap::blocked(error));
+                }
+                Err(error) => return Err(error),
+            }
+        }
+        let workspace = state.as_mut().ok_or(CommandError::StorageUnavailable)?;
+        match operation {
+            Operation::Bootstrap => {
+                let vault = OsVault::new();
+                Ok(workspace.bootstrap(vault.as_ref().map_err(|error| *error)))
+            }
+            Operation::Setup(passphrase) => {
+                let vault = OsVault::new();
+                workspace.setup(vault.as_ref().map_err(|error| *error), passphrase)
+            }
+            Operation::Unlock(passphrase) => workspace.unlock(passphrase),
+            Operation::SetTheme(theme) => workspace.set_theme(theme),
+        }
+    })
+    .await
+    .map_err(|_| CommandError::StorageUnavailable)?
 }
 
 #[tauri::command]
-fn bootstrap(request: tauri::ipc::Request<'_>) -> Result<Bootstrap, CommandError> {
+async fn bootstrap(
+    request: tauri::ipc::Request<'_>,
+    app: AppHandle,
+    service: State<'_, WorkspaceService>,
+) -> Result<Bootstrap, CommandError> {
     match request.body() {
         InvokeBody::Json(body) if body.as_object().is_some_and(|args| args.is_empty()) => {}
         _ => return Err(CommandError::InvalidArguments),
     }
+    run_workspace(app, Arc::clone(&service.0), Operation::Bootstrap).await
+}
 
-    Ok(Bootstrap {
-        storage: StorageState::SetupRequired,
-        theme: Theme::System,
-        schema_version: None,
-        active_profiles: None,
-        monitoring: Monitoring::Stopped,
-        provider: Provider::NotConfigured,
-    })
+#[tauri::command]
+async fn setup_workspace(
+    request: tauri::ipc::Request<'_>,
+    app: AppHandle,
+    service: State<'_, WorkspaceService>,
+) -> Result<Bootstrap, CommandError> {
+    let args: SetupArgs = arguments(&request)?;
+    if let Some(passphrase) = &args.passphrase {
+        workspace::validate_passphrase(&passphrase.0)?;
+    }
+    run_workspace(
+        app,
+        Arc::clone(&service.0),
+        Operation::Setup(args.passphrase.map(|passphrase| passphrase.0)),
+    )
+    .await
+}
+
+#[tauri::command]
+async fn unlock_workspace(
+    request: tauri::ipc::Request<'_>,
+    app: AppHandle,
+    service: State<'_, WorkspaceService>,
+) -> Result<Bootstrap, CommandError> {
+    let args: UnlockArgs = arguments(&request)?;
+    workspace::validate_unlock_passphrase(&args.passphrase.0)?;
+    run_workspace(
+        app,
+        Arc::clone(&service.0),
+        Operation::Unlock(args.passphrase.0),
+    )
+    .await
+}
+
+#[tauri::command]
+async fn set_theme(
+    request: tauri::ipc::Request<'_>,
+    app: AppHandle,
+    service: State<'_, WorkspaceService>,
+) -> Result<Bootstrap, CommandError> {
+    let args: ThemeArgs = arguments(&request)?;
+    let theme = match args.theme {
+        ThemeChoice::System => Theme::System,
+        ThemeChoice::Light => Theme::Light,
+        ThemeChoice::Dark => Theme::Dark,
+    };
+    run_workspace(app, Arc::clone(&service.0), Operation::SetTheme(theme)).await
 }
 
 fn is_bundled_url(url: &tauri::Url) -> bool {
@@ -71,7 +186,13 @@ fn is_bundled_url(url: &tauri::Url) -> bool {
 
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![bootstrap])
+        .manage(WorkspaceService::default())
+        .invoke_handler(tauri::generate_handler![
+            bootstrap,
+            setup_workspace,
+            unlock_workspace,
+            set_theme
+        ])
         .setup(|app| {
             let window = &app.config().app.windows[0];
             WebviewWindowBuilder::from_config(app, window)?
@@ -86,7 +207,32 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::is_bundled_url;
+    use super::{SetupArgs, ThemeArgs, UnlockArgs, is_bundled_url};
+
+    #[test]
+    fn storage_commands_reject_unexpected_fields_and_incorrect_value_types() {
+        for invalid in [
+            r#"{}"#,
+            r#"{"passphrase":[],"path":"/external"}"#,
+            r#"{"passphrase":"synthetic secret","path":"/external"}"#,
+        ] {
+            assert!(serde_json::from_str::<SetupArgs>(invalid).is_err());
+        }
+        for invalid in [
+            r#"{"passphrase":null}"#,
+            r#"{"passphrase":42}"#,
+            r#"{"passphrase":"synthetic secret","extra":true}"#,
+        ] {
+            assert!(serde_json::from_str::<UnlockArgs>(invalid).is_err());
+        }
+        for invalid in [
+            r#"{"theme":["dark"]}"#,
+            r#"{"theme":"unknown"}"#,
+            r#"{"theme":"dark","path":"/external"}"#,
+        ] {
+            assert!(serde_json::from_str::<ThemeArgs>(invalid).is_err());
+        }
+    }
 
     #[test]
     fn navigation_rejects_external_content_and_disguised_local_origins() {

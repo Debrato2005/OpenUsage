@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict';
 import { spawn, execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import { access, chmod, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { createServer } from 'node:net';
 import { arch, platform, release, tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
+import { CODEX_SENTINEL, createFixture, stopGroup } from './private-fixture.mjs';
 
 // Native Linux WebDriver test. No renderer mocks or provider account access.
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -17,6 +18,7 @@ const output = resolve(process.env.OPENUSAGE_NATIVE_EVIDENCE ?? join(tmpdir(), `
 const expectedBootstrap = {
   storage: 'setup_required', theme: 'system', schemaVersion: null,
   activeProfiles: null, monitoring: 'stopped', provider: 'not_configured',
+  keyProtection: 'passphrase_required', storageIssue: 'key_store_unavailable',
 };
 const evidence = {
   requirement: 'NATIVE-SMOKE-001',
@@ -81,7 +83,7 @@ function stopDriver(signal = 'SIGTERM') {
 const onSignal = () => stopDriver();
 process.once('SIGINT', onSignal);
 process.once('SIGTERM', onSignal);
-process.once('exit', () => stopDriver('SIGKILL'));
+process.once('exit', () => { stopDriver('SIGKILL'); stopGroup(fixture?.bus, 'SIGKILL'); });
 
 await mkdir(output, { recursive: true, mode: 0o700 });
 try {
@@ -92,36 +94,24 @@ try {
   evidence.sourceVersion = JSON.parse(await readFile(join(sourceRepository, 'package.json'), 'utf8')).version;
   evidence.commit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: sourceRepository, encoding: 'utf8' }).trim();
   evidence.dirtyPaths = execFileSync('git', ['status', '--porcelain'], { cwd: sourceRepository, encoding: 'utf8' }).trim().split('\n').filter(Boolean);
-  fixture = await mkdtemp(join(tmpdir(), 'openusage-native-fixture-'));
-  await chmod(fixture, 0o700);
-  const isolated = Object.fromEntries(['config', 'data', 'cache', 'state', 'runtime', 'codex'].map(name => [name, join(fixture, name)]));
-  await Promise.all(Object.values(isolated).map(path => mkdir(path, { mode: 0o700 })));
-  const sentinel = 'OpenUsage native smoke: synthetic home. No credentials.\n';
-  await writeFile(join(isolated.codex, 'synthetic-fixture.txt'), sentinel, { mode: 0o600 });
+  fixture = await createFixture('smoke');
+  const isolated = fixture.dirs;
   const [driverPort, nativePort] = await Promise.all([unusedPort(), unusedPort()]);
   endpoint = `http://127.0.0.1:${driverPort}`;
   const driverArgs = ['--port', String(driverPort), '--native-port', String(nativePort), '--native-host', '127.0.0.1'];
   if (process.env.WEBKIT_WEBDRIVER) driverArgs.push('--native-driver', resolve(process.env.WEBKIT_WEBDRIVER));
   const logs = [];
   driver = spawn(process.env.TAURI_DRIVER ?? 'tauri-driver', driverArgs, {
-    cwd: fixture,
+    cwd: fixture.root,
     detached: true,
     stdio: ['ignore', 'pipe', 'pipe'],
-    env: {
-      ...process.env,
-      CODEX_HOME: isolated.codex,
-      XDG_CONFIG_HOME: isolated.config,
-      XDG_DATA_HOME: isolated.data,
-      XDG_CACHE_HOME: isolated.cache,
-      XDG_STATE_HOME: isolated.state,
-      XDG_RUNTIME_DIR: isolated.runtime,
-    },
+    env: fixture.environment,
   });
   driver.stdout.on('data', chunk => logs.push(chunk));
   driver.stderr.on('data', chunk => logs.push(chunk));
   driver.once('error', error => { driverFailure = error; });
   driver.once('exit', (code, signal) => { driverFailure = new Error(`tauri-driver exited: ${code ?? signal}`); });
-  evidence.isolation = { driverEnvironment: 'Synthetic CODEX_HOME and fresh XDG directories. HOME stays unchanged.', osCredentialStore: 'Not accessed by startup. Storage tests require a separate credential namespace.' };
+  evidence.isolation = { driverEnvironment: 'Synthetic CODEX_HOME, Downloads, and XDG directories. HOME stays unchanged.', osCredentialStore: 'Startup can query only a private session bus without activation directories. No Secret Service runs in this smoke fixture.' };
   try {
     await waitUntil(async () => {
       try { return (await request('GET', '/status')).ready === true; } catch { return false; }
@@ -184,7 +174,7 @@ try {
     await writeFile(join(output, 'startup.png'), Buffer.from(screenshot, 'base64'), { mode: 0o600 });
     evidence.screenshot = 'startup.png';
     assert.deepEqual(await readdir(isolated.codex), ['synthetic-fixture.txt']);
-    assert.equal(await readFile(join(isolated.codex, 'synthetic-fixture.txt'), 'utf8'), sentinel);
+    assert.ok((await readFile(join(isolated.codex, 'synthetic-fixture.txt'), 'utf8')) === CODEX_SENTINEL);
     evidence.steps.push('The synthetic Codex home stayed unchanged.');
     evidence.result = 'passed';
   } finally {
@@ -204,7 +194,10 @@ try {
   evidence.error = error.message;
   process.exitCode = 1;
 } finally {
-  if (fixture) await rm(fixture, { recursive: true, force: true });
+  if (fixture) {
+    stopGroup(fixture.bus, 'SIGKILL');
+    await rm(fixture.root, { recursive: true, force: true });
+  }
   evidence.finishedAt = new Date().toISOString();
   await writeFile(join(output, 'result.json'), `${JSON.stringify(evidence, null, 2)}\n`, { mode: 0o600 });
   console.log(`${evidence.requirement}: ${evidence.result}. Evidence: ${output}`);

@@ -59,6 +59,14 @@ h2 { font-size: 18px; font-weight: 600; letter-spacing: -.4px; }
 .startup-content h2 { font-size: 22px; line-height: 1.4; margin: 9px 0 10px; font-weight: 550; letter-spacing: -.65px; }
 .startup-content > p:not(.eyebrow) { max-width: 540px; color: var(--muted); font-size: 13px; line-height: 1.8; }
 .startup-content .development-note { margin-top: 12px; font-weight: 600; }
+.unlock-form { display: grid; gap: 9px; max-width: 420px; margin-top: 20px; }
+.unlock-form p { color: var(--muted); font-size: 13px; line-height: 1.8; margin-bottom: 5px; }
+.unlock-form label { font-size: 13px; font-weight: 600; }
+.unlock-form input { width: 100%; min-height: 44px; border: 1px solid var(--muted); border-radius: 7px; padding: 10px 12px; color: var(--text); background: var(--surface); }
+.unlock-form .primary-button { justify-self: start; margin-top: 8px; }
+.startup-content .operation-error { margin-top: 16px; color: var(--text); border-left: 3px solid var(--accent); padding-left: 12px; }
+.startup-content .protection-note { margin-top: 14px; }
+button:disabled, select:disabled { cursor: wait; opacity: .7; }
 .primary-button { display: inline-flex; align-items: center; justify-content: center; gap: 16px; margin-top: 21px; padding: 10px 14px; color: var(--surface); background: var(--accent); border: 1px solid var(--accent); border-radius: 7px; font-size: 12px; font-weight: 600; }
 .primary-button:hover { filter: brightness(.92); }
 .panel-aside { width: 150px; align-self: stretch; padding-left: 28px; margin-left: 5px; border-left: 1px solid var(--line); display: flex; flex-direction: column; }

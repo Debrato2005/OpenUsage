@@ -1,5 +1,7 @@
 export type Theme = 'system' | 'light' | 'dark';
 export type StorageState = 'setup_required' | 'locked' | 'ready' | 'recovery_required';
+export type KeyProtection = 'os_store' | 'passphrase' | 'passphrase_required' | 'unavailable';
+export type StorageIssue = 'key_store_unavailable' | 'missing_key' | 'missing_database' | 'invalid_key' | 'storage_unavailable' | 'workspace_in_use';
 export interface Bootstrap {
   storage: StorageState;
   theme: Theme;
@@ -7,10 +9,15 @@ export interface Bootstrap {
   activeProfiles: number | null;
   monitoring: 'stopped';
   provider: 'not_configured';
+  keyProtection: KeyProtection;
+  storageIssue: StorageIssue | null;
 }
 
 interface Commands {
   bootstrap: { args: undefined; result: Bootstrap };
+  setup_workspace: { args: { passphrase: string | null }; result: Bootstrap };
+  unlock_workspace: { args: { passphrase: string }; result: Bootstrap };
+  set_theme: { args: { theme: Theme }; result: Bootstrap };
 }
 
 declare global {
@@ -30,7 +37,7 @@ export async function invoke<K extends keyof Commands>(
   const core = window.__TAURI__?.core;
   if (!core) throw new DesktopUnavailable('Open the installed OpenUsage desktop application.');
   const response = await core.invoke<unknown>(command, args[0]);
-  if (command === 'bootstrap' && !isBootstrap(response)) {
+  if (!isBootstrap(response)) {
     throw new Error('The desktop response is incompatible. Restart OpenUsage after updating the application.');
   }
   return response as Commands[K]['result'];
@@ -44,5 +51,9 @@ function isBootstrap(value: unknown): value is Bootstrap {
     && (v.schemaVersion === null || (Number.isSafeInteger(v.schemaVersion) && Number(v.schemaVersion) > 0))
     && (v.activeProfiles === null || (Number.isSafeInteger(v.activeProfiles) && Number(v.activeProfiles) >= 0 && Number(v.activeProfiles) <= 10))
     && v.monitoring === 'stopped' && v.provider === 'not_configured'
+    && typeof v.keyProtection === 'string'
+    && ['os_store', 'passphrase', 'passphrase_required', 'unavailable'].includes(v.keyProtection)
+    && (v.storageIssue === null || (typeof v.storageIssue === 'string'
+      && ['key_store_unavailable', 'missing_key', 'missing_database', 'invalid_key', 'storage_unavailable', 'workspace_in_use'].includes(v.storageIssue)))
     && (v.storage !== 'ready' || (v.activeProfiles !== null && v.schemaVersion !== null));
 }
