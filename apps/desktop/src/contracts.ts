@@ -44,11 +44,28 @@ export interface BackupInspectionResult {
   totalBytes: string;
   entries: { name: string; bytes: string }[];
   databaseValidation: 'valid' | 'invalid' | 'unsupported';
-  contentSummary: { activeProfiles: number; archivedProfiles: string; accounts: string } | null;
+  contentSummary: RestoreSummary | null;
+  restoreAvailable: false;
+}
+
+export interface RestoreSummary {
+  activeProfiles: number;
+  archivedProfiles: string;
+  accounts: string;
+}
+
+export interface RestorePreview {
+  previewId: string;
+  fileName: string;
+  current: RestoreSummary;
+  incoming: RestoreSummary;
+  checkpoint: { id: string; fileBytes: string };
   restoreAvailable: false;
 }
 
 interface Commands {
+  prepare_restore_preview: { args: { fileName: string; password: string }; result: RestorePreview };
+  cancel_restore_preview: { args: { previewId: string }; result: { cancelled: boolean } };
   list_backups: { args: undefined; result: BackupList };
   inspect_backup: { args: { fileName: string; password: string }; result: BackupInspectionResult };
   list_profiles: { args: undefined; result: ProfileView };
@@ -79,7 +96,9 @@ export async function invoke<K extends keyof Commands>(
   const core = window.__TAURI__?.core;
   if (!core) throw new DesktopUnavailable('Open the installed OpenUsage desktop application.');
   const response = await core.invoke<unknown>(command, args[0]);
-  const valid = command === 'list_backups' ? isBackupList(response)
+  const valid = command === 'prepare_restore_preview' ? isRestorePreview(response)
+    : command === 'cancel_restore_preview' ? isPreviewCancellation(response)
+    : command === 'list_backups' ? isBackupList(response)
     : command === 'inspect_backup' ? isBackupInspection(response)
     : command === 'create_backup' ? isBackupReceipt(response)
     : ['list_profiles', 'create_profile', 'rename_profile', 'set_profile_archived'].includes(command)
@@ -88,6 +107,40 @@ export async function invoke<K extends keyof Commands>(
     throw new Error('The desktop response is incompatible. Restart OpenUsage after updating the application.');
   }
   return response as Commands[K]['result'];
+}
+
+function isUuid(value: unknown): value is string {
+  return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(value);
+}
+
+function isWideCount(value: unknown): value is string {
+  return typeof value === 'string' && /^(0|[1-9]\d{0,19})$/.test(value);
+}
+
+function isRestoreSummary(value: unknown): value is RestoreSummary {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  return !Object.keys(v).some(key => !['activeProfiles', 'archivedProfiles', 'accounts'].includes(key))
+    && Number.isSafeInteger(v.activeProfiles) && Number(v.activeProfiles) >= 0 && Number(v.activeProfiles) <= 10
+    && isWideCount(v.archivedProfiles) && isWideCount(v.accounts);
+}
+
+function isRestorePreview(value: unknown): value is RestorePreview {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  if (Object.keys(v).some(key => !['previewId', 'fileName', 'current', 'incoming', 'checkpoint', 'restoreAvailable'].includes(key))
+    || !isUuid(v.previewId) || !isArchiveFileName(v.fileName) || v.restoreAvailable !== false
+    || !isRestoreSummary(v.current) || !isRestoreSummary(v.incoming)
+    || typeof v.checkpoint !== 'object' || v.checkpoint === null || Array.isArray(v.checkpoint)) return false;
+  const checkpoint = v.checkpoint as Record<string, unknown>;
+  return !Object.keys(checkpoint).some(key => !['id', 'fileBytes'].includes(key))
+    && isUuid(checkpoint.id) && isWideCount(checkpoint.fileBytes) && checkpoint.fileBytes !== '0';
+}
+
+function isPreviewCancellation(value: unknown): value is { cancelled: boolean } {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  return Object.keys(v).length === 1 && typeof v.cancelled === 'boolean';
 }
 
 function isBackupReceipt(value: unknown): value is BackupReceipt {
@@ -171,12 +224,7 @@ function isBackupInspection(value: unknown): value is BackupInspectionResult {
     || !['valid', 'invalid', 'unsupported'].some(state => state === v.databaseValidation)
     || v.restoreAvailable !== false) return false;
   if (v.databaseValidation === 'valid') {
-    if (typeof v.contentSummary !== 'object' || v.contentSummary === null || Array.isArray(v.contentSummary)) return false;
-    const summary = v.contentSummary as Record<string, unknown>;
-    if (Object.keys(summary).some(key => !['activeProfiles', 'archivedProfiles', 'accounts'].includes(key))
-      || !Number.isSafeInteger(summary.activeProfiles) || Number(summary.activeProfiles) < 0 || Number(summary.activeProfiles) > 10
-      || typeof summary.archivedProfiles !== 'string' || !/^(0|[1-9]\d{0,19})$/.test(summary.archivedProfiles)
-      || typeof summary.accounts !== 'string' || !/^(0|[1-9]\d{0,19})$/.test(summary.accounts)) return false;
+    if (!isRestoreSummary(v.contentSummary)) return false;
   } else if (v.contentSummary !== null) return false;
   const names = new Set<string>();
   for (const value of v.entries) {

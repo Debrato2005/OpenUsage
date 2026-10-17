@@ -226,7 +226,7 @@ try {
   assert.match(receipt, /archive authenticated/i);
   assert.match(receipt, /database checks passed/i);
   assert.match(receipt, /restore.*not available/i);
-  assert.equal(await driver.execute('return [...document.querySelectorAll("#backup-inspection button, #backup-inspection a")].some(node=>/restore|replace/i.test(node.textContent));'), false);
+  assert.equal(await driver.execute('return [...document.querySelectorAll("#backup-inspection button, #backup-inspection a")].some(node=>/^(apply|replace|undo|restore)\\b/i.test(node.textContent.trim()));'), false);
   assert.equal(await driver.execute('return document.querySelector("#backup-inspection-password")?.value??"";'), '');
   const counts = await driver.execute('return Object.fromEntries([...document.querySelectorAll(".backup-inspection-metadata dt")].map(node=>[node.textContent,node.nextElementSibling?.textContent]));');
   assert.deepEqual([counts['Active profiles'], counts['Archived profiles'], counts.Accounts], ['2', '1', '0']);
@@ -242,7 +242,7 @@ try {
   await clickButton('Inspect a backup');
   await waitFor(async () => Boolean(await driver.execute('return document.querySelector("#backup-inspection-password");')), 'inspection form after disclosure switch');
   assert.equal(await driver.execute('return document.querySelector("#backup-inspection-password").value;'), '');
-  evidence.steps.push({ backupDisclosureSwitchClearsPassword: true, inspectionOffersNoRestoreAction: true });
+  evidence.steps.push({ backupDisclosureSwitchClearsPassword: true, inspectionOffersNoApplyAction: true });
 
   const generatorStaging = join(fixture.root, 'fixture-generator-staging');
   await mkdir(generatorStaging, { mode: 0o700 });

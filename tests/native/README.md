@@ -167,3 +167,21 @@ It writes encrypted fixtures for non-SQLite content, a future manifest, a future
 Invalid or unsupported contents must retain authenticated archive metadata, show a useful warning, and omit record counts.
 The receipt must state that restore is unavailable for every result.
 This test does not establish restore or other-platform acceptance.
+
+## Native restore preview
+
+Run `node tests/native/restore-preview.mjs` with the same private display, drivers, and source settings.
+Build the standalone package first. Set `OPENUSAGE_CHECKPOINT_VERIFIER` to its `target/debug/openusage-native-checkpoint-verifier` binary.
+Keep `OPENUSAGE_BACKUP_FIXTURE_GENERATOR` set for invalid-content cases.
+
+`NATIVE-RESTORE-PREVIEW-001` exports GUI state A, changes profiles and appearance to state B, then prepares a restore preview.
+The preview must follow publication of a private encrypted checkpoint containing exact state B.
+The Rust verifier unwraps only the synthetic fixture key, opens the checkpoint read-only, and checks its schema and records.
+It runs no migration, changes no journal mode, returns no key, and writes no plaintext database.
+The test checks unchanged checkpoint bytes, live records, wrapped key, and synthetic home markers.
+
+The journey checks cancel, invalidation after a live write, failed replacement, and restart after a normal native window close.
+It waits for the owned desktop process to exit before driver cleanup.
+The layout checks include both narrow themes and test-side text scaling to 200%.
+This is a CSS text-layout check, not operating-system zoom or display scaling.
+The test does not establish apply, undo, interrupted-commit recovery, or memory cleanup after forced termination.

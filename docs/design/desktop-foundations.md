@@ -8,6 +8,8 @@ The overview places storage state first, followed by a compact summary and accou
 
 Privacy stays accessible in narrow windows. Native controls retain keyboard behavior, visible focus, labels, and password-manager support. Errors appear near their controls. A completed backup closes its form, clears passwords, and returns focus to the disclosure button. Its receipt stays visible. No animation or UI dependency was added.
 
+Restore preview compares the current checkpoint with incoming backup counts. The first native capture showed broken column headings at 200% text size. An em-based container query now presents each record category with two labeled values when space is limited. Explicit table roles retain the comparison structure. Five native captures cover desktop, both narrow themes, errors, and enlarged text. Native DOM and keyboard checks passed; screen-reader acceptance remains open. See `../evidence/native-restore-preview/`.
+
 The layout uses one page scroll area, a 208-pixel sidebar, and a 1,280-pixel content limit. At smaller widths, navigation becomes a compact header and summary cells stack. Content wraps instead of concealing overflow. The controls have a minimum height of 44 CSS pixels.
 
 ## Typography and tokens

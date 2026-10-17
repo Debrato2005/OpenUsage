@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { invoke, type BackupList, type BackupInspectionResult } from './contracts';
+import { BackupRestorePreview } from './backup-restore';
 
 type Props = { busy: boolean; setBusy: (busy: boolean) => void };
 type Failure = { message: string; password: boolean };
@@ -156,5 +157,6 @@ export function BackupInspection({ busy, setBusy }: Props) {
           : 'Database checks failed. Keep the backup file; restore is not available.'}
       </p>
     </div>}
+    {receipt?.databaseValidation === 'valid' && <BackupRestorePreview key={receipt.fileName} fileName={receipt.fileName} busy={busy} setBusy={setBusy} />}
   </div>;
 }

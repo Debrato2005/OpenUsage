@@ -149,3 +149,40 @@ test('validated content counts stay exact and cannot enable restore', async () =
   desktopResponse({ ...metadata, databaseValidation: 'invalid', contentSummary: null });
   assert.equal((await invoke('inspect_backup', { fileName: metadata.fileName, password: 'x' })).databaseValidation, 'invalid');
 });
+
+test('restore previews require safe opaque IDs and exact counts without approving replacement', async () => {
+  const preview = {
+    previewId: '00000001-0000-4000-8000-000000000000',
+    fileName: 'openusage-backup-0123456789abcdef.oubackup',
+    current: { activeProfiles: 3, archivedProfiles: '1', accounts: '0' },
+    incoming: { activeProfiles: 2, archivedProfiles: '9007199254740993', accounts: '0' },
+    checkpoint: { id: '00000002-0000-4000-8000-000000000000', fileBytes: '12000000000' },
+    restoreAvailable: false,
+  };
+  const args = { fileName: preview.fileName, password: 'x' };
+  desktopResponse(preview);
+  assert.deepEqual(await invoke('prepare_restore_preview', args), preview);
+  for (const changes of [
+    { previewId: '../outside' }, { restoreAvailable: true }, { fileName: '/private/backup' },
+    { current: { ...preview.current, activeProfiles: 11 } },
+    { incoming: { ...preview.incoming, archivedProfiles: 9007199254740992 } },
+    { checkpoint: { ...preview.checkpoint, fileBytes: '0' } },
+    { checkpoint: { ...preview.checkpoint, path: '/private/checkpoint' } },
+    { password: 'must not cross the result boundary' },
+  ]) {
+    desktopResponse({ ...preview, ...changes });
+    await assert.rejects(invoke('prepare_restore_preview', args), /desktop response is incompatible/);
+  }
+});
+
+test('preview cancellation accepts already-closed state and rejects incompatible replies', async () => {
+  const args = { previewId: '00000001-0000-4000-8000-000000000000' };
+  for (const cancelled of [true, false]) {
+    desktopResponse({ cancelled });
+    assert.deepEqual(await invoke('cancel_restore_preview', args), { cancelled });
+  }
+  for (const value of [{}, { cancelled: 'false' }, { cancelled: true, path: '/private' }, []]) {
+    desktopResponse(value);
+    await assert.rejects(invoke('cancel_restore_preview', args), /desktop response is incompatible/);
+  }
+});
