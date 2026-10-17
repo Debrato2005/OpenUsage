@@ -10,6 +10,8 @@ fn main() {
             "create_profile",
             "rename_profile",
             "set_profile_archived",
+            "list_backups",
+            "inspect_backup",
         ]),
     ))
     .expect("Failed to build the OpenUsage application manifest");

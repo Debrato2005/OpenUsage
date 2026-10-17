@@ -128,7 +128,7 @@ fn codec_error(error: BackupError) -> CommandError {
     }
 }
 
-fn require_private_file(file: &File) -> Result<(), CommandError> {
+pub(crate) fn require_private_file(file: &File) -> Result<(), CommandError> {
     let metadata = file
         .metadata()
         .map_err(|_| CommandError::BackupUnavailable)?;
@@ -150,7 +150,7 @@ fn require_private_file(file: &File) -> Result<(), CommandError> {
 }
 
 #[cfg(unix)]
-fn available_space(directory: &Path) -> Result<u64, CommandError> {
+pub(crate) fn available_space(directory: &Path) -> Result<u64, CommandError> {
     use std::os::unix::ffi::OsStrExt;
     let path = std::ffi::CString::new(directory.as_os_str().as_bytes())
         .map_err(|_| CommandError::BackupUnavailable)?;
@@ -166,7 +166,7 @@ fn available_space(directory: &Path) -> Result<u64, CommandError> {
 }
 
 #[cfg(target_os = "windows")]
-fn available_space(directory: &Path) -> Result<u64, CommandError> {
+pub(crate) fn available_space(directory: &Path) -> Result<u64, CommandError> {
     use std::os::windows::ffi::OsStrExt;
     let path: Vec<u16> = directory.as_os_str().encode_wide().chain(Some(0)).collect();
     let mut available = 0;

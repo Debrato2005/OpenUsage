@@ -55,6 +55,9 @@ pub enum CommandError {
     OsStoreRequired,
     WorkspaceLocked,
     BackupUnavailable,
+    BackupNotFound,
+    InvalidBackup,
+    BackupAuthenticationFailed,
     InsufficientSpace,
     InvalidProfileId,
     InvalidProfileLabel,
@@ -438,6 +441,11 @@ impl Workspace {
         self.list_profiles()
     }
 
+    pub fn backup_inspection_directory(&self) -> Result<PathBuf, CommandError> {
+        self.storage.as_ref().ok_or(CommandError::WorkspaceLocked)?;
+        Ok(self.directory.join("backup-inspection"))
+    }
+
     fn ready(&self) -> Bootstrap {
         match self
             .storage
@@ -561,6 +569,14 @@ fn secure_open(path: &Path, create: bool, exclusive: bool) -> Result<File, Comma
 }
 
 pub(crate) fn prepare_directory(path: &Path) -> Result<(), CommandError> {
+    check_directory(path, true).map(|_| ())
+}
+
+pub(crate) fn existing_private_directory(path: &Path) -> Result<bool, CommandError> {
+    check_directory(path, false)
+}
+
+fn check_directory(path: &Path, create: bool) -> Result<bool, CommandError> {
     if !path.is_absolute()
         || path
             .components()
@@ -569,19 +585,25 @@ pub(crate) fn prepare_directory(path: &Path) -> Result<(), CommandError> {
         return Err(CommandError::StorageUnavailable);
     }
     for ancestor in path.ancestors().collect::<Vec<_>>().into_iter().rev() {
-        if !ancestor.exists() {
-            let mut builder = fs::DirBuilder::new();
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::DirBuilderExt;
-                builder.mode(0o700);
+        let metadata = match fs::symlink_metadata(ancestor) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound && !create => {
+                return Ok(false);
             }
-            builder
-                .create(ancestor)
-                .map_err(|_| CommandError::StorageUnavailable)?;
-        }
-        let metadata =
-            fs::symlink_metadata(ancestor).map_err(|_| CommandError::StorageUnavailable)?;
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                let mut builder = fs::DirBuilder::new();
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::DirBuilderExt;
+                    builder.mode(0o700);
+                }
+                builder
+                    .create(ancestor)
+                    .map_err(|_| CommandError::StorageUnavailable)?;
+                fs::symlink_metadata(ancestor).map_err(|_| CommandError::StorageUnavailable)?
+            }
+            Err(_) => return Err(CommandError::StorageUnavailable),
+        };
         if !metadata.is_dir() || metadata.file_type().is_symlink() {
             return Err(CommandError::StorageUnavailable);
         }
@@ -598,7 +620,7 @@ pub(crate) fn prepare_directory(path: &Path) -> Result<(), CommandError> {
         }
     }
     require_local_filesystem(path)?;
-    Ok(())
+    Ok(true)
 }
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
@@ -707,9 +729,19 @@ mod tests {
         );
         assert!(!vault.database.exists());
         assert_eq!(
+            workspace.backup_inspection_directory(),
+            Err(CommandError::WorkspaceLocked)
+        );
+        assert!(!directory.join("backup-inspection").exists());
+        assert_eq!(
             workspace.setup(Ok(&vault), None).unwrap().storage,
             StorageState::Ready
         );
+        assert_eq!(
+            workspace.backup_inspection_directory().unwrap(),
+            directory.join("backup-inspection")
+        );
+        assert!(!directory.join("backup-inspection").exists());
         assert!(vault.key.borrow().is_some());
         assert!(
             !fs::read(&vault.database)
@@ -719,6 +751,10 @@ mod tests {
         assert_eq!(workspace.set_theme(Theme::Dark).unwrap().theme, "dark");
         drop(workspace);
         let mut restarted = Workspace::new(directory).unwrap();
+        assert_eq!(
+            restarted.backup_inspection_directory(),
+            Err(CommandError::WorkspaceLocked)
+        );
         let ready = restarted.bootstrap(Ok(&vault));
         assert_eq!(ready.storage, StorageState::Ready);
         assert_eq!(ready.theme, "dark");
@@ -740,6 +776,10 @@ mod tests {
         let mut restarted = Workspace::new(directory.clone()).unwrap();
         let state = restarted.bootstrap(Ok(&vault));
         assert_eq!(state.storage, StorageState::RecoveryRequired);
+        assert_eq!(
+            restarted.backup_inspection_directory(),
+            Err(CommandError::WorkspaceLocked)
+        );
         assert_eq!(state.storage_issue, Some(StorageIssue::MissingKey));
         assert!(matches!(
             restarted.setup(Ok(&vault), None),

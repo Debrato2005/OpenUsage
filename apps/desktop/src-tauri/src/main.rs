@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod backup;
+mod backup_inspection;
 mod keyvault;
 mod workspace;
 
@@ -47,6 +48,13 @@ struct UnlockArgs {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct BackupArgs {
+    password: Passphrase,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct InspectBackupArgs {
+    file_name: String,
     password: Passphrase,
 }
 
@@ -314,6 +322,65 @@ async fn set_profile_archived(
     .await
 }
 
+#[tauri::command]
+async fn list_backups(
+    request: tauri::ipc::Request<'_>,
+    app: AppHandle,
+    service: State<'_, WorkspaceService>,
+) -> Result<backup_inspection::BackupList, CommandError> {
+    match request.body() {
+        InvokeBody::Json(body) if body.as_object().is_some_and(|args| args.is_empty()) => {}
+        _ => return Err(CommandError::InvalidArguments),
+    }
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = service
+            .lock()
+            .map_err(|_| CommandError::BackupUnavailable)?;
+        state
+            .as_ref()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .backup_inspection_directory()?;
+        let directory = app
+            .path()
+            .download_dir()
+            .map_err(|_| CommandError::BackupUnavailable)?
+            .join("OpenUsage");
+        backup_inspection::list(&directory)
+    })
+    .await
+    .map_err(|_| CommandError::BackupUnavailable)?
+}
+
+#[tauri::command]
+async fn inspect_backup(
+    request: tauri::ipc::Request<'_>,
+    app: AppHandle,
+    service: State<'_, WorkspaceService>,
+) -> Result<backup_inspection::BackupInspection, CommandError> {
+    let args: InspectBackupArgs = arguments(&request)?;
+    backup_inspection::validate_file_name(&args.file_name)?;
+    workspace::validate_unlock_passphrase(&args.password.0)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = service
+            .lock()
+            .map_err(|_| CommandError::BackupUnavailable)?;
+        let staging = state
+            .as_ref()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .backup_inspection_directory()?;
+        let directory = app
+            .path()
+            .download_dir()
+            .map_err(|_| CommandError::BackupUnavailable)?
+            .join("OpenUsage");
+        backup_inspection::inspect(&directory, &staging, &args.file_name, args.password.0)
+    })
+    .await
+    .map_err(|_| CommandError::BackupUnavailable)?
+}
+
 fn is_bundled_url(url: &tauri::Url) -> bool {
     url.username().is_empty()
         && url.password().is_none()
@@ -334,7 +401,9 @@ fn main() {
             list_profiles,
             create_profile,
             rename_profile,
-            set_profile_archived
+            set_profile_archived,
+            list_backups,
+            inspect_backup
         ])
         .setup(|app| {
             let window = &app.config().app.windows[0];
@@ -351,8 +420,8 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::{
-        ArchiveProfileArgs, BackupArgs, CreateProfileArgs, ListProfilesArgs, RenameProfileArgs,
-        SetupArgs, ThemeArgs, UnlockArgs, is_bundled_url,
+        ArchiveProfileArgs, BackupArgs, CreateProfileArgs, InspectBackupArgs, ListProfilesArgs,
+        RenameProfileArgs, SetupArgs, ThemeArgs, UnlockArgs, is_bundled_url,
     };
 
     #[test]
@@ -382,6 +451,15 @@ mod tests {
             r#"{"id":"synthetic","archived":true,"deleteHistory":true}"#,
         ] {
             assert!(serde_json::from_str::<ArchiveProfileArgs>(invalid).is_err());
+        }
+        for invalid in [
+            r#"{}"#,
+            r#"{"fileName":null,"password":"synthetic"}"#,
+            r#"{"fileName":"archive","password":null}"#,
+            r#"{"fileName":"archive","password":[]}"#,
+            r#"{"fileName":"archive","password":"synthetic","path":"/external"}"#,
+        ] {
+            assert!(serde_json::from_str::<InspectBackupArgs>(invalid).is_err());
         }
         for invalid in [
             r#"{}"#,
