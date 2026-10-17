@@ -8,7 +8,7 @@
 //! The encrypted payload starts with manifest entries: name length, file size, and name bytes. File contents follow in manifest order.
 //! The limits are 10,000 files and 5 GiB of restored file bytes. Database rows do not count as files.
 
-use argon2::{Algorithm, Argon2, Params, Version};
+use argon2::{Algorithm, Argon2, Block, Params, Version};
 use chacha20poly1305::{
     XChaCha20Poly1305, XNonce,
     aead::{Aead, KeyInit, Payload},
@@ -277,9 +277,15 @@ fn derive_key(password: &[u8], salt: &[u8]) -> Result<Zeroizing<[u8; 32]>, Backu
     // Untrusted archives cannot select an unbounded KDF memory or CPU cost.
     let params =
         Params::new(64 * 1024, 3, 1, Some(32)).map_err(|_| BackupError::KeyDerivationFailed)?;
+    // Wipe caller-owned KDF memory. The library's allocating helper only deallocates that memory.
+    let mut memory = Zeroizing::new(Vec::new());
+    memory
+        .try_reserve_exact(params.block_count())
+        .map_err(|_| BackupError::KeyDerivationFailed)?;
+    memory.resize_with(params.block_count(), Block::default);
     let mut key = Zeroizing::new([0u8; 32]);
     Argon2::new(Algorithm::Argon2id, Version::V0x13, params)
-        .hash_password_into(password, salt, key.as_mut())
+        .hash_password_into_with_memory(password, salt, key.as_mut(), memory.as_mut_slice())
         .map_err(|_| BackupError::KeyDerivationFailed)?;
     Ok(key)
 }
