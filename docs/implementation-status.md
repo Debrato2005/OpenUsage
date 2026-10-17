@@ -1,6 +1,6 @@
 # Implementation status
 
-Updated: October 18, 2026. The mission remains ongoing. Current milestone: native profile management verified on Linux. Next slice: provider probe integration and authenticated backup inspection.
+Updated: October 18, 2026. The mission remains ongoing. Current milestone: authenticated backup inspection verified on Linux. Next slice: native provider supervision and restore content validation.
 
 ## Implemented and executed
 
@@ -16,17 +16,20 @@ The desktop now bundles the licensed Geist font, uses shared design tokens, and 
 
 Profile creation, renaming, archiving, and restoration now use Rust commands and SQLCipher transactions. `NATIVE-PROFILES-001` passed: ten GUI-created profiles, useful refusal of an eleventh, immutable UUIDs, private separate homes, restart, and slot reuse. File and symlink faults preserved existing records and markers. No provider login or collection occurred. See `evidence/native-profiles/`.
 
+`NATIVE-BACKUP-INSPECTION-001` passed through the actual Tauri UI. Rust lists bounded candidates from the managed backup folder and authenticates the entire selected archive before returning metadata. Wrong passwords, tampering, truncation, trailing bytes, symlinks, hardlinks, and unsafe file modes were rejected. Inspection preserved workspace and source hashes and left no staging files. The receipt explicitly leaves database contents unchecked and restore unavailable. Six native screenshots cover errors, successful inspection, and both narrow themes. See `evidence/native-backup-inspection/`.
+
 ## Verification
 
 | Check | Executed result |
 |---|---|
-| `npm run check` | Passed: build/type check, 7 contract checks, 12 renderer checks |
-| `cargo test --workspace --offline` | Passed: 40 Rust tests, including 14 native service checks. |
+| `npm run check` | Passed: build/type check, 9 contract checks, 12 renderer checks |
+| `cargo test --workspace --offline --locked` | Passed: 44 Rust tests, including 18 native service checks. |
 | `cargo clippy --workspace --all-targets --offline --locked -- -D warnings` | Passed |
 | Native startup | Passed with the production credential namespace and no key-store service in its private fixture |
 | Native persistence | Passed again on the backup binary with a real private Secret Service |
 | Native backup export | Passed again on the refined UI, with archive authentication and no plaintext disk staging |
 | Native profiles | GUI lifecycle, ten-active limit, Unicode clipboard input, restart, private homes, and failure preservation passed on Linux |
+| Native backup inspection | Full archive authentication, private source checks, failure preservation, narrow themes, and password/error focus passed on Linux |
 | Native design | 46 captures passed font, overflow, keyboard focus, and field-error checks. Text scaling uses test-side CSS, not OS zoom. |
 | Windows, macOS, live provider, release performance | Not run |
 
@@ -36,12 +39,14 @@ Tauri creates its webview data directory with mode 0755. Reusing that directory 
 
 The [key-store review](reviews/2026-10-18-key-store-transport.md) rejected insecure session randomness in the first candidate library. The replacement uses OS randomness and bounded application waits. The review also fixed stale availability state and incorrect passphrase errors for database recovery faults.
 
+Saving appearance disabled its select control and lost keyboard focus. The UI now restores focus after the save when that control initiated the change and focus fell to the document body. Actual pointer and keyboard changes both passed against the rebuilt native binary.
+
 ## Decisions and continuation
 
 SQLCipher 4 with WAL remains mandatory. The [SQLite proposal](proposals/sqlite-wal-amendment.md) is rejected. The original SRS remains unchanged.
 
 The isolated probe also passed transport and cleanup-failure checks. Its real-process receipt matches the integrated source in `crates/openusage-codex/tests/evidence/real-isolated-probe.json`. Windows is unsupported by this probe. macOS and native application supervision remain untested.
 
-Next: add authenticated backup inspection, then advance native provider supervision. Inspection does not establish restore preview or database content validity. Restore and full acceptance remain open. Large-history backup memory use needs separate qualification.
+Next: advance native provider supervision and validate authenticated database contents before implementing checkpoints and restore preview. Archive inspection does not establish restore preview or database content validity. Restore and full acceptance remain open. Large-history backup memory use needs separate qualification.
 
 Local commits live in `/tmp/openusage-native-acceptance-01a14ad0`, branch `codex/native-bootstrap`. Primary Git metadata is read-only in this executor. Verified source is copied back to the primary worktree after each milestone. No existing Codex credential homes were inspected. No remote writes occurred.

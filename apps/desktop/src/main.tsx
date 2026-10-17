@@ -2,6 +2,7 @@ import { StrictMode, useCallback, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { DesktopUnavailable, invoke, type BackupReceipt, type Bootstrap, type Theme } from './contracts';
 import { ProfileManager } from './profiles';
+import { BackupInspection } from './backup-inspection';
 import './styles.css';
 
 type Startup = { kind: 'loading' } | { kind: 'desktop'; data: Bootstrap }
@@ -13,11 +14,13 @@ function App() {
   const [attempt, setAttempt] = useState(0);
   const [privacy, setPrivacy] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [themeFocusPending, setThemeFocusPending] = useState(false);
+  const themeControl = useRef<HTMLSelectElement>(null);
   const [operationError, setOperationError] = useState<string | null>(null);
   const [workspaceErrorField, setWorkspaceErrorField] = useState<'workspace-passphrase' | 'workspace-confirmation' | null>(null);
   const [passphrase, setPassphrase] = useState('');
   const [confirmation, setConfirmation] = useState('');
-  const [backupOpen, setBackupOpen] = useState(false);
+  const [backupAction, setBackupAction] = useState<'create' | 'inspect' | null>(null);
   const [backupRecords, setBackupRecords] = useState(false);
   const [backupPassword, setBackupPassword] = useState('');
   const [backupConfirmation, setBackupConfirmation] = useState('');
@@ -41,6 +44,12 @@ function App() {
   }, [attempt]);
 
   useEffect(() => { document.documentElement.dataset.theme = theme; }, [theme]);
+  useEffect(() => {
+    if (!busy && themeFocusPending) {
+      if (document.activeElement === document.body) themeControl.current?.focus();
+      setThemeFocusPending(false);
+    }
+  }, [busy, themeFocusPending]);
   useEffect(() => { if (backupReceipt) backupToggle.current?.focus(); }, [backupReceipt]);
   useEffect(() => {
     if (!busy && operationError && workspaceErrorField) document.getElementById(workspaceErrorField)?.focus();
@@ -50,6 +59,7 @@ function App() {
   }, [busy, backupError, backupErrorField]);
 
   const data = startup.kind === 'desktop' ? startup.data : null;
+  const backupOpen = backupAction === 'create';
   const ready = data?.storage === 'ready';
   const recovery = data?.storage === 'recovery_required';
   const needsPassphrase = data?.keyProtection === 'passphrase_required'
@@ -88,7 +98,10 @@ function App() {
 
   function changeTheme(next: Theme) {
     if (ready) {
-      void updateWorkspace(() => invoke('set_theme', { theme: next }));
+      const wasFocused = document.activeElement === themeControl.current;
+      void updateWorkspace(() => invoke('set_theme', { theme: next })).then(() => {
+        if (wasFocused) setThemeFocusPending(true);
+      });
     } else {
       setTheme(next);
     }
@@ -107,7 +120,7 @@ function App() {
     setBackupReceipt(null);
     try {
       setBackupReceipt(await invoke('create_backup', { password: backupPassword }));
-      setBackupOpen(false);
+      setBackupAction(null);
       setBackupRecords(false);
     } catch (error: unknown) {
       const messages: Record<string, string> = {
@@ -124,6 +137,12 @@ function App() {
       setBackupConfirmation('');
       setBusy(false);
     }
+  }
+  function toggleBackup(action: 'create' | 'inspect') {
+    setBackupAction(current => current === action ? null : action);
+    setBackupPassword('');
+    setBackupConfirmation('');
+    setBackupError(null);
   }
   const message = startup.kind === 'loading' ? 'Checking local storage…'
     : startup.kind === 'unavailable' ? 'OpenUsage needs its desktop application'
@@ -145,7 +164,7 @@ function App() {
       <div className="sidebar-footer"><span>OpenUsage</span><span>0.1.0 · In development</span></div>
     </aside>
     <div className="workspace">
-      <header className="topbar"><span>Workspace <span className="breadcrumb" aria-hidden="true">/</span> <strong>Overview</strong></span><div className="theme-control"><label htmlFor="theme">Appearance</label><select id="theme" value={theme} disabled={busy} onChange={e => changeTheme(e.target.value as Theme)}><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></div></header>
+      <header className="topbar"><span>Workspace <span className="breadcrumb" aria-hidden="true">/</span> <strong>Overview</strong></span><div className="theme-control"><label htmlFor="theme">Appearance</label><select ref={themeControl} id="theme" value={theme} disabled={busy} onChange={e => changeTheme(e.target.value as Theme)}><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></div></header>
       <main id="main" tabIndex={-1}>
         <div className="page-heading"><div><h1>Overview</h1><p className="subtitle">Account usage and activity on this device.</p></div><span className="status-pill"><span className="status-dot" aria-hidden="true" />Monitoring stopped</span></div>
         <section className="startup-panel" data-storage={data?.storage ?? startup.kind} aria-labelledby="startup-heading" aria-busy={startup.kind === 'loading' || busy}>
@@ -194,7 +213,7 @@ function App() {
             <div className="empty-state"><h3>Unlock to view your accounts</h3><p>Open your local workspace to manage account profiles and view saved activity.</p></div>
           </section>}
         {ready && <section className="backup-panel" aria-labelledby="backup-heading">
-          <div className="section-heading"><div><h2 id="backup-heading">Encrypted backups</h2><p>Save a password-protected copy of your application records.</p></div><button ref={backupToggle} className="secondary-button" disabled={busy} onClick={() => { setBackupOpen(!backupOpen); setBackupPassword(''); setBackupConfirmation(''); setBackupError(null); }} aria-expanded={backupOpen} aria-controls="backup-form">{backupOpen ? 'Hide backup form' : 'Create a backup'}</button></div>
+          <div className="section-heading"><div><h2 id="backup-heading">Encrypted backups</h2><p>Save a password-protected copy of your application records.</p></div><div className="backup-actions"><button ref={backupToggle} className="secondary-button" disabled={busy} onClick={() => toggleBackup('create')} aria-expanded={backupOpen} aria-controls="backup-form">{backupOpen ? 'Hide backup form' : 'Create a backup'}</button><button className="secondary-button" disabled={busy} onClick={() => toggleBackup('inspect')} aria-expanded={backupAction === 'inspect'} aria-controls="backup-inspection">{backupAction === 'inspect' ? 'Hide backup inspection' : 'Inspect a backup'}</button></div></div>
           {backupOpen && <form id="backup-form" className="unlock-form backup-form" onSubmit={event => { event.preventDefault(); void saveBackup(); }}>
             <p id="backup-records-help">Application records can include account names, email addresses, and activity. Provider credentials and local evidence are excluded.</p>
             <label className="backup-selection"><input id="backup-records" name="backup-records" type="checkbox" required checked={backupRecords} disabled={busy} aria-describedby="backup-records-help" onChange={event => setBackupRecords(event.target.checked)} />Application records</label>
@@ -206,6 +225,7 @@ function App() {
             {backupError && <p id="backup-error" className="operation-error" role="alert">{backupError}</p>}
           </form>}
           {backupReceipt && <div className="backup-receipt" role="status"><p>Backup saved and authenticated.</p><p><strong>{backupReceipt.fileName}</strong><br />{backupReceipt.directory}</p></div>}
+          {backupAction === 'inspect' && <section id="backup-inspection" className="backup-inspection" aria-labelledby="backup-inspection-heading"><h3 id="backup-inspection-heading">Inspect a backup</h3><BackupInspection busy={busy} setBusy={setBusy} /></section>}
           <p className="backup-note">Restore is not available in this build.</p>
         </section>}
         <footer className="main-footer"><span>Provider data: Not available</span><span>Last observation: Not available</span></footer>

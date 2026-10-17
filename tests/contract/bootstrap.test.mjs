@@ -93,3 +93,37 @@ test('rejects incompatible profile metadata, duplicate IDs, leaked paths, and fa
     await assert.rejects(invoke('list_profiles'), /desktop response is incompatible/);
   }
 });
+
+test('accepts bounded backup candidates and rejects duplicate or path-based selections', async () => {
+  const file = { fileName: 'openusage-backup-0123456789abcdef.oubackup', fileBytes: '28785' };
+  desktopResponse({ backups: [file], truncated: false });
+  assert.deepEqual(await invoke('list_backups'), { backups: [file], truncated: false });
+  for (const value of [
+    { backups: [file, file], truncated: false },
+    { backups: [{ ...file, fileName: '../openusage.db' }], truncated: false },
+    { backups: [{ ...file, fileBytes: 28785 }], truncated: false },
+    { backups: [file], truncated: 'false' },
+  ]) {
+    desktopResponse(value);
+    await assert.rejects(invoke('list_backups'), /desktop response is incompatible/);
+  }
+});
+
+test('inspection metadata preserves unknown database validity and keeps restore unavailable', async () => {
+  const metadata = {
+    fileName: 'openusage-backup-0123456789abcdef.oubackup', archiveVersion: 1,
+    manifestSchemaVersion: 77, entryCount: 1, totalBytes: '51',
+    entries: [{ name: 'records.sqlite', bytes: '51' }],
+    databaseValidation: 'not_checked', restoreAvailable: false,
+  };
+  desktopResponse(metadata);
+  assert.deepEqual(await invoke('inspect_backup', { fileName: metadata.fileName, password: 'x' }), metadata);
+  for (const changes of [
+    { restoreAvailable: true }, { databaseValidation: 'verified' }, { archiveVersion: 2 },
+    { entryCount: 2 }, { totalBytes: 51 }, { entries: [] },
+    { fileName: '/private/archive.oubackup' }, { path: '/private/archive.oubackup' },
+  ]) {
+    desktopResponse({ ...metadata, ...changes });
+    await assert.rejects(invoke('inspect_backup', { fileName: metadata.fileName, password: 'x' }), /desktop response is incompatible/);
+  }
+});
