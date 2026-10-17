@@ -3,10 +3,12 @@ use std::{fmt, fs, path::Path, time::Duration};
 use zeroize::Zeroizing;
 
 mod backup_validation;
+mod checkpoint;
 pub mod keywrap;
 pub use backup_validation::{
     BackupContentSummary, BackupValidationError, validate_backup_snapshot,
 };
+pub use checkpoint::{CheckpointError, CheckpointMetadata};
 mod profiles;
 pub use profiles::{ProfileConnectionState, ProfileEnvironment, ProfileError, ProfileSummary};
 
