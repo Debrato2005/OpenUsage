@@ -2,11 +2,16 @@ use rusqlite::{Connection, OpenFlags, TransactionBehavior};
 use std::{fmt, fs, path::Path, time::Duration};
 use zeroize::Zeroizing;
 
+mod backup_validation;
 pub mod keywrap;
+pub use backup_validation::{
+    BackupContentSummary, BackupValidationError, validate_backup_snapshot,
+};
 mod profiles;
 pub use profiles::{ProfileConnectionState, ProfileEnvironment, ProfileError, ProfileSummary};
 
 const MIGRATIONS: &[&str] = &[include_str!("schema.sql")];
+pub const CURRENT_SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
 const MAX_BACKUP_SNAPSHOT_SIZE: u64 = 5 * 1024 * 1024 * 1024;
 
 /// All records from the current schema, without credential homes, key files, or retained evidence.
