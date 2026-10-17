@@ -10,7 +10,7 @@ The actual Tauri 2 application compiles and runs with WebKitGTK. Native setup pr
 
 The run checked encrypted main/WAL content, rejection by unkeyed SQLite, private file modes, narrow command arguments, an isolated credential namespace, and an unchanged synthetic Codex home. Fresh screenshots and receipts are in `evidence/native-persistence/`. `NATIVE-SMOKE-001` also passed against the production configuration with an isolated session bus.
 
-The storage core verifies SQLCipher 4, WAL, foreign keys, FULL durability, busy timeout, schema access, and transactional migrations. The Codex crate passes synthetic protocol checks but does not launch a provider process. The explicit backup action takes a consistent WAL-aware snapshot in Rust memory, encrypts it, authenticates the entire archive, and publishes it without overwriting a file. `NATIVE-BACKUP-001` passed through the actual UI. A test-side verifier authenticated the saved file, rejected wrong passwords and tampering, and read its schema and saved theme entirely in memory. Restore preview, checkpoints, and live restore remain incomplete.
+The storage core verifies SQLCipher 4, WAL, foreign keys, FULL durability, busy timeout, schema access, and transactional migrations. The Codex crate now runs an isolated one-shot provider probe. Its real Codex 0.163.0 check passed in fresh temporary homes, with no login or inference. Native provider collection remains incomplete. The explicit backup action takes a consistent WAL-aware snapshot in Rust memory, encrypts it, authenticates the entire archive, and publishes it without overwriting a file. `NATIVE-BACKUP-001` passed through the actual UI. A test-side verifier authenticated the saved file, rejected wrong passwords and tampering, and read its schema and saved theme entirely in memory. Restore preview, checkpoints, and live restore remain incomplete.
 
 The desktop now bundles the licensed Geist font, uses shared design tokens, and places accounts before backup controls. `NATIVE-VISUAL-001` passed with 46 native captures, both themes, actual desktop/narrow viewports, enlarged text, loaded-font checks, and password-error focus. Backup export passed again on the corrected UI. See `design/desktop-foundations.md` and `evidence/native-design/`.
 
@@ -21,7 +21,7 @@ Profile creation, renaming, archiving, and restoration now use Rust commands and
 | Check | Executed result |
 |---|---|
 | `npm run check` | Passed: build/type check, 7 contract checks, 12 renderer checks |
-| `cargo test --workspace --offline` | Passed: 35 Rust tests, including 14 native service checks. |
+| `cargo test --workspace --offline` | Passed: 40 Rust tests, including 14 native service checks. |
 | `cargo clippy --workspace --all-targets --offline --locked -- -D warnings` | Passed |
 | Native startup | Passed with the production credential namespace and no key-store service in its private fixture |
 | Native persistence | Passed again on the backup binary with a real private Secret Service |
@@ -40,6 +40,8 @@ The [key-store review](reviews/2026-10-18-key-store-transport.md) rejected insec
 
 SQLCipher 4 with WAL remains mandatory. The [SQLite proposal](proposals/sqlite-wal-amendment.md) is rejected. The original SRS remains unchanged.
 
-Next: integrate the isolated provider probe and add authenticated backup inspection. Inspection does not establish restore preview or database content validity. Restore and full acceptance remain open. Large-history backup memory use needs separate qualification.
+The isolated probe also passed transport and cleanup-failure checks. Its real-process receipt matches the integrated source in `crates/openusage-codex/tests/evidence/real-isolated-probe.json`. Windows is unsupported by this probe. macOS and native application supervision remain untested.
+
+Next: add authenticated backup inspection, then advance native provider supervision. Inspection does not establish restore preview or database content validity. Restore and full acceptance remain open. Large-history backup memory use needs separate qualification.
 
 Local commits live in `/tmp/openusage-native-acceptance-01a14ad0`, branch `codex/native-bootstrap`. Primary Git metadata is read-only in this executor. Verified source is copied back to the primary worktree after each milestone. No existing Codex credential homes were inspected. No remote writes occurred.

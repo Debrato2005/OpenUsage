@@ -16,7 +16,7 @@ Updated: October 18, 2026. Native startup, encrypted persistence, backup export,
 | OU-CRYPT-007 through OU-CRYPT-009, OU-CRYPT-015 through OU-CRYPT-017 | Authenticated passphrase envelope, real native fallback setup/restart/unlock, wrong-passphrase preservation. Owned Rust key/KDF buffers use zeroization. | Linux journey passed |
 | OU-CRYPT-003 through OU-CRYPT-006, AT-33 | Linux Secret Service and native missing-key recovery passed. Windows Credential Manager and macOS Keychain code remain unexecuted. | in progress |
 | OU-BACKUP-001 through OU-BACKUP-018 | Native encrypted save passed. WAL-aware memory snapshot, bounded authenticated codec, real free-space checks, private files, and no-clobber publication are implemented. Restore preview, checkpoint, and live replacement remain incomplete. AT-32 is partial. | in progress |
-| OU-PROTO-011, OU-PROTO-014, identity and scope boundaries | Seven synthetic Rust protocol checks. No provider subprocess or live contract ran. | in progress |
+| OU-PROTO-011, OU-PROTO-014, identity and scope boundaries | Seven protocol and five transport fixture checks passed. A real Codex 0.163.0 probe passed initialize/account-read in fresh isolated homes. Native collectors, login, verified identity, and live account scope remain incomplete. | in progress |
 | AT-36 | Native keyboard startup and renderer accessibility checks passed. Main workflows, screen-reader checks, and chart alternatives remain incomplete. | in progress |
 | AT-01 through AT-55 | Default status for mandatory acceptance tests without a completed native journey | not started |
 | AT-34, AT-35, AT-52, AT-53 and performance targets | No release-platform benchmark or ten-profile stress run | not started |
