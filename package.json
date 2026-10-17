@@ -7,10 +7,13 @@
   "engines": { "node": "22.23.2" },
   "scripts": {
     "dev": "vite --config apps/desktop/vite.config.ts",
+    "dev:native": "npm run build && cargo run -p openusage-desktop",
     "build": "tsc --noEmit && vite build --config apps/desktop/vite.config.ts",
+    "build:native": "npm run build && cargo build --release -p openusage-desktop",
     "typecheck": "tsc --noEmit",
     "test:contract": "node tests/contract/bootstrap.test.mjs",
     "test:renderer": "playwright test",
+    "test:native": "node tests/native/smoke.mjs",
     "check": "npm run build && npm run test:contract && npm run test:renderer"
   },
   "dependencies": {

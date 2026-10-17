@@ -1,6 +1,8 @@
 # Proposed SRS amendment: standard SQLite with WAL
 
-Status: **DRAFT FOR USER APPROVAL. NOT APPLIED.**
+Status: **REJECTED by the owner on October 17, 2026. NOT APPLIED.**
+
+SQLCipher 4 with WAL remains mandatory. Reconsideration requires a reproducible release-blocking technical issue. The text below is an archived proposal.
 
 The current SRS still requires SQLCipher. Its SHA-256 is `667005e9d26549d7f0da99918a9e455595feb7fc407d4d3319ac5ee1c083277c`.
 
@@ -115,9 +117,9 @@ Native acceptance still requires executed evidence. Neither this proposal nor ex
 
 ## 5. Approval and implementation boundary
 
-Required decision: approve or reject this entire amendment, including the explicit plaintext-at-rest consequence.
-Until approval, `docs/SRS.md` remains unchanged and SQLCipher remains normative.
+The owner rejected this entire amendment, including its plaintext-at-rest consequence.
+`docs/SRS.md` remains unchanged and SQLCipher remains normative.
 
-After approval, update the SRS and clarification log together. Then replace the SQLCipher dependency and database unlock states.
+The implementation instructions below are inactive historical text. No SQLite conversion is authorized.
 Keep existing database detection explicit. Never open an encrypted SQLCipher file as a new blank standard SQLite database.
 Any existing encrypted user database needs a separate, reversible conversion plan before conversion.

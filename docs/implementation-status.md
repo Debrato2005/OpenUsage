@@ -1,43 +1,43 @@
 # Implementation status
 
-Updated: October 17, 2026. Current slice: bootstrap response validation.
+Updated: October 17, 2026. The mission remains ongoing. Current milestone: native startup verified. Next slice: secure database setup and persisted settings.
 
-## Current implementation
+## Implemented and executed
 
-The paused checkout contains a React renderer and one typed `bootstrap` command contract. Native Rust commands, SQLCipher storage, and provider collection do not exist yet. This is an incomplete slice 0, not a native application.
+The real Tauri 2 application compiles and launches on Linux/WSL with WebKitGTK. `NATIVE-SMOKE-001` passed against its executable. It checks actual Rust bootstrap IPC, rejected commands and arguments, unavailable provider metrics, keyboard navigation, and an unchanged synthetic Codex home. A fresh native screenshot and execution receipt are retained in `docs/evidence/native-startup/`.
 
-The bootstrap validator now requires string values for storage and theme. Previously, array values passed through string coercion and bypassed the ready-state metadata check. Four synthetic contract tests exercise the public command wrapper. They cover valid states, array rejection, numeric bounds, and missing desktop access. This supports OU-ARCH-004 and OU-SEC-006 but does not complete either requirement.
+The renderer build and type checks pass. `npm run check` passes all four contract checks and twelve renderer checks across Chromium and WebKit. Renderer fixtures remain separate evidence.
 
-Renderer test drafts cover startup failures, locked storage, recovery guidance, keyboard navigation, and automated accessibility checks. They remain unexecuted. No screenshot, visual acceptance, native security, or provider capability passed.
+The SQLCipher storage core creates and reopens encrypted databases with WAL, verified durability settings, and transactional migrations. Tests cover wrong-key preservation, rollback, newer schemas, path links, and encrypted main/WAL files. The passphrase key wrapper uses Argon2id and authenticated XChaCha20-Poly1305. Native key-store wiring and persistence acceptance remain in progress.
 
-## Executed evidence
+The Codex protocol crate passes seven synthetic boundary tests. It does not launch a provider process. The backup codec passes four cryptographic tests but is not wired to snapshot selection, preview, checkpoints, or live restore.
 
-Use Node 22.23.2 from `/example/home/.nvm/versions/node/v22.23.2/bin`. The default Node is 18.19.1.
+## Verification
 
-| Check | Actual result |
+| Check | Executed result |
 |---|---|
-| Contract tests before the fix | 3 passed, 1 failed on missing array rejection |
-| `npm run test:contract` with Node 22.23.2 | 4 passed, independently repeated by a review agent |
-| Pinned TypeScript 6.0.3, strict check of `contracts.ts` | Passed, using an integrity-checked cached compiler |
-| Node syntax checks for renderer test/config drafts | Passed |
-| `npm ci --ignore-scripts --no-audit --no-fund` | Failed: registry DNS returned `EAI_AGAIN` |
-| `npm run check` | Failed at build: `tsc: not found` |
-| Native build, Cargo tests, Clippy, native E2E | Blocked: no Rust toolchain or native source |
+| `npm run check` | Passed: build/type checks, 4 contract checks, 12 renderer checks |
+| `cargo test --workspace --offline --locked` | Passed: 19 Rust tests |
+| `cargo build -p openusage-desktop --offline --locked` | Passed, native executable produced |
+| `NATIVE-SMOKE-001` | Passed, real Linux native binary and WebKitWebDriver |
+| Windows, macOS, live provider, release performance | Not run |
 
-[Machine-readable evidence](evidence/bootstrap-validation.json) records commands and source hashes.
+The native startup binary SHA-256 is `799e00d997ebb8d983672b3bc05dd92a26753528e5dddd42d752799928df020b`.
 
-## Blockers and next task
+## Resolved environment issues
 
-The lockfile is inconsistent: Vite 8.3.2 requires `lightningcss ^1.33.0`, but the only locked Lightning CSS is 1.32.0. The local cache lacks required packages. No dependency versions changed. Restore registry access, check official package versions, regenerate the lockfile with scripts disabled, then run `npm run check`.
+Approved package downloads resolved sandbox DNS failures. The lockfile now includes Vite's required Lightning CSS version and removes stale unrelated dependencies. Installation scripts stayed disabled. Rust 1.99.1 was installed in a task directory after official SHA-256 checks. The owner installed GTK/WebKit development packages.
 
-After the renderer checks pass, implement the smallest native bootstrap and encrypted-storage path. Use the native smoke procedure in [the engineering review](reviews/2026-10-17-engineering-review.md). Provider sessions must stay stopped until native isolation exists.
+Renderer WebKit uses a documented isolated browser runtime with verified Ubuntu libraries. Native and renderer loopback tests use a process-local GLib resolver. Product security settings remain intact.
+
+## Decisions and next work
+
+SQLCipher 4 with WAL remains mandatory. The owner rejected the [SQLite proposal](proposals/sqlite-wal-amendment.md). Do not revisit this decision without a reproducible release-blocking issue. The original SRS remains unchanged.
+
+Next: connect Rust-owned OS key storage and passphrase fallback to SQLCipher setup/unlock, then prove saved theme state across a native restart. An isolated real Secret Service already passed its own synthetic restart check. That resource check does not prove product key management.
 
 ## Local history
 
-The primary checkout remains on `main` at `8da71ac`. Its `.git` directory is read-only in this executor, so worktree creation failed. No sandbox permissions changed.
+Work is isolated in `/tmp/openusage-native-acceptance-01a14ad0`, branch `codex/native-bootstrap`, with separate agent worktrees. Verified source is copied back to the primary worktree. Its Git metadata is read-only in this executor, so local commits live in the isolated clone. Inspect its log for the latest milestone and helper commits.
 
-Local commits live in `/tmp/openusage-native-acceptance-01a14ad0`, on `codex/bootstrap-validation`. That clone preserves the paused renderer checkpoint separately from the fix. Inspect its local log before integration. The primary source files contain the same fix, but remain untracked because the original application files were never committed.
-
-The SRS stays unchanged. SHA-256: `667005e9d26549d7f0da99918a9e455595feb7fc407d4d3319ac5ee1c083277c`.
-
-No credential homes were inspected. No remote writes occurred.
+No existing Codex credential homes were inspected. No remote writes occurred.

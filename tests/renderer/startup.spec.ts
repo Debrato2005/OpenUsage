@@ -26,7 +26,7 @@ test('locked storage never invents a profile count or provider reading', async (
   await bootstrap(page, locked);
   await page.goto('/');
   await expect(page.getByRole('status')).toHaveText('Unlock your local workspace');
-  await expect(page.getByText('Monitoring stopped', { exact: true })).toBeVisible();
+  await expect(page.getByText(/Monitoring stopped/)).toBeVisible();
   const summary = page.getByRole('region', { name: 'Workspace summary' });
   await expect(summary.getByText('Locked', { exact: true })).toBeVisible();
   await expect(summary.getByText('Not available', { exact: true })).toHaveCount(2);

@@ -1,19 +1,22 @@
 # Acceptance traceability
 
-Updated: October 17, 2026. No native acceptance test passed. Contract checks and renderer fixtures cannot replace native evidence.
+Updated: October 17, 2026. Native startup passed on Linux. The full mandatory acceptance suite remains incomplete.
 
-| Requirement or check | Implementation | Evidence | Status |
-|---|---|---|---|
-| OU-ARCH-004, OU-SEC-006: bootstrap response boundary | Strict enum types and existing numeric validation in `apps/desktop/src/contracts.ts` | Four synthetic public-wrapper tests passed in `tests/contract/bootstrap.test.mjs`. Strict TypeScript check passed. Rust authorization remains absent. | in progress |
-| OU-STATE-003: unknown values differ from zero | Existing renderer displays unavailable metrics. Contract checks preserve nulls and valid zero profile counts. | Contract checks passed. Browser behavior remains unexecuted. | in progress |
-| Renderer startup and accessibility checks | `playwright.config.ts`, `tests/renderer/startup.spec.ts` | Syntax checks passed. Dependency installation failed. | blocked |
-| NATIVE-SMOKE-001: native bootstrap and truthful empty state | Not implemented. Procedure appears in the engineering review. | No native binary or toolchain | blocked |
-| AT-01 through AT-55 | Mandatory SRS acceptance suite remains unimplemented | No native execution evidence | not started |
-| AT-36, AT-38: accessibility and platform acceptance | Renderer test drafts cover only a subset | No native platform or screen-reader evidence | not started |
-| AT-45: live identity contract | No provider adapter or authorized live test | A nullable upstream quota account ID does not establish stable identity. | not started |
-| OU-NFR performance targets, AT-34, AT-35, AT-52, AT-53 | No collector, history store, or native application | No benchmarks ran. | not started |
-| OU-SEC-015: dependency validation | Existing package pins and lockfile | Lockfile inconsistency found. No vulnerability scan or reproducible installation passed. | blocked |
+| Requirement or check | Implementation and executed evidence | Status |
+|---|---|---|
+| NATIVE-SMOKE-001 | Real Tauri binary, native bootstrap and command rejection, keyboard privacy access, unavailable readings, isolated Codex home. Receipt and screenshot in `evidence/native-startup/`. | passed |
+| OU-ARCH-004, OU-ARCH-005, OU-SEC-006 through OU-SEC-009 | Native command registration, argument checks, main-window capability, CSP, navigation restrictions. Native startup and one Rust navigation test passed. Full platform/security scope remains incomplete. | in progress |
+| Renderer build and startup checks | `npm run check`: build/type check, four synthetic contract checks, twelve renderer checks across Chromium and WebKit | passed |
+| OU-DATA-001 through OU-DATA-006, OU-DATA-019, OU-DATA-020, OU-CRYPT-002, OU-CRYPT-011, OU-CRYPT-013 | SQLCipher/WAL core and four storage tests passed. Native setup and recovery journeys remain unexecuted. | in progress |
+| OU-CRYPT-007 through OU-CRYPT-009, OU-CRYPT-015 through OU-CRYPT-017 | Authenticated passphrase key envelope. Three synthetic Rust tests passed. Native fallback UI and lifecycle remain in progress. | in progress |
+| OU-CRYPT-003 through OU-CRYPT-006 | Platform key-store integration under implementation. A separate private Linux Secret Service passed a resource check. | in progress |
+| OU-BACKUP-001 through OU-BACKUP-018 | Authenticated bounded archive codec. Four Rust crypto tests passed. Snapshot selection, preview, checkpoints, space measurement, and live restore remain incomplete. | in progress |
+| OU-PROTO-011, OU-PROTO-014, identity and scope boundaries | Seven synthetic Rust contract tests passed against documented versioned shapes. No provider subprocess or live contract ran. | in progress |
+| AT-36 | Native keyboard startup path and renderer accessibility checks passed. Main workflows, screen-reader checks, and chart alternatives remain incomplete. | in progress |
+| AT-01 through AT-55 | Default status for mandatory acceptance tests without a specific completed native journey | not started |
+| AT-34, AT-35, AT-52, AT-53 and performance targets | No release-platform benchmark or ten-profile stress run | not started |
+| Windows/macOS platform acceptance and AT-45 live identity | No executed evidence | not started |
 
-The row covering AT-01 through AT-55 is the default status for every mandatory acceptance test. Specific rows describe blockers without changing that status.
+Contract tests, codec tests, renderer fixtures, and operating-system resource checks do not establish full native acceptance. Only `NATIVE-SMOKE-001` currently passed as a complete native journey.
 
-See [the implementation checkpoint](implementation-status.md), [the evidence record](evidence/bootstrap-validation.json), and [the engineering review](reviews/2026-10-17-engineering-review.md).
+See [the checkpoint](implementation-status.md) and [the archived rejected amendment](proposals/sqlite-wal-amendment.md).
