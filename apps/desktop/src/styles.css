@@ -185,3 +185,30 @@ main { max-width: 1280px; padding: var(--space-6); margin: 0 auto; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; }
 }
+
+.profile-capacity, .profile-empty { margin-top: var(--space-3); color: var(--muted); font-size: var(--text-sm); }
+.profile-create-form { display: grid; grid-template-columns: minmax(0, 360px) auto; justify-content: start; align-items: start; gap: var(--space-2) var(--space-3); margin: var(--space-4) 0; }
+.profile-create-form > label { grid-column: 1 / -1; font-weight: var(--weight-medium); }
+.profile-create-form input, .profile-rename-form input { width: 100%; min-width: 0; min-height: 44px; padding: var(--space-2) var(--space-3); border: 1px solid var(--control-border); border-radius: var(--radius-control); background: var(--surface); }
+.profile-create-form input[aria-invalid='true'], .profile-rename-form input[aria-invalid='true'] { border-color: var(--error); }
+.profile-create-form .profile-error { grid-column: 1 / -1; }
+.profile-status { margin-top: var(--space-3); color: var(--accent); font-size: var(--text-sm); }
+.profile-list { list-style: none; padding: 0; margin: var(--space-4) 0; border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--surface); }
+.profile-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3) var(--space-4); padding: var(--space-3) var(--space-4); }
+.profile-row + .profile-row { border-top: 1px solid var(--line); }
+.profile-details { flex: 1 1 220px; min-width: 0; }
+.profile-label { display: block; overflow-wrap: anywhere; font-weight: var(--weight-medium); }
+.profile-meta { margin-top: var(--space-1); color: var(--muted); font-size: var(--text-xs); }
+.profile-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.profile-rename-form { display: flex; flex-direction: column; gap: var(--space-2); flex: 1 1 100%; min-width: 0; max-width: 480px; }
+.profile-rename-form label { font-weight: var(--weight-medium); }
+.profile-row > .profile-error { flex: 1 1 100%; }
+.profile-error:focus, .archived-profiles summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+.archived-profiles { margin-top: var(--space-4); }
+.archived-profiles summary { display: list-item; width: fit-content; max-width: 100%; min-height: 44px; padding: var(--space-3) var(--space-1); font-weight: var(--weight-medium); cursor: pointer; }
+.archived-profiles > p { font-size: var(--text-sm); color: var(--muted); }
+@media (max-width: 760px) {
+  .profile-create-form { grid-template-columns: minmax(0, 1fr); }
+  .profile-create-form .primary-button { justify-self: start; }
+  .profile-details { flex-basis: 100%; }
+}

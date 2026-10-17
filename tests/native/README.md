@@ -119,3 +119,30 @@ The visual test does not establish emoji input acceptance.
 Timing records describe individual synthetic lab launches.
 They include driver creation and polling where stated.
 They do not establish a percentile, release performance, or complete accessibility acceptance.
+
+## Native profile lifecycle
+
+Build the `native-test` binary first. The profile test needs Python 3 with PyGObject and GTK 3.
+Run it on a private Xvfb display:
+
+```sh
+xvfb-run -a env \
+  GDK_BACKEND=x11 \
+  GIO_USE_PROXY_RESOLVER=dummy \
+  TAURI_DRIVER=/tmp/openusage-native-tools-01a14ad0/bin/tauri-driver \
+  WEBKIT_WEBDRIVER=/usr/bin/WebKitWebDriver \
+  OPENUSAGE_NATIVE_PRIVATE_XVFB=1 \
+  node tests/native/profiles.mjs
+```
+
+The 100-emoji label uses the [GTK clipboard](https://docs.gtk.org/gtk3/method.Clipboard.set_text.html) and native Control+V on that private display.
+The helper changes no renderer values through JavaScript.
+It closes its clipboard owner after the real input receives the label.
+
+`NATIVE-PROFILES-001` creates ten profiles through the GUI and checks the refusal of an eleventh.
+It checks rename, archive, restore, restart, and slot reuse through the GUI.
+Direct native IPC checks metadata, locked access, malformed input, and capacity enforcement.
+The test checks SQLCipher persistence and private managed homes without provider login.
+An explicit synthetic marker checks local data retention across archive and restore.
+Separate file and symlink faults affect only synthetic paths and must preserve their markers.
+This test does not establish provider collection, remote history, or other-platform acceptance.

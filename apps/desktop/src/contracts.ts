@@ -18,7 +18,24 @@ export interface BackupReceipt {
   directory: string;
 }
 
+export interface ProfileRecord {
+  id: string;
+  label: string;
+  environment: 'native' | 'wsl';
+  connectionState: 'connected' | 'authentication_required' | 'unauthorized' | 'offline' | 'unsupported' | 'error';
+  archived: boolean;
+}
+
+export interface ProfileView {
+  profiles: ProfileRecord[];
+  activeProfiles: number;
+}
+
 interface Commands {
+  list_profiles: { args: undefined; result: ProfileView };
+  create_profile: { args: { label: string }; result: ProfileView };
+  rename_profile: { args: { id: string; label: string }; result: ProfileView };
+  set_profile_archived: { args: { id: string; archived: boolean }; result: ProfileView };
   bootstrap: { args: undefined; result: Bootstrap };
   setup_workspace: { args: { passphrase: string | null }; result: Bootstrap };
   unlock_workspace: { args: { passphrase: string }; result: Bootstrap };
@@ -43,7 +60,10 @@ export async function invoke<K extends keyof Commands>(
   const core = window.__TAURI__?.core;
   if (!core) throw new DesktopUnavailable('Open the installed OpenUsage desktop application.');
   const response = await core.invoke<unknown>(command, args[0]);
-  if (command === 'create_backup' ? !isBackupReceipt(response) : !isBootstrap(response)) {
+  const valid = command === 'create_backup' ? isBackupReceipt(response)
+    : ['list_profiles', 'create_profile', 'rename_profile', 'set_profile_archived'].includes(command)
+    ? isProfileView(response) : isBootstrap(response);
+  if (!valid) {
     throw new Error('The desktop response is incompatible. Restart OpenUsage after updating the application.');
   }
   return response as Commands[K]['result'];
@@ -71,4 +91,26 @@ function isBootstrap(value: unknown): value is Bootstrap {
     && (v.storageIssue === null || (typeof v.storageIssue === 'string'
       && ['key_store_unavailable', 'missing_key', 'missing_database', 'invalid_key', 'storage_unavailable', 'workspace_in_use'].includes(v.storageIssue)))
     && (v.storage !== 'ready' || (v.activeProfiles !== null && v.schemaVersion !== null));
+}
+
+function isProfileView(value: unknown): value is ProfileView {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  if (Object.keys(v).length !== 2 || !Array.isArray(v.profiles)
+    || !Number.isSafeInteger(v.activeProfiles) || Number(v.activeProfiles) < 0 || Number(v.activeProfiles) > 10) return false;
+  const ids = new Set<string>();
+  for (const value of v.profiles) {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+    const p = value as Record<string, unknown>;
+    if (Object.keys(p).some(key => !['id', 'label', 'environment', 'connectionState', 'archived'].includes(key)) || typeof p.id !== 'string'
+      || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(p.id)
+      || ids.has(p.id) || typeof p.label !== 'string' || p.label.length > 400
+      || Array.from(p.label).length < 1 || Array.from(p.label).length > 100 || /[\u0000-\u001f\u007f-\u009f]/u.test(p.label)
+      || typeof p.environment !== 'string' || !['native', 'wsl'].includes(p.environment)
+      || typeof p.connectionState !== 'string'
+      || !['connected', 'authentication_required', 'unauthorized', 'offline', 'unsupported', 'error'].includes(p.connectionState)
+      || typeof p.archived !== 'boolean') return false;
+    ids.add(p.id);
+  }
+  return v.profiles.filter(p => !(p as ProfileRecord).archived).length === v.activeProfiles;
 }

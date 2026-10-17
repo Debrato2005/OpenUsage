@@ -63,3 +63,33 @@ test('accepts bounded backup locations and rejects incompatible native receipts'
     await assert.rejects(invoke('create_backup', { password: 'synthetic backup password' }), /desktop response is incompatible/);
   }
 });
+
+test('accepts profile records with Unicode labels and counts only active profiles', async () => {
+  const profile = {
+    id: '00000001-0000-4000-8000-000000000000', label: '😀'.repeat(100),
+    environment: 'native', connectionState: 'authentication_required', archived: false,
+  };
+  const value = { profiles: [profile, { ...profile, id: '00000002-0000-4000-8000-000000000000', archived: true }], activeProfiles: 1 };
+  desktopResponse(value);
+  assert.deepEqual(await invoke('list_profiles'), value);
+});
+
+test('rejects incompatible profile metadata, duplicate IDs, leaked paths, and false counts', async () => {
+  const profile = {
+    id: '00000001-0000-4000-8000-000000000000', label: 'Synthetic profile',
+    environment: 'native', connectionState: 'authentication_required', archived: false,
+  };
+  for (const value of [
+    { profiles: [profile], activeProfiles: 0 },
+    { profiles: [profile, profile], activeProfiles: 2 },
+    { profiles: [{ ...profile, id: '../other-home' }], activeProfiles: 1 },
+    { profiles: [{ ...profile, home: '/private/home' }], activeProfiles: 1 },
+    { profiles: [{ ...profile, connectionState: ['connected'] }], activeProfiles: 1 },
+    { profiles: [{ ...profile, label: 'é'.repeat(101) }], activeProfiles: 1 },
+    { profiles: [{ ...profile, label: 'name\u0000hidden' }], activeProfiles: 1 },
+    { profiles: [profile], activeProfiles: 11 },
+  ]) {
+    desktopResponse(value);
+    await assert.rejects(invoke('list_profiles'), /desktop response is incompatible/);
+  }
+});

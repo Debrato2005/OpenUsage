@@ -1,6 +1,6 @@
 # Acceptance traceability
 
-Updated: October 18, 2026. Native startup, encrypted persistence, backup export, and design checks passed on Linux. The full mandatory acceptance suite remains incomplete.
+Updated: October 18, 2026. Native startup, encrypted persistence, backup export, design, and profile checks passed on Linux. The full mandatory acceptance suite remains incomplete.
 
 | Requirement or check | Implementation and executed evidence | Status |
 |---|---|---|
@@ -8,8 +8,10 @@ Updated: October 18, 2026. Native startup, encrypted persistence, backup export,
 | NATIVE-STORAGE-001 | Real private Secret Service, OS-protected setup, saved theme after application/key-store restart, fallback unlock, wrong-passphrase preservation, missing-key/database recovery, encrypted WAL and private modes. See `evidence/native-persistence/`. | passed on Linux |
 | NATIVE-BACKUP-001 | Actual UI save with explicit selection and password, private encrypted archive, full authentication, wrong-password/tamper rejection, schema/theme checked in memory. See `evidence/native-backup/`. | passed on Linux |
 | NATIVE-VISUAL-001 | 46 real WebKit captures in both themes: setup, locked, ready, recovery, backup, desktop/narrow viewports, loaded Geist, keyboard focus, and password-error association. See `evidence/native-design/`. | passed on Linux |
+| NATIVE-PROFILES-001, AT-03 | Actual GUI creates ten profiles and refuses the eleventh with capacity guidance. Rename/archive/restore/restart preserve UUIDs and private homes. File/symlink faults preserve records. See `evidence/native-profiles/`. | passed on Linux |
+| OU-ACCT-001 through OU-ACCT-006, OU-CAP-001 | Profile lifecycle and capacity checks passed. Deletion, optional tags, WSL selection, login, and returned identity fields remain incomplete. AT-02 collector and AT-04 activity-history portions remain open. | in progress |
 | OU-ARCH-004, OU-ARCH-005, OU-SEC-006 through OU-SEC-009 | Narrow typed commands, argument rejection, main-window capabilities, CSP and navigation checks. Native journeys and Rust checks passed. Full security scope remains incomplete. | in progress |
-| Renderer checks | `npm run check`: build/type check, five synthetic contract checks, twelve renderer checks across Chromium and WebKit | passed |
+| Renderer checks | `npm run check`: build/type check, seven synthetic contract checks, twelve renderer checks across Chromium and WebKit | passed |
 | OU-DATA-001 through OU-DATA-006, OU-DATA-019, OU-DATA-020, OU-CRYPT-001, OU-CRYPT-002, OU-CRYPT-011, OU-CRYPT-013 | SQLCipher/WAL core and native encrypted persistence passed. Migration rollback and newer-schema preservation passed Rust checks. Full platform coverage remains open. | in progress |
 | OU-CRYPT-007 through OU-CRYPT-009, OU-CRYPT-015 through OU-CRYPT-017 | Authenticated passphrase envelope, real native fallback setup/restart/unlock, wrong-passphrase preservation. Owned Rust key/KDF buffers use zeroization. | Linux journey passed |
 | OU-CRYPT-003 through OU-CRYPT-006, AT-33 | Linux Secret Service and native missing-key recovery passed. Windows Credential Manager and macOS Keychain code remain unexecuted. | in progress |
@@ -20,6 +22,6 @@ Updated: October 18, 2026. Native startup, encrypted persistence, backup export,
 | AT-34, AT-35, AT-52, AT-53 and performance targets | No release-platform benchmark or ten-profile stress run | not started |
 | Windows/macOS platform acceptance and AT-45 live identity | No executed evidence | not started |
 
-Synthetic protocol checks, codec checks, renderer fixtures, and OS resource checks do not establish full native acceptance. The four named native journeys above have executed Linux evidence.
+Synthetic protocol checks, codec checks, renderer fixtures, and OS resource checks do not establish full native acceptance. The five named native journeys above have executed Linux evidence.
 
 See [the checkpoint](implementation-status.md) and [the archived rejected amendment](proposals/sqlite-wal-amendment.md).

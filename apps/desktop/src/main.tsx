@@ -1,6 +1,7 @@
-import { StrictMode, useEffect, useRef, useState } from 'react';
+import { StrictMode, useCallback, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { DesktopUnavailable, invoke, type BackupReceipt, type Bootstrap, type Theme } from './contracts';
+import { ProfileManager } from './profiles';
 import './styles.css';
 
 type Startup = { kind: 'loading' } | { kind: 'desktop'; data: Bootstrap }
@@ -24,6 +25,10 @@ function App() {
   const [backupErrorField, setBackupErrorField] = useState<'backup-password' | 'backup-confirmation' | null>(null);
   const [backupReceipt, setBackupReceipt] = useState<BackupReceipt | null>(null);
   const backupToggle = useRef<HTMLButtonElement>(null);
+  const updateProfileCount = useCallback((count: number) => {
+    setStartup(current => current.kind === 'desktop' && current.data.storage === 'ready'
+      ? { ...current, data: { ...current.data, activeProfiles: count } } : current);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -184,9 +189,10 @@ function App() {
           <Metric label="Quota remaining" value="Not available" detail="No accepted provider reading" />
           <Metric label="Token activity" value="Not available" detail="No accepted provider reading" />
         </section>
-        <section className="accounts-section" aria-labelledby="accounts-heading"><div className="section-heading"><div><h2 id="accounts-heading">Accounts</h2><p>Each profile uses a separate Codex environment.</p></div><span className="muted-tag">{ready ? `${data.activeProfiles} active` : 'Workspace locked'}</span></div>
-          <div className="empty-state"><h3>{ready ? 'No accounts connected' : 'Unlock to view your accounts'}</h3><p>{ready ? 'Account connection is not available in this development build. No provider data has been collected.' : 'Open your local workspace to manage account profiles and view saved activity.'}</p></div>
-        </section>
+        {ready ? <ProfileManager busy={busy} setBusy={setBusy} onCount={updateProfileCount} />
+          : <section className="accounts-section" aria-labelledby="accounts-heading"><div className="section-heading"><div><h2 id="accounts-heading">Accounts</h2><p>Each profile uses a separate Codex environment.</p></div><span className="muted-tag">Workspace locked</span></div>
+            <div className="empty-state"><h3>Unlock to view your accounts</h3><p>Open your local workspace to manage account profiles and view saved activity.</p></div>
+          </section>}
         {ready && <section className="backup-panel" aria-labelledby="backup-heading">
           <div className="section-heading"><div><h2 id="backup-heading">Encrypted backups</h2><p>Save a password-protected copy of your application records.</p></div><button ref={backupToggle} className="secondary-button" disabled={busy} onClick={() => { setBackupOpen(!backupOpen); setBackupPassword(''); setBackupConfirmation(''); setBackupError(null); }} aria-expanded={backupOpen} aria-controls="backup-form">{backupOpen ? 'Hide backup form' : 'Create a backup'}</button></div>
           {backupOpen && <form id="backup-form" className="unlock-form backup-form" onSubmit={event => { event.preventDefault(); void saveBackup(); }}>
