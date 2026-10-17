@@ -1,5 +1,7 @@
 use crate::keyvault::{KeyVault, VaultError};
-use openusage_storage::{Storage, StorageError, Theme, keywrap};
+use openusage_storage::{
+    ProfileConnectionState, ProfileEnvironment, ProfileError, Storage, StorageError, Theme, keywrap,
+};
 use serde::Serialize;
 use std::{
     fs::{self, File, OpenOptions},
@@ -54,6 +56,28 @@ pub enum CommandError {
     WorkspaceLocked,
     BackupUnavailable,
     InsufficientSpace,
+    InvalidProfileId,
+    InvalidProfileLabel,
+    ProfileCapacityReached,
+    ProfileNotFound,
+    ProfileUnavailable,
+}
+
+#[derive(Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProfileView {
+    pub profiles: Vec<ProfileRecord>,
+    pub active_profiles: u32,
+}
+
+#[derive(Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProfileRecord {
+    pub id: String,
+    pub label: String,
+    pub environment: &'static str,
+    pub connection_state: &'static str,
+    pub archived: bool,
 }
 
 #[derive(Serialize)]
@@ -312,6 +336,108 @@ impl Workspace {
             .map_err(|_| CommandError::BackupUnavailable)
     }
 
+    pub fn list_profiles(&self) -> Result<ProfileView, CommandError> {
+        let profiles = self
+            .storage
+            .as_ref()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .list_profiles()
+            .map_err(profile_error)?;
+        let active_profiles = profiles.iter().filter(|profile| !profile.archived).count();
+        if active_profiles > 10 {
+            return Err(CommandError::ProfileUnavailable);
+        }
+        Ok(ProfileView {
+            active_profiles: active_profiles as u32,
+            profiles: profiles
+                .into_iter()
+                .map(|profile| ProfileRecord {
+                    id: profile.id,
+                    label: profile.label,
+                    environment: match profile.environment {
+                        ProfileEnvironment::Native => "native",
+                        ProfileEnvironment::Wsl => "wsl",
+                    },
+                    connection_state: match profile.connection_state {
+                        ProfileConnectionState::Connected => "connected",
+                        ProfileConnectionState::AuthenticationRequired => "authentication_required",
+                        ProfileConnectionState::Unauthorized => "unauthorized",
+                        ProfileConnectionState::Offline => "offline",
+                        ProfileConnectionState::Unsupported => "unsupported",
+                        ProfileConnectionState::Error => "error",
+                    },
+                    archived: profile.archived,
+                })
+                .collect(),
+        })
+    }
+
+    pub fn create_profile(&mut self, label: &str) -> Result<ProfileView, CommandError> {
+        let storage = self.storage.as_mut().ok_or(CommandError::WorkspaceLocked)?;
+        validate_profile_label(label)?;
+        let mut random = [0u8; 16];
+        getrandom::fill(&mut random).map_err(|_| CommandError::ProfileUnavailable)?;
+        let id = uuid::Builder::from_random_bytes(random)
+            .into_uuid()
+            .to_string();
+        let parent = self.directory.join("profiles");
+        prepare_directory(&parent).map_err(|_| CommandError::ProfileUnavailable)?;
+        let home = parent.join(&id);
+        let mut builder = fs::DirBuilder::new();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::DirBuilderExt;
+            builder.mode(0o700);
+        }
+        builder
+            .create(&home)
+            .map_err(|_| CommandError::ProfileUnavailable)?;
+        let result = (|| {
+            prepare_directory(&home).map_err(|_| CommandError::ProfileUnavailable)?;
+            #[cfg(unix)]
+            for directory in [&home, &parent, &self.directory] {
+                File::open(directory)
+                    .and_then(|file| file.sync_all())
+                    .map_err(|_| CommandError::ProfileUnavailable)?;
+            }
+            storage
+                .create_profile(&id, label, &id)
+                .map_err(profile_error)?;
+            Ok(())
+        })();
+        if let Err(error) = result {
+            // Remove only this newly created empty home. Never remove existing files or homes.
+            let _ = fs::remove_dir(&home);
+            return Err(error);
+        }
+        self.list_profiles()
+    }
+
+    pub fn rename_profile(&mut self, id: &str, label: &str) -> Result<ProfileView, CommandError> {
+        validate_profile_id(id)?;
+        validate_profile_label(label)?;
+        self.storage
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .rename_profile(id, label)
+            .map_err(profile_error)?;
+        self.list_profiles()
+    }
+
+    pub fn set_profile_archived(
+        &mut self,
+        id: &str,
+        archived: bool,
+    ) -> Result<ProfileView, CommandError> {
+        validate_profile_id(id)?;
+        self.storage
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .set_profile_archived(id, archived)
+            .map_err(profile_error)?;
+        self.list_profiles()
+    }
+
     fn ready(&self) -> Bootstrap {
         match self
             .storage
@@ -344,6 +470,31 @@ impl Workspace {
             KeyProtection::PassphraseRequired,
             Some(StorageIssue::KeyStoreUnavailable),
         )
+    }
+}
+
+pub fn validate_profile_id(id: &str) -> Result<(), CommandError> {
+    let parsed = uuid::Uuid::parse_str(id).map_err(|_| CommandError::InvalidProfileId)?;
+    if parsed.hyphenated().to_string() != id {
+        return Err(CommandError::InvalidProfileId);
+    }
+    Ok(())
+}
+
+pub fn validate_profile_label(label: &str) -> Result<(), CommandError> {
+    if label.chars().any(char::is_control) || !(1..=100).contains(&label.trim().chars().count()) {
+        return Err(CommandError::InvalidProfileLabel);
+    }
+    Ok(())
+}
+
+fn profile_error(error: ProfileError) -> CommandError {
+    match error {
+        ProfileError::InvalidId => CommandError::InvalidProfileId,
+        ProfileError::InvalidLabel => CommandError::InvalidProfileLabel,
+        ProfileError::CapacityReached => CommandError::ProfileCapacityReached,
+        ProfileError::NotFound => CommandError::ProfileNotFound,
+        _ => CommandError::ProfileUnavailable,
     }
 }
 
@@ -782,5 +933,154 @@ mod tests {
         ));
         assert!(!vault.database.exists());
         assert!(!directory.join(WRAPPED_KEY_FILE).exists());
+    }
+
+    #[test]
+    fn native_profiles_use_empty_private_homes_and_survive_restart() {
+        let temporary = tempfile::tempdir().unwrap();
+        let directory = temporary.path().join("workspace");
+        let vault = FakeVault::new(&directory, true);
+        let mut workspace = Workspace::new(directory.clone()).unwrap();
+        assert_eq!(
+            workspace.list_profiles(),
+            Err(CommandError::WorkspaceLocked)
+        );
+        assert_eq!(
+            workspace.create_profile("Locked"),
+            Err(CommandError::WorkspaceLocked)
+        );
+        assert!(!directory.join("profiles").exists());
+        workspace.setup(Ok(&vault), None).unwrap();
+        let created = workspace
+            .create_profile(" \u{2003} Synthetic profile\u{a0} ")
+            .unwrap();
+        let id = created.profiles[0].id.clone();
+        assert_eq!(created.active_profiles, 1);
+        assert_eq!(created.profiles[0].label, "Synthetic profile");
+        assert_eq!(created.profiles[0].environment, "native");
+        assert_eq!(
+            created.profiles[0].connection_state,
+            "authentication_required"
+        );
+        assert_eq!(
+            uuid::Uuid::parse_str(&id).unwrap().get_version(),
+            Some(uuid::Version::Random)
+        );
+        let home = directory.join("profiles").join(&id);
+        assert!(home.is_dir());
+        assert_eq!(fs::read_dir(&home).unwrap().count(), 0);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(
+                fs::metadata(&home).unwrap().permissions().mode() & 0o777,
+                0o700
+            );
+        }
+        workspace.rename_profile(&id, "Renamed profile").unwrap();
+        let second = workspace.create_profile("Second profile").unwrap();
+        assert_ne!(second.profiles[0].id, second.profiles[1].id);
+        let expected = workspace.set_profile_archived(&id, true).unwrap();
+        assert_eq!(expected.active_profiles, 1);
+        assert!(home.is_dir());
+        let serialized = serde_json::to_string(&expected).unwrap();
+        assert!(!serialized.contains("home"));
+        assert!(!serialized.contains(directory.to_str().unwrap()));
+        assert!(
+            !fs::read(&vault.database)
+                .unwrap()
+                .starts_with(b"SQLite format 3\0")
+        );
+        let unkeyed = rusqlite::Connection::open(&vault.database).unwrap();
+        assert!(
+            unkeyed
+                .query_row("SELECT count(*) FROM profiles", [], |row| row
+                    .get::<_, u32>(0))
+                .is_err()
+        );
+        drop(unkeyed);
+        drop(workspace);
+
+        let mut restarted = Workspace::new(directory).unwrap();
+        assert_eq!(
+            restarted.list_profiles(),
+            Err(CommandError::WorkspaceLocked)
+        );
+        assert_eq!(restarted.bootstrap(Ok(&vault)).active_profiles, Some(1));
+        assert_eq!(restarted.list_profiles().unwrap(), expected);
+        assert_eq!(fs::read_dir(home).unwrap().count(), 0);
+    }
+
+    #[test]
+    fn native_profile_capacity_failure_removes_only_the_new_empty_home() {
+        let temporary = tempfile::tempdir().unwrap();
+        let directory = temporary.path().join("workspace");
+        let vault = FakeVault::new(&directory, true);
+        let mut workspace = Workspace::new(directory.clone()).unwrap();
+        workspace.setup(Ok(&vault), None).unwrap();
+        for invalid in ["", " \u{2003} ", "bad\nlabel", "bad\0label"] {
+            assert_eq!(
+                workspace.create_profile(invalid),
+                Err(CommandError::InvalidProfileLabel)
+            );
+        }
+        assert!(!directory.join("profiles").exists());
+        for number in 1..=10 {
+            workspace
+                .create_profile(&format!("Synthetic profile {number}"))
+                .unwrap();
+        }
+        let parent = directory.join("profiles");
+        let original = workspace.list_profiles().unwrap();
+        let id = original.profiles[0].id.clone();
+        let sentinel = parent.join(&id).join("synthetic-owned-marker");
+        fs::write(&sentinel, b"preserve this synthetic file").unwrap();
+        assert_eq!(
+            workspace.create_profile("Eleventh profile"),
+            Err(CommandError::ProfileCapacityReached)
+        );
+        assert_eq!(fs::read_dir(&parent).unwrap().count(), 10);
+        assert_eq!(workspace.list_profiles().unwrap(), original);
+        assert_eq!(
+            fs::read(&sentinel).unwrap(),
+            b"preserve this synthetic file"
+        );
+        workspace.set_profile_archived(&id, true).unwrap();
+        assert_eq!(
+            workspace
+                .create_profile("New active profile")
+                .unwrap()
+                .active_profiles,
+            10
+        );
+        assert_eq!(fs::read_dir(&parent).unwrap().count(), 11);
+        assert_eq!(
+            workspace.set_profile_archived(&id, false),
+            Err(CommandError::ProfileCapacityReached)
+        );
+        workspace
+            .set_profile_archived(&original.profiles[1].id, true)
+            .unwrap();
+        let current = workspace.set_profile_archived(&id, false).unwrap();
+        assert_eq!(current.active_profiles, 10);
+        assert_eq!(current.profiles.len(), 11);
+        assert_eq!(
+            fs::read(&sentinel).unwrap(),
+            b"preserve this synthetic file"
+        );
+        for invalid in ["../external", "ABCDEF01-0000-4000-8000-000000000000"] {
+            assert_eq!(
+                workspace.rename_profile(invalid, "Name"),
+                Err(CommandError::InvalidProfileId)
+            );
+            assert_eq!(
+                workspace.set_profile_archived(invalid, true),
+                Err(CommandError::InvalidProfileId)
+            );
+        }
+        assert_eq!(
+            workspace.rename_profile(&id, "bad\tlabel"),
+            Err(CommandError::InvalidProfileLabel)
+        );
     }
 }

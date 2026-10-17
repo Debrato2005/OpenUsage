@@ -11,7 +11,7 @@ use std::sync::{Arc, Mutex};
 use tauri::{
     AppHandle, Manager, State, WebviewWindowBuilder, ipc::InvokeBody, webview::NewWindowResponse,
 };
-use workspace::{Bootstrap, CommandError, Workspace};
+use workspace::{Bootstrap, CommandError, ProfileView, Workspace};
 use zeroize::Zeroizing;
 
 #[derive(Default)]
@@ -57,6 +57,30 @@ struct ThemeArgs {
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ListProfilesArgs {}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CreateProfileArgs {
+    label: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RenameProfileArgs {
+    id: String,
+    label: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ArchiveProfileArgs {
+    id: String,
+    archived: bool,
+}
+
+#[derive(Deserialize)]
 #[serde(rename_all = "snake_case")]
 enum ThemeChoice {
     System,
@@ -71,11 +95,20 @@ enum Operation {
     SetTheme(Theme),
 }
 
+enum ProfileOperation {
+    List,
+    Create(String),
+    Rename(String, String),
+    SetArchived(String, bool),
+}
+
 fn arguments<'a, T: Deserialize<'a>>(
     request: &'a tauri::ipc::Request<'_>,
 ) -> Result<T, CommandError> {
     match request.body() {
-        InvokeBody::Json(body) => T::deserialize(body).map_err(|_| CommandError::InvalidArguments),
+        InvokeBody::Json(body) if body.is_object() => {
+            T::deserialize(body).map_err(|_| CommandError::InvalidArguments)
+        }
         _ => Err(CommandError::InvalidArguments),
     }
 }
@@ -211,6 +244,76 @@ async fn create_backup(
     .map_err(|_| CommandError::BackupUnavailable)?
 }
 
+async fn run_profiles(
+    service: Arc<Mutex<Option<Workspace>>>,
+    operation: ProfileOperation,
+) -> Result<ProfileView, CommandError> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut state = service
+            .lock()
+            .map_err(|_| CommandError::ProfileUnavailable)?;
+        let workspace = state.as_mut().ok_or(CommandError::WorkspaceLocked)?;
+        match operation {
+            ProfileOperation::List => workspace.list_profiles(),
+            ProfileOperation::Create(label) => workspace.create_profile(&label),
+            ProfileOperation::Rename(id, label) => workspace.rename_profile(&id, &label),
+            ProfileOperation::SetArchived(id, archived) => {
+                workspace.set_profile_archived(&id, archived)
+            }
+        }
+    })
+    .await
+    .map_err(|_| CommandError::ProfileUnavailable)?
+}
+
+#[tauri::command]
+async fn list_profiles(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<ProfileView, CommandError> {
+    let _: ListProfilesArgs = arguments(&request)?;
+    run_profiles(Arc::clone(&service.0), ProfileOperation::List).await
+}
+
+#[tauri::command]
+async fn create_profile(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<ProfileView, CommandError> {
+    let args: CreateProfileArgs = arguments(&request)?;
+    workspace::validate_profile_label(&args.label)?;
+    run_profiles(Arc::clone(&service.0), ProfileOperation::Create(args.label)).await
+}
+
+#[tauri::command]
+async fn rename_profile(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<ProfileView, CommandError> {
+    let args: RenameProfileArgs = arguments(&request)?;
+    workspace::validate_profile_id(&args.id)?;
+    workspace::validate_profile_label(&args.label)?;
+    run_profiles(
+        Arc::clone(&service.0),
+        ProfileOperation::Rename(args.id, args.label),
+    )
+    .await
+}
+
+#[tauri::command]
+async fn set_profile_archived(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<ProfileView, CommandError> {
+    let args: ArchiveProfileArgs = arguments(&request)?;
+    workspace::validate_profile_id(&args.id)?;
+    run_profiles(
+        Arc::clone(&service.0),
+        ProfileOperation::SetArchived(args.id, args.archived),
+    )
+    .await
+}
+
 fn is_bundled_url(url: &tauri::Url) -> bool {
     url.username().is_empty()
         && url.password().is_none()
@@ -227,7 +330,11 @@ fn main() {
             setup_workspace,
             unlock_workspace,
             set_theme,
-            create_backup
+            create_backup,
+            list_profiles,
+            create_profile,
+            rename_profile,
+            set_profile_archived
         ])
         .setup(|app| {
             let window = &app.config().app.windows[0];
@@ -243,10 +350,39 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::{BackupArgs, SetupArgs, ThemeArgs, UnlockArgs, is_bundled_url};
+    use super::{
+        ArchiveProfileArgs, BackupArgs, CreateProfileArgs, ListProfilesArgs, RenameProfileArgs,
+        SetupArgs, ThemeArgs, UnlockArgs, is_bundled_url,
+    };
 
     #[test]
     fn storage_commands_reject_unexpected_fields_and_incorrect_value_types() {
+        assert!(serde_json::from_str::<ListProfilesArgs>(r#"{"home":"/external"}"#).is_err());
+        for invalid in [
+            r#"{}"#,
+            r#"{"label":null}"#,
+            r#"{"label":[]}"#,
+            r#"{"label":"Synthetic","id":"caller-selected"}"#,
+            r#"{"label":"Synthetic","environment":"wsl"}"#,
+            r#"{"label":"Synthetic","home":"/external"}"#,
+        ] {
+            assert!(serde_json::from_str::<CreateProfileArgs>(invalid).is_err());
+        }
+        for invalid in [
+            r#"{"label":"Synthetic"}"#,
+            r#"{"id":[],"label":"Synthetic"}"#,
+            r#"{"id":"synthetic","label":"Synthetic","extra":true}"#,
+        ] {
+            assert!(serde_json::from_str::<RenameProfileArgs>(invalid).is_err());
+        }
+        for invalid in [
+            r#"{"id":"synthetic"}"#,
+            r#"{"id":"synthetic","archived":"true"}"#,
+            r#"{"id":"synthetic","archived":1}"#,
+            r#"{"id":"synthetic","archived":true,"deleteHistory":true}"#,
+        ] {
+            assert!(serde_json::from_str::<ArchiveProfileArgs>(invalid).is_err());
+        }
         for invalid in [
             r#"{}"#,
             r#"{"password":null}"#,
