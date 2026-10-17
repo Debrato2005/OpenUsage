@@ -1,12 +1,13 @@
 # Acceptance traceability
 
-Updated: October 18, 2026. Native startup, encrypted persistence, and backup export passed on Linux. The full mandatory acceptance suite remains incomplete.
+Updated: October 18, 2026. Native startup, encrypted persistence, backup export, and design checks passed on Linux. The full mandatory acceptance suite remains incomplete.
 
 | Requirement or check | Implementation and executed evidence | Status |
 |---|---|---|
 | NATIVE-SMOKE-001 | Real production native binary, bootstrap and command rejection, keyboard privacy access, unavailable readings, private session bus. Receipt and screenshot in `evidence/native-secure-startup/`. | passed on Linux |
 | NATIVE-STORAGE-001 | Real private Secret Service, OS-protected setup, saved theme after application/key-store restart, fallback unlock, wrong-passphrase preservation, missing-key/database recovery, encrypted WAL and private modes. See `evidence/native-persistence/`. | passed on Linux |
 | NATIVE-BACKUP-001 | Actual UI save with explicit selection and password, private encrypted archive, full authentication, wrong-password/tamper rejection, schema/theme checked in memory. See `evidence/native-backup/`. | passed on Linux |
+| NATIVE-VISUAL-001 | 46 real WebKit captures in both themes: setup, locked, ready, recovery, backup, desktop/narrow viewports, loaded Geist, keyboard focus, and password-error association. See `evidence/native-design/`. | passed on Linux |
 | OU-ARCH-004, OU-ARCH-005, OU-SEC-006 through OU-SEC-009 | Narrow typed commands, argument rejection, main-window capabilities, CSP and navigation checks. Native journeys and Rust checks passed. Full security scope remains incomplete. | in progress |
 | Renderer checks | `npm run check`: build/type check, five synthetic contract checks, twelve renderer checks across Chromium and WebKit | passed |
 | OU-DATA-001 through OU-DATA-006, OU-DATA-019, OU-DATA-020, OU-CRYPT-001, OU-CRYPT-002, OU-CRYPT-011, OU-CRYPT-013 | SQLCipher/WAL core and native encrypted persistence passed. Migration rollback and newer-schema preservation passed Rust checks. Full platform coverage remains open. | in progress |
@@ -19,6 +20,6 @@ Updated: October 18, 2026. Native startup, encrypted persistence, and backup exp
 | AT-34, AT-35, AT-52, AT-53 and performance targets | No release-platform benchmark or ten-profile stress run | not started |
 | Windows/macOS platform acceptance and AT-45 live identity | No executed evidence | not started |
 
-Synthetic protocol checks, codec checks, renderer fixtures, and OS resource checks do not establish full native acceptance. The three named native journeys above have executed Linux evidence.
+Synthetic protocol checks, codec checks, renderer fixtures, and OS resource checks do not establish full native acceptance. The four named native journeys above have executed Linux evidence.
 
 See [the checkpoint](implementation-status.md) and [the archived rejected amendment](proposals/sqlite-wal-amendment.md).

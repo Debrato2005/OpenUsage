@@ -97,3 +97,25 @@ It checks schema and appearance in the authenticated records, wrong-password rej
 It also checks locked-workspace rejection, malformed arguments, and the absence of pending files after success.
 The evidence directory contains the encrypted archive and a native screenshot.
 This test does not establish restore acceptance, power-loss recovery, or live provider capability.
+
+## Native visual checks
+
+Set `OPENUSAGE_VISUAL_FONT=Geist`, then run `node tests/native/visual.mjs` with the same drivers and display.
+The test also needs the private Secret Service tools from the persistence test.
+Use a `native-test` binary and set `OPENUSAGE_NATIVE_SOURCE_ROOT` when it comes from another checkout.
+
+`NATIVE-VISUAL-001` saves light and dark native images for setup, passphrase fallback, ready, recovery, and backup states.
+It checks the loaded font, keyboard focus outline, horizontal overflow, and unavailable provider metrics.
+The form checks require the correct error focus, field association, and semantic error color.
+The native window must supply the recorded 1280×850 and 360×800 viewports.
+The test enlarges computed font sizes to 150% inside the renderer, then removes those test styles.
+This checks text layout. It does not establish operating-system zoom or display scaling.
+
+The Unicode byte-limit case enters 600 `é` characters through native WebDriver input.
+Their 1200 UTF-8 bytes exceed the Rust limit while their 600 UTF-16 units fit the HTML limit.
+This environment left emoji fields empty during a separate native input diagnosis.
+The visual test does not establish emoji input acceptance.
+
+Timing records describe individual synthetic lab launches.
+They include driver creation and polling where stated.
+They do not establish a percentile, release performance, or complete accessibility acceptance.

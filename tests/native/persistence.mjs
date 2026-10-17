@@ -1,21 +1,20 @@
 import assert from 'node:assert/strict';
-import { spawn, execFile, execFileSync } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { lstat, mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { arch, platform, release, tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
-import { setTimeout as delay } from 'node:timers/promises';
 import { NativeDriver, waitFor } from './webdriver.mjs';
 import { CODEX_SENTINEL, createFixture, stopGroup } from './private-fixture.mjs';
+import { startSecretService, stopSecretService } from './secret-service.mjs';
 
 const run = promisify(execFile);
 const repository = resolve(process.env.OPENUSAGE_NATIVE_SOURCE_ROOT ?? join(dirname(fileURLToPath(import.meta.url)), '../..'));
 const application = resolve(process.env.OPENUSAGE_NATIVE_BINARY ?? join(repository, 'target/debug/openusage-desktop'));
 const output = resolve(process.env.OPENUSAGE_NATIVE_EVIDENCE ?? join(tmpdir(), `openusage-persistence-evidence-${randomUUID()}`));
 const sdk = process.env.OPENUSAGE_SECRET_SERVICE_SDK;
-const daemonBinary = sdk ? join(resolve(sdk), 'runtime/usr/bin/gnome-keyring-daemon') : 'gnome-keyring-daemon';
 const secretTool = sdk ? join(resolve(sdk), 'runtime/usr/bin/secret-tool') : 'secret-tool';
 const testService = 'app.openusage.desktop.native-test';
 const keyAccount = 'primary-database-key-v1';
@@ -29,46 +28,6 @@ const evidence = {
 let fixture;
 let driver;
 let driverNumber = 0;
-
-async function stopDaemon() {
-  if (!fixture?.daemon) return;
-  const child = fixture.daemon;
-  if (child.exitCode === null && child.signalCode === null) {
-    const exit = new Promise(done => child.once('exit', done));
-    child.kill('SIGTERM');
-    await Promise.race([exit, delay(3000)]);
-    if (child.exitCode === null && child.signalCode === null) {
-      child.kill('SIGKILL');
-      await exit;
-    }
-  }
-  fixture.daemon = null;
-}
-
-async function startDaemon() {
-  const current = fixture;
-  const environment = { ...fixture.environment };
-  if (sdk) environment.LD_LIBRARY_PATH = join(resolve(sdk), 'runtime/usr/lib/x86_64-linux-gnu');
-  const child = spawn(daemonBinary, ['--foreground', '--components=secrets', '--unlock', `--control-directory=${fixture.dirs.control}`], { env: environment, stdio: ['pipe', 'pipe', 'pipe'] });
-  fixture.daemon = child;
-  child.stdout.on('data', chunk => current.logs.push(chunk));
-  child.stderr.on('data', chunk => current.logs.push(chunk));
-  let failed;
-  child.once('error', error => { failed = error; });
-  child.stdin.once('error', error => { failed = error; });
-  child.once('exit', code => { failed = new Error(`Private Secret Service exited: ${code}`); });
-  child.stdin.end('OpenUsage synthetic keyring fixture passphrase');
-  await waitFor(async () => {
-    if (failed) throw failed;
-    try {
-      const alias = await run('gdbus', ['call', '--session', '--dest', 'org.freedesktop.secrets', '--object-path', '/org/freedesktop/secrets', '--method', 'org.freedesktop.Secret.Service.ReadAlias', 'default'], { env: environment, timeout: 2000 });
-      const collection = alias.stdout.match(/'(\/org\/freedesktop\/secrets\/collection\/[^']+)'/)?.[1];
-      if (!collection) return false;
-      const locked = await run('gdbus', ['call', '--session', '--dest', 'org.freedesktop.secrets', '--object-path', collection, '--method', 'org.freedesktop.DBus.Properties.Get', 'org.freedesktop.Secret.Collection', 'Locked'], { env: environment, timeout: 2000 });
-      return locked.stdout.includes('false');
-    } catch { return false; }
-  }, 'real private Secret Service');
-}
 
 async function openApp() {
   driver = new NativeDriver(application, fixture.environment, join(output, `driver-${++driverNumber}.log`));
@@ -85,7 +44,7 @@ async function disposeFixture() {
   if (!fixture) return;
   const errors = [];
   try { await closeApp(); } catch (error) { errors.push(error); }
-  try { await stopDaemon(); } catch (error) { errors.push(error); }
+  try { await stopSecretService(fixture); } catch (error) { errors.push(error); }
   stopGroup(fixture.bus, 'SIGKILL');
   try {
     await writeFile(join(output, `${fixture.name}-service.log`), Buffer.concat(fixture.logs), { mode: 0o600 });
@@ -173,7 +132,7 @@ try {
     try { evidence.sourceHashes[path] = await hash(join(repository, path)); } catch (error) { if (error.code !== 'ENOENT') throw error; }
   }
   fixture = await createFixture('os-store');
-  await startDaemon();
+  await startSecretService(fixture);
   await openApp();
   await state({ storage: 'setup_required', keyProtection: 'os_store', activeProfiles: null });
   for (const [command, args] of [
@@ -194,19 +153,19 @@ try {
   await encryptedFiles('os_store');
   await screenshot('os-created-dark.png');
   await closeApp();
-  await stopDaemon();
-  await startDaemon();
+  await stopSecretService(fixture);
+  await startSecretService(fixture);
   await openApp();
   await ready('dark', 'os_store');
   await screenshot('os-restarted-dark.png');
   await closeApp();
   const savedHash = await hash(fixture.database);
-  await stopDaemon();
+  await stopSecretService(fixture);
   await openApp();
   await state({ storage: 'locked', storageIssue: 'key_store_unavailable' });
   assert.equal(await hash(fixture.database), savedHash);
   await closeApp();
-  await startDaemon();
+  await startSecretService(fixture);
   const preserved = `${fixture.database}.preserved`;
   await rename(fixture.database, preserved);
   await openApp();

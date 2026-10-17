@@ -1,6 +1,6 @@
 # Implementation status
 
-Updated: October 18, 2026. The mission remains ongoing. Current milestone: native encrypted backup export verified on Linux. Next slice: typography and dashboard refinement, then profile management.
+Updated: October 18, 2026. The mission remains ongoing. Current milestone: native typography and dashboard refinement verified on Linux. Next slice: persistent profile management.
 
 ## Implemented and executed
 
@@ -12,6 +12,8 @@ The run checked encrypted main/WAL content, rejection by unkeyed SQLite, private
 
 The storage core verifies SQLCipher 4, WAL, foreign keys, FULL durability, busy timeout, schema access, and transactional migrations. The Codex crate passes synthetic protocol checks but does not launch a provider process. The explicit backup action takes a consistent WAL-aware snapshot in Rust memory, encrypts it, authenticates the entire archive, and publishes it without overwriting a file. `NATIVE-BACKUP-001` passed through the actual UI. A test-side verifier authenticated the saved file, rejected wrong passwords and tampering, and read its schema and saved theme entirely in memory. Restore preview, checkpoints, and live restore remain incomplete.
 
+The desktop now bundles the licensed Geist font, uses shared design tokens, and places accounts before backup controls. `NATIVE-VISUAL-001` passed with 46 native captures, both themes, actual desktop/narrow viewports, enlarged text, loaded-font checks, and password-error focus. Backup export passed again on the corrected UI. See `design/desktop-foundations.md` and `evidence/native-design/`.
+
 ## Verification
 
 | Check | Executed result |
@@ -21,7 +23,8 @@ The storage core verifies SQLCipher 4, WAL, foreign keys, FULL durability, busy 
 | `cargo clippy --workspace --all-targets --offline --locked -- -D warnings` | Passed |
 | Native startup | Passed with the production credential namespace and no key-store service in its private fixture |
 | Native persistence | Passed again on the backup binary with a real private Secret Service |
-| Native backup export | Passed, with independent archive authentication and no plaintext disk staging |
+| Native backup export | Passed again on the refined UI, with archive authentication and no plaintext disk staging |
+| Native design | 46 captures passed font, overflow, keyboard focus, and field-error checks. Text scaling uses test-side CSS, not OS zoom. |
 | Windows, macOS, live provider, release performance | Not run |
 
 ## Resolved faults
@@ -34,6 +37,6 @@ The [key-store review](reviews/2026-10-18-key-store-transport.md) rejected insec
 
 SQLCipher 4 with WAL remains mandatory. The [SQLite proposal](proposals/sqlite-wal-amendment.md) is rejected. The original SRS remains unchanged.
 
-Next: refine typography, copy, tokens, and daily-use density in the actual native app, then connect profile management. Native backup evidence is in `evidence/native-backup/`. Restore and full acceptance remain open. Large-history backup memory use needs separate qualification.
+Next: integrate profile creation, naming, archiving, and the ten-active-profile limit with native verification. Provider sessions and backup inspection follow. Restore and full acceptance remain open. Large-history backup memory use needs separate qualification.
 
 Local commits live in `/tmp/openusage-native-acceptance-01a14ad0`, branch `codex/native-bootstrap`. Primary Git metadata is read-only in this executor. Verified source is copied back to the primary worktree after each milestone. No existing Codex credential homes were inspected. No remote writes occurred.

@@ -163,7 +163,7 @@ try {
       { type: 'keyDown', value: '\uE007' }, { type: 'keyUp', value: '\uE007' },
     ] }] });
     await waitUntil(async () => (await execute('return document.querySelector("[aria-controls=privacy-details]")?.getAttribute("aria-expanded");')) === 'true', 'keyboard access to privacy details');
-    assert.equal(await execute('return document.querySelector("#privacy-heading")?.textContent;'), 'Your data stays yours');
+    assert.equal(await execute('return document.querySelector("#privacy-heading")?.textContent;'), 'Privacy and local storage');
     evidence.steps.push('Tab navigation and Enter opened privacy details in the native webview.');
     await request('POST', `/session/${session}/execute/async`, {
       script: 'const done = arguments[arguments.length - 1]; document.fonts.ready.then(() => requestAnimationFrame(() => requestAnimationFrame(() => done(true))));',
