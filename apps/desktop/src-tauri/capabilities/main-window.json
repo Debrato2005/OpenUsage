@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main-window",
-  "description": "The bundled main window can set up and unlock encrypted storage and save its theme.",
+  "description": "The bundled main window can manage encrypted storage, save its theme, and export encrypted backups.",
   "windows": ["main"],
   "local": true,
-  "permissions": ["allow-bootstrap", "allow-setup-workspace", "allow-unlock-workspace", "allow-set-theme"]
+  "permissions": ["allow-bootstrap", "allow-setup-workspace", "allow-unlock-workspace", "allow-set-theme", "allow-create-backup"]
 }

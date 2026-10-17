@@ -53,3 +53,13 @@ test('reports a missing desktop bridge without fabricating local state', async (
   globalThis.window = {};
   await assert.rejects(invoke('bootstrap'), DesktopUnavailable);
 });
+
+test('accepts bounded backup locations and rejects incompatible native receipts', async () => {
+  const receipt = { fileName: 'openusage-backup-synthetic.oubackup', directory: '/synthetic/Downloads/OpenUsage' };
+  desktopResponse(receipt);
+  assert.deepEqual(await invoke('create_backup', { password: 'synthetic backup password' }), receipt);
+  for (const value of [ready, { ...receipt, fileName: '../records.sqlite' }, { ...receipt, directory: '' }, { ...receipt, directory: '/invalid\0path' }]) {
+    desktopResponse(value);
+    await assert.rejects(invoke('create_backup', { password: 'synthetic backup password' }), /desktop response is incompatible/);
+  }
+});

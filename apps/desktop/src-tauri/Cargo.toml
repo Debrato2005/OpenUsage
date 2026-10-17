@@ -12,10 +12,12 @@ tauri-build = { version = "=2.7.3", features = [] }
 [dependencies]
 keyring-core = "=1.0.1"
 libc = "=0.2.191"
+openusage-import = { path = "../../../crates/openusage-import" }
 openusage-storage = { path = "../../../crates/openusage-storage" }
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = "=1.0.154"
 tauri = { version = "=2.12.4", features = [] }
+tempfile = "=3.27.0"
 zeroize = "=1.9.1"
 
 [target.'cfg(target_os = "linux")'.dependencies]
@@ -31,7 +33,6 @@ windows-sys = { version = "=0.61.2", features = ["Win32_Storage_FileSystem"] }
 
 [dev-dependencies]
 rusqlite = { version = "=0.40.1", features = ["bundled-sqlcipher-vendored-openssl"] }
-tempfile = "3"
 
 [features]
 default = ["custom-protocol"]

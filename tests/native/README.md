@@ -14,7 +14,7 @@ Set `TAURI_DRIVER` or `WEBKIT_WEBDRIVER` when a driver is outside `PATH`.
 
 The driver receives fresh XDG directories and a synthetic `CODEX_HOME`.
 The test leaves `HOME` unchanged.
-Both tests use a private D-Bus configuration without service activation directories.
+All native tests use a private D-Bus configuration without service activation directories.
 The smoke starts no Secret Service.
 The persistence test starts only its isolated GNOME Secret Service.
 The test removes only its temporary fixture and closes its own session and processes.
@@ -65,3 +65,35 @@ xvfb-run -a env \
 These task-local SDK paths must exist and match their package integrity records.
 The GLib resolver setting applies only to this local test process after a proxy lookup failure.
 For a preserved binary from another checkout, also set `OPENUSAGE_NATIVE_BINARY` and `OPENUSAGE_NATIVE_SOURCE_ROOT`.
+
+## Native backup export
+
+Build the standalone verifier from the repository root:
+
+```sh
+cargo build --locked --manifest-path tests/native/backup-verifier/Cargo.toml
+```
+
+Then run the native backup test with Node 22:
+
+```sh
+xvfb-run -a env \
+  GDK_BACKEND=x11 \
+  GIO_USE_PROXY_RESOLVER=dummy \
+  TAURI_DRIVER=/tmp/openusage-native-tools-01a14ad0/bin/tauri-driver \
+  WEBKIT_WEBDRIVER=/usr/bin/WebKitWebDriver \
+  OPENUSAGE_BACKUP_VERIFIER="$PWD/tests/native/backup-verifier/target/debug/openusage-native-backup-verifier" \
+  node tests/native/backup.mjs
+```
+
+The fixture sets its Downloads directory inside its temporary XDG configuration.
+The test does not use the user's Downloads directory or credential store.
+The password goes to the verifier through standard input.
+The verifier uses the production archive codec and reads the SQLite snapshot in memory.
+It writes no plaintext records to disk.
+
+`NATIVE-BACKUP-001` checks explicit records consent, password confirmation, native export, private file modes, and the saved receipt.
+It checks schema and appearance in the authenticated records, wrong-password rejection, and tamper rejection.
+It also checks locked-workspace rejection, malformed arguments, and the absence of pending files after success.
+The evidence directory contains the encrypted archive and a native screenshot.
+This test does not establish restore acceptance, power-loss recovery, or live provider capability.

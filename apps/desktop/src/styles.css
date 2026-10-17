@@ -66,6 +66,13 @@ h2 { font-size: 18px; font-weight: 600; letter-spacing: -.4px; }
 .unlock-form .primary-button { justify-self: start; margin-top: 8px; }
 .startup-content .operation-error { margin-top: 16px; color: var(--text); border-left: 3px solid var(--accent); padding-left: 12px; }
 .startup-content .protection-note { margin-top: 14px; }
+.backup-panel { padding: 24px; margin-bottom: 32px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.backup-panel .section-heading { margin-bottom: 0; }
+.backup-selection { display: flex; gap: 10px; align-items: center; min-height: 44px; }
+.backup-selection input { width: 20px; min-height: 20px; margin: 0; }
+.backup-note, .backup-receipt { color: var(--muted); font-size: 13px; line-height: 1.8; margin-top: 18px; overflow-wrap: anywhere; }
+.backup-receipt p + p { margin-top: 8px; }
+.backup-panel .operation-error { border-left: 3px solid var(--accent); padding-left: 12px; }
 button:disabled, select:disabled { cursor: wait; opacity: .7; }
 .primary-button { display: inline-flex; align-items: center; justify-content: center; gap: 16px; margin-top: 21px; padding: 10px 14px; color: var(--surface); background: var(--accent); border: 1px solid var(--accent); border-radius: 7px; font-size: 12px; font-weight: 600; }
 .primary-button:hover { filter: brightness(.92); }

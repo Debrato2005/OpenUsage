@@ -13,11 +13,17 @@ export interface Bootstrap {
   storageIssue: StorageIssue | null;
 }
 
+export interface BackupReceipt {
+  fileName: string;
+  directory: string;
+}
+
 interface Commands {
   bootstrap: { args: undefined; result: Bootstrap };
   setup_workspace: { args: { passphrase: string | null }; result: Bootstrap };
   unlock_workspace: { args: { passphrase: string }; result: Bootstrap };
   set_theme: { args: { theme: Theme }; result: Bootstrap };
+  create_backup: { args: { password: string }; result: BackupReceipt };
 }
 
 declare global {
@@ -37,10 +43,19 @@ export async function invoke<K extends keyof Commands>(
   const core = window.__TAURI__?.core;
   if (!core) throw new DesktopUnavailable('Open the installed OpenUsage desktop application.');
   const response = await core.invoke<unknown>(command, args[0]);
-  if (!isBootstrap(response)) {
+  if (command === 'create_backup' ? !isBackupReceipt(response) : !isBootstrap(response)) {
     throw new Error('The desktop response is incompatible. Restart OpenUsage after updating the application.');
   }
   return response as Commands[K]['result'];
+}
+
+function isBackupReceipt(value: unknown): value is BackupReceipt {
+  if (typeof value !== 'object' || value === null) return false;
+  const receipt = value as Record<string, unknown>;
+  return typeof receipt.fileName === 'string' && receipt.fileName.length > 0
+    && receipt.fileName.length <= 160 && !/[\\/\0]/.test(receipt.fileName)
+    && typeof receipt.directory === 'string' && receipt.directory.length > 0
+    && receipt.directory.length <= 32768 && !receipt.directory.includes('\0');
 }
 
 function isBootstrap(value: unknown): value is Bootstrap {

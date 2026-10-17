@@ -1,6 +1,6 @@
 import { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { DesktopUnavailable, invoke, type Bootstrap, type Theme } from './contracts';
+import { DesktopUnavailable, invoke, type BackupReceipt, type Bootstrap, type Theme } from './contracts';
 import './styles.css';
 
 type Startup = { kind: 'loading' } | { kind: 'desktop'; data: Bootstrap }
@@ -15,6 +15,12 @@ function App() {
   const [operationError, setOperationError] = useState<string | null>(null);
   const [passphrase, setPassphrase] = useState('');
   const [confirmation, setConfirmation] = useState('');
+  const [backupOpen, setBackupOpen] = useState(false);
+  const [backupRecords, setBackupRecords] = useState(false);
+  const [backupPassword, setBackupPassword] = useState('');
+  const [backupConfirmation, setBackupConfirmation] = useState('');
+  const [backupError, setBackupError] = useState<string | null>(null);
+  const [backupReceipt, setBackupReceipt] = useState<BackupReceipt | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -31,7 +37,6 @@ function App() {
   const data = startup.kind === 'desktop' ? startup.data : null;
   const ready = data?.storage === 'ready';
   const recovery = data?.storage === 'recovery_required';
-  const nativeStorage = data?.keyProtection !== undefined;
   const needsPassphrase = data?.keyProtection === 'passphrase_required'
     || (data?.storage === 'locked' && data.keyProtection === 'passphrase');
 
@@ -63,10 +68,37 @@ function App() {
   }
 
   function changeTheme(next: Theme) {
-    if (ready && nativeStorage) {
+    if (ready) {
       void updateWorkspace(() => invoke('set_theme', { theme: next }));
     } else {
       setTheme(next);
+    }
+  }
+
+  async function saveBackup() {
+    if (!backupRecords) return;
+    if (backupPassword !== backupConfirmation) {
+      setBackupError('The passwords do not match.');
+      return;
+    }
+    setBusy(true);
+    setBackupError(null);
+    setBackupReceipt(null);
+    try {
+      setBackupReceipt(await invoke('create_backup', { password: backupPassword }));
+    } catch (error: unknown) {
+      const messages: Record<string, string> = {
+        passphrase_too_short: 'Use a backup password with at least 12 characters.',
+        passphrase_too_long: 'Use a shorter backup password.',
+        insufficient_space: 'There is not enough free space for a verified backup. Free space in your Downloads folder, then try again.',
+        workspace_locked: 'Unlock your workspace before you save a backup.',
+      };
+      setBackupError(typeof error === 'string' && messages[error]
+        ? messages[error] : 'OpenUsage could not save the backup. Keep your workspace files, then try again.');
+    } finally {
+      setBackupPassword('');
+      setBackupConfirmation('');
+      setBusy(false);
     }
   }
   const message = startup.kind === 'loading' ? 'Checking local storage…'
@@ -78,7 +110,7 @@ function App() {
     ? 'Another OpenUsage window uses this workspace. Close that window, then check the workspace again.'
     : data?.storageIssue === 'missing_database'
     ? 'The protected key exists, but its database is missing. Keep your database and key files. Recover your original encrypted database before you try again.'
-    : 'OpenUsage cannot open the existing database. Keep your database and key files. Restore access to your key store or use your recovery passphrase.';
+    : 'OpenUsage cannot open the existing database. Keep your database and key files. Recover the original database and its protected key before you try again.';
 
   return <div className="app-shell">
     <a className="skip-link" href="#main">Skip to dashboard</a>
@@ -102,7 +134,7 @@ function App() {
               : ready ? 'No accounts are connected. Provider readings appear only after an authorized account connection.'
               : 'Your usage history belongs in encrypted local storage. Monitoring stays stopped until the workspace is unlocked.'}</p>
             {(startup.kind === 'failed' || startup.kind === 'unavailable') && <button className="primary-button" onClick={() => { setStartup({ kind: 'loading' }); setAttempt(n => n + 1); }}>Check desktop connection <span aria-hidden="true">↗</span></button>}
-            {startup.kind === 'desktop' && data?.storage === 'setup_required' && nativeStorage && !needsPassphrase && <button className="primary-button" disabled={busy} onClick={() => { void updateWorkspace(() => invoke('setup_workspace', { passphrase: null })); }}>{busy ? 'Creating workspace…' : 'Create private workspace'}</button>}
+            {startup.kind === 'desktop' && data?.storage === 'setup_required' && !needsPassphrase && <button className="primary-button" disabled={busy} onClick={() => { void updateWorkspace(() => invoke('setup_workspace', { passphrase: null })); }}>{busy ? 'Creating workspace…' : 'Create private workspace'}</button>}
             {startup.kind === 'desktop' && !recovery && needsPassphrase && <form className="unlock-form" onSubmit={event => {
               event.preventDefault();
               if (data?.storage === 'setup_required' && passphrase !== confirmation) {
@@ -121,9 +153,8 @@ function App() {
               {data?.storage === 'setup_required' && <><label htmlFor="workspace-confirmation">Confirm passphrase</label><input id="workspace-confirmation" type="password" autoComplete="off" required maxLength={1024} disabled={busy} value={confirmation} onChange={event => setConfirmation(event.target.value)} /></>}
               <button className="primary-button" type="submit" disabled={busy}>{busy ? 'Opening workspace…' : data?.storage === 'locked' ? 'Unlock workspace' : 'Create private workspace'}</button>
             </form>}
-            {data?.storage === 'locked' && nativeStorage && !needsPassphrase && <p className="development-note">Unlock your system key store, then check the workspace again.</p>}
+            {data?.storage === 'locked' && !needsPassphrase && <p className="development-note">Unlock your system key store, then check the workspace again.</p>}
             {(recovery || (data?.storage === 'locked' && !needsPassphrase)) && <button className="primary-button" disabled={busy} onClick={() => { setOperationError(null); setStartup({ kind: 'loading' }); setAttempt(n => n + 1); }}>Check workspace</button>}
-            {startup.kind === 'desktop' && !ready && !recovery && !nativeStorage && <p className="development-note">Storage setup is not available in this development build.</p>}
             {ready && data?.keyProtection === 'os_store' && <p className="protection-note">Protected by your system key store. Appearance changes save to your encrypted workspace.</p>}
             {ready && data?.keyProtection === 'passphrase' && <p className="protection-note">Protected by your workspace passphrase. Appearance changes save to your encrypted workspace.</p>}
             {operationError && <p className="operation-error" role="alert">{operationError}</p>}
@@ -136,6 +167,21 @@ function App() {
           <Metric label="Quota remaining" value="Not available" detail="No accepted provider reading" icon="◴" />
           <Metric label="Token activity" value="Not available" detail="No accepted provider reading" icon="▥" />
         </section>
+        {ready && <section className="backup-panel" aria-labelledby="backup-heading">
+          <div className="section-heading"><div><h2 id="backup-heading">Encrypted backups</h2><p>Save a private copy of your application records.</p></div><button className="text-button" disabled={busy} onClick={() => setBackupOpen(!backupOpen)} aria-expanded={backupOpen} aria-controls="backup-form">{backupOpen ? 'Hide backup form' : 'Create a backup'}</button></div>
+          {backupOpen && <form id="backup-form" className="unlock-form backup-form" onSubmit={event => { event.preventDefault(); void saveBackup(); }}>
+            <p id="backup-records-help">Application records can include account names, email addresses, and activity. Provider credentials and local evidence are excluded.</p>
+            <label className="backup-selection"><input id="backup-records" type="checkbox" required checked={backupRecords} disabled={busy} aria-describedby="backup-records-help" onChange={event => setBackupRecords(event.target.checked)} />Application records</label>
+            <label htmlFor="backup-password">Backup password</label><input id="backup-password" type="password" autoComplete="off" required minLength={12} maxLength={1024} disabled={busy} aria-describedby="backup-password-help" value={backupPassword} onChange={event => { setBackupPassword(event.target.value); setBackupError(null); }} />
+            <label htmlFor="backup-confirmation">Confirm backup password</label><input id="backup-confirmation" type="password" autoComplete="off" required minLength={12} maxLength={1024} disabled={busy} value={backupConfirmation} onChange={event => setBackupConfirmation(event.target.value)} />
+            <p id="backup-password-help">Use at least 12 characters. Keep this password. OpenUsage cannot recover it.</p>
+            <p>The encrypted file will save in Downloads/OpenUsage.</p>
+            <button className="primary-button" type="submit" disabled={busy || !backupRecords}>{busy ? 'Encrypting backup…' : 'Save encrypted backup'}</button>
+            {backupError && <p className="operation-error" role="alert">{backupError}</p>}
+          </form>}
+          {backupReceipt && <div className="backup-receipt" role="status"><p>Backup saved and authenticated.</p><p><strong>{backupReceipt.fileName}</strong><br />{backupReceipt.directory}</p></div>}
+          <p className="backup-note">Restore is not available in this build.</p>
+        </section>}
         <section className="accounts-section" aria-labelledby="accounts-heading"><div className="section-heading"><div><h2 id="accounts-heading">Your accounts</h2><p>Separate sessions. Clear attribution.</p></div><span className="muted-tag">{ready ? `${data.activeProfiles} active` : 'Workspace locked'}</span></div>
           <div className="empty-state"><div className="empty-art" aria-hidden="true"><span>◉</span><span>+</span><span>◉</span></div><h3>{ready ? 'A fresh start for your accounts' : 'Your workspace starts here'}</h3><p>{ready ? 'Account connection is not available in this development build.' : 'Unlock local storage before you connect an account. Each account will use its own approved Codex environment.'}</p><div className="empty-footnote"><span aria-hidden="true">⌁</span> No account data collected</div></div>
         </section>

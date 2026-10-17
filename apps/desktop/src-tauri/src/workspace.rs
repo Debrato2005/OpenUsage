@@ -52,6 +52,8 @@ pub enum CommandError {
     PassphraseTooLong,
     OsStoreRequired,
     WorkspaceLocked,
+    BackupUnavailable,
+    InsufficientSpace,
 }
 
 #[derive(Serialize)]
@@ -302,6 +304,14 @@ impl Workspace {
         Ok(self.ready())
     }
 
+    pub fn backup_snapshot(&mut self) -> Result<openusage_storage::BackupSnapshot, CommandError> {
+        self.storage
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .backup_snapshot()
+            .map_err(|_| CommandError::BackupUnavailable)
+    }
+
     fn ready(&self) -> Bootstrap {
         match self
             .storage
@@ -396,7 +406,7 @@ fn secure_open(path: &Path, create: bool, exclusive: bool) -> Result<File, Comma
         .map_err(|_| CommandError::StorageUnavailable)
 }
 
-fn prepare_directory(path: &Path) -> Result<(), CommandError> {
+pub(crate) fn prepare_directory(path: &Path) -> Result<(), CommandError> {
     if !path.is_absolute()
         || path
             .components()
@@ -649,6 +659,28 @@ mod tests {
         let ready = restarted.unlock(Zeroizing::new(passphrase.into())).unwrap();
         assert_eq!(ready.storage, StorageState::Ready);
         assert_eq!(ready.theme, "light");
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn private_workspace_preserves_shared_webview_directory_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let temporary = tempfile::tempdir().unwrap();
+        let shared = temporary.path().join("app.openusage.desktop");
+        fs::create_dir(&shared).unwrap();
+        fs::set_permissions(&shared, fs::Permissions::from_mode(0o755)).unwrap();
+        let directory = shared.join("workspace");
+        let workspace = Workspace::new(directory.clone()).unwrap();
+        assert_eq!(
+            fs::metadata(&shared).unwrap().permissions().mode() & 0o777,
+            0o755
+        );
+        assert_eq!(
+            fs::metadata(&directory).unwrap().permissions().mode() & 0o777,
+            0o700
+        );
+        drop(workspace);
     }
 
     #[test]

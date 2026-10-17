@@ -2566,6 +2566,7 @@ dependencies = [
  "apple-native-keyring-store",
  "keyring-core",
  "libc",
+ "openusage-import",
  "openusage-storage",
  "rusqlite",
  "secret-service",

@@ -5,6 +5,7 @@ fn main() {
             "setup_workspace",
             "unlock_workspace",
             "set_theme",
+            "create_backup",
         ]),
     ))
     .expect("Failed to build the OpenUsage application manifest");

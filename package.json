@@ -14,6 +14,8 @@
     "test:contract": "node tests/contract/bootstrap.test.mjs",
     "test:renderer": "playwright test",
     "test:native": "node tests/native/smoke.mjs",
+    "test:native:storage": "node tests/native/persistence.mjs",
+    "test:native:backup": "node tests/native/backup.mjs",
     "check": "npm run build && npm run test:contract && npm run test:renderer"
   },
   "dependencies": {

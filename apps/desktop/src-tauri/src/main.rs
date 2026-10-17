@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod backup;
 mod keyvault;
 mod workspace;
 
@@ -41,6 +42,12 @@ fn optional_passphrase<'de, D: Deserializer<'de>>(
 #[serde(deny_unknown_fields)]
 struct UnlockArgs {
     passphrase: Passphrase,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct BackupArgs {
+    password: Passphrase,
 }
 
 #[derive(Deserialize)]
@@ -176,6 +183,34 @@ async fn set_theme(
     run_workspace(app, Arc::clone(&service.0), Operation::SetTheme(theme)).await
 }
 
+#[tauri::command]
+async fn create_backup(
+    request: tauri::ipc::Request<'_>,
+    app: AppHandle,
+    service: State<'_, WorkspaceService>,
+) -> Result<backup::BackupDestination, CommandError> {
+    let args: BackupArgs = arguments(&request)?;
+    workspace::validate_passphrase(&args.password.0)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut state = service
+            .lock()
+            .map_err(|_| CommandError::BackupUnavailable)?;
+        let snapshot = state
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .backup_snapshot()?;
+        let directory = app
+            .path()
+            .download_dir()
+            .map_err(|_| CommandError::BackupUnavailable)?
+            .join("OpenUsage");
+        backup::create(&directory, snapshot, args.password.0)
+    })
+    .await
+    .map_err(|_| CommandError::BackupUnavailable)?
+}
+
 fn is_bundled_url(url: &tauri::Url) -> bool {
     url.username().is_empty()
         && url.password().is_none()
@@ -191,7 +226,8 @@ fn main() {
             bootstrap,
             setup_workspace,
             unlock_workspace,
-            set_theme
+            set_theme,
+            create_backup
         ])
         .setup(|app| {
             let window = &app.config().app.windows[0];
@@ -207,10 +243,18 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::{SetupArgs, ThemeArgs, UnlockArgs, is_bundled_url};
+    use super::{BackupArgs, SetupArgs, ThemeArgs, UnlockArgs, is_bundled_url};
 
     #[test]
     fn storage_commands_reject_unexpected_fields_and_incorrect_value_types() {
+        for invalid in [
+            r#"{}"#,
+            r#"{"password":null}"#,
+            r#"{"password":[]}"#,
+            r#"{"password":"synthetic password","path":"/external"}"#,
+        ] {
+            assert!(serde_json::from_str::<BackupArgs>(invalid).is_err());
+        }
         for invalid in [
             r#"{}"#,
             r#"{"passphrase":[],"path":"/external"}"#,
