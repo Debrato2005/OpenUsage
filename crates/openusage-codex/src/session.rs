@@ -18,6 +18,7 @@ pub enum SessionError {
     NotificationLimit,
     TerminationFailed,
     CleanupFailed,
+    Cancelled,
     Protocol(ProtocolError),
 }
 
@@ -41,6 +42,7 @@ impl fmt::Display for SessionError {
             Self::NotificationLimit => "The provider exceeded the notification limit.",
             Self::TerminationFailed => "The owned provider process could not be reaped.",
             Self::CleanupFailed => "The temporary provider home could not be removed.",
+            Self::Cancelled => "The provider check was cancelled.",
             Self::Protocol(_) => "The provider response failed the protocol check.",
         })
     }
@@ -80,7 +82,7 @@ pub fn probe_account(
 }
 
 #[cfg(unix)]
-mod unix {
+pub(crate) mod unix {
     use super::*;
     use crate::{
         MAX_MESSAGE_BYTES, Request, initialized_notification, parse_account, parse_initialize,
@@ -91,8 +93,12 @@ mod unix {
         io::{BufRead, BufReader, Read, Write},
         os::unix::{fs::MetadataExt, process::CommandExt},
         path::PathBuf,
-        process::{Child, ChildStdin, Command, Stdio},
-        sync::mpsc::{self, Receiver},
+        process::{Child, ChildStdin, ChildStdout, Command, Stdio},
+        sync::{
+            Arc, Mutex,
+            atomic::{AtomicBool, Ordering},
+            mpsc::{self, Receiver},
+        },
         thread::JoinHandle,
         time::{Duration, Instant},
     };
@@ -100,6 +106,21 @@ mod unix {
 
     const READY_TIMEOUT: Duration = Duration::from_secs(15);
     const READ_TIMEOUT: Duration = Duration::from_secs(30);
+
+    #[derive(Clone, Copy)]
+    pub(crate) struct Timeouts {
+        pub ready: Duration,
+        pub read: Duration,
+    }
+
+    impl Default for Timeouts {
+        fn default() -> Self {
+            Self {
+                ready: READY_TIMEOUT,
+                read: READ_TIMEOUT,
+            }
+        }
+    }
     const MAX_NOTIFICATIONS: usize = 32;
     const MAX_RESPONSE_BYTES: usize = 4 * MAX_MESSAGE_BYTES;
     const CONFIG_OVERRIDES: &[&str] = &[
@@ -119,6 +140,10 @@ mod unix {
 
     impl Sandbox {
         fn new(parent: &Path) -> Result<Self, SessionError> {
+            Self::with_home(parent, None)
+        }
+
+        fn with_home(parent: &Path, managed_home: Option<&Path>) -> Result<Self, SessionError> {
             if !absolute_normal_path(parent) {
                 return Err(SessionError::InvalidManagedDirectory);
             }
@@ -149,6 +174,12 @@ mod unix {
                 ("TMPDIR", "tmp"),
             ] {
                 use std::os::unix::fs::DirBuilderExt;
+                if name == "CODEX_HOME"
+                    && let Some(home) = managed_home
+                {
+                    environment.push((name, home.to_owned()));
+                    continue;
+                }
                 let path = root.path().join(leaf);
                 fs::DirBuilder::new()
                     .mode(0o700)
@@ -157,7 +188,9 @@ mod unix {
                 environment.push((name, path));
             }
             Ok(Self {
-                codex_home: root.path().join("codex"),
+                codex_home: managed_home
+                    .map(Path::to_owned)
+                    .unwrap_or_else(|| root.path().join("codex")),
                 root,
                 environment,
             })
@@ -180,7 +213,62 @@ mod unix {
 
     type Line = Result<Zeroizing<Vec<u8>>, SessionError>;
 
-    fn absolute_normal_path(path: &Path) -> bool {
+    #[derive(Default)]
+    pub(crate) struct ProcessControl {
+        child: Mutex<Option<Child>>,
+        cancelled: AtomicBool,
+    }
+
+    impl ProcessControl {
+        pub(crate) fn request_cancel(&self) {
+            self.cancelled.store(true, Ordering::Release);
+        }
+
+        pub(crate) fn check_cancelled(&self) -> Result<(), SessionError> {
+            if self.cancelled.load(Ordering::Acquire) {
+                Err(SessionError::Cancelled)
+            } else {
+                Ok(())
+            }
+        }
+
+        pub(crate) fn has_child(&self) -> bool {
+            self.child
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .is_some()
+        }
+
+        pub(crate) fn stop_child(&self) -> Result<(), SessionError> {
+            let mut owned = self
+                .child
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            let Some(child) = owned.as_mut() else {
+                return Ok(());
+            };
+            // The live Child reserves its PID until wait completes.
+            let group_killed = unsafe { libc::killpg(child.id() as libc::pid_t, libc::SIGKILL) };
+            let group_failed = group_killed != 0
+                && std::io::Error::last_os_error().raw_os_error() != Some(libc::ESRCH);
+            let _ = child.kill();
+            loop {
+                match child.wait() {
+                    Ok(_) => break,
+                    Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+                    Err(_) => return Err(SessionError::TerminationFailed),
+                }
+            }
+            owned.take();
+            if group_failed {
+                Err(SessionError::TerminationFailed)
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    pub(crate) fn absolute_normal_path(path: &Path) -> bool {
         path.is_absolute()
             && !path.components().any(|part| {
                 matches!(
@@ -191,38 +279,65 @@ mod unix {
     }
 
     struct OwnedProcess {
-        child: Option<Child>,
+        control: Arc<ProcessControl>,
         input: Option<ChildStdin>,
         lines: Option<Receiver<Line>>,
         reader: Option<JoinHandle<()>>,
+        reader_stop: Arc<AtomicBool>,
     }
 
     impl OwnedProcess {
+        #[cfg(test)]
         fn start(mut command: Command) -> Result<Self, SessionError> {
-            let child = command
+            Self::start_controlled(&mut command, Arc::default())
+        }
+
+        fn start_controlled(
+            command: &mut Command,
+            control: Arc<ProcessControl>,
+        ) -> Result<Self, SessionError> {
+            control.check_cancelled()?;
+            let mut child = command
                 .stdin(Stdio::piped())
                 .stdout(Stdio::piped())
                 .stderr(Stdio::null())
                 .spawn()
                 .map_err(|_| SessionError::StartFailed)?;
+            let input = child.stdin.take();
+            let output = child.stdout.take();
+            *control
+                .child
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(child);
             let mut process = Self {
-                child: Some(child),
-                input: None,
+                control,
+                input,
                 lines: None,
                 reader: None,
+                reader_stop: Arc::default(),
             };
-            let child = process.child.as_mut().ok_or(SessionError::StartFailed)?;
-            process.input = child.stdin.take();
-            let output = child.stdout.take().ok_or(SessionError::TransportFailed)?;
+            process.control.check_cancelled()?;
+            let output = output.ok_or(SessionError::TransportFailed)?;
+            use std::os::fd::AsRawFd;
+            // The pipe descriptor stays alive through both fcntl calls.
+            let flags = unsafe { libc::fcntl(output.as_raw_fd(), libc::F_GETFL) };
+            if flags < 0
+                || unsafe {
+                    libc::fcntl(output.as_raw_fd(), libc::F_SETFL, flags | libc::O_NONBLOCK)
+                } < 0
+            {
+                return Err(SessionError::TransportFailed);
+            }
             let (sender, receiver) = mpsc::sync_channel(1);
             process.lines = Some(receiver);
+            let reader_stop = Arc::clone(&process.reader_stop);
             process.reader = Some(
                 std::thread::Builder::new()
                     .name("openusage-provider-stdio".into())
                     .spawn(move || {
                         let mut reader = BufReader::new(output);
                         loop {
-                            let line = read_line(&mut reader);
+                            let line = read_live_line(&mut reader, &reader_stop);
                             let finished = line.is_err();
                             if sender.send(line).is_err() || finished {
                                 break;
@@ -235,6 +350,7 @@ mod unix {
         }
 
         fn send(&mut self, bytes: &[u8]) -> Result<(), SessionError> {
+            self.control.check_cancelled()?;
             // Only the fixed, small initialize/initialized/account-read messages reach this writer.
             self.input
                 .as_mut()
@@ -244,17 +360,21 @@ mod unix {
         }
 
         fn line(&self, deadline: Instant) -> Line {
+            self.control.check_cancelled()?;
             let remaining = deadline
                 .checked_duration_since(Instant::now())
                 .ok_or(SessionError::TimedOut)?;
-            self.lines
+            let result = self
+                .lines
                 .as_ref()
                 .ok_or(SessionError::TransportFailed)?
                 .recv_timeout(remaining)
                 .map_err(|error| match error {
                     mpsc::RecvTimeoutError::Timeout => SessionError::TimedOut,
                     mpsc::RecvTimeoutError::Disconnected => SessionError::UnexpectedExit,
-                })?
+                })?;
+            self.control.check_cancelled()?;
+            result
         }
 
         fn response(&self, id: u32, timeout: Duration) -> Line {
@@ -293,31 +413,26 @@ mod unix {
         }
 
         fn stop(&mut self) -> Result<(), SessionError> {
+            self.reader_stop.store(true, Ordering::Release);
             self.input.take();
             self.lines.take();
-            let mut child = match self.child.take() {
-                Some(child) => child,
-                None => return Ok(()),
-            };
-            // The child PID stays reserved until wait. Its dedicated group contains only owned descendants.
-            let group_killed = unsafe { libc::killpg(child.id() as libc::pid_t, libc::SIGKILL) };
-            let group_failed = group_killed != 0
-                && std::io::Error::last_os_error().raw_os_error() != Some(libc::ESRCH);
-            let _ = child.kill();
-            loop {
-                match child.wait() {
-                    Ok(_) => break,
-                    Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
-                    Err(_) => return Err(SessionError::TerminationFailed),
-                }
-            }
-            if group_failed {
-                return Err(SessionError::TerminationFailed);
-            }
-            if let Some(reader) = self.reader.take() {
-                reader.join().map_err(|_| SessionError::TerminationFailed)?;
-            }
-            Ok(())
+            let stopped = self.control.stop_child();
+            let joined = self
+                .reader
+                .take()
+                .map(|reader| reader.join().map_err(|_| SessionError::TerminationFailed))
+                .unwrap_or(Ok(()));
+            stopped.and(joined)
+        }
+
+        fn id(&self) -> Result<u32, SessionError> {
+            self.control
+                .child
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .as_ref()
+                .map(Child::id)
+                .ok_or(SessionError::UnexpectedExit)
         }
     }
 
@@ -327,6 +442,7 @@ mod unix {
         }
     }
 
+    #[cfg(test)]
     fn read_line(reader: &mut impl BufRead) -> Line {
         let mut bytes = Zeroizing::new(Vec::new());
         reader
@@ -343,6 +459,51 @@ mod unix {
             return Err(ProtocolError::InvalidMessage.into());
         }
         Ok(bytes)
+    }
+
+    fn read_live_line(reader: &mut BufReader<ChildStdout>, stop: &AtomicBool) -> Line {
+        use std::os::fd::AsRawFd;
+        let mut bytes = Zeroizing::new(Vec::new());
+        loop {
+            if stop.load(Ordering::Acquire) {
+                return Err(SessionError::Cancelled);
+            }
+            let remaining = MAX_MESSAGE_BYTES + 1 - bytes.len();
+            let read = reader
+                .by_ref()
+                .take(remaining as u64)
+                .read_until(b'\n', &mut bytes);
+            if bytes.len() > MAX_MESSAGE_BYTES {
+                return Err(ProtocolError::OversizedMessage.into());
+            }
+            if bytes.last() == Some(&b'\n') {
+                return Ok(bytes);
+            }
+            match read {
+                Ok(_) => {
+                    return Err(if bytes.is_empty() {
+                        SessionError::UnexpectedExit
+                    } else {
+                        ProtocolError::InvalidMessage.into()
+                    });
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                    let mut descriptor = libc::pollfd {
+                        fd: reader.get_ref().as_raw_fd(),
+                        events: libc::POLLIN,
+                        revents: 0,
+                    };
+                    // poll borrows one valid descriptor and permits periodic stop checks.
+                    if unsafe { libc::poll(&mut descriptor, 1, 100) } < 0
+                        && std::io::Error::last_os_error().kind() != std::io::ErrorKind::Interrupted
+                    {
+                        return Err(SessionError::TransportFailed);
+                    }
+                }
+                Err(_) => return Err(SessionError::TransportFailed),
+            }
+        }
     }
 
     pub(super) fn probe(executable: &Path, parent: &Path) -> Result<ProviderProbe, SessionError> {
@@ -375,32 +536,68 @@ mod unix {
         executable: &Path,
         sandbox: &Sandbox,
     ) -> Result<ProviderProbe, SessionError> {
+        run_session(
+            executable,
+            sandbox,
+            Arc::default(),
+            Timeouts::default(),
+            || Ok(()),
+        )
+    }
+
+    pub(crate) fn check_managed(
+        executable: &Path,
+        home: &Path,
+        control: Arc<ProcessControl>,
+        timeouts: Timeouts,
+        before_start: impl Fn() -> Result<(), SessionError>,
+    ) -> Result<ProviderProbe, SessionError> {
+        control.check_cancelled()?;
+        let sandbox = Sandbox::with_home(home, Some(home))?;
+        let result = run_session(executable, &sandbox, control, timeouts, before_start);
+        sandbox
+            .root
+            .close()
+            .map_err(|_| SessionError::CleanupFailed)?;
+        result
+    }
+
+    fn run_session(
+        executable: &Path,
+        sandbox: &Sandbox,
+        control: Arc<ProcessControl>,
+        timeouts: Timeouts,
+        before_start: impl Fn() -> Result<(), SessionError>,
+    ) -> Result<ProviderProbe, SessionError> {
+        control.check_cancelled()?;
+        before_start()?;
         let mut version = sandbox.command(executable);
         version.arg("--version");
-        let mut version = OwnedProcess::start(version)?;
-        let version_result = version.line(Instant::now() + READY_TIMEOUT);
+        let mut version = OwnedProcess::start_controlled(&mut version, Arc::clone(&control))?;
+        let version_result = version.line(Instant::now() + timeouts.ready);
         version.stop()?;
         if version_result?.as_slice() != b"codex-cli 0.163.0\n" {
             return Err(SessionError::UnsupportedVersion);
         }
+        control.check_cancelled()?;
+        before_start()?;
         let mut command = sandbox.command(executable);
         command.args(["app-server", "--listen", "stdio://"]);
         for setting in CONFIG_OVERRIDES {
             command.args(["-c", setting]);
         }
-        let mut process = OwnedProcess::start(command)?;
-        let process_id = process
-            .child
-            .as_ref()
-            .ok_or(SessionError::StartFailed)?
-            .id();
+        let mut process = OwnedProcess::start_controlled(&mut command, control)?;
+        let process_id = process.id()?;
         let result = (|| {
             process.send(&Request::initialize(1).to_line()?)?;
-            let server =
-                parse_initialize(&process.response(1, READY_TIMEOUT)?, 1, &sandbox.codex_home)?;
+            let server = parse_initialize(
+                &process.response(1, timeouts.ready)?,
+                1,
+                &sandbox.codex_home,
+            )?;
             process.send(initialized_notification())?;
             process.send(&Request::account_read(2).to_line()?)?;
-            let account = parse_account(&process.response(2, READ_TIMEOUT)?, 2)?;
+            let account = parse_account(&process.response(2, timeouts.read)?, 2)?;
             Ok(ProviderProbe {
                 server,
                 account,
@@ -436,10 +633,11 @@ mod unix {
                 .send(Ok(Zeroizing::new(b"{\"id\":9,\"result\":{}}\n".to_vec())))
                 .unwrap();
             let mut process = OwnedProcess {
-                child: None,
+                control: Arc::default(),
                 input: None,
                 lines: Some(receiver),
                 reader: None,
+                reader_stop: Arc::default(),
             };
             assert_eq!(
                 process.response(1, READY_TIMEOUT),
@@ -476,10 +674,11 @@ mod unix {
                 b"{\"id\":2,\"result\":{\"account\":null,\"requiresOpenaiAuth\":true}}\n";
             sender.send(Ok(Zeroizing::new(response.to_vec()))).unwrap();
             let process = OwnedProcess {
-                child: None,
+                control: Arc::default(),
                 input: None,
                 lines: Some(receiver),
                 reader: None,
+                reader_stop: Arc::default(),
             };
             assert_eq!(
                 process.response(2, READY_TIMEOUT).unwrap().as_slice(),
@@ -492,7 +691,7 @@ mod unix {
             let mut command = Command::new("/bin/sleep");
             command.arg("60").env_clear().process_group(0);
             let process = OwnedProcess::start(command).unwrap();
-            let id = process.child.as_ref().unwrap().id() as libc::pid_t;
+            let id = process.id().unwrap() as libc::pid_t;
             assert_eq!(
                 process.line(Instant::now() + Duration::from_millis(20)),
                 Err(SessionError::TimedOut)
