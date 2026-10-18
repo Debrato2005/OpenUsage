@@ -251,3 +251,28 @@ A restore must stop the old owned check before it changes home mappings.
 The next check must use the fresh restored home.
 Normal window close must stop and reap the registered provider child and process group.
 This fixture does not establish live authentication, official executable provenance, monitoring, or account identity.
+
+## Native device-code sign-in
+
+Run `node tests/native/device-login.mjs` with the private display and drivers above.
+Set the frozen native-test executable, source root, and persistent evidence directory.
+The journey uses only `fixtures/synthetic-login-provider.py` and fresh synthetic homes.
+The existing read-only provider fixture stays unchanged.
+
+Sign in opens a short consent form without starting a provider.
+The explicit Get sign-in code action starts only the selected profile.
+The test follows keyboard focus from that action to the selectable code and final status.
+It captures the actual prompt in both themes, at a narrow width, and with doubled text.
+The validated URL is plain text. The journey never opens a browser or performs real OAuth.
+
+Early completion must precede a fresh account check.
+Mismatched completion, malformed challenges, and unsupported account states must fail.
+Cancel must work before the challenge arrives and must not affect a newer attempt.
+A restore and genuine X11 window close must stop and reap the owned login process.
+Other homes, archived homes, and application records must stay intact.
+Identity remains provisional or unknown, and monitoring stays stopped.
+
+The native application wait limit remains 900 seconds.
+Short timeout behavior is checked in the Rust core, not this native journey.
+The production source-gate journey rejects both synthetic fixtures before execution.
+These checks do not establish live login, token persistence, verified identity, or release qualification.
