@@ -60,7 +60,7 @@ test('renderer fixture keeps activity running outside Manage and pages exact ret
   await expect(page.getByRole('button', { name: 'Cancel activity read', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Read quotas', exact: true })).toBeDisabled();
-  const rows = Array.from({ length: 51 }, (_, index) => ({ startDate: index === 0 ? '2024-02-29' : '2023-12-31', tokens: index === 0 ? '9223372036854775807' : '0' }));
+  const rows = Array.from({ length: 51 }, (_, index) => ({ startDate: index === 0 ? '2024-02-29' : new Date(Date.UTC(2023, 0, index)).toISOString().slice(0, 10), tokens: index === 0 ? '9223372036854775807' : '0' }));
   await resolvePreview(page, 0, rows);
   await expect(page.locator('[data-activity-metric=lifetimeTokens]')).toHaveText('9223372036854775807');
   await expect(page.locator('[data-activity-metric=currentStreakDays]')).toHaveText('Not supplied');

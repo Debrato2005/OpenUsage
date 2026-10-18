@@ -407,7 +407,7 @@ const activityArgs = { profileId: activityRequest.profileId, requestId: activity
 test('accepts exact bounded activity previews without replacing null or reordering literal dates', async () => {
   desktopResponse(activityRequest);
   assert.deepEqual(await invoke('begin_profile_activity_read', { profileId: activityRequest.profileId, approvalId: activityRequest.approvalId }), activityRequest);
-  for (const dailyUsageBuckets of [null, [], activityPreview.dailyUsageBuckets, Array(4096).fill({ startDate: '9999-12-31', tokens: '0' })]) {
+  for (const dailyUsageBuckets of [null, [], activityPreview.dailyUsageBuckets, Array.from({ length: 4096 }, (_, index) => ({ startDate: new Date(Date.UTC(2000, 0, index + 1)).toISOString().slice(0, 10), tokens: '0' }))]) {
     const value = { ...activityPreview, dailyUsageBuckets };
     desktopResponse(value); assert.deepEqual(await invoke('complete_profile_activity_read', activityArgs), value);
   }
@@ -434,6 +434,7 @@ test('rejects oversized activity previews and invalid Gregorian days without tru
     ...['2023-02-29', '2024-02-30', '0000-01-01', '2024-13-01', '2024-1-01', '2024-01-01Z', '2024-04-31'].map(startDate => [{ startDate, tokens: '0' }]),
     ...[null, '01', '9223372036854775808', 10].map(tokens => [{ startDate: '2024-01-01', tokens }]),
     [{ startDate: '2024-01-01', tokens: '0', accountId: 'private' }],
+    [{ startDate: '2024-01-01', tokens: '0' }, { startDate: '2024-01-01', tokens: '1' }],
   ]) {
     desktopResponse({ ...activityPreview, dailyUsageBuckets });
     await assert.rejects(invoke('complete_profile_activity_read', activityArgs), /desktop response is incompatible/);

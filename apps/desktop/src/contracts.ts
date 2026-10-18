@@ -337,13 +337,16 @@ function isProfileActivityPreview(value: unknown): value is ProfileActivityPrevi
   const fields = ['lifetimeTokens', 'peakDailyTokens', 'longestRunningTurnSec', 'currentStreakDays', 'longestStreakDays'];
   if (Object.keys(summary).length !== 5 || !fields.every(key => isResetCreditCount(summary[key]))) return false;
   if (v.dailyUsageBuckets === null) return true;
-  return Array.isArray(v.dailyUsageBuckets) && v.dailyUsageBuckets.length <= 4096 && v.dailyUsageBuckets.every(row => {
+  if (!Array.isArray(v.dailyUsageBuckets) || v.dailyUsageBuckets.length > 4096) return false;
+  const dates = new Set<string>();
+  return v.dailyUsageBuckets.every(row => {
     if (typeof row !== 'object' || row === null || Array.isArray(row)) return false;
     const bucket = row as Record<string, unknown>;
     if (Object.keys(bucket).length !== 2 || typeof bucket.startDate !== 'string' || !/^(?!0000)[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(bucket.startDate)
       || !isResetCreditCount(bucket.tokens) || bucket.tokens === null) return false;
     const date = new Date(bucket.startDate + 'T00:00:00.000Z');
-    return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === bucket.startDate;
+    if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== bucket.startDate || dates.has(bucket.startDate)) return false;
+    dates.add(bucket.startDate); return true;
   });
 }
 
