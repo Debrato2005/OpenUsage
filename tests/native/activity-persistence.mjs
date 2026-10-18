@@ -137,7 +137,7 @@ async function openReassociation(keyboard=false){
   assert.equal(await driver.execute('return [...document.querySelector(arguments[0]).querySelectorAll("p")].some(node=>node.textContent==="New readings will use the current sign-in. Previous readings stay in encrypted history.");',[form]),true);
   const hints=await driver.execute('const root=document.querySelector(arguments[0]);return [...root.querySelectorAll("[data-activity-association]")].map(node=>({kind:node.getAttribute("data-activity-association"),label:node.querySelector("dt").textContent,email:node.querySelector("bdi").textContent,plan:node.querySelector("dd:last-of-type").textContent,visible:node.getBoundingClientRect().width>0&&node.getBoundingClientRect().height>0}));',[form]);
   assert.deepEqual(hints,[{kind:'previous',label:'Previous account',email:'synthetic-activity@example.invalid',plan:'Plan: plus',visible:true},{kind:'current',label:'Current account',email:'synthetic-activity@example.invalid',plan:'Plan: plus',visible:true}]);
-  assert.equal(await driver.execute('const root=document.querySelector(arguments[0]);return root.textContent.includes("Profile environment changed.")&&root.textContent.includes("These account details do not verify identity.");',[form]),true);
+  assert.equal(await driver.execute('const root=document.querySelector(arguments[0]);return root.textContent.includes("Profile environment changed.")&&root.textContent.includes("Account details do not verify identity.");',[form]),true);
   (evidence.accountReviewHints??=[]).push(hints);
 }
 async function consentAndSubmit(){
