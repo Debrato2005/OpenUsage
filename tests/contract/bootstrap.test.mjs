@@ -472,3 +472,14 @@ test('refuses malformed cached provenance, uncommitted results, guessed freshnes
     await assert.rejects(invoke('load_profile_activity', { profileId: activityRequest.profileId }), /desktop response is incompatible/);
   }
 });
+
+
+test('reassociation begins with an unaccepted owned request and rejects committed or extra-field replies', async () => {
+  const args = { profileId: activityRequest.profileId, approvalId: activityRequest.approvalId, confirmed: true };
+  desktopResponse(activityRequest);
+  assert.deepEqual(await invoke('begin_profile_activity_reassociation', args), activityRequest);
+  for (const value of [{ ...activityRequest, accepted: true }, { ...activityRequest, privateHome: '/private' }, { ...activityRequest, requestId: 'invalid' }]) {
+    desktopResponse(value);
+    await assert.rejects(invoke('begin_profile_activity_reassociation', args), /desktop response is incompatible/);
+  }
+});

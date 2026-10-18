@@ -185,6 +185,7 @@ export interface SavedProfileActivity {
 interface Commands {
   load_profile_activity: { args: { profileId: string }; result: SavedProfileActivity | null };
   begin_profile_activity_read: { args: { profileId: string; approvalId: string }; result: ProfileActivityRequest };
+  begin_profile_activity_reassociation: { args: { profileId: string; approvalId: string; confirmed: true }; result: ProfileActivityRequest };
   complete_profile_activity_read: { args: { profileId: string; requestId: string }; result: ProfileActivitySavedRead };
   cancel_profile_activity_read: { args: { profileId: string; requestId: string }; result: { cancelled: boolean } };
   begin_profile_quota_read: { args: { profileId: string; approvalId: string }; result: ProfileQuotaRequest };
@@ -235,7 +236,7 @@ export async function invoke<K extends keyof Commands>(
   const core = window.__TAURI__?.core;
   if (!core) throw new DesktopUnavailable('Open the installed OpenUsage desktop application.');
   const response = await core.invoke<unknown>(command, args[0]);
-  const valid = command === 'begin_profile_activity_read' ? isProfileQuotaRequest(response)
+  const valid = (command === 'begin_profile_activity_read' || command === 'begin_profile_activity_reassociation') ? isProfileQuotaRequest(response)
     : command === 'complete_profile_activity_read' ? isProfileActivitySavedRead(response)
     : command === 'load_profile_activity' ? isSavedProfileActivity(response)
     : command === 'cancel_profile_activity_read' ? isPreviewCancellation(response)
