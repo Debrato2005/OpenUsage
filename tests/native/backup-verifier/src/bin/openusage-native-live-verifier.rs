@@ -116,11 +116,8 @@ fn main() {
         .as_array()
         .expect("Missing forbidden synthetic homes.");
     for reference in &home_references {
-        assert!(
-            reference.starts_with("profiles/") && reference.len() == 45,
-            "Invalid managed reference."
-        );
-        let id = &reference[9..];
+        assert!(reference.len() == 36, "Invalid managed reference.");
+        let id = reference;
         assert!(
             id.bytes()
                 .enumerate()
@@ -146,7 +143,7 @@ fn main() {
                     .parent()
                     .expect("Missing synthetic workspace.")
             });
-        let path = home_root.join(reference);
+        let path = home_root.join("profiles").join(reference);
         let metadata = fs::symlink_metadata(&path).expect("Missing restored home.");
         use std::os::unix::fs::MetadataExt;
         assert!(
