@@ -43,9 +43,20 @@ async function key(value, shift = false) {
 async function optionsState() {
   return driver.execute('const trigger=document.querySelector(arguments[0]),panel=trigger?.closest("[data-profile-id]").querySelector(".profile-management[data-slot=collapsible-panel]");return {controlsMatch:trigger?.getAttribute("aria-expanded")!=="true"||trigger?.getAttribute("aria-controls")===panel?.id,expanded:trigger?.getAttribute("aria-expanded"),panelPresent:Boolean(panel),panelVisible:Boolean(panel&&panel.getClientRects().length&&getComputedStyle(panel).display!=="none"),actions:panel?[...panel.querySelectorAll("button")].map(node=>({text:node.textContent.trim(),visible:Boolean(node.getClientRects().length)})):[]};', [options()]);
 }
+async function clickLabelCenter(selector, label) {
+  await driver.execute('document.querySelector(arguments[0]).scrollIntoView({block:"center",inline:"nearest"});return true;', [selector]);
+  await focusWindow();
+  const point = await driver.execute('const node=document.querySelector(arguments[0]),span=node?.firstElementChild;if(!node||!span)return null;const button=node.getBoundingClientRect(),text=span.getBoundingClientRect(),x=Math.round(text.left+text.width/2),y=Math.round(text.top+text.height/2);return {tag:node.tagName,name:node.textContent.trim(),ariaLabel:node.getAttribute("aria-label"),disabled:node.disabled,tabIndex:node.tabIndex,spanText:span.textContent,spanPointerEvents:getComputedStyle(span).pointerEvents,spanHidden:span.getAttribute("aria-hidden"),x,y,button:{left:button.left,right:button.right,top:button.top,bottom:button.bottom},text:{left:text.left,right:text.right,top:text.top,bottom:text.bottom},viewport:{width:innerWidth,height:innerHeight}};', [selector]);
+  assert.ok(point); assert.equal(point.tag, 'BUTTON'); assert.equal(point.name, label); assert.equal(point.ariaLabel, null); assert.equal(point.spanText, label); assert.equal(point.spanPointerEvents, 'none'); assert.notEqual(point.spanHidden, 'true'); assert.equal(point.disabled, false); assert.equal(point.tabIndex, 0);
+  for (const bounds of [point.button, point.text]) assert.ok(point.x > bounds.left && point.x < bounds.right && point.y > bounds.top && point.y < bounds.bottom, 'The real pointer must hit the center of the visible label inside its button.');
+  assert.ok(point.x > 0 && point.x < point.viewport.width && point.y > 0 && point.y < point.viewport.height);
+  await driver.request('POST', `/session/${driver.session}/actions`, { actions: [{ type: 'pointer', id: 'native-button-label', parameters: { pointerType: 'mouse' }, actions: [{ type: 'pointerMove', origin: 'viewport', x: point.x, y: point.y }, { type: 'pointerDown', button: 0 }, { type: 'pointerUp', button: 0 }] }] });
+  await driver.request('DELETE', `/session/${driver.session}/actions`);
+  (evidence.centeredLabelClicks ??= []).push({ selector, ...point });
+}
 async function manage(open) {
   assert.equal((await optionsState()).controlsMatch, true, 'An expanded trigger must control its selected profile panel.');
-  if ((await optionsState()).expanded !== String(open)) await driver.click(options());
+  if ((await optionsState()).expanded !== String(open)) await clickLabelCenter(options(), 'Manage profile');
   await waitFor(async () => { const state = await optionsState(); return state.expanded === String(open) && state.panelVisible === open; }, `${open ? 'open' : 'closed'} Manage profile`);
 }
 async function create(label) {
@@ -92,21 +103,56 @@ async function reaped(processRow) {
 async function visible(selector) {
   return driver.execute('const node=document.querySelector(arguments[0]);return Boolean(node&&!node.disabled&&node.getClientRects().length&&getComputedStyle(node).visibility!=="hidden");', [selector]);
 }
-async function capture(name, width = 360, scale = 1) {
+async function viewport(width) {
   for (let attempt = 0; attempt < 4; attempt++) {
     const actual = await driver.execute('return {width:innerWidth,height:innerHeight};');
     if (actual.width === width && actual.height === 850) break;
     const rect = await driver.request('GET', `/session/${driver.session}/window/rect`);
     await driver.request('POST', `/session/${driver.session}/window/rect`, { width: rect.width + width - actual.width, height: rect.height + 850 - actual.height });
   }
-  if (scale !== 1) await driver.execute('window.__managementFontStyles=[...document.querySelectorAll("body *")].map(node=>({node,style:node.getAttribute("style"),size:getComputedStyle(node).fontSize}));for(const item of window.__managementFontStyles)item.node.style.fontSize=`${parseFloat(item.size)*arguments[0]}px`;return true;', [scale]);
+  assert.deepEqual(await driver.execute('return {width:innerWidth,height:innerHeight};'), { width, height: 850 });
+}
+async function ordinaryButton() {
+  await viewport(1280);
+  const selector = '.sidebar-note button[aria-controls="privacy-details"]', overview = 'nav[aria-label="Main"] a[aria-current="page"][href="#main"]';
+  const before = await liveHashes();
+  assert.equal(await driver.execute('return document.querySelector(arguments[0]).getAttribute("aria-expanded");', [selector]), 'false');
+  await driver.execute('window.__privacyClickCount=0;window.__privacyClickListener=()=>window.__privacyClickCount++;document.querySelector(arguments[0]).addEventListener("click",window.__privacyClickListener,true);return true;', [selector]);
+  try {
+    await clickLabelCenter(selector, 'About your privacy');
+    await waitFor(async () => driver.execute('const n=document.querySelector(arguments[0]),panel=document.getElementById("privacy-details");return n.getAttribute("aria-expanded")==="true"&&n.textContent.trim()==="Hide privacy details"&&panel?.getClientRects().length>0;', [selector]), 'one visible privacy expansion');
+    const activation = await driver.execute('const n=document.querySelector(arguments[0]);return {clicks:window.__privacyClickCount,active:document.activeElement===n,tag:n.tagName,name:n.textContent.trim(),ariaLabel:n.getAttribute("aria-label")};', [selector]);
+    assert.equal(activation.clicks, 1); assert.equal(activation.active, true); assert.equal(activation.tag, 'BUTTON'); assert.equal(activation.name, 'Hide privacy details'); assert.equal(activation.ariaLabel, null);
+    const nativeReverseTab = JSON.parse(execFileSync('/usr/bin/python3', [join(harness, 'x11-reverse-tab.py'), String(evidence.nativeWindowFocus.windowId)], { env: fixture.environment, encoding: 'utf8', timeout: 10000 }));
+    await waitFor(async () => driver.execute('return document.activeElement===document.querySelector(arguments[0]);', [overview]), 'ordinary button reverse Tab reaches exact Overview link', 1000);
+    const destination = await driver.execute('const n=document.activeElement,s=getComputedStyle(n);return {documentFocused:document.hasFocus(),tag:n.tagName,name:n.textContent.trim(),exactOverview:n===document.querySelector(arguments[0]),focusVisible:n.matches(":focus-visible"),outlineWidth:s.outlineWidth,outlineStyle:s.outlineStyle,outlineColor:s.outlineColor,clicks:window.__privacyClickCount,privacyExpanded:document.querySelector(arguments[1]).getAttribute("aria-expanded")};', [overview, selector]);
+    assert.equal(destination.documentFocused, true); assert.equal(destination.tag, 'A'); assert.equal(destination.name, 'Overview'); assert.equal(destination.exactOverview, true); assert.equal(destination.focusVisible, true); assert.ok(parseFloat(destination.outlineWidth) >= 2); assert.equal(destination.outlineStyle, 'solid'); assert.notEqual(destination.outlineColor, 'rgba(0, 0, 0, 0)'); assert.equal(destination.clicks, 1); assert.equal(destination.privacyExpanded, 'true');
+    assert.deepEqual(await liveHashes(), before, 'Privacy expansion and reverse Tab must preserve database, WAL, and key bytes.');
+    await driver.screenshot(join(output, 'ordinary-button-privacy-reverse-light-desktop.png')); evidence.screenshots.push('ordinary-button-privacy-reverse-light-desktop.png');
+    evidence.ordinaryButton = { activation, nativeReverseTab, destination, storageHashesPreserved: true };
+    await clickLabelCenter(selector, 'Hide privacy details');
+    await waitFor(async () => driver.execute('return document.querySelector(arguments[0]).getAttribute("aria-expanded")==="false"&&!document.getElementById("privacy-details");', [selector]), 'privacy restored closed');
+    assert.equal(await driver.execute('return window.__privacyClickCount;'), 2);
+    assert.deepEqual(await liveHashes(), before);
+  } finally {
+    await driver.execute('document.querySelector(arguments[0]).removeEventListener("click",window.__privacyClickListener,true);delete window.__privacyClickListener;delete window.__privacyClickCount;return true;', [selector]);
+  }
+}
+async function capture(name, width = 360, scale = 1) {
+  await viewport(width);
+  if (scale !== 1) await driver.execute('window.__managementFontStyles=[...document.querySelectorAll("body,body *")].map(node=>({node,value:node.style.getPropertyValue("font-size"),priority:node.style.getPropertyPriority("font-size"),hadStyle:node.hasAttribute("style"),size:getComputedStyle(node).fontSize}));for(const item of window.__managementFontStyles)item.node.style.setProperty("font-size",`${parseFloat(item.size)*arguments[0]}px`,"important");return true;', [scale]);
   try {
     await driver.execute('document.querySelector(arguments[0]).scrollIntoView({block:"center"});return true;', [row()]);
     const view = await driver.execute('const panel=document.querySelector(arguments[0]);return {width:innerWidth,height:innerHeight,scrollWidth:document.scrollingElement.scrollWidth,theme:document.documentElement.dataset.theme,bodyFont:getComputedStyle(document.body).fontFamily,overflow:[panel,...panel.querySelectorAll("*")].filter(node=>{const rect=node.getBoundingClientRect();return rect.width>1&&rect.height>1&&(rect.left< -1||rect.right>innerWidth+1);}).map(node=>({tag:node.tagName,text:node.textContent.slice(0,80)}))};', [row()]);
     assert.equal(view.width, width); assert.ok(view.scrollWidth <= width + 1); assert.deepEqual(view.overflow, []);
     await driver.screenshot(join(output, name)); evidence.screenshots.push(name); evidence.views.push({ name, textScale: scale, scalingScope: 'Test-side CSS enlargement, not OS zoom or full accessibility acceptance.', ...view });
   } finally {
-    if (scale !== 1) await driver.execute('for(const item of window.__managementFontStyles){if(item.style===null)item.node.removeAttribute("style");else item.node.setAttribute("style",item.style);}delete window.__managementFontStyles;return true;');
+    if (scale !== 1) {
+      const restoration = await driver.execute('for(const item of window.__managementFontStyles){if(item.value)item.node.style.setProperty("font-size",item.value,item.priority);else item.node.style.removeProperty("font-size");if(!item.hadStyle&&item.node.style.length===0)item.node.removeAttribute("style");}const connected=window.__managementFontStyles.filter(item=>item.node.isConnected),result={connected:connected.length,inlineMismatches:connected.filter(item=>item.node.style.getPropertyValue("font-size")!==item.value||item.node.style.getPropertyPriority("font-size")!==item.priority).map(item=>item.node.tagName),computedMismatches:connected.filter(item=>getComputedStyle(item.node).fontSize!==item.size).map(item=>({tag:item.node.tagName,before:item.size,after:getComputedStyle(item.node).fontSize}))};delete window.__managementFontStyles;return result;');
+      (evidence.textRestoration ??= []).push(restoration);
+      assert.deepEqual(restoration.inlineMismatches, [], 'Text scaling must restore inline font-size values and priorities.');
+      assert.deepEqual(restoration.computedMismatches, [], 'Text scaling must restore surviving computed font sizes.');
+    }
   }
 }
 async function focusWindow() {
@@ -142,6 +188,7 @@ try {
   await focusWindow();
   await driver.selectVisibleOption('#theme', 'Light');
   await waitFor(async () => driver.execute('return document.documentElement.dataset.theme==="light"&&!document.querySelector("#theme").disabled;'), 'saved light appearance');
+  await ordinaryButton();
   for (const provider of providers) {
     provider.executable = await approve(provider);
     const idle = await driver.execute('const row=document.querySelector(arguments[0]);return [...row.querySelectorAll("button")].filter(node=>node.getClientRects().length&&!node.disabled).map(node=>node.textContent.trim());', [row()]);
