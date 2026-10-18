@@ -231,7 +231,7 @@ main { max-width: 1280px; padding: var(--space-6); margin: 0 auto; }
 .provider-fixture-note { margin-block: var(--space-2); color: var(--accent); font-weight: var(--weight-medium); }
 .provider-approval-form { display: grid; justify-items: start; gap: var(--space-3); margin-top: var(--space-3); }
 .profile-provider-check { display: flex; flex: 1 1 100%; flex-wrap: wrap; align-items: flex-start; gap: var(--space-3); min-width: 0; max-width: 100%; }
-.provider-diagnostic { flex: 1 1 100%; margin-top: 0; max-width: 44rem; font-size: var(--text-sm); overflow-wrap: anywhere; }
+.provider-diagnostic { flex: 1 0 100%; margin-top: 0; max-width: 100%; font-size: var(--text-sm); overflow-wrap: anywhere; }
 .backup-inspection-error:focus, .backup-inspection-receipt:focus { outline: 2px solid var(--focus); outline-offset: 3px; }
 .backup-inspection-metadata { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--space-2) var(--space-4); margin-top: var(--space-4); font-size: var(--text-sm); }
 .backup-inspection-metadata dt { color: var(--muted); }
@@ -267,7 +267,7 @@ main { max-width: 1280px; padding: var(--space-6); margin: 0 auto; }
 }
 
 .profile-device-login { display: contents; }
-.login-panel { flex: 1 1 100%; min-width: 0; max-width: 44rem; padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--surface); overflow-wrap: anywhere; }
+.login-panel { flex: 1 0 100%; min-width: 0; max-width: 100%; padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--surface); overflow-wrap: anywhere; }
 .login-panel h3 { margin-bottom: var(--space-2); font-size: var(--text-body); font-weight: var(--weight-medium); }
 .login-panel p + p, .login-panel .profile-actions, .login-panel > button { margin-top: var(--space-3); }
 .login-panel:focus { outline: 2px solid var(--focus); outline-offset: 3px; }
@@ -275,3 +275,6 @@ main { max-width: 1280px; padding: var(--space-6); margin: 0 auto; }
 .login-prompt input { width: 100%; min-width: 0; min-height: 44px; padding: var(--space-2) var(--space-3); border: 1px solid var(--control-border); border-radius: var(--radius-control); color: var(--text); background: var(--surface); font: inherit; }
 .login-prompt input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .login-prompt .login-code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-variant-numeric: tabular-nums; font-size: var(--text-section); }
+
+.login-panel p, .provider-diagnostic p { max-width: 60ch; }
+.login-prompt { max-width: 30rem; }
