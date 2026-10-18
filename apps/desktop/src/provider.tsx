@@ -156,8 +156,8 @@ export function ProfileProviderCheck({ profileId, approval, busy }: { profileId:
   const title = diagnostic?.authentication === 'authentication_required' ? 'Sign-in required'
     : diagnostic?.authentication === 'chatgpt' ? 'Account response received' : 'Account type not supported';
   return <div className="profile-provider-check">
-    <div className="profile-actions"><button className="secondary-button" type="button" data-provider-check={profileId} disabled={busy || checking} onClick={() => { void check(); }}>{checking ? 'Checking connection…' : 'Check connection'}</button>
-      {checking && <button className="text-button" type="button" data-provider-cancel={profileId} disabled={cancelling} onClick={() => { void cancel(); }}>{cancelling ? 'Cancelling…' : 'Cancel check'}</button>}
+    <div className="profile-actions"><button className="secondary-button" type="button" data-provider-check={profileId} aria-describedby={`profile-name-${profileId}`} disabled={busy || checking} onClick={() => { void check(); }}>{checking ? 'Checking connection…' : 'Check connection'}</button>
+      {checking && <button className="text-button" type="button" data-provider-cancel={profileId} aria-describedby={`profile-name-${profileId}`} disabled={cancelling} onClick={() => { void cancel(); }}>{cancelling ? 'Cancelling…' : 'Cancel check'}</button>}
     </div>
     {(diagnostic || error) && <div ref={result} className="provider-diagnostic" data-provider-profile={profileId} tabIndex={-1} role={error ? 'alert' : 'status'}>
       {error ? <p>{error}</p> : diagnostic && <>{diagnostic.sourceKind === 'test_fixture' && <p className="provider-fixture-note" data-provider-fixture>Synthetic provider fixture</p>}<p><strong>{title}</strong></p><p>{diagnostic.authentication === 'authentication_required'
