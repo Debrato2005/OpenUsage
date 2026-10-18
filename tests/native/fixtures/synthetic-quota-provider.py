@@ -21,7 +21,10 @@ MODES = {'multi', 'legacy', 'empty', 'missing', 'invalid', 'fractional',
          'credits_null_details', 'credits_empty_details', 'credits_above_safe',
          'credits_max', 'credits_negative', 'credits_fractional',
          'credits_out_of_range', 'credits_missing_count', 'credits_null_count', 'details_rows', 'details_bound', 'details_too_many',
-         'details_missing_expiry', 'details_invalid_time', 'details_invalid_title'}
+         'details_missing_expiry', 'details_invalid_time', 'details_invalid_title',
+         'monthly_exact', 'monthly_zero', 'spend_without_monthly',
+         'monthly_without_spend', 'monthly_fullmap', 'monthly_legacy',
+         'monthly_limit_number', 'monthly_limit_control', 'monthly_spend_string'}
 
 
 def observe(kind, **fields):
@@ -195,6 +198,47 @@ elif selected == 'mismatch':
     codex['limitId'] = 'different-bucket'
 elif selected == 'null_windows':
     result['rateLimitsByLimitId'] = {'codex': {'primary': None, 'secondary': None}}
+if selected.startswith('monthly_') or selected == 'spend_without_monthly':
+    def monthly_limit(value):
+        return {'limit': value, 'used': '1.2500', 'remainingPercent': 68,
+                'resetsAt': 1893456000}
+    codex['credits'] = {'hasCredits': True, 'unlimited': True,
+                        'balance': '987654321.98765'}
+    result['ordinaryUsageAllowed'] = True
+    if selected == 'monthly_exact':
+        codex['individualLimit'] = monthly_limit('9007199254740993.12500')
+        codex['spendControlReached'] = True
+    elif selected == 'monthly_zero':
+        codex['individualLimit'] = monthly_limit('0')
+        codex['spendControlReached'] = False
+        result['ordinaryUsageAllowed'] = False
+    elif selected == 'spend_without_monthly':
+        codex['individualLimit'] = None
+        codex['spendControlReached'] = True
+    elif selected == 'monthly_without_spend':
+        codex['individualLimit'] = monthly_limit('  37.5000  ')
+        codex['spendControlReached'] = None
+        result['ordinaryUsageAllowed'] = False
+    elif selected == 'monthly_fullmap':
+        codex['individualLimit'] = monthly_limit('12.50')
+        codex['spendControlReached'] = False
+        other['individualLimit'] = monthly_limit('5.125')
+        other['spendControlReached'] = True
+        result['rateLimits']['individualLimit'] = monthly_limit('777.000')
+        result['rateLimits']['spendControlReached'] = True
+    elif selected == 'monthly_legacy':
+        result['rateLimitsByLimitId'] = None
+        result['rateLimits'] = {'limitId': 'returned-legacy',
+                                'limitName': 'Synthetic legacy monthly bucket',
+                                'primary': {'usedPercent': 42, 'windowDurationMins': 1440,
+                                            'resetsAt': None}, 'secondary': None,
+                                'individualLimit': monthly_limit('25.50'),
+                                'spendControlReached': False}
+    else:
+        codex['individualLimit'] = monthly_limit(
+            125 if selected == 'monthly_limit_number' else '12\n.50'
+            if selected == 'monthly_limit_control' else '12.50')
+        codex['spendControlReached'] = 'false' if selected == 'monthly_spend_string' else False
 send({'id': 3, 'result': result})
 observe('full-quota-emitted', mode=selected)
 assert read_request() == {'id': 4, 'method': 'account/read', 'params': {'refreshToken': False}}

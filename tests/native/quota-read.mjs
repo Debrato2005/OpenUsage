@@ -12,7 +12,7 @@ const harness = dirname(fileURLToPath(import.meta.url));
 const repository = resolve(process.env.OPENUSAGE_NATIVE_SOURCE_ROOT ?? join(harness, '../..'));
 const application = resolve(process.env.OPENUSAGE_NATIVE_BINARY ?? join(repository, 'target/debug/openusage-desktop'));
 const output = resolve(process.env.OPENUSAGE_NATIVE_EVIDENCE ?? join(tmpdir(), `openusage-native-quota-${randomUUID()}`));
-const fixtureDigest = '581062e7eae9e315e4d62cc1dd770a263f96c700739087d905c956f1b66c6f18';
+const fixtureDigest = 'fecabb5cc4f5f799c3b7ab3e5475926551d7be5862413d1bbb650313abe66616';
 const hash = async path => createHash('sha256').update(await readFile(path)).digest('hex');
 const password = 'OpenUsage synthetic quota workspace 2026';
 const backupPassword = 'OpenUsage synthetic quota backup 2026';
@@ -53,7 +53,12 @@ function validateOutcome(value, request) {
     assert.ok(Number.isSafeInteger(row.grantedAtUnix) && row.grantedAtUnix >= -62135596800 && row.grantedAtUnix <= 253402300799);
     assert.ok(row.expiresAtUnix === null || Number.isSafeInteger(row.expiresAtUnix) && row.expiresAtUnix >= -62135596800 && row.expiresAtUnix <= 253402300799);
   }
-  for (const forbidden of ['synthetic-private-account-id', 'synthetic-quota@example.invalid', 'accountId', 'rateLimitResetCredits', 'syntheticPrivateCredit', 'legacy-must-not-be-counted', 'synthetic-private-credit-id', 'synthetic-private-reset-type', 'synthetic-private-credit-description', 'synthetic-private-future-status']) assert.equal(JSON.stringify(value).includes(forbidden), false);
+  for (const limit of value.limits) {
+    assert.deepEqual(Object.keys(limit).sort(), ['limitId', 'limitName', 'monthlyCreditLimit', 'primary', 'reachedType', 'secondary', 'spendControlReached']);
+    assert.ok(limit.monthlyCreditLimit === null || typeof limit.monthlyCreditLimit === 'string' && limit.monthlyCreditLimit.trim().length > 0 && Buffer.byteLength(limit.monthlyCreditLimit, 'utf8') <= 256 && !/[\u0000-\u001f\u007f-\u009f]/u.test(limit.monthlyCreditLimit));
+    assert.ok(limit.spendControlReached === null || typeof limit.spendControlReached === 'boolean');
+  }
+  for (const forbidden of ['synthetic-private-account-id', 'synthetic-quota@example.invalid', 'accountId', 'rateLimitResetCredits', 'syntheticPrivateCredit', 'legacy-must-not-be-counted', 'synthetic-private-credit-id', 'synthetic-private-reset-type', 'synthetic-private-credit-description', 'synthetic-private-future-status', 'ordinaryUsageAllowed', '987654321.98765', 'remainingPercent', 'balance']) assert.equal(JSON.stringify(value).includes(forbidden), false);
 }
 async function complete(request, expectedError) {
   const result = await driver.invoke('complete_profile_quota_read', { profileId: request.profileId, requestId: request.requestId }); active.delete(request.requestId);
@@ -104,7 +109,7 @@ async function previewDisclosure() {
   await key('\uE004');assert.equal((await disclosureState(sourceSelector)).focused,true,'Tab must reach Reading details.');
   await key('\uE007');await waitDisclosure(sourceSelector,true);
   const reading=await driver.execute('const root=document.querySelector(arguments[0]),panel=document.getElementById(root.querySelector("[data-slot=collapsible-trigger]").getAttribute("aria-controls"));return{rows:[...panel.querySelectorAll("dt")].map(node=>[node.textContent,node.nextElementSibling.textContent]),visible:panel.getBoundingClientRect().height>0};',[sourceSelector]);
-  assert.deepEqual(reading,{rows:[['Provider limit ID','codex'],['Provider status','rate_limit_reached']],visible:true});
+  assert.deepEqual(reading,{rows:[['Provider limit ID','codex'],['Provider status','rate_limit_reached'],['Monthly credit limit','Not supplied'],['Spend control','Not supplied']],visible:true});
   await key(' ');await waitDisclosure(sourceSelector,false);
   await key('\uE004');assert.equal((await disclosureState(limits,1)).focused,true,'Tab must skip closed Reading details and reach the second limit.');
   await key('\uE007');await waitDisclosure(limits,true,1);await key(' ');await waitDisclosure(limits,false,1);
@@ -158,6 +163,21 @@ async function creditDetails(expected, expectedRows = null) {
   displayed.details = detailState;
   return displayed;
 }
+async function monthlyDetails(expected, keepFirstOpen = false) {
+  const selector = resultSelector(first.id), limits = `${selector} .quota-limit`, sources = `${selector} .quota-source-details`;
+  const observationCount = (await observations()).length, displayed = [];
+  for (const [index, limit] of expected.entries()) {
+    await setDisclosure(limits, true, index);
+    await waitDisclosure(sources, false, index); await setDisclosure(sources, true, index);
+    const value = await driver.execute('const root=document.querySelectorAll(arguments[0])[arguments[1]],panel=document.getElementById(root.querySelector("[data-slot=collapsible-trigger]").getAttribute("aria-controls")),monthly=panel.querySelector("[data-monthly-credit-limit]"),spend=panel.querySelector("[data-spend-control]");const visible=node=>node.getBoundingClientRect().width>0&&node.getBoundingClientRect().height>0&&getComputedStyle(node).visibility!=="hidden";return {id:monthly.getAttribute("data-monthly-credit-limit"),monthlyLabel:monthly.previousElementSibling.textContent,monthly:monthly.querySelector("bdi").textContent,whiteSpace:getComputedStyle(monthly.querySelector("bdi")).whiteSpace,spendLabel:spend.previousElementSibling.textContent,spend:spend.textContent,visible:visible(monthly)&&visible(spend),actions:panel.querySelectorAll("button,input,select,textarea,form").length};', [sources, index]);
+    assert.deepEqual(value, { id: limit.limitId, monthlyLabel: 'Monthly credit limit', monthly: limit.monthlyCreditLimit ?? 'Not supplied', whiteSpace: 'pre', spendLabel: 'Spend control', spend: limit.spendControlReached === null ? 'Not supplied' : limit.spendControlReached ? 'Reached' : 'Not reached', visible: true, actions: 0 });
+    displayed.push(value);
+    if (!keepFirstOpen || index !== 0) await setDisclosure(sources, false, index);
+    if (index !== 0) await setDisclosure(limits, false, index);
+  }
+  assert.equal((await observations()).length, observationCount, 'Reading details must execute no provider.');
+  return displayed;
+}
 async function approveGui() {
   if (await driver.execute('return !document.querySelector("[data-provider-settings]").closest("details").open;')) await driver.click('[data-provider-settings]');
   if (await driver.execute('const manual=document.querySelector("[data-provider-manual]");return Boolean(manual&&!manual.closest("details").open);')) await driver.click('[data-provider-manual]');
@@ -168,10 +188,11 @@ async function approveGui() {
   const check = await driver.invoke('check_profile_connection', { profileId: first.id }); assert.equal(check.ok, true); assert.equal(check.value.sourceKind, 'test_fixture'); approvalId = check.value.approvalId;
 }
 async function theme(value) { await driver.selectVisibleOption('#theme', { system: 'System', light: 'Light', dark: 'Dark' }[value]); await waitFor(async () => await driver.execute('return document.documentElement.dataset.theme===arguments[0]&&!document.querySelector("#theme").disabled;', [value]), 'saved appearance'); }
-async function creditViewport() {
-  return driver.execute('const node=document.querySelector("[data-earned-reset-credits]"),range=document.createRange();range.selectNodeContents(node);const style=getComputedStyle(node),rect=node.getBoundingClientRect();return {text:node.textContent.trim(),label:node.getAttribute("aria-label"),tabIndex:node.tabIndex,focused:document.activeElement===node,whiteSpace:style.whiteSpace,overflowX:style.overflowX,outlineWidth:parseFloat(style.outlineWidth),outlineStyle:style.outlineStyle,outlineColor:style.outlineColor,clientWidth:node.clientWidth,scrollWidth:node.scrollWidth,scrollLeft:node.scrollLeft,left:rect.left,right:rect.right,lineCount:new Set([...range.getClientRects()].filter(rect=>rect.width>0&&rect.height>0).map(rect=>Math.round(rect.top))).size,pageWidth:document.scrollingElement.scrollWidth,viewportWidth:innerWidth};');
+async function creditViewport(selector = '[data-earned-reset-credits]') {
+  return driver.execute('const node=document.querySelector(arguments[0]),range=document.createRange();range.selectNodeContents(node);const style=getComputedStyle(node),rect=node.getBoundingClientRect();return {text:node.querySelector("bdi").textContent,label:node.getAttribute("aria-label"),tabIndex:node.tabIndex,focused:document.activeElement===node,whiteSpace:style.whiteSpace,overflowX:style.overflowX,outlineWidth:parseFloat(style.outlineWidth),outlineStyle:style.outlineStyle,outlineColor:style.outlineColor,clientWidth:node.clientWidth,scrollWidth:node.scrollWidth,scrollLeft:node.scrollLeft,left:rect.left,right:rect.right,lineCount:new Set([...range.getClientRects()].filter(rect=>rect.width>0&&rect.height>0).map(rect=>Math.round(rect.top))).size,pageWidth:document.scrollingElement.scrollWidth,viewportWidth:innerWidth};', [selector]);
 }
 async function capture(name, selector, width = 1280, scale = 1, checkCreditScroll = false) {
+  const scrollCheck = checkCreditScroll === true ? { selector: '[data-earned-reset-credits]', trigger: '.quota-preview-notes > [data-slot=collapsible-trigger]', label: 'Earned reset credits', exactText: '9223372036854775807', endName: 'quota-credits-exact-end-light-text200-360.png', receiptKey: 'creditCountKeyboardScroll' } : checkCreditScroll;
   for (let attempt = 0; attempt < 3; attempt++) { const actual = await driver.execute('return {width:innerWidth,height:innerHeight}'); if (actual.width === width && actual.height === 850) break; const rect = await driver.request('GET', `/session/${driver.session}/window/rect`); await driver.request('POST', `/session/${driver.session}/window/rect`, { width: rect.width + width - actual.width, height: rect.height + 850 - actual.height }); }
   if (scale !== 1) await driver.execute('window.__quotaFonts=[...document.querySelectorAll("body *")].map(node=>({node,style:node.getAttribute("style"),size:getComputedStyle(node).fontSize,inlineSize:node.style.getPropertyValue("font-size"),inlinePriority:node.style.getPropertyPriority("font-size")}));for(const item of window.__quotaFonts)item.node.style.fontSize=`${parseFloat(item.size)*arguments[0]}px`;return true;', [scale]);
   try {
@@ -183,13 +204,13 @@ async function capture(name, selector, width = 1280, scale = 1, checkCreditScrol
     evidence.typography ??= []; evidence.typography.push({ name, ...typography });
     await driver.execute('document.querySelector(arguments[0]).scrollIntoView({block:"center"});return true;', [selector]);
     let initialCredit;
-    if (checkCreditScroll) {
-      assert.equal(await driver.execute('return document.activeElement===document.querySelector(".quota-preview-notes > [data-slot=collapsible-trigger]");'), true, 'About must own focus before the real Tab.');
+    if (scrollCheck) {
+      assert.equal(await driver.execute('return document.activeElement===document.querySelector(arguments[0]);', [scrollCheck.trigger]), true, 'The disclosure trigger must own focus before the real Tab.');
       await key('\uE004');
-      initialCredit = await creditViewport();
+      initialCredit = await creditViewport(scrollCheck.selector);
       assert.equal(initialCredit.focused, true, 'Tab must reach the count viewport.');
-      assert.equal(initialCredit.label, 'Earned reset credits'); assert.equal(initialCredit.tabIndex, 0);
-      assert.equal(initialCredit.text, '9223372036854775807'); assert.equal(initialCredit.lineCount, 1);
+      assert.equal(initialCredit.label, scrollCheck.label); assert.equal(initialCredit.tabIndex, 0);
+      assert.equal(initialCredit.text, scrollCheck.exactText); assert.equal(initialCredit.lineCount, 1);
       assert.equal(initialCredit.whiteSpace, 'nowrap'); assert.equal(initialCredit.overflowX, 'auto');
       assert.equal(initialCredit.scrollLeft, 0); assert.ok(initialCredit.scrollWidth > initialCredit.clientWidth);
       assert.ok(initialCredit.left >= 0 && initialCredit.right <= width + 1); assert.ok(initialCredit.pageWidth <= width + 1);
@@ -197,18 +218,18 @@ async function capture(name, selector, width = 1280, scale = 1, checkCreditScrol
     }
     const view = await driver.execute('const panel=document.querySelector(arguments[0]),result=panel.closest(".quota-result")??panel;return {theme:document.documentElement.dataset.theme,width:innerWidth,height:innerHeight,scrollWidth:document.scrollingElement.scrollWidth,meterValues:[...result.querySelectorAll("[data-slot=meter-value]")].filter(node=>!node.closest("details:not([open]),[data-slot=collapsible-panel][data-closed]")&&[...node.getClientRects()].some(rect=>rect.width>0&&rect.height>0)).map(node=>{const range=document.createRange();range.selectNodeContents(node);const style=getComputedStyle(node);return {text:node.textContent.trim(),lineCount:new Set([...range.getClientRects()].filter(rect=>rect.width>0&&rect.height>0).map(rect=>Math.round(rect.top))).size,whiteSpace:style.whiteSpace,flexShrink:style.flexShrink};}),overflow:[panel,...panel.querySelectorAll("*")].filter(node=>{const rect=node.getBoundingClientRect();const count=node.parentElement,ownedScrollText=node.matches("bdi")&&count?.matches(".quota-credit-count")&&getComputedStyle(count).overflowX==="auto";return !ownedScrollText&&rect.width>1&&rect.height>1&&(rect.left< -1||rect.right>innerWidth+1)}).map(node=>node.tagName)};', [selector]);
     assert.equal(view.width, width); assert.ok(view.scrollWidth <= width + 1); assert.deepEqual(view.overflow, []); if (scale === 2) { assert.equal(view.meterValues.length, 2); for (const value of view.meterValues) { assert.match(value.text, /^\d{1,3}%$/); assert.equal(value.lineCount, 1, "A percentage must stay on one text line at 200 percent."); assert.equal(value.whiteSpace, "nowrap"); assert.equal(value.flexShrink, "0"); } } await driver.screenshot(join(output, name)); evidence.screenshots.push(name); evidence.views.push({ name, textScale: scale, scalingScope: 'Test-side CSS text size changes, not OS zoom or full accessibility acceptance.', ...view });
-    if (checkCreditScroll) {
+    if (scrollCheck) {
       let endCredit = initialCredit, arrowPresses = 0;
       while (endCredit.scrollLeft < endCredit.scrollWidth - endCredit.clientWidth - 1 && arrowPresses < 20) {
         await key('\uE014'); arrowPresses += 1;
         await driver.request('POST', `/session/${driver.session}/execute/async`, { script: 'const done=arguments[arguments.length-1];requestAnimationFrame(()=>requestAnimationFrame(()=>done(true)));', args: [] });
-        endCredit = await creditViewport();
+        endCredit = await creditViewport(scrollCheck.selector);
       }
       assert.ok(arrowPresses > 0); assert.ok(endCredit.scrollLeft > 0); assert.ok(endCredit.scrollLeft >= endCredit.scrollWidth - endCredit.clientWidth - 1, 'Real ArrowRight must expose the final digits.');
       assert.equal(endCredit.focused, true); assert.equal(endCredit.text, initialCredit.text); assert.equal(endCredit.lineCount, 1); assert.ok(endCredit.left >= 0 && endCredit.right <= width + 1); assert.ok(endCredit.pageWidth <= width + 1);
-      const endName = 'quota-credits-exact-end-light-text200-360.png';
+      const endName = scrollCheck.endName;
       await driver.screenshot(join(output, endName)); evidence.screenshots.push(endName); evidence.views.push({ name: endName, textScale: scale, scalingScope: 'Test-side CSS text size changes, not OS zoom or full accessibility acceptance.', ...view, scrollWidth: endCredit.pageWidth, creditScrollPosition: 'end' });
-      evidence.creditCountKeyboardScroll = { initial: initialCredit, end: endCredit, arrowPresses, actualTabAndArrowRight: true, contentOutsideCountViewportIsExpectedAndNativeScrollable: true };
+      evidence[scrollCheck.receiptKey] = { initial: initialCredit, end: endCredit, arrowPresses, actualTabAndArrowRight: true, contentOutsideCountViewportIsExpectedAndNativeScrollable: true };
     }
   } finally { if (scale !== 1) {
     const restoration=await driver.execute('for(const item of window.__quotaFonts){if(item.inlineSize)item.node.style.setProperty("font-size",item.inlineSize,item.inlinePriority);else item.node.style.removeProperty("font-size");if(item.style===null&&item.node.style.length===0)item.node.removeAttribute("style");}const connected=window.__quotaFonts.filter(item=>item.node.isConnected);const mismatches=connected.filter(item=>item.node.style.getPropertyValue("font-size")!==item.inlineSize||item.node.style.getPropertyPriority("font-size")!==item.inlinePriority).map(item=>item.node.tagName);const critical=connected.filter(item=>item.node.matches(".quota-disclosure-trigger,[data-slot=meter-value],.quota-credit-count")).map(item=>({tag:item.node.tagName,before:item.size,after:getComputedStyle(item.node).fontSize}));delete window.__quotaFonts;return{connected:connected.length,inlineMismatches:mismatches,critical};');
@@ -248,7 +269,7 @@ try {
   assert.equal(geometry.length, 3); for (const [index, value] of geometry.entries()) { const remaining = [75, 0, 100][index]; assert.equal(value.value, String(remaining)); assert.equal(value.min, '0'); assert.equal(value.max, '100'); assert.equal(value.text, `${remaining}% remaining (derived)`); assert.ok(value.trackWidth > 0); assert.ok(Math.abs(value.indicatorWidth - value.trackWidth * remaining / 100) <= 1, 'The visible coss indicator must match derived remaining capacity.'); assert.equal(value.trackBackground, 'none'); assert.equal(value.indicatorBackground, 'none'); } evidence.meterGeometry = geometry;
   await setDisclosure(`${resultSelector(first.id)} .quota-limit`,false,1);
   await capture('quota-preview-dark-desktop.png', resultSelector(first.id)); await theme('light'); await capture('quota-preview-light-360.png', resultSelector(first.id), 360); await capture('quota-secondary-light-360.png', `${resultSelector(first.id)} .quota-window:nth-of-type(2)`, 360); await capture('quota-primary-light-text200-360.png', `${resultSelector(first.id)} .quota-window`, 360, 2);
-  await config(home, 'multi'); before = await liveHashes(); const request = await begin(), full = await complete(request); assert.equal(full.availableResetCredits, '3'); assert.equal(full.resetCreditDetails, null); assert.equal(full.limits.length, 2); assert.deepEqual(full.limits[0], { limitId: 'codex', limitName: null, primary: { usedPercent: 25, derivedRemainingPercent: 75, windowDurationMins: 300, resetsAtUnix: 1893456000, label: 'Five-hour' }, secondary: { usedPercent: 100, derivedRemainingPercent: 0, windowDurationMins: 10080, resetsAtUnix: null, label: 'Seven-day' }, reachedType: 'rate_limit_reached' }); assert.deepEqual(full.limits[1], { limitId: 'codex_other', limitName: 'Synthetic returned bucket', primary: { usedPercent: 0, derivedRemainingPercent: 100, windowDurationMins: null, resetsAtUnix: null, label: 'Primary window' }, secondary: null, reachedType: null }); assert.deepEqual(await liveHashes(), before); evidence.sampleDiagnostic = full;
+  await config(home, 'multi'); before = await liveHashes(); const request = await begin(), full = await complete(request); assert.equal(full.availableResetCredits, '3'); assert.equal(full.resetCreditDetails, null); assert.equal(full.limits.length, 2); assert.deepEqual(full.limits[0], { limitId: 'codex', limitName: null, monthlyCreditLimit: null, spendControlReached: null, primary: { usedPercent: 25, derivedRemainingPercent: 75, windowDurationMins: 300, resetsAtUnix: 1893456000, label: 'Five-hour' }, secondary: { usedPercent: 100, derivedRemainingPercent: 0, windowDurationMins: 10080, resetsAtUnix: null, label: 'Seven-day' }, reachedType: 'rate_limit_reached' }); assert.deepEqual(full.limits[1], { limitId: 'codex_other', limitName: 'Synthetic returned bucket', monthlyCreditLimit: null, spendControlReached: null, primary: { usedPercent: 0, derivedRemainingPercent: 100, windowDurationMins: null, resetsAtUnix: null, label: 'Primary window' }, secondary: null, reachedType: null }); assert.deepEqual(await liveHashes(), before); evidence.sampleDiagnostic = full;
   for (const mode of ['legacy', 'empty', 'null_windows', 'sparse_event']) { await config(home, mode); before = await liveHashes(); const attempt = await begin(), value = await complete(attempt); if (mode === 'empty') assert.deepEqual(value.limits, []); if (mode === 'legacy') { assert.equal(value.limits.length, 1); assert.equal(value.limits[0].limitId, 'returned-legacy'); assert.equal(value.limits[0].primary.usedPercent, 42); assert.equal(value.limits[0].primary.label, '1440 minutes'); } if (mode === 'null_windows') { assert.equal(value.limits[0].primary, null); assert.equal(value.limits[0].secondary, null); } if (mode === 'sparse_event') assert.deepEqual(value.limits, full.limits); assert.deepEqual(await liveHashes(), before); evidence.cases.push({ mode, passed: true }); }
   for (const [mode, error] of [['missing', 'provider_quota_failed'], ['invalid', 'provider_quota_failed'], ['fractional', 'provider_quota_failed'], ['string_percent', 'provider_quota_failed'], ['mismatch', 'provider_incompatible_quota_scope'], ['unknown_identity', 'provider_account_identity_unavailable'], ['signed_out', 'provider_quota_failed'], ['unsupported', 'provider_quota_failed'], ['changed_email', 'provider_account_changed'], ['changed_plan', 'provider_account_changed'], ['changed_auth', 'provider_account_changed'], ['post_unknown', 'provider_account_changed'], ['early_auth', 'provider_account_changed'], ['auth_notice', 'provider_account_changed'], ['late_auth', 'provider_account_changed']]) { await config(home, mode); before = await liveHashes(); const attempt = await begin(); await complete(attempt, error); assert.deepEqual(await liveHashes(), before); evidence.cases.push({ mode, error, passed: true }); }
   for (const [mode, expected] of [['credits_absent', null], ['credits_null', null], ['credits_zero', '0'], ['credits_nonzero', '3'], ['credits_null_details', '3'], ['credits_empty_details', '7'], ['credits_above_safe', '9007199254740993'], ['credits_max', '9223372036854775807']]) {
@@ -296,6 +317,35 @@ try {
     await config(home, mode); before = await liveHashes(); const request = await begin(); await complete(request, 'provider_quota_failed');
     assert.deepEqual(await liveHashes(), before); evidence.cases.push({ mode, error: 'provider_quota_failed', passed: true });
   }
+  const monthlyCases = [
+    { mode: 'monthly_exact', expected: [['codex', '9007199254740993.12500', true], ['codex_other', null, null]] },
+    { mode: 'monthly_zero', expected: [['codex', '0', false], ['codex_other', null, null]] },
+    { mode: 'spend_without_monthly', expected: [['codex', null, true], ['codex_other', null, null]] },
+    { mode: 'monthly_without_spend', expected: [['codex', '  37.5000  ', null], ['codex_other', null, null]] },
+    { mode: 'monthly_fullmap', expected: [['codex', '12.50', false], ['codex_other', '5.125', true]] },
+    { mode: 'monthly_legacy', expected: [['returned-legacy', '25.50', false]] },
+  ];
+  for (const { mode, expected } of monthlyCases) {
+    await config(home, mode); before = await liveHashes(); const value = await complete(await begin());
+    const returned = value.limits.map(({ limitId, monthlyCreditLimit, spendControlReached }) => ({ limitId, monthlyCreditLimit, spendControlReached }));
+    assert.deepEqual(returned, expected.map(([limitId, monthlyCreditLimit, spendControlReached]) => ({ limitId, monthlyCreditLimit, spendControlReached })));
+    assert.equal(value.availableResetCredits, '3'); assert.equal(value.resetCreditDetails, null); assert.deepEqual(await liveHashes(), before);
+    await guiRead(mode); const displayed = await monthlyDetails(returned, mode === 'monthly_exact'); assert.deepEqual(await liveHashes(), before);
+    if (mode === 'monthly_exact') {
+      const source = `${resultSelector(first.id)} .quota-source-details`;
+      await theme('dark'); const darkAppearance = await liveHashes(); await capture('quota-monthly-credit-dark-desktop.png', source); assert.deepEqual(await liveHashes(), darkAppearance);
+      await theme('light'); const lightAppearance = await liveHashes(); await capture('quota-monthly-credit-light-360.png', source, 360);
+      await setDisclosure(source, false); await setDisclosure(source, true);
+      await capture('quota-monthly-credit-exact-light-text200-360.png', source, 360, 2, { selector: '[data-monthly-credit-limit="codex"]', trigger: '.quota-source-details > [data-slot=collapsible-trigger]', label: 'Monthly credit limit for codex', exactText: '9007199254740993.12500', endName: 'quota-monthly-credit-exact-end-light-text200-360.png', receiptKey: 'monthlyCreditKeyboardScroll' });
+      assert.deepEqual(await liveHashes(), lightAppearance); before = await liveHashes(); await setDisclosure(source, false);
+    }
+    assert.deepEqual(await liveHashes(), before);
+    evidence.cases.push({ mode, limits: returned, displayed, exactStringsAndIndependentNullableState: true, passed: true });
+  }
+  for (const mode of ['monthly_limit_number', 'monthly_limit_control', 'monthly_spend_string']) {
+    await config(home, mode); before = await liveHashes(); await complete(await begin(), 'provider_quota_failed');
+    assert.deepEqual(await liveHashes(), before); evidence.cases.push({ mode, error: 'provider_quota_failed', passed: true });
+  }
   assert.match(await guiRead('empty'), /Missing readings do not mean zero usage/); assert.equal(await driver.execute('return document.querySelector(arguments[0]).querySelectorAll("[role=meter]").length;', [resultSelector(first.id)]), 0); await capture('quota-empty-light-360.png', resultSelector(first.id), 360);
   assert.match(await guiRead('null_windows'), /No quota windows were supplied/); assert.equal(await driver.execute('return document.querySelector(arguments[0]).querySelectorAll("[role=meter]").length;', [resultSelector(first.id)]), 0); await capture('quota-missing-windows-light-360.png', resultSelector(first.id), 360);
   await config(home, 'pending'); let offset = (await observations()).length; await driver.click(readSelector(first.id)); const guiPending = await stage('quota-read-pending', home, offset); await waitFor(async () => await driver.execute('return document.activeElement?.matches(arguments[0])&&!document.activeElement.disabled;', [cancelSelector(first.id)]), 'focused enabled Cancel read'); await key('\uE007'); await waitFor(async () => await driver.execute('return document.activeElement?.matches(arguments[0])&&document.activeElement.textContent.includes("Quota read stopped.");', [resultSelector(first.id)]), 'cancelled result focus'); await reaped(guiPending); await capture('quota-cancelled-light-360.png', resultSelector(first.id), 360);
@@ -307,8 +357,8 @@ try {
   const rows = await observations(); const starts = new Map(rows.filter(row => row.kind === 'start').map(row => [row.pid, row]));
   for (const row of starts.values()) { assert.ok([home, freshHome].includes(row.environment.CODEX_HOME)); assert.deepEqual(row.unexpectedEnvironmentKeys, []); assert.equal(row.environment.PATH, '/usr/bin:/bin'); assert.equal(row.environment.LANG, 'C.UTF-8'); const runtime = dirname(row.environment.HOME); assert.ok(runtime.startsWith(row.environment.CODEX_HOME + '/openusage-provider-')); for (const key of ['XDG_CONFIG_HOME', 'XDG_DATA_HOME', 'XDG_CACHE_HOME', 'XDG_STATE_HOME', 'XDG_RUNTIME_DIR', 'TMPDIR']) assert.ok(row.environment[key].startsWith(runtime + '/')); await reaped(row); await assert.rejects(lstat(runtime), { code: 'ENOENT' }); }
   for (const row of rows.filter(row => row.kind === 'request')) { assert.ok(['initialize', 'initialized', 'account/read', 'account/rateLimits/read'].includes(row.request.method)); if (row.request.method === 'account/read') assert.deepEqual(row.request.params, { refreshToken: false }); if (row.request.method === 'account/rateLimits/read') assert.deepEqual(row.request, { id: 3, method: 'account/rateLimits/read', params: {} }); }
-  for (const row of rows.filter(row => row.kind === 'full-quota-emitted' && (['multi', 'legacy', 'empty', 'null_windows', 'sparse_event', 'details_rows', 'details_bound'].includes(row.mode) || row.mode.startsWith('credits_') && !['credits_negative', 'credits_fractional', 'credits_out_of_range', 'credits_missing_count', 'credits_null_count'].includes(row.mode)))) { const requests = rows.filter(item => item.kind === 'request' && item.pid === row.pid).map(item => ({ method: item.request.method, id: item.request.id ?? null })); assert.deepEqual(requests, [{ method: 'initialize', id: 1 }, { method: 'initialized', id: null }, { method: 'account/read', id: 2 }, { method: 'account/rateLimits/read', id: 3 }, { method: 'account/read', id: 4 }]); }
-  assert.equal(await readFile(join(fixture.dirs.codex, 'synthetic-fixture.txt'), 'utf8'), CODEX_SENTINEL); assert.deepEqual(await readdir(fixture.dirs.codex), ['synthetic-fixture.txt']); evidence.observations = rows; evidence.steps.push({ explicitGuiSourceApproval: true, fullReadBracketedByFreshAccountReads: true, exactIntegerDerivedValuesAndNulls: true, exactNullableResetCreditCount: true, nullOrEmptyCreditDetailsNeverReplaceCount: true, noCreditSpendingControl: true, typedOrderedCreditDetails: true, explicitNoExpiryWithoutTimeInference: true, resourceBoundIsNotProviderMaximumOrCompleteness: true, privateCreditFieldsExcluded: true, missingIsNotZero: true, sparseEventsNotMerged: true, allReadingsProvisionalAndUnaccepted: true, noApplicationWritesFromQuotaReads: true, nativeKeyboardCancelReaps: true, staleCancellationCannotAffectSuccessor: true, profileOnlyCheckCancellationCannotInterruptQuota: true, restoreQuiescesBeforeFreshHomeRemap: true, genuineWindowExitReaps: true, otherAndArchivedHomesPreserved: true, isolatedEnvironmentAndDocumentedOperationsOnly: true });
+  for (const row of rows.filter(row => row.kind === 'full-quota-emitted' && (['multi', 'legacy', 'empty', 'null_windows', 'sparse_event', 'details_rows', 'details_bound', 'monthly_exact', 'monthly_zero', 'spend_without_monthly', 'monthly_without_spend', 'monthly_fullmap', 'monthly_legacy'].includes(row.mode) || row.mode.startsWith('credits_') && !['credits_negative', 'credits_fractional', 'credits_out_of_range', 'credits_missing_count', 'credits_null_count'].includes(row.mode)))) { const requests = rows.filter(item => item.kind === 'request' && item.pid === row.pid).map(item => ({ method: item.request.method, id: item.request.id ?? null })); assert.deepEqual(requests, [{ method: 'initialize', id: 1 }, { method: 'initialized', id: null }, { method: 'account/read', id: 2 }, { method: 'account/rateLimits/read', id: 3 }, { method: 'account/read', id: 4 }]); }
+  assert.equal(await readFile(join(fixture.dirs.codex, 'synthetic-fixture.txt'), 'utf8'), CODEX_SENTINEL); assert.deepEqual(await readdir(fixture.dirs.codex), ['synthetic-fixture.txt']); evidence.observations = rows; evidence.steps.push({ explicitGuiSourceApproval: true, fullReadBracketedByFreshAccountReads: true, exactIntegerDerivedValuesAndNulls: true, exactNullableResetCreditCount: true, nullOrEmptyCreditDetailsNeverReplaceCount: true, noCreditSpendingControl: true, typedOrderedCreditDetails: true, explicitNoExpiryWithoutTimeInference: true, resourceBoundIsNotProviderMaximumOrCompleteness: true, privateCreditFieldsExcluded: true, exactRawMonthlyCreditStrings: true, independentNullableSpendControl: true, balanceAndUsagePermissionNeverSubstitute: true, missingIsNotZero: true, sparseEventsNotMerged: true, allReadingsProvisionalAndUnaccepted: true, noApplicationWritesFromQuotaReads: true, nativeKeyboardCancelReaps: true, staleCancellationCannotAffectSuccessor: true, profileOnlyCheckCancellationCannotInterruptQuota: true, restoreQuiescesBeforeFreshHomeRemap: true, genuineWindowExitReaps: true, otherAndArchivedHomesPreserved: true, isolatedEnvironmentAndDocumentedOperationsOnly: true });
   assert.equal(await hash(executable), fixtureDigest); assert.equal(await hash(application), evidence.application.sha256); for (const [path, digest] of Object.entries(evidence.sourceHashes)) assert.equal(await hash(join(repository, path)), digest); for (const [path, digest] of Object.entries(evidence.harnessHashes)) assert.equal(await hash(join(harness, path)), digest); evidence.result = 'passed';
 } catch (error) { evidence.error = error.stack ?? String(error); process.exitCode = 1; try { evidence.observations = await observations(); } catch {} if (driver?.session) try { await driver.screenshot(join(output, 'failure.png')); evidence.screenshots.push('failure.png'); } catch {} }
 finally {
