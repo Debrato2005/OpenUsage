@@ -6,7 +6,7 @@ use sha2::{Digest, Sha256};
 use std::{
     cell::RefCell,
     os::unix::fs::PermissionsExt,
-    time::{Duration, Instant},
+    time::{Duration, Instant, SystemTime},
 };
 
 #[derive(Default)]
@@ -26,6 +26,7 @@ struct Fixture {
     workspace: Workspace,
     executable: PathBuf,
     profiles: Vec<String>,
+    vault: MemoryVault,
 }
 impl Fixture {
     fn new(mode: &str) -> Self {
@@ -38,7 +39,8 @@ impl Fixture {
         .unwrap();
         fs::set_permissions(&executable, fs::Permissions::from_mode(0o700)).unwrap();
         let mut workspace = Workspace::new(temporary.path().join("workspace")).unwrap();
-        workspace.setup(Ok(&MemoryVault::default()), None).unwrap();
+        let vault = MemoryVault::default();
+        workspace.setup(Ok(&vault), None).unwrap();
         for number in 1..=3 {
             workspace
                 .create_profile(&format!("Synthetic activity profile {number}"))
@@ -56,6 +58,7 @@ impl Fixture {
             workspace,
             executable,
             profiles,
+            vault,
         };
         fixture.mode(mode);
         for id in &fixture.profiles {
@@ -159,7 +162,7 @@ fn gone(pid: libc::pid_t) {
 }
 
 #[test]
-fn activity_preview_keeps_exact_counts_unknown_scope_and_observation_time_without_writes() {
+fn activity_acceptance_keeps_exact_counts_unknown_scope_and_independent_cached_days() {
     let mut fixture = Fixture::new("success");
     let id = fixture.profiles[0].clone();
     let approval = fixture.approve();
@@ -192,7 +195,9 @@ fn activity_preview_keeps_exact_counts_unknown_scope_and_observation_time_withou
     assert_eq!(value["approvalId"], approval);
     assert_eq!(value["identityConfidence"], "provisional");
     assert!(value["verifiedIdentityKey"].is_null());
-    assert_eq!(value["accepted"], false);
+    assert_eq!(value["accepted"], true);
+    assert_eq!(value["collectionRunId"], value["requestId"]);
+    assert!(uuid::Uuid::parse_str(value["bindingId"].as_str().unwrap()).is_ok());
     assert_eq!(value["monitoring"], "stopped");
     assert_eq!(value["coverage"], "unknown");
     assert_eq!(
@@ -231,7 +236,27 @@ fn activity_preview_keeps_exact_counts_unknown_scope_and_observation_time_withou
         assert_eq!(value["dailyUsageBuckets"], expected);
         assert_eq!(value["summary"]["currentStreakDays"], "0");
     }
-    assert_eq!(fixture.database_hashes(), before);
+    assert_ne!(fixture.database_hashes()[..2], before[..2]);
+    let saved_before = fixture.database_hashes();
+    let saved = serde_json::to_value(
+        fixture
+            .workspace
+            .load_profile_activity(&id)
+            .unwrap()
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(saved["accepted"], true);
+    assert_eq!(saved["dailyState"], "empty");
+    assert_eq!(saved["freshness"], "fresh");
+    assert_eq!(saved["dailyUsageBuckets"][0]["tokens"], "9007199254740993");
+    assert_eq!(saved["dailyUsageBuckets"][0]["date"], "2024-02-29");
+    assert_eq!(saved["dailyUsageBuckets"][0]["freshness"], "fresh");
+    assert_eq!(
+        fixture.database_hashes()[..2],
+        saved_before[..2],
+        "A cached read must not write the database or WAL; WAL read marks may update shared memory."
+    );
     assert!(before.iter().take(2).all(Option::is_some));
     assert_eq!(
         fs::read(fixture.home(&id).join("preserved-marker")).unwrap(),
@@ -423,4 +448,190 @@ fn activity_publication_refuses_changed_approval_home_and_archived_profile() {
         fs::read(home.join("preserved-marker")).unwrap(),
         b"preserve"
     );
+}
+
+#[test]
+fn activity_restart_archive_and_failed_refresh_keep_durable_exact_readings_without_approval() {
+    let mut fixture = Fixture::new("success");
+    let id = fixture.profiles[0].clone();
+    let other = fixture.profiles[1].clone();
+    let approval = fixture.approve();
+    let completed = fixture.read(&id, &approval).unwrap();
+    let first = fixture
+        .workspace
+        .finish_profile_activity_read(completed)
+        .unwrap();
+    let before = fixture.database_hashes();
+    fixture.mode("overflow");
+    assert_eq!(
+        fixture.read(&id, &approval).err(),
+        Some(CommandError::ProviderActivityFailed)
+    );
+    let failed_request = fixture
+        .workspace
+        .activity_requests
+        .get(&id)
+        .unwrap()
+        .clone();
+    fixture
+        .workspace
+        .note_activity_failure(&id, &failed_request);
+    let cached = serde_json::to_value(
+        fixture
+            .workspace
+            .load_profile_activity(&id)
+            .unwrap()
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(cached["collectionRunId"], first.collection_run_id);
+    assert_eq!(cached["freshness"], "stale");
+    assert_eq!(cached["dailyUsageBuckets"][0]["freshness"], "stale");
+    assert_eq!(cached["summary"]["peakDailyTokens"], "9223372036854775807");
+    assert_eq!(fixture.database_hashes()[..2], before[..2]);
+    assert!(
+        fixture
+            .workspace
+            .load_profile_activity(&other)
+            .unwrap()
+            .is_none()
+    );
+    fixture.workspace.set_profile_archived(&id, true).unwrap();
+    assert!(
+        fixture
+            .workspace
+            .load_profile_activity(&id)
+            .unwrap()
+            .is_some()
+    );
+    let directory = fixture.workspace.directory.clone();
+    drop(fixture.workspace);
+    let mut reopened = Workspace::new(directory).unwrap();
+    assert_eq!(
+        reopened.load_profile_activity(&id).err(),
+        Some(CommandError::WorkspaceLocked)
+    );
+    assert_eq!(
+        reopened.bootstrap(Ok(&fixture.vault)).storage,
+        StorageState::Ready
+    );
+    let saved =
+        serde_json::to_value(reopened.load_profile_activity(&id).unwrap().unwrap()).unwrap();
+    assert_eq!(saved["collectionRunId"], first.collection_run_id);
+    assert_eq!(saved["summary"]["peakDailyTokens"], "9223372036854775807");
+    assert_eq!(saved["freshness"], "unknown");
+    assert_eq!(saved["dailyUsageBuckets"][0]["freshness"], "unknown");
+    assert!(reopened.load_profile_activity(&other).unwrap().is_none());
+}
+
+#[test]
+fn activity_two_completed_profiles_commit_independently_and_binding_change_refuses_before_writes() {
+    let mut fixture = Fixture::new("success");
+    let first = fixture.profiles[0].clone();
+    let second = fixture.profiles[1].clone();
+    let approval = fixture.approve();
+    let pending_first = fixture.read(&first, &approval).unwrap();
+    let pending_second = fixture.read(&second, &approval).unwrap();
+    fixture
+        .workspace
+        .finish_profile_activity_read(pending_first)
+        .unwrap();
+    fixture
+        .workspace
+        .finish_profile_activity_read(pending_second)
+        .unwrap();
+    assert!(
+        fixture
+            .workspace
+            .load_profile_activity(&first)
+            .unwrap()
+            .is_some()
+    );
+    assert!(
+        fixture
+            .workspace
+            .load_profile_activity(&second)
+            .unwrap()
+            .is_some()
+    );
+    let completed = fixture.read(&first, &approval).unwrap();
+    let old = fixture
+        .workspace
+        .storage
+        .as_ref()
+        .unwrap()
+        .activity_binding(&first)
+        .unwrap()
+        .unwrap();
+    fixture
+        .workspace
+        .storage
+        .as_mut()
+        .unwrap()
+        .associate_activity_binding(openusage_storage::ActivityBindingInput {
+            profile_id: first.clone(),
+            expected_home_reference: old.home_reference,
+            expected_previous_binding_id: Some(old.binding_id),
+            new_binding_id: provider::new_id().unwrap(),
+            evidence: openusage_storage::ActivityIdentityEvidence {
+                email: "new-synthetic@example.invalid".into(),
+                plan: None,
+            },
+            observed_at_utc: restore::timestamp(SystemTime::now()).unwrap(),
+        })
+        .unwrap();
+    let before = fixture.database_hashes();
+    assert_eq!(
+        fixture
+            .workspace
+            .finish_profile_activity_read(completed)
+            .err(),
+        Some(CommandError::ProviderActivityCancelled)
+    );
+    assert_eq!(fixture.database_hashes()[..2], before[..2]);
+    assert!(
+        fixture
+            .workspace
+            .load_profile_activity(&first)
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        fixture
+            .workspace
+            .load_profile_activity(&second)
+            .unwrap()
+            .is_some()
+    );
+}
+
+#[test]
+fn activity_obsolete_failures_cannot_downgrade_a_newer_committed_reading() {
+    let mut fixture = Fixture::new("success");
+    let id = fixture.profiles[0].clone();
+    let approval = fixture.approve();
+    let old = fixture.read(&id, &approval).unwrap();
+    let old_request = old.request_id.clone();
+    let approval = fixture.approve();
+    let newer = fixture.read(&id, &approval).unwrap();
+    let committed = fixture
+        .workspace
+        .finish_profile_activity_read(newer)
+        .unwrap();
+    fixture.workspace.note_activity_failure(&id, &old_request);
+    assert_eq!(
+        fixture.workspace.finish_profile_activity_read(old).err(),
+        Some(CommandError::ProviderActivityCancelled)
+    );
+    let saved = serde_json::to_value(
+        fixture
+            .workspace
+            .load_profile_activity(&id)
+            .unwrap()
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(saved["collectionRunId"], committed.collection_run_id);
+    assert_eq!(saved["freshness"], "fresh");
+    assert_eq!(saved["dailyUsageBuckets"][0]["freshness"], "fresh");
 }

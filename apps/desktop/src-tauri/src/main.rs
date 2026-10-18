@@ -878,6 +878,26 @@ async fn cancel_profile_quota_read(
 }
 
 #[tauri::command]
+async fn load_profile_activity(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<Option<workspace::SavedProfileActivity>, CommandError> {
+    let args: ProfileCheckArgs = arguments(&request)?;
+    workspace::validate_profile_id(&args.profile_id)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        service
+            .lock()
+            .map_err(|_| CommandError::StorageUnavailable)?
+            .as_ref()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .load_profile_activity(&args.profile_id)
+    })
+    .await
+    .map_err(|_| CommandError::StorageUnavailable)?
+}
+
+#[tauri::command]
 async fn begin_profile_activity_read(
     request: tauri::ipc::Request<'_>,
     service: State<'_, WorkspaceService>,
@@ -916,7 +936,17 @@ async fn complete_profile_activity_read(
                 .ok_or(CommandError::WorkspaceLocked)?
                 .complete_profile_activity_read(&args.profile_id, &args.request_id)?
         };
-        let completed = pending.wait()?;
+        let completed = match pending.wait() {
+            Ok(completed) => completed,
+            Err(error) => {
+                if let Ok(mut state) = service.lock()
+                    && let Some(workspace) = state.as_mut()
+                {
+                    workspace.note_activity_failure(&args.profile_id, &args.request_id);
+                }
+                return Err(error);
+            }
+        };
         let mut state = service
             .lock()
             .map_err(|_| CommandError::ProviderUnavailable)?;
@@ -984,6 +1014,7 @@ fn main() {
             begin_profile_quota_read,
             complete_profile_quota_read,
             cancel_profile_quota_read,
+            load_profile_activity,
             begin_profile_activity_read,
             complete_profile_activity_read,
             cancel_profile_activity_read

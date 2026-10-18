@@ -27,6 +27,7 @@ fn main() {
             "complete_profile_login",
             "cancel_profile_login",
             "discover_provider_executables",
+            "load_profile_activity",
             "begin_profile_activity_read",
             "complete_profile_activity_read",
             "cancel_profile_activity_read",

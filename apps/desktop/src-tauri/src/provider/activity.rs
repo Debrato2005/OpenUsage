@@ -1,4 +1,4 @@
-//! One-shot activity diagnostics. No reading is accepted or written to application storage.
+//! One-shot profile activity. Publish only after the Rust storage transaction commits.
 
 use super::*;
 use openusage_codex::{session::ActivityProbe, supervisor::ActivityHandle};
@@ -27,6 +27,8 @@ pub(crate) struct ActivityOutcome {
     pub verified_identity_key: Option<String>,
     pub monitoring: &'static str,
     pub accepted: bool,
+    pub collection_run_id: String,
+    pub binding_id: String,
     pub coverage: &'static str,
     #[serde(flatten)]
     pub activity: openusage_codex::ActivitySnapshot,
@@ -35,6 +37,7 @@ pub(crate) struct ActivityOutcome {
 pub(super) struct Entry {
     pub(super) binding: ProfileBinding,
     handle: Option<ActivityHandle>,
+    expected_activity_binding: Option<String>,
 }
 
 pub(crate) struct CompletingActivity {
@@ -42,13 +45,15 @@ pub(crate) struct CompletingActivity {
     request_id: String,
     binding: ProfileBinding,
     handle: ActivityHandle,
+    expected_activity_binding: Option<String>,
 }
 
 pub(crate) struct CompletedActivity {
     coordinator: ProviderCoordinator,
-    request_id: String,
+    pub request_id: String,
     pub binding: ProfileBinding,
     probe: ActivityProbe,
+    expected_activity_binding: Option<String>,
 }
 
 impl ProviderCoordinator {
@@ -59,6 +64,7 @@ impl ProviderCoordinator {
         home_reference: &str,
         revision: openusage_storage::StorageRevision,
         path: &Path,
+        expected_activity_binding: Option<String>,
     ) -> Result<ActivityReceipt, CommandError> {
         validate_ids(profile_id, approval_id)?;
         let held_home = Arc::new(HeldHome::open(path)?);
@@ -114,6 +120,7 @@ impl ProviderCoordinator {
             Entry {
                 binding,
                 handle: Some(handle),
+                expected_activity_binding,
             },
         );
         Ok(receipt)
@@ -143,6 +150,7 @@ impl ProviderCoordinator {
             coordinator: self.clone(),
             request_id: request_id.into(),
             binding: entry.binding.clone(),
+            expected_activity_binding: entry.expected_activity_binding.clone(),
             handle,
         })
     }
@@ -197,6 +205,7 @@ impl CompletingActivity {
                 request_id: self.request_id,
                 binding: self.binding,
                 probe,
+                expected_activity_binding: self.expected_activity_binding,
             }),
             Err(error) => {
                 self.coordinator.discard_activity(&self.request_id);
@@ -211,7 +220,16 @@ impl CompletedActivity {
         self.coordinator.discard_activity(&self.request_id);
     }
 
-    pub fn publish(self) -> Result<ActivityOutcome, CommandError> {
+    /// Workspace remains locked. Keep the Provider fence locked through the database COMMIT.
+    pub fn publish(
+        self,
+        persist: impl FnOnce(
+            &ProfileBinding,
+            &ActivityProbe,
+            &str,
+            Option<&str>,
+        ) -> Result<openusage_storage::ActivityCommit, CommandError>,
+    ) -> Result<ActivityOutcome, CommandError> {
         let mut state = self
             .coordinator
             .0
@@ -236,6 +254,12 @@ impl CompletedActivity {
         }
         let observed_at_utc = crate::restore::timestamp(self.probe.observed_at)
             .ok_or(CommandError::ProviderUnavailable)?;
+        let committed = persist(
+            &self.binding,
+            &self.probe,
+            &self.request_id,
+            self.expected_activity_binding.as_deref(),
+        )?;
         Ok(ActivityOutcome {
             request_id: self.request_id,
             profile_id: self.binding.profile_id,
@@ -246,7 +270,9 @@ impl CompletedActivity {
             identity_confidence: "provisional",
             verified_identity_key: None,
             monitoring: "stopped",
-            accepted: false,
+            accepted: true,
+            collection_run_id: committed.collection_run_id,
+            binding_id: committed.binding_id,
             coverage: "unknown",
             activity: self.probe.activity,
         })

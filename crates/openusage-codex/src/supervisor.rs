@@ -1703,6 +1703,17 @@ IFS= read -r request
         activity_mode(&fixture, "success");
         let probe = activity.wait().unwrap();
         assert!(probe.observed_at >= started_at && probe.observed_at <= held_at);
+        assert!(probe.started_at >= started_at && probe.started_at <= probe.observed_at);
+        assert!(probe.completed_at >= held_at);
+        assert_eq!(
+            probe.account_evidence.email.as_deref(),
+            Some("synthetic-activity@example.invalid")
+        );
+        assert_eq!(
+            probe.account_evidence.identity,
+            crate::IdentityConfidence::Provisional
+        );
+
         assert_eq!(
             serde_json::to_value(&probe.activity).unwrap()["summary"]["lifetimeTokens"],
             "9007199254740993"

@@ -12,6 +12,9 @@ use std::{
 };
 use zeroize::Zeroizing;
 
+mod activity_storage;
+pub(crate) use activity_storage::SavedProfileActivity;
+
 const DATABASE_FILE: &str = "openusage.db";
 const WRAPPED_KEY_FILE: &str = "database-key.v1";
 
@@ -101,6 +104,8 @@ pub enum CommandError {
     ProviderActivityCancelled,
     ProviderActivityTimedOut,
     ProviderActivityFailed,
+    ProviderActivitySaveFailed,
+    ProviderActivityLoadFailed,
     ProviderQuotaNotFound,
     ProviderQuotaInProgress,
     ProviderQuotaCancelled,
@@ -180,6 +185,8 @@ pub struct Workspace {
     protection: KeyProtection,
     restore_preview: RestoreCache,
     provider: ProviderCoordinator,
+    activity_sessions: std::collections::BTreeMap<String, (String, Option<std::time::Instant>)>,
+    activity_requests: std::collections::BTreeMap<String, String>,
 }
 
 impl Workspace {
@@ -215,6 +222,8 @@ impl Workspace {
             protection: KeyProtection::Unavailable,
             restore_preview,
             provider,
+            activity_sessions: Default::default(),
+            activity_requests: Default::default(),
         })
     }
 
@@ -574,7 +583,10 @@ impl Workspace {
         let prepared = self.restore_preview.take(id)?;
         // Owned children must finish cleanup before records can point at different managed homes.
         self.provider.quiesce()?;
-        restore::apply(storage, &self.directory, prepared)
+        let applied = restore::apply(storage, &self.directory, prepared)?;
+        self.activity_sessions.clear();
+        self.activity_requests.clear();
+        Ok(applied)
     }
 
     pub fn cancel_restore_preview(&mut self, id: &str) -> Result<Cancelled, CommandError> {
@@ -824,8 +836,24 @@ impl Workspace {
     ) -> Result<provider::ActivityReceipt, CommandError> {
         restore::validate_preview_id(approval_id)?;
         let (home, revision, path) = self.selected_provider_home(id)?;
-        self.provider
-            .begin_activity(id, approval_id, &home, revision, &path)
+        let expected_binding = self
+            .storage
+            .as_ref()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .activity_binding(id)
+            .map_err(|_| CommandError::ProviderActivityLoadFailed)?
+            .map(|binding| binding.binding_id);
+        let receipt = self.provider.begin_activity(
+            id,
+            approval_id,
+            &home,
+            revision,
+            &path,
+            expected_binding,
+        )?;
+        self.activity_requests
+            .insert(id.into(), receipt.request_id.clone());
+        Ok(receipt)
     }
 
     pub fn complete_profile_activity_read(
@@ -835,23 +863,6 @@ impl Workspace {
     ) -> Result<provider::CompletingActivity, CommandError> {
         self.storage.as_ref().ok_or(CommandError::WorkspaceLocked)?;
         self.provider.complete_activity(id, request_id)
-    }
-
-    pub fn finish_profile_activity_read(
-        &mut self,
-        completed: provider::CompletedActivity,
-    ) -> Result<provider::ActivityOutcome, CommandError> {
-        let binding = &completed.binding;
-        if let Err(error) = self.require_provider_binding(
-            &binding.profile_id,
-            &binding.home_reference,
-            &binding.revision,
-            CommandError::ProviderActivityCancelled,
-        ) {
-            completed.abort();
-            return Err(error);
-        }
-        completed.publish()
     }
 
     fn ready(&self) -> Bootstrap {
@@ -1199,7 +1210,10 @@ mod tests {
         assert_eq!(ready.storage, StorageState::Ready);
         assert_eq!(ready.theme, "dark");
         assert_eq!(ready.active_profiles, Some(0));
-        assert_eq!(ready.schema_version, Some(1));
+        assert_eq!(
+            ready.schema_version,
+            Some(openusage_storage::CURRENT_SCHEMA_VERSION)
+        );
         assert_eq!(ready.monitoring, "stopped");
     }
 

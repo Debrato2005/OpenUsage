@@ -1,4 +1,4 @@
-//! Native approval and lifecycle for bounded account diagnostics. No account claims are persisted.
+//! Native approval and lifecycle for bounded profile operations. Only Rust accepts saved activity.
 //! Lock order is Workspace -> Provider -> Supervisor. Owned workers never take the Workspace lock.
 //! Executions use checked paths, not atomic fexecve. This does not isolate hostile same-UID path changes.
 
@@ -172,7 +172,7 @@ pub(crate) struct ProfileBinding {
     pub revision: openusage_storage::StorageRevision,
     held_home: Arc<HeldHome>,
     approval_id: String,
-    source_kind: ExecutableSourceKind,
+    pub source_kind: ExecutableSourceKind,
     generation: u64,
 }
 
@@ -727,7 +727,7 @@ fn hex(bytes: &[u8; 32]) -> String {
     }
     result
 }
-fn new_id() -> Result<String, CommandError> {
+pub(crate) fn new_id() -> Result<String, CommandError> {
     let mut bytes = [0u8; 16];
     getrandom::fill(&mut bytes).map_err(|_| CommandError::ProviderUnavailable)?;
     Ok(uuid::Builder::from_random_bytes(bytes)

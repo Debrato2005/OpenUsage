@@ -33,6 +33,7 @@
     "allow-complete-profile-login",
     "allow-cancel-profile-login",
     "allow-discover-provider-executables",
+    "allow-load-profile-activity",
     "allow-begin-profile-activity-read",
     "allow-complete-profile-activity-read",
     "allow-cancel-profile-activity-read",

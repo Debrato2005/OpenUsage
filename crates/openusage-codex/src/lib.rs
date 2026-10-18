@@ -551,6 +551,13 @@ impl LoginAttempt {
 #[serde(transparent)]
 pub struct DecimalCount(String);
 
+impl DecimalCount {
+    /// Borrow the validated exact digits without a numeric or JSON conversion.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActivitySummary {

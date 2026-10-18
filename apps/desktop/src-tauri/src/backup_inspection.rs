@@ -311,7 +311,7 @@ fn inspect_database(
     content_check: ContentCheck,
 ) -> Result<(&'static str, Option<ContentSummary>), CommandError> {
     let manifest = archive.manifest();
-    if manifest.schema_version != CURRENT_SCHEMA_VERSION
+    if !(1..=CURRENT_SCHEMA_VERSION).contains(&manifest.schema_version)
         || manifest.entries.len() != 1
         || manifest.entries[0].name != "records.sqlite"
     {

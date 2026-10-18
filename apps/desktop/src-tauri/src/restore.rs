@@ -1093,7 +1093,11 @@ mod tests {
             panic!("expected archive source")
         };
         archive.copy_payload(&mut *payload).unwrap();
-        let incoming = openusage_storage::validate_native_restore_snapshot(&payload, 1).unwrap();
+        let incoming = openusage_storage::validate_native_restore_snapshot(
+            &payload,
+            archive.manifest().schema_version,
+        )
+        .unwrap();
         assert_eq!(incoming.active_profiles, 1);
         let cache = RestoreCache::default();
         let preview = cache.install(prepared).unwrap();

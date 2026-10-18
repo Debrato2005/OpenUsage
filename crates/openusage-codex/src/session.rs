@@ -88,6 +88,11 @@ impl fmt::Debug for QuotaProbe {
 
 /// Provisional full account-activity read only; no account identity is published.
 pub struct ActivityProbe {
+    /// Descriptive continuity evidence only, retained in Rust; never a verified identity key.
+    pub account_evidence: AccountSnapshot,
+    /// Actual worker start and successful completion after owned cleanup.
+    pub started_at: std::time::SystemTime,
+    pub completed_at: std::time::SystemTime,
     /// Captured after full activity validation, before the final account check.
     pub observed_at: std::time::SystemTime,
     pub server: ServerInfo,
@@ -665,7 +670,10 @@ pub(crate) mod unix {
             .root
             .close()
             .map_err(|_| SessionError::CleanupFailed)?;
-        result
+        result.map(|mut probe| {
+            probe.completed_at = std::time::SystemTime::now();
+            probe
+        })
     }
 
     pub(crate) fn login_managed(
@@ -794,6 +802,7 @@ pub(crate) mod unix {
         timeouts: Timeouts,
         before_start: impl Fn() -> Result<(), SessionError>,
     ) -> Result<ActivityProbe, SessionError> {
+        let started_at = std::time::SystemTime::now();
         let (mut process, server) =
             start_initialized(executable, sandbox, control, timeouts, before_start)?;
         let process_id = process.id()?;
@@ -846,6 +855,9 @@ pub(crate) mod unix {
                 return Err(ProtocolError::AccountChanged.into());
             }
             Ok(ActivityProbe {
+                account_evidence: before,
+                started_at,
+                completed_at: std::time::SystemTime::now(),
                 observed_at,
                 server,
                 activity,
