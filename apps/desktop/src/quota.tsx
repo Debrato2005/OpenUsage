@@ -18,7 +18,7 @@ function WindowValues({ value }: { value: QuotaWindow }) {
   return <div className="quota-window">
     <h4>{value.label}</h4>
     <dl className="quota-values"><div><dt>Remaining (derived)</dt><dd>{value.derivedRemainingPercent}%</dd></div><div><dt>Used</dt><dd>{value.usedPercent}%</dd></div><div><dt>Expected reset</dt><dd>{reset ? <time dateTime={reset}>{date(reset)}</time> : 'Not available'}</dd></div></dl>
-    <meter min={0} max={100} value={value.usedPercent} aria-label={`${value.label}: ${value.usedPercent}% used`} />
+    <meter min={0} max={100} value={value.derivedRemainingPercent} aria-label={`${value.label}: ${value.derivedRemainingPercent}% remaining (derived)`} />
   </div>;
 }
 
