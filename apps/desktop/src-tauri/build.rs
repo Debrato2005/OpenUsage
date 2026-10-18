@@ -15,6 +15,8 @@ fn main() {
             "prepare_restore_preview",
             "cancel_restore_preview",
             "apply_restore",
+            "list_restore_checkpoints",
+            "prepare_checkpoint_restore_preview",
         ]),
     ))
     .expect("Failed to build the OpenUsage application manifest");

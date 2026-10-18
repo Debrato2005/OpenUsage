@@ -7,7 +7,7 @@
 use crate::{
     backup::{available_space, publish_noclobber, require_private_file, sync_directory},
     backup_inspection::{self, ContentCheck, ContentSummary},
-    workspace::{CommandError, prepare_directory},
+    workspace::{CommandError, existing_private_directory, prepare_directory},
 };
 use openusage_import::VerifiedArchive;
 use openusage_storage::{
@@ -46,9 +46,23 @@ pub struct Cancelled {
 
 pub(crate) struct PreparedRestore {
     pub preview: RestorePreview,
-    archive: VerifiedArchive,
+    source: RestoreSource,
     revision: StorageRevision,
     checkpoint: HeldPath,
+}
+
+enum RestoreSource {
+    Archive(VerifiedArchive),
+    Checkpoint(Box<CheckpointSource>),
+}
+
+struct CheckpointSource {
+    snapshot: openusage_storage::BackupSnapshot,
+    source: HeldPath,
+    directory: HeldPath,
+    homes: Vec<RestoreHomeMapping>,
+    held_homes: Vec<HeldPath>,
+    home_parent: Option<HeldPath>,
 }
 
 #[derive(Clone, Default)]
@@ -176,6 +190,252 @@ pub(crate) fn prepare(
         .iter()
         .try_fold(0u64, |total, entry| total.checked_add(entry.size))
         .ok_or(CommandError::InvalidBackup)?;
+    let (checkpoint, held) = save_checkpoint(storage, workspace, &before, incoming_bytes)?;
+    let preview_id = new_id()?;
+    Ok(PreparedRestore {
+        preview: RestorePreview {
+            preview_id,
+            file_name: file_name.into(),
+            current: ContentSummary {
+                active_profiles: before.summary.active_profiles,
+                archived_profiles: before.summary.archived_profiles.to_string(),
+                accounts: before.summary.accounts.to_string(),
+            },
+            incoming,
+            checkpoint,
+            restore_available: true,
+        },
+        source: RestoreSource::Archive(authenticated.archive),
+        revision: before.revision,
+        checkpoint: held,
+    })
+}
+
+#[derive(Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CheckpointCandidate {
+    pub id: String,
+    pub file_bytes: String,
+    pub modified_at: Option<String>,
+}
+
+/// File metadata only. Preparation authenticates the selected checkpoint.
+#[derive(Debug, Eq, PartialEq, Serialize)]
+pub struct CheckpointList {
+    pub checkpoints: Vec<CheckpointCandidate>,
+    pub truncated: bool,
+}
+
+#[derive(Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CheckpointRestorePreview {
+    pub checkpoint_id: String,
+    pub preview_id: String,
+    pub current: ContentSummary,
+    pub incoming: ContentSummary,
+    pub checkpoint: Checkpoint,
+    pub restore_available: bool,
+}
+
+impl CheckpointRestorePreview {
+    pub fn from_preview(checkpoint_id: String, preview: RestorePreview) -> Self {
+        Self {
+            checkpoint_id,
+            preview_id: preview.preview_id,
+            current: preview.current,
+            incoming: preview.incoming,
+            checkpoint: preview.checkpoint,
+            restore_available: preview.restore_available,
+        }
+    }
+}
+
+pub(crate) fn list_checkpoints(workspace: &Path) -> Result<CheckpointList, CommandError> {
+    if !cfg!(unix) {
+        return Err(CommandError::BackupUnavailable);
+    }
+    let directory = workspace.join("restore-checkpoints");
+    let mut result = CheckpointList {
+        checkpoints: Vec::new(),
+        truncated: false,
+    };
+    if !existing_private_directory(&directory).map_err(|_| CommandError::RestoreCheckpointFailed)? {
+        return Ok(result);
+    }
+    let parent = HeldPath::open(&directory, true)?;
+    let entries = fs::read_dir(&directory).map_err(|_| CommandError::RestoreCheckpointFailed)?;
+    let mut scanned = 0;
+    for entry in entries.take(1024) {
+        scanned += 1;
+        let entry = entry.map_err(|_| CommandError::RestoreCheckpointFailed)?;
+        let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
+            continue;
+        };
+        let Some(id) = name.strip_suffix(".sqlite") else {
+            continue;
+        };
+        if validate_preview_id(id).is_err() {
+            continue;
+        }
+        let Ok(held) = HeldPath::open(&entry.path(), false) else {
+            continue;
+        };
+        let metadata = held
+            .file
+            .metadata()
+            .map_err(|_| CommandError::RestoreCheckpointFailed)?;
+        if metadata.len() == 0 {
+            continue;
+        }
+        result.checkpoints.push(CheckpointCandidate {
+            id: id.into(),
+            file_bytes: metadata.len().to_string(),
+            modified_at: metadata.modified().ok().and_then(timestamp),
+        });
+        result.checkpoints.sort_by(|left, right| {
+            right
+                .modified_at
+                .cmp(&left.modified_at)
+                .then_with(|| left.id.cmp(&right.id))
+        });
+        if result.checkpoints.len() > 100 {
+            result.checkpoints.pop();
+            result.truncated = true;
+        }
+    }
+    result.truncated |= scanned == 1024;
+    parent.require_identity()?;
+    Ok(result)
+}
+
+fn timestamp(time: std::time::SystemTime) -> Option<String> {
+    #[cfg(unix)]
+    {
+        let duration = time.duration_since(std::time::UNIX_EPOCH).ok()?;
+        let seconds: libc::time_t = duration.as_secs().try_into().ok()?;
+        let mut output = std::mem::MaybeUninit::<libc::tm>::uninit();
+        // The input and output remain valid for this conversion. gmtime_r returns UTC fields.
+        if unsafe { libc::gmtime_r(&seconds, output.as_mut_ptr()) }.is_null() {
+            return None;
+        }
+        let output = unsafe { output.assume_init() };
+        let year = output.tm_year.checked_add(1900)?;
+        if !(0..=9999).contains(&year) {
+            return None;
+        }
+        Some(format!(
+            "{year:04}-{:02}-{:02}T{:02}:{:02}:{:02}.{:03}Z",
+            output.tm_mon + 1,
+            output.tm_mday,
+            output.tm_hour,
+            output.tm_min,
+            output.tm_sec,
+            duration.subsec_millis()
+        ))
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = time;
+        None
+    }
+}
+
+pub(crate) fn prepare_checkpoint(
+    storage: &mut Storage,
+    workspace: &Path,
+    id: &str,
+) -> Result<PreparedRestore, CommandError> {
+    validate_preview_id(id)?;
+    if !cfg!(unix) {
+        return Err(CommandError::BackupUnavailable);
+    }
+    let before = storage
+        .restore_state()
+        .map_err(|_| CommandError::StorageUnavailable)?;
+    let directory = workspace.join("restore-checkpoints");
+    if !existing_private_directory(&directory).map_err(|_| CommandError::RestoreCheckpointFailed)? {
+        return Err(CommandError::RestoreCheckpointFailed);
+    }
+    let held_directory = HeldPath::open(&directory, true)?;
+    let source = HeldPath::open(&directory.join(format!("{id}.sqlite")), false)?;
+    let snapshot = storage
+        .read_encrypted_checkpoint(&source.path)
+        .map_err(|_| CommandError::RestoreCheckpointFailed)?;
+    source.require_unchanged()?;
+    held_directory.require_identity()?;
+    let incoming = openusage_storage::validate_checkpoint_restore_input(
+        &snapshot.bytes,
+        snapshot.schema_version,
+    )
+    .map_err(restore_error)?;
+    let home_parent_path = workspace.join("profiles");
+    let home_parent = if existing_private_directory(&home_parent_path)
+        .map_err(|_| CommandError::RestoreFailed)?
+    {
+        Some(HeldPath::open(&home_parent_path, true)?)
+    } else if incoming.homes.is_empty() {
+        None
+    } else {
+        return Err(CommandError::RestoreFailed);
+    };
+    let held_homes = incoming
+        .homes
+        .iter()
+        .map(|home| HeldPath::open(&home_parent_path.join(&home.managed_home_reference), true))
+        .collect::<Result<Vec<_>, _>>()?;
+    let retained = CheckpointSource {
+        snapshot,
+        source,
+        directory: held_directory,
+        homes: incoming.homes,
+        held_homes,
+        home_parent,
+    };
+    retained.require_identity()?;
+    require_unchanged(&before, storage)?;
+    let (checkpoint, held) = save_checkpoint(
+        storage,
+        workspace,
+        &before,
+        retained.snapshot.bytes.len() as u64,
+    )?;
+    retained.require_identity()?;
+    Ok(PreparedRestore {
+        preview: RestorePreview {
+            preview_id: new_id()?,
+            file_name: format!("{id}.sqlite"),
+            current: summary(before.summary),
+            incoming: summary(incoming.summary),
+            checkpoint,
+            restore_available: true,
+        },
+        source: RestoreSource::Checkpoint(Box::new(retained)),
+        revision: before.revision,
+        checkpoint: held,
+    })
+}
+
+impl CheckpointSource {
+    fn require_identity(&self) -> Result<(), CommandError> {
+        self.source.require_unchanged()?;
+        self.directory.require_identity()?;
+        if let Some(parent) = &self.home_parent {
+            parent.require_identity()?;
+        }
+        for home in &self.held_homes {
+            home.require_identity()?;
+        }
+        Ok(())
+    }
+}
+
+fn save_checkpoint(
+    storage: &mut Storage,
+    workspace: &Path,
+    before: &RestoreState,
+    incoming_bytes: u64,
+) -> Result<(Checkpoint, HeldPath), CommandError> {
+    let checkpoint_budget = checkpoint_budget(before.logical_bytes)?;
     let directory = workspace.join("restore-checkpoints");
     prepare_directory(&directory).map_err(|_| CommandError::RestoreCheckpointFailed)?;
     require_space(
@@ -190,7 +450,6 @@ pub(crate) fn prepare(
         incoming_bytes,
     )?;
     let id = new_id()?;
-    let preview_id = new_id()?;
     let pending = directory.join(format!(".{id}.sqlite.pending"));
     let destination = directory.join(format!("{id}.sqlite"));
     // Storage exclusively creates, authenticates, and fsyncs this encrypted checkpoint.
@@ -199,30 +458,18 @@ pub(crate) fn prepare(
         .create_encrypted_checkpoint(&pending)
         .map_err(|_| CommandError::RestoreCheckpointFailed)?;
     let mut created = CreatedCheckpoint::open(pending)?;
-    require_unchanged(&before, storage)?;
+    require_unchanged(before, storage)?;
     require_space(available_space(&directory)?, 0, incoming_bytes)?;
     require_space(available_space(workspace)?, 0, incoming_bytes)?;
     created.publish(&destination, &directory)?;
-    Ok(PreparedRestore {
-        preview: RestorePreview {
-            preview_id,
-            file_name: file_name.into(),
-            current: ContentSummary {
-                active_profiles: before.summary.active_profiles,
-                archived_profiles: before.summary.archived_profiles.to_string(),
-                accounts: before.summary.accounts.to_string(),
-            },
-            incoming,
-            checkpoint: Checkpoint {
-                id,
-                file_bytes: checkpoint.file_bytes.to_string(),
-            },
-            restore_available: true,
+    let held = HeldPath::open(&destination, false)?;
+    Ok((
+        Checkpoint {
+            id,
+            file_bytes: checkpoint.file_bytes.to_string(),
         },
-        archive: authenticated.archive,
-        revision: before.revision,
-        checkpoint: HeldPath::open(&destination, false)?,
-    })
+        held,
+    ))
 }
 
 #[derive(Debug, Eq, PartialEq, Serialize)]
@@ -275,7 +522,45 @@ pub(crate) fn apply(
     {
         return Err(CommandError::RestoreCheckpointFailed);
     }
-    let manifest = prepared.archive.manifest();
+    let restored = match &mut prepared.source {
+        RestoreSource::Archive(archive) => apply_archive(
+            storage,
+            workspace,
+            archive,
+            &current,
+            &prepared.preview,
+            &prepared.revision,
+            &prepared.checkpoint,
+        )?,
+        RestoreSource::Checkpoint(source) => apply_checkpoint(
+            storage,
+            workspace,
+            source,
+            &current,
+            &prepared.preview,
+            &prepared.revision,
+            &prepared.checkpoint,
+        )?,
+    };
+    Ok(Applied {
+        applied: true,
+        restored: summary(restored),
+        checkpoint: prepared.preview.checkpoint,
+        monitoring: "stopped",
+        authentication_required: true,
+    })
+}
+
+fn apply_archive(
+    storage: &mut Storage,
+    workspace: &Path,
+    archive: &mut VerifiedArchive,
+    current: &RestoreState,
+    preview: &RestorePreview,
+    revision: &StorageRevision,
+    checkpoint: &HeldPath,
+) -> Result<BackupContentSummary, CommandError> {
+    let manifest = archive.manifest();
     if manifest.entries.len() != 1 || manifest.entries[0].name != "records.sqlite" {
         return Err(CommandError::UnsupportedBackupContents);
     }
@@ -287,8 +572,7 @@ pub(crate) fn apply(
         .try_reserve_exact(size)
         .map_err(|_| CommandError::BackupUnavailable)?;
     // The cached archive is already authenticated and immutable. No source path is reopened.
-    prepared
-        .archive
+    archive
         .copy_payload(&mut *bytes)
         .map_err(|_| CommandError::InvalidBackup)?;
     if bytes.len() != size {
@@ -296,7 +580,7 @@ pub(crate) fn apply(
     }
     let input =
         openusage_storage::validate_restore_input(&bytes, schema_version).map_err(restore_error)?;
-    if summary(input.summary) != prepared.preview.incoming {
+    if summary(input.summary) != preview.incoming {
         return Err(CommandError::InvalidBackupContents);
     }
     let parent = workspace.join("profiles");
@@ -331,20 +615,62 @@ pub(crate) fn apply(
     for home in &homes {
         home.held.require_identity()?;
     }
-    prepared.checkpoint.require_unchanged()?;
+    checkpoint.require_unchanged()?;
     let restored = storage
-        .replace_records_from_backup(&bytes, schema_version, &prepared.revision, &mappings)
+        .replace_records_from_backup(&bytes, schema_version, revision, &mappings)
         .map_err(restore_error)?;
     for home in &mut homes {
         home.keep = true;
     }
-    Ok(Applied {
-        applied: true,
-        restored: summary(restored),
-        checkpoint: prepared.preview.checkpoint,
-        monitoring: "stopped",
-        authentication_required: true,
-    })
+    Ok(restored)
+}
+
+fn apply_checkpoint(
+    storage: &mut Storage,
+    workspace: &Path,
+    source: &mut CheckpointSource,
+    current: &RestoreState,
+    preview: &RestorePreview,
+    revision: &StorageRevision,
+    checkpoint: &HeldPath,
+) -> Result<BackupContentSummary, CommandError> {
+    source.require_identity()?;
+    let verified = storage
+        .verify_encrypted_checkpoint(&source.source.path)
+        .map_err(|_| CommandError::RestoreCheckpointFailed)?;
+    source.require_identity()?;
+    let incoming = openusage_storage::validate_checkpoint_restore_input(
+        &source.snapshot.bytes,
+        source.snapshot.schema_version,
+    )
+    .map_err(restore_error)?;
+    if summary(verified.summary) != preview.incoming
+        || summary(incoming.summary) != preview.incoming
+        || incoming.homes != source.homes
+    {
+        return Err(CommandError::InvalidBackupContents);
+    }
+    let budget = checkpoint_budget(current.logical_bytes)?
+        .checked_add(
+            (source.snapshot.bytes.len() as u64)
+                .checked_mul(3)
+                .ok_or(CommandError::InsufficientSpace)?,
+        )
+        .ok_or(CommandError::InsufficientSpace)?;
+    require_space(available_space(workspace)?, budget, 0)?;
+    require_inodes(workspace, 4)?;
+    let held_workspace = HeldPath::open(workspace, true)?;
+    held_workspace.require_identity()?;
+    source.require_identity()?;
+    checkpoint.require_unchanged()?;
+    storage
+        .replace_records_from_checkpoint(
+            &source.snapshot.bytes,
+            source.snapshot.schema_version,
+            revision,
+            &source.homes,
+        )
+        .map_err(restore_error)
 }
 
 /// A retained descriptor prevents cleanup or use of a replaced pathname.
@@ -721,7 +1047,10 @@ mod tests {
         )
         .unwrap();
         let mut payload = Zeroizing::new(Vec::new());
-        prepared.archive.copy_payload(&mut *payload).unwrap();
+        let RestoreSource::Archive(archive) = &mut prepared.source else {
+            panic!("expected archive source")
+        };
+        archive.copy_payload(&mut *payload).unwrap();
         let incoming = openusage_storage::validate_native_restore_snapshot(&payload, 1).unwrap();
         assert_eq!(incoming.active_profiles, 1);
         let cache = RestoreCache::default();
@@ -848,6 +1177,199 @@ mod tests {
         fs::write(nonempty.join("synthetic-marker"), b"preserve").unwrap();
         drop(home);
         assert!(nonempty.join("synthetic-marker").exists());
+    }
+
+    fn original_homes(fixture: &Fixture) {
+        for id in [FIRST_ID, SECOND_ID] {
+            let home = fixture.workspace.join("profiles").join(id);
+            prepare_directory(&home).unwrap();
+            fs::write(home.join("synthetic-original-marker"), id).unwrap();
+        }
+    }
+
+    #[test]
+    fn checkpoint_recovery_restores_original_homes_and_saves_a_reversible_current_checkpoint() {
+        let mut fixture = fixture();
+        original_homes(&fixture);
+        let archive_preview = prepare_fixture(&mut fixture, PASSWORD).unwrap();
+        let original_checkpoint_id = archive_preview.preview.checkpoint.id.clone();
+        apply(&mut fixture.storage, &fixture.workspace, archive_preview).unwrap();
+        let before_recovery = fixture.storage.restore_state().unwrap();
+        let imported_homes = fixture
+            .storage
+            .restore_home_mappings(&before_recovery.revision)
+            .unwrap();
+        let recovery = prepare_checkpoint(
+            &mut fixture.storage,
+            &fixture.workspace,
+            &original_checkpoint_id,
+        )
+        .unwrap();
+        assert_eq!(recovery.preview.current.active_profiles, 1);
+        assert_eq!(recovery.preview.incoming.active_profiles, 2);
+        assert_ne!(recovery.preview.checkpoint.id, original_checkpoint_id);
+        let imported_checkpoint_id = recovery.preview.checkpoint.id.clone();
+        assert_eq!(fixture.storage.restore_state().unwrap(), before_recovery);
+        let candidates = list_checkpoints(&fixture.workspace).unwrap();
+        assert_eq!(candidates.checkpoints.len(), 2);
+        assert!(!candidates.truncated);
+        assert!(candidates.checkpoints.iter().all(|candidate| {
+            candidate
+                .modified_at
+                .as_ref()
+                .is_some_and(|date| date.len() == 24 && date.ends_with('Z'))
+        }));
+        let restored = apply(&mut fixture.storage, &fixture.workspace, recovery).unwrap();
+        assert_eq!(restored.restored.active_profiles, 2);
+        assert_eq!(fixture.storage.metadata().unwrap().theme, Theme::Dark);
+        let state = fixture.storage.restore_state().unwrap();
+        let homes = fixture
+            .storage
+            .restore_home_mappings(&state.revision)
+            .unwrap();
+        assert_eq!(
+            homes
+                .iter()
+                .map(|home| home.managed_home_reference.as_str())
+                .collect::<Vec<_>>(),
+            vec![FIRST_ID, SECOND_ID]
+        );
+        for id in [FIRST_ID, SECOND_ID] {
+            assert_eq!(
+                fs::read(
+                    fixture
+                        .workspace
+                        .join("profiles")
+                        .join(id)
+                        .join("synthetic-original-marker")
+                )
+                .unwrap(),
+                id.as_bytes()
+            );
+        }
+        assert_eq!(
+            fs::read_dir(fixture.workspace.join("profiles"))
+                .unwrap()
+                .count(),
+            3
+        );
+        // The newly saved checkpoint can recover the imported state, including its separate home.
+        let redo = prepare_checkpoint(
+            &mut fixture.storage,
+            &fixture.workspace,
+            &imported_checkpoint_id,
+        )
+        .unwrap();
+        apply(&mut fixture.storage, &fixture.workspace, redo).unwrap();
+        let state = fixture.storage.restore_state().unwrap();
+        assert_eq!(
+            fixture
+                .storage
+                .restore_home_mappings(&state.revision)
+                .unwrap(),
+            imported_homes
+        );
+        assert_eq!(fixture.storage.metadata().unwrap().theme, Theme::System);
+        assert_eq!(
+            fs::read_dir(fixture.workspace.join("profiles"))
+                .unwrap()
+                .count(),
+            3
+        );
+    }
+
+    #[test]
+    fn recovery_rejects_source_checkpoint_changes_and_replaced_original_homes() {
+        for change_checkpoint in [true, false] {
+            let mut fixture = fixture();
+            original_homes(&fixture);
+            let archive_preview = prepare_fixture(&mut fixture, PASSWORD).unwrap();
+            let checkpoint_id = archive_preview.preview.checkpoint.id.clone();
+            apply(&mut fixture.storage, &fixture.workspace, archive_preview).unwrap();
+            let recovery =
+                prepare_checkpoint(&mut fixture.storage, &fixture.workspace, &checkpoint_id)
+                    .unwrap();
+            let before = fixture.storage.restore_state().unwrap();
+            if change_checkpoint {
+                let path = fixture
+                    .workspace
+                    .join("restore-checkpoints")
+                    .join(format!("{checkpoint_id}.sqlite"));
+                let mut bytes = fs::read(&path).unwrap();
+                bytes[4096 + 42] ^= 1;
+                fs::write(&path, bytes).unwrap();
+            } else {
+                let original = fixture.workspace.join("profiles").join(FIRST_ID);
+                fs::rename(
+                    &original,
+                    fixture.workspace.join("synthetic-preserved-original-home"),
+                )
+                .unwrap();
+                prepare_directory(&original).unwrap();
+                fs::write(
+                    original.join("synthetic-new-marker"),
+                    b"preserve this replacement",
+                )
+                .unwrap();
+            }
+            assert_eq!(
+                apply(&mut fixture.storage, &fixture.workspace, recovery).err(),
+                Some(CommandError::RestoreCheckpointFailed)
+            );
+            assert_eq!(fixture.storage.restore_state().unwrap(), before);
+            assert_eq!(
+                fixture.storage.list_profiles().unwrap()[0].label,
+                "Incoming one"
+            );
+            assert_eq!(
+                fs::read(
+                    fixture
+                        .workspace
+                        .join("profiles")
+                        .join(SECOND_ID)
+                        .join("synthetic-original-marker")
+                )
+                .unwrap(),
+                SECOND_ID.as_bytes()
+            );
+        }
+    }
+
+    #[test]
+    fn checkpoint_listing_is_bounded_metadata_and_does_not_create_a_missing_directory() {
+        let temporary = tempfile::tempdir().unwrap();
+        let workspace = temporary.path().join("workspace");
+        prepare_directory(&workspace).unwrap();
+        assert!(list_checkpoints(&workspace).unwrap().checkpoints.is_empty());
+        let directory = workspace.join("restore-checkpoints");
+        assert!(!directory.exists());
+        prepare_directory(&directory).unwrap();
+        let valid = directory.join(format!("{FIRST_ID}.sqlite"));
+        fs::write(&valid, b"unverified file metadata only").unwrap();
+        fs::set_permissions(&valid, fs::Permissions::from_mode(0o600)).unwrap();
+        fs::write(
+            directory.join(format!(".{SECOND_ID}.sqlite.pending")),
+            b"unfinished",
+        )
+        .unwrap();
+        symlink(&valid, directory.join(format!("{SECOND_ID}.sqlite"))).unwrap();
+        let only = list_checkpoints(&workspace).unwrap();
+        assert_eq!(only.checkpoints.len(), 1);
+        assert_eq!(only.checkpoints[0].id, FIRST_ID);
+        assert_eq!(only.checkpoints[0].file_bytes, "29");
+        assert!(!only.truncated);
+        for n in 10..111 {
+            let path = directory.join(format!("{n:08x}-0000-4000-8000-000000000000.sqlite"));
+            fs::write(&path, b"unverified").unwrap();
+            fs::set_permissions(path, fs::Permissions::from_mode(0o600)).unwrap();
+        }
+        let bounded = list_checkpoints(&workspace).unwrap();
+        assert_eq!(bounded.checkpoints.len(), 100);
+        assert!(bounded.truncated);
+        assert_eq!(
+            timestamp(std::time::UNIX_EPOCH),
+            Some("1970-01-01T00:00:00.000Z".into())
+        );
     }
 
     #[test]
