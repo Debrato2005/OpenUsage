@@ -198,6 +198,7 @@ fn quota_read_requires_current_approval_and_returns_only_provisional_diagnostics
     assert_eq!(json["monitoring"], "stopped");
     assert_eq!(json["accepted"], false);
     assert_eq!(json["availableResetCredits"], "3");
+    assert!(json["resetCreditDetails"].is_null());
     assert!(json["observedAtUtc"].as_str().unwrap().ends_with('Z'));
     assert!(json["observedAtUtc"].as_str().unwrap() <= joined_at.as_str());
     assert_eq!(json["limits"].as_array().unwrap().len(), 2);
@@ -231,6 +232,7 @@ fn quota_read_requires_current_approval_and_returns_only_provisional_diagnostics
         .unwrap();
         assert_eq!(outcome["limits"].as_array().unwrap().len(), count);
         assert_eq!(outcome["availableResetCredits"], "3");
+        assert!(outcome["resetCreditDetails"].is_null());
         if mode == "null_windows" {
             assert!(outcome["limits"][0]["primary"].is_null());
             assert!(outcome["limits"][0]["secondary"].is_null());

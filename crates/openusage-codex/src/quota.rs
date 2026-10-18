@@ -5,21 +5,24 @@
 use crate::{DecimalCount, ProtocolError, count, decode, validate_text};
 use serde::{
     Deserialize, Serialize,
-    de::{MapAccess, Visitor},
+    de::{MapAccess, SeqAccess, Visitor},
 };
 use std::{collections::HashSet, fmt};
 
 const MAX_LIMITS: usize = 64;
+// A preview resource bound, not a provider maximum or a completeness claim.
+const MAX_CREDIT_DETAILS: usize = 32;
 const MAX_SAFE_INTEGER: i64 = 9_007_199_254_740_991;
 const FIRST_UTC_SECOND: i64 = -62_135_596_800;
 const LAST_UTC_SECOND: i64 = 253_402_300_799;
 
-/// No account identifier, email, credit details, or raw frame leaves this parser.
+/// Only reviewed display fields leave this parser. No identifiers, email, or raw frames.
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QuotaSnapshot {
     pub limits: Vec<QuotaLimit>,
     pub available_reset_credits: Option<DecimalCount>,
+    pub reset_credit_details: Option<Vec<ResetCreditDetail>>,
 }
 
 impl fmt::Debug for QuotaSnapshot {
@@ -65,6 +68,91 @@ struct FullRead {
 #[serde(rename_all = "camelCase")]
 struct ResetCreditCountWire {
     available_count: i64,
+    credits: Option<CreditRows>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResetCreditDetail {
+    pub title: Option<String>,
+    pub status: ResetCreditStatus,
+    pub granted_at_unix: i64,
+    pub expires_at_unix: Option<i64>,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ResetCreditStatus {
+    Available,
+    Redeeming,
+    Redeemed,
+    #[serde(other)]
+    Unknown,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CreditWire {
+    title: Option<String>,
+    status: ResetCreditStatus,
+    granted_at: i64,
+    // Unlike a missing field, an explicit null means that this credit has no expiry.
+    #[serde(deserialize_with = "required_expiry")]
+    expires_at: Option<i64>,
+}
+
+fn required_expiry<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<i64>, D::Error> {
+    Option::<i64>::deserialize(deserializer)
+}
+
+struct CreditRows(Vec<CreditWire>);
+impl<'de> Deserialize<'de> for CreditRows {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct Rows;
+        impl<'de> Visitor<'de> for Rows {
+            type Value = CreditRows;
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a bounded list of reset-credit details")
+            }
+            fn visit_seq<A: SeqAccess<'de>>(
+                self,
+                mut sequence: A,
+            ) -> Result<Self::Value, A::Error> {
+                let mut rows = vec![];
+                while let Some(row) = sequence.next_element()? {
+                    if rows.len() == MAX_CREDIT_DETAILS {
+                        return Err(serde::de::Error::custom("too many reset-credit details"));
+                    }
+                    rows.push(row);
+                }
+                Ok(CreditRows(rows))
+            }
+        }
+        deserializer.deserialize_seq(Rows)
+    }
+}
+
+impl CreditWire {
+    fn validate(self) -> Result<ResetCreditDetail, ProtocolError> {
+        if let Some(title) = &self.title {
+            validate_text(title, 256)?;
+        }
+        if !(FIRST_UTC_SECOND..=LAST_UTC_SECOND).contains(&self.granted_at)
+            || self
+                .expires_at
+                .is_some_and(|expiry| !(FIRST_UTC_SECOND..=LAST_UTC_SECOND).contains(&expiry))
+        {
+            return Err(ProtocolError::InvalidField);
+        }
+        Ok(ResetCreditDetail {
+            title: self.title,
+            status: self.status,
+            granted_at_unix: self.granted_at,
+            expires_at_unix: self.expires_at,
+        })
+    }
 }
 
 struct LimitMap(Vec<(String, LimitWire)>);
@@ -131,13 +219,24 @@ pub fn parse_quota(bytes: &[u8], id: u32) -> Result<QuotaSnapshot, ProtocolError
             serde_json::from_value(value).map_err(|_| ProtocolError::InvalidField)?;
         vec![value.validate(None)?]
     };
-    let available_reset_credits = response
-        .rate_limit_reset_credits
-        .map(|summary| count(summary.available_count))
-        .transpose()?;
+    let (available_reset_credits, reset_credit_details) = match response.rate_limit_reset_credits {
+        Some(summary) => (
+            Some(count(summary.available_count)?),
+            summary
+                .credits
+                .map(|CreditRows(rows)| {
+                    rows.into_iter()
+                        .map(CreditWire::validate)
+                        .collect::<Result<Vec<_>, _>>()
+                })
+                .transpose()?,
+        ),
+        None => (None, None),
+    };
     Ok(QuotaSnapshot {
         limits,
         available_reset_credits,
+        reset_credit_details,
     })
 }
 
