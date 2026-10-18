@@ -4,6 +4,7 @@ use super::*;
 use openusage_codex::{DeviceLoginPrompt, supervisor::DeviceLoginHandle};
 
 const WAIT_LIMIT_SECONDS: u32 = 900;
+const LOGIN_BROWSER_URL: &str = "https://auth.openai.com/codex/device";
 
 #[derive(Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -36,7 +37,7 @@ pub(crate) struct LoginOutcome {
 
 pub(crate) type LoginBinding = ProfileBinding;
 
-#[derive(PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 enum Phase {
     Reserved,
     AwaitingPrompt,
@@ -80,6 +81,35 @@ pub(crate) struct CompletedLogin {
 }
 
 impl ProviderCoordinator {
+    pub fn login_browser_binding(
+        &self,
+        profile_id: &str,
+        attempt_id: &str,
+    ) -> Result<LoginBinding, CommandError> {
+        validate_ids(profile_id, attempt_id)?;
+        let state = self
+            .0
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?;
+        browser_binding(&state, profile_id, attempt_id)
+    }
+
+    pub fn open_login_browser(
+        &self,
+        profile_id: &str,
+        attempt_id: &str,
+        dispatch: impl FnOnce(&'static str) -> Result<(), CommandError>,
+    ) -> Result<(), CommandError> {
+        validate_ids(profile_id, attempt_id)?;
+        let state = self
+            .0
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?;
+        browser_binding(&state, profile_id, attempt_id)?;
+        // Serialize this handoff with cancellation and approval invalidation.
+        dispatch(LOGIN_BROWSER_URL)
+    }
+
     pub fn begin_login(
         &self,
         profile_id: &str,
@@ -271,6 +301,24 @@ fn matching_entry<'a>(
         .get_mut(attempt_id)
         .filter(|entry| entry.binding.profile_id == profile_id)
         .ok_or(CommandError::ProviderLoginNotFound)
+}
+
+fn browser_binding(
+    state: &ProviderState,
+    profile_id: &str,
+    attempt_id: &str,
+) -> Result<LoginBinding, CommandError> {
+    require_open(state)?;
+    let entry = state
+        .logins
+        .get(attempt_id)
+        .filter(|entry| entry.binding.profile_id == profile_id)
+        .ok_or(CommandError::ProviderLoginNotFound)?;
+    if !matches!(entry.phase, Phase::Ready | Phase::Waiting) {
+        return Err(CommandError::ProviderLoginPromptPending);
+    }
+    require_binding(state, attempt_id, &entry.binding, entry.phase)?;
+    Ok(entry.binding.clone())
 }
 
 fn require_binding(

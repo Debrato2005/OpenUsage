@@ -23,6 +23,7 @@ fn main() {
             "cancel_profile_check",
             "begin_profile_login",
             "await_profile_login_prompt",
+            "open_profile_login_page",
             "complete_profile_login",
             "cancel_profile_login",
             "discover_provider_executables",

@@ -13,6 +13,7 @@ tauri-build = { version = "=2.7.3", features = [] }
 getrandom = "=0.4.3"
 keyring-core = "=1.0.1"
 libc = "=0.2.191"
+open = { version = "=5.4.4", features = ["shellexecute-on-windows"] }
 openusage-codex = { path = "../../../crates/openusage-codex" }
 sha2 = "=0.10.9"
 openusage-import = { path = "../../../crates/openusage-import" }

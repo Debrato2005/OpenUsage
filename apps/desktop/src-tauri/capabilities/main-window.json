@@ -29,6 +29,7 @@
     "allow-cancel-profile-check",
     "allow-begin-profile-login",
     "allow-await-profile-login-prompt",
+    "allow-open-profile-login-page",
     "allow-complete-profile-login",
     "allow-cancel-profile-login",
     "allow-discover-provider-executables",

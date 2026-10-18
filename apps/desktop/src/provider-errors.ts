@@ -16,6 +16,7 @@ export function providerFailure(error: unknown): string {
     provider_login_cancelled: 'Sign-in stopped. Credentials already saved by Codex may remain in this profile.',
     provider_login_timed_out: 'OpenUsage reached its sign-in wait limit. Start a new attempt if you still need to sign in.',
     provider_login_failed: 'Codex could not confirm a ChatGPT account after sign-in. Start a new attempt or check the connection.',
+    provider_browser_unavailable: 'Your browser could not be started. Open the sign-in page address yourself, or try again.',
     invalid_arguments: 'OpenUsage could not read this request. Review the executable and try again.',
     workspace_locked: 'Unlock your workspace before you configure Codex.',
     provider_executable_not_approved: 'Review and approve a Codex executable before you check a connection.',

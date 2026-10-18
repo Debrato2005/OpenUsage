@@ -745,6 +745,29 @@ async fn await_profile_login_prompt(
 }
 
 #[tauri::command]
+async fn open_profile_login_page(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<(), CommandError> {
+    let args: LoginAttemptArgs = arguments(&request)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut state = service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?;
+        state
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .open_profile_login_page(&args.profile_id, &args.attempt_id, |url| {
+                // Only the validated fixed sign-in page reaches the OS opener.
+                open::that_detached(url).map_err(|_| CommandError::ProviderBrowserUnavailable)
+            })
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+#[tauri::command]
 async fn complete_profile_login(
     request: tauri::ipc::Request<'_>,
     service: State<'_, WorkspaceService>,
@@ -888,6 +911,7 @@ fn main() {
             cancel_profile_check,
             begin_profile_login,
             await_profile_login_prompt,
+            open_profile_login_page,
             complete_profile_login,
             cancel_profile_login,
             discover_provider_executables,
