@@ -153,9 +153,9 @@ try {
     archive = join(directory, fileName);
     const archiveHash = await hash(archive);
     await driver.openProfileOptions(first.id); await driver.click(`[data-profile-id="${first.id}"] [data-profile-action="rename"]`);
-    await driver.type('.profile-rename-form input', 'Preview renamed first');
+    await focusOwnedWindow(); await driver.replaceText('.profile-rename-form input', 'Preview renamed first');
     await driver.click('.profile-rename-form button[type=submit]');
-    await waitFor(async () => !(await driver.execute('return Boolean(document.querySelector(".profile-rename-form"));')), 'profile renamed');
+    await waitFor(async () => !(await driver.execute('return Boolean(document.querySelector(".profile-rename-form"));')), 'profile renamed'); await waitFor(async()=>(await state()).profiles.find(profile=>profile.id===first.id)?.label==='Preview renamed first','exact GUI rename persisted');
     await driver.openProfileOptions(second.id); await driver.click(`[data-profile-id="${second.id}"] [data-profile-action="archive"]`);
     await waitFor(async () => (await state()).profiles.find(profile => profile.id === second.id)?.archived === true, 'profile archived');
     await waitFor(async () => await driver.execute('return !document.querySelector("#profile-label").disabled;'), 'profile form enabled');

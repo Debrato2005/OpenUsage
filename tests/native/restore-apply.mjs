@@ -84,6 +84,13 @@ async function applyRejected(preview,error) {
   await rejected('apply_restore',{previewId:preview.previewId,confirmed:true},error);
   assert.deepEqual(await liveHashes(),hashes);assert.deepEqual(await allHomes(),homes);await unchanged(expectedB);
 }
+async function focusOwnedWindow() {
+ const queue=[driver.child.pid];let owned;
+ for(let count=0;queue.length&&count<64;count++){
+  const pid=queue.shift();try{if(await readlink(`/proc/${pid}/exe`)===application){owned=pid;break;}queue.push(...(await readFile(`/proc/${pid}/task/${pid}/children`,'utf8')).trim().split(/\s+/).filter(Boolean).map(Number));}catch(error){if(error.code!=='ENOENT')throw error;}
+ }
+ assert.ok(owned);const receipt=JSON.parse(execFileSync('/usr/bin/python3',[join(harness,'x11-close.py'),String(owned),'focus'],{env:fixture.environment,encoding:'utf8',timeout:10000}));(evidence.nativeFocus??=[]).push(receipt);await waitFor(async()=>await driver.execute('return document.hasFocus();'),'owned native document focus');
+}
 async function closeNormally() {
   const queue=[driver.child.pid];let pid;
   for(let count=0;queue.length&&count<64;count++){
@@ -125,7 +132,7 @@ try {
  expectedA=await state();evidence.stateA=expectedA;
  await click('Create a backup');await driver.type('#backup-password',password);await driver.type('#backup-confirmation',password);await driver.click('#backup-records');await driver.click('.backup-form button[type=submit]');await waitFor(async()=>Boolean(await driver.execute('return document.querySelector(".backup-receipt")')),'archive A');
  const directory=join(fixture.dirs.downloads,'OpenUsage');[fileName]=await readdir(directory);archive=join(directory,fileName);const originalArchive=await readFile(archive);evidence.originalArchiveSha256=await hash(archive);
- await driver.openProfileOptions(first.id); await driver.click(`[data-profile-id="${first.id}"] [data-profile-action="rename"]`);await driver.type('.profile-rename-form input','Restore live renamed');await driver.click('.profile-rename-form button[type=submit]');await waitFor(async()=>!await driver.execute('return Boolean(document.querySelector(".profile-rename-form"))'),'state B rename');
+ await driver.openProfileOptions(first.id); await driver.click(`[data-profile-id="${first.id}"] [data-profile-action="rename"]`);await focusOwnedWindow(); await driver.replaceText('.profile-rename-form input','Restore live renamed');await driver.click('.profile-rename-form button[type=submit]');await waitFor(async()=>!await driver.execute('return Boolean(document.querySelector(".profile-rename-form"))'),'state B rename'); await waitFor(async()=>(await state()).profiles.find(profile=>profile.id===first.id)?.label==='Restore live renamed','exact GUI rename persisted');
  await driver.click('.archived-profiles > summary');await waitFor(async()=>await driver.execute('return document.querySelector(".archived-profiles").open;'),'visible archived profile actions');
  await driver.click(`[data-profile-id="${second.id}"] [data-profile-action="restore"]`);await waitFor(async()=>(await state()).profiles.find(p=>p.id===second.id)?.archived===false,'state B unarchive');
  await create('Restore third live only');await theme('dark');expectedB=await state();evidence.stateB=expectedB;oldHomes=await allHomes();assert.equal(oldHomes.length,3);
