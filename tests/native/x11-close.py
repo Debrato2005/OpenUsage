@@ -1,4 +1,4 @@
-"""Send WM_DELETE_WINDOW to one owned application's X11 window, without signals."""
+"""Focus or close one owned application X11 window, without process signals."""
 import ctypes as c
 import json
 import os
@@ -6,6 +6,8 @@ import sys
 
 pid = int(sys.argv[1])
 assert pid > 1
+operation = sys.argv[2] if len(sys.argv) == 3 else 'close'
+assert operation in {'close', 'focus'}
 x = c.CDLL('libX11.so.6')
 Display = c.c_void_p
 Window = c.c_ulong
@@ -30,6 +32,10 @@ x.XFetchName.argtypes = [Display, Window, c.POINTER(c.c_void_p)]
 x.XFree.argtypes = [c.c_void_p]
 x.XFlush.argtypes = [Display]
 x.XCloseDisplay.argtypes = [Display]
+x.XRaiseWindow.argtypes = [Display, Window]
+x.XSetInputFocus.argtypes = [Display, Window, c.c_int, c.c_ulong]
+x.XGetInputFocus.argtypes = [Display, c.POINTER(Window), c.POINTER(c.c_int)]
+x.XSync.argtypes = [Display, c.c_int]
 
 class Data(c.Union):
     _fields_ = [('b', c.c_char * 20), ('s', c.c_short * 10), ('l', c.c_long * 5)]
@@ -81,17 +87,29 @@ try:
             if values:
                 x.XFree(values)
     assert len(matches) == 1, f'Expected one visible owned OpenUsage window, found {len(matches)}; owned windows: {owned_windows}.'
-    event = Event()
-    event.xclient.type = 33
-    event.xclient.send_event = 1
-    event.xclient.display = display
-    event.xclient.window = matches[0]
-    event.xclient.message_type = protocols
-    event.xclient.format = 32
-    event.xclient.data.l[0] = delete
-    event.xclient.data.l[1] = 0
-    assert x.XSendEvent(display, matches[0], 0, 0, c.byref(event)), 'X11 refused WM_DELETE_WINDOW.'
-    x.XFlush(display)
-    print(json.dumps({'applicationPid': pid, 'windowId': matches[0], 'method': 'X11 WM_PROTOCOLS WM_DELETE_WINDOW', 'display': os.environ.get('DISPLAY'), 'ownedWindows': owned_windows}))
+    receipt = {'applicationPid': pid, 'windowId': matches[0],
+               'display': os.environ.get('DISPLAY'), 'ownedWindows': owned_windows}
+    if operation == 'focus':
+        x.XRaiseWindow(display, matches[0])
+        x.XSetInputFocus(display, matches[0], 2, 0)
+        x.XSync(display, 0)
+        focused, revert = Window(), c.c_int()
+        x.XGetInputFocus(display, c.byref(focused), c.byref(revert))
+        assert focused.value == matches[0], 'X11 did not focus the exact owned window.'
+        receipt.update(method='X11 XRaiseWindow XSetInputFocus', inputFocusWindow=focused.value)
+    else:
+        event = Event()
+        event.xclient.type = 33
+        event.xclient.send_event = 1
+        event.xclient.display = display
+        event.xclient.window = matches[0]
+        event.xclient.message_type = protocols
+        event.xclient.format = 32
+        event.xclient.data.l[0] = delete
+        event.xclient.data.l[1] = 0
+        assert x.XSendEvent(display, matches[0], 0, 0, c.byref(event)), 'X11 refused WM_DELETE_WINDOW.'
+        x.XFlush(display)
+        receipt['method'] = 'X11 WM_PROTOCOLS WM_DELETE_WINDOW'
+    print(json.dumps(receipt))
 finally:
     x.XCloseDisplay(display)

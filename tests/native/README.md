@@ -276,3 +276,11 @@ The native application wait limit remains 900 seconds.
 Short timeout behavior is checked in the Rust core, not this native journey.
 The production source-gate journey rejects both synthetic fixtures before execution.
 These checks do not establish live login, token persistence, verified identity, or release qualification.
+
+The X11 helper verifies the exact process ID and visible OpenUsage window before it acts.
+Under Xvfb without a window manager, native automation can update `activeElement` while `document.hasFocus()` stays false.
+That state does not apply the focused field's CSS outline.
+The login journey raises and focuses only its owned native window before keyboard input.
+It checks document focus and records the X11 receipt.
+No DOM focus or style override substitutes for this setup.
+Normal close separately sends `WM_DELETE_WINDOW`, then waits for the application and provider to exit.
