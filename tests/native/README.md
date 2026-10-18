@@ -185,3 +185,29 @@ It waits for the owned desktop process to exit before driver cleanup.
 The layout checks include both narrow themes and test-side text scaling to 200%.
 This is a CSS text-layout check, not operating-system zoom or display scaling.
 The test does not establish apply, undo, interrupted-commit recovery, or memory cleanup after forced termination.
+
+## Confirmed native restore
+
+Run `node tests/native/restore-apply.mjs` with the private display and drivers above.
+Set `OPENUSAGE_NATIVE_SOURCE_ROOT` to the frozen build source.
+Set `OPENUSAGE_LIVE_VERIFIER` and `OPENUSAGE_CHECKPOINT_VERIFIER` to their standalone Rust binaries.
+Keep evidence outside temporary executor storage with `OPENUSAGE_NATIVE_EVIDENCE`.
+
+`NATIVE-RESTORE-APPLY-001` exports one active and one archived GUI profile with Light appearance.
+It changes that workspace to three active profiles with Dark appearance.
+The test checks stale previews, strict confirmation arguments, checkpoint faults, and unsafe home permissions.
+Each refusal must preserve the live records, key, and existing homes.
+The GUI requires an unchecked confirmation before Restore records becomes available.
+After confirmation, the test checks exact restored records, appearance, and a normal restart.
+A changed source archive must not replace the retained authenticated contents.
+
+The live verifier opens SQLCipher read-only with WAL support and no migrations.
+It unwraps only the private synthetic fixture key through production code.
+It checks fresh, private, empty homes for active and archived imported profiles.
+It checks unchanged database, WAL, and wrapped-key bytes and reports shared-memory changes separately.
+After normal exit, it checks a byte-identical private encrypted copy with the existing WAL, when present.
+SQLite can create empty WAL and shared-memory sidecars on that derived copy. The receipt records this.
+The original closed database, WAL, and key remain unchanged. The verifier never uses immutable mode.
+Existing synthetic home markers must stay intact.
+Native screenshots and debug GUI timing do not establish release performance or cross-platform acceptance.
+The historical recovery audit records preserved receipt hashes and missing temporary executables.

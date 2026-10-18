@@ -225,7 +225,7 @@ try {
   assert.ok(receipt.includes(fileName));
   assert.match(receipt, /archive authenticated/i);
   assert.match(receipt, /database checks passed/i);
-  assert.match(receipt, /restore.*not available/i);
+  assert.ok(receipt.includes('Database checks passed. Prepare a preview to review a restore.'));
   assert.equal(await driver.execute('return [...document.querySelectorAll("#backup-inspection button, #backup-inspection a")].some(node=>/^(apply|replace|undo|restore)\\b/i.test(node.textContent.trim()));'), false);
   assert.equal(await driver.execute('return document.querySelector("#backup-inspection-password")?.value??"";'), '');
   const counts = await driver.execute('return Object.fromEntries([...document.querySelectorAll(".backup-inspection-metadata dt")].map(node=>[node.textContent,node.nextElementSibling?.textContent]));');
