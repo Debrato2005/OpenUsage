@@ -26,6 +26,26 @@ impl PartialEq for StorageRevision {
 
 impl Eq for StorageRevision {}
 
+impl StorageRevision {
+    pub(crate) fn matches(
+        &self,
+        scope: &Arc<()>,
+        connection: &rusqlite::Connection,
+    ) -> rusqlite::Result<bool> {
+        Ok(Arc::ptr_eq(&self.scope, scope)
+            && self.data_version
+                == connection
+                    .pragma_query_value(Some("main"), "data_version", |r| r.get::<_, u32>(0))?
+            && self.total_changes == connection.total_changes()
+            && self.schema_cookie
+                == connection
+                    .pragma_query_value(Some("main"), "schema_version", |r| r.get::<_, u32>(0))?
+            && self.schema_version
+                == connection
+                    .pragma_query_value(Some("main"), "user_version", |r| r.get::<_, u32>(0))?)
+    }
+}
+
 impl fmt::Debug for StorageRevision {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str("StorageRevision { .. }")
