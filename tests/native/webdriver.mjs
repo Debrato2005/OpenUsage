@@ -108,6 +108,16 @@ export class NativeDriver {
     await waitFor(async () => this.execute('return document.querySelector(arguments[0])?.textContent.trim()===arguments[1];', [selector, label]), `selected ${label} in ${selector}`);
   }
 
+  async replaceText(selector, text) {
+    await this.click(selector);
+    await this.request('POST', `/session/${this.session}/actions`, { actions: [{ type: 'key', id: 'replace-text', actions: [{ type: 'keyDown', value: '\uE009' }, { type: 'keyDown', value: 'a' }, { type: 'keyUp', value: 'a' }, { type: 'keyUp', value: '\uE009' }, { type: 'keyDown', value: '\uE003' }, { type: 'keyUp', value: '\uE003' }] }] });
+    await this.request('DELETE', `/session/${this.session}/actions`);
+    await waitFor(async () => this.execute('return document.querySelector(arguments[0])?.value==="";', [selector]), `keyboard-cleared ${selector}`);
+    const element = await this.element(selector);
+    await this.request('POST', `/session/${this.session}/element/${element}/value`, { text });
+    await waitFor(async () => this.execute('return document.querySelector(arguments[0])?.value===arguments[1];', [selector, text]), `exact replacement text in ${selector}`);
+  }
+
   async type(selector, text) {
     const element = await this.element(selector);
     await this.request('POST', `/session/${this.session}/element/${element}/clear`, {});
