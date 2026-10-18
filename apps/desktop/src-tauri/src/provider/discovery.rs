@@ -1,4 +1,6 @@
 //! Advisory executable locations only. No process launch, directory listing, or credential reads.
+//! Boundary discovery uses lstat/readlink only on explicit protected roots and their ancestors.
+//! Candidate traversal excludes both lexical and resolved roots before each lookup.
 //! Pinned layouts: https://github.com/openai/codex/blob/rust-v0.163.0/codex-cli/bin/codex.js
 //! Installer boundary: https://github.com/openai/codex/blob/rust-v0.163.0/scripts/install/install.sh
 
@@ -54,12 +56,22 @@ impl Scope {
         path: &Path,
         metadata: &mut impl FnMut(&Path) -> std::io::Result<fs::Metadata>,
     ) -> Option<PathBuf> {
+        self.walk(path, false, metadata, &mut |path| fs::read_link(path))
+    }
+
+    fn walk(
+        &self,
+        path: &Path,
+        boundary: bool,
+        metadata: &mut impl FnMut(&Path) -> std::io::Result<fs::Metadata>,
+        read_link: &mut impl FnMut(&Path) -> std::io::Result<PathBuf>,
+    ) -> Option<PathBuf> {
         if !clean_absolute(path) {
             return None;
         }
         let mut pending = steps(path)?;
         let mut resolved = PathBuf::from("/");
-        if self.excludes(&resolved) || !traversable(&metadata(&resolved).ok()?) {
+        if (!boundary && self.excludes(&resolved)) || !traversable(&metadata(&resolved).ok()?) {
             return None;
         }
         let mut symlinks = 0;
@@ -82,10 +94,28 @@ impl Scope {
             }
             resolved.push(step);
             // Check before lstat or read_link, including each symlinked PATH-directory hop.
-            if self.excludes(&resolved) || !displayable(&resolved) {
+            if (!boundary && self.excludes(&resolved)) || !displayable(&resolved) {
                 return None;
             }
-            let entry = metadata(&resolved).ok()?;
+            let entry = match metadata(&resolved) {
+                Ok(entry) => entry,
+                Err(error) if boundary && error.kind() == std::io::ErrorKind::NotFound => {
+                    // A missing suffix cannot contain an existing symlink. Keep its physical
+                    // parent plus literal suffix; do not create or enumerate the missing root.
+                    if visits + pending.len() > MAX_COMPONENTS
+                        || pending
+                            .iter()
+                            .any(|step| step == "/" || step == ".." || step == ".")
+                    {
+                        return None;
+                    }
+                    for step in pending {
+                        resolved.push(step);
+                    }
+                    return displayable(&resolved).then_some(resolved);
+                }
+                Err(_) => return None,
+            };
             // Refuse writable or foreign-owned ancestors before descending. The final source
             // still passes the shared core policy, and approval checks it again before execution.
             if !traversable(&entry) {
@@ -96,7 +126,7 @@ impl Scope {
                 if symlinks > MAX_SYMLINKS {
                     return None;
                 }
-                let target = fs::read_link(&resolved).ok()?;
+                let target = read_link(&resolved).ok()?;
                 if !displayable(&target) {
                     return None;
                 }
@@ -107,11 +137,112 @@ impl Scope {
                     return None;
                 }
                 pending = replacement;
-            } else if !pending.is_empty() && !entry.is_dir() {
+            } else if (boundary || !pending.is_empty()) && !entry.is_dir() {
                 return None;
             }
         }
-        (!self.excludes(&resolved)).then_some(resolved)
+        (boundary || !self.excludes(&resolved)).then_some(resolved)
+    }
+}
+
+// A bounded metadata snapshot detects ordinary boundary replacement during discovery.
+// This is not an atomic filesystem namespace snapshot against a hostile same-UID process.
+struct BoundaryScope {
+    scope: Scope,
+    probes: Vec<(PathBuf, Option<fs::Metadata>)>,
+}
+
+impl BoundaryScope {
+    fn prepare(roots: Vec<PathBuf>) -> Result<Self, CommandError> {
+        Self::prepare_with(roots, &mut |path| fs::symlink_metadata(path), &mut |path| {
+            fs::read_link(path)
+        })
+    }
+
+    fn prepare_with(
+        roots: Vec<PathBuf>,
+        metadata: &mut impl FnMut(&Path) -> std::io::Result<fs::Metadata>,
+        read_link: &mut impl FnMut(&Path) -> std::io::Result<PathBuf>,
+    ) -> Result<Self, CommandError> {
+        let mut scope = Scope {
+            excluded: roots.clone(),
+        };
+        let mut probes = vec![];
+        for root in roots {
+            let physical = scope
+                .walk(
+                    &root,
+                    true,
+                    &mut |path| {
+                        let result = metadata(path);
+                        match &result {
+                            Ok(entry) => probes.push((path.to_owned(), Some(entry.clone()))),
+                            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                                probes.push((path.to_owned(), None))
+                            }
+                            Err(_) => {}
+                        }
+                        result
+                    },
+                    read_link,
+                )
+                .ok_or(CommandError::ProviderDiscoveryUnavailable)?;
+            scope.excluded.push(physical);
+        }
+        let prepared = Self { scope, probes };
+        prepared.recheck_with(metadata)?;
+        Ok(prepared)
+    }
+
+    fn recheck(&self) -> Result<(), CommandError> {
+        self.recheck_with(&mut |path| fs::symlink_metadata(path))
+    }
+
+    fn recheck_with(
+        &self,
+        metadata: &mut impl FnMut(&Path) -> std::io::Result<fs::Metadata>,
+    ) -> Result<(), CommandError> {
+        for (path, previous) in &self.probes {
+            let same = match (previous, metadata(path)) {
+                (Some(previous), Ok(current)) => same_boundary(previous, &current),
+                (None, Err(error)) => error.kind() == std::io::ErrorKind::NotFound,
+                _ => false,
+            };
+            if !same {
+                return Err(CommandError::ProviderDiscoveryUnavailable);
+            }
+        }
+        Ok(())
+    }
+}
+
+fn same_boundary(previous: &fs::Metadata, current: &fs::Metadata) -> bool {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        previous.dev() == current.dev()
+            && previous.ino() == current.ino()
+            && previous.uid() == current.uid()
+            && previous.mode() == current.mode()
+            && (!previous.file_type().is_symlink()
+                || (
+                    previous.len(),
+                    previous.mtime(),
+                    previous.mtime_nsec(),
+                    previous.ctime(),
+                    previous.ctime_nsec(),
+                ) == (
+                    current.len(),
+                    current.mtime(),
+                    current.mtime_nsec(),
+                    current.ctime(),
+                    current.ctime_nsec(),
+                ))
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = (previous, current);
+        false
     }
 }
 
@@ -158,9 +289,11 @@ pub(crate) fn discover(managed_profiles: &Path) -> Result<ExecutableDiscovery, C
     if !cfg!(unix) {
         return Err(CommandError::ProviderUnsupported);
     }
-    let home = std::env::var_os("HOME")
-        .map(PathBuf::from)
-        .filter(|path| clean_absolute(path));
+    let home = std::env::var_os("HOME").map(PathBuf::from);
+    if home.as_ref().is_none_or(|path| !clean_absolute(path)) {
+        // Without HOME the default credential boundary cannot be established here.
+        return Err(CommandError::ProviderDiscoveryUnavailable);
+    }
     let mut excluded = vec![managed_profiles.to_owned()];
     if let Some(home) = &home {
         excluded.push(home.join(".codex"));
@@ -173,6 +306,7 @@ pub(crate) fn discover(managed_profiles: &Path) -> Result<ExecutableDiscovery, C
         }
         excluded.push(path);
     }
+    let boundary = BoundaryScope::prepare(excluded)?;
     let (mut locations, truncated) = std::env::var_os("PATH")
         .map(|path| path_locations(&path))
         .unwrap_or_default();
@@ -191,7 +325,10 @@ pub(crate) fn discover(managed_profiles: &Path) -> Result<ExecutableDiscovery, C
     if let Some(home) = home {
         locations.push((home.join(".local/bin/codex"), DiscoveryLocation::Standard));
     }
-    Ok(find(&Scope { excluded }, locations, truncated))
+    boundary.recheck()?;
+    let result = find(&boundary.scope, locations, truncated);
+    boundary.recheck()?;
+    Ok(result)
 }
 
 fn path_locations(path: &OsStr) -> (Vec<(PathBuf, DiscoveryLocation)>, bool) {
@@ -407,6 +544,166 @@ mod tests {
                 assert_eq!(resolved, None);
             }
         }
+    }
+
+    #[test]
+    fn discovery_resolves_only_synthetic_boundaries_then_excludes_all_aliases() {
+        let temporary = tempfile::tempdir().unwrap();
+        let physical_home = temporary.path().join("physical-home");
+        fs::create_dir(&physical_home).unwrap();
+        let home_alias = temporary.path().join("home-alias");
+        symlink(&physical_home, &home_alias).unwrap();
+        let default_target = temporary.path().join("default-data");
+        let custom_target = temporary.path().join("custom-data");
+        let managed = temporary.path().join("workspace/profiles");
+        for root in [&default_target, &custom_target, &managed] {
+            executable(&root.join("codex"));
+        }
+        symlink(&default_target, physical_home.join(".codex")).unwrap();
+        let custom_alias = temporary.path().join("custom-alias");
+        symlink(&custom_target, &custom_alias).unwrap();
+        let roots = vec![
+            home_alias.join(".codex"),
+            custom_alias.clone(),
+            managed.clone(),
+        ];
+        let allowed = [
+            roots.clone(),
+            vec![
+                physical_home.join(".codex"),
+                default_target.clone(),
+                custom_target.clone(),
+            ],
+        ]
+        .concat();
+        let lookups = std::cell::RefCell::new(vec![]);
+        let links = std::cell::RefCell::new(vec![]);
+        let check_boundary = |path: &Path| {
+            assert!(
+                allowed.iter().any(|root| root.starts_with(path)),
+                "boundary descendant lookup: {}",
+                path.display()
+            );
+            lookups.borrow_mut().push(path.to_owned());
+        };
+        let prepared = BoundaryScope::prepare_with(
+            roots.clone(),
+            &mut |path| {
+                check_boundary(path);
+                fs::symlink_metadata(path)
+            },
+            &mut |path| {
+                check_boundary(path);
+                links.borrow_mut().push(path.to_owned());
+                fs::read_link(path)
+            },
+        )
+        .unwrap();
+        assert!(lookups.borrow().contains(&home_alias));
+        assert!(lookups.borrow().contains(&physical_home.join(".codex")));
+        assert!(lookups.borrow().contains(&custom_alias));
+        assert_eq!(
+            *links.borrow(),
+            vec![
+                home_alias,
+                physical_home.join(".codex"),
+                custom_alias.clone()
+            ]
+        );
+        for root in roots.iter().chain([&default_target, &custom_target]) {
+            let check_candidate = |path: &Path| {
+                assert!(
+                    !prepared.scope.excludes(path),
+                    "protected candidate lookup: {}",
+                    path.display()
+                );
+            };
+            assert_eq!(
+                prepared.scope.walk(
+                    &root.join("codex"),
+                    false,
+                    &mut |path| {
+                        check_candidate(path);
+                        fs::symlink_metadata(path)
+                    },
+                    &mut |path| {
+                        check_candidate(path);
+                        fs::read_link(path)
+                    }
+                ),
+                None
+            );
+        }
+        // Replacing a configured alias invalidates the entire prepared result.
+        fs::remove_file(&custom_alias).unwrap();
+        symlink(&default_target, &custom_alias).unwrap();
+        assert_eq!(
+            prepared.recheck().err(),
+            Some(CommandError::ProviderDiscoveryUnavailable)
+        );
+    }
+
+    #[test]
+    fn discovery_boundary_errors_fail_closed_and_missing_suffixes_remain_excluded() {
+        let temporary = tempfile::tempdir().unwrap();
+        let parent = temporary.path().join("physical-parent");
+        fs::create_dir(&parent).unwrap();
+        let alias = temporary.path().join("parent-alias");
+        symlink(&parent, &alias).unwrap();
+        let missing = alias.join("missing/nested-home");
+        let prepared = BoundaryScope::prepare(vec![missing.clone()]).unwrap();
+        assert!(prepared.scope.excludes(&missing.join("codex")));
+        assert!(
+            prepared
+                .scope
+                .excludes(&parent.join("missing/nested-home/codex"))
+        );
+        assert!(!parent.join("missing").exists());
+        let mut too_deep = alias.clone();
+        for _ in 0..MAX_COMPONENTS {
+            too_deep.push("absent");
+        }
+        assert_eq!(
+            BoundaryScope::prepare(vec![too_deep]).err(),
+            Some(CommandError::ProviderDiscoveryUnavailable)
+        );
+        fs::create_dir(parent.join("missing")).unwrap();
+        assert_eq!(
+            prepared.recheck().err(),
+            Some(CommandError::ProviderDiscoveryUnavailable)
+        );
+        let denied = BoundaryScope::prepare_with(
+            vec![parent.clone()],
+            &mut |path| {
+                if path == parent {
+                    Err(std::io::ErrorKind::PermissionDenied.into())
+                } else {
+                    fs::symlink_metadata(path)
+                }
+            },
+            &mut |path| fs::read_link(path),
+        );
+        assert_eq!(
+            denied.err(),
+            Some(CommandError::ProviderDiscoveryUnavailable)
+        );
+        let file = temporary.path().join("not-a-directory");
+        executable(&file);
+        assert_eq!(
+            BoundaryScope::prepare(vec![file]).err(),
+            Some(CommandError::ProviderDiscoveryUnavailable)
+        );
+        let cycle = temporary.path().join("cycle");
+        symlink("cycle", &cycle).unwrap();
+        assert_eq!(
+            BoundaryScope::prepare(vec![cycle]).err(),
+            Some(CommandError::ProviderDiscoveryUnavailable)
+        );
+        fs::set_permissions(&parent, fs::Permissions::from_mode(0o777)).unwrap();
+        assert_eq!(
+            BoundaryScope::prepare(vec![parent]).err(),
+            Some(CommandError::ProviderDiscoveryUnavailable)
+        );
     }
 
     #[test]
