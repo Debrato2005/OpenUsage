@@ -19,6 +19,8 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+mod quota;
+pub(crate) use quota::*;
 mod login;
 pub(crate) use login::*;
 mod discovery;
@@ -75,6 +77,7 @@ fn reviewed_source(digest: &[u8; 32]) -> SourceProof {
         digest.as_str(),
         "91c56f02d6d020bcb9a29c69c00bb108c306f169849971b5c42dbcd085398080"
             | "25476e3759cbdc1cc74bcd9e46f4a01d1d85ea8ccc34425ddb45a38df27b9859"
+            | "cae93994fd4e64bc63f5c6ac82e973273ad7efbaf20f4055749d99c8c6cbf570"
     ) {
         return SourceProof {
             kind: ExecutableSourceKind::TestFixture,
@@ -158,6 +161,18 @@ struct Approved {
     held: HeldExecutable,
     executable: ApprovedExecutable,
 }
+/// Storage and source identity retained across an owned provider operation.
+#[derive(Clone)]
+pub(crate) struct ProfileBinding {
+    pub profile_id: String,
+    pub home_reference: String,
+    pub revision: openusage_storage::StorageRevision,
+    held_home: Arc<HeldHome>,
+    approval_id: String,
+    source_kind: ExecutableSourceKind,
+    generation: u64,
+}
+
 struct ProviderState {
     closed: bool,
     generation: u64,
@@ -165,6 +180,7 @@ struct ProviderState {
     approved: Option<Approved>,
     supervisor: Arc<Supervisor>,
     logins: std::collections::HashMap<String, login::Entry>,
+    quotas: std::collections::HashMap<String, quota::Entry>,
 }
 impl Default for ProviderState {
     fn default() -> Self {
@@ -175,6 +191,7 @@ impl Default for ProviderState {
             approved: None,
             supervisor: Arc::new(Supervisor::new()),
             logins: std::collections::HashMap::new(),
+            quotas: std::collections::HashMap::new(),
         }
     }
 }
@@ -294,6 +311,13 @@ impl ProviderCoordinator {
         {
             return Err(CommandError::ProviderLoginInProgress);
         }
+        if state
+            .quotas
+            .values()
+            .any(|entry| entry.binding.profile_id == profile_id)
+        {
+            return Err(CommandError::ProviderQuotaInProgress);
+        }
         let approved = state
             .approved
             .as_mut()
@@ -333,6 +357,13 @@ impl ProviderCoordinator {
         {
             return Err(CommandError::ProviderLoginInProgress);
         }
+        if state
+            .quotas
+            .values()
+            .any(|entry| entry.binding.profile_id == profile_id)
+        {
+            return Err(CommandError::ProviderQuotaInProgress);
+        }
         let cancelled = state.supervisor.cancel(&profile).map_err(provider_error)?;
         Ok(Cancelled { cancelled })
     }
@@ -357,6 +388,7 @@ impl ProviderCoordinator {
         state.approved = None;
         state.supervisor.shutdown().map_err(provider_error)?;
         state.logins.clear();
+        state.quotas.clear();
         Ok(())
     }
 }
@@ -364,6 +396,7 @@ impl ProviderCoordinator {
 fn reset(state: &mut ProviderState) -> Result<(), CommandError> {
     state.supervisor.shutdown().map_err(provider_error)?;
     state.logins.clear();
+    state.quotas.clear();
     state.generation = state
         .generation
         .checked_add(1)

@@ -95,6 +95,14 @@ pub enum CommandError {
     ProviderLoginTimedOut,
     ProviderLoginFailed,
     ProviderDiscoveryUnavailable,
+    ProviderQuotaNotFound,
+    ProviderQuotaInProgress,
+    ProviderQuotaCancelled,
+    ProviderQuotaTimedOut,
+    ProviderQuotaFailed,
+    ProviderAccountChanged,
+    ProviderAccountIdentityUnavailable,
+    ProviderIncompatibleQuotaScope,
 }
 
 #[derive(Debug, Eq, PartialEq, Serialize)]
@@ -698,28 +706,43 @@ impl Workspace {
         &mut self,
         binding: &provider::LoginBinding,
     ) -> Result<(), CommandError> {
+        self.require_provider_binding(
+            &binding.profile_id,
+            &binding.home_reference,
+            &binding.revision,
+            CommandError::ProviderLoginCancelled,
+        )
+    }
+
+    /// Revalidate a selected native profile if application records changed during an owned wait.
+    fn require_provider_binding(
+        &mut self,
+        profile_id: &str,
+        home_reference: &str,
+        revision: &openusage_storage::StorageRevision,
+        cancelled: CommandError,
+    ) -> Result<(), CommandError> {
         let storage = self.storage.as_mut().ok_or(CommandError::WorkspaceLocked)?;
         let state = storage
             .restore_state()
             .map_err(|_| CommandError::StorageUnavailable)?;
-        if state.revision != binding.revision {
+        if &state.revision != revision {
             let profile = storage
                 .list_profiles()
                 .map_err(profile_error)?
                 .into_iter()
-                .find(|profile| profile.id == binding.profile_id)
-                .ok_or(CommandError::ProviderLoginCancelled)?;
+                .find(|profile| profile.id == profile_id)
+                .ok_or(cancelled)?;
             if profile.archived || profile.environment != ProfileEnvironment::Native {
-                return Err(CommandError::ProviderLoginCancelled);
+                return Err(cancelled);
             }
             let homes = storage
                 .restore_home_mappings(&state.revision)
                 .map_err(|_| CommandError::ProviderHomeUnavailable)?;
             if !homes.iter().any(|home| {
-                home.profile_id == binding.profile_id
-                    && home.managed_home_reference == binding.home_reference
+                home.profile_id == profile_id && home.managed_home_reference == home_reference
             }) {
-                return Err(CommandError::ProviderLoginCancelled);
+                return Err(cancelled);
             }
         }
         Ok(())
@@ -730,31 +753,50 @@ impl Workspace {
         &mut self,
         check: provider::JoinedCheck,
     ) -> Result<provider::ConnectionDiagnostic, CommandError> {
-        let storage = self.storage.as_mut().ok_or(CommandError::WorkspaceLocked)?;
-        let state = storage
-            .restore_state()
-            .map_err(|_| CommandError::StorageUnavailable)?;
-        if state.revision != check.revision {
-            let profile = storage
-                .list_profiles()
-                .map_err(profile_error)?
-                .into_iter()
-                .find(|profile| profile.id == check.profile_id)
-                .ok_or(CommandError::ProviderCheckCancelled)?;
-            if profile.archived || profile.environment != ProfileEnvironment::Native {
-                return Err(CommandError::ProviderCheckCancelled);
-            }
-            let homes = storage
-                .restore_home_mappings(&state.revision)
-                .map_err(|_| CommandError::ProviderHomeUnavailable)?;
-            if !homes.iter().any(|home| {
-                home.profile_id == check.profile_id
-                    && home.managed_home_reference == check.home_reference
-            }) {
-                return Err(CommandError::ProviderCheckCancelled);
-            }
-        }
+        self.require_provider_binding(
+            &check.profile_id,
+            &check.home_reference,
+            &check.revision,
+            CommandError::ProviderCheckCancelled,
+        )?;
         check.finish()
+    }
+
+    pub fn begin_profile_quota_read(
+        &mut self,
+        id: &str,
+        approval_id: &str,
+    ) -> Result<provider::QuotaReceipt, CommandError> {
+        restore::validate_preview_id(approval_id)?;
+        let (home, revision, path) = self.selected_provider_home(id)?;
+        self.provider
+            .begin_quota(id, approval_id, &home, revision, &path)
+    }
+
+    pub fn complete_profile_quota_read(
+        &self,
+        id: &str,
+        request_id: &str,
+    ) -> Result<provider::CompletingQuota, CommandError> {
+        self.storage.as_ref().ok_or(CommandError::WorkspaceLocked)?;
+        self.provider.complete_quota(id, request_id)
+    }
+
+    pub fn finish_profile_quota_read(
+        &mut self,
+        completed: provider::CompletedQuota,
+    ) -> Result<provider::QuotaOutcome, CommandError> {
+        let binding = &completed.binding;
+        if let Err(error) = self.require_provider_binding(
+            &binding.profile_id,
+            &binding.home_reference,
+            &binding.revision,
+            CommandError::ProviderQuotaCancelled,
+        ) {
+            completed.abort();
+            return Err(error);
+        }
+        completed.publish()
     }
 
     fn ready(&self) -> Bootstrap {
@@ -995,6 +1037,9 @@ pub(crate) fn require_local_filesystem(path: &Path) -> Result<(), CommandError> 
 
 #[cfg(all(test, unix))]
 mod login_tests;
+
+#[cfg(all(test, unix))]
+mod quota_tests;
 
 #[cfg(test)]
 mod tests {
