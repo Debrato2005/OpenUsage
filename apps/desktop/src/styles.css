@@ -334,7 +334,7 @@ main { max-width: 1280px; padding: var(--space-6); margin: 0 auto; }
 .quota-window { padding-block: var(--space-3); }
 .quota-windows { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); gap: var(--space-3) var(--space-5); }
 .quota-values { display: flex; flex-wrap: wrap; gap: var(--space-4); margin-block: var(--space-2); font-variant-numeric: tabular-nums; }
-.quota-values > div { flex: 1 1 8rem; min-width: 0; }
+.quota-values > div { flex: 1 1 8em; min-width: 0; }
 .quota-values dt { color: var(--muted); font-size: var(--text-sm); }
 .quota-values dd { margin: var(--space-1) 0 0; }
 .quota-source-details { color: var(--muted); font-size: var(--text-sm); }
