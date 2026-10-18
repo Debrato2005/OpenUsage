@@ -132,7 +132,9 @@ fn reset_credit_count_is_exact_nullable_and_independent_of_detail_rows() {
             json!(i64::MAX.to_string()),
         ),
         (
-            Some(json!({"availableCount":3,"credits":[{"id":"synthetic-private-credit"}]})),
+            Some(
+                json!({"availableCount":3,"credits":[{"id":"synthetic-private-credit","status":"available","grantedAt":0,"expiresAt":null}]}),
+            ),
             json!("3"),
         ),
     ] {
@@ -168,5 +170,159 @@ fn reset_credit_summary_requires_a_nonnegative_integer_count_without_detail_fall
             )
             .is_err()
         );
+    }
+}
+
+fn credit_row() -> Value {
+    json!({"id":"synthetic-private-credit", "resetType":"codexRateLimits",
+        "title":"Synthetic earned credit", "description":"synthetic-private-description",
+        "status":"available", "grantedAt":1893456000i64, "expiresAt":null,
+        "unreviewedPrivateKey":"synthetic-private-extra"})
+}
+fn credit_details(details: Value) -> Vec<u8> {
+    message(
+        json!({"rateLimitsByLimitId":{},"rateLimitResetCredits":{"availableCount":9,"credits":details}}),
+    )
+}
+
+#[test]
+fn credit_details_preserve_absence_empty_and_capped_rows_without_changing_the_count() {
+    for details in [
+        None,
+        Some(Value::Null),
+        Some(json!([])),
+        Some(json!([credit_row()])),
+    ] {
+        let mut result =
+            json!({"rateLimitsByLimitId":{},"rateLimitResetCredits":{"availableCount":9}});
+        if let Some(value) = &details {
+            result["rateLimitResetCredits"]["credits"] = value.clone();
+        }
+        let parsed = parse_quota(&message(result), 3).unwrap();
+        let debug = format!("{parsed:?}");
+        let output = serde_json::to_value(parsed).unwrap();
+        assert_eq!(output["availableResetCredits"], "9");
+        match details {
+            None | Some(Value::Null) => assert!(output["resetCreditDetails"].is_null()),
+            Some(Value::Array(rows)) => assert_eq!(
+                output["resetCreditDetails"].as_array().unwrap().len(),
+                rows.len()
+            ),
+            _ => unreachable!(),
+        }
+        for private in [
+            "synthetic-private",
+            "unreviewedPrivateKey",
+            "resetType",
+            "description",
+            "\"id\"",
+        ] {
+            assert!(!output.to_string().contains(private));
+            assert!(!debug.contains(private));
+        }
+        assert!(!debug.contains("Synthetic earned credit"));
+    }
+}
+
+#[test]
+fn credit_details_show_only_reviewed_fields_and_normalize_unknown_provider_status() {
+    for (status, expected) in [
+        ("available", "available"),
+        ("redeeming", "redeeming"),
+        ("redeemed", "redeemed"),
+        ("synthetic-private-future-status", "unknown"),
+    ] {
+        let mut row = credit_row();
+        row["status"] = json!(status);
+        row["resetType"] = json!("synthetic-private-future-type");
+        let snapshot = parse_quota(&credit_details(json!([row])), 3).unwrap();
+        let output = serde_json::to_value(snapshot).unwrap();
+        assert_eq!(
+            output["resetCreditDetails"],
+            json!([{"title":"Synthetic earned credit","status":expected,"grantedAtUnix":1893456000i64,"expiresAtUnix":null}])
+        );
+    }
+    for title in [None, Some(Value::Null)] {
+        let mut row = credit_row();
+        if let Some(value) = title {
+            row["title"] = value;
+        } else {
+            row.as_object_mut().unwrap().remove("title");
+        }
+        let output =
+            serde_json::to_value(parse_quota(&credit_details(json!([row])), 3).unwrap()).unwrap();
+        assert!(output["resetCreditDetails"][0]["title"].is_null());
+    }
+}
+
+#[test]
+fn credit_details_bound_rows_and_utf8_text_without_silent_truncation() {
+    let mut row = credit_row();
+    row["title"] = json!("é".repeat(128));
+    let output = serde_json::to_value(
+        parse_quota(&credit_details(json!(vec![row.clone(); 32])), 3).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(output["resetCreditDetails"].as_array().unwrap().len(), 32);
+    assert_eq!(output["availableResetCredits"], "9");
+    assert!(parse_quota(&credit_details(json!(vec![row; 33])), 3).is_err());
+    for title in [
+        "é".repeat(129),
+        "x".repeat(257),
+        String::new(),
+        " ".into(),
+        "synthetic\nprivate".into(),
+    ] {
+        let mut row = credit_row();
+        row["title"] = json!(title);
+        let error = parse_quota(&credit_details(json!([row])), 3).err().unwrap();
+        assert!(!format!("{error:?} {error}").contains("synthetic"));
+    }
+}
+
+#[test]
+fn credit_details_validate_utc_values_and_distinguish_no_expiry_from_missing_expiry() {
+    for stamp in [-62_135_596_800i64, 0, 253_402_300_799] {
+        let mut row = credit_row();
+        row["grantedAt"] = json!(stamp);
+        row["expiresAt"] = json!(stamp);
+        let output =
+            serde_json::to_value(parse_quota(&credit_details(json!([row])), 3).unwrap()).unwrap();
+        assert_eq!(output["resetCreditDetails"][0]["grantedAtUnix"], stamp);
+        assert_eq!(output["resetCreditDetails"][0]["expiresAtUnix"], stamp);
+    }
+    for field in ["status", "grantedAt", "expiresAt"] {
+        let mut row = credit_row();
+        row.as_object_mut().unwrap().remove(field);
+        assert!(
+            parse_quota(&credit_details(json!([row])), 3).is_err(),
+            "missing {field}"
+        );
+    }
+    for (field, bad) in [
+        ("grantedAt", json!(null)),
+        ("grantedAt", json!(1.5)),
+        ("grantedAt", json!("3")),
+        ("expiresAt", json!(-62_135_596_801i64)),
+        ("grantedAt", json!(253_402_300_800i64)),
+        ("expiresAt", json!(true)),
+        ("status", json!(null)),
+        ("status", json!(3)),
+        ("title", json!(3)),
+    ] {
+        let mut row = credit_row();
+        row[field] = bad;
+        assert!(
+            parse_quota(&credit_details(json!([row])), 3).is_err(),
+            "invalid {field}"
+        );
+    }
+    for details in [
+        json!({}),
+        json!("synthetic-private"),
+        json!([null]),
+        json!([[]]),
+    ] {
+        assert!(parse_quota(&credit_details(details), 3).is_err());
     }
 }

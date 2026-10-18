@@ -143,10 +143,15 @@ export interface QuotaWindow {
   usedPercent: number; derivedRemainingPercent: number;
   windowDurationMins: number | null; resetsAtUnix: number | null; label: string;
 }
+export interface ResetCreditDetail {
+  title: string | null; status: 'available' | 'redeeming' | 'redeemed' | 'unknown';
+  grantedAtUnix: number; expiresAtUnix: number | null;
+}
 export interface ProfileQuotaPreview extends ProfileQuotaRequest {
   providerVersion: string; observedAtUtc: string;
   identityConfidence: 'provisional'; verifiedIdentityKey: null;
   availableResetCredits: string | null;
+  resetCreditDetails: ResetCreditDetail[] | null;
   limits: { limitId: string; limitName: string | null; primary: QuotaWindow | null; secondary: QuotaWindow | null; reachedType: string | null }[];
 }
 
@@ -266,12 +271,25 @@ function isResetCreditCount(value: unknown): value is string | null {
   return value === null || (typeof value === 'string' && value.trim() === value && /^(0|[1-9][0-9]{0,18})$/.test(value)
     && (value.length < 19 || value <= '9223372036854775807'));
 }
+function isResetCreditDetails(value: unknown): value is ResetCreditDetail[] | null {
+  if (value === null) return true;
+  if (!Array.isArray(value) || value.length > 32) return false;
+  return value.every(row => {
+    if (typeof row !== 'object' || row === null || Array.isArray(row)) return false;
+    const v = row as Record<string, unknown>;
+    return Object.keys(v).length === 4
+      && (v.title === null || (quotaText(v.title, 256) && new TextEncoder().encode(v.title).length <= 256))
+      && typeof v.status === 'string' && ['available', 'redeeming', 'redeemed', 'unknown'].includes(v.status)
+      && Number.isSafeInteger(v.grantedAtUnix) && Number(v.grantedAtUnix) >= -62135596800 && Number(v.grantedAtUnix) <= 253402300799
+      && (v.expiresAtUnix === null || (Number.isSafeInteger(v.expiresAtUnix) && Number(v.expiresAtUnix) >= -62135596800 && Number(v.expiresAtUnix) <= 253402300799));
+  });
+}
 function isProfileQuotaPreview(value: unknown): value is ProfileQuotaPreview {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   const v = value as Record<string, unknown>;
-  if (Object.keys(v).some(key => !['profileId', 'requestId', 'approvalId', 'sourceKind', 'monitoring', 'accepted', 'providerVersion', 'observedAtUtc', 'identityConfidence', 'verifiedIdentityKey', 'availableResetCredits', 'limits'].includes(key))
+  if (Object.keys(v).some(key => !['profileId', 'requestId', 'approvalId', 'sourceKind', 'monitoring', 'accepted', 'providerVersion', 'observedAtUtc', 'identityConfidence', 'verifiedIdentityKey', 'availableResetCredits', 'resetCreditDetails', 'limits'].includes(key))
     || !isQuotaBinding(v) || !quotaText(v.providerVersion, 80) || !isUtcTimestamp(v.observedAtUtc)
-    || v.identityConfidence !== 'provisional' || v.verifiedIdentityKey !== null || !isResetCreditCount(v.availableResetCredits) || !Array.isArray(v.limits) || v.limits.length > 64) return false;
+    || v.identityConfidence !== 'provisional' || v.verifiedIdentityKey !== null || !isResetCreditCount(v.availableResetCredits) || !isResetCreditDetails(v.resetCreditDetails) || !Array.isArray(v.limits) || v.limits.length > 64) return false;
   const ids = new Set<string>();
   return v.limits.every(value => {
     if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;

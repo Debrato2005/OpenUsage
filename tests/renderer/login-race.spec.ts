@@ -170,7 +170,7 @@ test('renderer fixture preserves the new quota preview after an old connection c
     (window as unknown as FixtureWindow).loginFixture.completions[`quota:${requestId}`]!.resolve({
       profileId, approvalId, requestId, providerVersion: '0.163.0', sourceKind: 'test_fixture',
       observedAtUtc: '2026-10-18T00:00:00.000Z', identityConfidence: 'provisional',
-      verifiedIdentityKey: null, availableResetCredits: null, monitoring: 'stopped', accepted: false,
+      verifiedIdentityKey: null, availableResetCredits: null, resetCreditDetails: null, monitoring: 'stopped', accepted: false,
       limits: [{ limitId: 'codex', limitName: null, reachedType: null, secondary: null,
         primary: { usedPercent: 25, derivedRemainingPercent: 75,
           windowDurationMins: 300, resetsAtUnix: null, label: 'Five-hour' } }],
