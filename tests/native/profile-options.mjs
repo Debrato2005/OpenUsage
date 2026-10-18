@@ -166,8 +166,14 @@ try {
     assert.equal(beforeCancel.filter(value => value.kind === 'request' && value.request.method === 'account/login/cancel').length, 0, 'Disclosure must not cancel a sign-in.');
     assert.equal(await driver.execute('return Boolean(document.querySelector(arguments[0]));', [`[data-profile-id="${other.id}"] [${provider.cancel}]`]), false, 'Cancel must belong only to the selected profile.');
     await capture(`management-${provider.name}-pending-light-360.png`);
+    const focusSnapshot = () => driver.execute('const node=document.activeElement;return {documentFocused:document.hasFocus(),tag:node?.tagName,text:node?.textContent.trim().slice(0,100),disabled:node?.disabled??null,ariaDisabled:node?.getAttribute("aria-disabled"),manage:node?.matches(arguments[0]),cancel:node?.matches(arguments[1])};', [options(), cancel]);
+    const keyboardFocus = { operation: provider.name, afterResize: await focusSnapshot() };
+    await focusWindow();
+    keyboardFocus.afterOwnedWindowFocus = await focusSnapshot();
     await key('\uE004', true);
-    assert.equal(await driver.execute('return document.activeElement?.matches(arguments[0]);', [cancel]), true, 'Reverse Tab must reach the active Cancel while Manage is closed.');
+    keyboardFocus.afterReverseTab = await focusSnapshot();
+    evidence.keyboardFocusChecks ??= []; evidence.keyboardFocusChecks.push(keyboardFocus);
+    assert.equal(keyboardFocus.afterReverseTab.cancel, true, 'Reverse Tab must reach the active Cancel while Manage is closed.');
     await key('\uE007');
     await waitFor(async () => driver.execute('const result=document.querySelector(arguments[0]);return Boolean(result&&result.getClientRects().length&&result.textContent.includes(arguments[1]));', [`${row()} ${provider.result}`, provider.message]), 'visible terminal result');
     await reaped(processRow);
