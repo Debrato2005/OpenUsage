@@ -69,6 +69,10 @@ if MODE in ["auth_notice", "invalid", "mismatch"]:
     time.sleep(60)
     sys.exit(0)
 assert read_request() == {"id": 4, "method": "account/read", "params": {"refreshToken": False}}
+if MODE == "post_hold":
+    (home / "synthetic-quota-post-read-pending").write_text("ready")
+    while not (home / "synthetic-quota-release").exists():
+        time.sleep(0.005)
 if MODE == "late_auth":
     send({"method": "account/updated", "params": {"authMode": "chatgpt"}})
 account(4, final=True)
