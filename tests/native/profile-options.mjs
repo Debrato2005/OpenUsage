@@ -8,6 +8,8 @@ import { fileURLToPath } from 'node:url';
 import { CODEX_SENTINEL, createFixture, stopGroup } from './private-fixture.mjs';
 import { NativeDriver, waitFor } from './webdriver.mjs';
 
+const forwardOnly = process.argv.includes('--forward-tab');
+assert.ok(process.argv.slice(2).every(value => value === '--forward-tab'), 'Only the explicit --forward-tab scope is supported.');
 const harness = dirname(fileURLToPath(import.meta.url));
 const repository = resolve(process.env.OPENUSAGE_NATIVE_SOURCE_ROOT ?? join(harness, '../..'));
 const application = resolve(process.env.OPENUSAGE_NATIVE_BINARY ?? join(repository, 'target/debug/openusage-desktop'));
@@ -19,7 +21,7 @@ const providers = [
   { name: 'quota', file: 'synthetic-quota-provider.py', config: 'synthetic-quota-provider-config.json', log: 'synthetic-quota-observations.jsonl', digest: 'cae93994fd4e64bc63f5c6ac82e973273ad7efbaf20f4055749d99c8c6cbf570', mode: 'pending', stage: 'quota-read-pending', cancel: 'data-quota-cancel', result: '.quota-result', message: 'Quota read stopped.' },
   { name: 'login', file: 'synthetic-login-provider.py', config: 'synthetic-login-provider-config.json', log: 'synthetic-login-observations.jsonl', digest: '25476e3759cbdc1cc74bcd9e46f4a01d1d85ea8ccc34425ddb45a38df27b9859', mode: 'pending', stage: 'challenge-emitted', cancel: 'data-login-cancel', result: '.login-result', message: 'Sign-in stopped' },
 ];
-const evidence = { requirement: 'NATIVE-PROFILE-OPTIONS-001', result: 'failed', startedAt: new Date().toISOString(), scope: 'Actual native disclosure, keyboard and operation-continuity checks using three reviewed static synthetic providers. No real OAuth, existing credential homes, inference, accepted readings, release performance, screen reader or cross-platform qualification.', steps: [], screenshots: [], views: [], cases: [] };
+const evidence = { requirement: forwardOnly ? 'NATIVE-PROFILE-OPTIONS-FORWARD-001' : 'NATIVE-PROFILE-OPTIONS-001', result: 'failed', startedAt: new Date().toISOString(), scope: 'Actual native disclosure, keyboard and operation-continuity checks using three reviewed static synthetic providers. No real OAuth, existing credential homes, inference, accepted readings, release performance, screen reader or cross-platform qualification.', keyboardScope: forwardOnly ? 'Forward navigation only. The separate strict reverse-Tab qualification remains open.' : 'Strict reverse-Tab destination qualification.', steps: [], screenshots: [], views: [], cases: [] };
 let fixture, driver, workspace, profile, other, ownedPid;
 const row = () => `[data-profile-id="${profile.id}"]`;
 const options = () => `${row()} [data-profile-action="options"]`;
@@ -171,28 +173,44 @@ try {
     await focusWindow();
     keyboardFocus.afterOwnedWindowFocus = await focusSnapshot();
     keyboardFocus.rowControls = await driver.execute('const row=document.querySelector(arguments[0]),manage=document.querySelector(arguments[1]);return [...row.querySelectorAll("button,input,textarea,select,a[href],[tabindex]")].map(node=>{const rect=node.getBoundingClientRect(),style=getComputedStyle(node);return {tag:node.tagName,id:node.id,text:node.textContent.trim().slice(0,60),role:node.getAttribute("role"),disabled:node.disabled??null,ariaDisabled:node.getAttribute("aria-disabled"),tabIndex:node.tabIndex,display:style.display,visibility:style.visibility,rect:{x:rect.x,y:rect.y,width:rect.width,height:rect.height},blockedAncestors:[...function*(start){for(let current=start;current;current=current.parentElement)if(current.hasAttribute("hidden")||current.hasAttribute("inert")||current.matches("fieldset[disabled]"))yield current;}(node)].map(ancestor=>({tag:ancestor.tagName,id:ancestor.id,hidden:ancestor.getAttribute("hidden"),inert:ancestor.hasAttribute("inert"),disabled:ancestor.hasAttribute("disabled")})),beforeManage:Boolean(node.compareDocumentPosition(manage)&Node.DOCUMENT_POSITION_FOLLOWING)};});', [row(), options()]);
-    await driver.execute('window.__managementKeyTrace=[];window.__managementKeyListener=event=>{const item={type:event.type,key:event.key,shift:event.shiftKey,phase:event.eventPhase,preventedAtCapture:event.defaultPrevented,target:event.target?.textContent.trim().slice(0,60)};queueMicrotask(()=>window.__managementKeyTrace.push({...item,prevented:event.defaultPrevented,active:document.activeElement?.textContent.trim().slice(0,60)}));};for(const name of ["keydown","keyup","focusin","focusout"])window.addEventListener(name,window.__managementKeyListener,true);return true;');
-    keyboardFocus.nativeReverseTab = JSON.parse(execFileSync('/usr/bin/python3', [join(harness, 'x11-reverse-tab.py'), String(evidence.nativeWindowFocus.windowId)], { env: fixture.environment, encoding: 'utf8', timeout: 10000 }));
-    keyboardFocus.immediatelyAfterReverseTab = await focusSnapshot();
-    await driver.request('POST', `/session/${driver.session}/execute/async`, { script: 'const done=arguments[arguments.length-1];requestAnimationFrame(()=>requestAnimationFrame(()=>done(true)));', args: [] });
-    keyboardFocus.afterTwoFrames = await focusSnapshot();
-    try { await waitFor(async () => driver.execute('return document.activeElement?.matches(arguments[0]);', [cancel]), 'settled keyboard focus on active Cancel', 1000); }
-    catch (error) { keyboardFocus.focusWaitError = error.message; }
-    keyboardFocus.afterReverseTab = await focusSnapshot();
-    keyboardFocus.events = await driver.execute('const events=window.__managementKeyTrace;for(const name of ["keydown","keyup","focusin","focusout"])window.removeEventListener(name,window.__managementKeyListener,true);delete window.__managementKeyTrace;delete window.__managementKeyListener;return events;');
+    await driver.execute('window.__managementKeyTrace=[];window.__managementKeyListener=event=>{window.__managementKeyTrace.push({type:event.type,key:event.key,code:event.code,keyCode:event.keyCode,shift:event.shiftKey,phase:event.eventPhase,listener:"capture",prevented:event.defaultPrevented,target:event.target?.textContent.trim().slice(0,60),active:document.activeElement?.textContent.trim().slice(0,60)});};window.__managementKeyBubble=event=>{window.__managementKeyTrace.push({type:event.type,key:event.key,code:event.code,keyCode:event.keyCode,shift:event.shiftKey,phase:event.eventPhase,listener:"bubble",prevented:event.defaultPrevented,target:event.target?.textContent.trim().slice(0,60),active:document.activeElement?.textContent.trim().slice(0,60)});};for(const name of ["keydown","keyup","focusin","focusout"]){window.addEventListener(name,window.__managementKeyListener,true);window.addEventListener(name,window.__managementKeyBubble,false);}return true;');
+    if (forwardOnly) {
+      keyboardFocus.forwardTraversal = [];
+      for (let count = 0; count < 64; count++) {
+        const previous = await driver.execute('window.__managementPreviousFocus=document.activeElement;return true;');
+        assert.equal(previous, true);
+        await key('\uE004');
+        await waitFor(async () => driver.execute('return document.activeElement!==window.__managementPreviousFocus;'), 'native forward Tab focus change', 1500);
+        const target = await driver.execute('const node=document.activeElement;return {tag:node?.tagName,id:node?.id,text:node?.textContent.trim().slice(0,100),profile:node?.closest("[data-profile-id]")?.getAttribute("data-profile-id"),cancel:node?.matches(arguments[0]),closedManagement:Boolean(node?.closest(".profile-management[data-closed]")),hidden:Boolean(node?.closest("[hidden],[inert]"))};', [cancel]);
+        keyboardFocus.forwardTraversal.push(target);
+        assert.equal(target.closedManagement, false, 'Forward Tab must skip closed maintenance controls.');
+        assert.equal(target.hidden, false, 'Forward Tab must skip hidden or inert controls.');
+        if (target.cancel) break;
+      }
+      keyboardFocus.afterForwardTab = await focusSnapshot();
+    } else {
+      keyboardFocus.nativeReverseTab = JSON.parse(execFileSync('/usr/bin/python3', [join(harness, 'x11-reverse-tab.py'), String(evidence.nativeWindowFocus.windowId)], { env: fixture.environment, encoding: 'utf8', timeout: 10000 }));
+      keyboardFocus.immediatelyAfterReverseTab = await focusSnapshot();
+      await driver.request('POST', `/session/${driver.session}/execute/async`, { script: 'const done=arguments[arguments.length-1];requestAnimationFrame(()=>requestAnimationFrame(()=>done(true)));', args: [] });
+      keyboardFocus.afterTwoFrames = await focusSnapshot();
+      try { await waitFor(async () => driver.execute('return document.activeElement?.matches(arguments[0]);', [cancel]), 'settled keyboard focus on active Cancel', 1000); }
+      catch (error) { keyboardFocus.focusWaitError = error.message; }
+      keyboardFocus.afterReverseTab = await focusSnapshot();
+    }
+    keyboardFocus.events = await driver.execute('const events=window.__managementKeyTrace;for(const name of ["keydown","keyup","focusin","focusout"]){window.removeEventListener(name,window.__managementKeyListener,true);window.removeEventListener(name,window.__managementKeyBubble,false);}delete window.__managementKeyTrace;delete window.__managementKeyListener;delete window.__managementKeyBubble;delete window.__managementPreviousFocus;return events;');
     evidence.keyboardFocusChecks ??= []; evidence.keyboardFocusChecks.push(keyboardFocus);
-    assert.ok(keyboardFocus.events.some(event => event.type === 'keydown' && event.key === 'Tab' && event.shift === true), 'Actual native events must identify Shift+Tab correctly.');
-    assert.equal(keyboardFocus.afterReverseTab.cancel, true, 'Reverse Tab must reach the active Cancel while Manage is closed.');
+    assert.ok(keyboardFocus.events.some(event => event.type === 'keydown' && (event.code === 'Tab' || event.keyCode === 9) && event.shift === !forwardOnly), 'Actual native events must identify physical Tab with the requested modifier.');
+    assert.equal((forwardOnly ? keyboardFocus.afterForwardTab : keyboardFocus.afterReverseTab).cancel, true, `${forwardOnly ? 'Forward' : 'Reverse'} Tab must reach the active Cancel while Manage is closed.`);
     await key('\uE007');
     await waitFor(async () => driver.execute('const result=document.querySelector(arguments[0]);return Boolean(result&&result.getClientRects().length&&result.textContent.includes(arguments[1]));', [`${row()} ${provider.result}`, provider.message]), 'visible terminal result');
     await reaped(processRow);
     assert.deepEqual(await liveHashes(), before, 'Provider read/cancel and disclosure must preserve database, WAL, and key bytes.');
-    evidence.cases.push({ operation: provider.name, selectedProfileId: profile.id, processId: processRow.pid, processGroup: processRow.processGroup, disclosurePreservedOwnedProcess: true, closedControlsHidden: true, actualKeyboardToggle: true, reverseTabReachesActiveCancel: true, cancelVisibleOutsidePanel: true, keyboardCancelReapedProcess: true, storageHashesPreserved: true });
+    evidence.cases.push({ operation: provider.name, selectedProfileId: profile.id, processId: processRow.pid, processGroup: processRow.processGroup, disclosurePreservedOwnedProcess: true, closedControlsHidden: true, actualKeyboardToggle: true, ...(forwardOnly ? { forwardTabReachesActiveCancel: true } : { reverseTabReachesActiveCancel: true }), cancelVisibleOutsidePanel: true, keyboardCancelReapedProcess: true, storageHashesPreserved: true });
   }
   await capture('management-idle-light-desktop.png', 1280); await capture('management-idle-light-360.png'); await manage(true); await capture('management-expanded-light-360.png'); await capture('management-expanded-light-text200-360.png', 360, 2); await manage(false);
   assert.equal(await readFile(join(fixture.dirs.codex, 'synthetic-fixture.txt'), 'utf8'), CODEX_SENTINEL); assert.deepEqual(await readdir(fixture.dirs.codex), ['synthetic-fixture.txt']);
   for (const provider of providers) { assert.equal(await hash(provider.executable), provider.digest); for (const start of (await observations(provider)).filter(value => value.kind === 'start')) { assert.equal(start.environment.CODEX_HOME, join(workspace, 'profiles', profile.id)); assert.deepEqual(start.unexpectedEnvironmentKeys, []); await reaped(start); } }
-  evidence.keyboardMethod = { reverseTab: 'Owned private X11 XTEST Shift+Tab with observed DOM Tab/shiftKey events. WebDriver still supplies Space, Enter and ordinary pointer input.', reference: 'https://xorg.freedesktop.org/archive/X11R7.7/doc/libXtst/xtestlib.html', qualification: 'Earlier preserved receipts observed WebKitGTK 2.52.6 WebDriver Shift+Tab as Unidentified with no default prevention. No exact upstream issue is claimed.' };
+  evidence.keyboardMethod = forwardOnly ? { forwardTab: 'Actual WebDriver Tab from Manage, bounded to 64 visible focus stops, then Enter on the exact selected Cancel.', qualification: 'This scope does not pass or replace the preserved strict reverse-Tab test.' } : { reverseTab: 'Owned private X11 XTEST Shift+Tab with observed physical Tab code and shiftKey events. WebDriver supplies Space, Enter and pointer input.', reference: 'https://xorg.freedesktop.org/archive/X11R7.7/doc/libXtst/xtestlib.html', qualification: 'WebKitGTK may expose ISO_Left_Tab as Unidentified. The exact Cancel destination remains mandatory. Plain native buttons traverse despite that key string; no platform-only root cause is claimed.' };
   evidence.steps.push({ threeIdleActions: true, explicitSourceConsentThroughVisibleRoleCheckbox: true, inspectionExecutesNothing: true, maintenanceDisclosurePreservesAllThreeOperationKinds: true, noExistingCredentialHomes: true });
   assert.equal(await hash(application), evidence.application.sha256);
   for (const [path, digest] of Object.entries(evidence.sourceHashes)) assert.equal(await hash(join(repository, path)), digest, `Source drift: ${path}`);
