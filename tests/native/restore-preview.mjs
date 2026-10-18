@@ -16,7 +16,7 @@ const output = resolve(process.env.OPENUSAGE_NATIVE_EVIDENCE ?? join(tmpdir(), `
 const passphrase = 'OpenUsage synthetic preview workspace 2026';
 const password = 'OpenUsage synthetic preview archive 2026';
 const hash = async (path) => createHash('sha256').update(await readFile(path)).digest('hex');
-const evidence = { requirement: 'NATIVE-RESTORE-PREVIEW-001', startedAt: new Date().toISOString(), result: 'failed', scope: 'Actual GUI state A export, state B changes, authenticated preview only after encrypted checkpoint, read-only Rust checkpoint verification, cancel and normal window-close restart. Synthetic homes only. No apply, undo, crash-durability, forced-exit zeroization, provider login, or cross-platform acceptance.', platform: { os: platform(), release: release() }, screenshots: [], steps: [], checkpoints: [], views: [] };
+const evidence = { requirement: 'NATIVE-RESTORE-PREVIEW-001', startedAt: new Date().toISOString(), result: 'failed', scope: 'Actual GUI state A export, state B changes, authenticated preview only after encrypted checkpoint, read-only Rust checkpoint verification, cancel and genuine X11 WM_DELETE_WINDOW close and restart. The current UI exposes an unchecked confirmation and disabled Apply; this regression never confirms or applies. Synthetic homes only. No apply, undo, crash-durability, forced-exit zeroization, provider login, or cross-platform acceptance.', platform: { os: platform(), release: release() }, screenshots: [], steps: [], checkpoints: [], views: [], nativeCloses: [] };
 let fixture, driver, workspace, checkpointDirectory, archive, fileName, sequence = 0;
 const markers = new Map();
 async function click(text) { const node = await driver.execute('return [...document.querySelectorAll("button")].find(node=>node.textContent.trim()===arguments[0]);', [text]); assert.ok(node, `Missing button: ${text}`); await driver.request('POST', `/session/${driver.session}/element/${node['element-6066-11e4-a52e-4f735466cecf']}/click`, {}); }
@@ -44,9 +44,9 @@ async function rejected(command, args, error) { assert.deepEqual(await driver.in
 async function theme(value) { await driver.selectVisibleOption('#theme', { system: 'System', light: 'Light', dark: 'Dark' }[value]); await waitFor(async () => await driver.execute('return !document.querySelector("#theme").disabled&&document.documentElement.dataset.theme===arguments[0];', [value]), 'appearance saved'); }
 async function create(label) { await driver.type('#profile-label', label); await driver.click('.profile-create-form button[type=submit]'); await waitFor(async () => await driver.execute('const input=document.querySelector("#profile-label");return !input.disabled&&input.value==="";'), 'profile form ready'); return (await state()).profiles.find(profile => profile.label === label); }
 async function open() { driver = new NativeDriver(application, fixture.environment, join(output, `driver-${++sequence}.log`)); await driver.start(); }
-async function unlock() { await driver.type('#workspace-passphrase', passphrase); await driver.click('.unlock-form button[type=submit]'); await waitFor(async () => (await driver.invoke('bootstrap')).value?.storage === 'ready', 'workspace unlocked'); }
-async function inspect() { await click('Inspect a backup'); await waitFor(async () => Boolean(await driver.execute('return document.querySelector("#backup-file")&&!document.querySelector("#backup-file").disabled;')), 'inspection catalog ready'); await driver.click(`#backup-file option[value="${fileName}"]`); await driver.type('#backup-inspection-password', password); await driver.click('.backup-inspection-form button[type=submit]'); await waitFor(async () => Boolean(await driver.execute('return document.querySelector(".backup-inspection-receipt");')), 'authenticated inspection'); }
-async function prepareGui() { await click('Preview restore'); await waitFor(async () => Boolean(await driver.execute('return document.querySelector("#restore-preview-password");')), 'preview password form'); await driver.type('#restore-preview-password', password); await driver.click('.restore-preview-form button[type=submit]'); await waitFor(async () => Boolean(await driver.execute('return document.querySelector(".restore-preview");')), 'checkpoint-backed restore preview', 30000); await waitFor(async () => Boolean(await driver.execute('return document.activeElement?.matches(".restore-preview");')), 'preview focus'); const ids = await driver.execute('const preview=document.querySelector(".restore-preview");return{previewId:preview.dataset.previewId,checkpointId:preview.dataset.checkpointId};'); assert.match(ids.previewId, /^[0-9a-f-]{36}$/); assert.match(ids.checkpointId, /^[0-9a-f-]{36}$/); return ids; }
+async function unlock() { await waitFor(async()=>await driver.execute('const field=document.querySelector("#workspace-passphrase");return Boolean(field&&!field.disabled);'),'enabled workspace passphrase field'); await driver.type('#workspace-passphrase', passphrase); await driver.click('.unlock-form button[type=submit]'); await waitFor(async () => (await driver.invoke('bootstrap')).value?.storage === 'ready', 'workspace unlocked'); }
+async function inspect() { await click('Inspect a backup'); await waitFor(async () => Boolean(await driver.execute('return document.querySelector("#backup-file")&&!document.querySelector("#backup-file").disabled;')), 'inspection catalog ready'); await driver.selectVisibleOption('#backup-file', fileName); await driver.type('#backup-inspection-password', password); await driver.click('.backup-inspection-form button[type=submit]'); await waitFor(async () => Boolean(await driver.execute('return document.querySelector(".backup-inspection-receipt");')), 'authenticated inspection'); }
+async function prepareGui() { await click('Preview restore'); await waitFor(async () => Boolean(await driver.execute('return document.querySelector("#restore-preview-password");')), 'preview password form'); await driver.type('#restore-preview-password', password); await driver.click('.restore-preview-form button[type=submit]'); await waitFor(async () => Boolean(await driver.execute('return document.querySelector(".restore-preview");')), 'checkpoint-backed restore preview', 30000); await waitFor(async () => Boolean(await driver.execute('return document.activeElement?.matches(".restore-preview");')), 'preview focus'); await waitFor(async()=>await driver.execute('const checkbox=document.querySelector("#restore-confirmed");return checkbox?.matches("button[role=checkbox]")&&!checkbox.disabled;'),'enabled unchecked restore confirmation'); assert.deepEqual(await driver.execute('const checkbox=document.querySelector("#restore-confirmed"),submit=document.querySelector(".restore-confirmation-form button[type=submit]");return{tag:checkbox.tagName,role:checkbox.getAttribute("role"),checked:checkbox.getAttribute("aria-checked"),applyDisabled:submit.disabled};'),{tag:'BUTTON',role:'checkbox',checked:'false',applyDisabled:true}); const ids = await driver.execute('const preview=document.querySelector(".restore-preview");return{previewId:preview.dataset.previewId,checkpointId:preview.dataset.checkpointId};'); assert.match(ids.previewId, /^[0-9a-f-]{36}$/); assert.match(ids.checkpointId, /^[0-9a-f-]{36}$/); return ids; }
 async function verifyCheckpoint(id, expected) { const path = join(checkpointDirectory, `${id}.sqlite`); const metadata = await lstat(path); assert.equal(metadata.mode & 0o777, 0o600); assert.equal((await lstat(checkpointDirectory)).mode & 0o777, 0o700); const before = await hash(path); const result = JSON.parse(execFileSync(verifier, [path, join(workspace, 'database-key.v1')], { input: JSON.stringify({ passphrase, expected }), encoding: 'utf8', env: fixture.environment, cwd: fixture.root, timeout: 30000, maxBuffer: 1024 * 1024 })); assert.equal(result.verified, true); assert.equal(result.readOnly, true); assert.equal(result.exactStateMatched, true); assert.equal(await hash(path), before); await copyFile(path, join(output, `${id}.sqlite`)); await chmod(join(output, `${id}.sqlite`), 0o600); evidence.checkpoints.push({ id, sha256: before, fileBytes: String(metadata.size), verification: result }); }
 async function capture(name, appearance, scale = 1, width = 360, height = 800) {
     for (let attempt = 0; attempt < 3; attempt++) {
@@ -59,7 +59,7 @@ async function capture(name, appearance, scale = 1, width = 360, height = 800) {
     if (scale !== 1)
         await driver.execute('window.__previewFontRestore=[...document.querySelectorAll("body *")].map(node=>({node,style:node.getAttribute("style"),size:getComputedStyle(node).fontSize}));for(const item of window.__previewFontRestore)item.node.style.fontSize=`${parseFloat(item.size)*arguments[0]}px`;return true;', [scale]);
     await driver.execute('document.querySelector(".restore-preview").scrollIntoView({block:"center"});return true;');
-    const view = await driver.execute('const panel=document.querySelector(".restore-preview");return{width:innerWidth,height:innerHeight,scrollWidth:document.scrollingElement.scrollWidth,rows:[...panel.querySelectorAll("tbody tr")].map(row=>[...row.children].map(cell=>cell.querySelector("[data-restore-count]")?.textContent??cell.textContent)),overflow:[panel,...panel.querySelectorAll("*")].filter(node=>{const hiddenHeader=node.closest("thead");if(hiddenHeader&&getComputedStyle(hiddenHeader).clipPath!=="none")return false;const r=node.getBoundingClientRect();return r.width>1&&r.height>1&&(r.left< -1||r.right>innerWidth+1||((getComputedStyle(node).overflowX==="hidden"||getComputedStyle(node).overflowX==="clip")&&node.scrollWidth>node.clientWidth+1));}).map(node=>node.tagName),text:panel.textContent,destructive:[...panel.querySelectorAll("button,a")].some(node=>/^(apply|replace|undo|restore now)/i.test(node.textContent.trim()))};');
+    const view = await driver.execute('const panel=document.querySelector(".restore-preview");return{width:innerWidth,height:innerHeight,scrollWidth:document.scrollingElement.scrollWidth,rows:[...panel.querySelectorAll("tbody tr")].map(row=>[...row.children].map(cell=>cell.querySelector("[data-restore-count]")?.textContent??cell.textContent)),overflow:[panel,...panel.querySelectorAll("*")].filter(node=>{const hiddenHeader=node.closest("thead");if(hiddenHeader&&getComputedStyle(hiddenHeader).clipPath!=="none")return false;const r=node.getBoundingClientRect();return r.width>1&&r.height>1&&(r.left< -1||r.right>innerWidth+1||((getComputedStyle(node).overflowX==="hidden"||getComputedStyle(node).overflowX==="clip")&&node.scrollWidth>node.clientWidth+1));}).map(node=>node.tagName),text:panel.textContent,confirmation:{tag:panel.querySelector("#restore-confirmed").tagName,role:panel.querySelector("#restore-confirmed").getAttribute("role"),checked:panel.querySelector("#restore-confirmed").getAttribute("aria-checked"),applyDisabled:panel.querySelector(".restore-confirmation-form button[type=submit]").disabled,applyText:panel.querySelector(".restore-confirmation-form button[type=submit]").textContent.trim()},enabledDestructive:[...panel.querySelectorAll("button,a")].some(node=>!node.disabled&&/^(apply|replace|undo|restore records|restore now)/i.test(node.textContent.trim()))};');
     assert.equal(view.width, width);
     assert.equal(view.height, height);
     assert.ok(view.scrollWidth <= width + 1);
@@ -73,18 +73,23 @@ async function capture(name, appearance, scale = 1, width = 360, height = 800) {
     assert.deepEqual(semantics.rows, Array.from({length:3}, () => ({role:'row',cells:['rowheader','cell','cell'],rowScope:'row'})));
     assert.deepEqual(view.rows, [['Active profiles', '2', '2'], ['Archived profiles', '1', '0'], ['Accounts', '0', '0']]);
     assert.match(view.text, /Recovery checkpoint saved on this device with your workspace key/);
-    assert.match(view.text, /Applying this backup is not available/);
-    assert.equal(view.destructive, false);
+    assert.match(view.text, /Restoring replaces your current application records/);
+    assert.deepEqual(view.confirmation, { tag: 'BUTTON', role: 'checkbox', checked: 'false', applyDisabled: true, applyText: 'Restore records' });
+    assert.equal(view.enabledDestructive, false);
     await driver.screenshot(join(output, name));
     evidence.screenshots.push(name);
     evidence.views.push({ name, appearance, textScale: scale, scalingScope: 'Test-side CSS font sizes; not OS or display zoom.', accessibilityScope: 'Native DOM roles and header associations; no screen-reader or platform accessibility-tree qualification.', semantics, headerWords, ...view });
-    await driver.execute('document.querySelector(".restore-preview button").scrollIntoView({block:"center"});return true;');
-    const reachable = await driver.execute('const button=document.querySelector(".restore-preview button"),rect=button.getBoundingClientRect();return !button.disabled&&rect.top>=0&&rect.bottom<=innerHeight&&rect.left>=0&&rect.right<=innerWidth;');
+    await driver.execute('document.querySelector(".restore-confirmation-form .restore-actions button[type=button]").scrollIntoView({block:"center"});return true;');
+    const reachable = await driver.execute('const button=document.querySelector(".restore-confirmation-form .restore-actions button[type=button]"),rect=button.getBoundingClientRect();return !button.disabled&&rect.top>=0&&rect.bottom<=innerHeight&&rect.left>=0&&rect.right<=innerWidth;');
     assert.equal(reachable, true);
     if (scale !== 1) {
+        await focusOwnedWindow();
         await driver.execute('document.querySelector(".restore-preview").focus();return true;');
         await driver.request('POST', `/session/${driver.session}/actions`, { actions: [{ type: 'key', id: 'preview-layout-keyboard', actions: [{ type: 'keyDown', value: '\uE004' }, { type: 'keyUp', value: '\uE004' }] }] });
-        assert.equal(await driver.execute('return document.activeElement===document.querySelector(".restore-preview button");'), true, 'The close control must be reachable by keyboard with enlarged text.');
+        assert.equal(await driver.execute('return document.activeElement?.id;'), 'restore-confirmed', 'Tab must reach the visible unchecked confirmation.');
+        assert.equal(await driver.execute('return document.activeElement.getAttribute("aria-checked");'), 'false');
+        await driver.request('POST', `/session/${driver.session}/actions`, { actions: [{ type: 'key', id: 'preview-layout-keyboard', actions: [{ type: 'keyDown', value: '\uE004' }, { type: 'keyUp', value: '\uE004' }] }] });
+        assert.equal(await driver.execute('return document.activeElement===document.querySelector(".restore-confirmation-form .restore-actions button[type=button]");'), true, 'Tab must skip disabled Apply and reach Close preview.');
     }
     if (scale !== 1)
         await driver.execute('for(const item of window.__previewFontRestore){if(item.style===null)item.node.removeAttribute("style");else item.node.setAttribute("style",item.style);}delete window.__previewFontRestore;return true;');
@@ -102,6 +107,10 @@ async function appPid() { const queue = [driver.child.pid]; for (let count = 0; 
             throw error;
     }
 } throw new Error('Cannot identify the owned desktop child.'); }
+async function focusOwnedWindow() {
+    const pid = await appPid(); const receipt = JSON.parse(execFileSync('/usr/bin/python3', [join(harness, 'x11-close.py'), String(pid), 'focus'], { env: fixture.environment, encoding: 'utf8', timeout: 10000 }));
+    (evidence.nativeFocus ??= []).push(receipt); await waitFor(async () => await driver.execute('return document.hasFocus();'), 'owned native document focus');
+}
 await mkdir(output, { recursive: true, mode: 0o700 });
 process.once('exit', () => { driver?.kill('SIGKILL'); stopGroup(fixture?.bus, 'SIGKILL'); });
 try {
@@ -115,7 +124,7 @@ try {
     for (const path of [...sources, 'Cargo.toml', 'Cargo.lock', 'crates/openusage-storage/Cargo.toml', 'crates/openusage-import/Cargo.toml', 'apps/desktop/src-tauri/Cargo.toml', 'apps/desktop/src-tauri/tauri.conf.json', 'apps/desktop/src-tauri/build.rs', 'apps/desktop/src-tauri/capabilities/main-window.json'])
         evidence.sourceHashes[path] = await hash(join(repository, path));
     evidence.harnessHashes = {};
-    for (const path of ['restore-preview.mjs', 'private-fixture.mjs', 'webdriver.mjs', 'backup-verifier/Cargo.toml', 'backup-verifier/Cargo.lock', 'backup-verifier/src/bin/openusage-native-checkpoint-verifier.rs', 'backup-verifier/src/bin/openusage-native-backup-fixtures.rs'])
+    for (const path of ['restore-preview.mjs', 'x11-close.py', 'private-fixture.mjs', 'webdriver.mjs', 'backup-verifier/Cargo.toml', 'backup-verifier/Cargo.lock', 'backup-verifier/src/bin/openusage-native-checkpoint-verifier.rs', 'backup-verifier/src/bin/openusage-native-backup-fixtures.rs'])
         evidence.harnessHashes[path] = await hash(join(harness, path));
     fixture = await createFixture('restore-preview');
     workspace = dirname(fixture.database);
@@ -125,7 +134,7 @@ try {
     for (const command of ['prepare_restore_preview', 'cancel_restore_preview'])
         await rejected(command, [], 'invalid_arguments');
     await rejected('cancel_restore_preview', { previewId: '../unsafe' }, 'invalid_arguments');
-    await driver.type('#workspace-passphrase', passphrase);
+    await waitFor(async()=>await driver.execute('const field=document.querySelector("#workspace-passphrase");return Boolean(field&&!field.disabled);'),'enabled workspace passphrase field'); await driver.type('#workspace-passphrase', passphrase);
     await driver.type('#workspace-confirmation', passphrase);
     await driver.click('.unlock-form button[type=submit]');
     await waitFor(async () => (await driver.invoke('bootstrap')).value?.storage === 'ready', 'workspace created');
@@ -143,11 +152,11 @@ try {
     [fileName] = await readdir(directory);
     archive = join(directory, fileName);
     const archiveHash = await hash(archive);
-    await driver.click(`[data-profile-id="${first.id}"] [data-profile-action="rename"]`);
+    await driver.openProfileOptions(first.id); await driver.click(`[data-profile-id="${first.id}"] [data-profile-action="rename"]`);
     await driver.type('.profile-rename-form input', 'Preview renamed first');
     await driver.click('.profile-rename-form button[type=submit]');
     await waitFor(async () => !(await driver.execute('return Boolean(document.querySelector(".profile-rename-form"));')), 'profile renamed');
-    await driver.click(`[data-profile-id="${second.id}"] [data-profile-action="archive"]`);
+    await driver.openProfileOptions(second.id); await driver.click(`[data-profile-id="${second.id}"] [data-profile-action="archive"]`);
     await waitFor(async () => (await state()).profiles.find(profile => profile.id === second.id)?.archived === true, 'profile archived');
     await waitFor(async () => await driver.execute('return !document.querySelector("#profile-label").disabled;'), 'profile form enabled');
     await create('Preview third live only');
@@ -225,7 +234,7 @@ try {
     const retained = await driver.invoke('prepare_restore_preview', { fileName, password });
     assert.equal(retained.ok, true);
     assert.deepEqual(Object.keys(retained.value).sort(), ['checkpoint', 'current', 'fileName', 'incoming', 'previewId', 'restoreAvailable']);
-    assert.equal(retained.value.restoreAvailable, false);
+    assert.equal(retained.value.restoreAvailable, true);
     assert.deepEqual(retained.value.current, { activeProfiles: 2, archivedProfiles: '1', accounts: '0' });
     assert.deepEqual(retained.value.incoming, { activeProfiles: 2, archivedProfiles: '0', accounts: '0' });
     const count = (await checkpoints()).length;
@@ -236,8 +245,8 @@ try {
     const exitPreview = await prepareGui();
     await verifyCheckpoint(exitPreview.checkpointId, stateB);
     const pid = await appPid();
-    const remaining = await driver.request('DELETE', `/session/${driver.session}/window`);
-    assert.deepEqual(remaining, []);
+    const closeReceipt = JSON.parse(execFileSync('/usr/bin/python3', [join(harness, 'x11-close.py'), String(pid)], { env: fixture.environment, encoding: 'utf8', timeout: 10000 }));
+    evidence.nativeCloses.push({ receipt: closeReceipt, scope: 'Owned WM_DELETE_WINDOW while automation remains alive; no cross-close DB byte equality or RAM-forensics claim.' });
     await waitFor(async () => { try {
         await readlink(`/proc/${pid}/exe`);
         return false;
@@ -250,7 +259,7 @@ try {
     driver.session = undefined;
     await driver.stop();
     driver = undefined;
-    evidence.steps.push({ normalWindowClose: true, ownedDesktopExitedBeforeDriverCleanup: true, noForcedExitZeroizationClaim: true });
+    evidence.steps.push({ genuineNativeWindowClose: true, ownedDesktopExitedBeforeDriverCleanup: true, noForcedExitZeroizationClaim: true });
     await open();
     await unlock();
     await unchanged(stateB);
@@ -270,7 +279,7 @@ try {
     for (const item of evidence.checkpoints)
         assert.equal(await hash(join(checkpointDirectory, `${item.id}.sqlite`)), item.sha256);
     assert.deepEqual(await readdir(fixture.dirs.codex), ['synthetic-fixture.txt']);
-    evidence.steps.push({ cancelPreservesLiveStateAndKey: true, liveThemeWriteInvalidatesCache: true, failedReplacementClearsPriorCache: true, restartPreservesExactStateB: true, encryptedCheckpointsPersist: true, retainedPreviewAbsentAfterRestart: true, noRetainedStaging: true, syntheticHomesUnchanged: true });
+    evidence.steps.push({ uncheckedConfirmationAndDisabledApplyThroughout: true, noApplyPerformed: true, cancelPreservesLiveStateAndKey: true, liveThemeWriteInvalidatesCache: true, failedReplacementClearsPriorCache: true, restartPreservesExactStateB: true, encryptedCheckpointsPersist: true, retainedPreviewAbsentAfterRestart: true, noRetainedStaging: true, syntheticHomesUnchanged: true });
     for (const item of [evidence.application, evidence.verifier, evidence.generator])
         assert.equal(await hash(item.path), item.sha256);
     for (const [path, digest] of Object.entries(evidence.sourceHashes))
