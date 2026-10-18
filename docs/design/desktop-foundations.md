@@ -1,6 +1,6 @@
 # Desktop design foundations
 
-Updated: October 18, 2026. These foundations cover the native workspace, account overview, and backup controls. Provider charts and populated account views need further design and native verification as those features become available.
+Updated: October 18, 2026. These foundations cover the native workspace, account overview, backup controls, and provisional quota preview. The user selected coss/ui for all components. The [adoption record](coss-ui-adoption.md) controls the incremental migration. Charts and accepted history need further native qualification.
 
 ## Structure and interaction
 
@@ -62,3 +62,9 @@ Native review found an internally clipped URL at enlarged text size. A wrapped r
 Find Codex replaces manual path entry as the first setup action. A single result opens source review. Multiple results use native radio controls and require Review. No results open manual entry with path focus. A later successful search closes that fallback. The source review and initially unchecked approval remain mandatory.
 
 Long paths wrap in the choice list. Size and checksum remain under Executable details. Seven refined native captures cover the empty state, both themes, narrow review, keyboard selection, source refusal, and 200% text. The large-text list uses the page scroll area. See `../evidence/native-provider-discovery/`. The UI explains metadata checks without exposing provider or authentication internals.
+
+## Quota preview and coss controls
+
+The first coss slice replaces common controls across existing screens and adds a labeled remaining-capacity meter. Profile actions precede the preview. Remaining capacity and its tabular percentage sit above an eight-pixel track. Used percentage and expected reset remain below. Missing data stays explicit. Limit and source details use progressive disclosure.
+
+Native review fixed the percentage wrapping at 200% text. Seven final quota captures passed visual and geometry checks. Native sign-in and backup-content regressions checked the visible coss control wrappers, password clearing, selected read-only text, and error/focus states. These checks qualify the first shared-control slice. Selection controls, disclosures, feedback components, and record views still need migration. See `../evidence/native-quota-preview/` and `../evidence/native-quota-verification/`.
