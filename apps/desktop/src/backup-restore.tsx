@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
+import { Checkbox } from './components/ui/checkbox';
+import { Field, FieldLabel, FieldDescription } from './components/ui/field';
 import { invoke, type CheckpointRestorePreview, type RestorePreview, type RestoreReceipt } from './contracts';
 
 type Props = { fileName: string; busy: boolean; setBusy: (busy: boolean) => void; onRestored: () => Promise<void> };
@@ -191,9 +193,11 @@ function RestoreRecordsPreview({ source, busy, setBusy, onRestored }: Omit<Props
       <h4>Prepare a restore preview</h4>
       <p className="restore-help">OpenUsage will check the selected records and save an encrypted checkpoint of your current workspace before showing the preview.</p>
       <form className="unlock-form restore-preview-form" noValidate onSubmit={event => { event.preventDefault(); void prepare(); }}>
-        {source.kind === 'archive' && <><label htmlFor="restore-preview-password">Backup password</label>
-        <Input nativeInput ref={passwordInput} id="restore-preview-password" name="restore-preview-password" type="password" autoComplete="current-password" required maxLength={1024} value={password} disabled={busy} aria-invalid={!!failure?.password} aria-describedby={`restore-preview-password-help${failure?.password ? ' restore-preview-error' : ''}`} onChange={event => { setPassword(event.target.value); if (failure?.password) setFailure(null); }} />
-        <p id="restore-preview-password-help">Enter the password used when this backup was created.</p></>}
+        {source.kind === 'archive' && <Field className="w-full" disabled={busy} invalid={!!failure?.password}>
+          <FieldLabel htmlFor="restore-preview-password">Backup password</FieldLabel>
+          <Input ref={passwordInput} id="restore-preview-password" name="restore-preview-password" type="password" autoComplete="current-password" required maxLength={1024} value={password} disabled={busy} aria-invalid={!!failure?.password} aria-describedby={`restore-preview-password-help${failure?.password ? ' restore-preview-error' : ''}`} onChange={event => { setPassword(event.target.value); if (failure?.password) setFailure(null); }} />
+          <FieldDescription id="restore-preview-password-help">Enter the password used when this backup was created.</FieldDescription>
+        </Field>}
         <div className="restore-actions"><Button className="primary-button" type="submit" disabled={busy}>{preparing ? 'Preparing preview…' : 'Prepare preview'}</Button><Button variant="ghost" className="text-button" type="button" disabled={busy} onClick={() => { void close(); }}>Cancel</Button></div>
       </form>
     </>}
@@ -210,7 +214,9 @@ function RestoreRecordsPreview({ source, busy, setBusy, onRestored }: Omit<Props
       <p>Recovery checkpoint saved on this device with your workspace key.</p>
       <p id="restore-replacement-help" className="restore-help">Restoring replaces your current application records and saved appearance. Monitoring will stay stopped. Restored profiles will need sign-in. OpenUsage will keep existing profile homes.</p>
       <form className="restore-confirmation-form" onSubmit={event => { event.preventDefault(); void apply(); }}>
-        <label className="backup-selection"><input id="restore-confirmed" name="restore-confirmed" type="checkbox" required checked={confirmed} disabled={busy} aria-describedby="restore-replacement-help" onChange={event => setConfirmed(event.target.checked)} />I approve replacing my current application records.</label>
+        <Field disabled={busy}>
+          <FieldLabel className="backup-selection"><Checkbox id="restore-confirmed" name="restore-confirmed" nativeButton render={<button type="button" />} required checked={confirmed} disabled={busy} aria-describedby="restore-replacement-help" onCheckedChange={next => setConfirmed(next)} />I approve replacing my current application records.</FieldLabel>
+        </Field>
         <div className="restore-actions"><Button className="primary-button" type="submit" disabled={busy || !confirmed}>{restoring ? 'Restoring records…' : 'Restore records'}</Button><Button variant="ghost" className="text-button" type="button" disabled={busy} onClick={() => { void close(); }}>Close preview</Button></div>
       </form>
     </div>}
