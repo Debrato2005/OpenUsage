@@ -73,6 +73,9 @@ async function openSyntheticProfile(page: Page) {
           value = { profileId, approvalId, requestId: attempts[0], sourceKind: 'test_fixture',
             monitoring: 'stopped', accepted: false };
           break;
+        case 'cancel_profile_quota_read':
+          value = await deferred(fixture.cancellations, `quota:${String(args.requestId)}`);
+          break;
         case 'complete_profile_quota_read':
           value = await deferred(fixture.completions, `quota:${String(args.requestId)}`);
           break;
@@ -189,4 +192,60 @@ test('renderer fixture preserves the new quota preview after an old connection c
   await expect(preview.getByText('75%', { exact: true })).toBeVisible();
   await expect(page.locator(`[data-provider-profile="${profileId}"]`)).toHaveCount(0);
   await expect(page.getByRole('alert')).toHaveCount(0);
+});
+
+
+async function startQuota(page: Page) {
+  await page.evaluate(requestId => { delete (window as unknown as FixtureWindow).loginFixture.completions[`quota:${requestId}`]; }, attempts[0]!);
+  await page.getByRole('button', { name: 'Read quotas', exact: true }).click();
+  await expect(page.locator(`[data-quota-cancel="${profileId}"]`)).toBeFocused();
+  await expect.poll(() => page.evaluate(requestId => Boolean((window as unknown as FixtureWindow).loginFixture.completions[`quota:${requestId}`]), attempts[0]!)).toBe(true);
+}
+async function publishQuota(page: Page, remaining: number, observedAtUtc: string) {
+  await page.evaluate(({ profileId, approvalId, requestId, remaining, observedAtUtc }) => {
+    (window as unknown as FixtureWindow).loginFixture.completions[`quota:${requestId}`]!.resolve({
+      profileId, approvalId, requestId, providerVersion: '0.163.0', sourceKind: 'test_fixture', observedAtUtc,
+      identityConfidence: 'provisional', verifiedIdentityKey: null, availableResetCredits: null, resetCreditDetails: null, monitoring: 'stopped', accepted: false,
+      limits: [{ limitId: 'codex', limitName: null, reachedType: null, monthlyCreditLimit: null, spendControlReached: null, secondary: null,
+        primary: { usedPercent: 100 - remaining, derivedRemainingPercent: remaining, windowDurationMins: 300, resetsAtUnix: null, label: 'Five-hour' } }],
+    });
+  }, { profileId, approvalId, requestId: attempts[0]!, remaining, observedAtUtc });
+}
+
+test('renderer retains the previous unsaved quota through pending, invalid response and cancellation, then replaces it on success', async ({ page }) => {
+  await openSyntheticProfile(page);
+  const root = page.locator(`[data-quota-profile="${profileId}"]`);
+  await startQuota(page); await publishQuota(page, 75, '2026-10-18T00:00:00.000Z');
+  await expect(root).toBeFocused(); await expect(root.getByText('75%', { exact: true })).toBeVisible();
+  await expect(root.locator('[data-quota-previous]')).toHaveCount(0);
+  await startQuota(page);
+  await expect(root.getByText('75%', { exact: true })).toBeVisible();
+  await expect(root.locator('[data-quota-previous]')).toHaveText('Previous reading');
+  await expect(root.getByText('Unverified identity · Not saved', { exact: true })).toBeVisible();
+  await page.evaluate(requestId => { (window as unknown as FixtureWindow).loginFixture.completions[`quota:${requestId}`]!.resolve({ accepted: false }); }, attempts[0]!);
+  await expect(root).toBeFocused(); await expect(root).toHaveAttribute('role', 'alert');
+  await expect(root.getByText('OpenUsage could not complete this request. Review the executable and try again.', { exact: true })).toBeVisible();
+  await expect(root.getByText('75%', { exact: true })).toBeVisible();
+  await expect(root.locator('.quota-observed time')).toHaveAttribute('datetime', '2026-10-18T00:00:00.000Z');
+  await startQuota(page); await page.locator(`[data-quota-cancel="${profileId}"]`).click();
+  await expect.poll(() => page.evaluate(requestId => Boolean((window as unknown as FixtureWindow).loginFixture.cancellations[`quota:${requestId}`]), attempts[0]!)).toBe(true);
+  await page.evaluate(requestId => { const fixture = (window as unknown as FixtureWindow).loginFixture; fixture.cancellations[`quota:${requestId}`]!.resolve({ cancelled: true }); fixture.completions[`quota:${requestId}`]!.reject('provider_quota_cancelled'); }, attempts[0]!);
+  await expect(root).toBeFocused(); await expect(root).toHaveAttribute('role', 'status');
+  await expect(root.getByText('Quota read stopped.', { exact: true })).toBeVisible();
+  await expect(root.getByText('75%', { exact: true })).toBeVisible();
+  await expect(root.locator('[data-quota-previous]')).toBeVisible();
+  await startQuota(page); await publishQuota(page, 60, '2026-10-18T00:01:00.000Z');
+  await expect(root).toBeFocused(); await expect(root).toHaveAttribute('role', 'region');
+  await expect(root.getByText('60%', { exact: true })).toBeVisible(); await expect(root.getByText('75%', { exact: true })).toHaveCount(0);
+  await expect(root.locator('.quota-observed time')).toHaveAttribute('datetime', '2026-10-18T00:01:00.000Z');
+  await expect(root.locator('[data-quota-previous]')).toHaveCount(0); await expect(root.getByText('Quota read stopped.', { exact: true })).toHaveCount(0);
+});
+
+test('renderer discards an unsaved quota when its provider operation component is replaced', async ({ page }) => {
+  await openSyntheticProfile(page); await startQuota(page); await publishQuota(page, 75, '2026-10-18T00:00:00.000Z');
+  await expect(page.getByText('75%', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Manage profile', exact: true }).click();
+  await page.getByRole('button', { name: 'Check connection', exact: true }).click();
+  await expect(page.getByText('75%', { exact: true })).toHaveCount(0);
+  await expect(page.locator(`[data-quota-profile="${profileId}"]`)).toHaveCount(0);
 });
