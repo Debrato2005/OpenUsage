@@ -95,14 +95,16 @@ try {
 
   await clickButton('Create a backup');
   await waitFor(async () => Boolean(await driver.execute('return document.querySelector(".backup-form");')), 'backup disclosure and consent form');
-  assert.equal(await driver.execute('return document.querySelector("#backup-records").checked;'), false);
+  await waitFor(async () => driver.execute('const node=document.querySelector("#backup-records");return Boolean(node&&node.tagName==="BUTTON"&&node.getAttribute("role")==="checkbox"&&!node.disabled&&node.getAttribute("aria-disabled")!=="true"&&node.getClientRects().length);'), 'visible enabled records consent checkbox');
+  assert.equal(await driver.execute('return document.querySelector("#backup-records").getAttribute("aria-checked");'), 'false');
   await driver.type('#backup-password', backupPassword);
   await driver.type('#backup-confirmation', backupPassword);
-  const consentRequired = await driver.execute('return document.querySelector(".backup-form button[type=submit]").disabled || document.querySelector("#backup-records").required;');
+  const consentRequired = await driver.execute('return document.querySelector(".backup-form button[type=submit]").disabled;');
   assert.equal(consentRequired, true, 'Records consent must gate the user action.');
   assert.deepEqual(await readdir(fixture.dirs.downloads), []);
   await driver.click('#backup-records');
-  assert.equal(await driver.execute('return document.querySelector("#backup-records").checked;'), true);
+  await waitFor(async () => driver.execute('return document.querySelector("#backup-records").getAttribute("aria-checked")==="true"&&!document.querySelector(".backup-form button[type=submit]").disabled;'), 'explicit checked consent enables encrypted export');
+  assert.equal(await driver.execute('return document.querySelector("#backup-records").getAttribute("aria-checked");'), 'true');
   await driver.click('.backup-form button[type="submit"]');
   await waitFor(async () => Boolean(await driver.execute('return document.querySelector(".backup-receipt")?.textContent.includes(".oubackup");')), 'completed native backup receipt', 30000);
   const destination = join(fixture.dirs.downloads, 'OpenUsage');
