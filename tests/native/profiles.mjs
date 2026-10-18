@@ -86,9 +86,13 @@ async function privateHomes(state) {
 }
 
 async function replaceValue(selector, value) {
+  await driver.click(selector);
+  await driver.request('POST', `/session/${driver.session}/actions`, { actions: [{ type: 'key', id: 'profile-replace', actions: [{ type: 'keyDown', value: '\uE009' }, { type: 'keyDown', value: 'a' }, { type: 'keyUp', value: 'a' }, { type: 'keyUp', value: '\uE009' }, { type: 'keyDown', value: '\uE003' }, { type: 'keyUp', value: '\uE003' }] }] });
+  await driver.request('DELETE', `/session/${driver.session}/actions`);
+  await waitFor(async () => driver.execute('return document.querySelector(arguments[0])?.value==="";', [selector]), 'controlled profile field cleared through keyboard input');
   const element = await driver.element(selector);
-  await driver.request('POST', `/session/${driver.session}/element/${element}/clear`, {});
-  await driver.type(selector, value);
+  await driver.request('POST', `/session/${driver.session}/element/${element}/value`, { text: value });
+  await waitFor(async () => driver.execute('return document.querySelector(arguments[0])?.value===arguments[1];', [selector, value]), 'exact replacement profile text');
 }
 
 const rowSelector = id => `[data-profile-id="${id}"]`;
@@ -202,6 +206,7 @@ try {
   await waitFor(async () => (await driver.invoke('bootstrap')).value?.storage === 'ready', 'private workspace creation');
   assert.deepEqual(await list(), { profiles: [], activeProfiles: 0 });
   evidence.steps.push({ lockedProfileCommandsRejected: true, setupThroughGui: true });
+  await focusOwnedWindow();
 
   for (const [command, args, error] of [
     ['create_profile', { label: ' '.repeat(1024) + 'x' }, 'invalid_profile_label'],
