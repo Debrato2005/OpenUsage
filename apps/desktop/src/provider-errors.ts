@@ -1,11 +1,17 @@
 export function providerFailure(error: unknown): string {
   const messages: Record<string, string> = {
+    provider_activity_not_found: 'This activity read has ended. Read activity again if you still need the preview.',
+    provider_activity_in_progress: 'An activity read is already in progress for this profile. Finish it or cancel it first.',
+    provider_activity_cancelled: 'Activity read stopped.',
+    provider_activity_timed_out: 'Codex did not finish the activity read in time. Try again.',
+    provider_activity_failed: 'Codex could not read activity. Check the connection or sign in to this profile.',
+
     provider_quota_not_found: 'This quota read has ended. Read quotas again if you still need the preview.',
     provider_quota_in_progress: 'A quota read is already in progress for this profile. Finish it or cancel it first.',
     provider_quota_cancelled: 'Quota read stopped.',
     provider_quota_timed_out: 'Codex did not finish the quota read in time. Try again.',
     provider_quota_failed: 'Codex could not read quotas. Check the connection or sign in to this profile.',
-    provider_account_changed: 'The Codex account information changed during this read. Check the intended account, then read quotas again.',
+    provider_account_changed: 'The Codex account information changed during this read. Check the intended account, then read again.',
     provider_account_identity_unavailable: 'Codex did not return enough account information for this preview. Check the connection or sign in again.',
     provider_incompatible_quota_scope: 'Codex returned quota limits that could not be matched safely. No readings were accepted.',
 

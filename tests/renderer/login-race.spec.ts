@@ -85,7 +85,7 @@ async function openSyntheticProfile(page: Page) {
   await page.locator('[data-provider-manual]').click();
   await page.getByLabel('Codex executable', { exact: true }).fill('/synthetic/reviewed-codex');
   await page.getByRole('button', { name: 'Inspect executable', exact: true }).click();
-  await page.getByLabel('I trust this executable for connection checks and quota previews.').check();
+  await page.getByLabel('I trust this executable for account checks and previews.').check();
   await page.getByRole('button', { name: 'Approve executable', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Executable approved for this session' })).toBeVisible();
 }

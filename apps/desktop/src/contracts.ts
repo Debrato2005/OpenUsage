@@ -155,7 +155,24 @@ export interface ProfileQuotaPreview extends ProfileQuotaRequest {
   limits: { limitId: string; limitName: string | null; primary: QuotaWindow | null; secondary: QuotaWindow | null; reachedType: string | null; monthlyCreditLimit: string | null; spendControlReached: boolean | null }[];
 }
 
+
+export interface ProfileActivityRequest {
+  profileId: string; requestId: string; approvalId: string;
+  sourceKind: ProviderConnectionDiagnostic['sourceKind'];
+  monitoring: 'stopped'; accepted: false;
+}
+export interface ProfileActivityPreview extends ProfileActivityRequest {
+  providerVersion: string; observedAtUtc: string;
+  identityConfidence: 'provisional'; verifiedIdentityKey: null;
+  coverage: 'unknown'; scope: 'account_activity_with_unknown_application_scope';
+  summary: { lifetimeTokens: string | null; peakDailyTokens: string | null; longestRunningTurnSec: string | null; currentStreakDays: string | null; longestStreakDays: string | null };
+  dailyUsageBuckets: { startDate: string; tokens: string }[] | null;
+}
+
 interface Commands {
+  begin_profile_activity_read: { args: { profileId: string; approvalId: string }; result: ProfileActivityRequest };
+  complete_profile_activity_read: { args: { profileId: string; requestId: string }; result: ProfileActivityPreview };
+  cancel_profile_activity_read: { args: { profileId: string; requestId: string }; result: { cancelled: boolean } };
   begin_profile_quota_read: { args: { profileId: string; approvalId: string }; result: ProfileQuotaRequest };
   complete_profile_quota_read: { args: { profileId: string; requestId: string }; result: ProfileQuotaPreview };
   cancel_profile_quota_read: { args: { profileId: string; requestId: string }; result: { cancelled: boolean } };
@@ -204,7 +221,10 @@ export async function invoke<K extends keyof Commands>(
   const core = window.__TAURI__?.core;
   if (!core) throw new DesktopUnavailable('Open the installed OpenUsage desktop application.');
   const response = await core.invoke<unknown>(command, args[0]);
-  const valid = command === 'begin_profile_quota_read' ? isProfileQuotaRequest(response)
+  const valid = command === 'begin_profile_activity_read' ? isProfileQuotaRequest(response)
+    : command === 'complete_profile_activity_read' ? isProfileActivityPreview(response)
+    : command === 'cancel_profile_activity_read' ? isPreviewCancellation(response)
+    : command === 'begin_profile_quota_read' ? isProfileQuotaRequest(response)
     : command === 'complete_profile_quota_read' ? isProfileQuotaPreview(response)
     : command === 'cancel_profile_quota_read' ? isPreviewCancellation(response)
     : command === 'discover_provider_executables' ? isProviderExecutableDiscovery(response)
@@ -303,6 +323,27 @@ function isProfileQuotaPreview(value: unknown): value is ProfileQuotaPreview {
       || !(limit.spendControlReached === null || typeof limit.spendControlReached === 'boolean')
       || !isQuotaWindow(limit.primary) || !isQuotaWindow(limit.secondary)) return false;
     ids.add(limit.limitId); return true;
+  });
+}
+
+
+function isProfileActivityPreview(value: unknown): value is ProfileActivityPreview {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  if (Object.keys(v).length !== 14 || !isQuotaBinding(v) || !quotaText(v.providerVersion, 80) || !isUtcTimestamp(v.observedAtUtc)
+    || v.identityConfidence !== 'provisional' || v.verifiedIdentityKey !== null || v.coverage !== 'unknown'
+    || v.scope !== 'account_activity_with_unknown_application_scope' || typeof v.summary !== 'object' || v.summary === null || Array.isArray(v.summary)) return false;
+  const summary = v.summary as Record<string, unknown>;
+  const fields = ['lifetimeTokens', 'peakDailyTokens', 'longestRunningTurnSec', 'currentStreakDays', 'longestStreakDays'];
+  if (Object.keys(summary).length !== 5 || !fields.every(key => isResetCreditCount(summary[key]))) return false;
+  if (v.dailyUsageBuckets === null) return true;
+  return Array.isArray(v.dailyUsageBuckets) && v.dailyUsageBuckets.length <= 4096 && v.dailyUsageBuckets.every(row => {
+    if (typeof row !== 'object' || row === null || Array.isArray(row)) return false;
+    const bucket = row as Record<string, unknown>;
+    if (Object.keys(bucket).length !== 2 || typeof bucket.startDate !== 'string' || !/^(?!0000)[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(bucket.startDate)
+      || !isResetCreditCount(bucket.tokens) || bucket.tokens === null) return false;
+    const date = new Date(bucket.startDate + 'T00:00:00.000Z');
+    return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === bucket.startDate;
   });
 }
 
