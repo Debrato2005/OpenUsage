@@ -12,6 +12,8 @@ pub use backup_validation::{
 pub use checkpoint::{CheckpointError, CheckpointMetadata, CheckpointVerification};
 mod profiles;
 pub use profiles::{ProfileConnectionState, ProfileEnvironment, ProfileError, ProfileSummary};
+mod activity;
+pub use activity::*;
 mod restore_apply;
 pub use restore_apply::{
     CheckpointRestoreMetadata, RestoreError, RestoreHomeMapping, RestoreInputMetadata,
@@ -22,7 +24,7 @@ mod restore_crash;
 mod restore_state;
 pub use restore_state::{RestoreState, StorageRevision};
 
-const MIGRATIONS: &[&str] = &[include_str!("schema.sql")];
+const MIGRATIONS: &[&str] = &[include_str!("schema.sql"), include_str!("schema_v2.sql")];
 pub const CURRENT_SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
 const MAX_BACKUP_SNAPSHOT_SIZE: u64 = 5 * 1024 * 1024 * 1024;
 
@@ -214,7 +216,7 @@ impl Storage {
         {
             return Err(StorageError::ConfigurationFailed);
         }
-        migrate(&mut connection, MIGRATIONS)?;
+        migrate_data_connection(&mut connection)?;
         Ok(Self {
             connection,
             revision_scope: Arc::new(()),
@@ -358,6 +360,12 @@ fn migrate(connection: &mut Connection, migrations: &[&str]) -> Result<(), Stora
         .map_err(|_| StorageError::MigrationFailed)
 }
 
+/// Apply only trusted application migrations to an already hardened private connection.
+/// Callers authenticate and validate legacy input before copying known rows into this connection.
+pub(crate) fn migrate_data_connection(connection: &mut Connection) -> Result<(), StorageError> {
+    migrate(connection, MIGRATIONS)
+}
+
 fn validate_path(path: &Path) -> Result<(), StorageError> {
     if !path.is_absolute()
         || path.file_name().is_none()
@@ -448,7 +456,7 @@ mod tests {
         assert_eq!(
             reopened.metadata().unwrap(),
             StorageMetadata {
-                schema_version: 1,
+                schema_version: CURRENT_SCHEMA_VERSION,
                 profile_count: 0,
                 theme: Theme::Dark,
             }
@@ -502,16 +510,17 @@ mod tests {
         let path = directory.path().join("usage.db");
         let mut storage = Storage::create(&path, &KEY).unwrap();
         storage.set_theme(Theme::Dark).unwrap();
-        let migrations = [
-            MIGRATIONS[0],
-            "UPDATE settings SET theme = 'light'; CREATE TABLE pending(id INTEGER PRIMARY KEY); SELECT missing_column FROM settings;",
-        ];
+        let mut migrations = MIGRATIONS.to_vec();
+        migrations.push("UPDATE settings SET theme = 'light'; CREATE TABLE pending(id INTEGER PRIMARY KEY); SELECT missing_column FROM settings;");
         assert_eq!(
             migrate(&mut storage.connection, &migrations),
             Err(StorageError::MigrationFailed)
         );
         assert_eq!(storage.metadata().unwrap().theme, Theme::Dark);
-        assert_eq!(storage.metadata().unwrap().schema_version, 1);
+        assert_eq!(
+            storage.metadata().unwrap().schema_version,
+            CURRENT_SCHEMA_VERSION
+        );
         let pending: i64 = storage
             .connection
             .query_row(
@@ -598,7 +607,7 @@ mod tests {
         );
 
         let snapshot = storage.backup_snapshot().unwrap();
-        assert_eq!(snapshot.schema_version, 1);
+        assert_eq!(snapshot.schema_version, CURRENT_SCHEMA_VERSION);
         assert!(snapshot.bytes.starts_with(b"SQLite format 3\0"));
         assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 3);
         storage.set_theme(Theme::Light).unwrap();
@@ -624,7 +633,7 @@ mod tests {
             .unwrap();
         assert_eq!(theme, "dark");
         assert_eq!(profiles, 1);
-        assert_eq!(version, 1);
+        assert_eq!(version, CURRENT_SCHEMA_VERSION);
         assert_eq!(storage.metadata().unwrap().theme, Theme::Light);
         assert!(storage.backup_snapshot().is_ok());
     }
