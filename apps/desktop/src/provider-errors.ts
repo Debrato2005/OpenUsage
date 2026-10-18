@@ -1,5 +1,14 @@
 export function providerFailure(error: unknown): string {
   const messages: Record<string, string> = {
+    provider_quota_not_found: 'This quota read has ended. Read quotas again if you still need the preview.',
+    provider_quota_in_progress: 'A quota read is already in progress for this profile. Finish it or cancel it first.',
+    provider_quota_cancelled: 'Quota read stopped.',
+    provider_quota_timed_out: 'Codex did not finish the quota read in time. Try again.',
+    provider_quota_failed: 'Codex could not read quotas. Check the connection or sign in to this profile.',
+    provider_account_changed: 'The Codex account information changed during this read. Check the intended account, then read quotas again.',
+    provider_account_identity_unavailable: 'Codex did not return enough account information for this preview. Check the connection or sign in again.',
+    provider_incompatible_quota_scope: 'Codex returned quota limits that could not be matched safely. No readings were accepted.',
+
     provider_discovery_unavailable: 'OpenUsage could not safely check executable locations. Enter the path to Codex to review it.',
     provider_login_not_found: 'This sign-in attempt has ended. Start a new sign-in if you still need it.',
     provider_login_in_progress: 'A sign-in is already in progress for this profile. Finish it or cancel it first.',
@@ -15,7 +24,7 @@ export function providerFailure(error: unknown): string {
     provider_source_unverified: 'This file does not match a supported verified source. Use a supported official release, then inspect it again.',
     provider_check_cancelled: 'Connection check cancelled.',
     provider_check_in_progress: 'A provider operation is already running for this profile.',
-    provider_capacity_reached: 'Two connection checks are already running. Wait for one to finish or cancel a check.',
+    provider_capacity_reached: 'Two provider operations are already running. Wait for one to finish or cancel it.',
     provider_unsupported: 'This Codex version or environment is not supported by the connection check.',
     provider_check_timed_out: 'Codex did not finish the connection check in time. Try again.',
     provider_protocol_failed: 'Codex returned an unsupported response. Review its version before you try again.',

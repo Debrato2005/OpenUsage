@@ -199,7 +199,7 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval }: Pro
       </form>
       {active.length ? <ul className="profile-list" aria-label="Active profiles">{active.map(row)}</ul> : <p className="profile-empty">No active profiles. Create a profile or restore an archived one.</p>}
       {archived.length > 0 && <details className="archived-profiles"><summary>Archived profiles ({archived.length})</summary><p>Archived profiles keep their local data.</p><ul className="profile-list" aria-label="Archived profiles">{archived.map(row)}</ul></details>}
-      <p className="profile-meta">Sign in to a profile to connect its Codex account. Usage collection is not available yet.</p>
+      <p className="profile-meta">Sign in to a profile, then preview its quota readings. Scheduled collection is not available yet.</p>
     </>}
   </section>;
 }

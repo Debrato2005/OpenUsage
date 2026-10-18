@@ -287,3 +287,19 @@ main { max-width: 1280px; padding: var(--space-6); margin: 0 auto; }
 .provider-discovery-choice { padding: var(--space-2) 0; }
 .provider-discovery-choice .provider-path { min-width: 0; }
 .provider-panel > details > button { margin-top: var(--space-3); }
+
+.profile-quota-read { display: contents; }
+.quota-result { flex: 1 0 100%; min-width: 0; padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-panel); overflow-wrap: anywhere; }
+.quota-result:focus, .quota-limit summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+.quota-result h3, .quota-window h4 { margin: 0; line-height: var(--leading-heading); font-size: var(--text-body); font-weight: var(--weight-medium); }
+.quota-observed { color: var(--muted); font-size: var(--text-sm); font-variant-numeric: tabular-nums; margin-bottom: var(--space-3); }
+.quota-limit { border-top: 1px solid var(--line); padding-block: var(--space-2); }
+.quota-limit summary { min-height: 44px; padding-block: var(--space-3); cursor: pointer; }
+.quota-window { padding-block: var(--space-3); }
+.quota-window + .quota-window { border-top: 1px solid var(--line); }
+.quota-values { display: flex; flex-wrap: wrap; gap: var(--space-4); margin-block: var(--space-2); font-variant-numeric: tabular-nums; }
+.quota-values > div { flex: 1 1 8rem; min-width: 0; }
+.quota-values dt { color: var(--muted); font-size: var(--text-sm); }
+.quota-values dd { margin: var(--space-1) 0 0; }
+.quota-window meter { width: 100%; height: .75rem; accent-color: var(--accent); }
+.quota-source-details { color: var(--muted); font-size: var(--text-sm); }

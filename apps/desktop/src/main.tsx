@@ -182,7 +182,7 @@ function App() {
             <p>{startup.kind === 'unavailable' ? 'This browser view cannot access encrypted storage or connect an account. Open the desktop application to continue.'
               : startup.kind === 'failed' ? 'Restart the desktop application, then try again. Your existing database stays unchanged.'
               : recovery ? recoveryMessage
-              : ready ? 'Sign-in and connection checks are available below. Usage collection remains stopped.'
+              : ready ? 'Sign in or preview quotas below. Scheduled collection remains stopped.'
               : 'Create or unlock encrypted local storage to manage your accounts.'}</p>
             {(startup.kind === 'failed' || startup.kind === 'unavailable') && <button className="primary-button" onClick={() => { setStartup({ kind: 'loading' }); setAttempt(n => n + 1); }}>Check desktop connection</button>}
             {startup.kind === 'desktop' && data?.storage === 'setup_required' && !needsPassphrase && <button className="primary-button" disabled={busy} onClick={() => { void updateWorkspace(() => invoke('setup_workspace', { passphrase: null })); }}>{busy ? 'Creating workspace…' : 'Create private workspace'}</button>}
@@ -212,7 +212,7 @@ function App() {
             {operationError && <p id="workspace-error" className="operation-error" role="alert">{operationError}</p>}
           </div>
         </section>
-        {privacy && <section className="privacy-details" id="privacy-details" aria-labelledby="privacy-heading"><h2 id="privacy-heading">Privacy and local storage</h2><p>OpenUsage has no hosted account or telemetry. Account connections require your approval. Provider credentials stay with Codex.</p><p>Encrypted storage protects application records. It does not encrypt provider credential files or operating-system swap.</p><p>Codex handles approved sign-in requests and connection checks. Usage collection remains stopped.</p></section>}
+        {privacy && <section className="privacy-details" id="privacy-details" aria-labelledby="privacy-heading"><h2 id="privacy-heading">Privacy and local storage</h2><p>OpenUsage has no hosted account or telemetry. Account connections require your approval. Provider credentials stay with Codex.</p><p>Encrypted storage protects application records. It does not encrypt provider credential files or operating-system swap.</p><p>Codex handles approved sign-in requests, connection checks, and quota previews. Scheduled collection remains stopped.</p></section>}
         <section className="metric-grid" aria-label="Workspace summary">
           <Metric label="Active profiles" value={ready ? String(data.activeProfiles) : 'Locked'} detail={ready ? 'Of 10 available profile slots' : 'Unlock to view your profiles'} />
           <Metric label="Quota remaining" value="Not available" detail="No accepted provider reading" />
@@ -242,7 +242,7 @@ function App() {
             ? 'Checkpoint recovery requires a new preview and explicit confirmation.'
             : 'Inspect a backup before you prepare a restore. Replacing records requires confirmation.'}</p>
         </section>}
-        <footer className="main-footer"><span>Provider data: Not available</span><span>Last observation: Not available</span></footer>
+        <footer className="main-footer"><span>Saved readings: Not available</span><span>Last saved reading: Not available</span></footer>
       </main>
     </div>
   </div>;
