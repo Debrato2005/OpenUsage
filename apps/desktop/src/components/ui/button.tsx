@@ -71,7 +71,12 @@ export function Button({
   const defaultProps = {
     children: (
       <>
-        {children}
+        {/* Keep plain-label hit testing on the native button: WebKit bug 316027. */}
+        {render === undefined && typeof children === "string" ? (
+          <span className="pointer-events-none">{children}</span>
+        ) : (
+          children
+        )}
         {loading && (
           <Spinner
             className="pointer-events-none absolute"
