@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFile, execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import { lstat, mkdir, readFile, readdir, rm, rmdir, symlink, unlink, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, readFile, readdir, readlink, rm, rmdir, symlink, unlink, writeFile } from 'node:fs/promises';
 import { arch, platform, release, tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -91,6 +91,42 @@ async function replaceValue(selector, value) {
   await driver.type(selector, value);
 }
 
+const rowSelector = id => `[data-profile-id="${id}"]`;
+const optionsSelector = id => `${rowSelector(id)} [data-profile-action="options"]`;
+async function optionsState(id) {
+  return driver.execute('const trigger=document.querySelector(arguments[0]);if(!trigger)return null;const panel=document.getElementById(trigger.getAttribute("aria-controls"));return {expanded:trigger.getAttribute("aria-expanded"),panelPresent:Boolean(panel),panelVisible:Boolean(panel&&panel.getClientRects().length&&getComputedStyle(panel).display!=="none"),hiddenActions:panel?[...panel.querySelectorAll("button")].map(node=>({label:node.textContent.trim(),visible:Boolean(node.getClientRects().length)})):[]};', [optionsSelector(id)]);
+}
+async function manage(id, open = true) {
+  const state = await optionsState(id);
+  assert.ok(state?.panelPresent, 'Manage must retain its hidden panel.');
+  if (state.expanded !== String(open)) await driver.click(optionsSelector(id));
+  await waitFor(async () => { const next = await optionsState(id); return next?.expanded === String(open) && next.panelVisible === open; }, `${open ? 'expanded' : 'collapsed'} management controls`);
+}
+async function key(value, shift = false) {
+  await driver.request('POST', `/session/${driver.session}/actions`, { actions: [{ type: 'key', id: 'profile-keyboard', actions: [...(shift ? [{ type: 'keyDown', value: '\uE008' }] : []), { type: 'keyDown', value }, { type: 'keyUp', value }, ...(shift ? [{ type: 'keyUp', value: '\uE008' }] : [])] }] });
+  await driver.request('DELETE', `/session/${driver.session}/actions`);
+}
+async function focusOwnedWindow() {
+  const queue = [driver.child.pid]; let pid;
+  for (let count = 0; queue.length && count < 64; count++) {
+    const candidate = queue.shift();
+    try {
+      if (await readlink(`/proc/${candidate}/exe`) === application) { pid = candidate; break; }
+      queue.push(...(await readFile(`/proc/${candidate}/task/${candidate}/children`, 'utf8')).trim().split(/\s+/).filter(Boolean).map(Number));
+    } catch (error) { if (error.code !== 'ENOENT') throw error; }
+  }
+  assert.ok(pid, 'Keyboard setup must target an owned application descendant.');
+  evidence.nativeWindowFocus = JSON.parse(execFileSync('/usr/bin/python3', [join(harness, 'x11-close.py'), String(pid), 'focus'], { env: fixture.environment, encoding: 'utf8', timeout: 10000 }));
+  await waitFor(async () => driver.execute('return document.hasFocus();'), 'owned native keyboard focus');
+}
+async function storageHashes() {
+  const value = {};
+  for (const path of [fixture.database, `${fixture.database}-wal`, join(dirname(fixture.database), 'database-key.v1')]) {
+    try { value[path] = await hash(path); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+  }
+  return value;
+}
+
 async function create(label, unicode = false) {
   const before = await list();
   if (unicode) {
@@ -150,14 +186,15 @@ try {
   evidence.application = { path: application, sha256: await hash(application), commit: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repository, encoding: 'utf8' }).trim() };
   evidence.sourceDirtyPaths = execFileSync('git', ['status', '--porcelain'], { cwd: repository, encoding: 'utf8' }).trim().split('\n').filter(Boolean);
   evidence.harnessHashes = {};
-  for (const path of ['profiles.mjs', 'clipboard.mjs', 'private-fixture.mjs', 'webdriver.mjs']) evidence.harnessHashes[path] = await hash(join(harness, path));
+  for (const path of ['profiles.mjs', 'clipboard.mjs', 'private-fixture.mjs', 'webdriver.mjs', 'x11-close.py']) evidence.harnessHashes[path] = await hash(join(harness, path));
   evidence.sourceHashes = {};
-  for (const path of ['Cargo.lock', 'apps/desktop/src-tauri/Cargo.toml', 'apps/desktop/src-tauri/tauri.conf.json', 'apps/desktop/src-tauri/build.rs', 'apps/desktop/src-tauri/capabilities/main-window.json', 'apps/desktop/src-tauri/src/main.rs', 'apps/desktop/src-tauri/src/workspace.rs', 'apps/desktop/src/main.tsx', 'apps/desktop/src/profiles.tsx', 'apps/desktop/src/styles.css', 'apps/desktop/src/contracts.ts', 'crates/openusage-storage/src/lib.rs', 'crates/openusage-storage/src/profiles.rs']) evidence.sourceHashes[path] = await hash(join(repository, path));
+  for (const path of ['Cargo.lock', 'apps/desktop/src-tauri/Cargo.toml', 'apps/desktop/src-tauri/tauri.conf.json', 'apps/desktop/src-tauri/build.rs', 'apps/desktop/src-tauri/capabilities/main-window.json', 'apps/desktop/src-tauri/src/main.rs', 'apps/desktop/src-tauri/src/workspace.rs', 'apps/desktop/src/main.tsx', 'apps/desktop/src/profiles.tsx', 'apps/desktop/src/profile-actions.css', 'apps/desktop/src/components/ui/collapsible.tsx', 'apps/desktop/src/components/ui/collapsible.css', 'apps/desktop/src/components/ui/field.tsx', 'apps/desktop/src/components/ui/input.tsx', 'apps/desktop/src/components/ui/button.tsx', 'apps/desktop/src/components/ui/selection.css', 'apps/desktop/index.html', 'apps/desktop/public/fonts/JetBrainsMono-Regular.woff2', 'apps/desktop/public/fonts/JetBrainsMono-Medium.woff2', 'apps/desktop/src/styles.css', 'apps/desktop/src/contracts.ts', 'crates/openusage-storage/src/lib.rs', 'crates/openusage-storage/src/profiles.rs']) evidence.sourceHashes[path] = await hash(join(repository, path));
   fixture = await createFixture('profiles');
   homes = join(dirname(fixture.database), 'profiles');
   await openApp();
   for (const [command, args] of [['list_profiles', {}], ['create_profile', { label: 'Locked synthetic profile' }], ['rename_profile', { id: randomUUID(), label: 'Locked rename' }], ['set_profile_archived', { id: randomUUID(), archived: true }]]) await rejected(command, args, 'workspace_locked');
   assert.deepEqual(await homeNames(), []);
+  await waitFor(async () => driver.execute('return ["workspace-passphrase","workspace-confirmation"].every(id=>{const field=document.getElementById(id);return Boolean(field&&!field.disabled);});'), 'enabled setup passphrase fields');
   await driver.type('#workspace-passphrase', passphrase);
   await driver.type('#workspace-confirmation', passphrase);
   await driver.click('.unlock-form button[type="submit"]');
@@ -216,16 +253,40 @@ try {
   await rejected('create_profile', { label: 'Eleventh synthetic profile' }, 'profile_capacity_reached');
   assert.deepEqual(sorted(await list()), sorted(full));
   assert.deepEqual(await homeNames(), namesBefore);
+  const keyboardProfile = full.profiles[0], nextProfile = full.profiles[1];
+  const collapsed = await optionsState(keyboardProfile.id);
+  assert.equal(collapsed.expanded, 'false');
+  assert.equal(collapsed.panelVisible, false);
+  assert.ok(collapsed.hiddenActions.length >= 2 && collapsed.hiddenActions.every(action => !action.visible));
+  const beforeDisclosure = await storageHashes();
+  await manage(keyboardProfile.id);
+  await focusOwnedWindow();
+  await key('\uE007');
+  await waitFor(async () => (await optionsState(keyboardProfile.id)).expanded === 'false', 'Enter closes Manage');
+  await key('\uE004');
+  assert.equal(await driver.execute('return document.activeElement?.matches(arguments[0]);', [optionsSelector(nextProfile.id)]), true, 'Tab must skip hidden Rename and Archive and reach the next profile.');
+  await key('\uE004', true);
+  assert.equal(await driver.execute('return document.activeElement?.matches(arguments[0]);', [optionsSelector(keyboardProfile.id)]), true);
+  await key(' ');
+  await waitFor(async () => (await optionsState(keyboardProfile.id)).panelVisible, 'Space opens Manage');
+  await manage(keyboardProfile.id, false);
+  assert.deepEqual(await storageHashes(), beforeDisclosure, 'Disclosure and keyboard traversal must not write database, WAL, or key.');
+  await manage(keyboardProfile.id);
+  await screenshot('profile-management-light-360.png', true, 'light');
+  await manage(keyboardProfile.id, false);
+  evidence.steps.push({ namedManageControlRetainsHiddenPanel: true, collapsedActionsNotVisible: true, enterAndSpaceToggleActualDisclosure: true, tabSkipsClosedMaintenanceActions: true, disclosurePreservesStorageHashes: true });
   await screenshot('ten-profiles-dark.png');
   await screenshot('ten-profiles-light-360.png', true, 'light');
   await screenshot('ten-profiles-dark-360.png', true);
 
   const row = `[data-profile-id="${first.id}"]`;
+  await manage(first.id);
   await driver.click(`${row} button[aria-label="Rename profile"]`);
   await replaceValue(`${row} .profile-rename-form input[name="profile-label"]`, 'Renamed synthetic profile');
   await driver.click(`${row} .profile-rename-form button[type="submit"]`);
   await waitFor(async () => (await list()).profiles.find(profile => profile.id === first.id)?.label === 'Renamed synthetic profile', 'profile renamed through GUI');
-  await waitFor(async () => Boolean(await driver.execute('return document.activeElement?.matches(arguments[0]);', [`${row} [data-profile-action="rename"]`])), 'focus after profile rename');
+  await waitFor(async () => Boolean(await driver.execute('return document.activeElement?.matches(arguments[0]);', [`${row} [data-profile-action="options"]`])), 'focus after profile rename');
+  await manage(first.id);
   await driver.click(`${row} button[aria-label="Archive profile"]`);
   await waitFor(async () => (await list()).profiles.find(profile => profile.id === first.id)?.archived === true, 'profile archived through GUI');
   const archived = await list();
@@ -244,12 +305,13 @@ try {
   await rejected('set_profile_archived', { id: first.id, archived: false }, 'profile_capacity_reached');
   assert.deepEqual(sorted(await list()), sorted(reusedState));
   const another = reusedState.profiles.find(profile => !profile.archived && profile.id !== reused.id);
+  await manage(another.id);
   await driver.click(`[data-profile-id="${another.id}"] [data-profile-action="archive"]`);
   await waitFor(async () => (await list()).activeProfiles === 9, 'another slot archived before GUI restore');
   if (!await driver.execute('return document.querySelector(".archived-profiles").open;')) await driver.click('.archived-profiles > summary');
   await driver.click(`${row} [data-profile-action="restore"]`);
   await waitFor(async () => (await list()).profiles.find(profile => profile.id === first.id)?.archived === false, 'profile restored through GUI');
-  await waitFor(async () => Boolean(await driver.execute('return document.activeElement?.matches(arguments[0]);', [`${row} [data-profile-action="rename"]`])), 'focus after profile restore');
+  await waitFor(async () => Boolean(await driver.execute('return document.activeElement?.matches(arguments[0]);', [`${row} [data-profile-action="options"]`])), 'focus after profile restore');
   assert.match(await driver.execute('return document.querySelector(".profile-status").textContent;'), /Profile restored\. 10 of 10 active\./);
   const final = await list();
   assert.equal(final.activeProfiles, 10);
