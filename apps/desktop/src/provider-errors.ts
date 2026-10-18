@@ -1,5 +1,7 @@
 export function providerFailure(error: unknown): string {
   const messages: Record<string, string> = {
+    provider_activity_save_failed: 'The reading could not be saved. Your previous activity is still available.',
+    provider_activity_load_failed: 'Saved activity could not be loaded. Try again.',
     provider_activity_not_found: 'This activity read has ended. Read activity again if you still need the preview.',
     provider_activity_in_progress: 'An activity read is already in progress for this profile. Finish it or cancel it first.',
     provider_activity_cancelled: 'Activity read stopped.',

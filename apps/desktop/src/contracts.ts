@@ -161,7 +161,8 @@ export interface ProfileActivityRequest {
   sourceKind: ProviderConnectionDiagnostic['sourceKind'];
   monitoring: 'stopped'; accepted: false;
 }
-export interface ProfileActivityPreview extends ProfileActivityRequest {
+export interface ProfileActivitySavedRead extends Omit<ProfileActivityRequest, 'accepted'> {
+  accepted: true; collectionRunId: string; bindingId: string;
   providerVersion: string; observedAtUtc: string;
   identityConfidence: 'provisional'; verifiedIdentityKey: null;
   coverage: 'unknown'; scope: 'account_activity_with_unknown_application_scope';
@@ -169,9 +170,22 @@ export interface ProfileActivityPreview extends ProfileActivityRequest {
   dailyUsageBuckets: { startDate: string; tokens: string }[] | null;
 }
 
+
+export type ActivityFreshness = 'unknown' | 'fresh' | 'stale';
+export interface SavedProfileActivity {
+  profileId: string; bindingId: string; collectionRunId: string;
+  providerVersion: string; sourceKind: ProviderConnectionDiagnostic['sourceKind']; observedAtUtc: string;
+  identityConfidence: 'provisional'; verifiedIdentityKey: null; monitoring: 'stopped'; accepted: true;
+  coverage: 'unknown'; scope: 'account_activity_with_unknown_application_scope'; freshness: ActivityFreshness;
+  summary: ProfileActivitySavedRead['summary']; dailyState: 'unavailable' | 'empty' | 'returned';
+  dailyUsageBuckets: { date: string; tokens: string; observedAtUtc: string; freshness: ActivityFreshness }[];
+  dailyTruncated: boolean;
+}
+
 interface Commands {
+  load_profile_activity: { args: { profileId: string }; result: SavedProfileActivity | null };
   begin_profile_activity_read: { args: { profileId: string; approvalId: string }; result: ProfileActivityRequest };
-  complete_profile_activity_read: { args: { profileId: string; requestId: string }; result: ProfileActivityPreview };
+  complete_profile_activity_read: { args: { profileId: string; requestId: string }; result: ProfileActivitySavedRead };
   cancel_profile_activity_read: { args: { profileId: string; requestId: string }; result: { cancelled: boolean } };
   begin_profile_quota_read: { args: { profileId: string; approvalId: string }; result: ProfileQuotaRequest };
   complete_profile_quota_read: { args: { profileId: string; requestId: string }; result: ProfileQuotaPreview };
@@ -222,7 +236,8 @@ export async function invoke<K extends keyof Commands>(
   if (!core) throw new DesktopUnavailable('Open the installed OpenUsage desktop application.');
   const response = await core.invoke<unknown>(command, args[0]);
   const valid = command === 'begin_profile_activity_read' ? isProfileQuotaRequest(response)
-    : command === 'complete_profile_activity_read' ? isProfileActivityPreview(response)
+    : command === 'complete_profile_activity_read' ? isProfileActivitySavedRead(response)
+    : command === 'load_profile_activity' ? isSavedProfileActivity(response)
     : command === 'cancel_profile_activity_read' ? isPreviewCancellation(response)
     : command === 'begin_profile_quota_read' ? isProfileQuotaRequest(response)
     : command === 'complete_profile_quota_read' ? isProfileQuotaPreview(response)
@@ -271,10 +286,10 @@ function isProfileQuotaRequest(value: unknown): value is ProfileQuotaRequest {
   const v = value as Record<string, unknown>;
   return Object.keys(v).length === 6 && isQuotaBinding(v);
 }
-function isQuotaBinding(v: Record<string, unknown>): boolean {
+function isQuotaBinding(v: Record<string, unknown>, accepted: false | true = false): boolean {
   return isUuid(v.profileId) && isUuid(v.requestId) && isUuid(v.approvalId)
     && (v.sourceKind === 'official_artifact' || v.sourceKind === 'test_fixture')
-    && v.monitoring === 'stopped' && v.accepted === false;
+    && v.monitoring === 'stopped' && v.accepted === accepted;
 }
 function quotaText(value: unknown, maximum: number): value is string {
   return typeof value === 'string' && value.length <= maximum && value.trim().length > 0 && !/\p{Cc}/u.test(value);
@@ -327,26 +342,52 @@ function isProfileQuotaPreview(value: unknown): value is ProfileQuotaPreview {
 }
 
 
-function isProfileActivityPreview(value: unknown): value is ProfileActivityPreview {
+function isActivitySummary(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const summary = value as Record<string, unknown>;
+  return Object.keys(summary).length === 5 && ['lifetimeTokens', 'peakDailyTokens', 'longestRunningTurnSec', 'currentStreakDays', 'longestStreakDays'].every(key => isResetCreditCount(summary[key]));
+}
+function isActivitySource(v: Record<string, unknown>): boolean {
+  return quotaText(v.providerVersion, 80) && isUtcTimestamp(v.observedAtUtc) && v.identityConfidence === 'provisional'
+    && v.verifiedIdentityKey === null && v.coverage === 'unknown' && v.scope === 'account_activity_with_unknown_application_scope'
+    && isActivitySummary(v.summary);
+}
+function isProviderDate(value: unknown): value is string {
+  if (typeof value !== 'string' || !/^(?!0000)[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(value)) return false;
+  const date = new Date(value + 'T00:00:00.000Z');
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+function isActivityFreshness(value: unknown): value is ActivityFreshness { return value === 'unknown' || value === 'fresh' || value === 'stale'; }
+function isProfileActivitySavedRead(value: unknown): value is ProfileActivitySavedRead {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   const v = value as Record<string, unknown>;
-  if (Object.keys(v).length !== 14 || !isQuotaBinding(v) || !quotaText(v.providerVersion, 80) || !isUtcTimestamp(v.observedAtUtc)
-    || v.identityConfidence !== 'provisional' || v.verifiedIdentityKey !== null || v.coverage !== 'unknown'
-    || v.scope !== 'account_activity_with_unknown_application_scope' || typeof v.summary !== 'object' || v.summary === null || Array.isArray(v.summary)) return false;
-  const summary = v.summary as Record<string, unknown>;
-  const fields = ['lifetimeTokens', 'peakDailyTokens', 'longestRunningTurnSec', 'currentStreakDays', 'longestStreakDays'];
-  if (Object.keys(summary).length !== 5 || !fields.every(key => isResetCreditCount(summary[key]))) return false;
+  if (Object.keys(v).length !== 16 || !isQuotaBinding(v, true) || !isActivitySource(v) || !isUuid(v.collectionRunId) || !isUuid(v.bindingId)) return false;
   if (v.dailyUsageBuckets === null) return true;
   if (!Array.isArray(v.dailyUsageBuckets) || v.dailyUsageBuckets.length > 4096) return false;
   const dates = new Set<string>();
   return v.dailyUsageBuckets.every(row => {
     if (typeof row !== 'object' || row === null || Array.isArray(row)) return false;
     const bucket = row as Record<string, unknown>;
-    if (Object.keys(bucket).length !== 2 || typeof bucket.startDate !== 'string' || !/^(?!0000)[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(bucket.startDate)
+    if (Object.keys(bucket).length !== 2 || !isProviderDate(bucket.startDate) || dates.has(bucket.startDate)
       || !isResetCreditCount(bucket.tokens) || bucket.tokens === null) return false;
-    const date = new Date(bucket.startDate + 'T00:00:00.000Z');
-    if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== bucket.startDate || dates.has(bucket.startDate)) return false;
     dates.add(bucket.startDate); return true;
+  });
+}
+function isSavedProfileActivity(value: unknown): value is SavedProfileActivity | null {
+  if (value === null) return true;
+  if (typeof value !== 'object' || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  if (Object.keys(v).length !== 17 || !isUuid(v.profileId) || !isUuid(v.bindingId) || !isUuid(v.collectionRunId)
+    || !(v.sourceKind === 'official_artifact' || v.sourceKind === 'test_fixture') || v.monitoring !== 'stopped' || v.accepted !== true
+    || !isActivitySource(v) || !isActivityFreshness(v.freshness) || !(v.dailyState === 'unavailable' || v.dailyState === 'empty' || v.dailyState === 'returned')
+    || typeof v.dailyTruncated !== 'boolean' || !Array.isArray(v.dailyUsageBuckets) || v.dailyUsageBuckets.length > 4096) return false;
+  const dates = new Set<string>();
+  return v.dailyUsageBuckets.every(row => {
+    if (typeof row !== 'object' || row === null || Array.isArray(row)) return false;
+    const bucket = row as Record<string, unknown>;
+    if (Object.keys(bucket).length !== 4 || !isProviderDate(bucket.date) || dates.has(bucket.date) || !isResetCreditCount(bucket.tokens)
+      || bucket.tokens === null || !isUtcTimestamp(bucket.observedAtUtc) || !isActivityFreshness(bucket.freshness)) return false;
+    dates.add(bucket.date); return true;
   });
 }
 

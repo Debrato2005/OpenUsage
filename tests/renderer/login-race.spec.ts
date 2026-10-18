@@ -37,6 +37,7 @@ async function openSyntheticProfile(page: Page) {
           value = { storage: 'ready', theme: 'light', schemaVersion: 1, activeProfiles: 1,
             monitoring: 'stopped', provider: 'not_configured', keyProtection: 'passphrase', storageIssue: null };
           break;
+        case 'load_profile_activity': value = null; break;
         case 'list_profiles':
           value = { activeProfiles: 1, profiles: [{ id: profileId, label: 'Synthetic login profile',
             environment: 'native', archived: false, connectionState: 'authentication_required' }] };

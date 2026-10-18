@@ -1,13 +1,15 @@
-.activity-result { flex: 1 0 100%; min-width: 0; padding-top: var(--space-3); border-top: 1px solid var(--line); }
+.activity-result, .activity-saved { flex: 1 0 100%; min-width: 0; padding-top: var(--space-3); border-top: 1px solid var(--line); }
 .activity-pending { flex: 1 0 100%; }
 .activity-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); margin-block: var(--space-3); }
 .activity-summary > div { min-width: 0; }
 .activity-summary dt { color: var(--muted); }
 .activity-count { display: block; min-width: 0; max-width: 100%; overflow-x: auto; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.activity-count:focus-visible, .activity-result:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+.activity-count:focus-visible, .activity-result:focus-visible, .activity-saved:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 .activity-days { list-style: none; padding: 0; margin-block: var(--space-3); }
 .activity-days > li { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-3); padding-block: var(--space-2); border-bottom: 1px solid var(--line); }
 .activity-days time { overflow-wrap: anywhere; }
 .activity-pagination { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
 .activity-pagination p { flex-basis: 100%; }
 @media (max-width: 38rem) { .activity-summary, .activity-days > li { grid-template-columns: minmax(0, 1fr); } }
+
+.activity-day-observed { grid-column: 1 / -1; min-width: 0; overflow-wrap: anywhere; }
