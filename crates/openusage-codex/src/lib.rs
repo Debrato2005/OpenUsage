@@ -363,6 +363,39 @@ pub struct LoginChallenge {
     pub prompt: LoginPrompt,
 }
 
+/// The selected profile's device prompt. The provider login identifier stays in Rust.
+pub struct DeviceLoginPrompt {
+    pub verification_url: Url,
+    pub user_code: String,
+}
+
+impl LoginChallenge {
+    pub(crate) fn into_device(self) -> Result<(LoginAttempt, DeviceLoginPrompt), ProtocolError> {
+        match self.prompt {
+            LoginPrompt::DeviceCode {
+                verification_url,
+                user_code,
+            } => {
+                // The pinned managed flow uses the production issuer and this exact route.
+                if verification_url.as_str() != "https://auth.openai.com/codex/device" {
+                    return Err(ProtocolError::UnapprovedLoginUrl);
+                }
+                if !user_code.bytes().all(|byte| (0x20..=0x7e).contains(&byte)) {
+                    return Err(ProtocolError::InvalidField);
+                }
+                Ok((
+                    self.attempt,
+                    DeviceLoginPrompt {
+                        verification_url,
+                        user_code,
+                    },
+                ))
+            }
+            _ => Err(ProtocolError::UnsupportedAuthentication),
+        }
+    }
+}
+
 #[derive(Deserialize)]
 #[serde(tag = "type")]
 enum LoginResponse {
@@ -408,6 +441,9 @@ pub fn parse_login_start(
             },
         ) => {
             validate_text(&user_code, 64)?;
+            if verification_url != "https://auth.openai.com/codex/device" {
+                return Err(ProtocolError::UnapprovedLoginUrl);
+            }
             (
                 login_id,
                 LoginPrompt::DeviceCode {
