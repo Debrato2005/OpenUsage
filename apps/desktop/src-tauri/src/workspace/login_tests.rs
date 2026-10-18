@@ -602,12 +602,30 @@ fn browser_handoff_refuses_changed_profile_home_and_source_bindings() {
                 .is_err(),
             "{fault}"
         );
-        fixture
+        let cancelled = fixture
             .workspace
             .provider
-            .cancel_login(&id, &attempt.attempt_id)
-            .unwrap();
-        assert!(completing.wait().is_err());
+            .cancel_login(&id, &attempt.attempt_id);
+        let completed = completing.wait();
+        if fault == "home" {
+            // Renaming the runtime parent makes TempDir::close fail at its original path.
+            assert_eq!(cancelled.err(), Some(CommandError::ProviderCleanupFailed));
+            assert_eq!(completed.err(), Some(CommandError::ProviderCleanupFailed));
+            assert_eq!(
+                fs::read(
+                    fixture
+                        .home(&id)
+                        .with_extension("original")
+                        .join("preserved-marker")
+                )
+                .unwrap(),
+                b"preserve"
+            );
+            assert!(fs::read_dir(fixture.home(&id)).unwrap().next().is_none());
+        } else {
+            cancelled.unwrap_or_else(|error| panic!("{fault}: {error:?}"));
+            assert!(completed.is_err(), "{fault}");
+        }
         gone(pid);
     }
 }
