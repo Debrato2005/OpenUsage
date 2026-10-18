@@ -1,6 +1,6 @@
 # coss/ui adoption
 
-Updated: October 18, 2026. The user selected coss/ui for all OpenUsage components and workflows. Adoption proceeds through native verification. The first slice covers shared buttons, text inputs, the sign-in address field, and quota meters. Selection controls, disclosures, feedback panels, and record views remain in the migration queue.
+Updated: October 18, 2026. The user selected coss/ui for all OpenUsage components and workflows. Adoption proceeds through native verification. Verified slices cover shared buttons, text inputs, the sign-in address field, quota meters, appearance selection, profile management disclosure, and provider form choices. Backup selections, remaining disclosures, feedback panels, and record views remain in the migration queue.
 
 ## Source and licensing
 
@@ -22,7 +22,9 @@ The local spinner uses a CSS border instead of an icon dependency. It preserves 
 
 ## Remaining adoption
 
-The next slice replaces checkboxes, radio choices, selects, and field groups. It must preserve unchecked security consent, native password behavior, bounded values, keyboard selection, and focus return. Tests must exercise the actual composite controls.
+The appearance Select and profile/provider Field, Checkbox, and RadioGroup now have native evidence. Security consent remains unchecked. Discovery uses actual radio keyboard selection. Manage profile uses the reviewed coss Collapsible without animation or new dependencies. Active provider operations stay mounted outside it. Forward navigation passed. Strict reverse traversal remains unresolved and prevents full keyboard acceptance. See [the profile review](../reviews/2026-10-18-profile-controls.md).
+
+The next slice covers backup/checkpoint selections and restore confirmation. It must preserve native password behavior, bounded values, explicit consent, keyboard selection, and focus return. Tests exercise the actual composite controls.
 
 Disclosures then adopt coss Collapsible or Accordion with explicit ownership of mounted content. Closing a panel must not silently cancel a provider operation or retain a cleared password. Alerts, empty states, cards, badges, tables, and navigation follow. Shared components remain presentational. Rust keeps provider processes, storage, secrets, and exact arithmetic.
 
