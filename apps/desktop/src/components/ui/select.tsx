@@ -141,6 +141,7 @@ export function SelectPopup({
         anchor={anchor}
         className="z-50 select-none"
         data-slot="select-positioner"
+        positionMethod="fixed"
         side={side}
         sideOffset={sideOffset}
       >
