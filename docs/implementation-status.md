@@ -1,6 +1,6 @@
 # Implementation status
 
-Updated: October 18, 2026. The mission remains ongoing. Current milestone: confirmed restore and checkpoint recovery verified on Linux. Next slice: interrupted-restore qualification, then native provider approval and lifecycle.
+Updated: October 18, 2026. The mission remains ongoing. Current milestone: confirmed restore and checkpoint recovery verified on Linux. Next slice: native executable approval and provider lifecycle.
 
 ## Implemented and executed
 
@@ -28,12 +28,14 @@ Two further Rust cores passed their integrated checks. Encrypted checkpoints cap
 
 `NATIVE-CHECKPOINT-RECOVERY-001` passed on the final rebuilt UI. A fresh preview recovered checkpoint B after a backup restore to A and a normal restart. The new pre-recovery checkpoint retained A. Original home mappings and markers returned with B, while imported homes remained intact. Seven native captures cover the refined catalog, both themes, narrow layouts, keyboard approval, and 200% test-side text scaling. The cache retains no plaintext checkpoint image while the user considers the preview. See `evidence/native-checkpoint-recovery/` and the [review](reviews/2026-10-18-checkpoint-recovery.md).
 
+`STORAGE-RESTORE-PROCESS-CRASH-001` passed against the production transaction. Owned SIGKILL cases preserved every old record column before COMMIT and complete restored records after COMMIT without acknowledgment. Both retained the original authenticated checkpoint. These are process-crash core checks. Native interruption and power-loss qualification remain open. See `evidence/restore-process-crash/`, the [review](reviews/2026-10-18-restore-process-crash.md), and SC-002 in `srs-clarifications.md`. This test-only slice adds a `cfg(test, unix)` module. The preceding native receipt still binds its original source and executable.
+
 ## Verification
 
 | Check | Executed result |
 |---|---|
 | `npm run check` | Passed: build/type check, 15 contract checks, 12 renderer checks |
-| `cargo test --workspace --offline --locked` | Passed: 81 Rust tests, including 33 native service checks. |
+| `cargo test --workspace --offline --locked` | Passed: 82 Rust tests, including 33 native service checks. One child entry is ignored by default and executed twice by its parent test. |
 | `cargo clippy --workspace --all-targets --offline --locked -- -D warnings` | Passed |
 | Native startup | Rebuilt default production configuration passed after checkpoint recovery. See `evidence/native-checkpoint-production-smoke/`. |
 | Native persistence | Passed again on the backup binary with a real private Secret Service |
@@ -41,6 +43,7 @@ Two further Rust cores passed their integrated checks. Encrypted checkpoints cap
 | Native profiles | GUI lifecycle, ten-active limit, Unicode clipboard input, restart, private homes, and failure preservation passed on Linux |
 | Native backup inspection | Full archive authentication, private source checks, failure preservation, narrow themes, and password/error focus passed on Linux |
 | Native backup content | Valid counts, invalid records, unsupported versions, retained metadata, private staging, and source preservation passed on Linux |
+| Restore process-crash core | Actual uncommitted/committed WAL frames, owned child SIGKILL/reap, every record column, original encrypted checkpoint, and reopen passed. Native window and power loss remain unqualified. |
 | Native checkpoint recovery | Catalog after restart, new encrypted checkpoint, original homes, failure preservation, selected fields after restart, keyboard confirmation, and seven images including 200% text passed on Linux |
 | Native confirmed restore | Explicit GUI approval, one-use token, original key/WAL, fresh private homes, old-home preservation, faults, restart, and four images passed on Linux |
 | Native restore preview | Exact encrypted checkpoint, comparison, cancel, cache invalidation, normal exit and restart, keyboard access, both themes, and enlarged text passed on Linux |
@@ -65,6 +68,6 @@ SQLCipher 4 with WAL remains mandatory. The [SQLite proposal](proposals/sqlite-w
 
 The isolated probe was rerun after the supervisor integration. Its real-process receipt matches five current source hashes in `crates/openusage-codex/tests/evidence/real-isolated-probe.json`. Synthetic supervision evidence is beside it in `supervision-core.json`. A Rust approval reference records a caller's source decision; it does not prove executable authenticity. Native approval, application shutdown hooks, and live supervision remain incomplete. Windows is unsupported by this transport; macOS remains untested.
 
-Next: integrate the separately verified process-crash checks, then implement native executable approval and provider lifecycle checks. Their native and test work continues in isolated persistent worktrees. Native provider approval and lifecycle integration remain separate work. Current-schema inspection checks run in isolated memory. Confirmed replacement separately requires a fresh checkpoint-backed preview and explicit approval. Other timezone/locale settings remain unsupported until their writers and validators are implemented. Restore and full acceptance remain open. Large-history backup memory use needs separate qualification. All native artifacts in this checkpoint are debug builds, including the build with the default production configuration.
+Next: implement native executable approval and provider lifecycle checks. Their native and test work continues in isolated persistent worktrees. Native provider approval and lifecycle integration remain separate work. Current-schema inspection checks run in isolated memory. Confirmed replacement separately requires a fresh checkpoint-backed preview and explicit approval. Other timezone/locale settings remain unsupported until their writers and validators are implemented. Restore and full acceptance remain open. Large-history backup memory use needs separate qualification. All native artifacts in this checkpoint are debug builds, including the build with the default production configuration.
 
 Local commits now live in `/example/home/Projects/OpenUsage/.recovery/integration`, branch `codex/native-bootstrap`. The executor reset removed the former temporary worktrees and later Apply artifacts. Recovery used the preserved bundle through `1b3916c`, reconstructed the missing source, and reran acceptance. No surviving receipt supports the lost regression attempt. New tools, artifacts, and evidence use the persistent project directory. The new native receipts and artifact audits support this checkpoint. Primary Git metadata is read-only in this executor. Verified source is copied back to the primary worktree after each milestone. No existing Codex credential homes were inspected. No remote writes occurred.
