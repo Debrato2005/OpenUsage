@@ -3,6 +3,7 @@ dist/
 target/
 apps/desktop/src-tauri/gen/
 .tools/
+.recovery/
 .npm-cache/
 playwright-report/
 test-results/

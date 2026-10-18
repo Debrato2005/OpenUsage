@@ -228,7 +228,7 @@ main { max-width: 1280px; padding: var(--space-6); margin: 0 auto; }
 .restore-help, .restore-source { color: var(--muted); font-size: var(--text-sm); margin-top: var(--space-2); overflow-wrap: anywhere; }
 .restore-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .restore-actions .primary-button { margin-top: 0; }
-.restore-preview:focus, #restore-preview-error:focus { outline: 2px solid var(--focus); outline-offset: 3px; }
+.restore-preview:focus, .restore-result:focus, #restore-preview-error:focus { outline: 2px solid var(--focus); outline-offset: 3px; }
 .restore-preview { container: restore-comparison / inline-size; }
 .comparison-label { display: none; }
 .restore-comparison { width: 100%; margin: var(--space-4) 0; border-collapse: collapse; font-size: var(--text-sm); table-layout: fixed; }
@@ -238,6 +238,7 @@ main { max-width: 1280px; padding: var(--space-6); margin: 0 auto; }
 .restore-comparison th:first-child { width: 42%; padding-left: 0; }
 .restore-comparison td { font-variant-numeric: tabular-nums; }
 .restore-preview > .secondary-button { margin-top: var(--space-4); }
+.restore-confirmation-form, .restore-result > p + p, .restore-result > button { margin-top: var(--space-4); }
 @container restore-comparison (max-width: 18em) {
   .restore-comparison, .restore-comparison caption, .restore-comparison tbody { display: block; }
   .restore-comparison thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

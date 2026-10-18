@@ -28,9 +28,16 @@ function App() {
   const [backupErrorField, setBackupErrorField] = useState<'backup-password' | 'backup-confirmation' | null>(null);
   const [backupReceipt, setBackupReceipt] = useState<BackupReceipt | null>(null);
   const backupToggle = useRef<HTMLButtonElement>(null);
+  const [profileRevision, setProfileRevision] = useState(0);
   const updateProfileCount = useCallback((count: number) => {
     setStartup(current => current.kind === 'desktop' && current.data.storage === 'ready'
       ? { ...current, data: { ...current.data, activeProfiles: count } } : current);
+  }, []);
+  const refreshRestoredWorkspace = useCallback(async () => {
+    const updated = await invoke('bootstrap');
+    setStartup({ kind: 'desktop', data: updated });
+    setTheme(updated.theme);
+    setProfileRevision(value => value + 1);
   }, []);
 
   useEffect(() => {
@@ -208,7 +215,7 @@ function App() {
           <Metric label="Quota remaining" value="Not available" detail="No accepted provider reading" />
           <Metric label="Token activity" value="Not available" detail="No accepted provider reading" />
         </section>
-        {ready ? <ProfileManager busy={busy} setBusy={setBusy} onCount={updateProfileCount} />
+        {ready ? <ProfileManager key={profileRevision} busy={busy} setBusy={setBusy} onCount={updateProfileCount} />
           : <section className="accounts-section" aria-labelledby="accounts-heading"><div className="section-heading"><div><h2 id="accounts-heading">Accounts</h2><p>Each profile uses a separate Codex environment.</p></div><span className="muted-tag">Workspace locked</span></div>
             <div className="empty-state"><h3>Unlock to view your accounts</h3><p>Open your local workspace to manage account profiles and view saved activity.</p></div>
           </section>}
@@ -225,8 +232,8 @@ function App() {
             {backupError && <p id="backup-error" className="operation-error" role="alert">{backupError}</p>}
           </form>}
           {backupReceipt && <div className="backup-receipt" role="status"><p>Backup saved and authenticated.</p><p><strong>{backupReceipt.fileName}</strong><br />{backupReceipt.directory}</p></div>}
-          {backupAction === 'inspect' && <section id="backup-inspection" className="backup-inspection" aria-labelledby="backup-inspection-heading"><h3 id="backup-inspection-heading">Inspect a backup</h3><BackupInspection busy={busy} setBusy={setBusy} /></section>}
-          <p className="backup-note">Restore is not available in this build.</p>
+          {backupAction === 'inspect' && <section id="backup-inspection" className="backup-inspection" aria-labelledby="backup-inspection-heading"><h3 id="backup-inspection-heading">Inspect a backup</h3><BackupInspection busy={busy} setBusy={setBusy} onRestored={refreshRestoredWorkspace} /></section>}
+          <p className="backup-note">Inspect a backup before you prepare a restore. Replacing records requires confirmation.</p>
         </section>}
         <footer className="main-footer"><span>Provider data: Not available</span><span>Last observation: Not available</span></footer>
       </main>

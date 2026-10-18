@@ -60,10 +60,19 @@ export interface RestorePreview {
   current: RestoreSummary;
   incoming: RestoreSummary;
   checkpoint: { id: string; fileBytes: string };
-  restoreAvailable: false;
+  restoreAvailable: true;
+}
+
+export interface RestoreReceipt {
+  applied: true;
+  restored: RestoreSummary;
+  checkpoint: RestorePreview['checkpoint'];
+  monitoring: 'stopped';
+  authenticationRequired: true;
 }
 
 interface Commands {
+  apply_restore: { args: { previewId: string; confirmed: true }; result: RestoreReceipt };
   prepare_restore_preview: { args: { fileName: string; password: string }; result: RestorePreview };
   cancel_restore_preview: { args: { previewId: string }; result: { cancelled: boolean } };
   list_backups: { args: undefined; result: BackupList };
@@ -96,7 +105,8 @@ export async function invoke<K extends keyof Commands>(
   const core = window.__TAURI__?.core;
   if (!core) throw new DesktopUnavailable('Open the installed OpenUsage desktop application.');
   const response = await core.invoke<unknown>(command, args[0]);
-  const valid = command === 'prepare_restore_preview' ? isRestorePreview(response)
+  const valid = command === 'apply_restore' ? isRestoreReceipt(response)
+    : command === 'prepare_restore_preview' ? isRestorePreview(response)
     : command === 'cancel_restore_preview' ? isPreviewCancellation(response)
     : command === 'list_backups' ? isBackupList(response)
     : command === 'inspect_backup' ? isBackupInspection(response)
@@ -129,9 +139,21 @@ function isRestorePreview(value: unknown): value is RestorePreview {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   const v = value as Record<string, unknown>;
   if (Object.keys(v).some(key => !['previewId', 'fileName', 'current', 'incoming', 'checkpoint', 'restoreAvailable'].includes(key))
-    || !isUuid(v.previewId) || !isArchiveFileName(v.fileName) || v.restoreAvailable !== false
+    || !isUuid(v.previewId) || !isArchiveFileName(v.fileName) || v.restoreAvailable !== true
     || !isRestoreSummary(v.current) || !isRestoreSummary(v.incoming)
     || typeof v.checkpoint !== 'object' || v.checkpoint === null || Array.isArray(v.checkpoint)) return false;
+  const checkpoint = v.checkpoint as Record<string, unknown>;
+  return !Object.keys(checkpoint).some(key => !['id', 'fileBytes'].includes(key))
+    && isUuid(checkpoint.id) && isWideCount(checkpoint.fileBytes) && checkpoint.fileBytes !== '0';
+}
+
+function isRestoreReceipt(value: unknown): value is RestoreReceipt {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  if (Object.keys(v).some(key => !['applied', 'restored', 'checkpoint', 'monitoring', 'authenticationRequired'].includes(key))
+    || v.applied !== true || v.monitoring !== 'stopped' || v.authenticationRequired !== true
+    || !isRestoreSummary(v.restored) || typeof v.checkpoint !== 'object'
+    || v.checkpoint === null || Array.isArray(v.checkpoint)) return false;
   const checkpoint = v.checkpoint as Record<string, unknown>;
   return !Object.keys(checkpoint).some(key => !['id', 'fileBytes'].includes(key))
     && isUuid(checkpoint.id) && isWideCount(checkpoint.fileBytes) && checkpoint.fileBytes !== '0';

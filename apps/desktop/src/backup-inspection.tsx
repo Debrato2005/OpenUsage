@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { invoke, type BackupList, type BackupInspectionResult } from './contracts';
 import { BackupRestorePreview } from './backup-restore';
 
-type Props = { busy: boolean; setBusy: (busy: boolean) => void };
+type Props = { busy: boolean; setBusy: (busy: boolean) => void; onRestored: () => Promise<void> };
 type Failure = { message: string; password: boolean };
 type FocusTarget = 'file' | 'password' | 'error' | 'receipt';
 
@@ -26,7 +26,7 @@ function failureFor(error: unknown): Failure {
   };
 }
 
-export function BackupInspection({ busy, setBusy }: Props) {
+export function BackupInspection({ busy, setBusy, onRestored }: Props) {
   const [list, setList] = useState<BackupList | null>(null);
   const [loading, setLoading] = useState(true);
   const [attempt, setAttempt] = useState(0);
@@ -152,11 +152,11 @@ export function BackupInspection({ busy, setBusy }: Props) {
         </>}
       </dl>
       <p className={`backup-content-status${receipt.databaseValidation === 'invalid' ? ' operation-error' : ''}`}>
-        {receipt.databaseValidation === 'valid' ? 'Database checks passed. Restore is not available.'
+        {receipt.databaseValidation === 'valid' ? 'Database checks passed. Prepare a preview to review a restore.'
           : receipt.databaseValidation === 'unsupported' ? 'This version cannot check the database contents in this archive. Restore is not available.'
           : 'Database checks failed. Keep the backup file; restore is not available.'}
       </p>
     </div>}
-    {receipt?.databaseValidation === 'valid' && <BackupRestorePreview key={receipt.fileName} fileName={receipt.fileName} busy={busy} setBusy={setBusy} />}
+    {receipt?.databaseValidation === 'valid' && <BackupRestorePreview key={receipt.fileName} fileName={receipt.fileName} busy={busy} setBusy={setBusy} onRestored={onRestored} />}
   </div>;
 }

@@ -150,20 +150,20 @@ test('validated content counts stay exact and cannot enable restore', async () =
   assert.equal((await invoke('inspect_backup', { fileName: metadata.fileName, password: 'x' })).databaseValidation, 'invalid');
 });
 
-test('restore previews require safe opaque IDs and exact counts without approving replacement', async () => {
+test('restore previews require safe opaque IDs and exact counts before confirmation', async () => {
   const preview = {
     previewId: '00000001-0000-4000-8000-000000000000',
     fileName: 'openusage-backup-0123456789abcdef.oubackup',
     current: { activeProfiles: 3, archivedProfiles: '1', accounts: '0' },
     incoming: { activeProfiles: 2, archivedProfiles: '9007199254740993', accounts: '0' },
     checkpoint: { id: '00000002-0000-4000-8000-000000000000', fileBytes: '12000000000' },
-    restoreAvailable: false,
+    restoreAvailable: true,
   };
   const args = { fileName: preview.fileName, password: 'x' };
   desktopResponse(preview);
   assert.deepEqual(await invoke('prepare_restore_preview', args), preview);
   for (const changes of [
-    { previewId: '../outside' }, { restoreAvailable: true }, { fileName: '/private/backup' },
+    { previewId: '../outside' }, { restoreAvailable: false }, { fileName: '/private/backup' },
     { current: { ...preview.current, activeProfiles: 11 } },
     { incoming: { ...preview.incoming, archivedProfiles: 9007199254740992 } },
     { checkpoint: { ...preview.checkpoint, fileBytes: '0' } },
@@ -172,6 +172,29 @@ test('restore previews require safe opaque IDs and exact counts without approvin
   ]) {
     desktopResponse({ ...preview, ...changes });
     await assert.rejects(invoke('prepare_restore_preview', args), /desktop response is incompatible/);
+  }
+});
+
+test('restore receipts require exact counts, stopped monitoring, and authentication', async () => {
+  const receipt = {
+    applied: true,
+    restored: { activeProfiles: 1, archivedProfiles: '9007199254740993', accounts: '0' },
+    checkpoint: { id: '00000002-0000-4000-8000-000000000000', fileBytes: '12000000000' },
+    monitoring: 'stopped', authenticationRequired: true,
+  };
+  const args = { previewId: '00000001-0000-4000-8000-000000000000', confirmed: true };
+  desktopResponse(receipt);
+  assert.deepEqual(await invoke('apply_restore', args), receipt);
+  for (const changes of [
+    { applied: false }, { monitoring: 'running' }, { authenticationRequired: false },
+    { restored: { ...receipt.restored, activeProfiles: 11 } },
+    { restored: { ...receipt.restored, accounts: 9007199254740992 } },
+    { checkpoint: { ...receipt.checkpoint, fileBytes: '0' } },
+    { checkpoint: { ...receipt.checkpoint, path: '/private/checkpoint' } },
+    { key: 'must not cross the result boundary' },
+  ]) {
+    desktopResponse({ ...receipt, ...changes });
+    await assert.rejects(invoke('apply_restore', args), /desktop response is incompatible/);
   }
 });
 
