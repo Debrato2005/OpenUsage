@@ -127,7 +127,14 @@ impl Scope {
                     return None;
                 }
                 let target = read_link(&resolved).ok()?;
-                if !displayable(&target) {
+                if !displayable(&target)
+                    || (boundary
+                        && target
+                            .components()
+                            .any(|part| matches!(part, Component::ParentDir)))
+                {
+                    // Resolving child/.. would inspect a descendant of the final protected
+                    // root. Refuse ambiguous boundary aliases before walking their targets.
                     return None;
                 }
                 resolved.pop();
@@ -691,6 +698,25 @@ mod tests {
         executable(&file);
         assert_eq!(
             BoundaryScope::prepare(vec![file]).err(),
+            Some(CommandError::ProviderDiscoveryUnavailable)
+        );
+        let child = parent.join("child");
+        fs::create_dir(&child).unwrap();
+        let climbing_alias = temporary.path().join("climbing-alias");
+        symlink(child.join(".."), &climbing_alias).unwrap();
+        let climbing = BoundaryScope::prepare_with(
+            vec![climbing_alias],
+            &mut |path| {
+                assert!(
+                    !path.starts_with(&child),
+                    "boundary must not inspect a final-root descendant"
+                );
+                fs::symlink_metadata(path)
+            },
+            &mut |path| fs::read_link(path),
+        );
+        assert_eq!(
+            climbing.err(),
             Some(CommandError::ProviderDiscoveryUnavailable)
         );
         let cycle = temporary.path().join("cycle");
