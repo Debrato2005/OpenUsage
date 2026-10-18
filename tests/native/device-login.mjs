@@ -66,7 +66,7 @@ async function capture(name, selector, width = 360, height = 800, scale = 1) {
     await driver.screenshot(join(output, name)); evidence.screenshots.push(name); evidence.views.push({ name, textScale: scale, scalingScope: 'Test-side CSS font sizes; not OS zoom or full accessibility qualification.', ...view });
   } finally { if (scale !== 1) await driver.execute('for(const item of window.__loginFontRestore){if(item.style===null)item.node.removeAttribute("style");else item.node.setAttribute("style",item.style);}delete window.__loginFontRestore;return true;'); }
 }
-async function settings() { if (await driver.execute('return !document.querySelector("[data-provider-settings]").closest("details").open;')) await driver.click('[data-provider-settings]'); }
+async function settings() { if (await driver.execute('return !document.querySelector("[data-provider-settings]").closest("details").open;')) await driver.click('[data-provider-settings]'); if (await driver.execute('const manual=document.querySelector("[data-provider-manual]");return Boolean(manual&&!manual.closest("details").open);')) await driver.click('[data-provider-manual]'); }
 async function approveGui() {
   await settings(); await driver.type('#provider-executable', executable); await driver.click('.provider-inspection-form button[type=submit]');
   await waitFor(async () => await driver.execute('return Boolean(document.querySelector("#provider-executable-approved")&&!document.querySelector("#provider-executable-approved").disabled);'), 'reviewed synthetic source');
