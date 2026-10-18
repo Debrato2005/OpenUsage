@@ -170,7 +170,7 @@ function App() {
     : startup.kind === 'unavailable' ? 'OpenUsage needs its desktop application'
     : startup.kind === 'failed' ? 'OpenUsage could not read its local state'
     : recovery ? 'Your local data needs recovery'
-    : ready ? 'Your workspace is ready' : data?.storage === 'locked' ? 'Unlock your local workspace' : 'Set up your private workspace';
+    : ready ? 'Workspace ready' : data?.storage === 'locked' ? 'Unlock your local workspace' : 'Set up your private workspace';
   const recoveryMessage = data?.storageIssue === 'workspace_in_use'
     ? 'Another OpenUsage window uses this workspace. Close that window, then check the workspace again.'
     : data?.storageIssue === 'missing_database'
@@ -191,11 +191,10 @@ function App() {
         <div className="page-heading"><div><h1>Overview</h1><p className="subtitle">Account usage and activity on this device.</p></div><span className="status-pill"><span className="status-dot" aria-hidden="true" />Monitoring stopped</span></div>
         <section className="startup-panel" data-storage={data?.storage ?? startup.kind} aria-labelledby="startup-heading" aria-busy={startup.kind === 'loading' || busy}>
           <div className="startup-content"><h2 id="startup-heading" role="status">{message}</h2>
-            <p>{startup.kind === 'unavailable' ? 'This browser view cannot access encrypted storage or connect an account. Open the desktop application to continue.'
+            {!ready && <p>{startup.kind === 'unavailable' ? 'This browser view cannot access encrypted storage or connect an account. Open the desktop application to continue.'
               : startup.kind === 'failed' ? 'Restart the desktop application, then try again. Your existing database stays unchanged.'
               : recovery ? recoveryMessage
-              : ready ? 'Sign in or preview quotas below. Scheduled collection remains stopped.'
-              : 'Create or unlock encrypted local storage to manage your accounts.'}</p>
+              : 'Create or unlock encrypted local storage to manage your accounts.'}</p>}
             {(startup.kind === 'failed' || startup.kind === 'unavailable') && <Button className="primary-button" onClick={() => { setStartup({ kind: 'loading' }); setAttempt(n => n + 1); }}>Check desktop connection</Button>}
             {startup.kind === 'desktop' && data?.storage === 'setup_required' && !needsPassphrase && <Button className="primary-button" disabled={busy} onClick={() => { void updateWorkspace(() => invoke('setup_workspace', { passphrase: null })); }}>{busy ? 'Creating workspace…' : 'Create private workspace'}</Button>}
             {startup.kind === 'desktop' && !recovery && needsPassphrase && <form className="unlock-form" onSubmit={event => {
@@ -225,10 +224,15 @@ function App() {
           </div>
         </section>
         {privacy && <section className="privacy-details" id="privacy-details" aria-labelledby="privacy-heading"><h2 id="privacy-heading">Privacy and local storage</h2><p>OpenUsage has no hosted account or telemetry. Account connections require your approval. Provider credentials stay with Codex.</p><p>Encrypted storage protects application records. It does not encrypt provider credential files or operating-system swap.</p><p>Codex handles approved sign-in requests, connection checks, and quota previews. Scheduled collection remains stopped.</p></section>}
-        <section className="metric-grid" aria-label="Workspace summary">
-          <Metric label="Active profiles" value={ready ? String(data.activeProfiles) : 'Locked'} detail={ready ? 'Of 10 available profile slots' : 'Unlock to view your profiles'} />
-          <Metric label="Quota remaining" value="Not available" detail="No accepted provider reading" />
-          <Metric label="Token activity" value="Not available" detail="No accepted provider reading" />
+        <section className={ready ? 'workspace-summary' : 'metric-grid'} aria-label="Workspace summary">
+          {ready ? <><dl className="workspace-metrics">
+            <div className="metric"><dt className="metric-label">Quota remaining</dt><dd className="metric-value">Not available</dd></div>
+            <div className="metric"><dt className="metric-label">Token activity</dt><dd className="metric-value">Not available</dd></div>
+          </dl><p className="workspace-summary-note">No accepted provider reading</p></> : <>
+            <Metric label="Active profiles" value="Locked" detail="Unlock to view your profiles" />
+            <Metric label="Quota remaining" value="Not available" detail="No accepted provider reading" />
+            <Metric label="Token activity" value="Not available" detail="No accepted provider reading" />
+          </>}
         </section>
         {ready ? <ProfileManager key={profileRevision} busy={busy} setBusy={setBusy} onCount={updateProfileCount} providerApproval={providerApproval} />
           : <section className="accounts-section" aria-labelledby="accounts-heading"><div className="section-heading"><div><h2 id="accounts-heading">Accounts</h2><p>Each profile uses a separate Codex environment.</p></div><span className="muted-tag">Workspace locked</span></div>

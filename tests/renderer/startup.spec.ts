@@ -38,7 +38,7 @@ test('malformed bootstrap data shows a recoverable connection error', async ({ p
   await page.goto('/');
   await expect(page.getByRole('status')).toHaveText('OpenUsage could not read its local state');
   await expect(page.getByRole('button', { name: 'Check desktop connection' })).toBeVisible();
-  await expect(page.getByText('Your workspace is ready', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('Workspace ready', { exact: true })).toHaveCount(0);
 });
 
 test('database recovery guidance does not offer an automatic reset', async ({ page }) => {
