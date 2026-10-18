@@ -1,0 +1,2 @@
+.coss-collapsible-panel { transition: none; animation: none; }
+.coss-collapsible-panel[data-closed] { display: none; }

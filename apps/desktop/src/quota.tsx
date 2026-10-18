@@ -1,6 +1,6 @@
 import { Button } from './components/ui/button';
 import { Meter, MeterIndicator, MeterLabel, MeterTrack, MeterValue } from './components/ui/meter';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { invoke, type ProviderExecutableApproval, type ProfileQuotaPreview, type QuotaWindow } from './contracts';
 import { providerFailure } from './provider-errors';
 
@@ -11,6 +11,7 @@ type Props = {
   busy: boolean;
   onActivity: (active: boolean) => void;
   onStarted: () => void;
+  actionSiblings?: ReactNode;
 };
 type Outcome = { kind: 'error' | 'cancelled'; message: string } | { kind: 'preview'; value: ProfileQuotaPreview };
 const dateFormat = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' });
@@ -27,7 +28,7 @@ function WindowValues({ value }: { value: QuotaWindow }) {
   </div>;
 }
 
-export function ProfileQuotaRead({ profileId, profileLabel, approval, busy, onActivity, onStarted }: Props) {
+export function ProfileQuotaRead({ profileId, profileLabel, approval, busy, onActivity, onStarted, actionSiblings }: Props) {
   const [working, setWorking] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [requestId, setRequestId] = useState<string | null>(null);
@@ -89,6 +90,7 @@ export function ProfileQuotaRead({ profileId, profileLabel, approval, busy, onAc
 
   return <div className="profile-quota-read">
     <div className="profile-actions"><Button type="button" variant="outline" className="secondary-button" data-quota-read={profileId} aria-describedby={`profile-name-${profileId}`} disabled={busy || working} onClick={() => { void read(); }}>{working ? 'Reading quotas…' : 'Read quotas'}</Button>{working && requestId && <Button ref={cancelButton} type="button" variant="ghost" className="text-button" data-quota-cancel={profileId} aria-describedby={`profile-name-${profileId}`} disabled={stopping} onClick={() => { void cancel(); }}>{stopping ? 'Stopping read…' : 'Cancel read'}</Button>}</div>
+    {actionSiblings}
     {outcome && <div ref={result} className="quota-result" data-quota-profile={profileId} role={outcome.kind === 'error' ? 'alert' : outcome.kind === 'preview' ? 'region' : 'status'} aria-label={outcome.kind === 'preview' ? `Quota preview for ${profileLabel}` : undefined} tabIndex={-1}>
       {outcome.kind !== 'preview' && approval.sourceKind === 'test_fixture' && <p className="quota-fixture-label" data-provider-fixture>Synthetic test data</p>}
       {outcome.kind !== 'preview' ? <p>{outcome.message}</p> : <>

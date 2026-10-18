@@ -131,7 +131,7 @@ export function ProfileDeviceLogin({ profileId, profileLabel, approval, busy, on
   }
 
   return <div className="profile-device-login">
-    {!working && !consent && <Button ref={launch} className="secondary-button" variant="outline" type="button" data-login-start={profileId} aria-describedby={`profile-name-${profileId}`} disabled={busy} onClick={explain}>Sign in</Button>}
+    {!working && !consent && <Button ref={launch} className="text-button" variant="ghost" type="button" data-login-start={profileId} aria-describedby={`profile-name-${profileId}`} disabled={busy} onClick={explain}>Sign in</Button>}
     {consent && <form className="login-panel" data-login-consent={profileId} aria-labelledby={`login-heading-${profileId}`} onSubmit={event => { event.preventDefault(); void start(); }}>
       <h3 id={`login-heading-${profileId}`}>Sign in to <bdi>{profileLabel}</bdi></h3>
       <p>Codex will contact OpenAI to request a sign-in code. If you finish, Codex saves sign-in information for this profile on this device.</p>
