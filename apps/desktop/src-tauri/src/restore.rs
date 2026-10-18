@@ -366,9 +366,15 @@ pub(crate) fn prepare_checkpoint(
         Err(_) => return Err(CommandError::RestoreCheckpointFailed),
     }
     let source = HeldPath::open(&source_path, false)?;
-    let snapshot = storage
-        .read_encrypted_checkpoint(&source.path)
-        .map_err(|_| CommandError::RestoreCheckpointFailed)?;
+    let snapshot =
+        storage
+            .read_encrypted_checkpoint(&source.path)
+            .map_err(|error| match error {
+                openusage_storage::CheckpointError::UnsupportedSchema => {
+                    CommandError::UnsupportedBackupContents
+                }
+                _ => CommandError::RestoreCheckpointFailed,
+            })?;
     source.require_unchanged()?;
     held_directory.require_identity()?;
     let incoming = openusage_storage::validate_checkpoint_restore_input(
