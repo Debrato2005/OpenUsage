@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import { Button } from './components/ui/button';
+import { Input } from './components/ui/input';
 import { providerFailure } from './provider-errors';
 import { ProfileQuotaRead } from './quota';
 import { ProfileDeviceLogin } from './login';
@@ -113,22 +115,22 @@ export function ProviderSettings({ busy, setBusy, approval, onApproved }: Settin
         {approval.sourceKind === 'test_fixture' && <p className="provider-fixture-note" data-provider-fixture>Synthetic provider fixture. Replies use controlled test data.</p>}
       </div>}
       <p className="provider-help" id="provider-find-help">OpenUsage checks known installation locations and folder metadata. It does not open sign-in files or run Codex.</p>
-      <button className="secondary-button" type="button" data-provider-find disabled={busy} aria-describedby="provider-find-help" onClick={() => { void find(); }}>{operation === 'find' ? 'Finding Codex…' : 'Find Codex'}</button>
+      <Button className="secondary-button" variant="outline" type="button" data-provider-find disabled={busy} aria-describedby="provider-find-help" onClick={() => { void find(); }}>{operation === 'find' ? 'Finding Codex…' : 'Find Codex'}</Button>
       {discovery && <div ref={foundPanel} className="provider-discovery" tabIndex={-1} role="region" aria-label="Codex search results">
         <p role="status">{discovery.candidates.length === 0 ? 'No executable was found in the checked locations. Enter a path to review Codex.' : discovery.candidates.length === 1 ? 'One executable found. Review its source below before you approve it.' : `${discovery.candidates.length} executables found. Choose one to review.`}</p>
         {discovery.truncated && <p className="provider-help">The search reached its limit. You can enter a different path below.</p>}
         {discovery.candidates.length > 1 && <form className="provider-discovery-form" onSubmit={event => { event.preventDefault(); void inspect(); }}>
           <fieldset disabled={busy}><legend>Codex executable</legend>{discovery.candidates.map(found => <label className="backup-selection provider-discovery-choice" key={found.path}><input type="radio" name="discovered-codex" value={found.path} checked={path === found.path} onChange={() => choose(found.path)} /><span className="provider-path"><bdi>{found.path}</bdi></span></label>)}</fieldset>
-          <button className="secondary-button" type="submit" disabled={busy || !path}>{operation === 'inspect' ? 'Inspecting executable…' : 'Review selected executable'}</button>
+          <Button className="secondary-button" variant="outline" type="submit" disabled={busy || !path}>{operation === 'inspect' ? 'Inspecting executable…' : 'Review selected executable'}</Button>
         </form>}
       </div>}
       <details className="provider-manual" open={manualOpen} onToggle={event => setManualOpen(event.currentTarget.open)}>
         <summary data-provider-manual>Enter executable path</summary>
         <form className="unlock-form provider-inspection-form" noValidate onSubmit={event => { event.preventDefault(); void inspect(); }}>
           <label htmlFor="provider-executable">Codex executable</label>
-          <input ref={pathField} id="provider-executable" type="text" autoComplete="off" spellCheck={false} maxLength={4096} value={path} disabled={busy} aria-invalid={!!error && pathError} aria-describedby={`provider-executable-help${error && pathError ? ' provider-executable-error' : ''}`} onChange={event => choose(event.target.value)} />
+          <Input nativeInput ref={pathField} id="provider-executable" type="text" autoComplete="off" spellCheck={false} maxLength={4096} value={path} disabled={busy} aria-invalid={!!error && pathError} aria-describedby={`provider-executable-help${error && pathError ? ' provider-executable-error' : ''}`} onChange={event => choose(event.target.value)} />
           <p id="provider-executable-help">Enter an absolute file path. Inspection checks the source before you approve execution.</p>
-          <button className="secondary-button" type="submit" disabled={busy}>{operation === 'inspect' ? 'Inspecting executable…' : 'Inspect executable'}</button>
+          <Button className="secondary-button" variant="outline" type="submit" disabled={busy}>{operation === 'inspect' ? 'Inspecting executable…' : 'Inspect executable'}</Button>
         </form>
       </details>
       {candidate && <div ref={reviewPanel} className="backup-receipt provider-executable-review" tabIndex={-1} role="region" aria-labelledby="provider-review-heading">
@@ -140,7 +142,7 @@ export function ProviderSettings({ busy, setBusy, approval, onApproved }: Settin
           : 'This file does not match a supported verified source. OpenUsage cannot approve it for execution.'}</p>
         <form className="provider-approval-form" onSubmit={event => { event.preventDefault(); void approve(); }}>
           <label className="backup-selection"><input id="provider-executable-approved" type="checkbox" required disabled={busy || !candidate.sourceVerified} checked={confirmed} aria-describedby="provider-trust-help" onChange={event => setConfirmed(event.target.checked)} />I trust this executable for connection checks and quota previews.</label>
-          <button className="primary-button" type="submit" disabled={busy || !confirmed || !candidate.sourceVerified}>{operation === 'approve' ? 'Approving executable…' : 'Approve executable'}</button>
+          <Button className="primary-button" type="submit" disabled={busy || !confirmed || !candidate.sourceVerified}>{operation === 'approve' ? 'Approving executable…' : 'Approve executable'}</Button>
         </form>
       </div>}
       {error && <p ref={errorPanel} id="provider-executable-error" className="operation-error" role="alert" tabIndex={-1}>{error}</p>}
@@ -196,8 +198,8 @@ export function ProfileProviderCheck({ profileId, profileLabel, approval, busy }
   const title = diagnostic?.authentication === 'authentication_required' ? 'Sign-in required'
     : diagnostic?.authentication === 'chatgpt' ? 'Account response received' : 'Account type not supported';
   return <div className="profile-provider-check">
-    <div className="profile-actions"><button className="secondary-button" type="button" data-provider-check={profileId} aria-describedby={`profile-name-${profileId}`} disabled={busy || checking || loggingIn || readingQuota} onClick={() => { void check(); }}>{checking ? 'Checking connection…' : 'Check connection'}</button>
-      {checking && <button className="text-button" type="button" data-provider-cancel={profileId} aria-describedby={`profile-name-${profileId}`} disabled={cancelling} onClick={() => { void cancel(); }}>{cancelling ? 'Cancelling…' : 'Cancel check'}</button>}
+    <div className="profile-actions"><Button className="secondary-button" variant="outline" type="button" data-provider-check={profileId} aria-describedby={`profile-name-${profileId}`} disabled={busy || checking || loggingIn || readingQuota} onClick={() => { void check(); }}>{checking ? 'Checking connection…' : 'Check connection'}</Button>
+      {checking && <Button className="text-button" variant="ghost" type="button" data-provider-cancel={profileId} aria-describedby={`profile-name-${profileId}`} disabled={cancelling} onClick={() => { void cancel(); }}>{cancelling ? 'Cancelling…' : 'Cancel check'}</Button>}
     </div>
     <ProfileDeviceLogin key={`login:${loginGeneration}`} profileId={profileId} profileLabel={profileLabel} approval={approval} busy={busy || checking || readingQuota} onActivity={setLoggingIn} onStarted={() => { checkGeneration.current += 1; setDiagnostic(null); setError(null); setQuotaGeneration(value => value + 1); }} />
     <ProfileQuotaRead key={`quota:${quotaGeneration}`} profileId={profileId} profileLabel={profileLabel} approval={approval} busy={busy || checking || loggingIn} onActivity={setReadingQuota} onStarted={() => { checkGeneration.current += 1; setDiagnostic(null); setError(null); setLoginGeneration(value => value + 1); }} />

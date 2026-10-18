@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
+import { Button } from './components/ui/button';
+import { Input } from './components/ui/input';
+import { Textarea } from './components/ui/textarea';
 import { invoke, type ProviderExecutableApproval, type ProviderLoginAttempt, type ProviderLoginPrompt } from './contracts';
 import { providerFailure } from './provider-errors';
 
@@ -127,13 +130,13 @@ export function ProfileDeviceLogin({ profileId, profileLabel, approval, busy, on
   }
 
   return <div className="profile-device-login">
-    {!working && !consent && <button ref={launch} className="secondary-button" type="button" data-login-start={profileId} aria-describedby={`profile-name-${profileId}`} disabled={busy} onClick={explain}>Sign in</button>}
+    {!working && !consent && <Button ref={launch} className="secondary-button" variant="outline" type="button" data-login-start={profileId} aria-describedby={`profile-name-${profileId}`} disabled={busy} onClick={explain}>Sign in</Button>}
     {consent && <form className="login-panel" data-login-consent={profileId} aria-labelledby={`login-heading-${profileId}`} onSubmit={event => { event.preventDefault(); void start(); }}>
       <h3 id={`login-heading-${profileId}`}>Sign in to <bdi>{profileLabel}</bdi></h3>
       <p>Codex will contact OpenAI to request a sign-in code. If you finish, Codex saves sign-in information for this profile on this device.</p>
       <p className="provider-help">Cancelling stops this attempt. Credentials already saved by Codex may remain.</p>
       {approval.sourceKind === 'test_fixture' && <p className="provider-fixture-note" data-provider-fixture>Synthetic provider fixture. This flow uses controlled test data.</p>}
-      <div className="profile-actions"><button ref={submit} className="primary-button" type="submit" disabled={busy}>Get sign-in code</button><button className="text-button" type="button" onClick={() => { setConsent(false); setFocus('launch'); }}>Back</button></div>
+      <div className="profile-actions"><Button ref={submit} className="primary-button" type="submit" disabled={busy}>Get sign-in code</Button><Button className="text-button" variant="ghost" type="button" onClick={() => { setConsent(false); setFocus('launch'); }}>Back</Button></div>
     </form>}
     {working && <div className="login-panel" aria-labelledby={`login-pending-${profileId}`}>
       <h3 id={`login-pending-${profileId}`}>Sign in to <bdi>{profileLabel}</bdi></h3>
@@ -141,12 +144,12 @@ export function ProfileDeviceLogin({ profileId, profileLabel, approval, busy, on
       {prompt ? <div className="login-prompt" data-login-profile={profileId}>
         <p>Open this address in your browser, then enter the code.</p>
         <label htmlFor={`login-address-${profileId}`}>Sign-in page</label>
-        <textarea id={`login-address-${profileId}`} rows={3} spellCheck={false} readOnly value={prompt.verificationUrl} onFocus={event => selectField(event.currentTarget)} />
+        <Textarea id={`login-address-${profileId}`} rows={3} spellCheck={false} readOnly value={prompt.verificationUrl} onFocus={event => selectField(event.currentTarget)} />
         <label htmlFor={`login-code-${profileId}`}>Your sign-in code</label>
-        <input ref={code} id={`login-code-${profileId}`} className="login-code" type="text" autoComplete="off" readOnly value={prompt.userCode} aria-describedby={`login-wait-${profileId}`} onFocus={event => selectField(event.currentTarget)} />
+        <Input nativeInput ref={code} id={`login-code-${profileId}`} inputClassName="login-code" type="text" autoComplete="off" readOnly value={prompt.userCode} aria-describedby={`login-wait-${profileId}`} onFocus={event => selectField(event.currentTarget)} />
         <p id={`login-wait-${profileId}`} className="provider-help">OpenUsage waits up to 15 minutes. Codex did not provide a code expiry time.</p>
       </div> : <p role="status">{cancelling || cancelled.current ? 'Stopping sign-in…' : 'Preparing your sign-in code…'}</p>}
-      {attempt && <button className="secondary-button" type="button" data-login-cancel={profileId} aria-describedby={`profile-name-${profileId}`} disabled={cancelling} onClick={() => { void cancel(); }}>{cancelling ? 'Stopping sign-in…' : 'Cancel sign-in'}</button>}
+      {attempt && <Button className="secondary-button" variant="outline" type="button" data-login-cancel={profileId} aria-describedby={`profile-name-${profileId}`} disabled={cancelling} onClick={() => { void cancel(); }}>{cancelling ? 'Stopping sign-in…' : 'Cancel sign-in'}</Button>}
     </div>}
     {outcome && <div ref={result} className="login-panel login-result" data-login-profile={profileId} role={outcome.kind === 'error' ? 'alert' : 'status'} tabIndex={-1}>
       {approval.sourceKind === 'test_fixture' && <p className="provider-fixture-note" data-provider-fixture>Synthetic provider fixture</p>}
