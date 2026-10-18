@@ -264,7 +264,7 @@ async function capture(name, selector, width = 1280, scale = 1, checkCreditScrol
     for (const weight of [400, 500]) assert.ok(typography.faces.some(face => face.weight === String(weight) && face.status === 'loaded'), `JetBrains Mono weight ${weight} must load.`);
     for (const family of [typography.body, ...typography.targets.map(target => target.family)]) assert.equal(family.split(',')[0].replaceAll('"', '').replaceAll("'", '').trim(), 'JetBrains Mono');
     evidence.typography ??= []; evidence.typography.push({ name, ...typography });
-    await driver.execute('document.querySelector(arguments[0]).scrollIntoView({block:"center"});return true;', [selector]);
+    await driver.execute('document.querySelector(arguments[0]).scrollIntoView({block:arguments[1]});return true;', [selector, retentionOnly ? 'start' : 'center']);
     let initialCredit;
     if (scrollCheck) {
       assert.equal(await driver.execute('return document.activeElement===document.querySelector(arguments[0]);', [scrollCheck.trigger]), true, 'The disclosure trigger must own focus before the real Tab.');
