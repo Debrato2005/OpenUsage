@@ -22,7 +22,7 @@ function QuotaDisclosure({ label, className, defaultOpen = false, children }: { 
   return <Collapsible className={className} defaultOpen={defaultOpen}>
     <CollapsibleTrigger render={<Button variant="ghost" className="quota-disclosure-trigger" />} type="button">
       <svg className="quota-disclosure-caret" aria-hidden="true" focusable="false" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="m6 4 4 4-4 4" /></svg>
-      {label}
+      <span className="quota-disclosure-label">{label}</span>
     </CollapsibleTrigger>
     <CollapsiblePanel>{children}</CollapsiblePanel>
   </Collapsible>;

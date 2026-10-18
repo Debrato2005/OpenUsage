@@ -12,8 +12,8 @@
   color: inherit;
 }
 .quota-limit > .quota-disclosure-trigger { width: 100%; }
-.quota-disclosure-trigger > bdi { min-width: 0; overflow-wrap: anywhere; }
-.quota-disclosure-caret { width: 1rem; height: 1rem; flex-shrink: 0; color: var(--muted); }
+.quota-disclosure-trigger > .quota-disclosure-label { min-width: 0; overflow-wrap: anywhere; pointer-events: none; }
+.quota-disclosure-caret { pointer-events: none; width: 1rem; height: 1rem; flex-shrink: 0; color: var(--muted); }
 .quota-disclosure-trigger[aria-expanded='true'] > .quota-disclosure-caret { transform: rotate(90deg); }
 .quota-result .quota-disclosure-trigger:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 .quota-result .quota-credit-count { min-width: 0; max-width: 100%; overflow-x: auto; white-space: nowrap; }
