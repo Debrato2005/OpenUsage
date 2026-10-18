@@ -3,7 +3,7 @@ import type { ProfileActivitySavedRead, SavedProfileActivity } from '../../apps/
 
 // Renderer-only synthetic IPC; SQLCipher, provider ownership and COMMIT are native acceptance scope.
 type Deferred = { resolve: (value: unknown) => void; reject: (error: string) => void };
-type Fixture = { completions: Record<string, Deferred>; cancellations: Record<string, Deferred>; requests: string[]; saved: SavedProfileActivity | null; failLoads: boolean; deferLoads: boolean; pendingLoads: Deferred[] };
+type Fixture = { completions: Record<string, Deferred>; cancellations: Record<string, Deferred>; requests: string[]; requestCalls: { command: string; args: Record<string, unknown> }[]; saved: SavedProfileActivity | null; failLoads: boolean; deferLoads: boolean; pendingLoads: Deferred[] };
 type FixtureWindow = Window & { activityFixture: Fixture };
 const profileId = '11111111-1111-4111-8111-111111111111';
 const approvalId = '22222222-2222-4222-8222-222222222222';
@@ -23,11 +23,11 @@ function saved(index = 0, rows: { startDate: string; tokens: string }[] | null =
 }
 async function openProfile(page: Page, options: { approve?: boolean; cached?: SavedProfileActivity | null; archived?: boolean } = {}) {
   await page.addInitScript(({ profileId, approvalId, requestIds, options }) => {
-    const fixture: Fixture = { completions: {}, cancellations: {}, requests: [], saved: options.cached ?? null, failLoads: false, deferLoads: false, pendingLoads: [] };
+    const fixture: Fixture = { completions: {}, cancellations: {}, requests: [], requestCalls: [], saved: options.cached ?? null, failLoads: false, deferLoads: false, pendingLoads: [] };
     Object.assign(window, { activityFixture: fixture }); let started = 0;
     const metadata = { path: '/synthetic/reviewed-codex', fileBytes: '100', sha256: 'a'.repeat(64), testedVersion: '0.163.0', versionChecked: false, sourceVerified: true, sourceKind: 'test_fixture', sourceUrl: null };
     window.__TAURI__ = { core: { invoke: async <T>(command: string, args: Record<string, unknown> = {}) => {
-      fixture.requests.push(command); let value: unknown;
+      fixture.requests.push(command); fixture.requestCalls.push({ command, args: { ...args } }); let value: unknown;
       switch (command) {
         case 'bootstrap': value = { storage: 'ready', theme: 'light', schemaVersion: 1, activeProfiles: options.archived ? 0 : 1, monitoring: 'stopped', provider: 'not_configured', keyProtection: 'passphrase', storageIssue: null }; break;
         case 'list_profiles': value = { activeProfiles: options.archived ? 0 : 1, profiles: [{ id: profileId, label: 'Synthetic activity profile', environment: 'native', archived: options.archived ?? false, connectionState: 'authentication_required' }] }; break;
@@ -36,6 +36,7 @@ async function openProfile(page: Page, options: { approve?: boolean; cached?: Sa
           value = fixture.deferLoads ? await new Promise((resolve, reject) => { fixture.pendingLoads.push({ resolve, reject }); }) : structuredClone(fixture.saved); break;
         case 'inspect_provider_executable': value = { ...metadata, candidateId: '55555555-5555-4555-8555-555555555555' }; break;
         case 'approve_provider_executable': value = { ...metadata, approvalId }; break;
+        case 'begin_profile_activity_reassociation':
         case 'begin_profile_activity_read': value = { profileId, approvalId, requestId: requestIds[started++], sourceKind: 'test_fixture', monitoring: 'stopped', accepted: false }; break;
         case 'complete_profile_activity_read': value = await new Promise((resolve, reject) => { fixture.completions[String(args.requestId)] = { resolve, reject }; }); break;
         case 'cancel_profile_activity_read': value = await new Promise((resolve, reject) => { fixture.cancellations[String(args.requestId)] = { resolve, reject }; }); break;
@@ -63,8 +64,8 @@ async function begin(page: Page, index: number) {
   await expect(page.locator(`[data-activity-cancel="${profileId}"]`)).toBeFocused();
   await expect.poll(() => page.evaluate(id => Boolean((window as unknown as FixtureWindow).activityFixture.completions[id]), requestIds[index]!)).toBe(true);
 }
-async function publish(page: Page, index: number, rows: { startDate: string; tokens: string }[] | null, cached = saved(index, rows)) {
-  await page.evaluate(({ id, value, cached }) => { const fixture = (window as unknown as FixtureWindow).activityFixture; fixture.saved = cached; fixture.completions[id]!.resolve(value); }, { id: requestIds[index]!, value: committed(index, rows), cached });
+async function publish(page: Page, index: number, rows: { startDate: string; tokens: string }[] | null, cached = saved(index, rows), receipt = { ...committed(index, rows), summary: cached.summary, collectionRunId: cached.collectionRunId, bindingId: cached.bindingId }) {
+  await page.evaluate(({ id, value, cached }) => { const fixture = (window as unknown as FixtureWindow).activityFixture; fixture.saved = cached; fixture.completions[id]!.resolve(value); }, { id: requestIds[index]!, value: receipt, cached });
   await expect(page.getByRole('region', { name: 'Saved activity for Synthetic activity profile' })).toBeFocused();
 }
 const metric = (page: Page, name: string) => page.locator(`[data-activity-saved] [data-activity-metric="${name}"]`);
@@ -206,4 +207,80 @@ test('renderer preserves manual saved-result focus when the sixty-second cache t
   await page.evaluate(cached => { const fixture = (window as unknown as FixtureWindow).activityFixture; fixture.deferLoads = false; fixture.pendingLoads[0]!.resolve(cached); }, cached);
   await expect(page.getByRole('region', { name: 'Saved activity for Synthetic activity profile' })).toBeFocused();
   await expect(metric(page, 'lifetimeTokens')).toHaveText('9223372036854775807');
+});
+
+
+async function offerReassociation(page: Page) {
+  await begin(page, 0);
+  await page.evaluate(id => { (window as unknown as FixtureWindow).activityFixture.completions[id]!.reject('provider_activity_association_changed'); }, requestIds[0]!);
+  await expect(page.getByRole('button', { name: 'Use current sign-in', exact: true })).toBeVisible();
+}
+async function confirmReassociation(page: Page) {
+  await page.getByRole('button', { name: 'Use current sign-in', exact: true }).click();
+  await page.getByRole('checkbox', { name: 'I approve using the current sign-in for this profile.', exact: true }).check();
+  await page.getByRole('button', { name: 'Confirm and read', exact: true }).click();
+  await expect(page.locator(`[data-activity-cancel="${profileId}"]`)).toBeFocused();
+  await expect.poll(() => page.evaluate(id => Boolean((window as unknown as FixtureWindow).activityFixture.completions[id]), requestIds[1]!)).toBe(true);
+}
+
+test('renderer requires fresh explicit reassociation consent and Keep saved readings sends no request', async ({ page }) => {
+  const cached = saved(); cached.summary.lifetimeTokens = '1';
+  await openProfile(page, { cached }); await offerReassociation(page);
+  const trigger = page.getByRole('button', { name: 'Use current sign-in', exact: true });
+  await trigger.click();
+  const consent = page.getByRole('checkbox', { name: 'I approve using the current sign-in for this profile.', exact: true });
+  await expect(consent).not.toBeChecked(); await expect(consent).toBeFocused();
+  await expect(page.getByRole('button', { name: 'Confirm and read', exact: true })).toBeDisabled();
+  await expect(page.getByText('New readings will use the current sign-in. Previous readings stay in encrypted history.')).toBeVisible();
+  await page.setViewportSize({ width: 360, height: 900 });
+  await page.evaluate(() => { const root = document.querySelector('.activity-result')!; const nodes = [root, ...root.querySelectorAll('*')]; const sizes = nodes.map(node => ({ node: node as HTMLElement, size: getComputedStyle(node).fontSize })); for (const { node, size } of sizes) node.style.fontSize = `${parseFloat(size) * 2}px`; });
+  expect(await page.evaluate(() => { const root = document.querySelector('.activity-result')!; return { pageWidth: document.documentElement.scrollWidth, viewport: innerWidth, buttons: [...root.querySelectorAll('button')].filter(node => node.getClientRects().length).map(node => ({ text: node.textContent?.trim(), width: node.getBoundingClientRect().width, container: root.getBoundingClientRect().width })) }; })).toMatchObject({ pageWidth: 360, viewport: 360 });
+
+  await consent.check(); await expect(page.getByRole('button', { name: 'Confirm and read', exact: true })).toBeEnabled();
+  await page.getByRole('button', { name: 'Keep saved readings', exact: true }).click();
+  await expect(trigger).toBeFocused(); await expect(page.getByRole('button', { name: 'Confirm and read', exact: true })).toHaveCount(0);
+  await trigger.click(); await expect(consent).not.toBeChecked();
+  await expect(page.getByRole('button', { name: 'Confirm and read', exact: true })).toBeDisabled();
+  await expect(metric(page, 'lifetimeTokens')).toHaveText('1');
+  expect(await page.evaluate(() => (window as unknown as FixtureWindow).activityFixture.requests.filter(command => command === 'begin_profile_activity_reassociation'))).toEqual([]);
+});
+
+test('renderer never offers reassociation after an unsafe account change during the read', async ({ page }) => {
+  await openProfile(page, { cached: saved() }); await begin(page, 0);
+  await page.evaluate(id => { (window as unknown as FixtureWindow).activityFixture.completions[id]!.reject('provider_account_changed'); }, requestIds[0]!);
+  await expect(page.getByText('The Codex account information changed during this read. Check the intended account, then read again.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Use current sign-in', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('checkbox', { name: 'I approve using the current sign-in for this profile.', exact: true })).toHaveCount(0);
+  await expect(metric(page, 'lifetimeTokens')).toHaveText('9223372036854775807');
+});
+
+test('renderer uses the confirmed reassociation command and displays the newly committed binding', async ({ page }) => {
+  const cached = saved(); cached.summary.lifetimeTokens = '1';
+  await openProfile(page, { cached }); await offerReassociation(page); await confirmReassociation(page);
+  const calls = await page.evaluate(() => (window as unknown as FixtureWindow).activityFixture.requestCalls.filter(call => call.command === 'begin_profile_activity_reassociation'));
+  expect(calls).toEqual([{ command: 'begin_profile_activity_reassociation', args: { profileId, approvalId, confirmed: true } }]);
+  await expect(metric(page, 'lifetimeTokens')).toHaveText('1');
+  const next = saved(1); next.bindingId = '99999999-9999-4999-8999-999999999999'; next.summary.lifetimeTokens = '2';
+  await publish(page, 1, null, next);
+  await expect(metric(page, 'lifetimeTokens')).toHaveText('2');
+  await expect(page.getByRole('button', { name: 'Use current sign-in', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('checkbox', { name: 'I approve using the current sign-in for this profile.', exact: true })).toHaveCount(0);
+});
+
+test('renderer keeps old saved values when confirmed reassociation fails before commit', async ({ page }) => {
+  const cached = saved(); cached.summary.lifetimeTokens = '1';
+  await openProfile(page, { cached }); await offerReassociation(page); await confirmReassociation(page);
+  await page.evaluate(id => { (window as unknown as FixtureWindow).activityFixture.completions[id]!.reject('provider_activity_save_failed'); }, requestIds[1]!);
+  await expect(page.getByText('The reading could not be saved. Your previous activity is still available.')).toBeVisible();
+  await expect(metric(page, 'lifetimeTokens')).toHaveText('1');
+  await expect(page.getByRole('checkbox', { name: 'I approve using the current sign-in for this profile.', exact: true })).toHaveCount(0);
+});
+
+test('renderer refuses a saved load with the wrong binding after reassociation completion', async ({ page }) => {
+  const cached = saved(); cached.summary.lifetimeTokens = '1';
+  await openProfile(page, { cached }); await offerReassociation(page); await confirmReassociation(page);
+  await page.evaluate(({ id, receipt }) => { (window as unknown as FixtureWindow).activityFixture.completions[id]!.resolve(receipt); }, { id: requestIds[1]!, receipt: { ...committed(1, null), bindingId: '99999999-9999-4999-8999-999999999999' } });
+  await expect(page.getByText('Saved activity could not be loaded. Try again.')).toBeVisible();
+  await expect(metric(page, 'lifetimeTokens')).toHaveText('1');
+  await expect(page.getByRole('button', { name: 'Reload saved activity', exact: true })).toBeVisible();
 });
