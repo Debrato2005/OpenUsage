@@ -40,6 +40,8 @@ pub(crate) struct QuotaLimitView {
     pub primary: Option<QuotaWindowView>,
     pub secondary: Option<QuotaWindowView>,
     pub reached_type: Option<String>,
+    pub monthly_credit_limit: Option<String>,
+    pub spend_control_reached: Option<bool>,
 }
 
 #[derive(Serialize)]
@@ -315,6 +317,8 @@ impl CompletedQuota {
                         .secondary
                         .map(|window| QuotaWindowView::from_window(window, "Secondary window")),
                     reached_type: limit.reached_type,
+                    monthly_credit_limit: limit.monthly_credit_limit,
+                    spend_control_reached: limit.spend_control_reached,
                 })
                 .collect(),
         })
