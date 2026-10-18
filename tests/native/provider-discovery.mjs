@@ -82,6 +82,8 @@ try {
   fixture.environment.PATH = [...excluded, safe, alias, second, npmBin, '/usr/bin', '/bin'].join(':');
   evidence.syntheticRoots = { home, codexHome: customAlias, protectedDefault, protectedCustom: fixture.dirs.codex, managed, managedAlias }; evidence.discoveryPath = fixture.environment.PATH;
   driver = new NativeDriver(application, fixture.environment, join(output, 'driver.log')); await driver.start();
+  assert.deepEqual(await driver.invoke('discover_provider_executables'), { ok: false, error: 'workspace_locked' });
+  evidence.fixedStandardLocations = { scope: 'The product also checks its fixed system installation locations. Exact candidate assertions fail visibly if another host has an additional Codex executable there.', expectedAdditionalExecutables: 0 };
   await waitFor(async () => await driver.execute('return Boolean(document.querySelector("#workspace-passphrase")&&!document.querySelector("#workspace-passphrase").disabled);'), 'fresh workspace form');
   const password = 'OpenUsage synthetic discovery workspace 2026'; await driver.type('#workspace-passphrase', password); await driver.type('#workspace-confirmation', password); await driver.click('.unlock-form button[type=submit]');
   await waitFor(async () => (await driver.invoke('bootstrap')).value?.storage === 'ready', 'encrypted discovery workspace');
