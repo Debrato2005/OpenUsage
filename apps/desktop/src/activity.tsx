@@ -3,7 +3,7 @@ import { Button } from './components/ui/button';
 import { Checkbox } from './components/ui/checkbox';
 import { Field, FieldLabel } from './components/ui/field';
 import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from './components/ui/collapsible';
-import { invoke, type ActivityFreshness, type ProfileActivitySavedRead, type SavedProfileActivity, type ProviderExecutableApproval } from './contracts';
+import { invoke, type ProfileActivityAssociationReview, type ActivityFreshness, type ProfileActivitySavedRead, type SavedProfileActivity, type ProviderExecutableApproval } from './contracts';
 import { providerFailure } from './provider-errors';
 import './activity.css';
 
@@ -95,6 +95,9 @@ export function useActivityPreview({ profileId, approval, busy, onStarted, onSav
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [reassociationOpen, setReassociationOpen] = useState(false);
   const [reassociationApproved, setReassociationApproved] = useState(false);
+  const [associationReview, setAssociationReview] = useState<ProfileActivityAssociationReview | null>(null);
+  const [reviewing, setReviewing] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
   const reassociationConsent = useRef<HTMLButtonElement>(null);
   const reassociationTrigger = useRef<HTMLButtonElement>(null);
   const [focus, setFocus] = useState(false);
@@ -111,17 +114,36 @@ export function useActivityPreview({ profileId, approval, busy, onStarted, onSav
     return () => { alive.current = false; const requestId = activeRequest.current; if (requestId) void invoke('cancel_profile_activity_read', { profileId, requestId }).catch(() => {}); };
   }, [profileId]);
   useEffect(() => { if (working && requestId) cancelButton.current?.focus(); }, [working, requestId]);
-  useEffect(() => { if (reassociationOpen && !working) reassociationConsent.current?.focus(); }, [reassociationOpen, working]);
+  useEffect(() => { if (reassociationOpen && associationReview && !working) reassociationConsent.current?.focus(); }, [reassociationOpen, associationReview, working]);
   useEffect(() => { if (focus && !working && result.current) { result.current.focus(); setFocus(false); } }, [focus, working, outcome]);
 
+  function closeReview() {
+    generation.current += 1; setReassociationOpen(false); setReassociationApproved(false);
+    setAssociationReview(null); setReviewError(null); setReviewing(false);
+  }
+  async function reviewAssociation() {
+    if (busy || pending.current || reviewing) return;
+    const operation = ++generation.current;
+    setAssociationReview(null); setReassociationApproved(false); setReviewError(null); setReviewing(true); setReassociationOpen(true);
+    try {
+      const review = await invoke('review_profile_activity_association', { profileId, approvalId: approval.approvalId });
+      if (review.profileId !== profileId || review.approvalId !== approval.approvalId) throw new Error('Incompatible association review.');
+      if (alive.current && operation === generation.current) setAssociationReview(review);
+    } catch (failure) {
+      if (alive.current && operation === generation.current) setReviewError(failure === 'provider_activity_review_unavailable' ? 'Read activity again to review the current sign-in.' : 'The account review could not be loaded. Try again.');
+    } finally {
+      if (alive.current && operation === generation.current) setReviewing(false);
+    }
+  }
   async function read(reassociate = false) {
-    if (busy || pending.current || (reassociate && (!outcome?.reassociationAvailable || !reassociationOpen || !reassociationApproved))) return;
-    setReassociationOpen(false); setReassociationApproved(false);
+    if (busy || pending.current || reviewing || (reassociate && (!outcome?.reassociationAvailable || !reassociationOpen || !reassociationApproved || !associationReview))) return;
+    const reviewId = associationReview?.reviewId;
+    closeReview();
     generation.current += 1; pending.current = true; stopped.current = false; cancellationFailure.current = null;
     setWorking(true); setOutcome(current => current?.kind === 'error' ? current : null); onStarted();
     try {
       const begun = reassociate
-        ? await invoke('begin_profile_activity_reassociation', { profileId, approvalId: approval.approvalId, confirmed: true })
+        ? await invoke('begin_profile_activity_reassociation', { profileId, approvalId: approval.approvalId, reviewId: reviewId!, confirmed: true })
         : await invoke('begin_profile_activity_read', { profileId, approvalId: approval.approvalId });
       if (begun.profileId !== profileId || begun.approvalId !== approval.approvalId || begun.sourceKind !== approval.sourceKind) throw new Error('Incompatible activity binding.');
       activeRequest.current = begun.requestId;
@@ -147,21 +169,27 @@ export function useActivityPreview({ profileId, approval, busy, onStarted, onSav
   }
   return {
     working,
-    clear: () => { generation.current += 1; setReassociationOpen(false); setReassociationApproved(false); setOutcome(current => current?.kind === 'error' ? current : null); setFocus(false); },
+    clear: () => { closeReview(); setOutcome(current => current?.kind === 'error' ? current : null); setFocus(false); },
     action: <Button className="text-button" variant="ghost" type="button" data-activity-read={profileId} aria-describedby={`profile-name-${profileId}`} disabled={busy || working} onClick={() => { void read(); }}>Read activity</Button>,
     content: <>
       {working && <div className="profile-actions activity-pending"><span role="status">Reading activity…</span>{requestId && <Button ref={cancelButton} className="text-button" variant="ghost" type="button" data-activity-cancel={profileId} aria-describedby={`profile-name-${profileId}`} disabled={stopping} onClick={() => { void cancel(); }}>{stopping ? 'Stopping read…' : 'Cancel activity read'}</Button>}</div>}
       {outcome && <div ref={result} className="activity-result" data-activity-profile={profileId} tabIndex={-1} role={outcome.kind === 'error' ? 'alert' : 'status'}>
         {approval.sourceKind === 'test_fixture' && <p className="provider-fixture-note" data-provider-fixture>Synthetic test data</p>}
         <p>{outcome.message}</p>
-        {outcome.reassociationAvailable && <Collapsible open={reassociationOpen} onOpenChange={open => { setReassociationOpen(open); setReassociationApproved(false); }}>
+        {outcome.reassociationAvailable && <Collapsible open={reassociationOpen} onOpenChange={open => { if (open) void reviewAssociation(); else closeReview(); }}>
           <CollapsibleTrigger ref={reassociationTrigger} render={<Button variant="ghost" className="text-button h-auto max-w-full whitespace-normal" />} type="button" data-activity-reassociate={profileId} disabled={busy || working}>Use current sign-in</CollapsibleTrigger>
           <CollapsiblePanel>
-            <form onSubmit={event => { event.preventDefault(); void read(true); }}>
+            {reviewing && <p role="status">Loading account review…</p>}
+            {reviewError && <div><p role="alert">{reviewError}</p><Button type="button" variant="outline" disabled={busy || working || reviewing} onClick={() => { void reviewAssociation(); }}>Retry account review</Button></div>}
+            {associationReview && <form onSubmit={event => { event.preventDefault(); void read(true); }}>
+              <dl className="activity-summary">{(['previous', 'current'] as const).map(kind => <div key={kind} data-activity-association={kind}><dt>{kind === 'previous' ? 'Previous account' : 'Current account'}</dt><dd className="activity-count" tabIndex={0}><bdi>{associationReview[kind].email}</bdi></dd><dd className="provider-help [overflow-wrap:anywhere]">Plan: <bdi>{associationReview[kind].plan ?? 'Not available'}</bdi></dd></div>)}</dl>
+              {associationReview.homeChanged && <p className="provider-help">Profile environment changed.</p>}
+              <p className="provider-help">Account details do not verify identity.</p>
               <p id={`activity-reassociation-help-${profileId}`} className="provider-help">New readings will use the current sign-in. Previous readings stay in encrypted history.</p>
               <Field disabled={busy || working}><FieldLabel className="backup-selection"><Checkbox ref={reassociationConsent} nativeButton render={<button type="button" />} id={`activity-reassociation-consent-${profileId}`} required checked={reassociationApproved} disabled={busy || working} aria-describedby={`profile-name-${profileId} activity-reassociation-help-${profileId}`} onCheckedChange={checked => setReassociationApproved(checked === true)} />I approve using the current sign-in for this profile.</FieldLabel></Field>
-              <div className="profile-actions"><Button type="submit" className="h-auto max-w-full whitespace-normal" disabled={busy || working || !reassociationApproved}>Confirm and read</Button><Button type="button" variant="ghost" className="text-button h-auto max-w-full whitespace-normal" disabled={busy || working} onClick={() => { setReassociationOpen(false); setReassociationApproved(false); reassociationTrigger.current?.focus(); }}>Keep saved readings</Button></div>
-            </form>
+              <div className="profile-actions"><Button type="submit" className="h-auto max-w-full whitespace-normal" disabled={busy || working || !reassociationApproved}>Confirm and read</Button></div>
+            </form>}
+            <Button type="button" variant="ghost" className="text-button h-auto max-w-full whitespace-normal" disabled={busy || working} onClick={() => { closeReview(); reassociationTrigger.current?.focus(); }}>Keep saved readings</Button>
           </CollapsiblePanel>
         </Collapsible>}
       </div>}

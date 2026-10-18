@@ -171,6 +171,12 @@ export interface ProfileActivitySavedRead extends Omit<ProfileActivityRequest, '
 }
 
 
+export interface ProfileActivityAssociationReview {
+  reviewId: string; profileId: string; approvalId: string; observedAtUtc: string;
+  previous: { email: string; plan: string | null }; current: { email: string; plan: string | null };
+  homeChanged: boolean; identityConfidence: 'provisional';
+}
+
 export type ActivityFreshness = 'unknown' | 'fresh' | 'stale';
 export interface SavedProfileActivity {
   profileId: string; bindingId: string; collectionRunId: string;
@@ -185,7 +191,8 @@ export interface SavedProfileActivity {
 interface Commands {
   load_profile_activity: { args: { profileId: string }; result: SavedProfileActivity | null };
   begin_profile_activity_read: { args: { profileId: string; approvalId: string }; result: ProfileActivityRequest };
-  begin_profile_activity_reassociation: { args: { profileId: string; approvalId: string; confirmed: true }; result: ProfileActivityRequest };
+  review_profile_activity_association: { args: { profileId: string; approvalId: string }; result: ProfileActivityAssociationReview };
+  begin_profile_activity_reassociation: { args: { profileId: string; approvalId: string; reviewId: string; confirmed: true }; result: ProfileActivityRequest };
   complete_profile_activity_read: { args: { profileId: string; requestId: string }; result: ProfileActivitySavedRead };
   cancel_profile_activity_read: { args: { profileId: string; requestId: string }; result: { cancelled: boolean } };
   begin_profile_quota_read: { args: { profileId: string; approvalId: string }; result: ProfileQuotaRequest };
@@ -237,6 +244,7 @@ export async function invoke<K extends keyof Commands>(
   if (!core) throw new DesktopUnavailable('Open the installed OpenUsage desktop application.');
   const response = await core.invoke<unknown>(command, args[0]);
   const valid = (command === 'begin_profile_activity_read' || command === 'begin_profile_activity_reassociation') ? isProfileQuotaRequest(response)
+    : command === 'review_profile_activity_association' ? isActivityAssociationReview(response)
     : command === 'complete_profile_activity_read' ? isProfileActivitySavedRead(response)
     : command === 'load_profile_activity' ? isSavedProfileActivity(response)
     : command === 'cancel_profile_activity_read' ? isPreviewCancellation(response)
@@ -282,6 +290,19 @@ function isUtcTimestamp(value: unknown): value is string {
     && Number.isFinite(Date.parse(value)) && new Date(value).toISOString() === value;
 }
 
+function isActivityAssociationReview(value: unknown): value is ProfileActivityAssociationReview {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  const descriptor = (value: unknown): boolean => {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+    const d = value as Record<string, unknown>;
+    const text = (value: unknown, maximum: number) => quotaText(value, maximum) && new TextEncoder().encode(value as string).length <= maximum;
+    return Object.keys(d).length === 2 && text(d.email, 254) && (d.plan === null || text(d.plan, 64));
+  };
+  return Object.keys(v).length === 8 && isUuid(v.reviewId) && isUuid(v.profileId) && isUuid(v.approvalId)
+    && isUtcTimestamp(v.observedAtUtc) && descriptor(v.previous) && descriptor(v.current)
+    && typeof v.homeChanged === 'boolean' && v.identityConfidence === 'provisional';
+}
 function isProfileQuotaRequest(value: unknown): value is ProfileQuotaRequest {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   const v = value as Record<string, unknown>;
