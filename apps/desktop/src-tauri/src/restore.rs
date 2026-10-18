@@ -309,7 +309,7 @@ pub(crate) fn list_checkpoints(workspace: &Path) -> Result<CheckpointList, Comma
     Ok(result)
 }
 
-fn timestamp(time: std::time::SystemTime) -> Option<String> {
+pub(crate) fn timestamp(time: std::time::SystemTime) -> Option<String> {
     #[cfg(unix)]
     {
         let duration = time.duration_since(std::time::UNIX_EPOCH).ok()?;

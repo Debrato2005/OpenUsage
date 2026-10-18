@@ -22,6 +22,10 @@
     "allow-cancel-restore-preview",
     "allow-apply-restore",
     "allow-list-restore-checkpoints",
-    "allow-prepare-checkpoint-restore-preview"
+    "allow-prepare-checkpoint-restore-preview",
+    "allow-inspect-provider-executable",
+    "allow-approve-provider-executable",
+    "allow-check-profile-connection",
+    "allow-cancel-profile-check"
   ]
 }
