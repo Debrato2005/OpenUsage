@@ -167,7 +167,7 @@ export function BackupInspection({ busy, setBusy, onRestored }: Props) {
           <dt>Accounts</dt><dd>{receipt.contentSummary.accounts}</dd>
         </>}
       </dl>
-      <Collapsible>
+      <Collapsible className="mt-2">
         <CollapsibleTrigger render={<Button variant="ghost" className="text-button" />} type="button">Details</CollapsibleTrigger>
         <CollapsiblePanel>
           <dl className="backup-inspection-metadata">
