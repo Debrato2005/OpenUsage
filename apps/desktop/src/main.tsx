@@ -235,7 +235,9 @@ function App() {
           {backupReceipt && <div className="backup-receipt" role="status"><p>Backup saved and authenticated.</p><p><strong>{backupReceipt.fileName}</strong><br />{backupReceipt.directory}</p></div>}
           {backupAction === 'inspect' && <section id="backup-inspection" className="backup-inspection" aria-labelledby="backup-inspection-heading"><h3 id="backup-inspection-heading">Inspect a backup</h3><BackupInspection busy={busy} setBusy={setBusy} onRestored={refreshRestoredWorkspace} /></section>}
           {backupAction === 'recover' && <CheckpointRecovery busy={busy} setBusy={setBusy} onRestored={refreshRestoredWorkspace} />}
-          <p className="backup-note">Inspect a backup before you prepare a restore. Replacing records requires confirmation.</p>
+          <p className="backup-note">{backupAction === 'recover'
+            ? 'Checkpoint recovery requires a new preview and explicit confirmation.'
+            : 'Inspect a backup before you prepare a restore. Replacing records requires confirmation.'}</p>
         </section>}
         <footer className="main-footer"><span>Provider data: Not available</span><span>Last observation: Not available</span></footer>
       </main>

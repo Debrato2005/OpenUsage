@@ -214,7 +214,7 @@ function RestoreRecordsPreview({ source, busy, setBusy, onRestored }: Omit<Props
     </div>}
     {receipt && <div ref={receiptPanel} className="backup-receipt restore-result" role="status" tabIndex={-1}>
       <h4>Application records restored</h4>
-      <p>Monitoring is stopped. Sign in to each imported profile before you collect new readings.</p>
+      <p>Monitoring is stopped. Sign in to each restored profile before you collect new readings.</p>
       <p className="restore-help">Your encrypted checkpoint and previous profile homes remain on this device.</p>
       <button className="secondary-button" type="button" disabled={busy} onClick={() => { void close(); }}>Close restore result</button>
     </div>}
