@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
+import { Checkbox } from './components/ui/checkbox';
+import { Radio, RadioGroup } from './components/ui/radio-group';
+import { Field, FieldLabel, FieldDescription, FieldItem } from './components/ui/field';
 import { providerFailure } from './provider-errors';
 import { ProfileQuotaRead } from './quota';
 import { ProfileDeviceLogin } from './login';
@@ -120,18 +123,18 @@ export function ProviderSettings({ busy, setBusy, approval, onApproved }: Settin
         <p role="status">{discovery.candidates.length === 0 ? 'No executable was found in the checked locations. Enter a path to review Codex.' : discovery.candidates.length === 1 ? 'One executable found. Review its source below before you approve it.' : `${discovery.candidates.length} executables found. Choose one to review.`}</p>
         {discovery.truncated && <p className="provider-help">The search reached its limit. You can enter a different path below.</p>}
         {discovery.candidates.length > 1 && <form className="provider-discovery-form" onSubmit={event => { event.preventDefault(); void inspect(); }}>
-          <fieldset disabled={busy}><legend>Codex executable</legend>{discovery.candidates.map(found => <label className="backup-selection provider-discovery-choice" key={found.path}><input type="radio" name="discovered-codex" value={found.path} checked={path === found.path} onChange={() => choose(found.path)} /><span className="provider-path"><bdi>{found.path}</bdi></span></label>)}</fieldset>
+          <Field disabled={busy} render={<fieldset disabled={busy} />}><legend id="discovered-codex-label">Codex executable</legend><RadioGroup name="discovered-codex" value={path} disabled={busy} aria-labelledby="discovered-codex-label" onValueChange={value => { if (typeof value === 'string' && discovery.candidates.some(found => found.path === value)) choose(value); }}>{discovery.candidates.map((found, index) => <FieldItem key={found.path}><FieldLabel className="backup-selection provider-discovery-choice"><Radio nativeButton render={<button type="button" />} id={`discovered-codex-${index}`} value={found.path} disabled={busy} /><span className="provider-path"><bdi>{found.path}</bdi></span></FieldLabel></FieldItem>)}</RadioGroup></Field>
           <Button className="secondary-button" variant="outline" type="submit" disabled={busy || !path}>{operation === 'inspect' ? 'Inspecting executable…' : 'Review selected executable'}</Button>
         </form>}
       </div>}
       <details className="provider-manual" open={manualOpen} onToggle={event => setManualOpen(event.currentTarget.open)}>
         <summary data-provider-manual>Enter executable path</summary>
-        <form className="unlock-form provider-inspection-form" noValidate onSubmit={event => { event.preventDefault(); void inspect(); }}>
-          <label htmlFor="provider-executable">Codex executable</label>
-          <Input nativeInput ref={pathField} id="provider-executable" type="text" autoComplete="off" spellCheck={false} maxLength={4096} value={path} disabled={busy} aria-invalid={!!error && pathError} aria-describedby={`provider-executable-help${error && pathError ? ' provider-executable-error' : ''}`} onChange={event => choose(event.target.value)} />
-          <p id="provider-executable-help">Enter an absolute file path. Inspection checks the source before you approve execution.</p>
+        <Field className="unlock-form provider-inspection-form" render={<form noValidate onSubmit={event => { event.preventDefault(); void inspect(); }} />}>
+          <FieldLabel htmlFor="provider-executable">Codex executable</FieldLabel>
+          <Input ref={pathField} id="provider-executable" type="text" autoComplete="off" spellCheck={false} maxLength={4096} value={path} disabled={busy} aria-invalid={!!error && pathError} aria-describedby={`provider-executable-help${error && pathError ? ' provider-executable-error' : ''}`} onChange={event => choose(event.target.value)} />
+          <FieldDescription id="provider-executable-help" render={<p />}>Enter an absolute file path. Inspection checks the source before you approve execution.</FieldDescription>
           <Button className="secondary-button" variant="outline" type="submit" disabled={busy}>{operation === 'inspect' ? 'Inspecting executable…' : 'Inspect executable'}</Button>
-        </form>
+        </Field>
       </details>
       {candidate && <div ref={reviewPanel} className="backup-receipt provider-executable-review" tabIndex={-1} role="region" aria-labelledby="provider-review-heading">
         <h3 id="provider-review-heading">Review executable</h3>
@@ -141,7 +144,7 @@ export function ProviderSettings({ busy, setBusy, approval, onApproved }: Settin
           ? 'The checksum matches a reviewed source. Approve this file only if you trust it. Each profile uses its own Codex home.'
           : 'This file does not match a supported verified source. OpenUsage cannot approve it for execution.'}</p>
         <form className="provider-approval-form" onSubmit={event => { event.preventDefault(); void approve(); }}>
-          <label className="backup-selection"><input id="provider-executable-approved" type="checkbox" required disabled={busy || !candidate.sourceVerified} checked={confirmed} aria-describedby="provider-trust-help" onChange={event => setConfirmed(event.target.checked)} />I trust this executable for connection checks and quota previews.</label>
+          <Field disabled={busy || !candidate.sourceVerified}><FieldLabel className="backup-selection"><Checkbox nativeButton render={<button type="button" />} id="provider-executable-approved" required disabled={busy || !candidate.sourceVerified} checked={confirmed} aria-describedby="provider-trust-help" onCheckedChange={checked => setConfirmed(checked === true)} />I trust this executable for connection checks and quota previews.</FieldLabel></Field>
           <Button className="primary-button" type="submit" disabled={busy || !confirmed || !candidate.sourceVerified}>{operation === 'approve' ? 'Approving executable…' : 'Approve executable'}</Button>
         </form>
       </div>}

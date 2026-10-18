@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
 import { Textarea } from './components/ui/textarea';
+import { Field, FieldLabel, FieldDescription } from './components/ui/field';
 import { invoke, type ProviderExecutableApproval, type ProviderLoginAttempt, type ProviderLoginPrompt } from './contracts';
 import { providerFailure } from './provider-errors';
 
@@ -143,11 +144,11 @@ export function ProfileDeviceLogin({ profileId, profileLabel, approval, busy, on
       {approval.sourceKind === 'test_fixture' && <p className="provider-fixture-note" data-provider-fixture>Synthetic provider fixture. Do not use this code for a real sign-in.</p>}
       {prompt ? <div className="login-prompt" data-login-profile={profileId}>
         <p>Open this address in your browser, then enter the code.</p>
-        <label htmlFor={`login-address-${profileId}`}>Sign-in page</label>
-        <Textarea id={`login-address-${profileId}`} rows={3} spellCheck={false} readOnly value={prompt.verificationUrl} onFocus={event => selectField(event.currentTarget)} />
-        <label htmlFor={`login-code-${profileId}`}>Your sign-in code</label>
-        <Input nativeInput ref={code} id={`login-code-${profileId}`} inputClassName="login-code" type="text" autoComplete="off" readOnly value={prompt.userCode} aria-describedby={`login-wait-${profileId}`} onFocus={event => selectField(event.currentTarget)} />
-        <p id={`login-wait-${profileId}`} className="provider-help">OpenUsage waits up to 15 minutes. Codex did not provide a code expiry time.</p>
+        <Field><FieldLabel htmlFor={`login-address-${profileId}`}>Sign-in page</FieldLabel>
+        <Textarea id={`login-address-${profileId}`} rows={3} spellCheck={false} readOnly value={prompt.verificationUrl} onFocus={event => selectField(event.currentTarget)} /></Field>
+        <Field><FieldLabel htmlFor={`login-code-${profileId}`}>Your sign-in code</FieldLabel>
+        <Input ref={code} id={`login-code-${profileId}`} inputClassName="login-code" type="text" autoComplete="off" readOnly value={prompt.userCode} aria-describedby={`login-wait-${profileId}`} onFocus={event => selectField(event.currentTarget)} />
+        <FieldDescription id={`login-wait-${profileId}`} className="provider-help" render={<p />}>OpenUsage waits up to 15 minutes. Codex did not provide a code expiry time.</FieldDescription></Field>
       </div> : <p role="status">{cancelling || cancelled.current ? 'Stopping sign-in…' : 'Preparing your sign-in code…'}</p>}
       {attempt && <Button className="secondary-button" variant="outline" type="button" data-login-cancel={profileId} aria-describedby={`profile-name-${profileId}`} disabled={cancelling} onClick={() => { void cancel(); }}>{cancelling ? 'Stopping sign-in…' : 'Cancel sign-in'}</Button>}
     </div>}

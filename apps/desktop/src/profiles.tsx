@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
+import { Field, FieldLabel } from './components/ui/field';
 import { invoke, type ProfileRecord, type ProfileView, type ProviderExecutableApproval } from './contracts';
 import { ProfileProviderCheck } from './provider';
 
@@ -170,12 +171,12 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval }: Pro
     const nameId = `profile-name-${profile.id}`;
     return <li className="profile-row" data-profile-id={profile.id} key={profile.id}>
       <div className="profile-details"><bdi id={nameId} className="profile-label">{profile.label}</bdi><p className="profile-meta">{profile.environment === 'native' ? 'On this device' : 'WSL profile'}</p></div>
-      {current ? <form className="profile-rename-form" onSubmit={event => { event.preventDefault(); rename(); }}>
-        <label htmlFor={`profile-label-${profile.id}`}>New profile label</label>
-        <Input nativeInput ref={renameInput} id={`profile-label-${profile.id}`} name="profile-label" autoComplete="off" maxLength={1024} disabled={busy || loading} value={editing.label} aria-invalid={rowError && !!failure?.invalidLabel} aria-describedby={rowError ? 'profiles-error' : undefined} onChange={event => { setEditing({ id: profile.id, label: event.target.value }); setFailure(null); }} />
+      {current ? <Field className="profile-rename-form" render={<form onSubmit={event => { event.preventDefault(); rename(); }} />}>
+        <FieldLabel htmlFor={`profile-label-${profile.id}`}>New profile label</FieldLabel>
+        <Input ref={renameInput} id={`profile-label-${profile.id}`} name="profile-label" autoComplete="off" maxLength={1024} disabled={busy || loading} value={editing.label} aria-invalid={rowError && !!failure?.invalidLabel} aria-describedby={rowError ? 'profiles-error' : undefined} onChange={event => { setEditing({ id: profile.id, label: event.target.value }); setFailure(null); }} />
         <div className="profile-actions"><Button className="primary-button" type="submit" disabled={busy || loading}>Save</Button><Button className="secondary-button" variant="outline" type="button" disabled={busy || loading} onClick={() => { setEditing(null); setFailure(null); setFocusTarget({ id: profile.id, action: 'rename' }); }}>Cancel rename</Button></div>
         {rowError && error()}
-      </form> : <div className="profile-actions">
+      </Field> : <div className="profile-actions">
         <Button className="secondary-button" variant="outline" type="button" data-profile-action="rename" aria-label="Rename profile" aria-describedby={nameId} disabled={busy || loading} onClick={() => { setEditing({ id: profile.id, label: profile.label }); setFailure(null); setFocusTarget('rename'); }}>Rename</Button>
         <Button className="secondary-button" variant="outline" type="button" data-profile-action={profile.archived ? 'restore' : 'archive'} aria-label={profile.archived ? 'Restore profile' : 'Archive profile'} aria-describedby={nameId} disabled={busy || loading} onClick={() => archive(profile)}>{profile.archived ? 'Restore' : 'Archive'}</Button>
       </div>}
@@ -193,12 +194,12 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval }: Pro
     {failure?.target === 'load' && error()}
     {failure && !failure.invalidLabel && <Button className="text-button" variant="ghost" type="button" disabled={busy || loading} onClick={() => { setEditing(null); setAttempt(value => value + 1); }}>Reload profiles</Button>}
     {view && <>
-      <form className="profile-create-form" onSubmit={event => { event.preventDefault(); create(); }}>
-        <label htmlFor="profile-label">Profile label</label>
-        <Input nativeInput ref={createInput} id="profile-label" name="profile-label" autoComplete="off" maxLength={1024} disabled={busy || loading} value={label} aria-invalid={failure?.target === 'create' && failure.invalidLabel} aria-describedby={`profile-capacity${failure?.target === 'create' ? ' profiles-error' : ''}`} onChange={event => { setLabel(event.target.value); setFailure(null); }} />
+      <Field className="profile-create-form" render={<form onSubmit={event => { event.preventDefault(); create(); }} />}>
+        <FieldLabel htmlFor="profile-label">Profile label</FieldLabel>
+        <Input ref={createInput} id="profile-label" name="profile-label" autoComplete="off" maxLength={1024} disabled={busy || loading} value={label} aria-invalid={failure?.target === 'create' && failure.invalidLabel} aria-describedby={`profile-capacity${failure?.target === 'create' ? ' profiles-error' : ''}`} onChange={event => { setLabel(event.target.value); setFailure(null); }} />
         <Button className="primary-button" type="submit" disabled={busy || loading}>Create profile</Button>
         {failure?.target === 'create' && error()}
-      </form>
+      </Field>
       {active.length ? <ul className="profile-list" aria-label="Active profiles">{active.map(row)}</ul> : <p className="profile-empty">No active profiles. Create a profile or restore an archived one.</p>}
       {archived.length > 0 && <details className="archived-profiles"><summary>Archived profiles ({archived.length})</summary><p>Archived profiles keep their local data.</p><ul className="profile-list" aria-label="Archived profiles">{archived.map(row)}</ul></details>}
       <p className="profile-meta">Sign in to a profile, then preview its quota readings. Scheduled collection is not available yet.</p>
