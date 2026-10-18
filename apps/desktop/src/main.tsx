@@ -1,5 +1,6 @@
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
+import { Select, SelectTrigger, SelectValue, SelectPopup, SelectItem } from './components/ui/select';
 import { StrictMode, useCallback, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { DesktopUnavailable, invoke, type BackupReceipt, type Bootstrap, type Theme, type ProviderExecutableApproval } from './contracts';
@@ -19,7 +20,7 @@ function App() {
   const [privacy, setPrivacy] = useState(false);
   const [busy, setBusy] = useState(false);
   const [themeFocusPending, setThemeFocusPending] = useState(false);
-  const themeControl = useRef<HTMLSelectElement>(null);
+  const themeControl = useRef<HTMLButtonElement>(null);
   const [operationError, setOperationError] = useState<string | null>(null);
   const [workspaceErrorField, setWorkspaceErrorField] = useState<'workspace-passphrase' | 'workspace-confirmation' | null>(null);
   const [passphrase, setPassphrase] = useState('');
@@ -110,7 +111,8 @@ function App() {
 
   function changeTheme(next: Theme) {
     if (ready) {
-      const wasFocused = document.activeElement === themeControl.current;
+      const wasFocused = document.activeElement === themeControl.current
+        || themeControl.current?.getAttribute('aria-expanded') === 'true';
       void updateWorkspace(() => invoke('set_theme', { theme: next })).then(() => {
         if (wasFocused) setThemeFocusPending(true);
       });
@@ -176,7 +178,7 @@ function App() {
       <div className="sidebar-footer"><span>OpenUsage</span><span>0.1.0 · In development</span></div>
     </aside>
     <div className="workspace">
-      <header className="topbar"><span>Workspace <span className="breadcrumb" aria-hidden="true">/</span> <strong>Overview</strong></span><div className="theme-control"><label htmlFor="theme">Appearance</label><select ref={themeControl} id="theme" value={theme} disabled={busy} onChange={e => changeTheme(e.target.value as Theme)}><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></div></header>
+      <header className="topbar"><span>Workspace <span className="breadcrumb" aria-hidden="true">/</span> <strong>Overview</strong></span><div className="theme-control"><label id="theme-label" htmlFor="theme">Appearance</label><Select value={theme} disabled={busy} items={{ system: 'System', light: 'Light', dark: 'Dark' }} onValueChange={next => { if (next === 'system' || next === 'light' || next === 'dark') changeTheme(next); }}><SelectTrigger ref={themeControl} id="theme" aria-labelledby="theme-label"><SelectValue /></SelectTrigger><SelectPopup alignItemWithTrigger={false}><SelectItem value="system">System</SelectItem><SelectItem value="light">Light</SelectItem><SelectItem value="dark">Dark</SelectItem></SelectPopup></Select></div></header>
       <main id="main" tabIndex={-1}>
         <div className="page-heading"><div><h1>Overview</h1><p className="subtitle">Account usage and activity on this device.</p></div><span className="status-pill"><span className="status-dot" aria-hidden="true" />Monitoring stopped</span></div>
         <section className="startup-panel" data-storage={data?.storage ?? startup.kind} aria-labelledby="startup-heading" aria-busy={startup.kind === 'loading' || busy}>
