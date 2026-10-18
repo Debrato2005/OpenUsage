@@ -111,6 +111,17 @@ fn main() {
         .expect("Cannot read home references.")
         .collect::<Result<_, _>>()
         .expect("Cannot read home references.");
+    let existing_homes = match request["homeMode"].as_str() {
+        None | Some("fresh") => false,
+        Some("existing") => true,
+        _ => panic!("Unknown synthetic home mode."),
+    };
+    if existing_homes {
+        assert!(
+            request["expectedHomeReferences"] == json!(home_references),
+            "Recovered mappings differ from the explicit original homes."
+        );
+    }
     let mut unique = std::collections::HashSet::new();
     let forbidden = request["forbiddenHomes"]
         .as_array()
@@ -129,12 +140,14 @@ fn main() {
             "Invalid home UUID."
         );
         assert!(unique.insert(reference.clone()), "Duplicate managed home.");
-        assert!(
-            !forbidden
-                .iter()
-                .any(|value| value.as_str() == Some(reference)),
-            "Restored records reused an old credential home."
-        );
+        if !existing_homes {
+            assert!(
+                !forbidden
+                    .iter()
+                    .any(|value| value.as_str() == Some(reference)),
+                "Restored records reused an old credential home."
+            );
+        }
         let home_root = request["homeRoot"]
             .as_str()
             .map(Path::new)
@@ -153,13 +166,15 @@ fn main() {
                 && metadata.uid() == unsafe { libc::geteuid() },
             "Unsafe restored home."
         );
-        assert!(
-            fs::read_dir(path)
-                .expect("Cannot read restored home.")
-                .next()
-                .is_none(),
-            "Restored credential home is not empty."
-        );
+        if !existing_homes {
+            assert!(
+                fs::read_dir(path)
+                    .expect("Cannot read restored home.")
+                    .next()
+                    .is_none(),
+                "Restored credential home is not empty."
+            );
+        }
     }
     let profiles = database.prepare("SELECT id,name,archived,environment,connection_state FROM profiles ORDER BY id").expect("Missing profiles.").query_map([], |row| Ok(json!({"id":row.get::<_,String>(0)?,"label":row.get::<_,String>(1)?,"archived":row.get::<_,bool>(2)?,"environment":row.get::<_,String>(3)?,"connectionState":row.get::<_,String>(4)?}))).expect("Cannot read profiles.").collect::<Result<Vec<_>,_>>().expect("Cannot read profiles.");
     let actual = json!({"theme":theme,"profiles":profiles,"accounts":accounts.to_string()});
@@ -187,6 +202,6 @@ fn main() {
     let shm_changed = fs::read(sidecar("-shm")).ok() != shm_before;
     println!(
         "{}",
-        json!({"verified":true,"readOnly":true,"schemaVersion":1,"exactStateMatched":true,"selectedSemanticFieldsMatched":true,"stateMatchScope":"Theme, account count, profile IDs, labels, archival flags, environment, and connection state. Not every column or timestamp.","encryptedPagesAuthenticated":true,"originalProtectedKeyUsed":true,"plaintextDiskStaging":false,"walUnchanged":wal_unchanged,"walRecordsUnchanged":true,"emptyWalSidecarCreated":empty_wal_created,"sharedMemoryMetadataChanged":shm_changed,"freshPrivateEmptyHomes":home_references.len(),"monitoringStopped":true})
+        json!({"verified":true,"readOnly":true,"schemaVersion":1,"exactStateMatched":true,"selectedSemanticFieldsMatched":true,"stateMatchScope":"Theme, account count, profile IDs, labels, archival flags, environment, and connection state. Not every column or timestamp.","encryptedPagesAuthenticated":true,"originalProtectedKeyUsed":true,"plaintextDiskStaging":false,"walUnchanged":wal_unchanged,"walRecordsUnchanged":true,"emptyWalSidecarCreated":empty_wal_created,"sharedMemoryMetadataChanged":shm_changed,"homeMode":if existing_homes { "existing" } else { "fresh" },"freshPrivateEmptyHomes":if existing_homes { 0 } else { home_references.len() },"originalManagedHomesMatched":existing_homes,"monitoringStopped":true})
     );
 }
