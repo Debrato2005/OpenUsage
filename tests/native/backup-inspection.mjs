@@ -161,8 +161,7 @@ async function setTheme(theme, mode = 'pointer') {
   (evidence.themeFocus ??= []).push({ mode, theme, focusAfterSave: 'theme', nativeSaved: true });
 }
 
-async function captureReceipt(name, theme, width, height) {
-  await setTheme(theme, theme === 'light' ? 'keyboard' : 'pointer');
+async function resizeViewport(width, height) {
   for (let attempt = 0; attempt < 3; attempt++) {
     const viewport = await driver.execute('return {width:innerWidth,height:innerHeight};');
     if (viewport.width === width && viewport.height === height) break;
@@ -170,6 +169,34 @@ async function captureReceipt(name, theme, width, height) {
     await driver.request('POST', `/session/${driver.session}/window/rect`, { width: rect.width + width - viewport.width, height: rect.height + height - viewport.height });
     await driver.request('POST', `/session/${driver.session}/execute/async`, { script: 'const done=arguments[arguments.length-1];requestAnimationFrame(()=>requestAnimationFrame(()=>done(true)));', args: [] });
   }
+  assert.deepEqual(await driver.execute('return {width:innerWidth,height:innerHeight};'), { width, height });
+}
+
+async function verifyDetailsKeyboardClearance() {
+  const original = await driver.execute('return {width:innerWidth,height:innerHeight};');
+  assert.equal(await driver.execute('return document.activeElement?.matches(".backup-inspection-receipt");'), true, 'Successful inspection must focus its actual receipt.');
+  await resizeViewport(360, 800);
+  await driver.execute('document.querySelector(".backup-inspection-receipt").scrollIntoView({block:"center"});return true;');
+  await focusOwnedWindow();
+  assert.equal(await driver.execute('return document.activeElement?.matches(".backup-inspection-receipt");'), true, 'Viewport changes must preserve the inspection result focus.');
+  await driver.request('POST', `/session/${driver.session}/actions`, { actions: [{ type: 'key', id: 'archive-details-forward-tab', actions: [{ type: 'keyDown', value: '\uE004' }, { type: 'keyUp', value: '\uE004' }] }] });
+  await driver.request('DELETE', `/session/${driver.session}/actions`);
+  await waitFor(async () => driver.execute('return document.activeElement?.matches(arguments[0]);', [detailsSelector]), 'actual Tab from inspection result to Details');
+  const view = await driver.execute('const receipt=document.querySelector(".backup-inspection-receipt"),trigger=receipt.querySelector("[data-slot=collapsible-trigger]"),counts=[...receipt.querySelectorAll(".backup-inspection-metadata > dd")].filter(node=>node.getClientRects().length),count=counts.at(-1),style=getComputedStyle(trigger),rect=node=>{const r=node.getBoundingClientRect();return {left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height};},triggerRect=rect(trigger),countRect=rect(count),outlineWidth=parseFloat(style.outlineWidth),outlineOffset=parseFloat(style.outlineOffset),outset=outlineWidth+outlineOffset,outlineRect={left:triggerRect.left-outset,top:triggerRect.top-outset,right:triggerRect.right+outset,bottom:triggerRect.bottom+outset};return {width:innerWidth,height:innerHeight,focused:document.activeElement===trigger,focusVisible:trigger.matches(":focus-visible"),expanded:trigger.getAttribute("aria-expanded"),lastCount:{label:count.previousElementSibling.textContent,value:count.textContent,rect:countRect},triggerRect,outline:{width:outlineWidth,offset:outlineOffset,style:style.outlineStyle,rect:outlineRect},gap:outlineRect.top-countRect.bottom,fontSize:style.fontSize,fontFamily:style.fontFamily};');
+  assert.deepEqual({ width: view.width, height: view.height }, { width: 360, height: 800 });
+  assert.equal(view.focused, true); assert.equal(view.focusVisible, true); assert.equal(view.expanded, 'false');
+  assert.equal(view.lastCount.label, 'Accounts'); assert.equal(view.lastCount.value, '0');
+  assert.equal(view.outline.style, 'solid'); assert.ok(view.outline.width >= 2); assert.ok(view.outline.offset >= 0);
+  evidence.detailsKeyboardClearance = { ...view, method: 'Actual Tab from the application-focused successful inspection receipt. Normal CSS size; no DOM focus assignment or text scaling.' };
+  assert.ok(view.gap > 0, 'The visible Details focus outline must have positive clearance below the last count.');
+  await captureReceipt('inspection-details-keyboard-clearance-dark-360.png', 'dark', 360, 800);
+  assert.equal(await driver.execute('return document.activeElement?.matches(arguments[0]);', [detailsSelector]), true);
+  await resizeViewport(original.width, original.height);
+}
+
+async function captureReceipt(name, theme, width, height) {
+  await setTheme(theme, theme === 'light' ? 'keyboard' : 'pointer');
+  await resizeViewport(width, height);
   await driver.execute('document.querySelector(".backup-inspection-receipt").scrollIntoView({block:"center"});return true;');
   const view = await driver.execute('return {width:innerWidth,height:innerHeight,scrollWidth:document.scrollingElement.scrollWidth,overflows:[...document.querySelectorAll(".backup-inspection-form *, .backup-inspection-receipt *")].filter(node=>{const rect=node.getBoundingClientRect();return rect.width>1&&rect.height>1&&(rect.left < -1||rect.right>innerWidth+1);}).map(node=>({tag:node.tagName,className:node.className}))};');
   assert.deepEqual({ width: view.width, height: view.height }, { width, height });
@@ -278,6 +305,7 @@ try {
   await driver.click('.backup-inspection-form button[type="submit"]');
   await waitFor(async () => Boolean(await driver.execute('return document.querySelector(".backup-inspection-receipt");')), 'native authenticated inspection receipt', 30000);
   await waitFor(async () => Boolean(await driver.execute('return document.activeElement?.matches(".backup-inspection-receipt");')), 'focus after successful archive inspection');
+  await verifyDetailsKeyboardClearance();
   const inspected = await driver.invoke('inspect_backup', { fileName, password });
   assert.equal(inspected.ok, true);
   const metadata = inspected.value;
