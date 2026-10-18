@@ -5,7 +5,7 @@ import { invoke, type ActivityFreshness, type ProfileActivitySavedRead, type Sav
 import { providerFailure } from './provider-errors';
 import './activity.css';
 
-type Props = { profileId: string; profileLabel: string; approval: ProviderExecutableApproval; busy: boolean; onStarted: () => void; onSaved: (value: ProfileActivitySavedRead) => Promise<void> };
+type Props = { profileId: string; profileLabel: string; approval: ProviderExecutableApproval; busy: boolean; onStarted: () => void; onSaved: (value: ProfileActivitySavedRead) => Promise<void>; onFailed: () => Promise<void> };
 type Outcome = { kind: 'error' | 'cancelled'; message: string };
 const labels = { lifetimeTokens: 'Lifetime tokens', peakDailyTokens: 'Peak daily tokens', currentStreakDays: 'Current streak (days)', longestStreakDays: 'Longest streak (days)', longestRunningTurnSec: 'Longest turn (seconds)' };
 const freshnessLabels = { unknown: 'Freshness unknown', fresh: 'Current', stale: 'Stale' };
@@ -38,7 +38,7 @@ function ActivityValues({ value }: { value: SavedProfileActivity }) {
 }
 
 // Cache reads do not require an approved executable or execute the provider.
-export function ProfileActivity({ profileId, profileLabel, children }: { profileId: string; profileLabel: string; children: (onSaved: (receipt: ProfileActivitySavedRead) => Promise<void>) => ReactNode }) {
+export function ProfileActivity({ profileId, profileLabel, children }: { profileId: string; profileLabel: string; children: (onSaved: (receipt: ProfileActivitySavedRead) => Promise<void>, onFailed: () => Promise<void>) => ReactNode }) {
   const [value, setValue] = useState<SavedProfileActivity | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,6 +46,7 @@ export function ProfileActivity({ profileId, profileLabel, children }: { profile
   const result = useRef<HTMLDivElement>(null);
   const alive = useRef(true);
   const loadGeneration = useRef(0);
+  const manualLoad = useRef(false);
   useEffect(() => {
     alive.current = true; void load();
     const interval = window.setInterval(() => { void load(); }, 60_000);
@@ -53,6 +54,8 @@ export function ProfileActivity({ profileId, profileLabel, children }: { profile
   }, [profileId]);
   useEffect(() => { if (focus && result.current) { result.current.focus(); setFocus(false); } }, [focus, value, error]);
   async function load(committed?: ProfileActivitySavedRead, focusResult = false) {
+    if (!committed && !focusResult && manualLoad.current) return;
+    if (committed) manualLoad.current = true;
     const operation = ++loadGeneration.current; setLoading(true);
     try {
       const next = await invoke('load_profile_activity', { profileId });
@@ -62,11 +65,12 @@ export function ProfileActivity({ profileId, profileLabel, children }: { profile
     } catch {
       if (alive.current && operation === loadGeneration.current) setError(providerFailure('provider_activity_load_failed'));
     } finally {
+      if (committed) manualLoad.current = false;
       if (alive.current && operation === loadGeneration.current) { setLoading(false); if (focusResult || committed) setFocus(true); }
     }
   }
   return <>
-    {children(receipt => load(receipt, true))}
+    {children(receipt => load(receipt, true), () => load())}
     {(value || error) && <div ref={result} className="activity-saved" data-activity-saved={profileId} tabIndex={-1} role="region" aria-label={`Saved activity for ${profileLabel}`}>
       <h3>Saved activity</h3>
       {error && <div><p role="alert" data-activity-cache-error>{error}</p><Button type="button" variant="outline" disabled={loading} onClick={() => { void load(undefined, true); }}>Reload saved activity</Button></div>}
@@ -82,7 +86,7 @@ export function ProfileActivity({ profileId, profileLabel, children }: { profile
 }
 
 // The request stays mounted in ProfileProviderCheck while its launch button is disclosed.
-export function useActivityPreview({ profileId, approval, busy, onStarted, onSaved }: Props) {
+export function useActivityPreview({ profileId, approval, busy, onStarted, onSaved, onFailed }: Props) {
   const [working, setWorking] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [requestId, setRequestId] = useState<string | null>(null);
@@ -118,7 +122,7 @@ export function useActivityPreview({ profileId, approval, busy, onStarted, onSav
       if (alive.current) { setOutcome(null); await onSaved(value); if (alive.current && cancellationFailure.current) setOutcome({ kind: 'error', message: providerFailure(cancellationFailure.current) }); }
     } catch (failure) {
       const cancelled = failure === 'provider_activity_cancelled' || (stopped.current && failure === 'provider_activity_not_found');
-      if (alive.current) setOutcome(!cancellationFailure.current && cancelled ? { kind: 'cancelled', message: 'Activity read stopped.' } : { kind: 'error', message: providerFailure(cancellationFailure.current ?? failure) });
+      if (alive.current) { setOutcome(!cancellationFailure.current && cancelled ? { kind: 'cancelled', message: 'Activity read stopped.' } : { kind: 'error', message: providerFailure(cancellationFailure.current ?? failure) }); void onFailed(); }
     } finally {
       pending.current = false; activeRequest.current = null;
       if (alive.current) { setWorking(false); setStopping(false); setRequestId(null); setFocus(true); }
