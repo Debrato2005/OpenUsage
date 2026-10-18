@@ -249,3 +249,47 @@ test('checkpoint previews carry opaque source and recovery IDs without file path
     await assert.rejects(invoke('prepare_checkpoint_restore_preview', args), /desktop response is incompatible/);
   }
 });
+
+test('executable reviews distinguish unknown sources, official artifacts, and test fixtures', async () => {
+  const candidate = { candidateId: '00000001-0000-4000-8000-000000000000', path: '/synthetic/codex', fileBytes: '28785', sha256: 'a'.repeat(64), testedVersion: '0.163.0', versionChecked: false, sourceVerified: false, sourceKind: 'unverified', sourceUrl: null };
+  for (const source of [
+    {}, { sourceVerified: true, sourceKind: 'test_fixture' },
+    { sourceVerified: true, sourceKind: 'official_artifact', sourceUrl: 'https://github.com/openai/codex/releases/download/rust-v0.163.0/codex-x86_64-unknown-linux-musl.tar.gz' },
+  ]) {
+    const value = { ...candidate, ...source };
+    desktopResponse(value);
+    assert.deepEqual(await invoke('inspect_provider_executable', { path: candidate.path }), value);
+  }
+  for (const changes of [{ sourceVerified: true }, { sourceKind: 'official_artifact', sourceVerified: true, sourceUrl: 'https://example.invalid/codex' },
+    { sourceKind: 'test_fixture', sourceVerified: true, sourceUrl: 'https://example.invalid' },
+    { sha256: 'invalid' }, { versionChecked: true }, { path: '/invalid\0path' }, { key: 'private' }]) {
+    desktopResponse({ ...candidate, ...changes });
+    await assert.rejects(invoke('inspect_provider_executable', { path: candidate.path }), /desktop response is incompatible/);
+  }
+});
+
+test('approval receipts require a verified source and exclude private home paths', async () => {
+  const approval = { approvalId: '00000002-0000-4000-8000-000000000000', path: '/synthetic/codex', fileBytes: '28785', sha256: 'a'.repeat(64), testedVersion: '0.163.0', versionChecked: false, sourceVerified: true, sourceKind: 'test_fixture', sourceUrl: null };
+  const args = { candidateId: '00000001-0000-4000-8000-000000000000', confirmed: true };
+  desktopResponse(approval);
+  assert.deepEqual(await invoke('approve_provider_executable', args), approval);
+  for (const changes of [{ sourceVerified: false, sourceKind: 'unverified' }, { approvalId: '../outside' }, { home: '/private/profile' }]) {
+    desktopResponse({ ...approval, ...changes });
+    await assert.rejects(invoke('approve_provider_executable', args), /desktop response is incompatible/);
+  }
+});
+
+test('provider diagnostics cannot claim verified identity, persisted readings, or active monitoring', async () => {
+  const diagnostic = { profileId: '00000001-0000-4000-8000-000000000000', approvalId: '00000002-0000-4000-8000-000000000000', providerVersion: '0.163.0', authentication: 'authentication_required', identityConfidence: 'unknown', requiresOpenaiAuth: true, checkedAt: '2026-10-18T04:00:00.123Z', monitoring: 'stopped', persisted: false, sourceKind: 'test_fixture' };
+  const args = { profileId: diagnostic.profileId };
+  for (const account of [{}, { authentication: 'chatgpt', identityConfidence: 'provisional' }, { authentication: 'chatgpt', identityConfidence: 'unknown' }]) {
+    const value = { ...diagnostic, ...account };
+    desktopResponse(value);
+    assert.deepEqual(await invoke('check_profile_connection', args), value);
+  }
+  for (const changes of [{ identityConfidence: 'verified' }, { identityConfidence: 'provisional' }, { persisted: true }, { monitoring: 'active' },
+    { sourceKind: 'unverified' }, { checkedAt: '2026-02-30T04:00:00.123Z' }, { returnedEmail: 'private@example.invalid' }, { raw: '{}' }]) {
+    desktopResponse({ ...diagnostic, ...changes });
+    await assert.rejects(invoke('check_profile_connection', args), /desktop response is incompatible/);
+  }
+});

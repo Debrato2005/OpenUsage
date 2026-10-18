@@ -80,7 +80,37 @@ export interface CheckpointRestorePreview extends Omit<RestorePreview, 'fileName
   checkpointId: string;
 }
 
+interface ProviderExecutableMetadata {
+  path: string;
+  fileBytes: string;
+  sha256: string;
+  testedVersion: string;
+  versionChecked: false;
+  sourceVerified: boolean;
+  sourceKind: 'official_artifact' | 'test_fixture' | 'unverified';
+  sourceUrl: string | null;
+}
+
+export interface ProviderExecutableCandidate extends ProviderExecutableMetadata { candidateId: string }
+export interface ProviderExecutableApproval extends ProviderExecutableMetadata { approvalId: string }
+export interface ProviderConnectionDiagnostic {
+  profileId: string;
+  approvalId: string;
+  providerVersion: string;
+  authentication: 'authentication_required' | 'chatgpt' | 'unsupported';
+  identityConfidence: 'unknown' | 'provisional';
+  requiresOpenaiAuth: boolean;
+  checkedAt: string | null;
+  monitoring: 'stopped';
+  persisted: false;
+  sourceKind: 'official_artifact' | 'test_fixture';
+}
+
 interface Commands {
+  inspect_provider_executable: { args: { path: string }; result: ProviderExecutableCandidate };
+  approve_provider_executable: { args: { candidateId: string; confirmed: true }; result: ProviderExecutableApproval };
+  check_profile_connection: { args: { profileId: string }; result: ProviderConnectionDiagnostic };
+  cancel_profile_check: { args: { profileId: string }; result: { cancelled: boolean } };
   list_restore_checkpoints: { args: undefined; result: RestoreCheckpointList };
   prepare_checkpoint_restore_preview: { args: { checkpointId: string }; result: CheckpointRestorePreview };
   apply_restore: { args: { previewId: string; confirmed: true }; result: RestoreReceipt };
@@ -116,7 +146,11 @@ export async function invoke<K extends keyof Commands>(
   const core = window.__TAURI__?.core;
   if (!core) throw new DesktopUnavailable('Open the installed OpenUsage desktop application.');
   const response = await core.invoke<unknown>(command, args[0]);
-  const valid = command === 'list_restore_checkpoints' ? isRestoreCheckpointList(response)
+  const valid = command === 'inspect_provider_executable' ? isProviderExecutableReview(response, 'candidateId')
+    : command === 'approve_provider_executable' ? isProviderExecutableReview(response, 'approvalId')
+    : command === 'check_profile_connection' ? isProviderConnectionDiagnostic(response)
+    : command === 'cancel_profile_check' ? isPreviewCancellation(response)
+    : command === 'list_restore_checkpoints' ? isRestoreCheckpointList(response)
     : command === 'prepare_checkpoint_restore_preview' ? isCheckpointRestorePreview(response)
     : command === 'apply_restore' ? isRestoreReceipt(response)
     : command === 'prepare_restore_preview' ? isRestorePreview(response)
@@ -140,6 +174,49 @@ function isWideCount(value: unknown): value is string {
   return typeof value === 'string' && /^(0|[1-9]\d{0,19})$/.test(value);
 }
 
+function isUtcTimestamp(value: unknown): value is string {
+  return typeof value === 'string' && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(value)
+    && Number.isFinite(Date.parse(value)) && new Date(value).toISOString() === value;
+}
+
+function isProviderExecutableReview(value: unknown, id: 'candidateId' | 'approvalId'): boolean {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  return !Object.keys(v).some(key => ![id, 'path', 'fileBytes', 'sha256', 'testedVersion', 'versionChecked', 'sourceVerified', 'sourceKind', 'sourceUrl'].includes(key))
+    && isUuid(v[id]) && typeof v.path === 'string' && v.path.length > 0 && v.path.length <= 4096
+    && !/\p{Cc}/u.test(v.path) && isWideCount(v.fileBytes) && v.fileBytes !== '0'
+    && typeof v.sha256 === 'string' && /^[a-f0-9]{64}$/.test(v.sha256)
+    && typeof v.testedVersion === 'string' && v.testedVersion.length <= 80 && /^\d+\.\d+\.\d+$/.test(v.testedVersion)
+    && v.versionChecked === false && isProviderSource(v)
+    && (id !== 'approvalId' || v.sourceVerified === true);
+}
+
+function isProviderSource(v: Record<string, unknown>): boolean {
+  if (v.sourceKind === 'unverified') return v.sourceVerified === false && v.sourceUrl === null;
+  if (v.sourceKind === 'test_fixture') return v.sourceVerified === true && v.sourceUrl === null;
+  if (v.sourceKind !== 'official_artifact' || v.sourceVerified !== true || typeof v.sourceUrl !== 'string') return false;
+  try {
+    const url = new URL(v.sourceUrl);
+    return url.protocol === 'https:' && !url.username && !url.password && !url.search && !url.hash
+      && ((url.hostname === 'github.com' && url.pathname.startsWith('/openai/codex/releases/'))
+        || (url.hostname === 'registry.npmjs.org' && url.pathname.startsWith('/@openai/')));
+  } catch { return false; }
+}
+
+function isProviderConnectionDiagnostic(value: unknown): value is ProviderConnectionDiagnostic {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  return !Object.keys(v).some(key => !['profileId', 'approvalId', 'providerVersion', 'authentication', 'identityConfidence', 'requiresOpenaiAuth', 'checkedAt', 'monitoring', 'persisted', 'sourceKind'].includes(key))
+    && isUuid(v.profileId) && isUuid(v.approvalId)
+    && typeof v.providerVersion === 'string' && v.providerVersion.length > 0 && v.providerVersion.length <= 80
+    && !/\p{Cc}/u.test(v.providerVersion)
+    && typeof v.authentication === 'string' && ['authentication_required', 'chatgpt', 'unsupported'].includes(v.authentication)
+    && (v.identityConfidence === 'unknown' || (v.authentication === 'chatgpt' && v.identityConfidence === 'provisional'))
+    && typeof v.requiresOpenaiAuth === 'boolean' && (v.checkedAt === null || isUtcTimestamp(v.checkedAt))
+    && v.monitoring === 'stopped' && v.persisted === false
+    && (v.sourceKind === 'official_artifact' || v.sourceKind === 'test_fixture');
+}
+
 function isRestoreCheckpointList(value: unknown): value is RestoreCheckpointList {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   const v = value as Record<string, unknown>;
@@ -151,9 +228,7 @@ function isRestoreCheckpointList(value: unknown): value is RestoreCheckpointList
     const c = item as Record<string, unknown>;
     if (Object.keys(c).some(key => !['id', 'fileBytes', 'modifiedAt'].includes(key))
       || !isUuid(c.id) || ids.has(c.id) || !isWideCount(c.fileBytes) || c.fileBytes === '0') return false;
-    if (c.modifiedAt !== null && (typeof c.modifiedAt !== 'string'
-      || !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(c.modifiedAt)
-      || !Number.isFinite(Date.parse(c.modifiedAt)) || new Date(c.modifiedAt).toISOString() !== c.modifiedAt)) return false;
+    if (c.modifiedAt !== null && !isUtcTimestamp(c.modifiedAt)) return false;
     ids.add(c.id);
     return true;
   });

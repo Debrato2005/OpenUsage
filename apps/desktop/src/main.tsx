@@ -1,9 +1,10 @@
 import { StrictMode, useCallback, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { DesktopUnavailable, invoke, type BackupReceipt, type Bootstrap, type Theme } from './contracts';
+import { DesktopUnavailable, invoke, type BackupReceipt, type Bootstrap, type Theme, type ProviderExecutableApproval } from './contracts';
 import { ProfileManager } from './profiles';
 import { BackupInspection } from './backup-inspection';
 import { CheckpointRecovery } from './checkpoint-recovery';
+import { ProviderSettings } from './provider';
 import './styles.css';
 
 type Startup = { kind: 'loading' } | { kind: 'desktop'; data: Bootstrap }
@@ -30,6 +31,7 @@ function App() {
   const [backupReceipt, setBackupReceipt] = useState<BackupReceipt | null>(null);
   const backupToggle = useRef<HTMLButtonElement>(null);
   const [profileRevision, setProfileRevision] = useState(0);
+  const [providerApproval, setProviderApproval] = useState<ProviderExecutableApproval | null>(null);
   const updateProfileCount = useCallback((count: number) => {
     setStartup(current => current.kind === 'desktop' && current.data.storage === 'ready'
       ? { ...current, data: { ...current.data, activeProfiles: count } } : current);
@@ -210,16 +212,17 @@ function App() {
             {operationError && <p id="workspace-error" className="operation-error" role="alert">{operationError}</p>}
           </div>
         </section>
-        {privacy && <section className="privacy-details" id="privacy-details" aria-labelledby="privacy-heading"><h2 id="privacy-heading">Privacy and local storage</h2><p>OpenUsage has no hosted account or telemetry. Account connections require your approval. Provider credentials stay with Codex.</p><p>Encrypted storage protects application records. It does not encrypt provider credential files or operating-system swap.</p><p>This development build does not collect provider data.</p></section>}
+        {privacy && <section className="privacy-details" id="privacy-details" aria-labelledby="privacy-heading"><h2 id="privacy-heading">Privacy and local storage</h2><p>OpenUsage has no hosted account or telemetry. Account connections require your approval. Provider credentials stay with Codex.</p><p>Encrypted storage protects application records. It does not encrypt provider credential files or operating-system swap.</p><p>This development build supports approved version and account-status checks. Usage collection remains stopped.</p></section>}
         <section className="metric-grid" aria-label="Workspace summary">
           <Metric label="Active profiles" value={ready ? String(data.activeProfiles) : 'Locked'} detail={ready ? 'Of 10 available profile slots' : 'Unlock to view your profiles'} />
           <Metric label="Quota remaining" value="Not available" detail="No accepted provider reading" />
           <Metric label="Token activity" value="Not available" detail="No accepted provider reading" />
         </section>
-        {ready ? <ProfileManager key={profileRevision} busy={busy} setBusy={setBusy} onCount={updateProfileCount} />
+        {ready ? <ProfileManager key={profileRevision} busy={busy} setBusy={setBusy} onCount={updateProfileCount} providerApproval={providerApproval} />
           : <section className="accounts-section" aria-labelledby="accounts-heading"><div className="section-heading"><div><h2 id="accounts-heading">Accounts</h2><p>Each profile uses a separate Codex environment.</p></div><span className="muted-tag">Workspace locked</span></div>
             <div className="empty-state"><h3>Unlock to view your accounts</h3><p>Open your local workspace to manage account profiles and view saved activity.</p></div>
           </section>}
+        {ready && <ProviderSettings busy={busy} setBusy={setBusy} approval={providerApproval} onApproved={setProviderApproval} />}
         {ready && <section className="backup-panel" aria-labelledby="backup-heading">
           <div className="section-heading"><div><h2 id="backup-heading">Encrypted backups</h2><p>Save a password-protected copy of your application records.</p></div><div className="backup-actions"><button ref={backupToggle} className="secondary-button" disabled={busy} onClick={() => toggleBackup('create')} aria-expanded={backupOpen} aria-controls="backup-form">{backupOpen ? 'Hide backup form' : 'Create a backup'}</button><button className="secondary-button" disabled={busy} onClick={() => toggleBackup('inspect')} aria-expanded={backupAction === 'inspect'} aria-controls="backup-inspection">{backupAction === 'inspect' ? 'Hide backup inspection' : 'Inspect a backup'}</button><button className="secondary-button" disabled={busy} onClick={() => toggleBackup('recover')} aria-expanded={backupAction === 'recover'} aria-controls="checkpoint-recovery">{backupAction === 'recover' ? 'Hide checkpoints' : 'Restore a checkpoint'}</button></div></div>
           {backupOpen && <form id="backup-form" className="unlock-form backup-form" onSubmit={event => { event.preventDefault(); void saveBackup(); }}>

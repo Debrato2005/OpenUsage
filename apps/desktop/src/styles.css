@@ -221,6 +221,17 @@ main { max-width: 1280px; padding: var(--space-6); margin: 0 auto; }
 .checkpoint-catalog { display: grid; gap: var(--space-3); max-width: 30rem; min-width: 0; }
 .checkpoint-catalog > button { justify-self: start; }
 .checkpoint-catalog select { width: 100%; max-width: 100%; min-width: 0; }
+.provider-panel { margin-block: var(--space-5); padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--surface); }
+.provider-panel summary { display: list-item; width: fit-content; min-height: 44px; padding-block: var(--space-3); cursor: pointer; font-weight: var(--weight-medium); }
+.provider-panel summary h2 { display: inline; font-size: var(--text-body); font-weight: var(--weight-medium); }
+.provider-panel summary:focus-visible, .provider-executable-review:focus, .provider-approval-result:focus, .provider-diagnostic:focus { outline: 2px solid var(--focus); outline-offset: 3px; }
+.provider-help { margin-block: var(--space-3); color: var(--muted); font-size: var(--text-sm); line-height: 1.5; }
+.provider-path { overflow-wrap: anywhere; }
+.provider-checksum { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: var(--text-xs); overflow-wrap: anywhere; }
+.provider-fixture-note { margin-block: var(--space-2); color: var(--accent); font-weight: var(--weight-medium); }
+.provider-approval-form { display: grid; justify-items: start; gap: var(--space-3); margin-top: var(--space-3); }
+.profile-provider-check { flex: 0 1 auto; min-width: 0; max-width: 100%; }
+.provider-diagnostic { margin-top: var(--space-3); max-width: 26rem; font-size: var(--text-sm); overflow-wrap: anywhere; }
 .backup-inspection-error:focus, .backup-inspection-receipt:focus { outline: 2px solid var(--focus); outline-offset: 3px; }
 .backup-inspection-metadata { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--space-2) var(--space-4); margin-top: var(--space-4); font-size: var(--text-sm); }
 .backup-inspection-metadata dt { color: var(--muted); }

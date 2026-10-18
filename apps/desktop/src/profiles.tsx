@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { invoke, type ProfileRecord, type ProfileView } from './contracts';
+import { invoke, type ProfileRecord, type ProfileView, type ProviderExecutableApproval } from './contracts';
+import { ProfileProviderCheck } from './provider';
 
 type Props = {
   busy: boolean;
   setBusy: (busy: boolean) => void;
   onCount: (count: number) => void;
+  providerApproval: ProviderExecutableApproval | null;
 };
 
 type Failure = {
@@ -45,7 +47,7 @@ function errorMessage(error: unknown): string {
     ? messages[error] : 'OpenUsage could not complete this profile request. Reload profiles and try again.';
 }
 
-export function ProfileManager({ busy, setBusy, onCount }: Props) {
+export function ProfileManager({ busy, setBusy, onCount, providerApproval }: Props) {
   const [view, setView] = useState<ProfileView | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -183,6 +185,7 @@ export function ProfileManager({ busy, setBusy, onCount }: Props) {
         <button className="secondary-button" type="button" data-profile-action="rename" aria-label="Rename profile" aria-describedby={nameId} disabled={busy || loading} onClick={() => { setEditing({ id: profile.id, label: profile.label }); setFailure(null); setFocusTarget('rename'); }}>Rename</button>
         <button className="secondary-button" type="button" data-profile-action={profile.archived ? 'restore' : 'archive'} aria-label={profile.archived ? 'Restore profile' : 'Archive profile'} aria-describedby={nameId} disabled={busy || loading} onClick={() => archive(profile)}>{profile.archived ? 'Restore' : 'Archive'}</button>
       </div>}
+      {!profile.archived && providerApproval && <ProfileProviderCheck key={`${profile.id}:${providerApproval.approvalId}`} profileId={profile.id} approval={providerApproval} busy={busy || loading || current} />}
       {rowError && !current && error()}
     </li>;
   }
@@ -204,7 +207,7 @@ export function ProfileManager({ busy, setBusy, onCount }: Props) {
       </form>
       {active.length ? <ul className="profile-list" aria-label="Active profiles">{active.map(row)}</ul> : <p className="profile-empty">No active profiles. Create a profile or restore an archived one.</p>}
       {archived.length > 0 && <details className="archived-profiles"><summary>Archived profiles ({archived.length})</summary><p>Archived profiles keep their local data.</p><ul className="profile-list" aria-label="Archived profiles">{archived.map(row)}</ul></details>}
-      <p className="profile-meta">Provider connection is not available in this build.</p>
+      <p className="profile-meta">Approved connection checks read account status. Sign-in and usage collection are not available yet.</p>
     </>}
   </section>;
 }
