@@ -62,6 +62,19 @@ async function openSyntheticProfile(page: Page) {
         case 'cancel_profile_login':
           value = await deferred(fixture.cancellations, String(args.attemptId));
           break;
+        case 'check_profile_connection':
+          value = await deferred(fixture.completions, `check:${profileId}`);
+          break;
+        case 'cancel_profile_check':
+          value = await deferred(fixture.cancellations, `check:${profileId}`);
+          break;
+        case 'begin_profile_quota_read':
+          value = { profileId, approvalId, requestId: attempts[0], sourceKind: 'test_fixture',
+            monitoring: 'stopped', accepted: false };
+          break;
+        case 'complete_profile_quota_read':
+          value = await deferred(fixture.completions, `quota:${String(args.requestId)}`);
+          break;
         default: throw new Error(`Unexpected renderer fixture command: ${command}`);
       }
       return value as T;
@@ -132,4 +145,46 @@ test('renderer fixture retains a cleanup failure when requested cancellation als
   await expect(page.getByRole('heading', { name: 'Sign-in could not finish', exact: true })).toBeVisible();
   await expect(page.getByText('OpenUsage could not confirm that the provider process stopped. Restart OpenUsage before another check.')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Sign-in stopped', exact: true })).toHaveCount(0);
+});
+
+test('renderer fixture preserves the new quota preview after an old connection cancel rejects', async ({ page }) => {
+  await openSyntheticProfile(page);
+  await page.getByRole('button', { name: 'Check connection', exact: true }).click();
+  await page.getByRole('button', { name: 'Cancel check', exact: true }).click();
+  await expect.poll(() => page.evaluate(profileId =>
+    Boolean((window as unknown as FixtureWindow).loginFixture.cancellations[`check:${profileId}`]), profileId)).toBe(true);
+
+  await page.evaluate(({ profileId, approvalId }) => {
+    (window as unknown as FixtureWindow).loginFixture.completions[`check:${profileId}`]!.resolve({
+      profileId, approvalId, providerVersion: '0.163.0', authentication: 'chatgpt',
+      identityConfidence: 'provisional', requiresOpenaiAuth: true, checkedAt: null,
+      monitoring: 'stopped', persisted: false, sourceKind: 'test_fixture',
+    });
+  }, { profileId, approvalId });
+  await expect(page.getByText('Account response received', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Read quotas', exact: true }).click();
+  await expect.poll(() => page.evaluate(requestId =>
+    Boolean((window as unknown as FixtureWindow).loginFixture.completions[`quota:${requestId}`]), attempts[0]!)).toBe(true);
+  await page.evaluate(({ profileId, approvalId, requestId }) => {
+    (window as unknown as FixtureWindow).loginFixture.completions[`quota:${requestId}`]!.resolve({
+      profileId, approvalId, requestId, providerVersion: '0.163.0', sourceKind: 'test_fixture',
+      observedAtUtc: '2026-10-18T00:00:00.000Z', identityConfidence: 'provisional',
+      verifiedIdentityKey: null, monitoring: 'stopped', accepted: false,
+      limits: [{ limitId: 'codex', limitName: null, reachedType: null, secondary: null,
+        primary: { usedPercent: 25, derivedRemainingPercent: 75,
+          windowDurationMins: 300, resetsAtUnix: null, label: 'Five-hour' } }],
+    });
+  }, { profileId, approvalId, requestId: attempts[0]! });
+  const preview = page.getByRole('region', { name: 'Quota preview for Synthetic login profile', exact: true });
+  await expect(preview).toBeVisible();
+  await expect(preview).toBeFocused();
+  await expect(preview.getByText('75%', { exact: true })).toBeVisible();
+
+  await reject(page, 'cancellations', `check:${profileId}`, 'provider_quota_in_progress');
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  await expect(preview).toBeVisible();
+  await expect(preview).toBeFocused();
+  await expect(preview.getByText('75%', { exact: true })).toBeVisible();
+  await expect(page.locator(`[data-provider-profile="${profileId}"]`)).toHaveCount(0);
+  await expect(page.getByRole('alert')).toHaveCount(0);
 });
