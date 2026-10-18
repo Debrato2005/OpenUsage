@@ -57,7 +57,8 @@ enum RestoreSource {
 }
 
 struct CheckpointSource {
-    snapshot: openusage_storage::BackupSnapshot,
+    schema_version: u32,
+    snapshot_bytes: u64,
     source: HeldPath,
     directory: HeldPath,
     homes: Vec<RestoreHomeMapping>,
@@ -382,6 +383,10 @@ pub(crate) fn prepare_checkpoint(
         snapshot.schema_version,
     )
     .map_err(restore_error)?;
+    let schema_version = snapshot.schema_version;
+    let snapshot_bytes = snapshot.bytes.len() as u64;
+    // A preview retains only encrypted files and bounded metadata, not a plaintext image.
+    drop(snapshot);
     let home_parent_path = workspace.join("profiles");
     let home_parent = if existing_private_directory(&home_parent_path)
         .map_err(|_| CommandError::RestoreHomeUnavailable)?
@@ -404,7 +409,8 @@ pub(crate) fn prepare_checkpoint(
         })
         .collect::<Result<Vec<_>, _>>()?;
     let retained = CheckpointSource {
-        snapshot,
+        schema_version,
+        snapshot_bytes,
         source,
         directory: held_directory,
         homes: incoming.homes,
@@ -413,12 +419,7 @@ pub(crate) fn prepare_checkpoint(
     };
     retained.require_identity()?;
     require_unchanged(&before, storage)?;
-    let (checkpoint, held) = save_checkpoint(
-        storage,
-        workspace,
-        &before,
-        retained.snapshot.bytes.len() as u64,
-    )?;
+    let (checkpoint, held) = save_checkpoint(storage, workspace, &before, retained.snapshot_bytes)?;
     retained.require_identity()?;
     Ok(PreparedRestore {
         preview: RestorePreview {
@@ -655,24 +656,28 @@ fn apply_checkpoint(
     checkpoint: &HeldPath,
 ) -> Result<BackupContentSummary, CommandError> {
     source.require_identity()?;
-    let verified = storage
-        .verify_encrypted_checkpoint(&source.source.path)
+    // This read repeats full page authentication and schema/FK/integrity checks before RAM export.
+    let snapshot = storage
+        .read_encrypted_checkpoint(&source.source.path)
         .map_err(|_| CommandError::RestoreCheckpointFailed)?;
     source.require_identity()?;
+    if snapshot.schema_version != source.schema_version
+        || snapshot.bytes.len() as u64 != source.snapshot_bytes
+    {
+        return Err(CommandError::InvalidBackupContents);
+    }
     let incoming = openusage_storage::validate_checkpoint_restore_input(
-        &source.snapshot.bytes,
-        source.snapshot.schema_version,
+        &snapshot.bytes,
+        snapshot.schema_version,
     )
     .map_err(restore_error)?;
-    if summary(verified.summary) != preview.incoming
-        || summary(incoming.summary) != preview.incoming
-        || incoming.homes != source.homes
-    {
+    if summary(incoming.summary) != preview.incoming || incoming.homes != source.homes {
         return Err(CommandError::InvalidBackupContents);
     }
     let budget = checkpoint_budget(current.logical_bytes)?
         .checked_add(
-            (source.snapshot.bytes.len() as u64)
+            source
+                .snapshot_bytes
                 .checked_mul(3)
                 .ok_or(CommandError::InsufficientSpace)?,
         )
@@ -685,8 +690,8 @@ fn apply_checkpoint(
     checkpoint.require_unchanged()?;
     storage
         .replace_records_from_checkpoint(
-            &source.snapshot.bytes,
-            source.snapshot.schema_version,
+            &snapshot.bytes,
+            snapshot.schema_version,
             revision,
             &source.homes,
         )
