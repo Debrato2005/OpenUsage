@@ -1,8 +1,8 @@
 //! Pinned full-read quota diagnostics. No identity binding, credit mutation, or history acceptance.
-//! https://github.com/openai/codex/blob/83086188ae0614bd882818ff1aa23f3194962012/codex-rs/app-server-protocol/src/protocol/v2/account.rs#L295-L323
+//! https://github.com/openai/codex/blob/83086188ae0614bd882818ff1aa23f3194962012/codex-rs/app-server-protocol/src/protocol/v2/account.rs#L309-L354
 //! https://github.com/openai/codex/blob/83086188ae0614bd882818ff1aa23f3194962012/codex-rs/app-server-protocol/src/protocol/v2/account.rs#L601-L740
 
-use crate::{ProtocolError, decode, validate_text};
+use crate::{DecimalCount, ProtocolError, count, decode, validate_text};
 use serde::{
     Deserialize, Serialize,
     de::{MapAccess, Visitor},
@@ -14,11 +14,12 @@ const MAX_SAFE_INTEGER: i64 = 9_007_199_254_740_991;
 const FIRST_UTC_SECOND: i64 = -62_135_596_800;
 const LAST_UTC_SECOND: i64 = 253_402_300_799;
 
-/// No account identifier, email, credit data, or raw frame leaves this parser.
+/// No account identifier, email, credit details, or raw frame leaves this parser.
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QuotaSnapshot {
     pub limits: Vec<QuotaLimit>,
+    pub available_reset_credits: Option<DecimalCount>,
 }
 
 impl fmt::Debug for QuotaSnapshot {
@@ -56,6 +57,14 @@ struct FullRead {
     rate_limits: Option<serde_json::Value>,
     rate_limits_by_limit_id: Option<LimitMap>,
     account_id: Option<String>,
+    rate_limit_reset_credits: Option<ResetCreditCountWire>,
+}
+
+// Detail rows may be absent or capped; only the summary count is authoritative.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ResetCreditCountWire {
+    available_count: i64,
 }
 
 struct LimitMap(Vec<(String, LimitWire)>);
@@ -122,7 +131,14 @@ pub fn parse_quota(bytes: &[u8], id: u32) -> Result<QuotaSnapshot, ProtocolError
             serde_json::from_value(value).map_err(|_| ProtocolError::InvalidField)?;
         vec![value.validate(None)?]
     };
-    Ok(QuotaSnapshot { limits })
+    let available_reset_credits = response
+        .rate_limit_reset_credits
+        .map(|summary| count(summary.available_count))
+        .transpose()?;
+    Ok(QuotaSnapshot {
+        limits,
+        available_reset_credits,
+    })
 }
 
 impl LimitWire {

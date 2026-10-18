@@ -119,3 +119,54 @@ fn quota_bounds_map_keys_and_text_and_rejects_duplicate_identifiers() {
         assert!(!format!("{error:?} {error}").contains("synthetic"));
     }
 }
+
+#[test]
+fn reset_credit_count_is_exact_nullable_and_independent_of_detail_rows() {
+    for (summary, expected) in [
+        (None, Value::Null),
+        (Some(Value::Null), Value::Null),
+        (Some(json!({"availableCount":0,"credits":null})), json!("0")),
+        (Some(json!({"availableCount":7,"credits":[]})), json!("7")),
+        (
+            Some(json!({"availableCount":i64::MAX,"credits":null})),
+            json!(i64::MAX.to_string()),
+        ),
+        (
+            Some(json!({"availableCount":3,"credits":[{"id":"synthetic-private-credit"}]})),
+            json!("3"),
+        ),
+    ] {
+        let mut response = json!({"rateLimitsByLimitId":{}});
+        if let Some(summary) = summary {
+            response["rateLimitResetCredits"] = summary;
+        }
+        let snapshot = parse_quota(&message(response), 3).unwrap();
+        let encoded = serde_json::to_value(snapshot).unwrap();
+        assert_eq!(encoded.get("availableResetCredits"), Some(&expected));
+        assert!(!encoded.to_string().contains("synthetic-private-credit"));
+    }
+}
+
+#[test]
+fn reset_credit_summary_requires_a_nonnegative_integer_count_without_detail_fallback() {
+    for summary in [
+        json!({}),
+        json!({"credits":[]}),
+        json!({"availableCount":null}),
+        json!({"availableCount":-1}),
+        json!({"availableCount":1.5}),
+        json!({"availableCount":"3"}),
+        json!({"availableCount":true}),
+        json!({"availableCount":9223372036854775808u64}),
+        json!([]),
+        json!("3"),
+    ] {
+        assert!(
+            parse_quota(
+                &message(json!({"rateLimitsByLimitId":{},"rateLimitResetCredits":summary})),
+                3
+            )
+            .is_err()
+        );
+    }
+}
