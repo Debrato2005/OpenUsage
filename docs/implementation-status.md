@@ -1,8 +1,10 @@
 # Implementation status
 
-Updated: October 18, 2026. The mission remains ongoing. Current milestone: saved profile activity, compatible encrypted restore, and production key-store checks passed on Linux. The retained schema 1 archive native regression also passed. Next slice: explicit association recovery with account evidence and atomic acceptance.
+Updated: October 18, 2026. The mission remains ongoing. Current milestone: explicit activity sign-in recovery and simpler restore undo passed in the native Linux application. SQLCipher 4 with WAL remains mandatory. Next slice: keep explicit quota readings available after restart.
 
 ## Implemented and executed
+
+Changed activity sign-ins now show previous and current account details before explicit consent. Rust binds the next reading to that review and saves its association atomically. Nine accepted native fixture reads, 22 independent checks, and restart/restore regression passed. The UI uses Undo a restore, hides copy metadata, and retains JetBrains Mono. See the [sign-in recovery review](reviews/2026-10-18-activity-sign-in-recovery.md). Monitoring and verified aggregation remain unavailable.
 
 The latest activity milestone saves exact provisional readings in SQLCipher 4 with WAL. Saved values load after unlock without executable approval, including archived profiles. Daily replacements retain immutable history. Failed refreshes preserve values and update Rust-controlled freshness. Backup restore and checkpoint recovery preserve every field in all six activity tables. The native journey passed eight accepted reads, 17 independent oracles, three genuine close/restart cycles, and thirteen captures. A focused notice supplement adds three captures; default production key-store checks add two. All 185 source files and ten built assets match. See the [persistence review](reviews/2026-10-18-profile-activity-persistence.md) and `evidence/native-activity-persistence-verification/`. Older unsaved-preview and optimized receipts below retain their historical scopes.
 
