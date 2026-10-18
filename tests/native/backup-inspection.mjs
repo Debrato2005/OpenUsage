@@ -381,7 +381,7 @@ try {
   for (const [path, digest] of Object.entries(evidence.harnessHashes)) assert.equal(await hash(join(harness, path)), digest, `Harness changed during inspection: ${path}`);
   evidence.result = 'passed';
 } catch (error) {
-  evidence.error = error.message;
+  evidence.error = error.stack ?? error.message;
   process.exitCode = 1;
   if (driver?.session) try { evidence.failureAppearance = await driver.execute('const trigger=document.querySelector("#theme"),active=document.activeElement;return {theme:document.documentElement.dataset.theme,trigger:trigger?.textContent.trim(),expanded:trigger?.getAttribute("aria-expanded"),disabled:trigger?.disabled,documentFocused:document.hasFocus(),activeTag:active?.tagName,activeRole:active?.getAttribute("role"),activeId:active?.id,activeText:active?.textContent.slice(0,160)};'); } catch { /* Preserve the first failure. */ }
   if (driver?.session) { try { await driver.screenshot(join(output, 'failure.png')); evidence.screenshots.push('failure.png'); } catch { /* Preserve the first failure. */ } }
