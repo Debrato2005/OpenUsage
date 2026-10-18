@@ -213,3 +213,19 @@ The original closed database, WAL, and key remain unchanged. The verifier never 
 Existing synthetic home markers must stay intact.
 Native screenshots and debug GUI timing do not establish release performance or cross-platform acceptance.
 The historical recovery audit records preserved receipt hashes and missing temporary executables.
+
+## Native checkpoint recovery
+
+`restore-checkpoint.mjs` is the next native journey after confirmed backup restore.
+Use the same drivers, source root, and verifier settings.
+The test creates GUI states A and B, restores A, then restarts OpenUsage.
+It lists durable checkpoint metadata and recovers B with explicit confirmation.
+The preview must save a new encrypted checkpoint of A before replacement.
+
+The test checks stale previews, corrupted checkpoints, and a replaced original home.
+Each refusal must preserve current records, key, and home directories.
+After recovery, selected semantic fields and the three original home mappings must match B.
+Existing synthetic markers and the two imported homes must stay intact.
+The read-only oracle requires explicit existing-home mode and exact expected mappings for this check.
+Its default mode continues to require fresh, private, empty homes for a backup import.
+This journey does not establish forced-interruption recovery or cross-platform acceptance.
