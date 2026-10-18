@@ -1,6 +1,6 @@
 # coss/ui adoption
 
-Updated: October 18, 2026. The user selected coss/ui for all OpenUsage components and workflows. Adoption proceeds through native verification. Verified slices cover shared buttons, text inputs, the sign-in address field, quota meters, appearance selection, profile management disclosure, and provider form choices. Backup selections, remaining disclosures, feedback panels, and record views remain in the migration queue.
+Updated: October 18, 2026. The user selected coss/ui for all OpenUsage components and workflows. Adoption proceeds through native verification. Verified slices cover shared buttons, text inputs, the sign-in address field, quota meters, appearance selection, profile management disclosure, and provider form choices. Remaining disclosures, feedback panels, and record views remain in the migration queue.
 
 ## Source and licensing
 
@@ -24,8 +24,8 @@ The local spinner uses a CSS border instead of an icon dependency. It preserves 
 
 The appearance Select and profile/provider Field, Checkbox, and RadioGroup now have native evidence. Security consent remains unchecked. Discovery uses actual radio keyboard selection. Manage profile uses the reviewed coss Collapsible without animation or new dependencies. Active provider operations stay mounted outside it. Forward navigation passed. Strict reverse traversal remains unresolved and prevents full keyboard acceptance. See [the profile review](../reviews/2026-10-18-profile-controls.md).
 
-The next slice covers backup/checkpoint selections and restore confirmation. It must preserve native password behavior, bounded values, explicit consent, keyboard selection, and focus return. Tests exercise the actual composite controls.
+Backup/checkpoint Selects, per-password Field contexts, and explicit backup/restore Checkbox consent have five final-artifact and three retained native journeys with explicit source scopes. Choices remain bounded by Rust catalogs. The shared body-portaled picker uses supported fixed positioning and available-width sizing. Both file pickers use nonmodal selection. Backup content status and exact available counts stay visible. Four technical archive fields remain under Details. Ten strict resize states and the full appearance regression passed. Restore comparisons adapt to enlarged text. See [the backup control review](../reviews/2026-10-18-coss-backup-controls.md).
 
-Disclosures then adopt coss Collapsible or Accordion with explicit ownership of mounted content. Closing a panel must not silently cancel a provider operation or retain a cleared password. Alerts, empty states, cards, badges, tables, and navigation follow. Shared components remain presentational. Rust keeps provider processes, storage, secrets, and exact arithmetic.
+Remaining disclosures adopt coss Collapsible or Accordion with explicit ownership of mounted content. Closing a panel must not silently cancel a provider operation or retain a cleared password. Alerts, empty states, cards, badges, tables, and navigation follow. Shared components remain presentational. Rust keeps provider processes, storage, secrets, and exact arithmetic.
 
 This decision replaces the earlier Primer and React Aria visual recommendation. Those sources informed the comparison. coss/ui is the selected implementation system. Full adoption and full accessibility acceptance remain incomplete.

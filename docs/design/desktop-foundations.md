@@ -76,3 +76,12 @@ Native review fixed the percentage wrapping at 200% text. Seven final quota capt
 ## Compact quota context
 
 The current quota view replaces the long introductory paragraph with one title, visible fixture provenance, identity uncertainty, saved status, and observation time. About this preview retains the monitoring, history, derived-value, and reset explanations. The result uses a separator instead of another bordered card. Related windows share columns on wider screens and stack on narrow screens. Their details use an em-based wrap threshold so enlarged reset dates have room.
+
+
+## Backup and recovery controls
+
+Backup and checkpoint choices now use coss Select. Password inputs each have their own Field context and explicit label. Backup and restore consent remain separate, initially unchecked actions. Native checks cover their real keyboard and pointer behavior.
+
+The shared picker uses supported fixed positioning for body portals and bounds its popup to the available width. Native investigation reproduced stale document extent with absolute positioning even without scroll locking. Both file pickers now pass desktop-to-narrow open-menu resizing. The full appearance regression also passed. No global overflow clipping conceals content.
+
+At enlarged text size, comparison row labels use the full row width. Labeled values stack when two columns would crowd their text. Whole-word and overflow checks remain strict. Five final-artifact and three retained native journeys map to 46 captures. Their tested/current source scopes remain explicit. Strict profile reverse traversal and full accessibility acceptance remain open. See [the review](../reviews/2026-10-18-coss-backup-controls.md).
