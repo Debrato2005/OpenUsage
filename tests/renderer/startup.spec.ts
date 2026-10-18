@@ -31,6 +31,7 @@ test('locked storage never invents a profile count or provider reading', async (
   const summary = page.getByRole('region', { name: 'Workspace summary' });
   await expect(summary.getByText('Locked', { exact: true })).toBeVisible();
   await expect(summary.getByText('Not available', { exact: true })).toHaveCount(2);
+  await expect(summary.getByText('Unlock to view saved readings.', { exact: true })).toHaveCount(2);
 });
 
 test('malformed bootstrap data shows a recoverable connection error', async ({ page }) => {

@@ -82,6 +82,8 @@ test('renderer saves activity outside Manage and pages exact cached rows after c
   await expect(metric(page, 'lifetimeTokens')).toHaveText('9223372036854775807');
   await expect(metric(page, 'currentStreakDays')).toHaveText('Not available');
   await expect(page.getByText('Unverified identity · Saved locally')).toBeVisible();
+  await expect(page.getByText('Combined totals are not available. Open a profile to view its activity.', { exact: true })).toBeVisible();
+  for (const misleading of ['No accepted provider reading', 'Saved readings: Not available', 'Last saved reading: Not available']) await expect(page.getByText(misleading, { exact: true })).toHaveCount(0);
   await expect(page.locator('[data-activity-day]')).toHaveCount(0);
   await page.getByRole('button', { name: 'Activity details', exact: true }).click();
   await expect(page.locator('[data-activity-day]')).toHaveCount(50);

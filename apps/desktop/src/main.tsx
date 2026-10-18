@@ -228,10 +228,10 @@ function App() {
           {ready ? <><dl className="workspace-metrics">
             <div className="metric"><dt className="metric-label">Quota remaining</dt><dd className="metric-value">Not available</dd></div>
             <div className="metric"><dt className="metric-label">Token activity</dt><dd className="metric-value">Not available</dd></div>
-          </dl><p className="workspace-summary-note">No accepted provider reading</p></> : <>
+          </dl><p className="workspace-summary-note">Combined totals are not available. Open a profile to view its activity.</p></> : <>
             <Metric label="Active profiles" value="Locked" detail="Unlock to view your profiles" />
-            <Metric label="Quota remaining" value="Not available" detail="No accepted provider reading" />
-            <Metric label="Token activity" value="Not available" detail="No accepted provider reading" />
+            <Metric label="Quota remaining" value="Not available" detail="Unlock to view saved readings." />
+            <Metric label="Token activity" value="Not available" detail="Unlock to view saved readings." />
           </>}
         </section>
         {ready ? <ProfileManager key={profileRevision} busy={busy} setBusy={setBusy} onCount={updateProfileCount} providerApproval={providerApproval} />
@@ -258,7 +258,6 @@ function App() {
             ? 'Checkpoint recovery requires a new preview and explicit confirmation.'
             : 'Inspect a backup before you prepare a restore. Replacing records requires confirmation.'}</p>
         </section>}
-        <footer className="main-footer"><span>Saved readings: Not available</span><span>Last saved reading: Not available</span></footer>
       </main>
     </div>
   </div>;
