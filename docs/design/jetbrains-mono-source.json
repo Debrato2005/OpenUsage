@@ -1,0 +1,22 @@
+{
+  "repository": "https://github.com/JetBrains/JetBrainsMono",
+  "revision": "19371302b95d218af43299bce79ddbddd0bc364d",
+  "files": {
+    "fonts/webfonts/JetBrainsMono-Regular.woff2": {
+      "bytes": 92380,
+      "sha256": "f1a7a03672cdd494ce0d5543fac6e4360fe22403c6de297fdc2e55a815f7baff"
+    },
+    "fonts/webfonts/JetBrainsMono-Medium.woff2": {
+      "bytes": 94284,
+      "sha256": "fe1c9099e3ea4123a6216d8a4a31970a2cfc6e9d80056da165012f406c83e219"
+    },
+    "fonts/webfonts/JetBrainsMono-SemiBold.woff2": {
+      "bytes": 94484,
+      "sha256": "8f20245500c375a63879b47c12560a07bcaf7a88672d272f4d8e79b68f9186ae"
+    },
+    "OFL.txt": {
+      "bytes": 4399,
+      "sha256": "a76abf002c49097d146e86740a3105a5d00450b1592e820a1109a8c5680cd697"
+    }
+  }
+}

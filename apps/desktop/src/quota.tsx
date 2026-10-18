@@ -90,11 +90,10 @@ export function ProfileQuotaRead({ profileId, profileLabel, approval, busy, onAc
   return <div className="profile-quota-read">
     <div className="profile-actions"><Button type="button" variant="outline" className="secondary-button" data-quota-read={profileId} aria-describedby={`profile-name-${profileId}`} disabled={busy || working} onClick={() => { void read(); }}>{working ? 'Reading quotas…' : 'Read quotas'}</Button>{working && requestId && <Button ref={cancelButton} type="button" variant="ghost" className="text-button" data-quota-cancel={profileId} aria-describedby={`profile-name-${profileId}`} disabled={stopping} onClick={() => { void cancel(); }}>{stopping ? 'Stopping read…' : 'Cancel read'}</Button>}</div>
     {outcome && <div ref={result} className="quota-result" data-quota-profile={profileId} role={outcome.kind === 'error' ? 'alert' : outcome.kind === 'preview' ? 'region' : 'status'} aria-label={outcome.kind === 'preview' ? `Quota preview for ${profileLabel}` : undefined} tabIndex={-1}>
-      {approval.sourceKind === 'test_fixture' && <p className="provider-fixture-note" data-provider-fixture>Synthetic provider fixture. These values are controlled test data.</p>}
+      {outcome.kind !== 'preview' && approval.sourceKind === 'test_fixture' && <p className="quota-fixture-label" data-provider-fixture>Synthetic test data</p>}
       {outcome.kind !== 'preview' ? <p>{outcome.message}</p> : <>
-        <h3>Quota preview for <bdi>{profileLabel}</bdi></h3>
-        <p className="provider-help">Identity is unverified. These readings are not saved or included in combined totals. Monitoring remains stopped.</p>
-        <p className="quota-observed">Read <time dateTime={outcome.value.observedAtUtc}>{date(outcome.value.observedAtUtc)}</time></p>
+        <div className="quota-preview-heading"><h3>Quota preview</h3>{approval.sourceKind === 'test_fixture' && <span className="quota-fixture-label" data-provider-fixture>Synthetic test data</span>}</div>
+        <div className="quota-preview-meta"><p>Unverified identity · Not saved</p><p className="quota-observed">Read <time dateTime={outcome.value.observedAtUtc}>{date(outcome.value.observedAtUtc)}</time></p></div>
         {outcome.value.limits.length === 0 ? <p>Codex returned no quota limits for this profile. Missing readings do not mean zero usage.</p> : outcome.value.limits.map((limit, index) => <details className="quota-limit" open={index === 0} key={`${outcome.value.requestId}:${limit.limitId}`}>
           <summary><bdi>{limit.limitName ?? limit.limitId}</bdi></summary>
           {limit.primary && <WindowValues value={limit.primary} />}{limit.secondary && <WindowValues value={limit.secondary} />}
@@ -102,7 +101,7 @@ export function ProfileQuotaRead({ profileId, profileLabel, approval, busy, onAc
           {(limit.primary === null || limit.secondary === null) && (limit.primary || limit.secondary) && <p className="provider-help">{limit.primary === null ? 'Primary window' : 'Secondary window'}: Not available</p>}
           <details className="quota-source-details"><summary>Reading details</summary><dl className="backup-inspection-metadata"><dt>Provider limit ID</dt><dd><bdi>{limit.limitId}</bdi></dd><dt>Provider status</dt><dd><bdi>{limit.reachedType ?? 'Not supplied'}</bdi></dd></dl></details>
         </details>)}
-        <p className="provider-help">Reset times are estimates. This preview does not confirm that a reset occurred. Credits and activity history are not available in this preview.</p>
+        <details className="quota-preview-notes"><summary>About this preview</summary><p>These readings are not saved or included in combined totals. Monitoring is stopped.</p><p>Remaining quota is calculated from reported usage. Expected reset times do not confirm that a reset occurred.</p><p>Credits and activity history are not available in this preview.</p></details>
       </>}
     </div>}
   </div>;
