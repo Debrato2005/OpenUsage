@@ -1,29 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
+import { providerFailure } from './provider-errors';
+import { ProfileDeviceLogin } from './login';
 import { invoke, type ProviderConnectionDiagnostic, type ProviderExecutableApproval, type ProviderExecutableCandidate } from './contracts';
 
-function failureFor(error: unknown): string {
-  const messages: Record<string, string> = {
-    invalid_arguments: 'OpenUsage could not read this request. Review the executable and try again.',
-    workspace_locked: 'Unlock your workspace before you configure Codex.',
-    provider_executable_not_approved: 'Review and approve a Codex executable before you check a connection.',
-    invalid_provider_executable: 'OpenUsage could not verify this executable. Check its path and file permissions, then inspect it again.',
-    stale_provider_approval: 'The executable or its review changed. Inspect the file again before you approve it.',
-    provider_source_unverified: 'This file does not match a supported verified source. Use a supported official release, then inspect it again.',
-    provider_check_cancelled: 'Connection check cancelled.',
-    provider_check_in_progress: 'This profile already has a connection check in progress.',
-    provider_capacity_reached: 'Two connection checks are already running. Wait for one to finish or cancel a check.',
-    provider_unsupported: 'This Codex version or environment is not supported by the connection check.',
-    provider_check_timed_out: 'Codex did not finish the connection check in time. Try again.',
-    provider_protocol_failed: 'Codex returned an unsupported response. Review its version before you try again.',
-    provider_home_unavailable: 'The private profile home is unavailable or changed. Keep your workspace files and reload profiles.',
-    provider_profile_archived: 'Restore this archived profile before you check its connection.',
-    provider_cleanup_failed: 'OpenUsage could not confirm that the provider process stopped. Restart OpenUsage before another check.',
-    provider_unavailable: 'The connection service is unavailable. Restart OpenUsage before you try again.',
-    provider_shutting_down: 'OpenUsage is closing. Reopen the application before you start another check.',
-  };
-  return typeof error === 'string' && messages[error]
-    ? messages[error] : 'OpenUsage could not complete this request. Review the executable and try again.';
-}
 
 type SettingsProps = {
   busy: boolean;
@@ -66,7 +45,7 @@ export function ProviderSettings({ busy, setBusy, approval, onApproved }: Settin
       const value = await invoke('inspect_provider_executable', { path });
       if (alive.current) { setCandidate(value); setFocus('review'); }
     } catch (failure) {
-      if (alive.current) { setError(failureFor(failure)); setPathError(failure === 'invalid_provider_executable' || failure === 'invalid_arguments'); setFocus('error'); }
+      if (alive.current) { setError(providerFailure(failure)); setPathError(failure === 'invalid_provider_executable' || failure === 'invalid_arguments'); setFocus('error'); }
     } finally { pending.current = false; setOperation(null); setBusy(false); }
   }
 
@@ -81,14 +60,14 @@ export function ProviderSettings({ busy, setBusy, approval, onApproved }: Settin
       const value = await invoke('approve_provider_executable', { candidateId: candidate.candidateId, confirmed: true });
       if (alive.current) { onApproved(value); setCandidate(null); setConfirmed(false); setPath(''); setFocus('approval'); }
     } catch (failure) {
-      if (alive.current) { setCandidate(null); setConfirmed(false); setError(failureFor(failure)); setFocus('error'); }
+      if (alive.current) { setCandidate(null); setConfirmed(false); setError(providerFailure(failure)); setFocus('error'); }
     } finally { pending.current = false; setOperation(null); setBusy(false); }
   }
 
   return <section className="provider-panel" aria-labelledby="provider-heading">
     <details>
       <summary data-provider-settings><h2 id="provider-heading">Codex connection</h2></summary>
-      <p className="provider-help">Approve a local Codex executable to check profile connections. Approval lasts for this application session. Usage collection and sign-in are not available yet.</p>
+      <p className="provider-help">Approve a local Codex executable to check profile connections. Approval lasts for this application session. Usage collection is not available yet. Each sign-in needs your approval.</p>
       {approval && <div ref={approvalPanel} className="backup-receipt provider-approval-result" role="status" tabIndex={-1}>
         <h3>Executable approved for this session</h3><p className="provider-path"><bdi>{approval.path}</bdi></p>
         <p className="provider-help">OpenUsage checks compatibility before each connection check.</p>
@@ -102,7 +81,8 @@ export function ProviderSettings({ busy, setBusy, approval, onApproved }: Settin
       </form>
       {candidate && <div ref={reviewPanel} className="backup-receipt provider-executable-review" tabIndex={-1} role="region" aria-labelledby="provider-review-heading">
         <h3 id="provider-review-heading">Review executable</h3>
-        <dl className="backup-inspection-metadata"><dt>File</dt><dd className="provider-path"><bdi>{candidate.path}</bdi></dd><dt>Size</dt><dd>{candidate.fileBytes} bytes</dd><dt>SHA-256</dt><dd className="provider-checksum">{candidate.sha256}</dd><dt>Source</dt><dd>{candidate.sourceKind === 'official_artifact' ? 'Reviewed official artifact' : candidate.sourceKind === 'test_fixture' ? 'Reviewed synthetic provider fixture' : 'Not verified'}</dd>{candidate.sourceUrl && <><dt>Source reference</dt><dd><bdi>{candidate.sourceUrl}</bdi></dd></>}<dt>Supported Codex version</dt><dd>{candidate.testedVersion}</dd></dl>
+        <dl className="backup-inspection-metadata"><dt>File</dt><dd className="provider-path"><bdi>{candidate.path}</bdi></dd><dt>Source</dt><dd>{candidate.sourceKind === 'official_artifact' ? 'Reviewed official artifact' : candidate.sourceKind === 'test_fixture' ? 'Reviewed synthetic provider fixture' : 'Not verified'}</dd>{candidate.sourceUrl && <><dt>Source reference</dt><dd><bdi>{candidate.sourceUrl}</bdi></dd></>}<dt>Supported Codex version</dt><dd>{candidate.testedVersion}</dd></dl>
+        <details className="provider-advanced"><summary>Executable details</summary><dl className="backup-inspection-metadata"><dt>Size</dt><dd>{candidate.fileBytes} bytes</dd><dt>SHA-256</dt><dd className="provider-checksum">{candidate.sha256}</dd></dl></details>
         <p id="provider-trust-help" className="provider-help">{candidate.sourceVerified
           ? 'The checksum matches a reviewed source. Approve this file only if you trust it. Each profile uses its own Codex home.'
           : 'This file does not match a supported verified source. OpenUsage cannot approve it for execution.'}</p>
@@ -116,8 +96,9 @@ export function ProviderSettings({ busy, setBusy, approval, onApproved }: Settin
   </section>;
 }
 
-export function ProfileProviderCheck({ profileId, approval, busy }: { profileId: string; approval: ProviderExecutableApproval; busy: boolean }) {
+export function ProfileProviderCheck({ profileId, profileLabel, approval, busy }: { profileId: string; profileLabel: string; approval: ProviderExecutableApproval; busy: boolean }) {
   const [checking, setChecking] = useState(false);
+  const [loggingIn, setLoggingIn] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [diagnostic, setDiagnostic] = useState<ProviderConnectionDiagnostic | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -131,7 +112,7 @@ export function ProfileProviderCheck({ profileId, approval, busy }: { profileId:
   }, [checking, focus, diagnostic, error]);
 
   async function check() {
-    if (busy || pending.current) return;
+    if (busy || loggingIn || pending.current) return;
     pending.current = true;
     setChecking(true);
     setDiagnostic(null);
@@ -141,7 +122,7 @@ export function ProfileProviderCheck({ profileId, approval, busy }: { profileId:
       if (next.profileId !== profileId || next.approvalId !== approval.approvalId) throw new Error('Stale connection check.');
       if (alive.current) { setDiagnostic(next); setFocus(true); }
     } catch (failure) {
-      if (alive.current) { setError(failureFor(failure)); setFocus(true); }
+      if (alive.current) { setError(providerFailure(failure)); setFocus(true); }
     } finally { pending.current = false; if (alive.current) { setChecking(false); setCancelling(false); } }
   }
 
@@ -149,19 +130,20 @@ export function ProfileProviderCheck({ profileId, approval, busy }: { profileId:
     if (!pending.current || cancelling) return;
     setCancelling(true);
     try { await invoke('cancel_profile_check', { profileId }); }
-    catch (failure) { if (alive.current) setError(failureFor(failure)); }
+    catch (failure) { if (alive.current) setError(providerFailure(failure)); }
     finally { if (alive.current) setCancelling(false); }
   }
 
   const title = diagnostic?.authentication === 'authentication_required' ? 'Sign-in required'
     : diagnostic?.authentication === 'chatgpt' ? 'Account response received' : 'Account type not supported';
   return <div className="profile-provider-check">
-    <div className="profile-actions"><button className="secondary-button" type="button" data-provider-check={profileId} aria-describedby={`profile-name-${profileId}`} disabled={busy || checking} onClick={() => { void check(); }}>{checking ? 'Checking connection…' : 'Check connection'}</button>
+    <div className="profile-actions"><button className="secondary-button" type="button" data-provider-check={profileId} aria-describedby={`profile-name-${profileId}`} disabled={busy || checking || loggingIn} onClick={() => { void check(); }}>{checking ? 'Checking connection…' : 'Check connection'}</button>
       {checking && <button className="text-button" type="button" data-provider-cancel={profileId} aria-describedby={`profile-name-${profileId}`} disabled={cancelling} onClick={() => { void cancel(); }}>{cancelling ? 'Cancelling…' : 'Cancel check'}</button>}
     </div>
+    <ProfileDeviceLogin profileId={profileId} profileLabel={profileLabel} approval={approval} busy={busy || checking} onActivity={setLoggingIn} onStarted={() => { setDiagnostic(null); setError(null); }} />
     {(diagnostic || error) && <div ref={result} className="provider-diagnostic" data-provider-profile={profileId} tabIndex={-1} role={error ? 'alert' : 'status'}>
       {error ? <p>{error}</p> : diagnostic && <>{diagnostic.sourceKind === 'test_fixture' && <p className="provider-fixture-note" data-provider-fixture>Synthetic provider fixture</p>}<p><strong>{title}</strong></p><p>{diagnostic.authentication === 'authentication_required'
-        ? 'Codex reported no authorized account in this profile. Sign-in is not available in this build.'
+        ? 'Codex reported no authorized account in this profile. Choose Sign in to connect this profile.'
         : diagnostic.authentication === 'chatgpt' ? 'Identity has not been verified. This check does not collect usage readings.'
         : 'This check supports ChatGPT account connections.'}</p><p className="provider-help">Codex {diagnostic.providerVersion} · Monitoring stopped</p></>}
     </div>}

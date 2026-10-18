@@ -19,14 +19,6 @@ type Failure = {
 type FocusTarget = 'create' | 'rename' | 'error'
   | { id: string; action: 'rename' | 'archive' | 'restore' };
 
-const states: Record<ProfileRecord['connectionState'], string> = {
-  connected: 'Connected',
-  authentication_required: 'Authentication required',
-  unauthorized: 'Unauthorized',
-  offline: 'Offline',
-  unsupported: 'Unsupported',
-  error: 'Error',
-};
 
 function invalidLabel(value: string): boolean {
   if (new TextEncoder().encode(value).length > 1024 || /\p{Cc}/u.test(value)) return true;
@@ -175,7 +167,7 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval }: Pro
     const rowError = failure?.id === profile.id;
     const nameId = `profile-name-${profile.id}`;
     return <li className="profile-row" data-profile-id={profile.id} key={profile.id}>
-      <div className="profile-details"><bdi id={nameId} className="profile-label">{profile.label}</bdi><p className="profile-meta">{profile.environment === 'native' ? 'Native' : 'WSL'} · {states[profile.connectionState]}</p></div>
+      <div className="profile-details"><bdi id={nameId} className="profile-label">{profile.label}</bdi><p className="profile-meta">{profile.environment === 'native' ? 'On this device' : 'WSL profile'}</p></div>
       {current ? <form className="profile-rename-form" onSubmit={event => { event.preventDefault(); rename(); }}>
         <label htmlFor={`profile-label-${profile.id}`}>New profile label</label>
         <input ref={renameInput} id={`profile-label-${profile.id}`} name="profile-label" autoComplete="off" maxLength={1024} disabled={busy || loading} value={editing.label} aria-invalid={rowError && !!failure?.invalidLabel} aria-describedby={rowError ? 'profiles-error' : undefined} onChange={event => { setEditing({ id: profile.id, label: event.target.value }); setFailure(null); }} />
@@ -185,7 +177,7 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval }: Pro
         <button className="secondary-button" type="button" data-profile-action="rename" aria-label="Rename profile" aria-describedby={nameId} disabled={busy || loading} onClick={() => { setEditing({ id: profile.id, label: profile.label }); setFailure(null); setFocusTarget('rename'); }}>Rename</button>
         <button className="secondary-button" type="button" data-profile-action={profile.archived ? 'restore' : 'archive'} aria-label={profile.archived ? 'Restore profile' : 'Archive profile'} aria-describedby={nameId} disabled={busy || loading} onClick={() => archive(profile)}>{profile.archived ? 'Restore' : 'Archive'}</button>
       </div>}
-      {!profile.archived && providerApproval && <ProfileProviderCheck key={`${profile.id}:${providerApproval.approvalId}`} profileId={profile.id} approval={providerApproval} busy={busy || loading || current} />}
+      {!profile.archived && providerApproval && <ProfileProviderCheck key={`${profile.id}:${providerApproval.approvalId}`} profileId={profile.id} profileLabel={profile.label} approval={providerApproval} busy={busy || loading || current} />}
       {rowError && !current && error()}
     </li>;
   }
@@ -207,7 +199,7 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval }: Pro
       </form>
       {active.length ? <ul className="profile-list" aria-label="Active profiles">{active.map(row)}</ul> : <p className="profile-empty">No active profiles. Create a profile or restore an archived one.</p>}
       {archived.length > 0 && <details className="archived-profiles"><summary>Archived profiles ({archived.length})</summary><p>Archived profiles keep their local data.</p><ul className="profile-list" aria-label="Archived profiles">{archived.map(row)}</ul></details>}
-      <p className="profile-meta">Approved connection checks read account status. Sign-in and usage collection are not available yet.</p>
+      <p className="profile-meta">Sign in to a profile to connect its Codex account. Usage collection is not available yet.</p>
     </>}
   </section>;
 }

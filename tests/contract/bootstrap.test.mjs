@@ -293,3 +293,35 @@ test('provider diagnostics cannot claim verified identity, persisted readings, o
     await assert.rejects(invoke('check_profile_connection', args), /desktop response is incompatible/);
   }
 });
+
+
+test('sign-in attempts keep opaque bindings and stopped monitoring without provider secrets', async () => {
+  const value = { profileId: '00000001-0000-4000-8000-000000000000', attemptId: '00000003-0000-4000-8000-000000000000', approvalId: '00000002-0000-4000-8000-000000000000', sourceKind: 'test_fixture', monitoring: 'stopped', applicationWaitLimitSeconds: 900 };
+  const args = { profileId: value.profileId, approvalId: value.approvalId, flow: 'device_code', confirmed: true };
+  desktopResponse(value); assert.deepEqual(await invoke('begin_profile_login', args), value);
+  for (const changes of [{ attemptId: '../private' }, { monitoring: 'active' }, { sourceKind: 'unverified' }, { applicationWaitLimitSeconds: '900' }, { applicationWaitLimitSeconds: 0 }, { providerLoginId: 'private' }, { token: 'secret' }]) {
+    desktopResponse({ ...value, ...changes });
+    await assert.rejects(invoke('begin_profile_login', args), /desktop response is incompatible/);
+  }
+});
+
+test('device challenges allow only the reviewed page and bounded visible code with no expiry claim', async () => {
+  const value = { profileId: '00000001-0000-4000-8000-000000000000', attemptId: '00000003-0000-4000-8000-000000000000', verificationUrl: 'https://auth.openai.com/codex/device', userCode: 'SYNTH-1234', sourceKind: 'test_fixture', applicationWaitLimitSeconds: 900 };
+  const args = { profileId: value.profileId, attemptId: value.attemptId };
+  desktopResponse(value); assert.deepEqual(await invoke('await_profile_login_prompt', args), value);
+  for (const changes of [{ verificationUrl: 'https://auth.openai.com.evil.invalid/codex/device' }, { verificationUrl: value.verificationUrl + '?redirect=elsewhere' }, { verificationUrl: 'https://auth.openai.com:443/codex/device' }, { userCode: ' ' }, { userCode: 'x'.repeat(65) }, { userCode: 'SYNTH\n1234' }, { userCode: 'SYNTH\u202e1234' }, { expiresAt: '2026-10-18T04:00:00.123Z' }, { accessToken: 'secret' }]) {
+    desktopResponse({ ...value, ...changes });
+    await assert.rejects(invoke('await_profile_login_prompt', args), /desktop response is incompatible/);
+  }
+});
+
+test('sign-in completion requires a fresh ChatGPT diagnostic while verified identity remains unavailable', async () => {
+  const diagnostic = { profileId: '00000001-0000-4000-8000-000000000000', approvalId: '00000002-0000-4000-8000-000000000000', providerVersion: '0.163.0', authentication: 'chatgpt', identityConfidence: 'provisional', requiresOpenaiAuth: true, checkedAt: '2026-10-18T04:00:00.123Z', monitoring: 'stopped', persisted: false, sourceKind: 'test_fixture' };
+  const value = { attemptId: '00000003-0000-4000-8000-000000000000', diagnostic };
+  const args = { profileId: diagnostic.profileId, attemptId: value.attemptId };
+  desktopResponse(value); assert.deepEqual(await invoke('complete_profile_login', args), value);
+  for (const changes of [{ diagnostic: { ...diagnostic, authentication: 'authentication_required' } }, { diagnostic: { ...diagnostic, identityConfidence: 'verified' } }, { diagnostic: { ...diagnostic, persisted: true } }, { diagnostic: { ...diagnostic, rawAccount: {} } }, { providerLoginId: 'private' }]) {
+    desktopResponse({ ...value, ...changes });
+    await assert.rejects(invoke('complete_profile_login', args), /desktop response is incompatible/);
+  }
+});
