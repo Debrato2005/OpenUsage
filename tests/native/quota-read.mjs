@@ -12,11 +12,11 @@ const harness = dirname(fileURLToPath(import.meta.url));
 const repository = resolve(process.env.OPENUSAGE_NATIVE_SOURCE_ROOT ?? join(harness, '../..'));
 const application = resolve(process.env.OPENUSAGE_NATIVE_BINARY ?? join(repository, 'target/debug/openusage-desktop'));
 const output = resolve(process.env.OPENUSAGE_NATIVE_EVIDENCE ?? join(tmpdir(), `openusage-native-quota-${randomUUID()}`));
-const fixtureDigest = 'c3e35f1662c6e91412a44bfc75c866e168500ce30577c3933dbcc4b40f1eb0ae';
+const fixtureDigest = '581062e7eae9e315e4d62cc1dd770a263f96c700739087d905c956f1b66c6f18';
 const hash = async path => createHash('sha256').update(await readFile(path)).digest('hex');
 const password = 'OpenUsage synthetic quota workspace 2026';
 const backupPassword = 'OpenUsage synthetic quota backup 2026';
-const evidence = { requirement: 'NATIVE-QUOTA-PREVIEW-001', result: 'failed', startedAt: new Date().toISOString(), scope: 'Actual native one-shot quota preview using a reviewed static synthetic provider under native-test. These are controlled fixture values, not production usage. No real OAuth, existing credential homes, verified identity, accepted readings, combined totals, credit spending/details, reset confirmation, monitoring, release performance, or cross-platform qualification. Short timeout behavior remains core-qualified only.', screenshots: [], views: [], cases: [], steps: [] };
+const evidence = { requirement: 'NATIVE-QUOTA-PREVIEW-001', result: 'failed', startedAt: new Date().toISOString(), scope: 'Actual native one-shot quota preview using a reviewed static synthetic provider under native-test. These are controlled fixture values, not production usage. No real OAuth, existing credential homes, verified identity, accepted readings, combined totals, credit spending, accepted credit history, reset confirmation, monitoring, release performance, or cross-platform qualification. Short timeout behavior remains core-qualified only.', screenshots: [], views: [], cases: [], steps: [] };
 let fixture, driver, workspace, executable, executionLog, first, other, archived, approvalId, home, freshHome;
 const active = new Map();
 const readSelector = id => `[data-quota-read="${id}"]`;
@@ -42,10 +42,18 @@ async function begin(profile = first) {
   assert.deepEqual(Object.keys(result.value).sort(), ['accepted', 'approvalId', 'monitoring', 'profileId', 'requestId', 'sourceKind']); assert.equal(result.value.profileId, profile.id); assert.equal(result.value.approvalId, approvalId); assert.equal(result.value.sourceKind, 'test_fixture'); assert.equal(result.value.accepted, false); assert.equal(result.value.monitoring, 'stopped'); assert.match(result.value.requestId, /^[0-9a-f-]{36}$/); active.set(result.value.requestId, profile.id); return result.value;
 }
 function validateOutcome(value, request) {
-  assert.deepEqual(Object.keys(value).sort(), ['accepted', 'approvalId', 'availableResetCredits', 'identityConfidence', 'limits', 'monitoring', 'observedAtUtc', 'profileId', 'providerVersion', 'requestId', 'sourceKind', 'verifiedIdentityKey']);
+  assert.deepEqual(Object.keys(value).sort(), ['accepted', 'approvalId', 'availableResetCredits', 'identityConfidence', 'limits', 'monitoring', 'observedAtUtc', 'profileId', 'providerVersion', 'requestId', 'resetCreditDetails', 'sourceKind', 'verifiedIdentityKey']);
   assert.equal(value.requestId, request.requestId); assert.equal(value.profileId, request.profileId); assert.equal(value.approvalId, approvalId); assert.equal(value.sourceKind, 'test_fixture'); assert.equal(value.providerVersion, '0.163.0'); assert.equal(value.identityConfidence, 'provisional'); assert.equal(value.verifiedIdentityKey, null); assert.equal(value.accepted, false); assert.equal(value.monitoring, 'stopped'); assert.ok(Number.isFinite(Date.parse(value.observedAtUtc)));
   assert.ok(value.availableResetCredits === null || (typeof value.availableResetCredits === 'string' && value.availableResetCredits.trim() === value.availableResetCredits && /^(0|[1-9][0-9]{0,18})$/.test(value.availableResetCredits) && (value.availableResetCredits.length < 19 || value.availableResetCredits <= '9223372036854775807')));
-  for (const forbidden of ['synthetic-private-account-id', 'synthetic-quota@example.invalid', 'accountId', 'rateLimitResetCredits', 'syntheticPrivateCredit', 'legacy-must-not-be-counted']) assert.equal(JSON.stringify(value).includes(forbidden), false);
+  assert.ok(value.resetCreditDetails === null || (Array.isArray(value.resetCreditDetails) && value.resetCreditDetails.length <= 32));
+  for (const row of value.resetCreditDetails ?? []) {
+    assert.deepEqual(Object.keys(row).sort(), ['expiresAtUnix', 'grantedAtUnix', 'status', 'title']);
+    assert.ok(row.title === null || typeof row.title === 'string' && row.title.trim() && Buffer.byteLength(row.title, 'utf8') <= 256);
+    assert.ok(['available', 'redeeming', 'redeemed', 'unknown'].includes(row.status));
+    assert.ok(Number.isSafeInteger(row.grantedAtUnix) && row.grantedAtUnix >= -62135596800 && row.grantedAtUnix <= 253402300799);
+    assert.ok(row.expiresAtUnix === null || Number.isSafeInteger(row.expiresAtUnix) && row.expiresAtUnix >= -62135596800 && row.expiresAtUnix <= 253402300799);
+  }
+  for (const forbidden of ['synthetic-private-account-id', 'synthetic-quota@example.invalid', 'accountId', 'rateLimitResetCredits', 'syntheticPrivateCredit', 'legacy-must-not-be-counted', 'synthetic-private-credit-id', 'synthetic-private-reset-type', 'synthetic-private-credit-description', 'synthetic-private-future-status']) assert.equal(JSON.stringify(value).includes(forbidden), false);
 }
 async function complete(request, expectedError) {
   const result = await driver.invoke('complete_profile_quota_read', { profileId: request.profileId, requestId: request.requestId }); active.delete(request.requestId);
@@ -89,12 +97,12 @@ async function previewDisclosure() {
   const notes=await driver.execute('const root=document.querySelector(arguments[0]),panel=document.getElementById(root.querySelector("[data-slot=collapsible-trigger]").getAttribute("aria-controls"));return{paragraphs:[...panel.querySelectorAll("p")].map(node=>({text:node.textContent.trim(),visible:node.getBoundingClientRect().width>0&&node.getBoundingClientRect().height>0&&getComputedStyle(node).visibility!=="hidden"}))};',[notesSelector]);
   assert.ok(notes.paragraphs.every(node=>node.visible));
   const text=notes.paragraphs.map(node=>node.text).join(' ');
-  assert.match(text,/not saved or included in combined totals/);assert.match(text,/Monitoring is stopped/);assert.match(text,/Remaining quota is calculated from reported usage/);assert.match(text,/Expected reset times do not confirm that a reset occurred/);assert.match(text,/Credit details and activity history are not available/);assert.match(text,/separate from subscription payments and OpenAI Platform API billing/);
+  assert.match(text,/not saved or included in combined totals/);assert.match(text,/Monitoring is stopped/);assert.match(text,/Remaining quota is calculated from reported usage/);assert.match(text,/Expected reset times do not confirm that a reset occurred/);assert.match(text,/Activity history is not available/);assert.match(text,/separate from subscription payments and OpenAI Platform API billing/);
   await key(' ');await waitDisclosure(notesSelector,false);await key('\uE007');await waitDisclosure(notesSelector,true);await setDisclosure(notesSelector,false);
   assert.equal((await observations()).length,observationCount,'Disclosure actions must execute no provider.');
   evidence.previewDisclosure={summary,initialLimits,expandedReading:reading,expandedNotes:notes,closedBeforeCaptures:true,actualTabSpaceEnter:true,ownedVisibleTriggerPanels:true};
 }
-async function creditDetails(expected) {
+async function creditDetails(expected, expectedRows = null) {
   const selector = resultSelector(first.id), notes = `${selector} .quota-preview-notes`;
   const before = (await observations()).length;
   await waitDisclosure(notes, false);
@@ -108,8 +116,31 @@ async function creditDetails(expected) {
   const viewport = await creditViewport(); assert.equal(viewport.lineCount, 1); assert.ok(viewport.scrollWidth <= viewport.clientWidth + 1, 'Normal-size counts must remain fully visible without scrolling.');
   assert.equal(displayed.actions, 0, 'Credit observation must offer no spending or configuration control.');
   assert.match(displayed.explanation, /separate from subscription payments and OpenAI Platform API billing/);
-  assert.match(displayed.explanation, /Credit details and activity history are not available/);
+  assert.match(displayed.explanation, /Activity history is not available/);
+  const detailState = await driver.execute('const root=document.querySelector(arguments[0]),state=root.querySelector("[data-credit-detail-state]"),list=root.querySelector(".quota-credit-details");return {state:state?.getAttribute("data-credit-detail-state")??null,message:state?.textContent.trim()??null,label:list?.getAttribute("aria-label")??null,rows:[...root.querySelectorAll("[data-credit-detail]")].map(row=>({title:row.querySelector(".quota-credit-title").textContent.trim(),fields:[...row.querySelectorAll("dt")].map(node=>({label:node.textContent.trim(),text:node.nextElementSibling.textContent.trim(),dateTime:node.nextElementSibling.querySelector("time")?.dateTime??null}))})),text:root.textContent};', [selector]);
+  if (expectedRows === null || expectedRows.length === 0) {
+    assert.equal(detailState.state, expectedRows === null ? 'unavailable' : 'empty');
+    assert.equal(detailState.message, expectedRows === null ? 'Credit details were not supplied.' : 'No credit rows were returned.');
+    assert.deepEqual(detailState.rows, []); assert.equal(detailState.label, null);
+  } else {
+    assert.equal(detailState.state, null); assert.equal(detailState.label, 'Credit details');
+    const status = { available: 'Available', redeeming: 'Being redeemed', redeemed: 'Redeemed', unknown: 'Unknown' };
+    const date = seconds => new Date(seconds * 1000).toISOString();
+    assert.equal(detailState.rows.length, expectedRows.length);
+    for (const [index, row] of expectedRows.entries()) {
+      const actual = detailState.rows[index]; assert.equal(actual.title, row.title ?? 'Title not supplied');
+      assert.deepEqual(actual.fields.map(field=>field.label), ['Status', 'Granted', 'Expires']);
+      assert.equal(actual.fields[0].text, status[row.status]); assert.equal(actual.fields[0].dateTime, null);
+      assert.equal(actual.fields[1].dateTime, date(row.grantedAtUnix));
+      assert.equal(actual.fields[2].dateTime, row.expiresAtUnix === null ? null : date(row.expiresAtUnix));
+      if (row.expiresAtUnix === null) assert.equal(actual.fields[2].text, 'No expiry');
+      assert.ok(actual.fields[1].text.length > 0 && actual.fields[2].text.length > 0);
+    }
+    assert.match(detailState.text, /These rows may not include every credit. The count above is separate./);
+  }
+  assert.equal(await driver.execute('return document.querySelector(arguments[0]).querySelectorAll(".quota-credit-details script,.quota-credit-details img").length;', [selector]), 0, 'Provider titles must remain plain text.');
   assert.equal((await observations()).length, before, 'Credit disclosure must execute no provider.');
+  displayed.details = detailState;
   return displayed;
 }
 async function approveGui() {
@@ -202,7 +233,7 @@ try {
   assert.equal(geometry.length, 3); for (const [index, value] of geometry.entries()) { const remaining = [75, 0, 100][index]; assert.equal(value.value, String(remaining)); assert.equal(value.min, '0'); assert.equal(value.max, '100'); assert.equal(value.text, `${remaining}% remaining (derived)`); assert.ok(value.trackWidth > 0); assert.ok(Math.abs(value.indicatorWidth - value.trackWidth * remaining / 100) <= 1, 'The visible coss indicator must match derived remaining capacity.'); assert.equal(value.trackBackground, 'none'); assert.equal(value.indicatorBackground, 'none'); } evidence.meterGeometry = geometry;
   await setDisclosure(`${resultSelector(first.id)} .quota-limit`,false,1);
   await capture('quota-preview-dark-desktop.png', resultSelector(first.id)); await theme('light'); await capture('quota-preview-light-360.png', resultSelector(first.id), 360); await capture('quota-secondary-light-360.png', `${resultSelector(first.id)} .quota-window:nth-of-type(2)`, 360); await capture('quota-primary-light-text200-360.png', `${resultSelector(first.id)} .quota-window`, 360, 2);
-  await config(home, 'multi'); before = await liveHashes(); const request = await begin(), full = await complete(request); assert.equal(full.availableResetCredits, '3'); assert.equal(full.limits.length, 2); assert.deepEqual(full.limits[0], { limitId: 'codex', limitName: null, primary: { usedPercent: 25, derivedRemainingPercent: 75, windowDurationMins: 300, resetsAtUnix: 1893456000, label: 'Five-hour' }, secondary: { usedPercent: 100, derivedRemainingPercent: 0, windowDurationMins: 10080, resetsAtUnix: null, label: 'Seven-day' }, reachedType: 'rate_limit_reached' }); assert.deepEqual(full.limits[1], { limitId: 'codex_other', limitName: 'Synthetic returned bucket', primary: { usedPercent: 0, derivedRemainingPercent: 100, windowDurationMins: null, resetsAtUnix: null, label: 'Primary window' }, secondary: null, reachedType: null }); assert.deepEqual(await liveHashes(), before); evidence.sampleDiagnostic = full;
+  await config(home, 'multi'); before = await liveHashes(); const request = await begin(), full = await complete(request); assert.equal(full.availableResetCredits, '3'); assert.equal(full.resetCreditDetails, null); assert.equal(full.limits.length, 2); assert.deepEqual(full.limits[0], { limitId: 'codex', limitName: null, primary: { usedPercent: 25, derivedRemainingPercent: 75, windowDurationMins: 300, resetsAtUnix: 1893456000, label: 'Five-hour' }, secondary: { usedPercent: 100, derivedRemainingPercent: 0, windowDurationMins: 10080, resetsAtUnix: null, label: 'Seven-day' }, reachedType: 'rate_limit_reached' }); assert.deepEqual(full.limits[1], { limitId: 'codex_other', limitName: 'Synthetic returned bucket', primary: { usedPercent: 0, derivedRemainingPercent: 100, windowDurationMins: null, resetsAtUnix: null, label: 'Primary window' }, secondary: null, reachedType: null }); assert.deepEqual(await liveHashes(), before); evidence.sampleDiagnostic = full;
   for (const mode of ['legacy', 'empty', 'null_windows', 'sparse_event']) { await config(home, mode); before = await liveHashes(); const attempt = await begin(), value = await complete(attempt); if (mode === 'empty') assert.deepEqual(value.limits, []); if (mode === 'legacy') { assert.equal(value.limits.length, 1); assert.equal(value.limits[0].limitId, 'returned-legacy'); assert.equal(value.limits[0].primary.usedPercent, 42); assert.equal(value.limits[0].primary.label, '1440 minutes'); } if (mode === 'null_windows') { assert.equal(value.limits[0].primary, null); assert.equal(value.limits[0].secondary, null); } if (mode === 'sparse_event') assert.deepEqual(value.limits, full.limits); assert.deepEqual(await liveHashes(), before); evidence.cases.push({ mode, passed: true }); }
   for (const [mode, error] of [['missing', 'provider_quota_failed'], ['invalid', 'provider_quota_failed'], ['fractional', 'provider_quota_failed'], ['string_percent', 'provider_quota_failed'], ['mismatch', 'provider_incompatible_quota_scope'], ['unknown_identity', 'provider_account_identity_unavailable'], ['signed_out', 'provider_quota_failed'], ['unsupported', 'provider_quota_failed'], ['changed_email', 'provider_account_changed'], ['changed_plan', 'provider_account_changed'], ['changed_auth', 'provider_account_changed'], ['post_unknown', 'provider_account_changed'], ['early_auth', 'provider_account_changed'], ['auth_notice', 'provider_account_changed'], ['late_auth', 'provider_account_changed']]) { await config(home, mode); before = await liveHashes(); const attempt = await begin(); await complete(attempt, error); assert.deepEqual(await liveHashes(), before); evidence.cases.push({ mode, error, passed: true }); }
   for (const [mode, expected] of [['credits_absent', null], ['credits_null', null], ['credits_zero', '0'], ['credits_nonzero', '3'], ['credits_null_details', '3'], ['credits_empty_details', '7'], ['credits_above_safe', '9007199254740993'], ['credits_max', '9223372036854775807']]) {
@@ -210,8 +241,9 @@ try {
     const attempt = await begin(), value = await complete(attempt);
     assert.equal(value.availableResetCredits, expected);
     assert.deepEqual(value.limits, full.limits);
+    const expectedRows = mode === 'credits_empty_details' ? [] : null; assert.deepEqual(value.resetCreditDetails, expectedRows);
     await guiRead(mode);
-    const display = await creditDetails(expected);
+    const display = await creditDetails(expected, expectedRows);
     if (mode === 'credits_null') await capture('quota-credits-unavailable-light-360.png', `${resultSelector(first.id)} .quota-preview-notes`, 360);
     if (mode === 'credits_max') await capture('quota-credits-exact-light-text200-360.png', `${resultSelector(first.id)} .quota-preview-notes`, 360, 2, true);
     await setDisclosure(`${resultSelector(first.id)} .quota-preview-notes`, false);
@@ -224,6 +256,31 @@ try {
     assert.deepEqual(await liveHashes(), before);
     evidence.cases.push({ mode, error: 'provider_quota_failed', passed: true });
   }
+  const orderedCreditRows = [
+    { title: 'Synthetic available credit', status: 'available', grantedAtUnix: 0, expiresAtUnix: null },
+    { title: 'Synthetic redeeming credit', status: 'redeeming', grantedAtUnix: -62135596800, expiresAtUnix: 253402300799 },
+    { title: null, status: 'redeemed', grantedAtUnix: 0, expiresAtUnix: 0 },
+    { title: '<Synthetic future credit>', status: 'unknown', grantedAtUnix: 1893456000, expiresAtUnix: null },
+  ];
+  for (const mode of ['details_rows', 'details_bound']) {
+    const expectedRows = mode === 'details_rows' ? orderedCreditRows : Array.from({ length: 32 }, (_, index) => ({ title: `Synthetic returned credit ${String(index + 1).padStart(2, '0')}`, status: 'available', grantedAtUnix: 1704067200, expiresAtUnix: null }));
+    await config(home, mode); before = await liveHashes(); const request = await begin(), value = await complete(request);
+    assert.equal(value.availableResetCredits, '9'); assert.deepEqual(value.resetCreditDetails, expectedRows); assert.deepEqual(await liveHashes(), before);
+    await guiRead(mode); const displayed = await creditDetails('9', expectedRows);
+    assert.deepEqual(await liveHashes(), before);
+    if (mode === 'details_rows') {
+      await theme('dark'); const darkAppearance = await liveHashes(); await capture('quota-credit-rows-dark-desktop.png', `${resultSelector(first.id)} .quota-credit-details`); assert.deepEqual(await liveHashes(), darkAppearance);
+      await theme('light'); const lightAppearance = await liveHashes(); await capture('quota-credit-rows-light-360.png', `${resultSelector(first.id)} [data-credit-detail]`, 360);
+      await capture('quota-credit-rows-light-text200-360.png', `${resultSelector(first.id)} [data-credit-detail]:nth-child(2)`, 360, 2); assert.deepEqual(await liveHashes(), lightAppearance);
+      before = await liveHashes();
+    }
+    await setDisclosure(`${resultSelector(first.id)} .quota-preview-notes`, false); assert.deepEqual(await liveHashes(), before);
+    evidence.cases.push({ mode, availableResetCredits: '9', rowCount: expectedRows.length, displayed, providerOrderAndCountIndependence: true, passed: true });
+  }
+  for (const mode of ['details_too_many', 'details_missing_expiry', 'details_invalid_time', 'details_invalid_title']) {
+    await config(home, mode); before = await liveHashes(); const request = await begin(); await complete(request, 'provider_quota_failed');
+    assert.deepEqual(await liveHashes(), before); evidence.cases.push({ mode, error: 'provider_quota_failed', passed: true });
+  }
   assert.match(await guiRead('empty'), /Missing readings do not mean zero usage/); assert.equal(await driver.execute('return document.querySelector(arguments[0]).querySelectorAll("[role=meter]").length;', [resultSelector(first.id)]), 0); await capture('quota-empty-light-360.png', resultSelector(first.id), 360);
   assert.match(await guiRead('null_windows'), /No quota windows were supplied/); assert.equal(await driver.execute('return document.querySelector(arguments[0]).querySelectorAll("[role=meter]").length;', [resultSelector(first.id)]), 0); await capture('quota-missing-windows-light-360.png', resultSelector(first.id), 360);
   await config(home, 'pending'); let offset = (await observations()).length; await driver.click(readSelector(first.id)); const guiPending = await stage('quota-read-pending', home, offset); await waitFor(async () => await driver.execute('return document.activeElement?.matches(arguments[0])&&!document.activeElement.disabled;', [cancelSelector(first.id)]), 'focused enabled Cancel read'); await key('\uE007'); await waitFor(async () => await driver.execute('return document.activeElement?.matches(arguments[0])&&document.activeElement.textContent.includes("Quota read stopped.");', [resultSelector(first.id)]), 'cancelled result focus'); await reaped(guiPending); await capture('quota-cancelled-light-360.png', resultSelector(first.id), 360);
@@ -235,8 +292,8 @@ try {
   const rows = await observations(); const starts = new Map(rows.filter(row => row.kind === 'start').map(row => [row.pid, row]));
   for (const row of starts.values()) { assert.ok([home, freshHome].includes(row.environment.CODEX_HOME)); assert.deepEqual(row.unexpectedEnvironmentKeys, []); assert.equal(row.environment.PATH, '/usr/bin:/bin'); assert.equal(row.environment.LANG, 'C.UTF-8'); const runtime = dirname(row.environment.HOME); assert.ok(runtime.startsWith(row.environment.CODEX_HOME + '/openusage-provider-')); for (const key of ['XDG_CONFIG_HOME', 'XDG_DATA_HOME', 'XDG_CACHE_HOME', 'XDG_STATE_HOME', 'XDG_RUNTIME_DIR', 'TMPDIR']) assert.ok(row.environment[key].startsWith(runtime + '/')); await reaped(row); await assert.rejects(lstat(runtime), { code: 'ENOENT' }); }
   for (const row of rows.filter(row => row.kind === 'request')) { assert.ok(['initialize', 'initialized', 'account/read', 'account/rateLimits/read'].includes(row.request.method)); if (row.request.method === 'account/read') assert.deepEqual(row.request.params, { refreshToken: false }); if (row.request.method === 'account/rateLimits/read') assert.deepEqual(row.request, { id: 3, method: 'account/rateLimits/read', params: {} }); }
-  for (const row of rows.filter(row => row.kind === 'full-quota-emitted' && (['multi', 'legacy', 'empty', 'null_windows', 'sparse_event'].includes(row.mode) || row.mode.startsWith('credits_') && !['credits_negative', 'credits_fractional', 'credits_out_of_range', 'credits_missing_count', 'credits_null_count'].includes(row.mode)))) { const requests = rows.filter(item => item.kind === 'request' && item.pid === row.pid).map(item => ({ method: item.request.method, id: item.request.id ?? null })); assert.deepEqual(requests, [{ method: 'initialize', id: 1 }, { method: 'initialized', id: null }, { method: 'account/read', id: 2 }, { method: 'account/rateLimits/read', id: 3 }, { method: 'account/read', id: 4 }]); }
-  assert.equal(await readFile(join(fixture.dirs.codex, 'synthetic-fixture.txt'), 'utf8'), CODEX_SENTINEL); assert.deepEqual(await readdir(fixture.dirs.codex), ['synthetic-fixture.txt']); evidence.observations = rows; evidence.steps.push({ explicitGuiSourceApproval: true, fullReadBracketedByFreshAccountReads: true, exactIntegerDerivedValuesAndNulls: true, exactNullableResetCreditCount: true, nullOrEmptyCreditDetailsNeverReplaceCount: true, noCreditSpendingControl: true, missingIsNotZero: true, sparseEventsNotMerged: true, allReadingsProvisionalAndUnaccepted: true, noApplicationWritesFromQuotaReads: true, nativeKeyboardCancelReaps: true, staleCancellationCannotAffectSuccessor: true, profileOnlyCheckCancellationCannotInterruptQuota: true, restoreQuiescesBeforeFreshHomeRemap: true, genuineWindowExitReaps: true, otherAndArchivedHomesPreserved: true, isolatedEnvironmentAndDocumentedOperationsOnly: true });
+  for (const row of rows.filter(row => row.kind === 'full-quota-emitted' && (['multi', 'legacy', 'empty', 'null_windows', 'sparse_event', 'details_rows', 'details_bound'].includes(row.mode) || row.mode.startsWith('credits_') && !['credits_negative', 'credits_fractional', 'credits_out_of_range', 'credits_missing_count', 'credits_null_count'].includes(row.mode)))) { const requests = rows.filter(item => item.kind === 'request' && item.pid === row.pid).map(item => ({ method: item.request.method, id: item.request.id ?? null })); assert.deepEqual(requests, [{ method: 'initialize', id: 1 }, { method: 'initialized', id: null }, { method: 'account/read', id: 2 }, { method: 'account/rateLimits/read', id: 3 }, { method: 'account/read', id: 4 }]); }
+  assert.equal(await readFile(join(fixture.dirs.codex, 'synthetic-fixture.txt'), 'utf8'), CODEX_SENTINEL); assert.deepEqual(await readdir(fixture.dirs.codex), ['synthetic-fixture.txt']); evidence.observations = rows; evidence.steps.push({ explicitGuiSourceApproval: true, fullReadBracketedByFreshAccountReads: true, exactIntegerDerivedValuesAndNulls: true, exactNullableResetCreditCount: true, nullOrEmptyCreditDetailsNeverReplaceCount: true, noCreditSpendingControl: true, typedOrderedCreditDetails: true, explicitNoExpiryWithoutTimeInference: true, resourceBoundIsNotProviderMaximumOrCompleteness: true, privateCreditFieldsExcluded: true, missingIsNotZero: true, sparseEventsNotMerged: true, allReadingsProvisionalAndUnaccepted: true, noApplicationWritesFromQuotaReads: true, nativeKeyboardCancelReaps: true, staleCancellationCannotAffectSuccessor: true, profileOnlyCheckCancellationCannotInterruptQuota: true, restoreQuiescesBeforeFreshHomeRemap: true, genuineWindowExitReaps: true, otherAndArchivedHomesPreserved: true, isolatedEnvironmentAndDocumentedOperationsOnly: true });
   assert.equal(await hash(executable), fixtureDigest); assert.equal(await hash(application), evidence.application.sha256); for (const [path, digest] of Object.entries(evidence.sourceHashes)) assert.equal(await hash(join(repository, path)), digest); for (const [path, digest] of Object.entries(evidence.harnessHashes)) assert.equal(await hash(join(harness, path)), digest); evidence.result = 'passed';
 } catch (error) { evidence.error = error.stack ?? String(error); process.exitCode = 1; try { evidence.observations = await observations(); } catch {} if (driver?.session) try { await driver.screenshot(join(output, 'failure.png')); evidence.screenshots.push('failure.png'); } catch {} }
 finally {
