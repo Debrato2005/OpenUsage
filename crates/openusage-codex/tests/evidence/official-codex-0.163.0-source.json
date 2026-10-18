@@ -1,0 +1,125 @@
+{
+  "requirement": "PROVIDER-OFFICIAL-SOURCE-001",
+  "result": "passed",
+  "completedAt": "2026-10-18T05:24:54.894182+00:00",
+  "artifactExecuted": false,
+  "sourceManifest": "crates/openusage-codex/provider-sources/codex-0.163.0-linux-x86_64.json",
+  "sourceManifestSha256": "7c71394bb2968e47682f04199ee18d8d41ce96936b1a1939d341c3e015014219",
+  "verification": {
+    "result": "passed",
+    "archiveSha256": "beb339e8ecd9ba057a6bb2dc81ad8ca474812edfbf0fc5056ca818797648dde4",
+    "executableSha256": "399ff69c431c066e40de318fba45c2b07f45a76b19939d247ee4828fc70c4215",
+    "verifier": {
+      "name": "sigstore",
+      "version": "3.1.0"
+    },
+    "signingIdentity": "https://github.com/openai/codex/.github/workflows/rust-release.yml@refs/tags/rust-v0.163.0",
+    "oidcIssuer": "https://token.actions.githubusercontent.com",
+    "certificateSha256": "c9c256b7a58afac275e9741ecdcca87c35f65545693a96619dbde391b00a3ab7",
+    "certificateTransparencyThreshold": 1,
+    "rekorThreshold": 1,
+    "rekorLogId": "c0d23d6ad406973f9559f3ba2d1ca01f84147d8ffc5b8445c224f98b9591801d",
+    "rekorLogIndex": "3267983038",
+    "rekorIntegratedTime": 1792091863,
+    "tufMirror": "https://tuf-repo-cdn.sigstore.dev",
+    "artifactExecuted": false,
+    "tamperedArtifactRejected": true,
+    "incorrectSigningIdentityRejected": true
+  },
+  "archiveMatchedOfficialGithubDigestBeforeExtraction": true,
+  "extraction": {
+    "memberCount": 1,
+    "regularMemberOnly": true,
+    "memberName": "codex-x86_64-unknown-linux-musl",
+    "outputMode": "0600",
+    "outputBytes": 296865480,
+    "outputPath": "/example/home/Projects/OpenUsage/.tools/codex-0.163.0-source-verified/codex"
+  },
+  "signedSourceCommitMatchesOfficialTagCommit": true,
+  "unsignedAnnotatedTagNotTreatedAsSignatureProof": true,
+  "evidenceFiles": {
+    "codex-release-0.163.0.json": {
+      "path": "/example/home/Projects/OpenUsage/.tools/codex-release-0.163.0.json",
+      "sha256": "e9c5b66696a67499a85977a6e885522a542fbcc5884ffa6f30f7c312606fc3e3"
+    },
+    "codex-tag-0.163.0.json": {
+      "path": "/example/home/Projects/OpenUsage/.tools/codex-tag-0.163.0.json",
+      "sha256": "054205eae8ed8df00a4bb49021e20c4db4979a6d68e433fc4c935993540e0213"
+    },
+    "codex-tag-object-0.163.0.json": {
+      "path": "/example/home/Projects/OpenUsage/.tools/codex-tag-object-0.163.0.json",
+      "sha256": "a05f607ec031e46bfab3aa0b276b09e4aa0a426a5e8fc8e0d9653d9b4e973cc3"
+    },
+    "codex-0.163.0-x86_64-unknown-linux-musl.sigstore": {
+      "path": "/example/home/Projects/OpenUsage/.tools/codex-0.163.0-x86_64-unknown-linux-musl.sigstore",
+      "sha256": "3147bce4ddb9cb961124809719f5c1c2763b6cc1ffc6243d69e1f765a0523fbb"
+    },
+    "codex-0.163.0-converted-sigstore-bundle.json": {
+      "path": "/example/home/Projects/OpenUsage/.tools/codex-0.163.0-converted-sigstore-bundle.json",
+      "sha256": "aa5e1022398ad1686aebf2017ea97579cf34d8945d91c28dcd4b11575cc8c883"
+    },
+    "codex-0.163.0-official-verification.json": {
+      "path": "/example/home/Projects/OpenUsage/.tools/codex-0.163.0-official-verification.json",
+      "sha256": "bcadf72163a99a8188f0d005b81bc719c6d8ca7558e9f9ddb87bc9e915d6e446"
+    },
+    "codex-0.163.0-verification.log": {
+      "path": "/example/home/Projects/OpenUsage/.tools/codex-0.163.0-verification.log",
+      "sha256": "ff867eabb2eed1a13a4a1d8904313cef15bb19ee69a48f4e7aab0d1b6212a890"
+    },
+    "sigstore-tuf/root.json": {
+      "path": "/example/home/Projects/OpenUsage/.tools/sigstore-tuf-cache/tuf-repo-cdn.sigstore.dev/root.json",
+      "sha256": "73747011d0857ada15479a16c4cae0f3ed03aac698b523b97e1de314ac9d9ca8"
+    },
+    "sigstore-tuf/targets.json": {
+      "path": "/example/home/Projects/OpenUsage/.tools/sigstore-tuf-cache/tuf-repo-cdn.sigstore.dev/targets.json",
+      "sha256": "6a697f7f8908c8ab26c11786ecb490b54acec97fa8c802e399f065f8a0cc1acd"
+    },
+    "sigstore-tuf/timestamp.json": {
+      "path": "/example/home/Projects/OpenUsage/.tools/sigstore-tuf-cache/tuf-repo-cdn.sigstore.dev/timestamp.json",
+      "sha256": "6259c81a40e3481dee3798678b25e048fc30b2dcae686a359e82789f8869d1d6"
+    },
+    "sigstore-tuf/snapshot.json": {
+      "path": "/example/home/Projects/OpenUsage/.tools/sigstore-tuf-cache/tuf-repo-cdn.sigstore.dev/snapshot.json",
+      "sha256": "6d61405faa993ba3d07556b79d1e319627cdc06ff879a7b5700967dc25d1d224"
+    },
+    "sigstore-tuf/targets/trusted_root.json": {
+      "path": "/example/home/Projects/OpenUsage/.tools/sigstore-tuf-cache/tuf-repo-cdn.sigstore.dev/targets/trusted_root.json",
+      "sha256": "6494e21ea73fa7ee769f85f57d5a3e6a08725eae1e38c755fc3517c9e6bc0b66"
+    }
+  },
+  "verifierScriptSha256": "ba63c5d8e2848b5f0872ad7f22336e83eacdc466e529e982f3840978a40f7715",
+  "verifierPackages": {
+    "sigstore": {
+      "version": "3.1.0",
+      "packageJsonSha256": "c83ea0d91bc9e8e3f36d818b9b4a0dbffb1042e04de285045458c3a66f84f059"
+    },
+    "@sigstore/verify": {
+      "version": "2.1.1",
+      "packageJsonSha256": "68d7387e84118be7099407749b057035dd631ba354ede2e945548fd2cf762b53"
+    },
+    "@sigstore/tuf": {
+      "version": "3.1.1",
+      "packageJsonSha256": "ae664d0d05531be2c51052a51161c2d9c9ac41e6e3563fe573288f940e1c33f7"
+    },
+    "@sigstore/core": {
+      "version": "2.0.0",
+      "packageJsonSha256": "1218c5f6d3d28a16656304b73e4d985a69055a2879925220f65172a3bdedf9e5"
+    },
+    "@sigstore/bundle": {
+      "version": "3.1.0",
+      "packageJsonSha256": "e67b398f9fc73c66e7a67442c9069ce6c25473a9195408c5d8f05f7aa8d0c5b7"
+    },
+    "tuf-js": {
+      "version": "3.1.0",
+      "packageJsonSha256": "76c98a3e0801feb234fba87d84fc4f2d94e715048d1145b6182d26f36e5c9162"
+    }
+  },
+  "limitations": {
+    "runtimeDownloadsNotImplemented": true,
+    "runtimeSourceCheckMustUseOfflineDigestPin": true,
+    "userApprovalStillRequired": true,
+    "otherArtifactsNotApproved": true,
+    "testFixturesNeverOfficialArtifacts": true,
+    "tagGpgSignatureNotVerifiedBecauseTagUnsigned": true
+  }
+}
