@@ -55,3 +55,10 @@ Bundled path: `apps/desktop/public/fonts/Geist-Variable.woff2`. SHA-256: `2ffebe
 Sign-in starts with the selected profile name and one consent action. Showing consent contacts no provider. Advanced executable size and checksum remain accessible under a disclosure. The prompt keeps the plain address, selectable code, and Cancel action together. Results receive focus and preserve uncertainty about identity. Credentials already saved by Codex can remain after cancellation.
 
 Native review found an internally clipped URL at enlarged text size. A wrapped read-only field now shows the complete address without scrolling inside the field. Keyboard selection repeats on the next frame only if that field still has focus. Seven actual native captures cover both themes, narrow windows, 200% test-side text, and visible keyboard focus. The harness activates only the identified owned native window before keyboard checks. See `../evidence/native-device-login/`. These checks do not establish screen-reader or full WCAG acceptance.
+
+
+## Executable selection
+
+Find Codex replaces manual path entry as the first setup action. A single result opens source review. Multiple results use native radio controls and require Review. No results open manual entry with path focus. A later successful search closes that fallback. The source review and initially unchecked approval remain mandatory.
+
+Long paths wrap in the choice list. Size and checksum remain under Executable details. Seven refined native captures cover the empty state, both themes, narrow review, keyboard selection, source refusal, and 200% text. The large-text list uses the page scroll area. See `../evidence/native-provider-discovery/`. The UI explains metadata checks without exposing provider or authentication internals.
