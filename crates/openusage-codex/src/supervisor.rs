@@ -1244,10 +1244,25 @@ IFS= read -r request
                 75
             );
             assert!(probe.quota.limits[0].secondary.is_none());
+            assert_eq!(
+                probe.account_evidence.authentication,
+                crate::AccountAuth::Chatgpt
+            );
+            assert!(probe.account_evidence.requires_openai_auth);
+            assert_eq!(
+                probe.account_evidence.identity,
+                crate::IdentityConfidence::Provisional
+            );
+            assert_eq!(
+                probe.account_evidence.email.as_deref(),
+                Some("synthetic@example.invalid")
+            );
+            assert_eq!(probe.account_evidence.plan.as_deref(), Some("plus"));
             for private in [
                 "synthetic-private-account-id",
                 "synthetic@example.invalid",
                 "email",
+                "plus",
             ] {
                 assert!(!format!("{probe:?}").contains(private));
                 assert!(
@@ -1311,8 +1326,10 @@ IFS= read -r request
         let held_at = std::time::SystemTime::now();
         fs::write(home.join("synthetic-quota-release"), b"release").unwrap();
         let probe = quota.wait().unwrap();
-        assert!(probe.observed_at >= started_at);
+        let returned_at = std::time::SystemTime::now();
+        assert!(probe.started_at >= started_at && probe.started_at <= probe.observed_at);
         assert!(probe.observed_at <= held_at);
+        assert!(probe.completed_at >= held_at && probe.completed_at <= returned_at);
         assert_eq!(
             probe.quota.limits[0].primary.as_ref().unwrap().used_percent,
             25
