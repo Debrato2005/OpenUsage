@@ -76,6 +76,7 @@ async function fontDiagnostic(phase) {
    const style=getComputedStyle(node);return[key,{present:true,tag:node.tagName,fontSize:style.fontSize,fontFamily:style.fontFamily,inlineFontSize:node.style.fontSize,inlineStyle:node.getAttribute('style'),sameOriginalNode:original?node===original:null,originalNodeConnected:original?.isConnected??null}];
   }))};`,[phase]);
  (evidence.fontDiagnostics??=[]).push(snapshot);
+ return snapshot;
 }
 async function capture(name,selector,width=1280,height=850) {
   await resize(width,height);
@@ -90,8 +91,8 @@ async function capture(name,selector,width=1280,height=850) {
 }
 async function enlargedText() {
   await resize(360,800);
-  await fontDiagnostic('before200');
-  await driver.execute('window.__checkpointFontRestore=[...document.querySelectorAll("body *")].map(node=>({node,style:node.getAttribute("style"),size:getComputedStyle(node).fontSize}));for(const item of window.__checkpointFontRestore)item.node.style.fontSize=`${parseFloat(item.size)*2}px`;return true;');
+  const normalFonts=await fontDiagnostic('before200');
+  await driver.execute('window.__checkpointFontRestore=[...document.querySelectorAll("body *")].map(node=>({node,style:node.getAttribute("style"),size:getComputedStyle(node).fontSize,inlineSize:node.style.getPropertyValue("font-size"),inlinePriority:node.style.getPropertyPriority("font-size")}));for(const item of window.__checkpointFontRestore)item.node.style.fontSize=`${parseFloat(item.size)*2}px`;return true;');
   try {
     await capture('checkpoint-catalog-light-text-200-360.png','.checkpoint-catalog',360,800);
     await capture('checkpoint-comparison-light-text-200-360.png','.restore-comparison',360,800);
@@ -108,10 +109,12 @@ async function enlargedText() {
     await capture('checkpoint-confirmation-light-text-200-360.png','.restore-confirmation-form',360,800);
     evidence.enlargedText={scale:2,viewport:{width:360,height:800},scope:'Test-side CSS text scaling only. Not OS zoom, screen-reader qualification, or full WCAG acceptance.',naturalWords:words,comparisonReflow:true,keyboardReachedUncheckedConfirmation:true,controls};
   } finally {
-    await driver.execute('for(const item of window.__checkpointFontRestore){if(item.style===null)item.node.removeAttribute("style");else item.node.setAttribute("style",item.style);}delete window.__checkpointFontRestore;return true;');
+    await driver.execute('for(const item of window.__checkpointFontRestore){if(item.inlineSize)item.node.style.setProperty("font-size",item.inlineSize,item.inlinePriority);else item.node.style.removeProperty("font-size");if(item.style===null&&item.node.style.length===0)item.node.removeAttribute("style");}delete window.__checkpointFontRestore;return true;');
     await fontDiagnostic('after200-restoration');
     await driver.request('POST',`/session/${driver.session}/execute/async`,{script:'const done=arguments[arguments.length-1];requestAnimationFrame(()=>requestAnimationFrame(()=>done(true)));',args:[]});
-    await fontDiagnostic('after200-restoration-two-frames');
+    const restoredFonts=await fontDiagnostic('after200-restoration-two-frames');
+    for(const key of ['body','catalog','trigger','value','form']){assert.equal(restoredFonts.fields[key].fontSize,normalFonts.fields[key].fontSize,`Original ${key} font size must be restored after test scaling.`);assert.equal(restoredFonts.fields[key].inlineFontSize,normalFonts.fields[key].inlineFontSize,`Original ${key} inline font size must be restored after test scaling.`);}
+    evidence.fontRestoration={method:'Restore only the changed font-size property through CSSOM; strict CSP remains unchanged.',criticalComputedAndInlineFontSizesRestored:true};
   }
 }
 async function allHomes() {return(await readdir(join(workspace,'profiles'))).sort();}
