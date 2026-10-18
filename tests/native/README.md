@@ -241,6 +241,9 @@ This is test-side CSS scaling, not operating-system zoom or full accessibility a
 It does not use a real Codex executable or inspect existing credential homes.
 The executable supports only version output, initialization, and a read-only account response.
 Its central execution log detects any process launch before explicit executable approval.
+The reviewed fixture has one fixed native-test digest and an explicit test-fixture classification.
+Unknown digests must fail approval before any execution. The default production build must reject the test fixture.
+Behavior modes come from adjacent private JSON. They do not change the executable bytes.
 The log records controlled environment values and unexpected variable names, without recording other values.
 
 The journey checks executable changes, malformed responses, two active slots, duplicate rejection, and real GUI cancellation.
