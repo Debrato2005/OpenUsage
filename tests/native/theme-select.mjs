@@ -16,6 +16,7 @@ const password = 'OpenUsage synthetic theme selection workspace 2026';
 const hash = async path => createHash('sha256').update(await readFile(path)).digest('hex');
 const evidence = { requirement: 'NATIVE-COSS-THEME-SELECT-001', result: 'failed', startedAt: new Date().toISOString(), scope: 'Actual native theme selection, keyboard cancellation and confirmation, focus return, SQLCipher-backed preference persistence and genuine window restart. Fresh synthetic workspace and private bus only. No provider process, credential-home inspection, OAuth, release performance, or cross-platform qualification. Enlarged text is test-side CSS scaling, not OS zoom.', screenshots: [], views: [], focus: [], closes: [], steps: [] };
 let fixture, driver, sequence = 0;
+const palettes = {};
 
 async function desktopPid() {
   const queue = [driver.child.pid];
@@ -46,8 +47,13 @@ async function saved(value) {
   try {
   await waitFor(async () => (await driver.invoke('bootstrap')).value?.theme === value && await driver.execute('const trigger=document.querySelector("#theme");return !trigger.disabled&&trigger.textContent.trim()===arguments[0]&&document.activeElement===trigger&&trigger.getAttribute("aria-expanded")==="false";', [{ system: 'System', light: 'Light', dark: 'Dark' }[value]]), `saved ${value} preference and trigger focus`);
   } catch (error) { evidence.themeWaitFailure = { expected: value, bootstrap: await driver.invoke('bootstrap'), view: await driver.execute('const trigger=document.querySelector("#theme"),active=document.activeElement;return {triggerText:trigger.textContent.trim(),disabled:trigger.disabled,expanded:trigger.getAttribute("aria-expanded"),triggerFocused:active===trigger,documentFocused:document.hasFocus(),activeId:active?.id,activeTag:active?.tagName,activeRole:active?.getAttribute("role")};') }; throw error; }
-  const expected = value === 'system' ? await driver.execute('return matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";') : value;
-  assert.equal(await driver.execute('return document.documentElement.dataset.theme;'), expected);
+  assert.equal(await driver.execute('return document.documentElement.dataset.theme;'), value);
+  const background = await driver.execute('return getComputedStyle(document.documentElement).backgroundColor;');
+  if (value === 'system') {
+    const resolved = await driver.execute('return matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";');
+    assert.ok(palettes[resolved], 'The explicit resolved palette must be observed first.');
+    assert.equal(background, palettes[resolved]); evidence.systemAppearance = { preference: value, resolved, background, explicitPalettes: { ...palettes } };
+  } else palettes[value] = background;
 }
 async function openOptions() {
   await driver.click('#theme'); await waitFor(async () => await driver.execute('return document.querySelector("#theme").getAttribute("aria-expanded")==="true";'), 'theme popup open');
