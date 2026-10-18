@@ -68,6 +68,8 @@ pub struct ProviderProbe {
 
 /// Provisional full-read diagnostics only. No identity key, email, or account claim is exposed.
 pub struct QuotaProbe {
+    /// Local full-response observation time, retained across delayed completion/publication.
+    pub observed_at: std::time::SystemTime,
     pub server: ServerInfo,
     pub quota: crate::QuotaSnapshot,
     pub version: &'static str,
@@ -716,6 +718,7 @@ pub(crate) mod unix {
                 )?,
                 3,
             )?;
+            let observed_at = std::time::SystemTime::now();
             process.send(&Request::account_read(4).to_line()?)?;
             let after = parse_account(
                 &process.response_routed(
@@ -736,6 +739,7 @@ pub(crate) mod unix {
                 return Err(ProtocolError::AccountChanged.into());
             }
             Ok(QuotaProbe {
+                observed_at,
                 server,
                 quota,
                 version: TESTED_PROVIDER_VERSION,
