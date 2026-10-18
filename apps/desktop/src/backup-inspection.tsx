@@ -154,9 +154,9 @@ export function BackupInspection({ busy, setBusy, onRestored }: Props) {
     {failure && <p ref={errorMessage} id="backup-inspection-error" className="operation-error backup-inspection-error" role="alert" tabIndex={-1}>{failure.message}</p>}
     {receipt && <div ref={result} className="backup-receipt backup-inspection-receipt" role="status" tabIndex={-1}>
       <p className={`backup-content-status${receipt.databaseValidation === 'invalid' ? ' operation-error' : ''}`}>
-        {receipt.databaseValidation === 'valid' ? 'Database checks passed. Prepare a preview to review a restore.'
-          : receipt.databaseValidation === 'unsupported' ? 'This version cannot check the database contents in this archive. Restore is not available.'
-          : 'Database checks failed. Keep the backup file; restore is not available.'}
+        {receipt.databaseValidation === 'valid' ? 'Backup contents checked. Preview the records before restoring.'
+          : receipt.databaseValidation === 'unsupported' ? 'This version of OpenUsage cannot check these records. Restore is unavailable.'
+          : 'These records cannot be restored. Keep the backup file.'}
       </p>
       <p>Archive authenticated</p>
       <dl className="backup-inspection-metadata">

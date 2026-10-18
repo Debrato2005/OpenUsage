@@ -56,18 +56,58 @@ async function workspaceHashes() {
 
 const newName = () => `openusage-backup-${randomUUID().replaceAll('-', '').slice(0, 16)}.oubackup`;
 
+const detailsSelector = '.backup-inspection-receipt [data-slot="collapsible-trigger"]';
+const advancedFields = ['Archive version', 'Schema version', 'Files', 'Total size'];
+async function receiptView() {
+  return driver.execute('const receipt=document.querySelector(".backup-inspection-receipt"),password=document.querySelector("#backup-inspection-password"),status=receipt.querySelector(".backup-content-status"),trigger=receipt.querySelector("[data-slot=collapsible-trigger]"),panel=receipt.querySelector("[data-slot=collapsible-panel]");return {text:receipt.textContent,status:status.textContent,statusVisible:Boolean(status.getClientRects().length),statusFirst:receipt.firstElementChild===status,metadata:Object.fromEntries([...receipt.querySelectorAll("dt")].map(node=>[node.textContent,node.nextElementSibling?.textContent])),password:password.value,passwordInvalid:password.getAttribute("aria-invalid"),details:{name:trigger.textContent.trim(),enabled:!trigger.disabled,visible:Boolean(trigger.getClientRects().length),expanded:trigger.getAttribute("aria-expanded"),controlsMatch:!panel||trigger.getAttribute("aria-controls")===panel.id,panelPresent:Boolean(panel),panelVisible:Boolean(panel?.getClientRects().length),passwordFields:panel?.querySelectorAll("input,form").length??0},previewVisible:[...document.querySelectorAll(".restore-preparation button")].some(node=>node.textContent.trim()==="Preview restore"&&node.getClientRects().length)};');
+}
+async function waitDetails(open) {
+  await waitFor(async () => { const view = await receiptView(); return view.details.expanded === String(open) && view.details.panelPresent === open && view.details.panelVisible === open; }, `${open ? 'expanded' : 'closed'} archive details`);
+}
+async function readAdvancedDetails(expectedPreview, keyboard = false) {
+  const before = await receiptView(), stored = await workspaceHashes();
+  assert.deepEqual(before.details, { name: 'Details', enabled: true, visible: true, expanded: 'false', controlsMatch: true, panelPresent: false, panelVisible: false, passwordFields: 0 });
+  assert.equal(before.statusVisible, true); assert.equal(before.statusFirst, true);
+  assert.equal(before.previewVisible, expectedPreview); assert.equal(before.password, '');
+  for (const field of advancedFields) assert.equal(Object.hasOwn(before.metadata, field), false);
+  await driver.click(detailsSelector); await waitDetails(true);
+  if (keyboard) {
+    const key = value => driver.request('POST', `/session/${driver.session}/actions`, { actions: [{ type: 'key', id: 'archive-details-keyboard', actions: [{ type: 'keyDown', value }, { type: 'keyUp', value }] }] });
+    await focusOwnedWindow();
+    assert.equal(await driver.execute('return document.activeElement?.matches(arguments[0]);', [detailsSelector]), true);
+    await key('\uE007'); await waitDetails(false);
+    await key(' '); await waitDetails(true);
+    await driver.request('DELETE', `/session/${driver.session}/actions`);
+  }
+  const expanded = await receiptView();
+  assert.equal(expanded.details.controlsMatch, true); assert.equal(expanded.details.passwordFields, 0);
+  assert.equal(expanded.status, before.status); assert.equal(expanded.statusVisible, true);
+  assert.equal(expanded.previewVisible, expectedPreview); assert.equal(expanded.password, '');
+  assert.deepEqual(await workspaceHashes(), stored, 'Read-only details must preserve database, WAL and key bytes.');
+  (evidence.archiveDetails ??= []).push({ status: before.status, mainMetadata: before.metadata, collapsedHasNoAdvancedFields: true, advancedMetadata: Object.fromEntries(advancedFields.map(field => [field, expanded.metadata[field]])), warningRemainsVisible: true, previewVisible: expectedPreview, noFormsOrPasswords: true, keyboardEnterAndSpace: keyboard, storageHashesPreserved: true });
+  return expanded;
+}
+async function closeDetails() {
+  const before = await receiptView();
+  await driver.click(detailsSelector); await waitDetails(false);
+  const after = await receiptView();
+  assert.equal(after.status, before.status); assert.equal(after.statusVisible, true);
+  assert.equal(after.password, ''); assert.equal(after.previewVisible, before.previewVisible);
+}
+
 async function inspectGui(fileName, status) {
   await driver.selectVisibleOption('#backup-file', fileName);
   await driver.type('#backup-inspection-password', password);
   await driver.click('.backup-inspection-form button[type="submit"]');
   await waitFor(async () => Boolean(await driver.execute('return document.querySelector(".backup-inspection-receipt")?.textContent.includes(arguments[0]);', [fileName])), 'native authenticated content receipt', 30000);
   await waitFor(async () => Boolean(await driver.execute('return document.activeElement?.matches(".backup-inspection-receipt");')), 'focus after content inspection');
-  const view = await driver.execute('const receipt=document.querySelector(".backup-inspection-receipt"),password=document.querySelector("#backup-inspection-password");return {text:receipt.textContent,status:receipt.querySelector(".backup-content-status")?.textContent,metadata:Object.fromEntries([...receipt.querySelectorAll("dt")].map(node=>[node.textContent,node.nextElementSibling?.textContent])),password:password.value,passwordInvalid:password.getAttribute("aria-invalid")};');
+  const view = await readAdvancedDetails(false);
   assert.match(view.text, /archive authenticated/i);
   assert.equal(view.status, status);
   assert.equal(view.metadata.File, fileName);
   assert.equal(view.password, '');
   assert.notEqual(view.passwordInvalid, 'true');
+  await closeDetails();
   return view;
 }
 
@@ -256,12 +296,15 @@ try {
   const receipt = await driver.execute('return document.querySelector(".backup-inspection-receipt").textContent;');
   assert.ok(receipt.includes(fileName));
   assert.match(receipt, /archive authenticated/i);
-  assert.match(receipt, /database checks passed/i);
-  assert.ok(receipt.includes('Database checks passed. Prepare a preview to review a restore.'));
+  assert.match(receipt, /backup contents checked/i);
+  assert.ok(receipt.includes('Backup contents checked. Preview the records before restoring.'));
   assert.equal(await driver.execute('return [...document.querySelectorAll("#backup-inspection button, #backup-inspection a")].some(node=>/^(apply|replace|undo|restore)\\b/i.test(node.textContent.trim()));'), false);
   assert.equal(await driver.execute('return document.querySelector("#backup-inspection-password")?.value??"";'), '');
   const counts = await driver.execute('return Object.fromEntries([...document.querySelectorAll(".backup-inspection-metadata dt")].map(node=>[node.textContent,node.nextElementSibling?.textContent]));');
   assert.deepEqual([counts['Active profiles'], counts['Archived profiles'], counts.Accounts], ['2', '1', '0']);
+  const advanced = await readAdvancedDetails(true, true);
+  assert.deepEqual(advancedFields.map(field => advanced.metadata[field]), ['1', '1', '1', `${metadata.totalBytes} bytes`]);
+  await closeDetails();
   evidence.inspection = metadata;
   evidence.wrongPasswordView = failedView;
   await driver.execute('document.querySelector(".backup-inspection-receipt").scrollIntoView({block:"center"});return true;');
@@ -303,7 +346,7 @@ try {
     assert.equal(result.value.restoreAvailable, false);
     await clickButton('Refresh backups');
     await waitFor(async () => Boolean(await driver.execute('const select=document.querySelector("#backup-file");return select?.getAttribute("role")==="combobox"&&!select.disabled;', [fixtureName])), 'enabled backup selector before choosing the content fixture');
-    const view = await inspectGui(fixtureName, state === 'invalid' ? 'Database checks failed. Keep the backup file; restore is not available.' : 'This version cannot check the database contents in this archive. Restore is not available.');
+    const view = await inspectGui(fixtureName, state === 'invalid' ? 'These records cannot be restored. Keep the backup file.' : 'This version of OpenUsage cannot check these records. Restore is unavailable.');
     assert.equal(view.metadata['Schema version'], String(schema));
     assert.deepEqual([view.metadata['Archive version'], view.metadata.Files, view.metadata['Total size']], ['1', '1', `${result.value.totalBytes} bytes`]);
     for (const field of ['Active profiles', 'Archived profiles', 'Accounts']) assert.equal(Object.hasOwn(view.metadata, field), false);
@@ -375,6 +418,9 @@ try {
   evidence.steps.push({ syntheticCodexHomeUnchanged: true });
   await captureReceipt('inspection-authenticated-dark-360.png', 'dark', 360, 800);
   await captureReceipt('inspection-authenticated-light-360.png', 'light', 360, 800);
+  await readAdvancedDetails(true);
+  await captureReceipt('inspection-details-expanded-light-360.png', 'light', 360, 800);
+  await closeDetails();
   assert.equal(await hash(application), evidence.application.sha256);
   assert.equal(await hash(generator), evidence.fixtureGenerator.sha256);
   for (const [path, digest] of Object.entries(evidence.sourceHashes)) assert.equal(await hash(join(repository, path)), digest, `Source changed during inspection: ${path}`);
