@@ -155,6 +155,29 @@ impl Storage {
         require_uuid(profile_id)?;
         self.connection.query_row("SELECT e.home_reference,c.binding_id FROM current_activity c JOIN profile_identity_events e ON e.id=c.binding_id AND e.profile_id=c.profile_id WHERE c.profile_id=?1",[profile_id],|r|Ok(ActivityBinding {profile_id:profile_id.into(),home_reference:r.get(0)?,binding_id:r.get(1)?})).optional().map_err(read_error)
     }
+
+    /// Return descriptive evidence only for the exact local profile, home and association.
+    pub fn activity_binding_evidence(
+        &self,
+        binding: &ActivityBinding,
+    ) -> Result<ActivityIdentityEvidence> {
+        for id in [
+            &binding.profile_id,
+            &binding.home_reference,
+            &binding.binding_id,
+        ] {
+            require_uuid(id)?;
+        }
+        self.connection
+            .query_row(
+                "SELECT returned_email,returned_plan FROM profile_identity_events WHERE id=?1 AND profile_id=?2 AND home_reference=?3",
+                params![binding.binding_id, binding.profile_id, binding.home_reference],
+                |row| Ok(ActivityIdentityEvidence { email: row.get(0)?, plan: row.get(1)? }),
+            )
+            .optional()
+            .map_err(read_error)?
+            .ok_or(ActivityError::BindingChanged)
+    }
     /// Native code must authorize a new association. Old history keeps its original binding.
     pub fn associate_activity_binding(
         &mut self,
@@ -567,6 +590,46 @@ mod tests {
             .unwrap();
         let binding = associate(&mut storage, PROFILE, HOME, BINDING, None);
         (directory, storage, binding)
+    }
+
+    #[test]
+    fn activity_evidence_refuses_mixed_profile_home_and_association_references() {
+        let (_directory, mut storage, binding) = setup();
+        storage
+            .create_profile(OTHER, "Separate evidence profile", OTHER_HOME)
+            .unwrap();
+        let other = associate(&mut storage, OTHER, OTHER_HOME, NEXT_BINDING, None);
+        let original = all_activity_records(&storage);
+        assert_eq!(
+            storage.activity_binding_evidence(&binding).unwrap(),
+            evidence()
+        );
+        for (field, replacement) in [
+            (0, other.profile_id.as_str()),
+            (1, other.home_reference.as_str()),
+            (2, other.binding_id.as_str()),
+        ] {
+            let mut mixed = binding.clone();
+            match field {
+                0 => mixed.profile_id = replacement.into(),
+                1 => mixed.home_reference = replacement.into(),
+                _ => mixed.binding_id = replacement.into(),
+            }
+            assert_eq!(
+                storage.activity_binding_evidence(&mixed),
+                Err(ActivityError::BindingChanged)
+            );
+            match field {
+                0 => mixed.profile_id = "not-a-uuid".into(),
+                1 => mixed.home_reference = "not-a-uuid".into(),
+                _ => mixed.binding_id = "not-a-uuid".into(),
+            }
+            assert_eq!(
+                storage.activity_binding_evidence(&mixed),
+                Err(ActivityError::InvalidInput)
+            );
+        }
+        assert_eq!(all_activity_records(&storage), original);
     }
     fn reading(binding: &ActivityBinding, number: u32, time: &str) -> ActivityReading {
         ActivityReading {
