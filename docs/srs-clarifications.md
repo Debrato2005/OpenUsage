@@ -22,3 +22,12 @@ Status: implementation interpretation recorded for acceptance review. No normati
 OU-BACKUP-010 requires the previous valid database to survive a failed or interrupted restore. OU-NFR-007 requires transactional writes. Before COMMIT, the previous live records survive. After COMMIT but before acknowledgment, complete restored records survive, while the encrypted pre-restore checkpoint preserves the previous records. A lost reply does not prove rollback.
 
 The owned-process tests execute the production transaction and terminate their child before COMMIT and after COMMIT without acknowledgment. Both cases retain the original encrypted checkpoint. The user can prepare a new preview after restart rather than retry a consumed token. This interpretation does not permit partial records, deletion of the checkpoint, or automatic confirmation. See [the review](reviews/2026-10-18-restore-process-crash.md).
+
+
+## SC-003: transient device-code challenge display
+
+Status: the user approved the narrow interpretation on October 18, 2026. No normative SRS text changed.
+
+OU-ACCT-005 requires device-code login, while section 19.1(1) broadly prohibits secret frontend payloads. The approved scope permits only the selected profile's validated verification URL and human user code in transient typed IPC after explicit consent. The code remains a sensitive challenge. OAuth tokens, provider login identifiers, device authorization secrets, credentials, and database keys stay in Rust or the provider.
+
+Codes must stay out of logs, notifications, toasts, exports, backups, application persistence, and retained real test evidence. Terminal states and approval invalidation clear the challenge. Clipboard retention remains under operating-system control. See the [exact approved interpretation](proposals/device-code-display-interpretation.md). Synthetic native checks passed. Real OAuth remains unexecuted.

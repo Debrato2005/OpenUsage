@@ -48,3 +48,10 @@ The UI/UX search did not return an exact desktop account workflow. Its landing-p
 Source: [Vercel Geist](https://github.com/vercel/geist-font), revision `e1f671c727f6de7e97c1e1d26dbb44f349c19459`. Original path: `fonts/Geist/webfonts/Geist[wght].woff2`.
 
 Bundled path: `apps/desktop/public/fonts/Geist-Variable.woff2`. SHA-256: `2ffebe993e969069a9789d15164b7715d42491b5835516c5e3b935d5f81b05f1`. The adjacent `OFL.txt` contains the full license and copyright notice.
+
+
+## Managed sign-in
+
+Sign-in starts with the selected profile name and one consent action. Showing consent contacts no provider. Advanced executable size and checksum remain accessible under a disclosure. The prompt keeps the plain address, selectable code, and Cancel action together. Results receive focus and preserve uncertainty about identity. Credentials already saved by Codex can remain after cancellation.
+
+Native review found an internally clipped URL at enlarged text size. A wrapped read-only field now shows the complete address without scrolling inside the field. Keyboard selection repeats on the next frame only if that field still has focus. Seven actual native captures cover both themes, narrow windows, 200% test-side text, and visible keyboard focus. The harness activates only the identified owned native window before keyboard checks. See `../evidence/native-device-login/`. These checks do not establish screen-reader or full WCAG acceptance.

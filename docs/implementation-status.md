@@ -1,6 +1,6 @@
 # Implementation status
 
-Updated: October 18, 2026. The mission remains ongoing. Current milestone: native provider approval, lifecycle, official account checks, and checkpoint close/restart verified on Linux. Next slice: managed device-code sign-in.
+Updated: October 18, 2026. The mission remains ongoing. Current milestone: managed device-code sign-in passed native Linux checks with synthetic challenges. Next slice: safe executable discovery and simpler setup.
 
 ## Implemented and executed
 
@@ -34,13 +34,16 @@ Two further Rust cores passed their integrated checks. Encrypted checkpoints cap
 
 `NATIVE-CHECKPOINT-WM-REGRESSION-001` passed on the same default configuration. A pending authenticated archive preview was refused after genuine native close and restart. Selected records, key, and homes remained intact. Checkpoint recovery then restored B and its original home mappings. Independent SQLCipher oracles passed. Seven captures cover the resulting flow. Historical WebDriver last-window closures force-terminated the application. Their persistence observations remain valid, but their normal-close wording requires this qualification. See `evidence/native-checkpoint-wm-regression/`.
 
+`NATIVE-DEVICE-LOGIN-001` passed on the final native application with labeled synthetic challenges. Explicit profile consent, keyboard URL/code selection, matching completion plus fresh account read, cancellation, stale-attempt refusal, malformed challenges, isolated homes, restore quiescence, and genuine native close passed. Database, WAL, and protected-key hashes remained unchanged by sign-in. Seven reviewed native captures cover desktop, narrow themes, visible keyboard focus, and 200% test-side text. Both fixture executables remain blocked in the default production configuration. The signed official read-only regression returned authentication required in a fresh profile. No real OAuth occurred. See `evidence/native-device-login/`, its source-gate and official-check regressions, and the [review](reviews/2026-10-18-device-login.md).
+
 ## Verification
 
 | Check | Executed result |
 |---|---|
-| `npm run check` | Passed: build/type check, 18 contract checks, 12 renderer checks |
-| `cargo test --workspace --offline --locked` | Passed: 88 Rust tests, including 36 native service checks. One child entry is ignored by default and executed twice by its parent test. |
+| `npm run check` | Passed: build/type check, 21 contract checks, 16 renderer checks |
+| `cargo test --workspace --offline --locked` | Passed: 95 Rust tests, including 39 native service checks. One child entry is ignored by default and executed twice by its parent test. |
 | `cargo clippy --workspace --all-targets --offline --locked -- -D warnings` | Passed |
+| Native device-code sign-in | Synthetic native flow, 18 protocol/error cases, cancellation, restore/home binding, exit reaping, seven images, and default-source regressions passed. Actual OAuth remains unexecuted. |
 | Native startup | Default production configuration passed the source gate, real official provider, and checkpoint WM regressions. See their receipts above. |
 | Native persistence | Passed again on the backup binary with a real private Secret Service |
 | Native backup export | Passed again on the refined UI, with archive authentication and no plaintext disk staging |
@@ -68,10 +71,10 @@ Tauri can exit without ordinary Rust destructors. The exit callback now closes t
 
 ## Decisions and continuation
 
-SQLCipher 4 with WAL remains mandatory. The [SQLite proposal](proposals/sqlite-wal-amendment.md) is rejected. The original SRS remains unchanged.
+SQLCipher 4 with WAL remains mandatory. The [SQLite proposal](proposals/sqlite-wal-amendment.md) is rejected. The original SRS remains unchanged. The user approved SC-003 for transient user-code display on October 18, 2026. Its narrow controls remain mandatory.
 
 Historical isolated-probe and supervisor receipts bind their original source hashes. The new native receipts bind the integrated digest and source gates. A reviewed official artifact pin now supplies production provenance, with signature evidence in `crates/openusage-codex/tests/evidence/official-codex-0.163.0-source.json`. Windows is unsupported by this transport. macOS remains untested.
 
-Next: implement explicit managed device-code sign-in. Core work continues in an isolated persistent worktree. Login, accepted quota collection, and verified identity remain incomplete. Current-schema inspection checks run in isolated memory. Confirmed replacement separately requires a fresh checkpoint-backed preview and explicit approval. Other timezone/locale settings remain unsupported until their writers and validators are implemented. Restore and full acceptance remain open. Large-history backup memory use needs separate qualification. All native artifacts in this checkpoint are debug builds, including the build with the default production configuration.
+Next: finish bounded executable discovery and its native UI workflow. Device-code sign-in passed synthetic native qualification. Real OAuth, accepted quota collection, and verified identity remain incomplete. Browser opening and native 15-minute timeout qualification remain open. Current-schema inspection checks run in isolated memory. Confirmed replacement separately requires a fresh checkpoint-backed preview and explicit approval. Other timezone/locale settings remain unsupported until their writers and validators are implemented. Restore and full acceptance remain open. Large-history backup memory use needs separate qualification. All native artifacts in this checkpoint are debug builds, including the build with the default production configuration.
 
 Local commits now live in `/example/home/Projects/OpenUsage/.recovery/integration`, branch `codex/native-bootstrap`. The executor reset removed the former temporary worktrees and later Apply artifacts. Recovery used the preserved bundle through `1b3916c`, reconstructed the missing source, and reran acceptance. No surviving receipt supports the lost regression attempt. New tools, artifacts, and evidence use the persistent project directory. The new native receipts and artifact audits support this checkpoint. Primary Git metadata is read-only in this executor. Verified source is copied back to the primary worktree after each milestone. No existing Codex credential homes were inspected. No remote writes occurred.
