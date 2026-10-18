@@ -1241,6 +1241,37 @@ IFS= read -r request
     }
 
     #[test]
+    fn synthetic_quota_observation_precedes_a_held_post_read_and_later_completion() {
+        let fixture = quota_fixture("post_hold");
+        let supervisor = Supervisor::new();
+        let started_at = std::time::SystemTime::now();
+        let quota = supervisor
+            .start_quota_diagnostic(&fixture.executable, &fixture.homes[0])
+            .unwrap();
+        let home = &fixture.homes[0].directory;
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while !home.join("synthetic-quota-post-read-pending").exists() {
+            assert!(
+                Instant::now() < deadline,
+                "The synthetic post-read barrier was not reached."
+            );
+            std::thread::yield_now();
+        }
+        // The provider received the post-read only after the full quota response was parsed.
+        let held_at = std::time::SystemTime::now();
+        fs::write(home.join("synthetic-quota-release"), b"release").unwrap();
+        let probe = quota.wait().unwrap();
+        assert!(probe.observed_at >= started_at);
+        assert!(probe.observed_at <= held_at);
+        assert_eq!(
+            probe.quota.limits[0].primary.as_ref().unwrap().used_percent,
+            25
+        );
+        gone(probe.process_id as libc::pid_t);
+        fixture.runtime_removed(0);
+    }
+
+    #[test]
     fn synthetic_quota_refuses_unknown_unsupported_changed_auth_and_invalid_bucket_evidence() {
         for (mode, error) in [
             ("unknown", ProtocolError::AccountIdentityUnavailable),
