@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
+import { Collapsible, CollapsibleTrigger, CollapsiblePanel } from './components/ui/collapsible';
 import { Field, FieldLabel, FieldDescription } from './components/ui/field';
 import { Select, SelectTrigger, SelectValue, SelectPopup, SelectItem } from './components/ui/select';
 import { invoke, type BackupList, type BackupInspectionResult } from './contracts';
@@ -152,24 +153,31 @@ export function BackupInspection({ busy, setBusy, onRestored }: Props) {
     </form>}
     {failure && <p ref={errorMessage} id="backup-inspection-error" className="operation-error backup-inspection-error" role="alert" tabIndex={-1}>{failure.message}</p>}
     {receipt && <div ref={result} className="backup-receipt backup-inspection-receipt" role="status" tabIndex={-1}>
+      <p className={`backup-content-status${receipt.databaseValidation === 'invalid' ? ' operation-error' : ''}`}>
+        {receipt.databaseValidation === 'valid' ? 'Database checks passed. Prepare a preview to review a restore.'
+          : receipt.databaseValidation === 'unsupported' ? 'This version cannot check the database contents in this archive. Restore is not available.'
+          : 'Database checks failed. Keep the backup file; restore is not available.'}
+      </p>
       <p>Archive authenticated</p>
       <dl className="backup-inspection-metadata">
         <dt>File</dt><dd><bdi>{receipt.fileName}</bdi></dd>
-        <dt>Archive version</dt><dd>{receipt.archiveVersion}</dd>
-        <dt>Schema version</dt><dd>{receipt.manifestSchemaVersion}</dd>
-        <dt>Files</dt><dd>{receipt.entryCount}</dd>
-        <dt>Total size</dt><dd>{receipt.totalBytes} bytes</dd>
         {receipt.contentSummary && <>
           <dt>Active profiles</dt><dd>{receipt.contentSummary.activeProfiles}</dd>
           <dt>Archived profiles</dt><dd>{receipt.contentSummary.archivedProfiles}</dd>
           <dt>Accounts</dt><dd>{receipt.contentSummary.accounts}</dd>
         </>}
       </dl>
-      <p className={`backup-content-status${receipt.databaseValidation === 'invalid' ? ' operation-error' : ''}`}>
-        {receipt.databaseValidation === 'valid' ? 'Database checks passed. Prepare a preview to review a restore.'
-          : receipt.databaseValidation === 'unsupported' ? 'This version cannot check the database contents in this archive. Restore is not available.'
-          : 'Database checks failed. Keep the backup file; restore is not available.'}
-      </p>
+      <Collapsible>
+        <CollapsibleTrigger render={<Button variant="ghost" className="text-button" />} type="button">Details</CollapsibleTrigger>
+        <CollapsiblePanel>
+          <dl className="backup-inspection-metadata">
+            <dt>Archive version</dt><dd>{receipt.archiveVersion}</dd>
+            <dt>Schema version</dt><dd>{receipt.manifestSchemaVersion}</dd>
+            <dt>Files</dt><dd>{receipt.entryCount}</dd>
+            <dt>Total size</dt><dd>{receipt.totalBytes} bytes</dd>
+          </dl>
+        </CollapsiblePanel>
+      </Collapsible>
     </div>}
     {receipt?.databaseValidation === 'valid' && <BackupRestorePreview key={receipt.fileName} fileName={receipt.fileName} busy={busy} setBusy={setBusy} onRestored={onRestored} />}
   </div>;
