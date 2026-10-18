@@ -27,6 +27,7 @@ struct Records {
     accounts: Vec<Vec<Value>>,
     profiles: Vec<Vec<Value>>,
     settings: Vec<Vec<Value>>,
+    activity: Vec<Vec<Vec<Value>>>,
 }
 
 fn records(connection: &Connection) -> Records {
@@ -43,6 +44,7 @@ fn records(connection: &Connection) -> Records {
         accounts: rows(connection, "SELECT * FROM accounts ORDER BY id"),
         profiles: rows(connection, "SELECT * FROM profiles ORDER BY id"),
         settings: rows(connection, "SELECT * FROM settings ORDER BY id"),
+        activity: crate::backup_validation::activity_records(connection),
     }
 }
 
@@ -78,6 +80,7 @@ fn fixture(directory: &Path) -> (Records, Records, Vec<RestoreHomeMapping>, Stri
         [id(90)],
     ).unwrap();
     live.connection.execute_batch("UPDATE settings SET monitoring='paused',created_at='2024-01-01T00:00:00Z',updated_at='2024-01-01T00:00:00Z'").unwrap();
+    crate::backup_validation::activity_fixture(&mut live, &id(1), &id(1), 500);
     let old = records(&live.connection);
     live.create_encrypted_checkpoint(&directory.join("original-checkpoint.sqlite"))
         .unwrap();
@@ -110,6 +113,7 @@ fn fixture(directory: &Path) -> (Records, Records, Vec<RestoreHomeMapping>, Stri
         [id(99)],
     ).unwrap();
     source.connection.execute_batch("UPDATE settings SET monitoring='active',created_at='2024-02-29T00:00:00Z',updated_at='2024-02-29T01:00:00Z'").unwrap();
+    crate::backup_validation::activity_fixture(&mut source, &id(299), &id(299), 600);
     let incoming = records(&source.connection);
     let homes = incoming_homes(&mut source);
     (old, incoming, homes, lower)
@@ -156,8 +160,11 @@ fn owned_restore_crash_child() {
         let directory = directory.clone();
         live.connection
             .update_hook(Some(move |action, database: &str, table: &str, _row_id| {
-                if action == Action::SQLITE_INSERT && database == "main" && table == "settings" {
-                    // This callback follows the real DELETE and account/profile INSERT statements.
+                if action == Action::SQLITE_INSERT
+                    && database == "main"
+                    && table == "activity_day_history"
+                {
+                    // This follows legacy replacement and actual accepted activity/history writes.
                     barrier(&directory, "before-commit");
                 }
             }))
@@ -252,7 +259,11 @@ fn owned_process_kills_preserve_old_or_fully_committed_new_records() {
         let saved_checkpoint = fs::read(&checkpoint).unwrap();
         kill_at(directory.path(), phase);
         let mut reopened = Storage::open(&directory.path().join("live.sqlite"), &KEY).unwrap();
-        crate::backup_validation::validate_connection(&reopened.connection, 1).unwrap();
+        crate::backup_validation::validate_connection(
+            &reopened.connection,
+            crate::CURRENT_SCHEMA_VERSION,
+        )
+        .unwrap();
         let actual = records(&reopened.connection);
         if phase == "before-commit" {
             assert_eq!(
@@ -304,7 +315,7 @@ fn owned_process_kills_preserve_old_or_fully_committed_new_records() {
         let snapshot = reopened.read_encrypted_checkpoint(&checkpoint).unwrap();
         crate::backup_validation::with_validated_snapshot::<_, crate::BackupValidationError>(
             &snapshot.bytes,
-            1,
+            snapshot.schema_version,
             true,
             |source, _| {
                 assert_eq!(records(source), old);

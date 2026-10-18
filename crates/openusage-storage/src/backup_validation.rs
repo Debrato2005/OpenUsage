@@ -1,6 +1,8 @@
-//! Check authenticated current-schema snapshots without files, migrations, or live storage.
+//! Check authenticated supported snapshots without files or live storage.
+//! Old schemas migrate only after validation and a trusted-column copy into private memory.
 //! The caller must authenticate the archive before supplying its database image.
-//! Validation needs a second image-sized RAM buffer. The 5 GiB format limit is not a memory guarantee.
+//! Validation copies the image into RAM; legacy normalization needs another private database.
+//! The 5 GiB format limit is not a memory guarantee.
 //! Future time-zone or locale writers must extend the current UTC/en-US settings guard.
 //! Stored identity confidence is checked for consistency, not treated as fresh provider verification.
 
@@ -42,7 +44,7 @@ impl std::error::Error for BackupValidationError {}
 
 type Result<T> = std::result::Result<T, BackupValidationError>;
 
-/// Validate only the current application schema and return counts without identifiers or home references.
+/// Validate a supported application schema and return counts without identifiers or home references.
 /// No restore is approved or applied. A later restore must stop monitoring, regardless of saved state.
 pub fn validate_backup_snapshot(
     bytes: &[u8],
@@ -76,11 +78,29 @@ pub(crate) fn with_validated_snapshot<T, E: From<BackupValidationError>>(
     native_only: bool,
     operation: impl FnOnce(&Connection, BackupContentSummary) -> std::result::Result<T, E>,
 ) -> std::result::Result<T, E> {
-    if manifest_schema_version != CURRENT_SCHEMA_VERSION {
+    if !supported_schema_version(manifest_schema_version) {
         return Err(BackupValidationError::UnsupportedSchema.into());
     }
     validate_size(bytes.len() as u64)?;
     if !bytes.starts_with(b"SQLite format 3\0") || bytes[18..20] != [1, 1] {
+        return Err(BackupValidationError::InvalidDatabase.into());
+    }
+    let encoded_page_size = u16::from_be_bytes([bytes[16], bytes[17]]);
+    let page_size = if encoded_page_size == 1 {
+        65536
+    } else {
+        u64::from(encoded_page_size)
+    };
+    let page_count = u64::from(u32::from_be_bytes(
+        bytes[28..32]
+            .try_into()
+            .map_err(|_| BackupValidationError::InvalidDatabase)?,
+    ));
+    if !(512..=65536).contains(&page_size)
+        || !page_size.is_power_of_two()
+        || page_count == 0
+        || page_size.checked_mul(page_count) != Some(bytes.len() as u64)
+    {
         return Err(BackupValidationError::InvalidDatabase.into());
     }
     let size = bytes
@@ -134,14 +154,38 @@ pub(crate) fn with_validated_snapshot<T, E: From<BackupValidationError>>(
         }
         Ok(summary)
     });
-    let checked = checked
-        .map_err(E::from)
-        .and_then(|summary| operation(&connection, summary));
+    let checked = checked.map_err(E::from).and_then(|summary| {
+        if manifest_schema_version == CURRENT_SCHEMA_VERSION {
+            operation(&connection, summary)
+        } else {
+            // Never migrate the deserialized input or execute its catalog SQL.
+            let mut normalized = trusted_memory_copy(&connection, "main", manifest_schema_version)?;
+            crate::migrate_data_connection(&mut normalized)
+                .map_err(|_| E::from(BackupValidationError::Unavailable))?;
+            let normalized_summary = validate_connection(&normalized, CURRENT_SCHEMA_VERSION)?;
+            if normalized_summary != summary {
+                return Err(BackupValidationError::InvalidDatabase.into());
+            }
+            normalized
+                .pragma_update(None, "query_only", true)
+                .map_err(|_| E::from(BackupValidationError::Unavailable))?;
+            let result = operation(&normalized, summary);
+            normalized
+                .close()
+                .map_err(|_| BackupValidationError::Unavailable)?;
+            result
+        }
+    });
     // Close the borrowed source and wipe its image before a returned target transaction commits.
     connection
         .close()
         .map_err(|_| BackupValidationError::Unavailable)?;
     checked
+}
+
+pub(crate) fn supported_schema_version(version: u32) -> bool {
+    // A later migration must add explicit content/copy support before becoming restorable.
+    matches!(version, 1 | 2) && version <= CURRENT_SCHEMA_VERSION
 }
 
 fn validate_size(size: u64) -> Result<()> {
@@ -243,6 +287,9 @@ pub(crate) fn validate_schema_connection(
     manifest_version: u32,
     schema: &str,
 ) -> Result<BackupContentSummary> {
+    if !supported_schema_version(manifest_version) {
+        return Err(BackupValidationError::UnsupportedSchema);
+    }
     if !matches!(schema, "main" | "openusage_checkpoint") {
         return Err(BackupValidationError::Unavailable);
     }
@@ -252,7 +299,7 @@ pub(crate) fn validate_schema_connection(
     if version != i64::from(manifest_version) {
         return Err(BackupValidationError::UnsupportedSchema);
     }
-    require_schema(connection, schema)?;
+    require_schema(connection, schema, manifest_version)?;
     let integrity: String = connection
         .query_row(&format!("PRAGMA {schema}.integrity_check(1)"), [], |row| {
             row.get(0)
@@ -276,6 +323,9 @@ pub(crate) fn validate_schema_connection(
     let settings_supported = validate_settings(connection, schema)?;
     let (accounts, accounts_supported) = validate_accounts(connection, schema)?;
     let (active_profiles, archived_profiles) = validate_profiles(connection, schema)?;
+    if manifest_version >= 2 {
+        validate_activity(connection, schema)?;
+    }
     if !settings_supported || !accounts_supported {
         return Err(BackupValidationError::UnsupportedContent);
     }
@@ -286,13 +336,13 @@ pub(crate) fn validate_schema_connection(
     })
 }
 
-fn require_schema(connection: &Connection, schema: &str) -> Result<()> {
+fn require_schema(connection: &Connection, schema: &str, version: u32) -> Result<()> {
     let reference = memory_connection()?;
     reference
         .pragma_update(None, "query_only", false)
         .map_err(|_| BackupValidationError::Unavailable)?;
     // Only trusted application SQL builds the reference. No migration runs against the input.
-    for migration in MIGRATIONS {
+    for migration in &MIGRATIONS[..version as usize] {
         reference
             .execute_batch(migration)
             .map_err(|_| BackupValidationError::Unavailable)?;
@@ -328,6 +378,274 @@ fn require_schema(connection: &Connection, schema: &str) -> Result<()> {
         return Err(BackupValidationError::InvalidDatabase);
     }
     Ok(())
+}
+
+// These table/column lists are application-owned, never read from an input catalog.
+const LEGACY_TABLES: &[(&str, &str)] = &[
+    (
+        "accounts",
+        "id,verified_identity_key,identity_confidence,returned_email,returned_plan,first_observed_at,last_observed_at",
+    ),
+    (
+        "profiles",
+        "id,account_id,name,environment,approved_home_reference,connection_state,archived,created_at,updated_at",
+    ),
+    (
+        "settings",
+        "id,timezone,locale,theme,monitoring,retention_policy,created_at,updated_at",
+    ),
+];
+const ACTIVITY_TABLES: &[(&str, &str)] = &[
+    (
+        "collection_runs",
+        "id,profile_id,binding_id,started_at_utc,completed_at_utc,observed_at_utc,source_method,provider_version,source_kind,source_scope,raw_scope,normalized_unit,coverage,identity_confidence,verified_identity_key,outcome",
+    ),
+    (
+        "activity_summaries",
+        "id,profile_id,binding_id,collection_run_id,lifetime_tokens,peak_daily_tokens,longest_running_turn_sec,current_streak_days,longest_streak_days,daily_state",
+    ),
+    (
+        "current_activity",
+        "profile_id,binding_id,summary_id,collection_run_id,created_at_utc,updated_at_utc",
+    ),
+    (
+        "current_activity_days",
+        "profile_id,provider_date,source_scope,binding_id,collection_run_id,tokens,observed_at_utc,created_at_utc,updated_at_utc",
+    ),
+    (
+        "activity_day_history",
+        "id,profile_id,provider_date,source_scope,binding_id,collection_run_id,prior_tokens,accepted_tokens,observed_at_utc",
+    ),
+];
+
+/// Copy only validated known fields into a fresh private RAM database of the original version.
+/// The checkpoint/manifest version remains unchanged; callers may then migrate this private copy.
+pub(crate) fn trusted_memory_copy(
+    source: &Connection,
+    schema: &str,
+    version: u32,
+) -> Result<Connection> {
+    if !matches!(schema, "main" | "openusage_checkpoint") || !supported_schema_version(version) {
+        return Err(BackupValidationError::UnsupportedSchema);
+    }
+    let mut target = memory_connection()?;
+    target
+        .execute_batch(
+            "PRAGMA query_only=OFF; PRAGMA page_size=4096; PRAGMA max_page_count=1310720;",
+        )
+        .map_err(sql_error)?;
+    let page_size: i64 = target
+        .pragma_query_value(None, "page_size", |r| r.get(0))
+        .map_err(sql_error)?;
+    let page_limit: i64 = target
+        .pragma_query_value(None, "max_page_count", |r| r.get(0))
+        .map_err(sql_error)?;
+    require(page_size.checked_mul(page_limit) == Some(MAX_BACKUP_SNAPSHOT_SIZE as i64))?;
+    for migration in &MIGRATIONS[..version as usize] {
+        target.execute_batch(migration).map_err(sql_error)?;
+    }
+    target
+        .pragma_update(None, "user_version", version)
+        .map_err(sql_error)?;
+    {
+        let tx = target.transaction().map_err(sql_error)?;
+        tx.execute("DELETE FROM settings", []).map_err(sql_error)?;
+        for (table, columns) in LEGACY_TABLES {
+            copy_fields(source, &tx, schema, table, columns, columns)?;
+        }
+        if version >= 2 {
+            copy_activity_records(source, &tx, schema)?;
+        }
+        tx.commit().map_err(sql_error)?;
+    }
+    validate_connection(&target, version)?;
+    Ok(target)
+}
+
+pub(crate) fn copy_activity_records(
+    source: &Connection,
+    target: &Connection,
+    schema: &str,
+) -> Result<()> {
+    if !matches!(schema, "main" | "openusage_checkpoint") {
+        return Err(BackupValidationError::Unavailable);
+    }
+    // Parent links may sort after their children. Insert all event IDs before restoring links.
+    copy_fields(
+        source,
+        target,
+        schema,
+        "profile_identity_events",
+        "id,profile_id,home_reference,previous_binding_id,returned_email,returned_plan,identity_confidence,verified_identity_key,observed_at_utc",
+        "id,profile_id,home_reference,NULL,returned_email,returned_plan,identity_confidence,verified_identity_key,observed_at_utc",
+    )?;
+    let mut parents = source.prepare(&format!("SELECT id,previous_binding_id FROM {schema}.profile_identity_events WHERE previous_binding_id IS NOT NULL")).map_err(sql_error)?;
+    let mut rows = parents.query([]).map_err(sql_error)?;
+    let mut update = target
+        .prepare("UPDATE profile_identity_events SET previous_binding_id=?2 WHERE id=?1")
+        .map_err(sql_error)?;
+    while let Some(row) = rows.next().map_err(sql_error)? {
+        update
+            .execute(rusqlite::params![text(row, 0)?, text(row, 1)?])
+            .map_err(sql_error)?;
+    }
+    for (table, columns) in ACTIVITY_TABLES {
+        copy_fields(source, target, schema, table, columns, columns)?;
+    }
+    Ok(())
+}
+
+fn copy_fields(
+    source: &Connection,
+    target: &Connection,
+    schema: &str,
+    table: &str,
+    columns: &str,
+    selected: &str,
+) -> Result<()> {
+    let mut select = source
+        .prepare(&format!("SELECT {selected} FROM {schema}.{table}"))
+        .map_err(sql_error)?;
+    let count = select.column_count();
+    let slots = (1..=count)
+        .map(|n| format!("?{n}"))
+        .collect::<Vec<_>>()
+        .join(",");
+    let mut insert = target
+        .prepare(&format!("INSERT INTO {table}({columns}) VALUES ({slots})"))
+        .map_err(sql_error)?;
+    let mut rows = select.query([]).map_err(sql_error)?;
+    while let Some(row) = rows.next().map_err(sql_error)? {
+        let values = (0..count)
+            .map(|i| row.get_ref(i).map(rusqlite::types::ToSqlOutput::Borrowed))
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(sql_error)?;
+        insert
+            .execute(rusqlite::params_from_iter(values))
+            .map_err(sql_error)?;
+    }
+    Ok(())
+}
+
+fn validate_activity(connection: &Connection, schema: &str) -> Result<()> {
+    use crate::activity::{activity_date, activity_decimal, activity_utc_timestamp};
+    let valid_text =
+        |s: &str, maximum: usize| !s.trim().is_empty() && s.len() <= maximum && safe_text(s);
+    let mut statement = connection.prepare(&format!("SELECT id,profile_id,home_reference,previous_binding_id,returned_email,returned_plan,identity_confidence,verified_identity_key,observed_at_utc FROM {schema}.profile_identity_events")).map_err(sql_error)?;
+    let mut rows = statement.query([]).map_err(sql_error)?;
+    while let Some(row) = rows.next().map_err(sql_error)? {
+        for col in [0, 1, 2] {
+            require(canonical_uuid(text(row, col)?))?;
+        }
+        require(
+            optional_text(row, 3)?
+                .is_none_or(|id| canonical_uuid(id) && Some(id) != text(row, 0).ok()),
+        )?;
+        require(
+            valid_text(text(row, 4)?, 254)
+                && optional_text(row, 5)?.is_none_or(|v| valid_text(v, 64)),
+        )?;
+        require(
+            text(row, 6)? == "provisional"
+                && optional_text(row, 7)?.is_none()
+                && activity_utc_timestamp(text(row, 8)?),
+        )?;
+    }
+    let mut statement = connection.prepare(&format!("SELECT id,profile_id,binding_id,started_at_utc,completed_at_utc,observed_at_utc,source_method,provider_version,source_kind,source_scope,raw_scope,normalized_unit,coverage,identity_confidence,verified_identity_key,outcome FROM {schema}.collection_runs")).map_err(sql_error)?;
+    let mut rows = statement.query([]).map_err(sql_error)?;
+    while let Some(row) = rows.next().map_err(sql_error)? {
+        for col in [0, 1, 2] {
+            require(canonical_uuid(text(row, col)?))?;
+        }
+        for col in [3, 4, 5] {
+            require(activity_utc_timestamp(text(row, col)?))?;
+        }
+        require(text(row, 3)? <= text(row, 5)? && text(row, 5)? <= text(row, 4)?)?;
+        require(text(row, 6)? == "account/usage/read" && valid_text(text(row, 7)?, 64))?;
+        require(
+            matches!(text(row, 8)?, "official_artifact" | "test_fixture")
+                && text(row, 9)? == crate::activity::ACTIVITY_SOURCE_SCOPE,
+        )?;
+        require(
+            optional_text(row, 10)?.is_none()
+                && text(row, 11)? == "tokens"
+                && text(row, 12)? == "unknown"
+                && text(row, 13)? == "provisional"
+                && optional_text(row, 14)?.is_none()
+                && text(row, 15)? == "accepted",
+        )?;
+    }
+    let mut statement = connection.prepare(&format!("SELECT id,profile_id,binding_id,collection_run_id,lifetime_tokens,peak_daily_tokens,longest_running_turn_sec,current_streak_days,longest_streak_days,daily_state FROM {schema}.activity_summaries")).map_err(sql_error)?;
+    let mut rows = statement.query([]).map_err(sql_error)?;
+    while let Some(row) = rows.next().map_err(sql_error)? {
+        for col in 0..4 {
+            require(canonical_uuid(text(row, col)?))?;
+        }
+        require(text(row, 0)? == text(row, 3)?)?;
+        for col in 4..9 {
+            require(optional_text(row, col)?.is_none_or(activity_decimal))?;
+        }
+        require(matches!(
+            text(row, 9)?,
+            "unavailable" | "empty" | "returned"
+        ))?;
+    }
+    let mut statement = connection.prepare(&format!("SELECT profile_id,binding_id,summary_id,collection_run_id,created_at_utc,updated_at_utc FROM {schema}.current_activity")).map_err(sql_error)?;
+    let mut rows = statement.query([]).map_err(sql_error)?;
+    while let Some(row) = rows.next().map_err(sql_error)? {
+        for col in [0, 1] {
+            require(canonical_uuid(text(row, col)?))?;
+        }
+        require(
+            optional_text(row, 2)?.is_none_or(canonical_uuid)
+                && optional_text(row, 2)? == optional_text(row, 3)?,
+        )?;
+        require(activity_utc_timestamp(text(row, 4)?) && activity_utc_timestamp(text(row, 5)?))?;
+    }
+    let mut statement = connection.prepare(&format!("SELECT profile_id,provider_date,source_scope,binding_id,collection_run_id,tokens,observed_at_utc,created_at_utc,updated_at_utc FROM {schema}.current_activity_days")).map_err(sql_error)?;
+    let mut rows = statement.query([]).map_err(sql_error)?;
+    while let Some(row) = rows.next().map_err(sql_error)? {
+        for col in [0, 3, 4] {
+            require(canonical_uuid(text(row, col)?))?;
+        }
+        require(
+            activity_date(text(row, 1)?)
+                && text(row, 2)? == crate::activity::ACTIVITY_SOURCE_SCOPE
+                && activity_decimal(text(row, 5)?),
+        )?;
+        for col in 6..9 {
+            require(activity_utc_timestamp(text(row, col)?))?;
+        }
+    }
+    let mut statement = connection.prepare(&format!("SELECT id,profile_id,provider_date,source_scope,binding_id,collection_run_id,prior_tokens,accepted_tokens,observed_at_utc FROM {schema}.activity_day_history")).map_err(sql_error)?;
+    let mut rows = statement.query([]).map_err(sql_error)?;
+    while let Some(row) = rows.next().map_err(sql_error)? {
+        for col in [0, 1, 4, 5] {
+            require(canonical_uuid(text(row, col)?))?;
+        }
+        require(
+            activity_date(text(row, 2)?) && text(row, 3)? == crate::activity::ACTIVITY_SOURCE_SCOPE,
+        )?;
+        require(
+            optional_text(row, 6)?.is_none_or(activity_decimal)
+                && activity_decimal(text(row, 7)?)
+                && activity_utc_timestamp(text(row, 8)?),
+        )?;
+    }
+    // Each binding has at most one parent. Every acyclic chain must reach a NULL root.
+    let cyclic: bool = connection.query_row(&format!("WITH RECURSIVE rooted(id) AS (
+        SELECT id FROM {schema}.profile_identity_events WHERE previous_binding_id IS NULL
+        UNION SELECT e.id FROM {schema}.profile_identity_events e JOIN rooted p ON e.previous_binding_id=p.id
+    ) SELECT EXISTS(SELECT 1 FROM {schema}.profile_identity_events e WHERE NOT EXISTS(SELECT 1 FROM rooted r WHERE r.id=e.id))"), [], |r|r.get(0)).map_err(sql_error)?;
+    require(!cyclic)?;
+    // Foreign keys bind profile/run/binding IDs; these checks bind their accepted value/time semantics.
+    let invalid: bool = connection.query_row(&format!("SELECT
+        EXISTS(SELECT 1 FROM {schema}.activity_day_history GROUP BY collection_run_id HAVING count(*)>4096)
+        OR EXISTS(SELECT 1 FROM {schema}.collection_runs r LEFT JOIN {schema}.activity_summaries s ON s.collection_run_id=r.id WHERE s.id IS NULL)
+        OR EXISTS(SELECT 1 FROM {schema}.activity_summaries s WHERE (s.daily_state='returned') != EXISTS(SELECT 1 FROM {schema}.activity_day_history h WHERE h.collection_run_id=s.collection_run_id))
+        OR EXISTS(SELECT 1 FROM {schema}.activity_day_history h JOIN {schema}.collection_runs r ON r.id=h.collection_run_id WHERE h.observed_at_utc!=r.observed_at_utc)
+        OR EXISTS(SELECT 1 FROM {schema}.current_activity_days d LEFT JOIN {schema}.current_activity c ON c.profile_id=d.profile_id LEFT JOIN {schema}.activity_day_history h ON h.collection_run_id=d.collection_run_id AND h.provider_date=d.provider_date AND h.source_scope=d.source_scope WHERE c.binding_id IS NULL OR c.binding_id!=d.binding_id OR h.id IS NULL OR d.tokens!=h.accepted_tokens OR d.observed_at_utc!=h.observed_at_utc)"), [], |r|r.get(0)).map_err(sql_error)?;
+    require(!invalid)
 }
 
 fn text<'row>(row: &'row Row<'_>, column: usize) -> Result<&'row str> {
@@ -524,6 +842,89 @@ fn sql_error(error: rusqlite::Error) -> BackupValidationError {
         }
         _ => BackupValidationError::InvalidDatabase,
     }
+}
+
+#[cfg(test)]
+pub(crate) fn activity_fixture(storage: &mut crate::Storage, profile: &str, home: &str, seed: u32) {
+    use crate::{
+        ActivityBindingInput, ActivityDayValue, ActivityIdentityEvidence, ActivityReading,
+        ActivitySourceKind, ActivitySummaryValues,
+    };
+    let id = |n| format!("{n:08x}-0000-4000-8000-000000000000");
+    let evidence = ActivityIdentityEvidence {
+        email: "synthetic-history@example.invalid".into(),
+        plan: Some("synthetic".into()),
+    };
+    let mut previous = None;
+    for generation in 0..2 {
+        let binding = storage
+            .associate_activity_binding(ActivityBindingInput {
+                profile_id: profile.into(),
+                expected_home_reference: home.into(),
+                expected_previous_binding_id: previous,
+                new_binding_id: id(seed + generation),
+                evidence: evidence.clone(),
+                observed_at_utc: "2024-02-29T10:00:00.000Z".into(),
+            })
+            .unwrap();
+        for index in 0..2 {
+            let tokens = match (generation, index) {
+                (0, 0) => "9007199254740993",
+                (0, 1) => "9223372036854775807",
+                _ => "0",
+            };
+            storage
+                .accept_activity(ActivityReading {
+                    run_id: id(seed + 10 + generation * 2 + index),
+                    binding: binding.clone(),
+                    identity_evidence: evidence.clone(),
+                    provider_version: "0.163.0-synthetic".into(),
+                    source_kind: ActivitySourceKind::TestFixture,
+                    started_at_utc: "2024-02-29T11:00:00.000Z".into(),
+                    observed_at_utc: format!("2024-02-29T12:00:0{index}.000Z"),
+                    completed_at_utc: "2024-02-29T13:00:00.000Z".into(),
+                    summary: ActivitySummaryValues {
+                        lifetime_tokens: Some(tokens.into()),
+                        ..Default::default()
+                    },
+                    daily_usage: if generation == 1 && index == 0 {
+                        None
+                    } else {
+                        Some(vec![ActivityDayValue {
+                            provider_date: "2024-02-29".into(),
+                            tokens: tokens.into(),
+                        }])
+                    },
+                })
+                .unwrap();
+        }
+        previous = Some(binding.binding_id);
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn activity_records(connection: &Connection) -> Vec<Vec<Vec<rusqlite::types::Value>>> {
+    [
+        "profile_identity_events",
+        "collection_runs",
+        "activity_summaries",
+        "current_activity",
+        "current_activity_days",
+        "activity_day_history",
+    ]
+    .into_iter()
+    .map(|table| {
+        let mut statement = connection
+            .prepare(&format!("SELECT * FROM {table} ORDER BY 1,2,3"))
+            .unwrap();
+        let count = statement.column_count();
+        statement
+            .query_map([], |row| (0..count).map(|i| row.get(i)).collect())
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap()
+    })
+    .collect()
 }
 
 #[cfg(test)]
@@ -774,5 +1175,136 @@ mod tests {
             validate_size(MAX_BACKUP_SNAPSHOT_SIZE + 1),
             Err(BackupValidationError::InvalidDatabase)
         );
+    }
+    #[test]
+    fn legacy_snapshot_is_validated_before_private_migration_and_keeps_original_bytes() {
+        let legacy = Connection::open_in_memory().unwrap();
+        legacy.execute_batch(MIGRATIONS[0]).unwrap();
+        legacy.pragma_update(None, "user_version", 1).unwrap();
+        add_profile(&legacy, 1);
+        let bytes = image(&legacy);
+        let original = bytes.clone();
+        with_validated_snapshot::<_, BackupValidationError>(&bytes, 1, true, |copy, summary| {
+            assert_eq!(summary.active_profiles, 1);
+            assert_eq!(
+                copy.pragma_query_value(None, "user_version", |r| r.get::<_, u32>(0))
+                    .unwrap(),
+                CURRENT_SCHEMA_VERSION
+            );
+            assert!(activity_records(copy).iter().all(Vec::is_empty));
+            assert_eq!(
+                copy.query_row("SELECT approved_home_reference FROM profiles", [], |r| {
+                    r.get::<_, String>(0)
+                })
+                .unwrap(),
+                id(1)
+            );
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(*bytes, *original);
+        assert_eq!(
+            legacy
+                .pragma_query_value(None, "user_version", |r| r.get::<_, u32>(0))
+                .unwrap(),
+            1
+        );
+        for sql in [
+            "CREATE TABLE untrusted(id TEXT)",
+            "DROP TRIGGER active_profiles_limit; CREATE TRIGGER active_profiles_limit BEFORE INSERT ON profiles BEGIN SELECT 1; END",
+        ] {
+            let bad = Connection::open_in_memory().unwrap();
+            bad.execute_batch(MIGRATIONS[0]).unwrap();
+            bad.pragma_update(None, "user_version", 1).unwrap();
+            bad.execute_batch(sql).unwrap();
+            let bytes = image(&bad);
+            let original = bytes.clone();
+            assert_eq!(
+                validate_backup_snapshot(&bytes, 1),
+                Err(BackupValidationError::InvalidDatabase)
+            );
+            assert_eq!(*bytes, *original);
+        }
+        assert_eq!(
+            validate_backup_snapshot(&bytes, 0),
+            Err(BackupValidationError::UnsupportedSchema)
+        );
+    }
+
+    #[test]
+    fn current_activity_history_is_checked_and_copied_without_numeric_or_home_changes() {
+        let dir = crate::tests::private_directory();
+        let mut storage = Storage::create(&dir.path().join("live"), &KEY).unwrap();
+        storage
+            .create_profile(&id(1), "Synthetic history", &id(1))
+            .unwrap();
+        activity_fixture(&mut storage, &id(1), &id(1), 100);
+        let expected = activity_records(&storage.connection);
+        let snapshot = storage.backup_snapshot().unwrap();
+        let original = snapshot.bytes.clone();
+        with_validated_snapshot::<_, BackupValidationError>(
+            &snapshot.bytes,
+            snapshot.schema_version,
+            true,
+            |source, _| {
+                let copy = trusted_memory_copy(source, "main", CURRENT_SCHEMA_VERSION)?;
+                assert_eq!(activity_records(&copy), expected);
+                assert_eq!(
+                    copy.query_row("SELECT max(tokens) FROM current_activity_days", [], |r| {
+                        r.get::<_, String>(0)
+                    })
+                    .unwrap(),
+                    "0"
+                );
+                Ok(())
+            },
+        )
+        .unwrap();
+        assert_eq!(*snapshot.bytes, *original);
+    }
+
+    #[test]
+    fn malformed_activity_history_and_cross_record_inconsistency_are_refused_without_changes() {
+        for sql in [
+            "UPDATE activity_summaries SET lifetime_tokens='01'",
+            "UPDATE activity_summaries SET lifetime_tokens='9223372036854775808'",
+            "UPDATE activity_summaries SET lifetime_tokens='-1'",
+            "UPDATE activity_day_history SET provider_date='2023-02-29'",
+            "UPDATE collection_runs SET observed_at_utc='2024-02-29T12:00:00+00:00'",
+            "UPDATE collection_runs SET completed_at_utc='2024-02-29T09:00:00.000Z'",
+            "UPDATE collection_runs SET provider_version=char(10)",
+            "UPDATE collection_runs SET normalized_unit='invented'",
+            "UPDATE collection_runs SET source_scope='inferred_app_scope'",
+            "UPDATE profile_identity_events SET home_reference='../external'",
+            "UPDATE profile_identity_events SET returned_email=char(10)",
+            "UPDATE profile_identity_events SET previous_binding_id=id",
+            "UPDATE profile_identity_events SET previous_binding_id='00000065-0000-4000-8000-000000000000' WHERE id='00000064-0000-4000-8000-000000000000'",
+            "UPDATE collection_runs SET binding_id='00000001-0000-4000-8000-000000000000'",
+            "DELETE FROM activity_summaries WHERE id='0000006e-0000-4000-8000-000000000000'",
+            "UPDATE activity_summaries SET daily_state='empty' WHERE daily_state='returned'",
+            "UPDATE current_activity_days SET tokens='1'",
+            "UPDATE current_activity_days SET observed_at_utc='2024-02-29T12:00:00.000Z'",
+            "UPDATE current_activity_days SET binding_id='00000064-0000-4000-8000-000000000000'",
+        ] {
+            let dir = crate::tests::private_directory();
+            let mut storage = Storage::create(&dir.path().join("live"), &KEY).unwrap();
+            storage
+                .create_profile(&id(1), "Synthetic history", &id(1))
+                .unwrap();
+            activity_fixture(&mut storage, &id(1), &id(1), 100);
+            storage
+                .connection
+                .execute_batch("PRAGMA foreign_keys=OFF; PRAGMA ignore_check_constraints=ON;")
+                .unwrap();
+            storage.connection.execute_batch(sql).unwrap();
+            let snapshot = storage.backup_snapshot().unwrap();
+            let original = snapshot.bytes.clone();
+            assert_eq!(
+                validate_backup_snapshot(&snapshot.bytes, snapshot.schema_version),
+                Err(BackupValidationError::InvalidDatabase),
+                "{sql}"
+            );
+            assert_eq!(*snapshot.bytes, *original);
+        }
     }
 }

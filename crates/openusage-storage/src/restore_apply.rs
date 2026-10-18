@@ -1,12 +1,10 @@
-//! Replace only schema-one records. Native callers own profile directories and confirmation.
+//! Replace validated supported records. Native callers own profile directories and confirmation.
 use crate::backup_validation::{canonical_uuid, validate_connection, with_validated_snapshot};
 use crate::{
     BackupContentSummary, BackupValidationError, CURRENT_SCHEMA_VERSION, Storage, StorageRevision,
 };
 use rusqlite::{Connection, TransactionBehavior, params};
 use std::collections::{BTreeMap, BTreeSet};
-
-const RESTORE_SCHEMA_VERSION: u32 = 1;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RestoreHomeMapping {
@@ -84,7 +82,7 @@ pub fn validate_checkpoint_restore_input(
     })
 }
 fn require_version(version: u32) -> Result<()> {
-    if version != RESTORE_SCHEMA_VERSION || CURRENT_SCHEMA_VERSION != RESTORE_SCHEMA_VERSION {
+    if !crate::backup_validation::supported_schema_version(version) {
         return Err(RestoreError::UnsupportedSchema);
     }
     Ok(())
@@ -171,7 +169,7 @@ impl Storage {
                 {
                     return Err(RestoreError::StalePreview);
                 }
-                validate_connection(&transaction, version)
+                validate_connection(&transaction, CURRENT_SCHEMA_VERSION)
                     .map_err(|_| RestoreError::Unavailable)?;
                 let source_homes = read_homes(source)?;
                 let current_homes = read_homes(&transaction)?;
@@ -183,7 +181,12 @@ impl Storage {
                     .map_err(|_| RestoreError::WriteFailed)?;
                 transaction
                     .execute_batch(
-                        "DELETE FROM profiles; DELETE FROM accounts; DELETE FROM settings;",
+                        "DELETE FROM activity_day_history; DELETE FROM current_activity_days;
+                         DELETE FROM current_activity; DELETE FROM activity_summaries;
+                         DELETE FROM collection_runs;
+                         UPDATE profile_identity_events SET previous_binding_id=NULL;
+                         DELETE FROM profile_identity_events;
+                         DELETE FROM profiles; DELETE FROM accounts; DELETE FROM settings;",
                     )
                     .map_err(|_| RestoreError::WriteFailed)?;
                 // Table and column names are trusted application SQL. Archive SQL is never executed.
@@ -208,7 +211,10 @@ impl Storage {
                         params![timezone, locale, theme, retention, created, when],
                     )
                     .map_err(|_| RestoreError::WriteFailed)?;
-                if validate_connection(&transaction, version)
+                // Historical bindings keep their original homes; only live profiles use new mappings.
+                crate::backup_validation::copy_activity_records(source, &transaction, "main")
+                    .map_err(|_| RestoreError::WriteFailed)?;
+                if validate_connection(&transaction, CURRENT_SCHEMA_VERSION)
                     .map_err(|_| RestoreError::WriteFailed)?
                     != summary
                 {
@@ -318,9 +324,12 @@ mod tests {
     #[test]
     fn replacement_preserves_history_stops_monitoring_and_uses_fresh_homes() {
         let (_directory, mut source) = source();
+        crate::backup_validation::activity_fixture(&mut source, &id(1), &id(1), 100);
+        let history = crate::backup_validation::activity_records(&source.connection);
         let snapshot = source.backup_snapshot().unwrap();
+        let original = snapshot.bytes.clone();
         assert_eq!(
-            validate_restore_input(&snapshot.bytes, 1)
+            validate_restore_input(&snapshot.bytes, snapshot.schema_version)
                 .unwrap()
                 .profile_ids,
             vec![id(1)]
@@ -331,11 +340,55 @@ mod tests {
         live.create_profile(&id(2), "Synthetic target", &id(2))
             .unwrap();
         live.set_theme(Theme::Dark).unwrap();
+        crate::backup_validation::activity_fixture(&mut live, &id(2), &id(2), 200);
         let expected = live.restore_state().unwrap().revision;
         let summary = live
-            .replace_records_from_backup(&snapshot.bytes, 1, &expected, &mappings(1, 3))
+            .replace_records_from_backup(
+                &snapshot.bytes,
+                snapshot.schema_version,
+                &expected,
+                &mappings(1, 3),
+            )
             .unwrap();
         assert_eq!(summary.accounts, 1);
+        assert_eq!(
+            crate::backup_validation::activity_records(&live.connection),
+            history
+        );
+        assert_eq!(*snapshot.bytes, *original);
+        // Imported history keeps its old home. A new live home needs an explicit new association.
+        assert_eq!(
+            live.current_activity(&id(1))
+                .unwrap()
+                .unwrap()
+                .binding
+                .home_reference,
+            id(1)
+        );
+        let mut old_binding = live.current_activity(&id(1)).unwrap().unwrap().binding;
+        old_binding.home_reference = id(3);
+        assert_eq!(
+            live.accept_activity(crate::ActivityReading {
+                run_id: id(300),
+                binding: old_binding,
+                identity_evidence: crate::ActivityIdentityEvidence {
+                    email: "synthetic-history@example.invalid".into(),
+                    plan: Some("synthetic".into())
+                },
+                provider_version: "0.163.0-synthetic".into(),
+                source_kind: crate::ActivitySourceKind::TestFixture,
+                started_at_utc: "2024-02-29T14:00:00.000Z".into(),
+                observed_at_utc: "2024-02-29T14:00:00.000Z".into(),
+                completed_at_utc: "2024-02-29T14:00:00.000Z".into(),
+                summary: Default::default(),
+                daily_usage: None,
+            }),
+            Err(crate::ActivityError::BindingChanged)
+        );
+        assert_eq!(
+            crate::backup_validation::activity_records(&live.connection),
+            history
+        );
         assert_eq!(live.metadata().unwrap().theme, Theme::System);
         assert_eq!(
             live.list_profiles().unwrap()[0].connection_state,
@@ -389,7 +442,12 @@ mod tests {
         let old = live.restore_state().unwrap().revision;
         live.set_theme(Theme::Dark).unwrap();
         assert_eq!(
-            live.replace_records_from_backup(&snapshot.bytes, 1, &old, &mappings(1, 3)),
+            live.replace_records_from_backup(
+                &snapshot.bytes,
+                snapshot.schema_version,
+                &old,
+                &mappings(1, 3)
+            ),
             Err(RestoreError::StalePreview)
         );
         let expected = live.restore_state().unwrap().revision;
@@ -406,12 +464,22 @@ mod tests {
                 .collect(),
         ] {
             assert_eq!(
-                live.replace_records_from_backup(&snapshot.bytes, 1, &expected, &homes),
+                live.replace_records_from_backup(
+                    &snapshot.bytes,
+                    snapshot.schema_version,
+                    &expected,
+                    &homes
+                ),
                 Err(RestoreError::InvalidHomeMapping)
             );
         }
         assert_eq!(
-            live.replace_records_from_backup(b"invalid", 1, &expected, &mappings(1, 3)),
+            live.replace_records_from_backup(
+                b"invalid",
+                CURRENT_SCHEMA_VERSION,
+                &expected,
+                &mappings(1, 3)
+            ),
             Err(RestoreError::InvalidBackup)
         );
         assert_eq!(live.restore_state().unwrap().revision, expected);
@@ -428,7 +496,7 @@ mod tests {
             source.set_profile_archived(&id(n), true).unwrap();
         }
         let snapshot = source.backup_snapshot().unwrap();
-        let homes: Vec<_> = validate_restore_input(&snapshot.bytes, 1)
+        let homes: Vec<_> = validate_restore_input(&snapshot.bytes, snapshot.schema_version)
             .unwrap()
             .profile_ids
             .into_iter()
@@ -453,7 +521,12 @@ mod tests {
             .unwrap();
         let before = live.connection.total_changes();
         assert_eq!(
-            live.replace_records_from_backup(&snapshot.bytes, 1, &expected, &homes),
+            live.replace_records_from_backup(
+                &snapshot.bytes,
+                snapshot.schema_version,
+                &expected,
+                &homes
+            ),
             Err(RestoreError::WriteFailed)
         );
         assert!(
@@ -467,9 +540,14 @@ mod tests {
             .unwrap();
         let expected = live.restore_state().unwrap().revision;
         assert_eq!(
-            live.replace_records_from_backup(&snapshot.bytes, 1, &expected, &homes)
-                .unwrap()
-                .archived_profiles,
+            live.replace_records_from_backup(
+                &snapshot.bytes,
+                snapshot.schema_version,
+                &expected,
+                &homes
+            )
+            .unwrap()
+            .archived_profiles,
             501
         );
     }
@@ -477,19 +555,26 @@ mod tests {
     fn checkpoint_recovery_requires_exact_original_homes_and_rejects_cross_profile_reuse() {
         let (_directory, mut source) = source();
         let checkpoint = source.backup_snapshot().unwrap();
-        let incoming = validate_checkpoint_restore_input(&checkpoint.bytes, 1).unwrap();
+        let incoming =
+            validate_checkpoint_restore_input(&checkpoint.bytes, checkpoint.schema_version)
+                .unwrap();
         let expected = source.restore_state().unwrap().revision;
         assert_eq!(
             source.replace_records_from_checkpoint(
                 &checkpoint.bytes,
-                1,
+                checkpoint.schema_version,
                 &expected,
                 &mappings(1, 3)
             ),
             Err(RestoreError::InvalidHomeMapping)
         );
         source
-            .replace_records_from_checkpoint(&checkpoint.bytes, 1, &expected, &incoming.homes)
+            .replace_records_from_checkpoint(
+                &checkpoint.bytes,
+                checkpoint.schema_version,
+                &expected,
+                &incoming.homes,
+            )
             .unwrap();
         source
             .connection
@@ -499,11 +584,133 @@ mod tests {
         assert_eq!(
             source.replace_records_from_checkpoint(
                 &checkpoint.bytes,
-                1,
+                checkpoint.schema_version,
                 &expected,
                 &incoming.homes
             ),
             Err(RestoreError::InvalidHomeMapping)
+        );
+    }
+    #[test]
+    fn legacy_restore_migrates_private_copy_and_clears_target_history_atomically() {
+        let legacy = Connection::open_in_memory().unwrap();
+        legacy.execute_batch(crate::MIGRATIONS[0]).unwrap();
+        legacy.pragma_update(None, "user_version", 1).unwrap();
+        legacy.execute("INSERT INTO profiles(id,name,environment,approved_home_reference,connection_state,created_at,updated_at) VALUES (?1,'Legacy synthetic','native',?1,'connected','2024-02-29T00:00:00Z','2024-02-29T00:00:00Z')",[id(1)]).unwrap();
+        let bytes = zeroize::Zeroizing::new(legacy.serialize("main").unwrap().to_vec());
+        let original = bytes.clone();
+        let dir = crate::tests::private_directory();
+        let mut live = Storage::create(&dir.path().join("live"), &KEY).unwrap();
+        live.create_profile(&id(2), "Preserved until commit", &id(2))
+            .unwrap();
+        crate::backup_validation::activity_fixture(&mut live, &id(2), &id(2), 200);
+        let revision = live.restore_state().unwrap().revision;
+        live.replace_records_from_backup(&bytes, 1, &revision, &mappings(1, 3))
+            .unwrap();
+        assert_eq!(read_homes(&live.connection).unwrap(), mappings(1, 3));
+        assert!(
+            crate::backup_validation::activity_records(&live.connection)
+                .iter()
+                .all(Vec::is_empty)
+        );
+        assert_eq!(
+            live.metadata().unwrap().schema_version,
+            CURRENT_SCHEMA_VERSION
+        );
+        assert_eq!(*bytes, *original);
+        assert_eq!(
+            legacy
+                .pragma_query_value(None, "user_version", |r| r.get::<_, u32>(0))
+                .unwrap(),
+            1
+        );
+    }
+    #[test]
+    fn full_during_activity_copy_preserves_all_old_rows_and_reports_write_failure() {
+        let (_source_directory, mut source) = source();
+        crate::backup_validation::activity_fixture(&mut source, &id(1), &id(1), 100);
+        let binding = source.current_activity(&id(1)).unwrap().unwrap().binding;
+        source
+            .accept_activity(crate::ActivityReading {
+                run_id: id(999),
+                binding,
+                identity_evidence: crate::ActivityIdentityEvidence {
+                    email: "synthetic-history@example.invalid".into(),
+                    plan: Some("synthetic".into()),
+                },
+                provider_version: "0.163.0-synthetic".into(),
+                source_kind: crate::ActivitySourceKind::TestFixture,
+                started_at_utc: "2024-02-29T14:00:00.000Z".into(),
+                observed_at_utc: "2024-02-29T14:00:00.000Z".into(),
+                completed_at_utc: "2024-02-29T14:00:00.000Z".into(),
+                summary: Default::default(),
+                daily_usage: Some(
+                    (0..4096)
+                        .map(|n| crate::ActivityDayValue {
+                            provider_date: format!(
+                                "{:04}-{:02}-{:02}",
+                                2000 + n / 336,
+                                n % 336 / 28 + 1,
+                                n % 28 + 1
+                            ),
+                            tokens: "9223372036854775807".into(),
+                        })
+                        .collect(),
+                ),
+            })
+            .unwrap();
+        let snapshot = source.backup_snapshot().unwrap();
+        let incoming_history = crate::backup_validation::activity_records(&source.connection);
+        let directory = crate::tests::private_directory();
+        let mut live = Storage::create(&directory.path().join("live"), &KEY).unwrap();
+        live.create_profile(&id(2), "Preserved target", &id(2))
+            .unwrap();
+        crate::backup_validation::activity_fixture(&mut live, &id(2), &id(2), 200);
+        let prior_history = crate::backup_validation::activity_records(&live.connection);
+        let prior_metadata = live.metadata().unwrap();
+        let prior_profiles = live.list_profiles().unwrap();
+        let revision = live.restore_state().unwrap().revision;
+        let pages: i64 = live
+            .connection
+            .pragma_query_value(None, "page_count", |r| r.get(0))
+            .unwrap();
+        live.connection
+            .pragma_update(None, "max_page_count", pages)
+            .unwrap();
+        let changes = live.connection.total_changes();
+        assert_eq!(
+            live.replace_records_from_backup(
+                &snapshot.bytes,
+                snapshot.schema_version,
+                &revision,
+                &mappings(1, 3)
+            ),
+            Err(RestoreError::WriteFailed)
+        );
+        assert!(
+            live.connection.total_changes() > changes,
+            "Actual writes must precede the allocation failure."
+        );
+        assert_eq!(live.metadata().unwrap(), prior_metadata);
+        assert_eq!(live.list_profiles().unwrap(), prior_profiles);
+        assert_eq!(
+            crate::backup_validation::activity_records(&live.connection),
+            prior_history
+        );
+        live.connection
+            .pragma_update(None, "max_page_count", 1_000_000)
+            .unwrap();
+        let revision = live.restore_state().unwrap().revision;
+        live.replace_records_from_backup(
+            &snapshot.bytes,
+            snapshot.schema_version,
+            &revision,
+            &mappings(1, 3),
+        )
+        .unwrap();
+        assert_eq!(
+            crate::backup_validation::activity_records(&live.connection),
+            incoming_history
         );
     }
 }

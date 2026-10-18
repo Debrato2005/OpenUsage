@@ -538,26 +538,42 @@ impl Storage {
         &mut self,
         path: &Path,
     ) -> Result<crate::BackupSnapshot, CheckpointError> {
-        self.with_verified_checkpoint(path,|connection,verified| {
-            connection.execute_batch("ATTACH DATABASE ':memory:' AS openusage_recovery KEY '';").map_err(|_|CheckpointError::Unavailable)?;
-            let result=(|| {
-                connection.execute_batch("PRAGMA openusage_recovery.page_size=4096; PRAGMA openusage_recovery.max_page_count=1310720;").map_err(|_|CheckpointError::Unavailable)?;
-                let page_size:i64=connection.pragma_query_value(Some("openusage_recovery"),"page_size",|r|r.get(0)).map_err(|_|CheckpointError::Unavailable)?;
-                let page_limit:i64=connection.pragma_query_value(Some("openusage_recovery"),"max_page_count",|r|r.get(0)).map_err(|_|CheckpointError::Unavailable)?;
-                if page_size.checked_mul(page_limit)!=Some(crate::MAX_BACKUP_SNAPSHOT_SIZE as i64) { return Err(CheckpointError::Unavailable); }
-                connection.execute_batch("SELECT sqlcipher_export('openusage_recovery','openusage_checkpoint');").map_err(|_|CheckpointError::Unavailable)?;
-                connection.pragma_update(Some("openusage_recovery"),"user_version",verified.schema_version).map_err(|_|CheckpointError::Unavailable)?;
-                let serialized=connection.serialize("openusage_recovery").map_err(|_|CheckpointError::Unavailable)?;
-                if serialized.len() as u64 > crate::MAX_BACKUP_SNAPSHOT_SIZE { return Err(CheckpointError::Unavailable); }
-                let mut bytes=zeroize::Zeroizing::new(Vec::new());
-                bytes.try_reserve_exact(serialized.len()).map_err(|_|CheckpointError::Unavailable)?;
+        self.with_verified_checkpoint(path, |connection, verified| {
+            let read_only: bool = connection
+                .pragma_query_value(None, "query_only", |r| r.get(0))
+                .map_err(|_| CheckpointError::Unavailable)?;
+            if read_only {
+                return Err(CheckpointError::Unavailable);
+            }
+            // Build from trusted schema and bound known fields, never source catalog SQL.
+            let copy = crate::backup_validation::trusted_memory_copy(
+                connection,
+                "openusage_checkpoint",
+                verified.schema_version,
+            )
+            .map_err(|_| CheckpointError::VerificationFailed)?;
+            let bytes = (|| {
+                let serialized = copy
+                    .serialize("main")
+                    .map_err(|_| CheckpointError::Unavailable)?;
+                if serialized.len() as u64 > crate::MAX_BACKUP_SNAPSHOT_SIZE {
+                    return Err(CheckpointError::Unavailable);
+                }
+                let mut bytes = zeroize::Zeroizing::new(Vec::new());
+                bytes
+                    .try_reserve_exact(serialized.len())
+                    .map_err(|_| CheckpointError::Unavailable)?;
                 bytes.extend_from_slice(&serialized);
-                Ok(crate::BackupSnapshot{schema_version:verified.schema_version,bytes})
+                Ok(bytes)
             })();
-            connection.execute_batch("DETACH DATABASE openusage_recovery").map_err(|_|CheckpointError::Unavailable)?;
-            result
+            copy.close().map_err(|_| CheckpointError::Unavailable)?;
+            Ok(crate::BackupSnapshot {
+                schema_version: verified.schema_version,
+                bytes: bytes?,
+            })
         })
     }
+
     fn with_verified_checkpoint<T>(
         &mut self,
         path: &Path,
@@ -600,12 +616,12 @@ impl Storage {
                             r.get(0)
                         })
                         .map_err(|_| CheckpointError::VerificationFailed)?;
-                    if schema_version != CURRENT_SCHEMA_VERSION {
+                    if !crate::backup_validation::supported_schema_version(schema_version) {
                         return Err(CheckpointError::UnsupportedSchema);
                     }
                     let summary = crate::backup_validation::validate_schema_connection(
                         &self.connection,
-                        CURRENT_SCHEMA_VERSION,
+                        schema_version,
                         "openusage_checkpoint",
                     )
                     .map_err(|error| match error {
@@ -617,7 +633,7 @@ impl Storage {
                     held.require_identity()?;
                     require_attached_identity(&self.connection)?;
                     Ok(CheckpointVerification {
-                        schema_version: CURRENT_SCHEMA_VERSION,
+                        schema_version,
                         file_bytes: held
                             .file
                             .metadata()
@@ -775,7 +791,7 @@ mod readonly_tests {
         let snapshot = live.read_encrypted_checkpoint(&path).unwrap();
         assert!(snapshot.bytes.starts_with(b"SQLite format 3\0"));
         assert_eq!(
-            validate_checkpoint_restore_input(&snapshot.bytes, 1)
+            validate_checkpoint_restore_input(&snapshot.bytes, snapshot.schema_version)
                 .unwrap()
                 .summary,
             verified.summary
@@ -929,7 +945,7 @@ mod recovery_tests {
         let revision = live.restore_state().unwrap().revision;
         live.replace_records_from_backup(
             &archive.bytes,
-            1,
+            archive.schema_version,
             &revision,
             &[RestoreHomeMapping {
                 profile_id: original_id.into(),
@@ -941,10 +957,16 @@ mod recovery_tests {
         let mut live = Storage::open(&live_path, &KEY).unwrap();
         assert_eq!(live.metadata().unwrap().theme, Theme::Light);
         let saved = live.read_encrypted_checkpoint(&checkpoint).unwrap();
-        let metadata = validate_checkpoint_restore_input(&saved.bytes, 1).unwrap();
+        let metadata =
+            validate_checkpoint_restore_input(&saved.bytes, saved.schema_version).unwrap();
         let revision = live.restore_state().unwrap().revision;
-        live.replace_records_from_checkpoint(&saved.bytes, 1, &revision, &metadata.homes)
-            .unwrap();
+        live.replace_records_from_checkpoint(
+            &saved.bytes,
+            saved.schema_version,
+            &revision,
+            &metadata.homes,
+        )
+        .unwrap();
         assert_eq!(live.metadata().unwrap().theme, Theme::Dark);
         assert_eq!(
             live.list_profiles().unwrap()[0].label,
@@ -957,5 +979,72 @@ mod recovery_tests {
         );
         assert_eq!(std::fs::read(&checkpoint).unwrap(), original_file);
         super::require_no_sidecars(&checkpoint).unwrap();
+    }
+    #[test]
+    fn legacy_encrypted_checkpoint_keeps_original_version_bytes_and_needs_no_disk_migration() {
+        use super::{CURRENT_SCHEMA_VERSION, require_no_sidecars};
+        use std::fs;
+        let directory = crate::tests::private_directory();
+        let path = directory.path().join("legacy-checkpoint");
+        let mut live = Storage::create(&directory.path().join("live-current"), &KEY).unwrap();
+        live.create_profile(
+            "00000001-0000-4000-8000-000000000000",
+            "Legacy synthetic",
+            "00000002-0000-4000-8000-000000000000",
+        )
+        .unwrap();
+        live.create_encrypted_checkpoint(&path).unwrap();
+        // A historical checkpoint shares this workspace's inherited SQLCipher key/salt.
+        // Only trusted fixture DDL changes the checkpoint to the exact original v1 catalog.
+        live.connection
+            .execute(
+                "ATTACH DATABASE ?1 AS old_fixture",
+                [path.to_str().unwrap()],
+            )
+            .unwrap();
+        live.connection.execute_batch("DROP TABLE old_fixture.activity_day_history; DROP TABLE old_fixture.current_activity_days; DROP TABLE old_fixture.current_activity; DROP TABLE old_fixture.activity_summaries; DROP TABLE old_fixture.collection_runs; DROP TABLE old_fixture.profile_identity_events; PRAGMA old_fixture.user_version=1; DETACH DATABASE old_fixture;").unwrap();
+        require_no_sidecars(&path).unwrap();
+        let original = fs::read(&path).unwrap();
+        let verified = live.verify_encrypted_checkpoint(&path).unwrap();
+        assert_eq!(verified.schema_version, 1);
+        assert_eq!(verified.summary.active_profiles, 1);
+        let snapshot = live.read_encrypted_checkpoint(&path).unwrap();
+        assert_eq!(snapshot.schema_version, 1);
+        crate::backup_validation::with_validated_snapshot::<_, crate::BackupValidationError>(
+            &snapshot.bytes,
+            1,
+            true,
+            |normalized, _| {
+                assert_eq!(
+                    normalized
+                        .pragma_query_value(None, "user_version", |r| r.get::<_, u32>(0))
+                        .unwrap(),
+                    CURRENT_SCHEMA_VERSION
+                );
+                assert!(
+                    crate::backup_validation::activity_records(normalized)
+                        .iter()
+                        .all(Vec::is_empty)
+                );
+                Ok(())
+            },
+        )
+        .unwrap();
+        let metadata =
+            validate_checkpoint_restore_input(&snapshot.bytes, snapshot.schema_version).unwrap();
+        let revision = live.restore_state().unwrap().revision;
+        live.replace_records_from_checkpoint(
+            &snapshot.bytes,
+            snapshot.schema_version,
+            &revision,
+            &metadata.homes,
+        )
+        .unwrap();
+        assert_eq!(
+            live.metadata().unwrap().schema_version,
+            CURRENT_SCHEMA_VERSION
+        );
+        assert_eq!(fs::read(&path).unwrap(), original);
+        require_no_sidecars(&path).unwrap();
     }
 }
