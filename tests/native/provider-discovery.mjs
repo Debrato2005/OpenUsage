@@ -40,6 +40,7 @@ async function discover(expected) {
 async function find() {
   await driver.click('[data-provider-find]');
   await waitFor(async () => await driver.execute('return !document.querySelector("[data-provider-find]").disabled && Boolean(document.querySelector(".provider-discovery"));'), 'discovery results');
+  await waitFor(async () => await driver.execute('return document.activeElement?.matches(".provider-discovery,.provider-executable-review,#provider-executable");'), 'discovery next-action focus');
 }
 async function focusOwnedWindow() {
   const queue = [driver.child.pid]; let pid;
