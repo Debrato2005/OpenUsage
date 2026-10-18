@@ -57,7 +57,7 @@ async function workspaceHashes() {
 const newName = () => `openusage-backup-${randomUUID().replaceAll('-', '').slice(0, 16)}.oubackup`;
 
 async function inspectGui(fileName, status) {
-  await driver.click(`#backup-file option[value="${fileName}"]`);
+  await driver.selectVisibleOption('#backup-file', fileName);
   await driver.type('#backup-inspection-password', password);
   await driver.click('.backup-inspection-form button[type="submit"]');
   await waitFor(async () => Boolean(await driver.execute('return document.querySelector(".backup-inspection-receipt")?.textContent.includes(arguments[0]);', [fileName])), 'native authenticated content receipt', 30000);
@@ -217,8 +217,8 @@ try {
   await rejected('inspect_backup', { fileName, password: 'x' }, 'backup_authentication_failed');
 
   await clickButton('Inspect a backup');
-  await waitFor(async () => Boolean(await driver.execute('return document.querySelector("#backup-file option[value="+JSON.stringify(arguments[0])+"]");', [fileName])), 'export listed in the native inspection form');
-  await driver.click(`#backup-file option[value="${fileName}"]`);
+  await waitFor(async () => Boolean(await driver.execute('const trigger=document.querySelector("#backup-file");return trigger?.getAttribute("role")==="combobox"&&!trigger.disabled;', [fileName])), 'enabled backup selector before choosing the exported file');
+  await driver.selectVisibleOption('#backup-file', fileName);
   await driver.type('#backup-inspection-password', 'x');
   await driver.click('.backup-inspection-form button[type="submit"]');
   await waitFor(async () => Boolean(await driver.execute('return document.querySelector("#backup-inspection-error");')), 'wrong-password inspection guidance', 30000);
@@ -302,7 +302,7 @@ try {
     assert.equal(result.value.contentSummary, null);
     assert.equal(result.value.restoreAvailable, false);
     await clickButton('Refresh backups');
-    await waitFor(async () => Boolean(await driver.execute('const select=document.querySelector("#backup-file");return select&&!select.disabled&&[...select.options].some(node=>node.value===arguments[0]);', [fixtureName])), 'authenticated synthetic content fixture listed and ready');
+    await waitFor(async () => Boolean(await driver.execute('const select=document.querySelector("#backup-file");return select?.getAttribute("role")==="combobox"&&!select.disabled;', [fixtureName])), 'enabled backup selector before choosing the content fixture');
     const view = await inspectGui(fixtureName, state === 'invalid' ? 'Database checks failed. Keep the backup file; restore is not available.' : 'This version cannot check the database contents in this archive. Restore is not available.');
     assert.equal(view.metadata['Schema version'], String(schema));
     assert.deepEqual([view.metadata['Archive version'], view.metadata.Files, view.metadata['Total size']], ['1', '1', `${result.value.totalBytes} bytes`]);
@@ -344,8 +344,8 @@ try {
   assert.equal(safeCatalog.backups.some(item => [linked, hardlinked, shared].includes(item.fileName)), false);
   assert.ok(safeCatalog.backups.some(item => item.fileName === fileName));
   await clickButton('Refresh backups');
-  await waitFor(async () => Boolean(await driver.execute('return [...document.querySelectorAll("#backup-file option")].some(option=>option.value===arguments[0]);', [truncatedName])), 'unverified truncated file in refreshed catalog');
-  await driver.click(`#backup-file option[value="${truncatedName}"]`);
+  await waitFor(async () => Boolean(await driver.execute('const trigger=document.querySelector("#backup-file");return trigger?.getAttribute("role")==="combobox"&&!trigger.disabled;', [truncatedName])), 'enabled refreshed backup selector before choosing the truncated file');
+  await driver.selectVisibleOption('#backup-file', truncatedName);
   await driver.type('#backup-inspection-password', password);
   await driver.click('.backup-inspection-form button[type="submit"]');
   await waitFor(async () => (await driver.execute('return document.activeElement?.id;')) === 'backup-inspection-error', 'structural archive error focus');
@@ -357,7 +357,7 @@ try {
   await driver.execute('document.querySelector("#backup-inspection-error").scrollIntoView({block:"center"});return true;');
   await driver.screenshot(join(output, 'inspection-structural-error-dark.png'));
   evidence.screenshots.push('inspection-structural-error-dark.png');
-  await driver.click(`#backup-file option[value="${fileName}"]`);
+  await driver.selectVisibleOption('#backup-file', fileName);
   await driver.type('#backup-inspection-password', password);
   await driver.click('.backup-inspection-form button[type="submit"]');
   await waitFor(async () => Boolean(await driver.execute('return document.querySelector(".backup-inspection-receipt")?.textContent.includes(arguments[0]);', [fileName])), 'healthy archive authenticated after structural failure', 30000);
