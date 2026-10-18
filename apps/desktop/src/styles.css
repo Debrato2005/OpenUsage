@@ -291,7 +291,7 @@ main { max-width: 1280px; padding: var(--space-6); margin: 0 auto; }
 .restore-comparison td { font-variant-numeric: tabular-nums; }
 .restore-preview > .secondary-button { margin-top: var(--space-4); }
 .restore-confirmation-form, .restore-result > p + p, .restore-result > button { margin-top: var(--space-4); }
-@container restore-comparison (max-width: 18em) {
+@container restore-comparison (max-width: 24em) {
   .restore-comparison, .restore-comparison caption, .restore-comparison tbody { display: block; }
   .restore-comparison thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .restore-comparison tbody tr { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12ch), 1fr)); gap: var(--space-2); border-bottom: 1px solid var(--line); padding: var(--space-3) 0; }
