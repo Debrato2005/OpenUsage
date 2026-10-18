@@ -1,5 +1,5 @@
 //! Bounded provider checks with explicit Rust approval and owned cancellation.
-//! No login, inference, polling, or native application shutdown hook is implemented here.
+//! No inference or background collection. The caller owns native application shutdown hooks.
 //!
 //! Process ownership follows the standard library's process-group and child-wait contracts:
 //! <https://doc.rust-lang.org/std/os/unix/process/trait.CommandExt.html#tymethod.process_group>
@@ -419,6 +419,7 @@ struct Job {
     worker: Mutex<Option<JoinHandle<()>>>,
     finished: AtomicBool,
     cleanup_result: Mutex<Option<Result<(), SupervisorError>>>,
+    managed_login: bool,
 }
 
 #[cfg(unix)]
@@ -454,7 +455,13 @@ impl Job {
 
     fn cancel_wait(&self) -> Result<bool, SupervisorError> {
         let accepted = self.request_cancel();
-        let stopped = self.control.stop_child().map_err(SupervisorError::from);
+        // A login worker sends the documented cancellation before hard cleanup. Its reader polls
+        // cancellation every 100 ms and the cancellation exchange has a fixed one-second limit.
+        let stopped = if self.managed_login {
+            Ok(())
+        } else {
+            self.control.stop_child().map_err(SupervisorError::from)
+        };
         let joined = self.join();
         stopped.and(joined).map(|()| accepted)
     }
@@ -516,6 +523,44 @@ impl Supervisor {
         executable: &ApprovedExecutable,
         home: &ManagedProfileHome,
     ) -> Result<CheckHandle, SupervisorError> {
+        self.start_operation(executable, home, None)
+    }
+
+    /// Start only after explicit consent for this selected profile's managed sign-in.
+    /// Call `prompt` and `wait` outside application or storage locks.
+    pub fn start_device_login(
+        &self,
+        executable: &ApprovedExecutable,
+        home: &ManagedProfileHome,
+    ) -> Result<DeviceLoginHandle, SupervisorError> {
+        #[cfg(not(unix))]
+        {
+            let _ = (executable, home);
+            Err(SessionError::UnsupportedPlatform.into())
+        }
+        #[cfg(unix)]
+        {
+            if executable.pinned.is_none() {
+                return Err(SupervisorError::InvalidApproval);
+            }
+            let (sender, receiver) = mpsc::sync_channel(1);
+            let check = self.start_operation(executable, home, Some(sender))?;
+            Ok(DeviceLoginHandle {
+                check,
+                prompt: Some(receiver),
+            })
+        }
+    }
+
+    fn start_operation(
+        &self,
+        executable: &ApprovedExecutable,
+        home: &ManagedProfileHome,
+        #[cfg(unix)] prompt: Option<
+            mpsc::SyncSender<Result<crate::DeviceLoginPrompt, SupervisorError>>,
+        >,
+        #[cfg(not(unix))] _prompt: Option<()>,
+    ) -> Result<CheckHandle, SupervisorError> {
         #[cfg(not(unix))]
         {
             let _ = (executable, home);
@@ -559,6 +604,7 @@ impl Supervisor {
                 worker: Mutex::new(None),
                 finished: AtomicBool::new(false),
                 cleanup_result: Mutex::new(None),
+                managed_login: prompt.is_some(),
             });
             let (sender, receiver) = mpsc::channel();
             let worker_job = Arc::clone(&job);
@@ -580,19 +626,37 @@ impl Supervisor {
             let thread = std::thread::Builder::new()
                 .name("openusage-provider-check".into())
                 .spawn(move || {
+                    let mut prompt_sent = false;
                     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                         executable.recheck()?;
                         home.recheck()?;
-                        crate::session::unix::check_managed(
-                            &executable.path,
-                            &home.directory,
-                            Arc::clone(&worker_job.control),
-                            timeouts,
-                            || {
-                                executable.recheck()?;
-                                home.recheck()
-                            },
-                        )
+                        let before_start = || {
+                            executable.recheck()?;
+                            home.recheck()
+                        };
+                        if let Some(sender) = &prompt {
+                            crate::session::unix::login_managed(
+                                &executable.path,
+                                &home.directory,
+                                Arc::clone(&worker_job.control),
+                                timeouts,
+                                before_start,
+                                |metadata| {
+                                    prompt_sent = true;
+                                    sender
+                                        .send(Ok(metadata))
+                                        .map_err(|_| SessionError::Cancelled)
+                                },
+                            )
+                        } else {
+                            crate::session::unix::check_managed(
+                                &executable.path,
+                                &home.directory,
+                                Arc::clone(&worker_job.control),
+                                timeouts,
+                                before_start,
+                            )
+                        }
                         .map_err(SupervisorError::from)
                     }))
                     .unwrap_or(Err(SupervisorError::WorkerFailed));
@@ -641,6 +705,14 @@ impl Supervisor {
                     *completion = Some(cleanup);
                     drop(completion);
                     worker_job.finished.store(true, Ordering::Release);
+                    if !prompt_sent && let Some(sender) = prompt {
+                        let error = result
+                            .as_ref()
+                            .err()
+                            .copied()
+                            .unwrap_or(SupervisorError::WorkerFailed);
+                        let _ = sender.send(Err(error));
+                    }
                     let _ = sender.send(result);
                 });
             match thread {
@@ -735,6 +807,59 @@ impl Supervisor {
                 }
             }
             result
+        }
+    }
+}
+
+/// Owns a single selected-profile login. Dropping it cancels and joins its owned worker.
+/// This type exposes no provider login ID, process handle, or credential-file contents.
+pub struct DeviceLoginHandle {
+    #[cfg(unix)]
+    check: CheckHandle,
+    #[cfg(unix)]
+    prompt: Option<Receiver<Result<crate::DeviceLoginPrompt, SupervisorError>>>,
+}
+
+impl DeviceLoginHandle {
+    pub fn prompt(&mut self) -> Result<crate::DeviceLoginPrompt, SupervisorError> {
+        #[cfg(unix)]
+        {
+            self.check.job.control.check_cancelled()?;
+            let prompt = self
+                .prompt
+                .take()
+                .ok_or(SupervisorError::WorkerFailed)?
+                .recv()
+                .map_err(|_| SupervisorError::WorkerFailed)?;
+            self.check.job.control.check_cancelled()?;
+            prompt
+        }
+        #[cfg(not(unix))]
+        {
+            Err(SessionError::UnsupportedPlatform.into())
+        }
+    }
+
+    /// Completion requires a matching successful login event and a fresh ChatGPT account response.
+    pub fn wait(self) -> Result<ProviderProbe, SupervisorError> {
+        #[cfg(unix)]
+        {
+            self.check.wait()
+        }
+        #[cfg(not(unix))]
+        {
+            Err(SessionError::UnsupportedPlatform.into())
+        }
+    }
+
+    pub fn cancel(&self) -> Result<(), SupervisorError> {
+        #[cfg(unix)]
+        {
+            self.check.cancel()
+        }
+        #[cfg(not(unix))]
+        {
+            Err(SessionError::UnsupportedPlatform.into())
         }
     }
 }
@@ -943,6 +1068,259 @@ IFS= read -r request
         );
     }
 
+    fn login_fixture(mode: &str) -> Fixture {
+        use sha2::{Digest, Sha256};
+        let mut fixture = Fixture::new(Mode::Hang);
+        let script =
+            include_str!("../tests/fixtures/synthetic-device-login.py").replace("__MODE__", mode);
+        fs::write(&fixture.executable.path, script.as_bytes()).unwrap();
+        fixture.executable = ApprovedExecutable::from_reviewed_source_with_sha256(
+            &fixture.executable.path,
+            "Owned synthetic device-code login fixture. No real authentication.",
+            Sha256::digest(script.as_bytes()).into(),
+        )
+        .unwrap();
+        fixture
+    }
+
+    fn login_requests(fixture: &Fixture, index: usize) -> Vec<serde_json::Value> {
+        fs::read_to_string(
+            fixture.homes[index]
+                .directory
+                .join("synthetic-login-requests.jsonl"),
+        )
+        .unwrap()
+        .lines()
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect()
+    }
+
+    #[test]
+    fn synthetic_device_login_retains_early_completion_and_reads_selected_account_afterward() {
+        let fixture = login_fixture("early");
+        let supervisor = Supervisor::new();
+        let metadata_only = ApprovedExecutable::from_reviewed_source(
+            &fixture.executable.path,
+            "Legacy metadata-only synthetic review.",
+        )
+        .unwrap();
+        assert!(matches!(
+            supervisor.start_device_login(&metadata_only, &fixture.homes[0]),
+            Err(SupervisorError::InvalidApproval)
+        ));
+        assert!(
+            !fixture.homes[0]
+                .directory
+                .join("synthetic-child-pid")
+                .exists()
+        );
+        fs::write(
+            fixture.homes[1].directory.join("preserved-marker"),
+            b"other profile",
+        )
+        .unwrap();
+        let mut login = supervisor
+            .start_device_login(&fixture.executable, &fixture.homes[0])
+            .unwrap();
+        let prompt = login.prompt().unwrap();
+        assert_eq!(
+            prompt.verification_url.as_str(),
+            "https://auth.openai.com/codex/device"
+        );
+        assert_eq!(prompt.user_code, "SYNTH-1234");
+        assert!(matches!(login.prompt(), Err(SupervisorError::WorkerFailed)));
+        let probe = login.wait().unwrap();
+        assert_eq!(probe.account.authentication, AccountAuth::Chatgpt);
+        assert_eq!(probe.account.identity, IdentityConfidence::Provisional);
+        gone(probe.process_id as libc::pid_t);
+        let requests = login_requests(&fixture, 0);
+        assert_eq!(
+            requests
+                .iter()
+                .filter_map(|request| request["method"].as_str())
+                .collect::<Vec<_>>(),
+            [
+                "initialize",
+                "initialized",
+                "account/login/start",
+                "account/read"
+            ]
+        );
+        assert_eq!(requests[2]["params"]["type"], "chatgptDeviceCode");
+        assert_eq!(requests[3]["params"]["refreshToken"], false);
+        assert_eq!(
+            fs::read(fixture.homes[1].directory.join("preserved-marker")).unwrap(),
+            b"other profile"
+        );
+        assert_eq!(
+            fs::read_dir(&fixture.homes[1].directory).unwrap().count(),
+            1
+        );
+        fixture.runtime_removed(0);
+    }
+
+    #[test]
+    fn synthetic_device_login_refuses_unmatched_failed_and_missing_account_completions() {
+        for mode in [
+            "wrong",
+            "null",
+            "failed",
+            "account_missing",
+            "bad_url",
+            "bad_code",
+            "flood",
+        ] {
+            let fixture = login_fixture(mode);
+            let supervisor = Supervisor::new();
+            let mut login = supervisor
+                .start_device_login(&fixture.executable, &fixture.homes[0])
+                .unwrap();
+            let prompt = login.prompt();
+            let error = login.wait().err().unwrap();
+            assert!(
+                matches!(
+                    error,
+                    SupervisorError::Session(
+                        SessionError::Protocol(_) | SessionError::NotificationLimit
+                    )
+                ),
+                "{mode}: {error:?}"
+            );
+            if ["bad_url", "bad_code", "flood"].contains(&mode) {
+                assert!(prompt.is_err());
+            } else {
+                assert!(prompt.is_ok());
+            }
+            let requests = login_requests(&fixture, 0);
+            assert_eq!(
+                requests
+                    .iter()
+                    .any(|request| request["method"] == "account/read"),
+                mode == "account_missing"
+            );
+            gone(fixture.child(0));
+            fixture.runtime_removed(0);
+        }
+    }
+
+    #[test]
+    fn synthetic_device_login_shares_slots_and_cancel_and_shutdown_reap_owned_processes() {
+        let fixture = login_fixture("pending");
+        let supervisor = Supervisor::new();
+        let mut login = supervisor
+            .start_device_login(&fixture.executable, &fixture.homes[0])
+            .unwrap();
+        login.prompt().unwrap();
+        let check = supervisor
+            .start_check(&fixture.executable, &fixture.homes[1])
+            .unwrap();
+        let first_pid = fixture.child(0);
+        let second_pid = fixture.child(1);
+        assert!(matches!(
+            supervisor.start_check(&fixture.executable, &fixture.homes[0]),
+            Err(SupervisorError::DuplicateProfile)
+        ));
+        assert!(matches!(
+            supervisor.start_device_login(&fixture.executable, &fixture.homes[2]),
+            Err(SupervisorError::CapacityReached)
+        ));
+        assert_eq!(supervisor.cancel(&fixture.homes[0].profile_id), Ok(true));
+        assert!(matches!(login.wait(), Err(SupervisorError::Cancelled)));
+        let requests = login_requests(&fixture, 0);
+        let cancel = requests
+            .iter()
+            .find(|request| request["method"] == "account/login/cancel")
+            .unwrap();
+        assert_eq!(cancel["params"]["loginId"], "synthetic-device-attempt");
+        assert!(
+            !requests
+                .iter()
+                .any(|request| request["method"] == "account/read"
+                    || request["method"] == "account/logout")
+        );
+        gone(first_pid);
+        let mut third = supervisor
+            .start_device_login(&fixture.executable, &fixture.homes[2])
+            .unwrap();
+        third.prompt().unwrap();
+        let third_pid = fixture.child(2);
+        supervisor.shutdown().unwrap();
+        assert!(matches!(third.wait(), Err(SupervisorError::Cancelled)));
+        assert!(matches!(check.wait(), Err(SupervisorError::Cancelled)));
+        gone(second_pid);
+        gone(third_pid);
+        for index in 0..3 {
+            fixture.runtime_removed(index);
+        }
+    }
+
+    #[test]
+    fn synthetic_device_login_timeout_and_dropped_handle_cancel_even_without_acknowledgment() {
+        for mode in ["updated_only", "cancel_unresponsive"] {
+            let fixture = login_fixture(mode);
+            let mut supervisor = Supervisor::new();
+            supervisor.timeouts.login = Duration::from_millis(100);
+            let mut login = supervisor
+                .start_device_login(&fixture.executable, &fixture.homes[0])
+                .unwrap();
+            login.prompt().unwrap();
+            let pid = fixture.child(0);
+            let started = Instant::now();
+            assert!(matches!(
+                login.wait(),
+                Err(SupervisorError::Session(SessionError::TimedOut))
+            ));
+            assert!(started.elapsed() < Duration::from_secs(3));
+            assert!(
+                login_requests(&fixture, 0)
+                    .iter()
+                    .any(|request| request["method"] == "account/login/cancel")
+            );
+            gone(pid);
+            fixture.runtime_removed(0);
+        }
+        let fixture = login_fixture("pending");
+        let supervisor = Supervisor::new();
+        let mut login = supervisor
+            .start_device_login(&fixture.executable, &fixture.homes[0])
+            .unwrap();
+        login.prompt().unwrap();
+        let pid = fixture.child(0);
+        drop(login);
+        gone(pid);
+        fixture.runtime_removed(0);
+
+        let fixture = login_fixture("start_hang");
+        let supervisor = Supervisor::new();
+        let mut login = supervisor
+            .start_device_login(&fixture.executable, &fixture.homes[0])
+            .unwrap();
+        let pid = fixture.child(0);
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while !fixture.homes[0]
+            .directory
+            .join("synthetic-login-start-pending")
+            .exists()
+        {
+            assert!(
+                Instant::now() < deadline,
+                "The synthetic login request did not arrive."
+            );
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        let started = Instant::now();
+        supervisor.cancel(&fixture.homes[0].profile_id).unwrap();
+        assert!(matches!(
+            login.prompt(),
+            Err(SupervisorError::Session(SessionError::Cancelled))
+                | Err(SupervisorError::Cancelled)
+        ));
+        assert!(matches!(login.wait(), Err(SupervisorError::Cancelled)));
+        assert!(started.elapsed() < Duration::from_secs(2));
+        gone(pid);
+        fixture.runtime_removed(0);
+    }
+
     #[test]
     fn synthetic_two_slot_duplicate_cancel_and_shutdown_preserve_unrelated_process() {
         let fixture = Fixture::new(Mode::Hang);
@@ -1103,6 +1481,7 @@ IFS= read -r request
             supervisor.timeouts = Timeouts {
                 ready: Duration::from_secs(2),
                 read: Duration::from_millis(80),
+                ..Timeouts::default()
             };
             let started = Instant::now();
             let handle = supervisor

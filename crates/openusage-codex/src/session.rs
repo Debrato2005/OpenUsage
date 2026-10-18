@@ -1,9 +1,11 @@
-//! An isolated, one-shot probe. This module never opens an existing provider home.
+//! Bounded provider operations in isolated, explicitly selected managed homes.
 
 use crate::{AccountSnapshot, ProtocolError, ServerInfo};
 use std::{fmt, path::Path};
 
 pub const TESTED_PROVIDER_VERSION: &str = "0.163.0";
+/// OpenUsage's local limit for a pending login. This is not provider-reported expiry.
+pub const DEVICE_LOGIN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15 * 60);
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SessionError {
@@ -106,11 +108,13 @@ pub(crate) mod unix {
 
     const READY_TIMEOUT: Duration = Duration::from_secs(15);
     const READ_TIMEOUT: Duration = Duration::from_secs(30);
+    const CANCEL_TIMEOUT: Duration = Duration::from_secs(1);
 
     #[derive(Clone, Copy)]
     pub(crate) struct Timeouts {
         pub ready: Duration,
         pub read: Duration,
+        pub login: Duration,
     }
 
     impl Default for Timeouts {
@@ -118,6 +122,7 @@ pub(crate) mod unix {
             Self {
                 ready: READY_TIMEOUT,
                 read: READ_TIMEOUT,
+                login: DEVICE_LOGIN_TIMEOUT,
             }
         }
     }
@@ -351,7 +356,11 @@ pub(crate) mod unix {
 
         fn send(&mut self, bytes: &[u8]) -> Result<(), SessionError> {
             self.control.check_cancelled()?;
-            // Only the fixed, small initialize/initialized/account-read messages reach this writer.
+            self.send_during_cleanup(bytes)
+        }
+
+        fn send_during_cleanup(&mut self, bytes: &[u8]) -> Result<(), SessionError> {
+            // Only fixed requests and the bounded provider login ID reach this writer.
             self.input
                 .as_mut()
                 .ok_or(SessionError::TransportFailed)?
@@ -360,28 +369,51 @@ pub(crate) mod unix {
         }
 
         fn line(&self, deadline: Instant) -> Line {
-            self.control.check_cancelled()?;
-            let remaining = deadline
-                .checked_duration_since(Instant::now())
-                .ok_or(SessionError::TimedOut)?;
-            let result = self
-                .lines
-                .as_ref()
-                .ok_or(SessionError::TransportFailed)?
-                .recv_timeout(remaining)
-                .map_err(|error| match error {
-                    mpsc::RecvTimeoutError::Timeout => SessionError::TimedOut,
-                    mpsc::RecvTimeoutError::Disconnected => SessionError::UnexpectedExit,
-                })?;
-            self.control.check_cancelled()?;
-            result
+            self.line_with_cancel(deadline, true)
+        }
+
+        fn line_with_cancel(&self, deadline: Instant, cancellable: bool) -> Line {
+            loop {
+                if cancellable {
+                    self.control.check_cancelled()?;
+                }
+                let remaining = deadline
+                    .checked_duration_since(Instant::now())
+                    .ok_or(SessionError::TimedOut)?;
+                let result = self
+                    .lines
+                    .as_ref()
+                    .ok_or(SessionError::TransportFailed)?
+                    .recv_timeout(remaining.min(Duration::from_millis(100)));
+                match result {
+                    Ok(result) => {
+                        if cancellable {
+                            self.control.check_cancelled()?;
+                        }
+                        return result;
+                    }
+                    Err(mpsc::RecvTimeoutError::Timeout) => continue,
+                    Err(mpsc::RecvTimeoutError::Disconnected) => {
+                        return Err(SessionError::UnexpectedExit);
+                    }
+                }
+            }
         }
 
         fn response(&self, id: u32, timeout: Duration) -> Line {
-            let deadline = Instant::now() + timeout;
+            self.response_routed(id, Instant::now() + timeout, true, |_| Ok(()))
+        }
+
+        fn response_routed(
+            &self,
+            id: u32,
+            deadline: Instant,
+            cancellable: bool,
+            mut notification: impl FnMut(Zeroizing<Vec<u8>>) -> Result<(), SessionError>,
+        ) -> Line {
             let mut received = 0;
             for _ in 0..=MAX_NOTIFICATIONS {
-                let bytes = self.line(deadline)?;
+                let bytes = self.line_with_cancel(deadline, cancellable)?;
                 received += bytes.len();
                 if received > MAX_RESPONSE_BYTES {
                     return Err(SessionError::NotificationLimit);
@@ -403,8 +435,8 @@ pub(crate) mod unix {
                     (Some(received), None) if received == id => return Ok(bytes),
                     (Some(_), _) => return Err(ProtocolError::MismatchedRequest.into()),
                     (None, Some(method)) => {
-                        // Unrelated notifications carry no actions. Bound and discard them.
                         crate::validate_text(method, 128)?;
+                        notification(bytes)?;
                     }
                     _ => return Err(ProtocolError::InvalidMessage.into()),
                 }
@@ -562,6 +594,31 @@ pub(crate) mod unix {
         result
     }
 
+    pub(crate) fn login_managed(
+        executable: &Path,
+        home: &Path,
+        control: Arc<ProcessControl>,
+        timeouts: Timeouts,
+        before_start: impl Fn() -> Result<(), SessionError>,
+        prompt: impl FnOnce(crate::DeviceLoginPrompt) -> Result<(), SessionError>,
+    ) -> Result<ProviderProbe, SessionError> {
+        control.check_cancelled()?;
+        let sandbox = Sandbox::with_home(home, Some(home))?;
+        let result = run_device_login(
+            executable,
+            &sandbox,
+            control,
+            timeouts,
+            before_start,
+            prompt,
+        );
+        sandbox
+            .root
+            .close()
+            .map_err(|_| SessionError::CleanupFailed)?;
+        result
+    }
+
     fn run_session(
         executable: &Path,
         sandbox: &Sandbox,
@@ -569,6 +626,30 @@ pub(crate) mod unix {
         timeouts: Timeouts,
         before_start: impl Fn() -> Result<(), SessionError>,
     ) -> Result<ProviderProbe, SessionError> {
+        let (mut process, server) =
+            start_initialized(executable, sandbox, control, timeouts, before_start)?;
+        let process_id = process.id()?;
+        let result = (|| {
+            process.send(&Request::account_read(2).to_line()?)?;
+            let account = parse_account(&process.response(2, timeouts.read)?, 2)?;
+            Ok(ProviderProbe {
+                server,
+                account,
+                version: TESTED_PROVIDER_VERSION,
+                process_id,
+            })
+        })();
+        process.stop()?;
+        result
+    }
+
+    fn start_initialized(
+        executable: &Path,
+        sandbox: &Sandbox,
+        control: Arc<ProcessControl>,
+        timeouts: Timeouts,
+        before_start: impl Fn() -> Result<(), SessionError>,
+    ) -> Result<(OwnedProcess, ServerInfo), SessionError> {
         control.check_cancelled()?;
         before_start()?;
         let mut version = sandbox.command(executable);
@@ -576,6 +657,8 @@ pub(crate) mod unix {
         let mut version = OwnedProcess::start_controlled(&mut version, Arc::clone(&control))?;
         let version_result = version.line(Instant::now() + timeouts.ready);
         version.stop()?;
+        // Its Drop shares ProcessControl. Finish it before that control owns the app-server child.
+        drop(version);
         if version_result?.as_slice() != b"codex-cli 0.163.0\n" {
             return Err(SessionError::UnsupportedVersion);
         }
@@ -587,17 +670,105 @@ pub(crate) mod unix {
             command.args(["-c", setting]);
         }
         let mut process = OwnedProcess::start_controlled(&mut command, control)?;
+        process.send(&Request::initialize(1).to_line()?)?;
+        let server = parse_initialize(
+            &process.response(1, timeouts.ready)?,
+            1,
+            &sandbox.codex_home,
+        )?;
+        process.send(initialized_notification())?;
+        Ok((process, server))
+    }
+
+    #[derive(Default)]
+    struct LoginNotifications {
+        frames: std::collections::VecDeque<Zeroizing<Vec<u8>>>,
+        count: usize,
+        bytes: usize,
+    }
+
+    impl LoginNotifications {
+        fn retain(&mut self, bytes: Zeroizing<Vec<u8>>) -> Result<(), SessionError> {
+            self.count += 1;
+            self.bytes += bytes.len();
+            if self.count > MAX_NOTIFICATIONS || self.bytes > MAX_RESPONSE_BYTES {
+                return Err(SessionError::NotificationLimit);
+            }
+            #[derive(Deserialize)]
+            struct Notice {
+                method: String,
+            }
+            let notice: Notice =
+                serde_json::from_slice(&bytes).map_err(|_| ProtocolError::InvalidMessage)?;
+            crate::validate_text(&notice.method, 128)?;
+            if notice.method == "account/login/completed" {
+                self.frames.push_back(bytes);
+            }
+            Ok(())
+        }
+    }
+
+    fn run_device_login(
+        executable: &Path,
+        sandbox: &Sandbox,
+        control: Arc<ProcessControl>,
+        timeouts: Timeouts,
+        before_start: impl Fn() -> Result<(), SessionError>,
+        prompt: impl FnOnce(crate::DeviceLoginPrompt) -> Result<(), SessionError>,
+    ) -> Result<ProviderProbe, SessionError> {
+        use crate::{LoginFlow, LoginState, parse_login_start};
+        let (mut process, server) =
+            start_initialized(executable, sandbox, control, timeouts, before_start)?;
         let process_id = process.id()?;
+        let mut attempt = None;
         let result = (|| {
-            process.send(&Request::initialize(1).to_line()?)?;
-            let server = parse_initialize(
-                &process.response(1, timeouts.ready)?,
-                1,
-                &sandbox.codex_home,
-            )?;
-            process.send(initialized_notification())?;
-            process.send(&Request::account_read(2).to_line()?)?;
-            let account = parse_account(&process.response(2, timeouts.read)?, 2)?;
+            let mut notifications = LoginNotifications::default();
+            process.send(&Request::login_start(3, LoginFlow::DeviceCode).to_line()?)?;
+            let response =
+                process.response_routed(3, Instant::now() + timeouts.read, true, |bytes| {
+                    notifications.retain(bytes)
+                })?;
+            let (pending, metadata) =
+                parse_login_start(&response, 3, LoginFlow::DeviceCode)?.into_device()?;
+            attempt = Some(pending);
+            prompt(metadata)?;
+            let deadline = Instant::now() + timeouts.login;
+            let login = attempt.as_mut().ok_or(ProtocolError::InvalidMessage)?;
+            loop {
+                process.control.check_cancelled()?;
+                if Instant::now() >= deadline {
+                    return Err(SessionError::TimedOut);
+                }
+                if let Some(bytes) = notifications.frames.pop_front() {
+                    match login.apply_completion(&bytes)? {
+                        LoginState::NeedsAccountRead => break,
+                        _ => return Err(ProtocolError::ProviderFailure.into()),
+                    }
+                }
+                let bytes = process.line(deadline)?;
+                // Notifications must not impersonate replies or server requests.
+                #[derive(Deserialize)]
+                struct Route {
+                    #[serde(default, deserialize_with = "has_id")]
+                    id: bool,
+                }
+                fn has_id<'de, D: serde::Deserializer<'de>>(
+                    deserializer: D,
+                ) -> Result<bool, D::Error> {
+                    serde::de::IgnoredAny::deserialize(deserializer).map(|_| true)
+                }
+                let route: Route =
+                    serde_json::from_slice(&bytes).map_err(|_| ProtocolError::InvalidMessage)?;
+                if route.id {
+                    return Err(ProtocolError::MismatchedRequest.into());
+                }
+                notifications.retain(bytes)?;
+            }
+            process.send(&Request::account_read(4).to_line()?)?;
+            let account = parse_account(&process.response(4, timeouts.read)?, 4)?;
+            if account.authentication != crate::AccountAuth::Chatgpt {
+                return Err(ProtocolError::UnsupportedAuthentication.into());
+            }
             Ok(ProviderProbe {
                 server,
                 account,
@@ -605,6 +776,21 @@ pub(crate) mod unix {
                 process_id,
             })
         })();
+        if result.is_err()
+            && let Some(login) = &attempt
+            && login.state() == LoginState::Pending
+        {
+            // Cancellation ends the attempt; it does not prove that provider credentials were removed.
+            // Ignore provider text and always stop/reap the owned process after this bounded request.
+            if let Ok(request) = login
+                .cancel_request(5)
+                .and_then(|request| request.to_line())
+                && process.send_during_cleanup(&request).is_ok()
+            {
+                let _ =
+                    process.response_routed(5, Instant::now() + CANCEL_TIMEOUT, false, |_| Ok(()));
+            }
+        }
         process.stop()?;
         result
     }
