@@ -1,4 +1,6 @@
 import { Button } from './components/ui/button';
+import { Collapsible, CollapsibleTrigger, CollapsiblePanel } from './components/ui/collapsible';
+import './quota-disclosure.css';
 import { Meter, MeterIndicator, MeterLabel, MeterTrack, MeterValue } from './components/ui/meter';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { invoke, type ProviderExecutableApproval, type ProfileQuotaPreview, type QuotaWindow } from './contracts';
@@ -16,6 +18,15 @@ type Props = {
 type Outcome = { kind: 'error' | 'cancelled'; message: string } | { kind: 'preview'; value: ProfileQuotaPreview };
 const dateFormat = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' });
 function date(value: string) { return dateFormat.format(new Date(value)); }
+function QuotaDisclosure({ label, className, defaultOpen = false, children }: { label: ReactNode; className: string; defaultOpen?: boolean; children: ReactNode }) {
+  return <Collapsible className={className} defaultOpen={defaultOpen}>
+    <CollapsibleTrigger render={<Button variant="ghost" className="quota-disclosure-trigger" />} type="button">
+      <svg className="quota-disclosure-caret" aria-hidden="true" focusable="false" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="m6 4 4 4-4 4" /></svg>
+      {label}
+    </CollapsibleTrigger>
+    <CollapsiblePanel>{children}</CollapsiblePanel>
+  </Collapsible>;
+}
 function WindowValues({ value }: { value: QuotaWindow }) {
   const reset = value.resetsAtUnix === null ? null : new Date(value.resetsAtUnix * 1000).toISOString();
   return <div className="quota-window">
@@ -96,14 +107,13 @@ export function ProfileQuotaRead({ profileId, profileLabel, approval, busy, onAc
       {outcome.kind !== 'preview' ? <p>{outcome.message}</p> : <>
         <div className="quota-preview-heading"><h3>Quota preview</h3>{approval.sourceKind === 'test_fixture' && <span className="quota-fixture-label" data-provider-fixture>Synthetic test data</span>}</div>
         <div className="quota-preview-meta"><p>Unverified identity · Not saved</p><p className="quota-observed">Read <time dateTime={outcome.value.observedAtUtc}>{date(outcome.value.observedAtUtc)}</time></p></div>
-        {outcome.value.limits.length === 0 ? <p>Codex returned no quota limits for this profile. Missing readings do not mean zero usage.</p> : outcome.value.limits.map((limit, index) => <details className="quota-limit" open={index === 0} key={`${outcome.value.requestId}:${limit.limitId}`}>
-          <summary><bdi>{limit.limitName ?? limit.limitId}</bdi></summary>
+        {outcome.value.limits.length === 0 ? <p>Codex returned no quota limits for this profile. Missing readings do not mean zero usage.</p> : outcome.value.limits.map((limit, index) => <QuotaDisclosure className="quota-limit" defaultOpen={index === 0} key={`${outcome.value.requestId}:${limit.limitId}`} label={<bdi>{limit.limitName ?? limit.limitId}</bdi>}>
           <div className="quota-windows">{limit.primary && <WindowValues value={limit.primary} />}{limit.secondary && <WindowValues value={limit.secondary} />}</div>
           {!limit.primary && !limit.secondary && <p>No quota windows were supplied for this limit.</p>}
           {(limit.primary === null || limit.secondary === null) && (limit.primary || limit.secondary) && <p className="provider-help">{limit.primary === null ? 'Primary window' : 'Secondary window'}: Not available</p>}
-          <details className="quota-source-details"><summary>Reading details</summary><dl className="backup-inspection-metadata"><dt>Provider limit ID</dt><dd><bdi>{limit.limitId}</bdi></dd><dt>Provider status</dt><dd><bdi>{limit.reachedType ?? 'Not supplied'}</bdi></dd></dl></details>
-        </details>)}
-        <details className="quota-preview-notes"><summary>About this preview</summary><p>These readings are not saved or included in combined totals. Monitoring is stopped.</p><p>Remaining quota is calculated from reported usage. Expected reset times do not confirm that a reset occurred.</p><p>Credits and activity history are not available in this preview.</p></details>
+          <QuotaDisclosure className="quota-source-details" label="Reading details"><dl className="backup-inspection-metadata"><dt>Provider limit ID</dt><dd><bdi>{limit.limitId}</bdi></dd><dt>Provider status</dt><dd><bdi>{limit.reachedType ?? 'Not supplied'}</bdi></dd></dl></QuotaDisclosure>
+        </QuotaDisclosure>)}
+        <QuotaDisclosure className="quota-preview-notes" label="About this preview"><p>These readings are not saved or included in combined totals. Monitoring is stopped.</p><p>Remaining quota is calculated from reported usage. Expected reset times do not confirm that a reset occurred.</p><p>Credits and activity history are not available in this preview.</p></QuotaDisclosure>
       </>}
     </div>}
   </div>;
