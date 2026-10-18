@@ -35,6 +35,8 @@
     "allow-discover-provider-executables",
     "allow-load-profile-activity",
     "allow-begin-profile-activity-read",
+    "allow-begin-profile-activity-reassociation",
+    "allow-review-profile-activity-association",
     "allow-complete-profile-activity-read",
     "allow-cancel-profile-activity-read",
     "allow-begin-profile-quota-read",
