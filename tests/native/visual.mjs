@@ -218,7 +218,7 @@ try {
   evidence.expectedFont = expectedFont;
   evidence.sourceDirtyPaths = execFileSync('git', ['status', '--porcelain'], { cwd: repository, encoding: 'utf8' }).trim().split('\n').filter(Boolean);
   evidence.sourceHashes = {};
-  for (const path of ['Cargo.lock', 'apps/desktop/src-tauri/tauri.conf.json', 'apps/desktop/src-tauri/src/main.rs', 'apps/desktop/src-tauri/src/workspace.rs', 'apps/desktop/src/main.tsx', 'apps/desktop/src/styles.css', 'apps/desktop/src/contracts.ts', 'apps/desktop/public/fonts/Geist-Variable.woff2']) evidence.sourceHashes[path] = await hash(join(repository, path));
+  for (const path of ['Cargo.lock', 'apps/desktop/src-tauri/tauri.conf.json', 'apps/desktop/src-tauri/src/main.rs', 'apps/desktop/src-tauri/src/workspace.rs', 'apps/desktop/src/main.tsx', 'apps/desktop/src/styles.css', 'apps/desktop/src/contracts.ts', ...['Regular', 'Medium', 'SemiBold'].map(weight => `apps/desktop/public/fonts/JetBrainsMono-${weight}.woff2`), 'apps/desktop/public/fonts/JetBrainsMono-OFL.txt']) evidence.sourceHashes[path] = await hash(join(repository, path));
 
   fixture = await createFixture('visual-os');
   await startSecretService(fixture);
