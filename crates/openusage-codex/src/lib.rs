@@ -11,6 +11,8 @@ pub use quota::{
 
 pub const PROTOCOL_BASELINE: &str = "rust-v0.163.0";
 pub const MAX_MESSAGE_BYTES: usize = 1_048_576;
+/// Application preview guard, not a provider coverage or history maximum.
+pub const MAX_ACTIVITY_DAILY_BUCKETS: usize = 4096;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ProtocolError {
@@ -545,11 +547,11 @@ impl LoginAttempt {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[derive(Clone, Eq, PartialEq, Serialize)]
 #[serde(transparent)]
 pub struct DecimalCount(String);
 
-#[derive(Debug, Serialize)]
+#[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActivitySummary {
     pub lifetime_tokens: Option<DecimalCount>,
@@ -559,7 +561,7 @@ pub struct ActivitySummary {
     pub longest_streak_days: Option<DecimalCount>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DailyUsage {
     pub start_date: String,
@@ -572,12 +574,41 @@ pub enum ActivityScope {
     AccountActivityWithUnknownApplicationScope,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActivitySnapshot {
     pub summary: ActivitySummary,
     pub daily_usage_buckets: Option<Vec<DailyUsage>>,
     pub scope: ActivityScope,
+}
+
+impl fmt::Debug for DecimalCount {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("DecimalCount([redacted])")
+    }
+}
+
+impl fmt::Debug for ActivitySummary {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("ActivitySummary")
+            .finish_non_exhaustive()
+    }
+}
+
+impl fmt::Debug for DailyUsage {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.debug_struct("DailyUsage").finish_non_exhaustive()
+    }
+}
+
+impl fmt::Debug for ActivitySnapshot {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("ActivitySnapshot")
+            .field("scope", &self.scope)
+            .finish_non_exhaustive()
+    }
 }
 
 #[derive(Deserialize)]
@@ -621,6 +652,9 @@ pub fn parse_account_usage(bytes: &[u8], id: u32) -> Result<ActivitySnapshot, Pr
     let daily_usage_buckets = response
         .daily_usage_buckets
         .map(|buckets| {
+            if buckets.len() > MAX_ACTIVITY_DAILY_BUCKETS {
+                return Err(ProtocolError::InvalidField);
+            }
             let mut dates = BTreeSet::new();
             buckets
                 .into_iter()
