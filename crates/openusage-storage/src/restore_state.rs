@@ -214,4 +214,31 @@ mod tests {
         storage.backup_snapshot().unwrap();
         assert_eq!(storage.restore_state().unwrap(), before);
     }
+    #[test]
+    fn accepted_activity_invalidates_restore_revision_without_changing_profile_counts() {
+        let directory = crate::tests::private_directory();
+        let mut storage = Storage::create(&directory.path().join("live"), &KEY).unwrap();
+        let profile = "00000001-0000-4000-8000-000000000000";
+        storage
+            .create_profile(profile, "Synthetic activity revision", profile)
+            .unwrap();
+        let before = storage.restore_state().unwrap();
+        crate::backup_validation::activity_fixture(&mut storage, profile, profile, 100);
+        let after = storage.restore_state().unwrap();
+        assert_ne!(before.revision, after.revision);
+        assert_eq!(before.summary, after.summary);
+        assert!(after.logical_bytes >= before.logical_bytes);
+        assert!(
+            !before
+                .revision
+                .matches(&storage.revision_scope, &storage.connection)
+                .unwrap()
+        );
+        assert!(
+            after
+                .revision
+                .matches(&storage.revision_scope, &storage.connection)
+                .unwrap()
+        );
+    }
 }
