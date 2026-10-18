@@ -399,3 +399,43 @@ test('rejects malformed or secret-bearing quota payloads and unqualified identit
     await assert.rejects(invoke('complete_profile_quota_read', { profileId: value.profileId, requestId: value.requestId }), /desktop response is incompatible/);
   }
 });
+
+const activityRequest = { profileId: '11111111-1111-4111-8111-111111111111', requestId: '22222222-2222-4222-8222-222222222222', approvalId: '33333333-3333-4333-8333-333333333333', sourceKind: 'test_fixture', monitoring: 'stopped', accepted: false };
+const activityPreview = { ...activityRequest, providerVersion: '0.163.0', observedAtUtc: '2026-10-18T00:00:00.000Z', identityConfidence: 'provisional', verifiedIdentityKey: null, coverage: 'unknown', scope: 'account_activity_with_unknown_application_scope', summary: { lifetimeTokens: '9223372036854775807', peakDailyTokens: '9007199254740993', longestRunningTurnSec: null, currentStreakDays: '0', longestStreakDays: '1' }, dailyUsageBuckets: [{ startDate: '2024-02-29', tokens: '9223372036854775807' }, { startDate: '0001-01-01', tokens: '0' }] };
+const activityArgs = { profileId: activityRequest.profileId, requestId: activityRequest.requestId };
+
+test('accepts exact bounded activity previews without replacing null or reordering literal dates', async () => {
+  desktopResponse(activityRequest);
+  assert.deepEqual(await invoke('begin_profile_activity_read', { profileId: activityRequest.profileId, approvalId: activityRequest.approvalId }), activityRequest);
+  for (const dailyUsageBuckets of [null, [], activityPreview.dailyUsageBuckets, Array(4096).fill({ startDate: '9999-12-31', tokens: '0' })]) {
+    const value = { ...activityPreview, dailyUsageBuckets };
+    desktopResponse(value); assert.deepEqual(await invoke('complete_profile_activity_read', activityArgs), value);
+  }
+  desktopResponse({ cancelled: false });
+  assert.deepEqual(await invoke('cancel_profile_activity_read', activityArgs), { cancelled: false });
+});
+
+test('rejects activity completeness claims, leaked fields, malformed counts and missing summary metrics', async () => {
+  const summary = activityPreview.summary;
+  for (const change of [
+    { accepted: true }, { monitoring: 'running' }, { coverage: 'complete' }, { scope: 'codex_only' }, { verifiedIdentityKey: 'account' },
+    { accountId: 'private' }, { observedAtUtc: '2026-02-30T00:00:00.000Z' }, { summary: null },
+    ...[undefined, 0, -1, '01', '-1', '1.0', '9223372036854775808', ' 1', '1\n'].map(lifetimeTokens => ({ summary: { ...summary, lifetimeTokens } })),
+    { summary: { ...summary, rawPayload: 'private' } }, { summary: { ...summary, currentStreakDays: undefined } },
+  ]) {
+    desktopResponse({ ...activityPreview, ...change });
+    await assert.rejects(invoke('complete_profile_activity_read', activityArgs), /desktop response is incompatible/);
+  }
+});
+
+test('rejects oversized activity previews and invalid Gregorian days without truncation or normalization', async () => {
+  for (const dailyUsageBuckets of [
+    Array(4097).fill({ startDate: '2024-02-29', tokens: '0' }),
+    ...['2023-02-29', '2024-02-30', '0000-01-01', '2024-13-01', '2024-1-01', '2024-01-01Z', '2024-04-31'].map(startDate => [{ startDate, tokens: '0' }]),
+    ...[null, '01', '9223372036854775808', 10].map(tokens => [{ startDate: '2024-01-01', tokens }]),
+    [{ startDate: '2024-01-01', tokens: '0', accountId: 'private' }],
+  ]) {
+    desktopResponse({ ...activityPreview, dailyUsageBuckets });
+    await assert.rejects(invoke('complete_profile_activity_read', activityArgs), /desktop response is incompatible/);
+  }
+});

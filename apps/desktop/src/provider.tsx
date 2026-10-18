@@ -7,6 +7,7 @@ import { Field, FieldLabel, FieldDescription, FieldItem } from './components/ui/
 import { CollapsiblePanel } from './components/ui/collapsible';
 import { providerFailure } from './provider-errors';
 import { ProfileQuotaRead } from './quota';
+import { useActivityPreview } from './activity';
 import { ProfileDeviceLogin } from './login';
 import { invoke, type ProviderConnectionDiagnostic, type ProviderExecutableApproval, type ProviderExecutableCandidate, type ProviderExecutableDiscovery } from './contracts';
 
@@ -112,7 +113,7 @@ export function ProviderSettings({ busy, setBusy, approval, onApproved }: Settin
   return <section className="provider-panel" aria-labelledby="provider-heading">
     <details>
       <summary data-provider-settings><h2 id="provider-heading">Codex connection</h2></summary>
-      <p className="provider-help">Review Codex for this session, then sign in or preview quotas for a profile. Scheduled collection is not available yet.</p>
+      <p className="provider-help">Review Codex for this session, then sign in or preview quotas and activity for a profile. Scheduled collection is not available yet.</p>
       {approval && <div ref={approvalPanel} className="backup-receipt provider-approval-result" role="status" tabIndex={-1}>
         <h3>Executable approved for this session</h3><p className="provider-path"><bdi>{approval.path}</bdi></p>
         <p className="provider-help">OpenUsage checks compatibility before each connection check.</p>
@@ -145,7 +146,7 @@ export function ProviderSettings({ busy, setBusy, approval, onApproved }: Settin
           ? 'The checksum matches a reviewed source. Approve this file only if you trust it. Each profile uses its own Codex home.'
           : 'This file does not match a supported verified source. OpenUsage cannot approve it for execution.'}</p>
         <form className="provider-approval-form" onSubmit={event => { event.preventDefault(); void approve(); }}>
-          <Field disabled={busy || !candidate.sourceVerified}><FieldLabel className="backup-selection"><Checkbox nativeButton render={<button type="button" />} id="provider-executable-approved" required disabled={busy || !candidate.sourceVerified} checked={confirmed} aria-describedby="provider-trust-help" onCheckedChange={checked => setConfirmed(checked === true)} />I trust this executable for connection checks and quota previews.</FieldLabel></Field>
+          <Field disabled={busy || !candidate.sourceVerified}><FieldLabel className="backup-selection"><Checkbox nativeButton render={<button type="button" />} id="provider-executable-approved" required disabled={busy || !candidate.sourceVerified} checked={confirmed} aria-describedby="provider-trust-help" onCheckedChange={checked => setConfirmed(checked === true)} />I trust this executable for account checks and previews.</FieldLabel></Field>
           <Button className="primary-button" type="submit" disabled={busy || !confirmed || !candidate.sourceVerified}>{operation === 'approve' ? 'Approving executable…' : 'Approve executable'}</Button>
         </form>
       </div>}
@@ -173,8 +174,13 @@ export function ProfileProviderCheck({ profileId, profileLabel, approval, busy, 
     if (!checking && focus) { result.current?.focus(); setFocus(false); }
   }, [checking, focus, diagnostic, error]);
 
+  const activity = useActivityPreview({ profileId, profileLabel, approval, busy: busy || checking || loggingIn || readingQuota, onStarted: () => {
+    checkGeneration.current += 1; setDiagnostic(null); setError(null); setQuotaGeneration(value => value + 1); setLoginGeneration(value => value + 1);
+  } });
+
   async function check() {
-    if (busy || loggingIn || readingQuota || pending.current) return;
+    if (busy || loggingIn || readingQuota || activity.working || pending.current) return;
+    activity.clear();
     checkGeneration.current += 1;
     pending.current = true;
     setQuotaGeneration(value => value + 1);
@@ -203,14 +209,16 @@ export function ProfileProviderCheck({ profileId, profileLabel, approval, busy, 
     : diagnostic?.authentication === 'chatgpt' ? 'Account response received' : 'Account type not supported';
   return <div className="profile-provider-check">
     {checking && <div className="profile-actions"><span role="status">Checking connection…</span><Button className="text-button" variant="ghost" type="button" data-provider-cancel={profileId} aria-describedby={`profile-name-${profileId}`} disabled={cancelling} onClick={() => { void cancel(); }}>{cancelling ? 'Cancelling…' : 'Cancel check'}</Button></div>}
-    <ProfileDeviceLogin key={`login:${loginGeneration}`} profileId={profileId} profileLabel={profileLabel} approval={approval} busy={busy || checking || readingQuota} onActivity={setLoggingIn} onStarted={() => { checkGeneration.current += 1; setDiagnostic(null); setError(null); setQuotaGeneration(value => value + 1); }} />
-    <ProfileQuotaRead key={`quota:${quotaGeneration}`} profileId={profileId} profileLabel={profileLabel} approval={approval} busy={busy || checking || loggingIn} onActivity={setReadingQuota} onStarted={() => { checkGeneration.current += 1; setDiagnostic(null); setError(null); setLoginGeneration(value => value + 1); }} actionSiblings={<>
+    <ProfileDeviceLogin key={`login:${loginGeneration}`} profileId={profileId} profileLabel={profileLabel} approval={approval} busy={busy || checking || readingQuota || activity.working} onActivity={setLoggingIn} onStarted={() => { activity.clear(); checkGeneration.current += 1; setDiagnostic(null); setError(null); setQuotaGeneration(value => value + 1); }} />
+    <ProfileQuotaRead key={`quota:${quotaGeneration}`} profileId={profileId} profileLabel={profileLabel} approval={approval} busy={busy || checking || loggingIn || activity.working} onActivity={setReadingQuota} onStarted={() => { activity.clear(); checkGeneration.current += 1; setDiagnostic(null); setError(null); setLoginGeneration(value => value + 1); }} actionSiblings={<>
       {managementTrigger}
       <CollapsiblePanel keepMounted className="profile-management">
         {managementActions}
-        <Button className="text-button" variant="ghost" type="button" data-provider-check={profileId} aria-describedby={`profile-name-${profileId}`} disabled={busy || checking || loggingIn || readingQuota} onClick={() => { void check(); }}>Check connection</Button>
+        {activity.action}
+        <Button className="text-button" variant="ghost" type="button" data-provider-check={profileId} aria-describedby={`profile-name-${profileId}`} disabled={busy || checking || loggingIn || readingQuota || activity.working} onClick={() => { void check(); }}>Check connection</Button>
       </CollapsiblePanel>
     </>} />
+    {activity.content}
     {(diagnostic || error) && <div ref={result} className="provider-diagnostic" data-provider-profile={profileId} tabIndex={-1} role={error ? 'alert' : 'status'}>
       {error ? <p>{error}</p> : diagnostic && <>{diagnostic.sourceKind === 'test_fixture' && <p className="provider-fixture-note" data-provider-fixture>Synthetic provider fixture</p>}<p><strong>{title}</strong></p><p>{diagnostic.authentication === 'authentication_required'
         ? 'Codex reported no authorized account in this profile. Choose Sign in to connect this profile.'
