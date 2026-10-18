@@ -511,3 +511,429 @@ mod tests {
         assert_eq!(storage.metadata().unwrap().theme, Theme::Dark);
     }
 }
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct CheckpointVerification {
+    pub schema_version: u32,
+    pub file_bytes: u64,
+    pub summary: crate::BackupContentSummary,
+}
+
+impl Storage {
+    /// Only closed, private, standalone checkpoints can use immutable mode.
+    /// Verification streams encrypted pages. It does not allocate a full database image.
+    pub fn verify_encrypted_checkpoint(
+        &mut self,
+        path: &Path,
+    ) -> Result<CheckpointVerification, CheckpointError> {
+        self.with_verified_checkpoint(path, |_, verified| Ok(verified))
+    }
+    /// Recovery copies plaintext only into bounded Rust/SQLite memory. Large-history RAM remains unqualified.
+    pub fn read_encrypted_checkpoint(
+        &mut self,
+        path: &Path,
+    ) -> Result<crate::BackupSnapshot, CheckpointError> {
+        self.with_verified_checkpoint(path,|connection,verified| {
+            connection.execute_batch("ATTACH DATABASE ':memory:' AS openusage_recovery KEY ''; PRAGMA openusage_recovery.page_size=4096; PRAGMA openusage_recovery.max_page_count=1310720;").map_err(|_|CheckpointError::Unavailable)?;
+            let result=(|| {
+                let page_size:u64=connection.pragma_query_value(Some("openusage_recovery"),"page_size",|r|r.get(0)).map_err(|_|CheckpointError::Unavailable)?;
+                let page_limit:u64=connection.pragma_query_value(Some("openusage_recovery"),"max_page_count",|r|r.get(0)).map_err(|_|CheckpointError::Unavailable)?;
+                if page_size.checked_mul(page_limit)!=Some(crate::MAX_BACKUP_SNAPSHOT_SIZE) { return Err(CheckpointError::Unavailable); }
+                connection.execute_batch("SELECT sqlcipher_export('openusage_recovery','openusage_checkpoint');").map_err(|_|CheckpointError::Unavailable)?;
+                connection.pragma_update(Some("openusage_recovery"),"user_version",verified.schema_version).map_err(|_|CheckpointError::Unavailable)?;
+                let serialized=connection.serialize("openusage_recovery").map_err(|_|CheckpointError::Unavailable)?;
+                if serialized.len() as u64 > crate::MAX_BACKUP_SNAPSHOT_SIZE { return Err(CheckpointError::Unavailable); }
+                let mut bytes=zeroize::Zeroizing::new(Vec::new());
+                bytes.try_reserve_exact(serialized.len()).map_err(|_|CheckpointError::Unavailable)?;
+                bytes.extend_from_slice(&serialized);
+                Ok(crate::BackupSnapshot{schema_version:verified.schema_version,bytes})
+            })();
+            connection.execute_batch("DETACH DATABASE openusage_recovery").map_err(|_|CheckpointError::Unavailable)?;
+            result
+        })
+    }
+    fn with_verified_checkpoint<T>(
+        &mut self,
+        path: &Path,
+        operation: impl FnOnce(&Connection, CheckpointVerification) -> Result<T, CheckpointError>,
+    ) -> Result<T, CheckpointError> {
+        #[cfg(not(unix))]
+        {
+            let _ = (path, operation);
+            Err(CheckpointError::Unavailable)
+        }
+        #[cfg(unix)]
+        {
+            let held = ReadCheckpoint::open(path)?;
+            let uri = immutable_uri(path)?;
+            self.connection
+                .execute("ATTACH DATABASE ?1 AS openusage_checkpoint", [uri])
+                .map_err(|_| CheckpointError::VerificationFailed)?;
+            let result = (|| {
+                held.require_identity()?;
+                require_attached_identity(&self.connection)?;
+                let status = unsafe {
+                    rusqlite::ffi::sqlite3_db_readonly(
+                        self.connection.handle(),
+                        c"openusage_checkpoint".as_ptr(),
+                    )
+                };
+                if status != 1 {
+                    return Err(CheckpointError::VerificationFailed);
+                }
+                let mut options = ValidationOptions::new(&self.connection)?;
+                let checked = (|| {
+                    let schema_version: u32 = self
+                        .connection
+                        .pragma_query_value(Some("openusage_checkpoint"), "user_version", |r| {
+                            r.get(0)
+                        })
+                        .map_err(|_| CheckpointError::VerificationFailed)?;
+                    if schema_version != CURRENT_SCHEMA_VERSION {
+                        return Err(CheckpointError::UnsupportedSchema);
+                    }
+                    verify_checkpoint(&self.connection, schema_version)?;
+                    let summary = crate::backup_validation::validate_schema_connection(
+                        &self.connection,
+                        CURRENT_SCHEMA_VERSION,
+                        "openusage_checkpoint",
+                    )
+                    .map_err(|error| match error {
+                        crate::BackupValidationError::UnsupportedSchema => {
+                            CheckpointError::UnsupportedSchema
+                        }
+                        _ => CheckpointError::VerificationFailed,
+                    })?;
+                    held.require_identity()?;
+                    require_attached_identity(&self.connection)?;
+                    Ok(CheckpointVerification {
+                        schema_version: CURRENT_SCHEMA_VERSION,
+                        file_bytes: held
+                            .file
+                            .metadata()
+                            .map_err(|_| CheckpointError::InvalidPath)?
+                            .len(),
+                        summary,
+                    })
+                })();
+                options.restore()?;
+                let verified = checked?;
+                let result = operation(&self.connection, verified);
+                held.require_identity()?;
+                require_attached_identity(&self.connection)?;
+                result
+            })();
+            self.connection
+                .execute_batch("DETACH DATABASE openusage_checkpoint")
+                .map_err(|_| CheckpointError::Unavailable)?;
+            require_no_sidecars(path)?;
+            result
+        }
+    }
+}
+
+#[cfg(unix)]
+fn immutable_uri(path: &Path) -> Result<String, CheckpointError> {
+    use std::os::unix::ffi::OsStrExt;
+    let mut uri = String::from("file:");
+    for byte in path.as_os_str().as_bytes() {
+        use std::fmt::Write;
+        if byte.is_ascii_alphanumeric() || b"/-_.~".contains(byte) {
+            uri.push(char::from(*byte));
+        } else {
+            write!(&mut uri, "%{byte:02X}").map_err(|_| CheckpointError::InvalidPath)?;
+        }
+    }
+    uri.push_str("?mode=ro&immutable=1");
+    Ok(uri)
+}
+#[cfg(unix)]
+fn require_attached_identity(connection: &Connection) -> Result<(), CheckpointError> {
+    let mut moved: i32 = 1;
+    let status = unsafe {
+        rusqlite::ffi::sqlite3_file_control(
+            connection.handle(),
+            c"openusage_checkpoint".as_ptr(),
+            rusqlite::ffi::SQLITE_FCNTL_HAS_MOVED,
+            (&mut moved as *mut i32).cast(),
+        )
+    };
+    if status != rusqlite::ffi::SQLITE_OK || moved != 0 {
+        return Err(CheckpointError::InvalidPath);
+    }
+    Ok(())
+}
+#[cfg(unix)]
+struct ReadCheckpoint {
+    path: std::path::PathBuf,
+    file: File,
+    directory: File,
+    original: fs::Metadata,
+}
+#[cfg(unix)]
+impl ReadCheckpoint {
+    fn open(path: &Path) -> Result<Self, CheckpointError> {
+        use std::os::unix::fs::OpenOptionsExt;
+        validate_path(path).map_err(|_| CheckpointError::InvalidPath)?;
+        require_no_sidecars(path)?;
+        let file = OpenOptions::new()
+            .read(true)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK)
+            .open(path)
+            .map_err(|_| CheckpointError::InvalidPath)?;
+        let directory = OpenOptions::new()
+            .read(true)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_DIRECTORY)
+            .open(path.parent().ok_or(CheckpointError::InvalidPath)?)
+            .map_err(|_| CheckpointError::InvalidPath)?;
+        let original = file.metadata().map_err(|_| CheckpointError::InvalidPath)?;
+        let held = Self {
+            path: path.to_owned(),
+            file,
+            directory,
+            original,
+        };
+        held.require_identity()?;
+        Ok(held)
+    }
+    fn require_identity(&self) -> Result<(), CheckpointError> {
+        use std::os::unix::fs::MetadataExt;
+        let actual = fs::symlink_metadata(&self.path).map_err(|_| CheckpointError::InvalidPath)?;
+        let held = self
+            .file
+            .metadata()
+            .map_err(|_| CheckpointError::InvalidPath)?;
+        let parent = fs::symlink_metadata(self.path.parent().ok_or(CheckpointError::InvalidPath)?)
+            .map_err(|_| CheckpointError::InvalidPath)?;
+        let directory = self
+            .directory
+            .metadata()
+            .map_err(|_| CheckpointError::InvalidPath)?;
+        if !actual.is_file()
+            || !parent.is_dir()
+            || parent.file_type().is_symlink()
+            || actual.dev() != held.dev()
+            || actual.ino() != held.ino()
+            || held.len() != self.original.len()
+            || held.mtime() != self.original.mtime()
+            || held.mtime_nsec() != self.original.mtime_nsec()
+            || held.ctime() != self.original.ctime()
+            || held.ctime_nsec() != self.original.ctime_nsec()
+            || parent.dev() != directory.dev()
+            || parent.ino() != directory.ino()
+            || held.uid() != unsafe { libc::geteuid() }
+            || directory.uid() != held.uid()
+            || held.mode() & 0o777 != 0o600
+            || directory.mode() & 0o777 != 0o700
+            || held.nlink() != 1
+            || held.len() == 0
+        {
+            return Err(CheckpointError::InvalidPath);
+        }
+        require_no_sidecars(&self.path)
+    }
+}
+
+#[cfg(all(test, unix))]
+mod readonly_tests {
+    use super::*;
+    use crate::{Theme, validate_checkpoint_restore_input};
+    const KEY: [u8; 32] = [0x79; 32];
+    #[test]
+    fn verification_and_recovery_preserve_checkpoint_bytes_and_create_no_sidecars() {
+        let directory = crate::tests::private_directory();
+        let path = directory.path().join("checkpoint ?#%ü");
+        let mut live = Storage::create(&directory.path().join("live"), &KEY).unwrap();
+        live.set_theme(Theme::Dark).unwrap();
+        live.create_encrypted_checkpoint(&path).unwrap();
+        let original = fs::read(&path).unwrap();
+        let revision = live.restore_state().unwrap().revision;
+        let verified = live.verify_encrypted_checkpoint(&path).unwrap();
+        assert_eq!(verified.file_bytes, original.len() as u64);
+        let snapshot = live.read_encrypted_checkpoint(&path).unwrap();
+        assert!(snapshot.bytes.starts_with(b"SQLite format 3\0"));
+        assert_eq!(
+            validate_checkpoint_restore_input(&snapshot.bytes, 1)
+                .unwrap()
+                .summary,
+            verified.summary
+        );
+        assert_eq!(fs::read(&path).unwrap(), original);
+        require_no_sidecars(&path).unwrap();
+        assert_eq!(live.restore_state().unwrap().revision, revision);
+        live.set_theme(Theme::Light).unwrap();
+        assert_eq!(live.metadata().unwrap().theme, Theme::Light);
+    }
+    #[test]
+    fn verification_rejects_corruption_links_and_sidecars_and_restores_query_only() {
+        use std::os::unix::fs::symlink;
+        let directory = crate::tests::private_directory();
+        let path = directory.path().join("checkpoint");
+        let mut live = Storage::create(&directory.path().join("live"), &KEY).unwrap();
+        live.create_encrypted_checkpoint(&path).unwrap();
+        let link = directory.path().join("link");
+        symlink(&path, &link).unwrap();
+        assert!(live.verify_encrypted_checkpoint(&link).is_err());
+        let hardlink = directory.path().join("hardlink");
+        fs::hard_link(&path, &hardlink).unwrap();
+        assert!(live.verify_encrypted_checkpoint(&path).is_err());
+        fs::remove_file(hardlink).unwrap();
+        fs::write(directory.path().join("checkpoint-wal"), b"preserved").unwrap();
+        assert!(live.verify_encrypted_checkpoint(&path).is_err());
+        assert_eq!(
+            fs::read(directory.path().join("checkpoint-wal")).unwrap(),
+            b"preserved"
+        );
+        fs::remove_file(directory.path().join("checkpoint-wal")).unwrap();
+        let mut bytes = fs::read(&path).unwrap();
+        bytes[100] ^= 1;
+        fs::write(&path, bytes).unwrap();
+        assert_eq!(
+            live.verify_encrypted_checkpoint(&path),
+            Err(CheckpointError::VerificationFailed)
+        );
+        assert!(
+            !live
+                .connection
+                .pragma_query_value(None, "query_only", |r| r.get::<_, bool>(0))
+                .unwrap()
+        );
+        live.set_theme(Theme::Dark).unwrap();
+    }
+}
+
+#[cfg(unix)]
+struct ValidationOptions<'a> {
+    connection: &'a Connection,
+    configs: Vec<(rusqlite::config::DbConfig, bool)>,
+    query_only: bool,
+    active: bool,
+}
+#[cfg(unix)]
+impl<'a> ValidationOptions<'a> {
+    fn new(connection: &'a Connection) -> Result<Self, CheckpointError> {
+        use rusqlite::config::DbConfig;
+        let query_only = connection
+            .pragma_query_value(None, "query_only", |r| r.get(0))
+            .map_err(|_| CheckpointError::Unavailable)?;
+        let mut options = Self {
+            connection,
+            configs: Vec::new(),
+            query_only,
+            active: true,
+        };
+        for (config, enabled) in [
+            (DbConfig::SQLITE_DBCONFIG_DEFENSIVE, true),
+            (DbConfig::SQLITE_DBCONFIG_TRUSTED_SCHEMA, false),
+            (DbConfig::SQLITE_DBCONFIG_ENABLE_TRIGGER, false),
+            (DbConfig::SQLITE_DBCONFIG_ENABLE_VIEW, false),
+        ] {
+            let previous = connection
+                .db_config(config)
+                .map_err(|_| CheckpointError::Unavailable)?;
+            options.configs.push((config, previous));
+            if connection
+                .set_db_config(config, enabled)
+                .map_err(|_| CheckpointError::Unavailable)?
+                != enabled
+            {
+                return Err(CheckpointError::Unavailable);
+            }
+        }
+        connection
+            .pragma_update(None, "query_only", true)
+            .map_err(|_| CheckpointError::Unavailable)?;
+        let started = std::time::Instant::now();
+        connection
+            .progress_handler(
+                10_000,
+                Some(move || started.elapsed() > std::time::Duration::from_secs(60)),
+            )
+            .map_err(|_| CheckpointError::Unavailable)?;
+        Ok(options)
+    }
+    fn restore(&mut self) -> Result<(), CheckpointError> {
+        let mut failed = false;
+        failed |= self
+            .connection
+            .progress_handler(0, None::<fn() -> bool>)
+            .is_err();
+        failed |= self
+            .connection
+            .pragma_update(None, "query_only", self.query_only)
+            .is_err();
+        for (config, enabled) in self.configs.iter().rev() {
+            failed |= self.connection.set_db_config(*config, *enabled).is_err();
+        }
+        self.active = failed;
+        if failed {
+            Err(CheckpointError::Unavailable)
+        } else {
+            Ok(())
+        }
+    }
+}
+#[cfg(unix)]
+impl Drop for ValidationOptions<'_> {
+    fn drop(&mut self) {
+        if self.active {
+            let _ = self.restore();
+        }
+    }
+}
+
+#[cfg(all(test, unix))]
+mod recovery_tests {
+    use crate::{RestoreHomeMapping, Storage, Theme, validate_checkpoint_restore_input};
+    const KEY: [u8; 32] = [0x32; 32];
+    #[test]
+    fn original_encrypted_checkpoint_reverses_a_restore_after_reopen() {
+        let directory = crate::tests::private_directory();
+        let live_path = directory.path().join("live");
+        let checkpoint = directory.path().join("checkpoint");
+        let original_id = "00000001-0000-4000-8000-000000000000";
+        let mut live = Storage::create(&live_path, &KEY).unwrap();
+        live.create_profile(original_id, "Original checkpoint records", original_id)
+            .unwrap();
+        live.set_theme(Theme::Dark).unwrap();
+        live.create_encrypted_checkpoint(&checkpoint).unwrap();
+        let original_file = std::fs::read(&checkpoint).unwrap();
+        let mut incoming = Storage::create(&directory.path().join("incoming"), &KEY).unwrap();
+        incoming.set_theme(Theme::Light).unwrap();
+        incoming
+            .create_profile(original_id, "Incoming records", original_id)
+            .unwrap();
+        let archive = incoming.backup_snapshot().unwrap();
+        let revision = live.restore_state().unwrap().revision;
+        live.replace_records_from_backup(
+            &archive.bytes,
+            1,
+            &revision,
+            &[RestoreHomeMapping {
+                profile_id: original_id.into(),
+                managed_home_reference: "00000002-0000-4000-8000-000000000000".into(),
+            }],
+        )
+        .unwrap();
+        drop(live);
+        let mut live = Storage::open(&live_path, &KEY).unwrap();
+        assert_eq!(live.metadata().unwrap().theme, Theme::Light);
+        let saved = live.read_encrypted_checkpoint(&checkpoint).unwrap();
+        let metadata = validate_checkpoint_restore_input(&saved.bytes, 1).unwrap();
+        let revision = live.restore_state().unwrap().revision;
+        live.replace_records_from_checkpoint(&saved.bytes, 1, &revision, &metadata.homes)
+            .unwrap();
+        assert_eq!(live.metadata().unwrap().theme, Theme::Dark);
+        assert_eq!(
+            live.list_profiles().unwrap()[0].label,
+            "Original checkpoint records"
+        );
+        let recovered_revision = live.restore_state().unwrap().revision;
+        assert_eq!(
+            live.restore_home_mappings(&recovered_revision).unwrap()[0].managed_home_reference,
+            original_id
+        );
+        assert_eq!(std::fs::read(&checkpoint).unwrap(), original_file);
+        super::require_no_sidecars(&checkpoint).unwrap();
+    }
+}

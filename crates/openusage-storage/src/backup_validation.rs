@@ -65,12 +65,23 @@ fn validate_snapshot(
     manifest_schema_version: u32,
     native_only: bool,
 ) -> Result<BackupContentSummary> {
+    with_validated_snapshot(bytes, manifest_schema_version, native_only, |_, summary| {
+        Ok(summary)
+    })
+}
+
+pub(crate) fn with_validated_snapshot<T, E: From<BackupValidationError>>(
+    bytes: &[u8],
+    manifest_schema_version: u32,
+    native_only: bool,
+    operation: impl FnOnce(&Connection, BackupContentSummary) -> std::result::Result<T, E>,
+) -> std::result::Result<T, E> {
     if manifest_schema_version != CURRENT_SCHEMA_VERSION {
-        return Err(BackupValidationError::UnsupportedSchema);
+        return Err(BackupValidationError::UnsupportedSchema.into());
     }
     validate_size(bytes.len() as u64)?;
     if !bytes.starts_with(b"SQLite format 3\0") || bytes[18..20] != [1, 1] {
-        return Err(BackupValidationError::InvalidDatabase);
+        return Err(BackupValidationError::InvalidDatabase.into());
     }
     let size = bytes
         .len()
@@ -101,11 +112,12 @@ fn validate_snapshot(
         )
     };
     if status != ffi::SQLITE_OK {
-        return Err(if status == ffi::SQLITE_NOMEM {
+        return Err((if status == ffi::SQLITE_NOMEM {
             BackupValidationError::Unavailable
         } else {
             BackupValidationError::InvalidDatabase
-        });
+        })
+        .into());
     }
     let checked = validate_connection(&connection, manifest_schema_version).and_then(|summary| {
         if native_only {
@@ -122,7 +134,10 @@ fn validate_snapshot(
         }
         Ok(summary)
     });
-    // All validation statements have finished before this explicit close.
+    let checked = checked
+        .map_err(E::from)
+        .and_then(|summary| operation(&connection, summary));
+    // Close the borrowed source and wipe its image before a returned target transaction commits.
     connection
         .close()
         .map_err(|_| BackupValidationError::Unavailable)?;
@@ -216,25 +231,38 @@ fn memory_connection() -> Result<Connection> {
     Ok(connection)
 }
 
-fn validate_connection(
+pub(crate) fn validate_connection(
     connection: &Connection,
     manifest_version: u32,
 ) -> Result<BackupContentSummary> {
+    validate_schema_connection(connection, manifest_version, "main")
+}
+
+pub(crate) fn validate_schema_connection(
+    connection: &Connection,
+    manifest_version: u32,
+    schema: &str,
+) -> Result<BackupContentSummary> {
+    if !matches!(schema, "main" | "openusage_checkpoint") {
+        return Err(BackupValidationError::Unavailable);
+    }
     let version: i64 = connection
-        .pragma_query_value(None, "user_version", |row| row.get(0))
+        .pragma_query_value(Some(schema), "user_version", |row| row.get(0))
         .map_err(sql_error)?;
     if version != i64::from(manifest_version) {
         return Err(BackupValidationError::UnsupportedSchema);
     }
-    require_schema(connection)?;
+    require_schema(connection, schema)?;
     let integrity: String = connection
-        .query_row("PRAGMA integrity_check(1)", [], |row| row.get(0))
+        .query_row(&format!("PRAGMA {schema}.integrity_check(1)"), [], |row| {
+            row.get(0)
+        })
         .map_err(sql_error)?;
     if integrity != "ok" {
         return Err(BackupValidationError::InvalidDatabase);
     }
     let mut foreign_keys = connection
-        .prepare("PRAGMA foreign_key_check")
+        .prepare(&format!("PRAGMA {schema}.foreign_key_check"))
         .map_err(sql_error)?;
     if foreign_keys
         .query([])
@@ -245,9 +273,9 @@ fn validate_connection(
     {
         return Err(BackupValidationError::InvalidDatabase);
     }
-    let settings_supported = validate_settings(connection)?;
-    let (accounts, accounts_supported) = validate_accounts(connection)?;
-    let (active_profiles, archived_profiles) = validate_profiles(connection)?;
+    let settings_supported = validate_settings(connection, schema)?;
+    let (accounts, accounts_supported) = validate_accounts(connection, schema)?;
+    let (active_profiles, archived_profiles) = validate_profiles(connection, schema)?;
     if !settings_supported || !accounts_supported {
         return Err(BackupValidationError::UnsupportedContent);
     }
@@ -258,7 +286,7 @@ fn validate_connection(
     })
 }
 
-fn require_schema(connection: &Connection) -> Result<()> {
+fn require_schema(connection: &Connection, schema: &str) -> Result<()> {
     let reference = memory_connection()?;
     reference
         .pragma_update(None, "query_only", false)
@@ -276,7 +304,9 @@ fn require_schema(connection: &Connection) -> Result<()> {
     let mut expected_rows = expected
         .query([])
         .map_err(|_| BackupValidationError::Unavailable)?;
-    let mut actual = connection.prepare(CATALOG).map_err(sql_error)?;
+    let mut actual = connection
+        .prepare(&CATALOG.replace("sqlite_schema", &format!("{schema}.sqlite_schema")))
+        .map_err(sql_error)?;
     let mut actual_rows = actual.query([]).map_err(sql_error)?;
     while let Some(row) = expected_rows
         .next()
@@ -327,7 +357,7 @@ fn require(condition: bool) -> Result<()> {
     }
 }
 
-fn canonical_uuid(value: &str) -> bool {
+pub(crate) fn canonical_uuid(value: &str) -> bool {
     if value.len() != 36 {
         return false;
     }
@@ -338,8 +368,8 @@ fn safe_text(value: &str) -> bool {
     !value.chars().any(char::is_control)
 }
 
-fn validate_profiles(connection: &Connection) -> Result<(u32, u64)> {
-    let mut statement = connection.prepare("SELECT id,account_id,name,environment,approved_home_reference,connection_state,archived,created_at,updated_at FROM profiles").map_err(sql_error)?;
+fn validate_profiles(connection: &Connection, schema: &str) -> Result<(u32, u64)> {
+    let mut statement = connection.prepare(&format!("SELECT id,account_id,name,environment,approved_home_reference,connection_state,archived,created_at,updated_at FROM {schema}.profiles")).map_err(sql_error)?;
     let mut rows = statement.query([]).map_err(sql_error)?;
     let mut active = 0u32;
     let mut archived = 0u64;
@@ -378,8 +408,8 @@ fn validate_profiles(connection: &Connection) -> Result<(u32, u64)> {
     Ok((active, archived))
 }
 
-fn validate_accounts(connection: &Connection) -> Result<(u64, bool)> {
-    let mut statement = connection.prepare("SELECT id,verified_identity_key,identity_confidence,returned_email,returned_plan,first_observed_at,last_observed_at FROM accounts").map_err(sql_error)?;
+fn validate_accounts(connection: &Connection, schema: &str) -> Result<(u64, bool)> {
+    let mut statement = connection.prepare(&format!("SELECT id,verified_identity_key,identity_confidence,returned_email,returned_plan,first_observed_at,last_observed_at FROM {schema}.accounts")).map_err(sql_error)?;
     let mut rows = statement.query([]).map_err(sql_error)?;
     let mut count = 0u64;
     let mut supported = true;
@@ -409,8 +439,8 @@ fn validate_accounts(connection: &Connection) -> Result<(u64, bool)> {
     Ok((count, supported))
 }
 
-fn validate_settings(connection: &Connection) -> Result<bool> {
-    let mut statement = connection.prepare("SELECT id,timezone,locale,theme,monitoring,retention_policy,created_at,updated_at FROM settings").map_err(sql_error)?;
+fn validate_settings(connection: &Connection, schema: &str) -> Result<bool> {
+    let mut statement = connection.prepare(&format!("SELECT id,timezone,locale,theme,monitoring,retention_policy,created_at,updated_at FROM {schema}.settings")).map_err(sql_error)?;
     let mut rows = statement.query([]).map_err(sql_error)?;
     let row = rows
         .next()
