@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import { Button } from './components/ui/button';
+import { Input } from './components/ui/input';
 import { invoke, type ProfileRecord, type ProfileView, type ProviderExecutableApproval } from './contracts';
 import { ProfileProviderCheck } from './provider';
 
@@ -170,12 +172,12 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval }: Pro
       <div className="profile-details"><bdi id={nameId} className="profile-label">{profile.label}</bdi><p className="profile-meta">{profile.environment === 'native' ? 'On this device' : 'WSL profile'}</p></div>
       {current ? <form className="profile-rename-form" onSubmit={event => { event.preventDefault(); rename(); }}>
         <label htmlFor={`profile-label-${profile.id}`}>New profile label</label>
-        <input ref={renameInput} id={`profile-label-${profile.id}`} name="profile-label" autoComplete="off" maxLength={1024} disabled={busy || loading} value={editing.label} aria-invalid={rowError && !!failure?.invalidLabel} aria-describedby={rowError ? 'profiles-error' : undefined} onChange={event => { setEditing({ id: profile.id, label: event.target.value }); setFailure(null); }} />
-        <div className="profile-actions"><button className="primary-button" type="submit" disabled={busy || loading}>Save</button><button className="secondary-button" type="button" disabled={busy || loading} onClick={() => { setEditing(null); setFailure(null); setFocusTarget({ id: profile.id, action: 'rename' }); }}>Cancel rename</button></div>
+        <Input nativeInput ref={renameInput} id={`profile-label-${profile.id}`} name="profile-label" autoComplete="off" maxLength={1024} disabled={busy || loading} value={editing.label} aria-invalid={rowError && !!failure?.invalidLabel} aria-describedby={rowError ? 'profiles-error' : undefined} onChange={event => { setEditing({ id: profile.id, label: event.target.value }); setFailure(null); }} />
+        <div className="profile-actions"><Button className="primary-button" type="submit" disabled={busy || loading}>Save</Button><Button className="secondary-button" variant="outline" type="button" disabled={busy || loading} onClick={() => { setEditing(null); setFailure(null); setFocusTarget({ id: profile.id, action: 'rename' }); }}>Cancel rename</Button></div>
         {rowError && error()}
       </form> : <div className="profile-actions">
-        <button className="secondary-button" type="button" data-profile-action="rename" aria-label="Rename profile" aria-describedby={nameId} disabled={busy || loading} onClick={() => { setEditing({ id: profile.id, label: profile.label }); setFailure(null); setFocusTarget('rename'); }}>Rename</button>
-        <button className="secondary-button" type="button" data-profile-action={profile.archived ? 'restore' : 'archive'} aria-label={profile.archived ? 'Restore profile' : 'Archive profile'} aria-describedby={nameId} disabled={busy || loading} onClick={() => archive(profile)}>{profile.archived ? 'Restore' : 'Archive'}</button>
+        <Button className="secondary-button" variant="outline" type="button" data-profile-action="rename" aria-label="Rename profile" aria-describedby={nameId} disabled={busy || loading} onClick={() => { setEditing({ id: profile.id, label: profile.label }); setFailure(null); setFocusTarget('rename'); }}>Rename</Button>
+        <Button className="secondary-button" variant="outline" type="button" data-profile-action={profile.archived ? 'restore' : 'archive'} aria-label={profile.archived ? 'Restore profile' : 'Archive profile'} aria-describedby={nameId} disabled={busy || loading} onClick={() => archive(profile)}>{profile.archived ? 'Restore' : 'Archive'}</Button>
       </div>}
       {!profile.archived && providerApproval && <ProfileProviderCheck key={`${profile.id}:${providerApproval.approvalId}`} profileId={profile.id} profileLabel={profile.label} approval={providerApproval} busy={busy || loading || current} />}
       {rowError && !current && error()}
@@ -189,12 +191,12 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval }: Pro
     <p id="profile-capacity" className="profile-capacity">Up to 10 profiles can be active. Archiving frees a slot and keeps local data.</p>
     <p className="profile-status" role="status">{loading ? 'Loading profiles…' : saving ? 'Saving profile changes…' : status}</p>
     {failure?.target === 'load' && error()}
-    {failure && !failure.invalidLabel && <button className="text-button" type="button" disabled={busy || loading} onClick={() => { setEditing(null); setAttempt(value => value + 1); }}>Reload profiles</button>}
+    {failure && !failure.invalidLabel && <Button className="text-button" variant="ghost" type="button" disabled={busy || loading} onClick={() => { setEditing(null); setAttempt(value => value + 1); }}>Reload profiles</Button>}
     {view && <>
       <form className="profile-create-form" onSubmit={event => { event.preventDefault(); create(); }}>
         <label htmlFor="profile-label">Profile label</label>
-        <input ref={createInput} id="profile-label" name="profile-label" autoComplete="off" maxLength={1024} disabled={busy || loading} value={label} aria-invalid={failure?.target === 'create' && failure.invalidLabel} aria-describedby={`profile-capacity${failure?.target === 'create' ? ' profiles-error' : ''}`} onChange={event => { setLabel(event.target.value); setFailure(null); }} />
-        <button className="primary-button" type="submit" disabled={busy || loading}>Create profile</button>
+        <Input nativeInput ref={createInput} id="profile-label" name="profile-label" autoComplete="off" maxLength={1024} disabled={busy || loading} value={label} aria-invalid={failure?.target === 'create' && failure.invalidLabel} aria-describedby={`profile-capacity${failure?.target === 'create' ? ' profiles-error' : ''}`} onChange={event => { setLabel(event.target.value); setFailure(null); }} />
+        <Button className="primary-button" type="submit" disabled={busy || loading}>Create profile</Button>
         {failure?.target === 'create' && error()}
       </form>
       {active.length ? <ul className="profile-list" aria-label="Active profiles">{active.map(row)}</ul> : <p className="profile-empty">No active profiles. Create a profile or restore an archived one.</p>}
