@@ -651,6 +651,29 @@ async fn cancel_profile_check(
 }
 
 #[tauri::command]
+async fn discover_provider_executables(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<provider::ExecutableDiscovery, CommandError> {
+    let _: ListProfilesArgs = arguments(&request)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let profiles = {
+            let state = service
+                .lock()
+                .map_err(|_| CommandError::ProviderDiscoveryUnavailable)?;
+            state
+                .as_ref()
+                .ok_or(CommandError::WorkspaceLocked)?
+                .provider_discovery_profiles()?
+        };
+        provider::discover(&profiles)
+    })
+    .await
+    .map_err(|_| CommandError::ProviderDiscoveryUnavailable)?
+}
+
+#[tauri::command]
 async fn begin_profile_login(
     request: tauri::ipc::Request<'_>,
     service: State<'_, WorkspaceService>,
@@ -786,7 +809,8 @@ fn main() {
             begin_profile_login,
             await_profile_login_prompt,
             complete_profile_login,
-            cancel_profile_login
+            cancel_profile_login,
+            discover_provider_executables
         ])
         .setup(|app| {
             let window = &app.config().app.windows[0];

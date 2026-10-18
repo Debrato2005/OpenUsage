@@ -94,6 +94,7 @@ pub enum CommandError {
     ProviderLoginCancelled,
     ProviderLoginTimedOut,
     ProviderLoginFailed,
+    ProviderDiscoveryUnavailable,
 }
 
 #[derive(Debug, Eq, PartialEq, Serialize)]
@@ -574,6 +575,11 @@ impl Workspace {
     ) -> Result<provider::ExecutableCandidate, CommandError> {
         self.storage.as_ref().ok_or(CommandError::WorkspaceLocked)?;
         self.provider.inspect(path)
+    }
+
+    pub fn provider_discovery_profiles(&self) -> Result<PathBuf, CommandError> {
+        self.storage.as_ref().ok_or(CommandError::WorkspaceLocked)?;
+        Ok(self.directory.join("profiles"))
     }
 
     pub fn approve_provider_executable(

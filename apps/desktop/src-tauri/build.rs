@@ -25,6 +25,7 @@ fn main() {
             "await_profile_login_prompt",
             "complete_profile_login",
             "cancel_profile_login",
+            "discover_provider_executables",
         ]),
     ))
     .expect("Failed to build the OpenUsage application manifest");

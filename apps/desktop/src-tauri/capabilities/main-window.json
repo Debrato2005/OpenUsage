@@ -30,6 +30,7 @@
     "allow-begin-profile-login",
     "allow-await-profile-login-prompt",
     "allow-complete-profile-login",
-    "allow-cancel-profile-login"
+    "allow-cancel-profile-login",
+    "allow-discover-provider-executables"
   ]
 }
