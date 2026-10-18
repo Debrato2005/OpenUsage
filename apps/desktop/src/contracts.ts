@@ -134,7 +134,25 @@ export interface ProviderExecutableDiscovery {
   truncated: boolean;
 }
 
+export interface ProfileQuotaRequest {
+  profileId: string; requestId: string; approvalId: string;
+  sourceKind: ProviderConnectionDiagnostic['sourceKind'];
+  monitoring: 'stopped'; accepted: false;
+}
+export interface QuotaWindow {
+  usedPercent: number; derivedRemainingPercent: number;
+  windowDurationMins: number | null; resetsAtUnix: number | null; label: string;
+}
+export interface ProfileQuotaPreview extends ProfileQuotaRequest {
+  providerVersion: string; observedAtUtc: string;
+  identityConfidence: 'provisional'; verifiedIdentityKey: null;
+  limits: { limitId: string; limitName: string | null; primary: QuotaWindow | null; secondary: QuotaWindow | null; reachedType: string | null }[];
+}
+
 interface Commands {
+  begin_profile_quota_read: { args: { profileId: string; approvalId: string }; result: ProfileQuotaRequest };
+  complete_profile_quota_read: { args: { profileId: string; requestId: string }; result: ProfileQuotaPreview };
+  cancel_profile_quota_read: { args: { profileId: string; requestId: string }; result: { cancelled: boolean } };
   discover_provider_executables: { args: undefined; result: ProviderExecutableDiscovery };
   begin_profile_login: { args: { profileId: string; approvalId: string; flow: 'device_code'; confirmed: true }; result: ProviderLoginAttempt };
   await_profile_login_prompt: { args: { profileId: string; attemptId: string }; result: ProviderLoginPrompt };
@@ -179,7 +197,10 @@ export async function invoke<K extends keyof Commands>(
   const core = window.__TAURI__?.core;
   if (!core) throw new DesktopUnavailable('Open the installed OpenUsage desktop application.');
   const response = await core.invoke<unknown>(command, args[0]);
-  const valid = command === 'discover_provider_executables' ? isProviderExecutableDiscovery(response)
+  const valid = command === 'begin_profile_quota_read' ? isProfileQuotaRequest(response)
+    : command === 'complete_profile_quota_read' ? isProfileQuotaPreview(response)
+    : command === 'cancel_profile_quota_read' ? isPreviewCancellation(response)
+    : command === 'discover_provider_executables' ? isProviderExecutableDiscovery(response)
     : command === 'begin_profile_login' ? isProviderLoginAttempt(response)
     : command === 'await_profile_login_prompt' ? isProviderLoginPrompt(response)
     : command === 'complete_profile_login' ? isProviderLoginCompletion(response)
@@ -215,6 +236,47 @@ function isWideCount(value: unknown): value is string {
 function isUtcTimestamp(value: unknown): value is string {
   return typeof value === 'string' && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(value)
     && Number.isFinite(Date.parse(value)) && new Date(value).toISOString() === value;
+}
+
+function isProfileQuotaRequest(value: unknown): value is ProfileQuotaRequest {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  return Object.keys(v).length === 6 && isQuotaBinding(v);
+}
+function isQuotaBinding(v: Record<string, unknown>): boolean {
+  return isUuid(v.profileId) && isUuid(v.requestId) && isUuid(v.approvalId)
+    && (v.sourceKind === 'official_artifact' || v.sourceKind === 'test_fixture')
+    && v.monitoring === 'stopped' && v.accepted === false;
+}
+function quotaText(value: unknown, maximum: number): value is string {
+  return typeof value === 'string' && value.length <= maximum && value.trim().length > 0 && !/\p{Cc}/u.test(value);
+}
+function isQuotaWindow(value: unknown): value is QuotaWindow | null {
+  if (value === null) return true;
+  if (typeof value !== 'object' || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  return Object.keys(v).length === 5 && Number.isInteger(v.usedPercent) && Number(v.usedPercent) >= 0 && Number(v.usedPercent) <= 100
+    && Number.isInteger(v.derivedRemainingPercent) && Number(v.derivedRemainingPercent) >= 0 && Number(v.derivedRemainingPercent) <= 100
+    && (v.windowDurationMins === null || (Number.isSafeInteger(v.windowDurationMins) && Number(v.windowDurationMins) > 0))
+    && (v.resetsAtUnix === null || (Number.isSafeInteger(v.resetsAtUnix) && Number(v.resetsAtUnix) >= -62135596800 && Number(v.resetsAtUnix) <= 253402300799))
+    && quotaText(v.label, 128);
+}
+function isProfileQuotaPreview(value: unknown): value is ProfileQuotaPreview {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  if (Object.keys(v).some(key => !['profileId', 'requestId', 'approvalId', 'sourceKind', 'monitoring', 'accepted', 'providerVersion', 'observedAtUtc', 'identityConfidence', 'verifiedIdentityKey', 'limits'].includes(key))
+    || !isQuotaBinding(v) || !quotaText(v.providerVersion, 80) || !isUtcTimestamp(v.observedAtUtc)
+    || v.identityConfidence !== 'provisional' || v.verifiedIdentityKey !== null || !Array.isArray(v.limits) || v.limits.length > 64) return false;
+  const ids = new Set<string>();
+  return v.limits.every(value => {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+    const limit = value as Record<string, unknown>;
+    if (Object.keys(limit).length !== 5 || !quotaText(limit.limitId, 128) || ids.has(limit.limitId)
+      || !(limit.limitName === null || quotaText(limit.limitName, 256))
+      || !(limit.reachedType === null || quotaText(limit.reachedType, 128))
+      || !isQuotaWindow(limit.primary) || !isQuotaWindow(limit.secondary)) return false;
+    ids.add(limit.limitId); return true;
+  });
 }
 
 function isProviderExecutableDiscovery(value: unknown): value is ProviderExecutableDiscovery {

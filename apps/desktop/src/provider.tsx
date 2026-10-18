@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { providerFailure } from './provider-errors';
+import { ProfileQuotaRead } from './quota';
 import { ProfileDeviceLogin } from './login';
 import { invoke, type ProviderConnectionDiagnostic, type ProviderExecutableApproval, type ProviderExecutableCandidate, type ProviderExecutableDiscovery } from './contracts';
 
@@ -105,7 +106,7 @@ export function ProviderSettings({ busy, setBusy, approval, onApproved }: Settin
   return <section className="provider-panel" aria-labelledby="provider-heading">
     <details>
       <summary data-provider-settings><h2 id="provider-heading">Codex connection</h2></summary>
-      <p className="provider-help">Review Codex once, then sign in to profiles or check their connections. Approval lasts for this application session. Usage collection is not available yet.</p>
+      <p className="provider-help">Review Codex for this session, then sign in or preview quotas for a profile. Scheduled collection is not available yet.</p>
       {approval && <div ref={approvalPanel} className="backup-receipt provider-approval-result" role="status" tabIndex={-1}>
         <h3>Executable approved for this session</h3><p className="provider-path"><bdi>{approval.path}</bdi></p>
         <p className="provider-help">OpenUsage checks compatibility before each connection check.</p>
@@ -138,7 +139,7 @@ export function ProviderSettings({ busy, setBusy, approval, onApproved }: Settin
           ? 'The checksum matches a reviewed source. Approve this file only if you trust it. Each profile uses its own Codex home.'
           : 'This file does not match a supported verified source. OpenUsage cannot approve it for execution.'}</p>
         <form className="provider-approval-form" onSubmit={event => { event.preventDefault(); void approve(); }}>
-          <label className="backup-selection"><input id="provider-executable-approved" type="checkbox" required disabled={busy || !candidate.sourceVerified} checked={confirmed} aria-describedby="provider-trust-help" onChange={event => setConfirmed(event.target.checked)} />I trust this executable and allow version and connection checks.</label>
+          <label className="backup-selection"><input id="provider-executable-approved" type="checkbox" required disabled={busy || !candidate.sourceVerified} checked={confirmed} aria-describedby="provider-trust-help" onChange={event => setConfirmed(event.target.checked)} />I trust this executable for connection checks and quota previews.</label>
           <button className="primary-button" type="submit" disabled={busy || !confirmed || !candidate.sourceVerified}>{operation === 'approve' ? 'Approving executable…' : 'Approve executable'}</button>
         </form>
       </div>}
@@ -150,6 +151,10 @@ export function ProviderSettings({ busy, setBusy, approval, onApproved }: Settin
 export function ProfileProviderCheck({ profileId, profileLabel, approval, busy }: { profileId: string; profileLabel: string; approval: ProviderExecutableApproval; busy: boolean }) {
   const [checking, setChecking] = useState(false);
   const [loggingIn, setLoggingIn] = useState(false);
+  const [readingQuota, setReadingQuota] = useState(false);
+  const [quotaGeneration, setQuotaGeneration] = useState(0);
+  const [loginGeneration, setLoginGeneration] = useState(0);
+  const checkGeneration = useRef(0);
   const [cancelling, setCancelling] = useState(false);
   const [diagnostic, setDiagnostic] = useState<ProviderConnectionDiagnostic | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -163,8 +168,10 @@ export function ProfileProviderCheck({ profileId, profileLabel, approval, busy }
   }, [checking, focus, diagnostic, error]);
 
   async function check() {
-    if (busy || loggingIn || pending.current) return;
+    if (busy || loggingIn || readingQuota || pending.current) return;
+    checkGeneration.current += 1;
     pending.current = true;
+    setQuotaGeneration(value => value + 1);
     setChecking(true);
     setDiagnostic(null);
     setError(null);
@@ -179,19 +186,21 @@ export function ProfileProviderCheck({ profileId, profileLabel, approval, busy }
 
   async function cancel() {
     if (!pending.current || cancelling) return;
+    const operation = checkGeneration.current;
     setCancelling(true);
     try { await invoke('cancel_profile_check', { profileId }); }
-    catch (failure) { if (alive.current) setError(providerFailure(failure)); }
-    finally { if (alive.current) setCancelling(false); }
+    catch (failure) { if (alive.current && checkGeneration.current === operation) setError(providerFailure(failure)); }
+    finally { if (alive.current && checkGeneration.current === operation) setCancelling(false); }
   }
 
   const title = diagnostic?.authentication === 'authentication_required' ? 'Sign-in required'
     : diagnostic?.authentication === 'chatgpt' ? 'Account response received' : 'Account type not supported';
   return <div className="profile-provider-check">
-    <div className="profile-actions"><button className="secondary-button" type="button" data-provider-check={profileId} aria-describedby={`profile-name-${profileId}`} disabled={busy || checking || loggingIn} onClick={() => { void check(); }}>{checking ? 'Checking connection…' : 'Check connection'}</button>
+    <div className="profile-actions"><button className="secondary-button" type="button" data-provider-check={profileId} aria-describedby={`profile-name-${profileId}`} disabled={busy || checking || loggingIn || readingQuota} onClick={() => { void check(); }}>{checking ? 'Checking connection…' : 'Check connection'}</button>
       {checking && <button className="text-button" type="button" data-provider-cancel={profileId} aria-describedby={`profile-name-${profileId}`} disabled={cancelling} onClick={() => { void cancel(); }}>{cancelling ? 'Cancelling…' : 'Cancel check'}</button>}
     </div>
-    <ProfileDeviceLogin profileId={profileId} profileLabel={profileLabel} approval={approval} busy={busy || checking} onActivity={setLoggingIn} onStarted={() => { setDiagnostic(null); setError(null); }} />
+    <ProfileQuotaRead key={quotaGeneration} profileId={profileId} profileLabel={profileLabel} approval={approval} busy={busy || checking || loggingIn} onActivity={setReadingQuota} onStarted={() => { checkGeneration.current += 1; setDiagnostic(null); setError(null); setLoginGeneration(value => value + 1); }} />
+    <ProfileDeviceLogin key={loginGeneration} profileId={profileId} profileLabel={profileLabel} approval={approval} busy={busy || checking || readingQuota} onActivity={setLoggingIn} onStarted={() => { checkGeneration.current += 1; setDiagnostic(null); setError(null); setQuotaGeneration(value => value + 1); }} />
     {(diagnostic || error) && <div ref={result} className="provider-diagnostic" data-provider-profile={profileId} tabIndex={-1} role={error ? 'alert' : 'status'}>
       {error ? <p>{error}</p> : diagnostic && <>{diagnostic.sourceKind === 'test_fixture' && <p className="provider-fixture-note" data-provider-fixture>Synthetic provider fixture</p>}<p><strong>{title}</strong></p><p>{diagnostic.authentication === 'authentication_required'
         ? 'Codex reported no authorized account in this profile. Choose Sign in to connect this profile.'
