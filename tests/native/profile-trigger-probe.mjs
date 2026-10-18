@@ -230,7 +230,7 @@ try {
         assert.equal(beforeProbe.targetActive,true,'The actual pointer click must focus the probe target.');
         const nativeKeys=JSON.parse(execFileSync('/usr/bin/python3',[join(harness,'x11-reverse-tab.py'),String(evidence.nativeWindowFocus.windowId)],{env:fixture.environment,encoding:'utf8',timeout:10000}));
         await driver.request('POST',`/session/${driver.session}/execute/async`,{script:'const done=arguments[arguments.length-1];requestAnimationFrame(()=>requestAnimationFrame(()=>done(true)));',args:[]});
-        const afterProbe=await driver.execute('const node=document.activeElement;return {tag:node?.tagName,id:node?.id,text:node?.textContent.trim().slice(0,80),cancel:node?.matches(arguments[0]),directPredecessor:node?.id==='native-direct-predecessor',targetActive:node===document.querySelector(arguments[1]),documentFocused:document.hasFocus(),events:window.__triggerProbe.events};',[cancel,installed.selector]);
+        const afterProbe=await driver.execute('const node=document.activeElement;return {tag:node?.tagName,id:node?.id,text:node?.textContent.trim().slice(0,80),cancel:node?.matches(arguments[0]),directPredecessor:node?.id==="native-direct-predecessor",targetActive:node===document.querySelector(arguments[1]),documentFocused:document.hasFocus(),events:window.__triggerProbe.events};',[cancel,installed.selector]);
         evidence.triggerCounterfactual.push({variant,installed,beforeProbe,nativeKeys,afterProbe});
       } finally {
         const restored=await driver.execute(`const p=window.__triggerProbe;
