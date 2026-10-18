@@ -1,0 +1,58 @@
+.coss-checkbox, .coss-radio {
+  box-sizing: border-box;
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  padding: 0;
+  border: 1px solid var(--control-border);
+  background: var(--surface);
+  color: var(--text);
+  vertical-align: middle;
+  box-shadow: none;
+  transition: none;
+}
+.coss-checkbox { border-radius: 4px; }
+.coss-radio { border-radius: 50%; }
+.coss-checkbox::before, .coss-radio::before { box-shadow: none; }
+.coss-checkbox:focus-visible, .coss-radio:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+  box-shadow: none;
+}
+.coss-checkbox[data-disabled], .coss-radio[data-disabled] { cursor: default; opacity: .64; }
+.coss-checkbox[data-checked], .coss-radio[data-checked] { border-color: var(--button); }
+.coss-checkbox[aria-invalid='true'], .coss-radio[aria-invalid='true'] { border-color: var(--error); }
+.coss-checkbox-indicator, .coss-radio-indicator { border-radius: inherit; color: var(--on-button); }
+.coss-checkbox-indicator[data-checked], .coss-radio-indicator[data-checked] { background: var(--button); }
+.coss-checkbox-indicator[data-indeterminate] { background: var(--surface); color: var(--text); }
+.coss-checkbox-indicator svg { width: 14px; height: 14px; }
+.coss-radio-indicator { width: 18px; height: 18px; }
+.coss-radio-indicator::before { width: 8px; height: 8px; background: var(--on-button); }
+.coss-radio-group { min-width: 0; }
+.coss-field { min-width: 0; }
+.coss-field-item { min-width: 0; }
+.coss-field-label {
+  min-width: 0;
+  color: var(--text);
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-body);
+}
+.coss-field-label:has(.coss-checkbox), .coss-field-label:has(.coss-radio) { min-height: 44px; }
+.coss-field-label[data-disabled] { opacity: .64; }
+.coss-field-description, .coss-field-error { font-size: var(--text-sm); line-height: var(--leading-body); overflow-wrap: anywhere; }
+.coss-field-description { color: var(--muted); }
+.coss-field-error { color: var(--error); }
+@media (forced-colors: active) {
+  .coss-checkbox, .coss-radio { border-color: ButtonText; background: Canvas; color: ButtonText; forced-color-adjust: none; }
+  .coss-checkbox:focus-visible, .coss-radio:focus-visible { outline-color: Highlight; }
+  .coss-checkbox[data-checked], .coss-radio[data-checked] { border-color: Highlight; }
+  .coss-checkbox-indicator[data-checked], .coss-radio-indicator[data-checked] { background: Highlight; color: HighlightText; }
+  .coss-checkbox-indicator[data-indeterminate] { background: Canvas; color: ButtonText; }
+  .coss-radio-indicator::before { background: HighlightText; }
+}
