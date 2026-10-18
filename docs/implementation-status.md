@@ -1,6 +1,6 @@
 # Implementation status
 
-Updated: October 18, 2026. The mission remains ongoing. Current milestone: confirmed native restore verified on Linux. Next slice: checkpoint recovery.
+Updated: October 18, 2026. The mission remains ongoing. Current milestone: confirmed restore and checkpoint recovery verified on Linux. Next slice: interrupted-restore qualification, then native provider approval and lifecycle.
 
 ## Implemented and executed
 
@@ -10,7 +10,7 @@ The actual Tauri 2 application compiles and runs with WebKitGTK. Native setup pr
 
 The run checked encrypted main/WAL content, rejection by unkeyed SQLite, private file modes, narrow command arguments, an isolated credential namespace, and an unchanged synthetic Codex home. Fresh screenshots and receipts are in `evidence/native-persistence/`. `NATIVE-SMOKE-001` also passed against the production configuration with an isolated session bus.
 
-The storage core verifies SQLCipher 4, WAL, foreign keys, FULL durability, busy timeout, schema access, and transactional migrations. The Codex crate runs an isolated provider probe and bounded checks for managed profiles. Its real Codex 0.163.0 disposable probe passed in fresh temporary homes, with no login or inference. Native provider collection remains incomplete. The explicit backup action takes a consistent WAL-aware snapshot in Rust memory, encrypts it, authenticates the entire archive, and publishes it without overwriting a file. `NATIVE-BACKUP-001` passed through the actual UI. A test-side verifier authenticated the saved file, rejected wrong passwords and tampering, and read its schema and saved theme entirely in memory. Native restore preview now uses durable encrypted checkpoints. Confirmed replacement passed its native journey. Checkpoint recovery remains incomplete.
+The storage core verifies SQLCipher 4, WAL, foreign keys, FULL durability, busy timeout, schema access, and transactional migrations. The Codex crate runs an isolated provider probe and bounded checks for managed profiles. Its real Codex 0.163.0 disposable probe passed in fresh temporary homes, with no login or inference. Native provider collection remains incomplete. The explicit backup action takes a consistent WAL-aware snapshot in Rust memory, encrypts it, authenticates the entire archive, and publishes it without overwriting a file. `NATIVE-BACKUP-001` passed through the actual UI. A test-side verifier authenticated the saved file, rejected wrong passwords and tampering, and read its schema and saved theme entirely in memory. Native restore preview now uses durable encrypted checkpoints. Confirmed replacement passed its native journey. Checkpoint recovery passed its native journey.
 
 The desktop now bundles the licensed Geist font, uses shared design tokens, and places accounts before backup controls. `NATIVE-VISUAL-001` passed with 46 native captures, both themes, actual desktop/narrow viewports, enlarged text, loaded-font checks, and password-error focus. Backup export passed again on the corrected UI. See `design/desktop-foundations.md` and `evidence/native-design/`.
 
@@ -26,19 +26,22 @@ Two further Rust cores passed their integrated checks. Encrypted checkpoints cap
 
 `NATIVE-RESTORE-APPLY-001` passed against the rebuilt application. Explicit confirmation restored the saved profile and appearance fields after restart. The original key and WAL remained intact. All imported profiles received fresh private homes, including archived profiles. Existing marker homes remained unchanged. Stale tokens, corrupt checkpoints, and filesystem faults preserved current records. Read-only oracles authenticated encrypted pages and matched the selected semantic fields. Four new captures passed desktop and narrow layout checks. The backup-content regression also passed with nine fresh captures. See `evidence/native-restore-apply/`, `evidence/native-backup-content-regression/`, and the [review](reviews/2026-10-18-confirmed-restore.md).
 
+`NATIVE-CHECKPOINT-RECOVERY-001` passed on the final rebuilt UI. A fresh preview recovered checkpoint B after a backup restore to A and a normal restart. The new pre-recovery checkpoint retained A. Original home mappings and markers returned with B, while imported homes remained intact. Seven native captures cover the refined catalog, both themes, narrow layouts, keyboard approval, and 200% test-side text scaling. The cache retains no plaintext checkpoint image while the user considers the preview. See `evidence/native-checkpoint-recovery/` and the [review](reviews/2026-10-18-checkpoint-recovery.md).
+
 ## Verification
 
 | Check | Executed result |
 |---|---|
-| `npm run check` | Passed: build/type check, 13 contract checks, 12 renderer checks |
-| `cargo test --workspace --offline --locked` | Passed: 78 Rust tests, including 30 native service checks. |
+| `npm run check` | Passed: build/type check, 15 contract checks, 12 renderer checks |
+| `cargo test --workspace --offline --locked` | Passed: 81 Rust tests, including 33 native service checks. |
 | `cargo clippy --workspace --all-targets --offline --locked -- -D warnings` | Passed |
-| Native startup | Rebuilt default production configuration passed again in its private fixture. See `evidence/native-restore-production-smoke/`. |
+| Native startup | Rebuilt default production configuration passed after checkpoint recovery. See `evidence/native-checkpoint-production-smoke/`. |
 | Native persistence | Passed again on the backup binary with a real private Secret Service |
 | Native backup export | Passed again on the refined UI, with archive authentication and no plaintext disk staging |
 | Native profiles | GUI lifecycle, ten-active limit, Unicode clipboard input, restart, private homes, and failure preservation passed on Linux |
 | Native backup inspection | Full archive authentication, private source checks, failure preservation, narrow themes, and password/error focus passed on Linux |
 | Native backup content | Valid counts, invalid records, unsupported versions, retained metadata, private staging, and source preservation passed on Linux |
+| Native checkpoint recovery | Catalog after restart, new encrypted checkpoint, original homes, failure preservation, selected fields after restart, keyboard confirmation, and seven images including 200% text passed on Linux |
 | Native confirmed restore | Explicit GUI approval, one-use token, original key/WAL, fresh private homes, old-home preservation, faults, restart, and four images passed on Linux |
 | Native restore preview | Exact encrypted checkpoint, comparison, cancel, cache invalidation, normal exit and restart, keyboard access, both themes, and enlarged text passed on Linux |
 | Checkpoint core | Four real SQLCipher checks passed: active WAL, original key, unsafe targets, cleanup/retry, and disk page authentication |
@@ -62,6 +65,6 @@ SQLCipher 4 with WAL remains mandatory. The [SQLite proposal](proposals/sqlite-w
 
 The isolated probe was rerun after the supervisor integration. Its real-process receipt matches five current source hashes in `crates/openusage-codex/tests/evidence/real-isolated-probe.json`. Synthetic supervision evidence is beside it in `supervision-core.json`. A Rust approval reference records a caller's source decision; it does not prove executable authenticity. Native approval, application shutdown hooks, and live supervision remain incomplete. Windows is unsupported by this transport; macOS remains untested.
 
-Next: implement checkpoint recovery. Separate native, UI, and E2E drafts are ready for integration after this verified restore milestone. Native provider approval and lifecycle integration remain separate work. Current-schema inspection checks run in isolated memory. Confirmed replacement separately requires a fresh checkpoint-backed preview and explicit approval. Other timezone/locale settings remain unsupported until their writers and validators are implemented. Restore and full acceptance remain open. Large-history backup memory use needs separate qualification. All native artifacts in this checkpoint are debug builds, including the build with the default production configuration.
+Next: integrate the separately verified process-crash checks, then implement native executable approval and provider lifecycle checks. Their native and test work continues in isolated persistent worktrees. Native provider approval and lifecycle integration remain separate work. Current-schema inspection checks run in isolated memory. Confirmed replacement separately requires a fresh checkpoint-backed preview and explicit approval. Other timezone/locale settings remain unsupported until their writers and validators are implemented. Restore and full acceptance remain open. Large-history backup memory use needs separate qualification. All native artifacts in this checkpoint are debug builds, including the build with the default production configuration.
 
 Local commits now live in `/example/home/Projects/OpenUsage/.recovery/integration`, branch `codex/native-bootstrap`. The executor reset removed the former temporary worktrees and later Apply artifacts. Recovery used the preserved bundle through `1b3916c`, reconstructed the missing source, and reran acceptance. No surviving receipt supports the lost regression attempt. New tools, artifacts, and evidence use the persistent project directory. The new native receipts and artifact audits support this checkpoint. Primary Git metadata is read-only in this executor. Verified source is copied back to the primary worktree after each milestone. No existing Codex credential homes were inspected. No remote writes occurred.
