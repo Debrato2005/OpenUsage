@@ -36,7 +36,7 @@ function CreditDetails({ rows }: { rows: ProfileQuotaPreview['resetCreditDetails
   if (rows.length === 0) return <p data-credit-detail-state="empty">No credit rows were returned.</p>;
   const statuses = { available: 'Available', redeeming: 'Being redeemed', redeemed: 'Redeemed', unknown: 'Unknown' };
   return <>
-    <ul className="quota-credit-details" aria-label="Credit details">{rows.map((row, index) => <li key={index} data-credit-detail>
+    <ul className="quota-credit-details" role="list" aria-label="Credit details">{rows.map((row, index) => <li key={index} data-credit-detail>
       <p className="quota-credit-title"><bdi>{row.title ?? 'Title not supplied'}</bdi></p>
       <dl className="backup-inspection-metadata"><dt>Status</dt><dd>{statuses[row.status]}</dd><dt>Granted</dt><dd><CreditTime seconds={row.grantedAtUnix} /></dd><dt>Expires</dt><dd>{row.expiresAtUnix === null ? 'No expiry' : <CreditTime seconds={row.expiresAtUnix} />}</dd></dl>
     </li>)}</ul>
