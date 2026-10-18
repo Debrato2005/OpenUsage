@@ -49,6 +49,7 @@ export function ProviderSettings({ busy, setBusy, approval, onApproved }: Settin
       const found = await invoke('discover_provider_executables');
       if (!alive.current) return;
       setDiscovery(found);
+      setManualOpen(found.candidates.length === 0);
       if (found.candidates.length === 1) {
         const selected = found.candidates[0]!.path;
         setPath(selected);
@@ -57,7 +58,6 @@ export function ProviderSettings({ busy, setBusy, approval, onApproved }: Settin
         if (alive.current) { setCandidate(reviewed); setFocus('review'); }
       } else {
         setPath('');
-        setManualOpen(found.candidates.length === 0);
         setFocus(found.candidates.length === 0 ? 'path' : 'found');
       }
     } catch (failure) {
