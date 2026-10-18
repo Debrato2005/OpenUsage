@@ -170,8 +170,13 @@ try {
     const keyboardFocus = { operation: provider.name, afterResize: await focusSnapshot() };
     await focusWindow();
     keyboardFocus.afterOwnedWindowFocus = await focusSnapshot();
+    await driver.execute('window.__managementKeyTrace=[];window.__managementKeyListener=event=>{const item={type:event.type,key:event.key,shift:event.shiftKey,target:event.target?.textContent.trim().slice(0,60)};queueMicrotask(()=>window.__managementKeyTrace.push({...item,prevented:event.defaultPrevented,active:document.activeElement?.textContent.trim().slice(0,60)}));};for(const name of ["keydown","keyup","focusin"])window.addEventListener(name,window.__managementKeyListener,true);return true;');
     await key('\uE004', true);
+    keyboardFocus.immediatelyAfterReverseTab = await focusSnapshot();
+    try { await waitFor(async () => driver.execute('return document.activeElement?.matches(arguments[0]);', [cancel]), 'settled keyboard focus on active Cancel', 1000); }
+    catch (error) { keyboardFocus.focusWaitError = error.message; }
     keyboardFocus.afterReverseTab = await focusSnapshot();
+    keyboardFocus.events = await driver.execute('const events=window.__managementKeyTrace;for(const name of ["keydown","keyup","focusin"])window.removeEventListener(name,window.__managementKeyListener,true);delete window.__managementKeyTrace;delete window.__managementKeyListener;return events;');
     evidence.keyboardFocusChecks ??= []; evidence.keyboardFocusChecks.push(keyboardFocus);
     assert.equal(keyboardFocus.afterReverseTab.cancel, true, 'Reverse Tab must reach the active Cancel while Manage is closed.');
     await key('\uE007');
