@@ -149,6 +149,7 @@ test('renderer fixture retains a cleanup failure when requested cancellation als
 
 test('renderer fixture preserves the new quota preview after an old connection cancel rejects', async ({ page }) => {
   await openSyntheticProfile(page);
+  await page.getByRole('button', { name: 'Manage profile', exact: true }).click();
   await page.getByRole('button', { name: 'Check connection', exact: true }).click();
   await page.getByRole('button', { name: 'Cancel check', exact: true }).click();
   await expect.poll(() => page.evaluate(profileId =>
