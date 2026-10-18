@@ -5,7 +5,7 @@
 //! <https://doc.rust-lang.org/std/os/unix/process/trait.CommandExt.html#tymethod.process_group>
 //! <https://doc.rust-lang.org/std/process/struct.Child.html#method.wait>
 
-use crate::session::{ProviderProbe, SessionError};
+use crate::session::{ProviderProbe, QuotaProbe, SessionError};
 use std::{fmt, path::Path};
 
 #[cfg(unix)]
@@ -495,6 +495,18 @@ fn retire(registry: &Mutex<Registry>, job: &Arc<Job>) {
     registry.jobs.retain(|current| !Arc::ptr_eq(current, job));
 }
 
+enum Operation {
+    Check,
+    QuotaDiagnostic,
+    #[cfg(unix)]
+    DeviceLogin(mpsc::SyncSender<Result<crate::DeviceLoginPrompt, SupervisorError>>),
+}
+
+enum OperationResult {
+    Check(ProviderProbe),
+    Quota(QuotaProbe),
+}
+
 pub struct Supervisor {
     #[cfg(unix)]
     registry: Arc<Mutex<Registry>>,
@@ -523,7 +535,7 @@ impl Supervisor {
         executable: &ApprovedExecutable,
         home: &ManagedProfileHome,
     ) -> Result<CheckHandle, SupervisorError> {
-        self.start_operation(executable, home, None)
+        self.start_operation(executable, home, Operation::Check)
     }
 
     /// Start only after explicit consent for this selected profile's managed sign-in.
@@ -544,7 +556,7 @@ impl Supervisor {
                 return Err(SupervisorError::InvalidApproval);
             }
             let (sender, receiver) = mpsc::sync_channel(1);
-            let check = self.start_operation(executable, home, Some(sender))?;
+            let check = self.start_operation(executable, home, Operation::DeviceLogin(sender))?;
             Ok(DeviceLoginHandle {
                 check,
                 prompt: Some(receiver),
@@ -552,18 +564,29 @@ impl Supervisor {
         }
     }
 
+    /// Read provisional quota diagnostics only. It does not accept history or start monitoring.
+    pub fn start_quota_diagnostic(
+        &self,
+        executable: &ApprovedExecutable,
+        home: &ManagedProfileHome,
+    ) -> Result<QuotaHandle, SupervisorError> {
+        #[cfg(unix)]
+        if executable.pinned.is_none() {
+            return Err(SupervisorError::InvalidApproval);
+        }
+        self.start_operation(executable, home, Operation::QuotaDiagnostic)
+            .map(|check| QuotaHandle { check })
+    }
+
     fn start_operation(
         &self,
         executable: &ApprovedExecutable,
         home: &ManagedProfileHome,
-        #[cfg(unix)] prompt: Option<
-            mpsc::SyncSender<Result<crate::DeviceLoginPrompt, SupervisorError>>,
-        >,
-        #[cfg(not(unix))] _prompt: Option<()>,
+        operation: Operation,
     ) -> Result<CheckHandle, SupervisorError> {
         #[cfg(not(unix))]
         {
-            let _ = (executable, home);
+            let _ = (executable, home, operation);
             Err(SessionError::UnsupportedPlatform.into())
         }
         #[cfg(unix)]
@@ -604,7 +627,7 @@ impl Supervisor {
                 worker: Mutex::new(None),
                 finished: AtomicBool::new(false),
                 cleanup_result: Mutex::new(None),
-                managed_login: prompt.is_some(),
+                managed_login: matches!(&operation, Operation::DeviceLogin(_)),
             });
             let (sender, receiver) = mpsc::channel();
             let worker_job = Arc::clone(&job);
@@ -634,8 +657,8 @@ impl Supervisor {
                             executable.recheck()?;
                             home.recheck()
                         };
-                        if let Some(sender) = &prompt {
-                            crate::session::unix::login_managed(
+                        match &operation {
+                            Operation::DeviceLogin(sender) => crate::session::unix::login_managed(
                                 &executable.path,
                                 &home.directory,
                                 Arc::clone(&worker_job.control),
@@ -648,14 +671,23 @@ impl Supervisor {
                                         .map_err(|_| SessionError::Cancelled)
                                 },
                             )
-                        } else {
-                            crate::session::unix::check_managed(
+                            .map(OperationResult::Check),
+                            Operation::Check => crate::session::unix::check_managed(
                                 &executable.path,
                                 &home.directory,
                                 Arc::clone(&worker_job.control),
                                 timeouts,
                                 before_start,
                             )
+                            .map(OperationResult::Check),
+                            Operation::QuotaDiagnostic => crate::session::unix::quota_managed(
+                                &executable.path,
+                                &home.directory,
+                                Arc::clone(&worker_job.control),
+                                timeouts,
+                                before_start,
+                            )
+                            .map(OperationResult::Quota),
                         }
                         .map_err(SupervisorError::from)
                     }))
@@ -705,7 +737,7 @@ impl Supervisor {
                     *completion = Some(cleanup);
                     drop(completion);
                     worker_job.finished.store(true, Ordering::Release);
-                    if !prompt_sent && let Some(sender) = prompt {
+                    if !prompt_sent && let Operation::DeviceLogin(sender) = operation {
                         let error = result
                             .as_ref()
                             .err()
@@ -875,7 +907,7 @@ pub struct CheckHandle {
     #[cfg(unix)]
     job: Arc<Job>,
     #[cfg(unix)]
-    receiver: Option<Receiver<Result<ProviderProbe, SupervisorError>>>,
+    receiver: Option<Receiver<Result<OperationResult, SupervisorError>>>,
     #[cfg(unix)]
     registry: Weak<Mutex<Registry>>,
     #[cfg(unix)]
@@ -884,6 +916,13 @@ pub struct CheckHandle {
 
 impl CheckHandle {
     pub fn wait(self) -> Result<ProviderProbe, SupervisorError> {
+        match self.wait_result()? {
+            OperationResult::Check(probe) => Ok(probe),
+            OperationResult::Quota(_) => Err(SupervisorError::WorkerFailed),
+        }
+    }
+
+    fn wait_result(self) -> Result<OperationResult, SupervisorError> {
         #[cfg(not(unix))]
         {
             Err(SessionError::UnsupportedPlatform.into())
@@ -920,6 +959,24 @@ impl CheckHandle {
             }
             result.map(|_| ())
         }
+    }
+}
+
+/// Owns one read-only quota operation. Drop cancels and joins its process.
+pub struct QuotaHandle {
+    check: CheckHandle,
+}
+
+impl QuotaHandle {
+    pub fn wait(self) -> Result<QuotaProbe, SupervisorError> {
+        match self.check.wait_result()? {
+            OperationResult::Quota(probe) => Ok(probe),
+            OperationResult::Check(_) => Err(SupervisorError::WorkerFailed),
+        }
+    }
+
+    pub fn cancel(&self) -> Result<(), SupervisorError> {
+        self.check.cancel()
     }
 }
 
@@ -1068,19 +1125,258 @@ IFS= read -r request
         );
     }
 
-    fn login_fixture(mode: &str) -> Fixture {
+    fn script_fixture(mode: &str, source: &str, review: &str) -> Fixture {
         use sha2::{Digest, Sha256};
         let mut fixture = Fixture::new(Mode::Hang);
-        let script =
-            include_str!("../tests/fixtures/synthetic-device-login.py").replace("__MODE__", mode);
+        let script = source.replace("__MODE__", mode);
         fs::write(&fixture.executable.path, script.as_bytes()).unwrap();
         fixture.executable = ApprovedExecutable::from_reviewed_source_with_sha256(
             &fixture.executable.path,
-            "Owned synthetic device-code login fixture. No real authentication.",
+            review,
             Sha256::digest(script.as_bytes()).into(),
         )
         .unwrap();
         fixture
+    }
+
+    fn login_fixture(mode: &str) -> Fixture {
+        script_fixture(
+            mode,
+            include_str!("../tests/fixtures/synthetic-device-login.py"),
+            "Owned synthetic device-code login fixture. No real authentication.",
+        )
+    }
+
+    fn quota_fixture(mode: &str) -> Fixture {
+        script_fixture(
+            mode,
+            include_str!("../tests/fixtures/synthetic-quota-provider.py"),
+            "Owned synthetic quota transport fixture. No real provider data.",
+        )
+    }
+
+    #[test]
+    fn synthetic_quota_reads_full_snapshot_between_account_checks_without_publishing_identity() {
+        for mode in ["success", "sparse"] {
+            let fixture = quota_fixture(mode);
+            let supervisor = Supervisor::new();
+            let metadata_only = ApprovedExecutable::from_reviewed_source(
+                &fixture.executable.path,
+                "Metadata-only review cannot authorize this quota diagnostic.",
+            )
+            .unwrap();
+            assert!(matches!(
+                supervisor.start_quota_diagnostic(&metadata_only, &fixture.homes[0]),
+                Err(SupervisorError::InvalidApproval)
+            ));
+            assert!(
+                !fixture.homes[0]
+                    .directory
+                    .join("synthetic-child-pid")
+                    .exists()
+            );
+            let probe = supervisor
+                .start_quota_diagnostic(&fixture.executable, &fixture.homes[0])
+                .unwrap()
+                .wait()
+                .unwrap();
+            assert_eq!(probe.quota.limits.len(), 1);
+            assert_eq!(
+                probe.quota.limits[0].primary.as_ref().unwrap().used_percent,
+                25
+            );
+            assert_eq!(
+                probe.quota.limits[0]
+                    .primary
+                    .as_ref()
+                    .unwrap()
+                    .derived_remaining_percent,
+                75
+            );
+            assert!(probe.quota.limits[0].secondary.is_none());
+            for private in [
+                "synthetic-private-account-id",
+                "synthetic@example.invalid",
+                "email",
+            ] {
+                assert!(!format!("{probe:?}").contains(private));
+                assert!(
+                    !serde_json::to_string(&probe.quota)
+                        .unwrap()
+                        .contains(private)
+                );
+            }
+            gone(probe.process_id as libc::pid_t);
+            fixture.runtime_removed(0);
+            let requests: Vec<serde_json::Value> = fs::read_to_string(
+                fixture.homes[0]
+                    .directory
+                    .join("synthetic-quota-requests.jsonl"),
+            )
+            .unwrap()
+            .lines()
+            .map(|line| serde_json::from_str(line).unwrap())
+            .collect();
+            assert_eq!(
+                requests
+                    .iter()
+                    .filter_map(|request| request["method"].as_str())
+                    .collect::<Vec<_>>(),
+                [
+                    "initialize",
+                    "initialized",
+                    "account/read",
+                    "account/rateLimits/read",
+                    "account/read"
+                ]
+            );
+            assert_eq!(requests[3]["params"], serde_json::json!({}));
+            assert!(
+                !fixture.homes[1]
+                    .directory
+                    .join("synthetic-child-pid")
+                    .exists()
+            );
+        }
+    }
+
+    #[test]
+    fn synthetic_quota_refuses_unknown_unsupported_changed_auth_and_invalid_bucket_evidence() {
+        for (mode, error) in [
+            ("unknown", ProtocolError::AccountIdentityUnavailable),
+            ("unsupported", ProtocolError::UnsupportedAuthentication),
+            ("signed_out", ProtocolError::UnsupportedAuthentication),
+            ("changed_email", ProtocolError::AccountChanged),
+            ("changed_plan", ProtocolError::AccountChanged),
+            ("changed_auth", ProtocolError::AccountChanged),
+            ("post_unknown", ProtocolError::AccountChanged),
+            ("early_auth", ProtocolError::AccountChanged),
+            ("auth_notice", ProtocolError::AccountChanged),
+            ("late_auth", ProtocolError::AccountChanged),
+            ("invalid", ProtocolError::InvalidField),
+            ("mismatch", ProtocolError::IncompatibleQuotaScope),
+        ] {
+            let fixture = quota_fixture(mode);
+            let supervisor = Supervisor::new();
+            let result = supervisor
+                .start_quota_diagnostic(&fixture.executable, &fixture.homes[0])
+                .unwrap()
+                .wait();
+            assert_eq!(
+                result.err(),
+                Some(SupervisorError::Session(SessionError::Protocol(error))),
+                "{mode}"
+            );
+            gone(fixture.child(0));
+            fixture.runtime_removed(0);
+            let requests = fs::read_to_string(
+                fixture.homes[0]
+                    .directory
+                    .join("synthetic-quota-requests.jsonl"),
+            )
+            .unwrap();
+            if ["unknown", "unsupported", "signed_out", "early_auth"].contains(&mode) {
+                assert!(!requests.contains("account/rateLimits/read"));
+            }
+        }
+    }
+
+    #[test]
+    fn synthetic_quota_shares_slots_with_login_and_check_and_owns_cancel_drop_timeout_shutdown() {
+        let fixture = quota_fixture("hang");
+        let login_fixture = login_fixture("pending");
+        let supervisor = Supervisor::new();
+        let quota = supervisor
+            .start_quota_diagnostic(&fixture.executable, &fixture.homes[0])
+            .unwrap();
+        let quota_pid = fixture.child(0);
+        let mut login = supervisor
+            .start_device_login(&login_fixture.executable, &fixture.homes[1])
+            .unwrap();
+        login.prompt().unwrap();
+        let login_pid = fixture.child(1);
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while !fixture.homes[0]
+            .directory
+            .join("synthetic-quota-pending")
+            .exists()
+        {
+            assert!(
+                Instant::now() < deadline,
+                "The synthetic quota read did not start."
+            );
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        assert!(matches!(
+            supervisor.start_check(&fixture.executable, &fixture.homes[0]),
+            Err(SupervisorError::DuplicateProfile)
+        ));
+        assert!(matches!(
+            supervisor.start_check(&fixture.executable, &fixture.homes[2]),
+            Err(SupervisorError::CapacityReached)
+        ));
+        quota.cancel().unwrap();
+        assert_eq!(quota.wait().err(), Some(SupervisorError::Cancelled));
+        gone(quota_pid);
+        fixture.runtime_removed(0);
+        assert_eq!(unsafe { libc::kill(login_pid, 0) }, 0);
+        login.cancel().unwrap();
+        assert_eq!(login.wait().err(), Some(SupervisorError::Cancelled));
+        gone(login_pid);
+        let dropped = supervisor
+            .start_quota_diagnostic(&fixture.executable, &fixture.homes[2])
+            .unwrap();
+        let dropped_pid = fixture.child(2);
+        drop(dropped);
+        gone(dropped_pid);
+        fixture.runtime_removed(2);
+        // Remove only a synthetic marker so the next owned child cannot be mistaken for the prior PID.
+        fs::remove_file(fixture.homes[2].directory.join("synthetic-child-pid")).unwrap();
+        let shutdown = supervisor
+            .start_quota_diagnostic(&fixture.executable, &fixture.homes[2])
+            .unwrap();
+        let shutdown_pid = fixture.child(2);
+        supervisor.shutdown().unwrap();
+        assert_eq!(shutdown.wait().err(), Some(SupervisorError::Cancelled));
+        gone(shutdown_pid);
+        fixture.runtime_removed(2);
+        let bounded = Supervisor {
+            registry: Arc::default(),
+            timeouts: Timeouts {
+                ready: Duration::from_secs(2),
+                read: Duration::from_millis(150),
+                login: Duration::from_secs(2),
+            },
+        };
+        fs::remove_file(fixture.homes[0].directory.join("synthetic-child-pid")).unwrap();
+        fs::remove_file(
+            fixture.homes[0]
+                .directory
+                .join("synthetic-quota-requests.jsonl"),
+        )
+        .unwrap();
+        assert_eq!(
+            bounded
+                .start_quota_diagnostic(&fixture.executable, &fixture.homes[0])
+                .unwrap()
+                .wait()
+                .err(),
+            Some(SupervisorError::Session(SessionError::TimedOut))
+        );
+        gone(fixture.child(0));
+        fixture.runtime_removed(0);
+        let timed_out_requests = fs::read_to_string(
+            fixture.homes[0]
+                .directory
+                .join("synthetic-quota-requests.jsonl"),
+        )
+        .unwrap();
+        assert!(timed_out_requests.contains("account/rateLimits/read"));
+        assert!(
+            !timed_out_requests
+                .lines()
+                .any(|line| serde_json::from_str::<serde_json::Value>(line).unwrap()["id"] == 4)
+        );
     }
 
     fn login_requests(fixture: &Fixture, index: usize) -> Vec<serde_json::Value> {

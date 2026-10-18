@@ -2,8 +2,10 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::{collections::BTreeSet, fmt, path::Path};
 use url::Url;
 
+mod quota;
 pub mod session;
 pub mod supervisor;
+pub use quota::{QuotaLimit, QuotaSnapshot, QuotaWindow, parse_quota};
 
 pub const PROTOCOL_BASELINE: &str = "rust-v0.163.0";
 pub const MAX_MESSAGE_BYTES: usize = 1_048_576;
@@ -23,6 +25,9 @@ pub enum ProtocolError {
     LoginNotPending,
     ConfirmationRequired,
     IncompatibleUsageScope,
+    IncompatibleQuotaScope,
+    AccountChanged,
+    AccountIdentityUnavailable,
 }
 
 impl fmt::Display for ProtocolError {
@@ -42,6 +47,11 @@ impl fmt::Display for ProtocolError {
             Self::MismatchedLogin => "The notification does not match the pending login.",
             Self::LoginNotPending => "This login attempt is no longer pending.",
             Self::ConfirmationRequired => "Confirm the selected account logout before continuing.",
+            Self::AccountIdentityUnavailable => {
+                "The provider did not return an account description for this read."
+            }
+            Self::AccountChanged => "The account changed during the read. Try again.",
+            Self::IncompatibleQuotaScope => "The provider returned incompatible quota identifiers.",
             Self::IncompatibleUsageScope => {
                 "The provider returned estimated thread usage instead of account activity."
             }
