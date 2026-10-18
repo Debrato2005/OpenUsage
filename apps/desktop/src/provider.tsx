@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { providerFailure } from './provider-errors';
 import { ProfileDeviceLogin } from './login';
-import { invoke, type ProviderConnectionDiagnostic, type ProviderExecutableApproval, type ProviderExecutableCandidate } from './contracts';
+import { invoke, type ProviderConnectionDiagnostic, type ProviderExecutableApproval, type ProviderExecutableCandidate, type ProviderExecutableDiscovery } from './contracts';
 
 
 type SettingsProps = {
@@ -15,10 +15,14 @@ export function ProviderSettings({ busy, setBusy, approval, onApproved }: Settin
   const [path, setPath] = useState('');
   const [candidate, setCandidate] = useState<ProviderExecutableCandidate | null>(null);
   const [confirmed, setConfirmed] = useState(false);
-  const [operation, setOperation] = useState<'inspect' | 'approve' | null>(null);
+  const [operation, setOperation] = useState<'find' | 'inspect' | 'approve' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pathError, setPathError] = useState(false);
-  const [focus, setFocus] = useState<'review' | 'approval' | 'error' | null>(null);
+  const [discovery, setDiscovery] = useState<ProviderExecutableDiscovery | null>(null);
+  const [manualOpen, setManualOpen] = useState(false);
+  const pathField = useRef<HTMLInputElement>(null);
+  const foundPanel = useRef<HTMLDivElement>(null);
+  const [focus, setFocus] = useState<'review' | 'approval' | 'error' | 'found' | 'path' | null>(null);
   const reviewPanel = useRef<HTMLDivElement>(null);
   const approvalPanel = useRef<HTMLDivElement>(null);
   const errorPanel = useRef<HTMLParagraphElement>(null);
@@ -27,9 +31,43 @@ export function ProviderSettings({ busy, setBusy, approval, onApproved }: Settin
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   useEffect(() => {
     if (busy || !focus) return;
-    (focus === 'review' ? reviewPanel.current : focus === 'approval' ? approvalPanel.current : errorPanel.current)?.focus();
+    (focus === 'review' ? reviewPanel.current : focus === 'approval' ? approvalPanel.current : focus === 'found' ? foundPanel.current : focus === 'path' ? pathField.current : errorPanel.current)?.focus();
     setFocus(null);
-  }, [busy, focus, candidate, approval]);
+  }, [busy, focus, candidate, approval, discovery, manualOpen]);
+
+  async function find() {
+    if (busy || pending.current) return;
+    pending.current = true;
+    setBusy(true);
+    setOperation('find');
+    setDiscovery(null);
+    setCandidate(null);
+    setConfirmed(false);
+    setError(null);
+    setPathError(false);
+    try {
+      const found = await invoke('discover_provider_executables');
+      if (!alive.current) return;
+      setDiscovery(found);
+      if (found.candidates.length === 1) {
+        const selected = found.candidates[0]!.path;
+        setPath(selected);
+        setOperation('inspect');
+        const reviewed = await invoke('inspect_provider_executable', { path: selected });
+        if (alive.current) { setCandidate(reviewed); setFocus('review'); }
+      } else {
+        setPath('');
+        setManualOpen(found.candidates.length === 0);
+        setFocus(found.candidates.length === 0 ? 'path' : 'found');
+      }
+    } catch (failure) {
+      if (alive.current) { setError(providerFailure(failure)); setManualOpen(true); setFocus('error'); }
+    } finally { pending.current = false; setOperation(null); setBusy(false); }
+  }
+
+  function choose(value: string) {
+    setPath(value); setCandidate(null); setConfirmed(false); setError(null); setPathError(false);
+  }
 
   async function inspect() {
     if (busy || pending.current) return;
@@ -73,12 +111,25 @@ export function ProviderSettings({ busy, setBusy, approval, onApproved }: Settin
         <p className="provider-help">OpenUsage checks compatibility before each connection check.</p>
         {approval.sourceKind === 'test_fixture' && <p className="provider-fixture-note" data-provider-fixture>Synthetic provider fixture. Replies use controlled test data.</p>}
       </div>}
-      <form className="unlock-form provider-inspection-form" noValidate onSubmit={event => { event.preventDefault(); void inspect(); }}>
-        <label htmlFor="provider-executable">Codex executable</label>
-        <input id="provider-executable" type="text" autoComplete="off" spellCheck={false} maxLength={4096} value={path} disabled={busy} aria-invalid={!!error && pathError} aria-describedby={`provider-executable-help${error && pathError ? ' provider-executable-error' : ''}`} onChange={event => { setPath(event.target.value); setCandidate(null); setConfirmed(false); setError(null); setPathError(false); }} />
-        <p id="provider-executable-help">Enter an absolute file path. Inspection shows the path and checksum. Approval permits version and connection checks.</p>
-        <button className="secondary-button" type="submit" disabled={busy}>{operation === 'inspect' ? 'Inspecting executable…' : 'Inspect executable'}</button>
-      </form>
+      <p className="provider-help" id="provider-find-help">OpenUsage checks known installation locations and folder metadata. It does not open sign-in files or run Codex.</p>
+      <button className="secondary-button" type="button" data-provider-find disabled={busy} aria-describedby="provider-find-help" onClick={() => { void find(); }}>{operation === 'find' ? 'Finding Codex…' : 'Find Codex'}</button>
+      {discovery && <div ref={foundPanel} className="provider-discovery" tabIndex={-1} role="region" aria-label="Codex search results">
+        <p role="status">{discovery.candidates.length === 0 ? 'No executable was found in the checked locations. Enter a path to review Codex.' : discovery.candidates.length === 1 ? 'One executable found. Review its source below before you approve it.' : `${discovery.candidates.length} executables found. Choose one to review.`}</p>
+        {discovery.truncated && <p className="provider-help">The search reached its limit. You can enter a different path below.</p>}
+        {discovery.candidates.length > 1 && <form className="provider-discovery-form" onSubmit={event => { event.preventDefault(); void inspect(); }}>
+          <fieldset disabled={busy}><legend>Codex executable</legend>{discovery.candidates.map(found => <label className="backup-selection provider-discovery-choice" key={found.path}><input type="radio" name="discovered-codex" value={found.path} checked={path === found.path} onChange={() => choose(found.path)} /><span className="provider-path"><bdi>{found.path}</bdi></span></label>)}</fieldset>
+          <button className="secondary-button" type="submit" disabled={busy || !path}>{operation === 'inspect' ? 'Inspecting executable…' : 'Review selected executable'}</button>
+        </form>}
+      </div>}
+      <details className="provider-manual" open={manualOpen} onToggle={event => setManualOpen(event.currentTarget.open)}>
+        <summary data-provider-manual>Enter executable path</summary>
+        <form className="unlock-form provider-inspection-form" noValidate onSubmit={event => { event.preventDefault(); void inspect(); }}>
+          <label htmlFor="provider-executable">Codex executable</label>
+          <input ref={pathField} id="provider-executable" type="text" autoComplete="off" spellCheck={false} maxLength={4096} value={path} disabled={busy} aria-invalid={!!error && pathError} aria-describedby={`provider-executable-help${error && pathError ? ' provider-executable-error' : ''}`} onChange={event => choose(event.target.value)} />
+          <p id="provider-executable-help">Enter an absolute file path. Inspection checks the source before you approve execution.</p>
+          <button className="secondary-button" type="submit" disabled={busy}>{operation === 'inspect' ? 'Inspecting executable…' : 'Inspect executable'}</button>
+        </form>
+      </details>
       {candidate && <div ref={reviewPanel} className="backup-receipt provider-executable-review" tabIndex={-1} role="region" aria-labelledby="provider-review-heading">
         <h3 id="provider-review-heading">Review executable</h3>
         <dl className="backup-inspection-metadata"><dt>File</dt><dd className="provider-path"><bdi>{candidate.path}</bdi></dd><dt>Source</dt><dd>{candidate.sourceKind === 'official_artifact' ? 'Reviewed official artifact' : candidate.sourceKind === 'test_fixture' ? 'Reviewed synthetic provider fixture' : 'Not verified'}</dd>{candidate.sourceUrl && <><dt>Source reference</dt><dd><bdi>{candidate.sourceUrl}</bdi></dd></>}<dt>Supported Codex version</dt><dd>{candidate.testedVersion}</dd></dl>

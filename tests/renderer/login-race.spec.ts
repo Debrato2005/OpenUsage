@@ -69,6 +69,7 @@ async function openSyntheticProfile(page: Page) {
   }, { profileId, approvalId, attempts });
   await page.goto('/');
   await page.getByRole('heading', { name: 'Codex connection', exact: true }).click();
+  await page.locator('[data-provider-manual]').click();
   await page.getByLabel('Codex executable', { exact: true }).fill('/synthetic/reviewed-codex');
   await page.getByRole('button', { name: 'Inspect executable', exact: true }).click();
   await page.getByLabel('I trust this executable and allow version and connection checks.').check();

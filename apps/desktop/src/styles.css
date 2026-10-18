@@ -280,3 +280,10 @@ main { max-width: 1280px; padding: var(--space-6); margin: 0 auto; }
 .login-prompt { max-width: 30rem; }
 
 .login-prompt textarea { resize: none; line-height: var(--leading-body); overflow-wrap: anywhere; word-break: break-all; }
+
+.provider-manual, .provider-discovery { margin-top: var(--space-4); }
+.provider-discovery:focus { outline: 2px solid var(--focus); outline-offset: 3px; }
+.provider-discovery fieldset { min-width: 0; border: 0; padding: 0; margin: var(--space-3) 0; }
+.provider-discovery-choice { padding: var(--space-2) 0; }
+.provider-discovery-choice .provider-path { min-width: 0; }
+.provider-panel > details > button { margin-top: var(--space-3); }
