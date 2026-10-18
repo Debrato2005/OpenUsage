@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Button } from './components/ui/button';
 import { invoke, type RestoreCheckpointList } from './contracts';
 import { CheckpointRestorePreviewPanel } from './backup-restore';
 
@@ -53,7 +54,7 @@ export function CheckpointRecovery({ busy, setBusy, onRestored }: Props) {
     <h3 id="checkpoint-recovery-title">Restore a checkpoint</h3>
     <p className="restore-help">Checkpoints contain application records saved before a restore preview. They use this workspace key. A preview checks their records and original profile homes before you can approve replacement.</p>
     <div className="checkpoint-catalog">
-      <button ref={refresh} type="button" className="secondary-button" disabled={busy || loading} onClick={() => setAttempt(value => value + 1)}>{loading ? 'Reading checkpoints…' : 'Refresh checkpoints'}</button>
+      <Button ref={refresh} type="button" variant="outline" className="secondary-button" disabled={busy || loading} onClick={() => setAttempt(value => value + 1)}>{loading ? 'Reading checkpoints…' : 'Refresh checkpoints'}</Button>
       {loading && <p role="status">Reading local checkpoint files.</p>}
       {!loading && list?.checkpoints.length === 0 && <p role="status">No recovery checkpoints are available in this workspace.</p>}
       {!loading && checkpoint && <>

@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import { Button } from './components/ui/button';
+import { Input } from './components/ui/input';
 import { invoke, type BackupList, type BackupInspectionResult } from './contracts';
 import { BackupRestorePreview } from './backup-restore';
 
@@ -122,7 +124,7 @@ export function BackupInspection({ busy, setBusy, onRestored }: Props) {
   const available = !!list?.backups.length;
   return <div aria-busy={loading || inspecting}>
     <p id="backup-inspection-help">Listed files are not authenticated. Choose a file and enter its backup password.</p>
-    <button ref={refreshButton} className="text-button" type="button" disabled={busy || loading} onClick={refresh}>Refresh backups</button>
+    <Button ref={refreshButton} variant="ghost" className="text-button" type="button" disabled={busy || loading} onClick={refresh}>Refresh backups</Button>
     <p className="backup-inspection-status" role="status">{loading ? 'Loading backup files…' : inspecting ? 'Authenticating archive…' : status}</p>
     {list?.truncated && <p className="backup-inspection-limit">The backup list reached its limit. Other backup files may be present.</p>}
     {list && !available && <p className="backup-inspection-empty">No available backup archives were found. Create a backup, then refresh this list.</p>}
@@ -132,9 +134,9 @@ export function BackupInspection({ busy, setBusy, onRestored }: Props) {
         {list.backups.map(file => <option key={file.fileName} value={file.fileName}>{file.fileName}</option>)}
       </select>
       <label htmlFor="backup-inspection-password">Backup password</label>
-      <input ref={passwordInput} id="backup-inspection-password" name="backup-inspection-password" type="password" autoComplete="current-password" required maxLength={1024} disabled={busy || loading} value={password} aria-invalid={!!failure?.password} aria-describedby={`backup-inspection-password-help${failure?.password ? ' backup-inspection-error' : ''}`} onChange={event => { setPassword(event.target.value); if (failure?.password) setFailure(null); }} />
+      <Input nativeInput ref={passwordInput} id="backup-inspection-password" name="backup-inspection-password" type="password" autoComplete="current-password" required maxLength={1024} disabled={busy || loading} value={password} aria-invalid={!!failure?.password} aria-describedby={`backup-inspection-password-help${failure?.password ? ' backup-inspection-error' : ''}`} onChange={event => { setPassword(event.target.value); if (failure?.password) setFailure(null); }} />
       <p id="backup-inspection-password-help">Enter the password used when this backup was created.</p>
-      <button className="primary-button" type="submit" disabled={busy || loading}>{inspecting ? 'Authenticating archive…' : 'Inspect backup'}</button>
+      <Button className="primary-button" type="submit" disabled={busy || loading}>{inspecting ? 'Authenticating archive…' : 'Inspect backup'}</Button>
     </form>}
     {failure && <p ref={errorMessage} id="backup-inspection-error" className="operation-error backup-inspection-error" role="alert" tabIndex={-1}>{failure.message}</p>}
     {receipt && <div ref={result} className="backup-receipt backup-inspection-receipt" role="status" tabIndex={-1}>
