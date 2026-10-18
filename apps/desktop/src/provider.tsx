@@ -67,7 +67,7 @@ export function ProviderSettings({ busy, setBusy, approval, onApproved }: Settin
   return <section className="provider-panel" aria-labelledby="provider-heading">
     <details>
       <summary data-provider-settings><h2 id="provider-heading">Codex connection</h2></summary>
-      <p className="provider-help">Approve a local Codex executable to check profile connections. Approval lasts for this application session. Usage collection is not available yet. Each sign-in needs your approval.</p>
+      <p className="provider-help">Review Codex once, then sign in to profiles or check their connections. Approval lasts for this application session. Usage collection is not available yet.</p>
       {approval && <div ref={approvalPanel} className="backup-receipt provider-approval-result" role="status" tabIndex={-1}>
         <h3>Executable approved for this session</h3><p className="provider-path"><bdi>{approval.path}</bdi></p>
         <p className="provider-help">OpenUsage checks compatibility before each connection check.</p>
