@@ -100,10 +100,12 @@ export class NativeDriver {
       option = await this.execute('const trigger=document.querySelector(arguments[0]);if(trigger?.getAttribute("aria-expanded")!=="true")return null;const roots=(trigger.getAttribute("aria-controls")??"").split(/\\s+/).filter(Boolean).map(id=>document.getElementById(id)).filter(Boolean);const matches=[...new Set(roots.flatMap(root=>[...root.querySelectorAll("[role=option]")]))].filter(node=>{const rect=node.getBoundingClientRect(),style=getComputedStyle(node);return node.textContent.trim()===arguments[1]&&node.getAttribute("aria-disabled")!=="true"&&!node.closest("[hidden],[aria-hidden=true]")&&rect.width>0&&rect.height>0&&style.visibility!=="hidden"&&style.display!=="none";});return matches.length===1?matches[0]:null;', [selector, label]);
       return Boolean(option);
     }, `one visible enabled ${label} option controlled by ${selector}`);
-    await this.execute('arguments[0].scrollIntoView({block:"center",inline:"nearest",behavior:"instant"});return true;', [option]);
+    await this.execute('arguments[0].scrollIntoView({block:"nearest",inline:"nearest",behavior:"instant"});return true;', [option]);
+    await this.request('POST', `/session/${this.session}/execute/async`, { script: 'const done=arguments[arguments.length-1];requestAnimationFrame(()=>requestAnimationFrame(()=>done(true)));', args: [] });
     await waitFor(async () => this.execute('const node=arguments[0],rect=node.getBoundingClientRect(),left=Math.max(0,rect.left),right=Math.min(innerWidth,rect.right),top=Math.max(0,rect.top),bottom=Math.min(innerHeight,rect.bottom);if(right<=left||bottom<=top)return false;const hit=document.elementFromPoint((left+right)/2,(top+bottom)/2);return hit===node||node.contains(hit);', [option]), `pointer-interactable ${label} option controlled by ${selector}`);
     await this.request('POST', `/session/${this.session}/element/${option['element-6066-11e4-a52e-4f735466cecf']}/click`, {});
     await waitFor(async () => this.execute('return document.querySelector(arguments[0])?.getAttribute("aria-expanded")==="false";', [selector]), `closed combobox ${selector}`);
+    await waitFor(async () => this.execute('return document.querySelector(arguments[0])?.textContent.trim()===arguments[1];', [selector, label]), `selected ${label} in ${selector}`);
   }
 
   async type(selector, text) {
