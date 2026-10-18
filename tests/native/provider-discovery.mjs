@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import { chmod, copyFile, lstat, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { chmod, copyFile, lstat, mkdir, readFile, readlink, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -41,6 +41,13 @@ async function find() {
   await driver.click('[data-provider-find]');
   await waitFor(async () => await driver.execute('return !document.querySelector("[data-provider-find]").disabled && Boolean(document.querySelector(".provider-discovery"));'), 'discovery results');
 }
+async function focusOwnedWindow() {
+  const queue = [driver.child.pid]; let pid;
+  for (let count = 0; queue.length && count < 64; count++) { const candidate = queue.shift(); try { if (await readlink(`/proc/${candidate}/exe`) === application) { pid = candidate; break; } queue.push(...(await readFile(`/proc/${candidate}/task/${candidate}/children`, 'utf8')).trim().split(/\s+/).filter(Boolean).map(Number)); } catch (error) { if (error.code !== 'ENOENT') throw error; } }
+  assert.ok(pid, 'Find only the owned native application.'); evidence.nativeWindowFocus = JSON.parse(execFileSync('/usr/bin/python3', [join(harness, 'x11-close.py'), String(pid), 'focus'], { env: fixture.environment, encoding: 'utf8', timeout: 10000 }));
+  await waitFor(async () => await driver.execute('return document.hasFocus();'), 'owned native document focus');
+}
+async function key(value) { assert.equal(await driver.execute('return document.hasFocus();'), true); await driver.request('POST', `/session/${driver.session}/actions`, { actions: [{ type: 'key', id: 'discovery-keyboard', actions: [{ type: 'keyDown', value }, { type: 'keyUp', value }] }] }); }
 async function resize(width, height) {
   for (let attempt = 0; attempt < 3; attempt++) { const actual = await driver.execute('return {width:innerWidth,height:innerHeight}'); if (actual.width === width && actual.height === height) return; const rect = await driver.request('GET', `/session/${driver.session}/window/rect`); await driver.request('POST', `/session/${driver.session}/window/rect`, { width: rect.width + width - actual.width, height: rect.height + height - actual.height }); }
 }
@@ -62,7 +69,7 @@ try {
   evidence.application = { path: application, sha256: await digest(application) }; evidence.sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repository, encoding: 'utf8' }).trim();
   evidence.sourceHashes = {}; const sources = execFileSync('rg', ['--files', 'apps/desktop/src', 'apps/desktop/src-tauri/src', 'apps/desktop/src-tauri/permissions', 'crates/openusage-codex/src', 'crates/openusage-storage/src'], { cwd: repository, encoding: 'utf8' }).trim().split('\n');
   for (const path of [...sources, 'Cargo.toml', 'Cargo.lock', 'crates/openusage-codex/provider-sources/codex-0.163.0-linux-x86_64.json', 'apps/desktop/src-tauri/Cargo.toml', 'apps/desktop/src-tauri/tauri.conf.json', 'apps/desktop/src-tauri/build.rs', 'apps/desktop/src-tauri/capabilities/main-window.json']) evidence.sourceHashes[path] = await digest(join(repository, path));
-  evidence.harnessHashes = {}; for (const path of ['provider-discovery.mjs', 'private-fixture.mjs', 'webdriver.mjs', 'fixtures/synthetic-provider.py']) evidence.harnessHashes[path] = await digest(join(harness, path));
+  evidence.harnessHashes = {}; for (const path of ['provider-discovery.mjs', 'private-fixture.mjs', 'webdriver.mjs', 'x11-close.py', 'fixtures/synthetic-provider.py']) evidence.harnessHashes[path] = await digest(join(harness, path));
   fixture = await createFixture('provider-discovery');
   const home = join(fixture.root, 'synthetic-home'); await ownedDirectory(home); fixture.environment.HOME = home;
   const protectedDefault = join(fixture.root, 'protected-default-physical'); await ownedDirectory(protectedDefault); await symlink(protectedDefault, join(home, '.codex'));
@@ -88,6 +95,16 @@ try {
   await theme('dark'); await capture('provider-discovery-unique-dark-desktop.png', '.provider-executable-review'); await theme('light'); await capture('provider-discovery-unique-light-360.png', '.provider-executable-review', 360);
   const unknown = join(second, 'codex'); await executable(unknown, false); await discover([first, unknown]); await find();
   assert.equal(await driver.execute('return document.querySelectorAll("[name=discovered-codex]").length;'), 2); assert.equal(await driver.execute('return document.querySelector(".provider-discovery-form button[type=submit]").disabled;'), true);
+  await focusOwnedWindow(); assert.equal(await driver.execute('return document.activeElement?.matches(".provider-discovery");'), true);
+  await key('\uE004'); assert.deepEqual(await driver.execute('return {radio:document.activeElement?.matches("[name=discovered-codex]"),path:document.activeElement?.value};'), { radio: true, path: first });
+  await key(' '); assert.equal(await driver.execute('return document.querySelector("[name=discovered-codex]:checked")?.value;'), first);
+  await capture('provider-discovery-keyboard-choice-light-360.png', '.provider-discovery', 360);
+  await key('\uE004'); assert.deepEqual(await driver.execute('return {review:document.activeElement?.matches(".provider-discovery-form button[type=submit]"),disabled:document.activeElement?.disabled};'), { review: true, disabled: false });
+  await key('\uE007'); await waitFor(async () => await driver.execute('return document.activeElement?.matches(".provider-executable-review");'), 'keyboard-selected source review');
+  assert.equal(await driver.execute('return document.querySelector(".provider-executable-review .provider-path bdi").textContent;'), first);
+  assert.deepEqual(await driver.execute('return {checked:document.querySelector("#provider-executable-approved").checked,disabled:document.querySelector(".provider-approval-form button[type=submit]").disabled};'), { checked: false, disabled: true }); await unchanged();
+  evidence.keyboard = { nativeOwnedWindowFocused: true, resultsRegionToRadioByTab: true, spaceSelectedFirstPath: first, tabReachedEnabledReview: true, enterReviewedChosenPath: true, approvalRemainedUnchecked: true };
+  await find();
   await driver.click(`[name=discovered-codex][value="${unknown}"]`); await driver.click('.provider-discovery-form button[type=submit]');
   await waitFor(async () => await driver.execute('return document.activeElement?.matches(".provider-executable-review");'), 'selected unverified source review');
   assert.deepEqual(await driver.execute('return {checked:document.querySelector("#provider-executable-approved").checked,checkboxDisabled:document.querySelector("#provider-executable-approved").disabled,submitDisabled:document.querySelector(".provider-approval-form button[type=submit]").disabled};'), { checked: false, checkboxDisabled: true, submitDisabled: true });
