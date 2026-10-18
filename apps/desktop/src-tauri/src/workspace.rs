@@ -69,6 +69,7 @@ pub enum CommandError {
     InvalidBackupContents,
     RestoreCheckpointFailed,
     StaleRestorePreview,
+    RestoreFailed,
 }
 
 #[derive(Debug, Eq, PartialEq, Serialize)]
@@ -484,6 +485,21 @@ impl Workspace {
         self.restore_preview.install(prepared)
     }
 
+    pub fn apply_restore(
+        &mut self,
+        id: &str,
+        confirmed: bool,
+    ) -> Result<restore::Applied, CommandError> {
+        restore::validate_preview_id(id)?;
+        if !confirmed {
+            return Err(CommandError::InvalidArguments);
+        }
+        let storage = self.storage.as_mut().ok_or(CommandError::WorkspaceLocked)?;
+        let prepared = self.restore_preview.take(id)?;
+        // The native application currently owns no provider children. Monitoring remains stopped.
+        restore::apply(storage, &self.directory, prepared)
+    }
+
     pub fn cancel_restore_preview(&mut self, id: &str) -> Result<Cancelled, CommandError> {
         restore::validate_preview_id(id)?;
         self.storage.as_ref().ok_or(CommandError::WorkspaceLocked)?;
@@ -850,6 +866,10 @@ mod tests {
                 Zeroizing::new("synthetic restore password".into()),
             )
             .unwrap();
+        assert_eq!(
+            workspace.apply_restore(&preview.preview_id, false).err(),
+            Some(CommandError::InvalidArguments)
+        );
         assert_eq!(
             workspace
                 .prepare_restore_preview(

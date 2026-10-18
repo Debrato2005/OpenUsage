@@ -1,5 +1,5 @@
 //! Prepare a frozen restore comparison after authentication and an encrypted live checkpoint.
-//! This phase applies no records. It does not complete AT-32.
+//! Confirmed replacement keeps provider homes separate and preserves encrypted recovery checkpoints.
 //! Cancel, replacement, workspace changes, and the app exit hook drop the cached archive key.
 //! Forced process termination can skip Rust cleanup, including any in-flight local archive.
 //! Encrypted checkpoints remain private recovery artifacts. Windows fails closed.
@@ -10,7 +10,9 @@ use crate::{
     workspace::{CommandError, prepare_directory},
 };
 use openusage_import::VerifiedArchive;
-use openusage_storage::{RestoreState, Storage, StorageRevision};
+use openusage_storage::{
+    BackupContentSummary, RestoreError, RestoreHomeMapping, RestoreState, Storage, StorageRevision,
+};
 use serde::Serialize;
 use std::{
     fs::{self, File, OpenOptions},
@@ -44,8 +46,9 @@ pub struct Cancelled {
 
 pub(crate) struct PreparedRestore {
     pub preview: RestorePreview,
-    _archive: VerifiedArchive,
-    _revision: StorageRevision,
+    archive: VerifiedArchive,
+    revision: StorageRevision,
+    checkpoint: HeldPath,
 }
 
 #[derive(Clone, Default)]
@@ -93,6 +96,24 @@ impl RestoreCache {
             state.prepared = None;
         }
         Ok(Cancelled { cancelled })
+    }
+
+    pub fn take(&self, id: &str) -> Result<PreparedRestore, CommandError> {
+        let mut state = self.0.lock().map_err(|_| CommandError::BackupUnavailable)?;
+        if state.closed {
+            return Err(CommandError::StorageUnavailable);
+        }
+        if !state
+            .prepared
+            .as_ref()
+            .is_some_and(|prepared| prepared.preview.preview_id == id)
+        {
+            return Err(CommandError::StaleRestorePreview);
+        }
+        state
+            .prepared
+            .take()
+            .ok_or(CommandError::StaleRestorePreview)
     }
 
     pub fn close(&self) {
@@ -196,11 +217,279 @@ pub(crate) fn prepare(
                 id,
                 file_bytes: checkpoint.file_bytes.to_string(),
             },
-            restore_available: false,
+            restore_available: true,
         },
-        _archive: authenticated.archive,
-        _revision: before.revision,
+        archive: authenticated.archive,
+        revision: before.revision,
+        checkpoint: HeldPath::open(&destination, false)?,
     })
+}
+
+#[derive(Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Applied {
+    pub applied: bool,
+    pub restored: ContentSummary,
+    pub checkpoint: Checkpoint,
+    pub monitoring: &'static str,
+    pub authentication_required: bool,
+}
+
+fn summary(value: BackupContentSummary) -> ContentSummary {
+    ContentSummary {
+        active_profiles: value.active_profiles,
+        archived_profiles: value.archived_profiles.to_string(),
+        accounts: value.accounts.to_string(),
+    }
+}
+
+fn restore_error(error: RestoreError) -> CommandError {
+    match error {
+        RestoreError::StalePreview => CommandError::StaleRestorePreview,
+        RestoreError::UnsupportedSchema | RestoreError::UnsupportedContent => {
+            CommandError::UnsupportedBackupContents
+        }
+        RestoreError::InvalidBackup => CommandError::InvalidBackupContents,
+        _ => CommandError::RestoreFailed,
+    }
+}
+
+pub(crate) fn apply(
+    storage: &mut Storage,
+    workspace: &Path,
+    mut prepared: PreparedRestore,
+) -> Result<Applied, CommandError> {
+    let current = storage
+        .restore_state()
+        .map_err(|_| CommandError::StorageUnavailable)?;
+    if current.revision != prepared.revision {
+        return Err(CommandError::StaleRestorePreview);
+    }
+    prepared.checkpoint.require_unchanged()?;
+    let verified = storage
+        .verify_encrypted_checkpoint(&prepared.checkpoint.path)
+        .map_err(|_| CommandError::RestoreCheckpointFailed)?;
+    prepared.checkpoint.require_unchanged()?;
+    if verified.file_bytes.to_string() != prepared.preview.checkpoint.file_bytes
+        || summary(verified.summary) != prepared.preview.current
+    {
+        return Err(CommandError::RestoreCheckpointFailed);
+    }
+    let manifest = prepared.archive.manifest();
+    if manifest.entries.len() != 1 || manifest.entries[0].name != "records.sqlite" {
+        return Err(CommandError::UnsupportedBackupContents);
+    }
+    let schema_version = manifest.schema_version;
+    let size =
+        usize::try_from(manifest.entries[0].size).map_err(|_| CommandError::InvalidBackup)?;
+    let mut bytes = Zeroizing::new(Vec::new());
+    bytes
+        .try_reserve_exact(size)
+        .map_err(|_| CommandError::BackupUnavailable)?;
+    // The cached archive is already authenticated and immutable. No source path is reopened.
+    prepared
+        .archive
+        .copy_payload(&mut *bytes)
+        .map_err(|_| CommandError::InvalidBackup)?;
+    if bytes.len() != size {
+        return Err(CommandError::InvalidBackup);
+    }
+    let input =
+        openusage_storage::validate_restore_input(&bytes, schema_version).map_err(restore_error)?;
+    if summary(input.summary) != prepared.preview.incoming {
+        return Err(CommandError::InvalidBackupContents);
+    }
+    let parent = workspace.join("profiles");
+    prepare_directory(&parent).map_err(|_| CommandError::RestoreFailed)?;
+    let held_workspace = HeldPath::open(workspace, true)?;
+    let held_parent = HeldPath::open(&parent, true)?;
+    let budget = checkpoint_budget(current.logical_bytes)?
+        .checked_add(
+            (size as u64)
+                .checked_mul(3)
+                .ok_or(CommandError::InsufficientSpace)?,
+        )
+        .ok_or(CommandError::InsufficientSpace)?;
+    require_space(available_space(workspace)?, budget, 0)?;
+    require_space(available_space(&parent)?, budget, 0)?;
+    require_inodes(&parent, input.profile_ids.len() as u64 + 4)?;
+    let mut homes = Vec::new();
+    let mut mappings = Vec::new();
+    for profile_id in input.profile_ids {
+        let reference = new_id()?;
+        let home = FreshHome::create(&parent.join(&reference))?;
+        mappings.push(RestoreHomeMapping {
+            profile_id,
+            managed_home_reference: reference,
+        });
+        homes.push(home);
+    }
+    sync_directory(&parent).map_err(|_| CommandError::RestoreFailed)?;
+    sync_directory(workspace).map_err(|_| CommandError::RestoreFailed)?;
+    held_workspace.require_identity()?;
+    held_parent.require_identity()?;
+    for home in &homes {
+        home.held.require_identity()?;
+    }
+    prepared.checkpoint.require_unchanged()?;
+    let restored = storage
+        .replace_records_from_backup(&bytes, schema_version, &prepared.revision, &mappings)
+        .map_err(restore_error)?;
+    for home in &mut homes {
+        home.keep = true;
+    }
+    Ok(Applied {
+        applied: true,
+        restored: summary(restored),
+        checkpoint: prepared.preview.checkpoint,
+        monitoring: "stopped",
+        authentication_required: true,
+    })
+}
+
+/// A retained descriptor prevents cleanup or use of a replaced pathname.
+struct HeldPath {
+    path: PathBuf,
+    file: File,
+    directory: bool,
+    initial: fs::Metadata,
+}
+
+impl HeldPath {
+    fn open(path: &Path, directory: bool) -> Result<Self, CommandError> {
+        let mut options = OpenOptions::new();
+        options.read(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.custom_flags(
+                libc::O_NOFOLLOW | libc::O_NONBLOCK | if directory { libc::O_DIRECTORY } else { 0 },
+            );
+        }
+        let file = options
+            .open(path)
+            .map_err(|_| CommandError::RestoreCheckpointFailed)?;
+        let initial = file
+            .metadata()
+            .map_err(|_| CommandError::RestoreCheckpointFailed)?;
+        let held = Self {
+            path: path.into(),
+            file,
+            directory,
+            initial,
+        };
+        held.require_identity()?;
+        Ok(held)
+    }
+    fn require_identity(&self) -> Result<(), CommandError> {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::MetadataExt;
+            let opened = self
+                .file
+                .metadata()
+                .map_err(|_| CommandError::RestoreCheckpointFailed)?;
+            let now = fs::symlink_metadata(&self.path)
+                .map_err(|_| CommandError::RestoreCheckpointFailed)?;
+            if now.file_type().is_symlink()
+                || now.is_dir() != self.directory
+                || (!self.directory && !now.is_file())
+                || opened.dev() != now.dev()
+                || opened.ino() != now.ino()
+                || now.uid() != unsafe { libc::geteuid() }
+                || now.mode() & 0o077 != 0
+                || (!self.directory && now.nlink() != 1)
+            {
+                return Err(CommandError::RestoreCheckpointFailed);
+            }
+            Ok(())
+        }
+        #[cfg(not(unix))]
+        {
+            Err(CommandError::RestoreCheckpointFailed)
+        }
+    }
+    fn require_unchanged(&self) -> Result<(), CommandError> {
+        self.require_identity()?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::MetadataExt;
+            let now = self
+                .file
+                .metadata()
+                .map_err(|_| CommandError::RestoreCheckpointFailed)?;
+            if now.len() != self.initial.len()
+                || now.mtime() != self.initial.mtime()
+                || now.mtime_nsec() != self.initial.mtime_nsec()
+                || now.ctime() != self.initial.ctime()
+                || now.ctime_nsec() != self.initial.ctime_nsec()
+            {
+                return Err(CommandError::RestoreCheckpointFailed);
+            }
+        }
+        Ok(())
+    }
+}
+
+struct FreshHome {
+    held: HeldPath,
+    keep: bool,
+}
+impl FreshHome {
+    fn create(path: &Path) -> Result<Self, CommandError> {
+        let mut builder = fs::DirBuilder::new();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::DirBuilderExt;
+            builder.mode(0o700);
+        }
+        builder
+            .create(path)
+            .map_err(|_| CommandError::RestoreFailed)?;
+        // If this open fails, ownership is unproven. Leave the private path intact.
+        let home = Self {
+            held: HeldPath::open(path, true)?,
+            keep: false,
+        };
+        home.held
+            .file
+            .sync_all()
+            .map_err(|_| CommandError::RestoreFailed)?;
+        Ok(home)
+    }
+}
+impl Drop for FreshHome {
+    fn drop(&mut self) {
+        if !self.keep && self.held.require_identity().is_ok() {
+            let _ = fs::remove_dir(&self.held.path); // remove_dir refuses nonempty directories.
+            if let Some(parent) = self.held.path.parent() {
+                let _ = sync_directory(parent);
+            }
+        }
+    }
+}
+
+fn require_inodes(path: &Path, needed: u64) -> Result<(), CommandError> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::ffi::OsStrExt;
+        let path = std::ffi::CString::new(path.as_os_str().as_bytes())
+            .map_err(|_| CommandError::InsufficientSpace)?;
+        let mut stats = std::mem::MaybeUninit::<libc::statvfs>::uninit();
+        // statvfs initializes the output only on success.
+        if unsafe { libc::statvfs(path.as_ptr(), stats.as_mut_ptr()) } != 0 {
+            return Err(CommandError::InsufficientSpace);
+        }
+        let stats = unsafe { stats.assume_init() };
+        if stats.f_files != 0 && stats.f_favail < needed {
+            return Err(CommandError::InsufficientSpace);
+        }
+        Ok(())
+    }
+    #[cfg(not(unix))]
+    {
+        Err(CommandError::InsufficientSpace)
+    }
 }
 
 fn require_unchanged(before: &RestoreState, storage: &mut Storage) -> Result<(), CommandError> {
@@ -389,7 +678,7 @@ mod tests {
         assert_eq!(prepared.preview.incoming.active_profiles, 1);
         assert_eq!(prepared.preview.current.archived_profiles, "0");
         assert_eq!(prepared.preview.incoming.accounts, "0");
-        assert!(!prepared.preview.restore_available);
+        assert!(prepared.preview.restore_available);
         assert_eq!(
             before.revision,
             fixture.storage.restore_state().unwrap().revision
@@ -432,7 +721,7 @@ mod tests {
         )
         .unwrap();
         let mut payload = Zeroizing::new(Vec::new());
-        prepared._archive.copy_payload(&mut *payload).unwrap();
+        prepared.archive.copy_payload(&mut *payload).unwrap();
         let incoming = openusage_storage::validate_native_restore_snapshot(&payload, 1).unwrap();
         assert_eq!(incoming.active_profiles, 1);
         let cache = RestoreCache::default();
@@ -442,6 +731,173 @@ mod tests {
         assert!(!cache.cancel(&preview.preview_id).unwrap().cancelled);
         assert!(checkpoint.exists());
         drop(checkpoint_storage);
+    }
+
+    #[test]
+    fn apply_uses_frozen_archive_fresh_homes_and_preserves_old_homes() {
+        let mut fixture = fixture();
+        let parent = fixture.workspace.join("profiles");
+        for id in [FIRST_ID, SECOND_ID] {
+            prepare_directory(&parent.join(id)).unwrap();
+            fs::write(parent.join(id).join("synthetic-marker"), id).unwrap();
+        }
+        let prepared = prepare_fixture(&mut fixture, PASSWORD).unwrap();
+        let checkpoint = prepared.preview.checkpoint.clone();
+        fs::write(
+            fixture.source.join(&fixture.file_name),
+            b"source changed after authentication",
+        )
+        .unwrap();
+        let applied = apply(&mut fixture.storage, &fixture.workspace, prepared).unwrap();
+        assert!(applied.applied);
+        assert_eq!(applied.restored.active_profiles, 1);
+        assert_eq!(applied.monitoring, "stopped");
+        assert!(applied.authentication_required);
+        assert_eq!(applied.checkpoint, checkpoint);
+        assert_eq!(fixture.storage.metadata().unwrap().theme, Theme::System);
+        let profiles = fixture.storage.list_profiles().unwrap();
+        assert_eq!(profiles.len(), 1);
+        assert_eq!(profiles[0].id, FIRST_ID);
+        assert_eq!(profiles[0].label, "Incoming one");
+        let state = fixture.storage.restore_state().unwrap();
+        let mappings = fixture
+            .storage
+            .restore_home_mappings(&state.revision)
+            .unwrap();
+        assert_eq!(mappings.len(), 1);
+        assert_ne!(mappings[0].managed_home_reference, FIRST_ID);
+        assert_ne!(mappings[0].managed_home_reference, SECOND_ID);
+        assert_eq!(
+            fs::read_dir(parent.join(&mappings[0].managed_home_reference))
+                .unwrap()
+                .count(),
+            0
+        );
+        for id in [FIRST_ID, SECOND_ID] {
+            assert_eq!(
+                fs::read(parent.join(id).join("synthetic-marker")).unwrap(),
+                id.as_bytes()
+            );
+        }
+        assert_eq!(fs::read_dir(parent).unwrap().count(), 3);
+    }
+
+    #[test]
+    fn changed_workspace_missing_or_corrupt_checkpoint_rejects_before_new_homes() {
+        let mut fixture = fixture();
+        let prepared = prepare_fixture(&mut fixture, PASSWORD).unwrap();
+        fixture.storage.set_theme(Theme::Light).unwrap();
+        assert_eq!(
+            apply(&mut fixture.storage, &fixture.workspace, prepared).err(),
+            Some(CommandError::StaleRestorePreview)
+        );
+        assert!(!fixture.workspace.join("profiles").exists());
+        for corrupt in [false, true] {
+            let prepared = prepare_fixture(&mut fixture, PASSWORD).unwrap();
+            let path = fixture
+                .workspace
+                .join("restore-checkpoints")
+                .join(format!("{}.sqlite", prepared.preview.checkpoint.id));
+            if corrupt {
+                let mut bytes = fs::read(&path).unwrap();
+                bytes[4096 + 23] ^= 1;
+                fs::write(&path, bytes).unwrap();
+            } else {
+                fs::remove_file(&path).unwrap();
+            }
+            assert_eq!(
+                apply(&mut fixture.storage, &fixture.workspace, prepared).err(),
+                Some(CommandError::RestoreCheckpointFailed)
+            );
+            assert!(!fixture.workspace.join("profiles").exists());
+            assert_eq!(fixture.storage.list_profiles().unwrap().len(), 2);
+            assert_eq!(fixture.storage.metadata().unwrap().theme, Theme::Light);
+        }
+    }
+
+    #[test]
+    fn unsafe_homes_parent_and_descriptor_replacement_preserve_existing_paths() {
+        let mut fixture = fixture();
+        let outside = fixture._temporary.path().join("outside");
+        prepare_directory(&outside).unwrap();
+        fs::write(outside.join("synthetic-marker"), b"preserve").unwrap();
+        symlink(&outside, fixture.workspace.join("profiles")).unwrap();
+        let prepared = prepare_fixture(&mut fixture, PASSWORD).unwrap();
+        assert_eq!(
+            apply(&mut fixture.storage, &fixture.workspace, prepared).err(),
+            Some(CommandError::RestoreFailed)
+        );
+        assert_eq!(fixture.storage.list_profiles().unwrap().len(), 2);
+        assert_eq!(
+            fs::read(outside.join("synthetic-marker")).unwrap(),
+            b"preserve"
+        );
+        let home_path = fixture._temporary.path().join("owned-empty-home");
+        let home = FreshHome::create(&home_path).unwrap();
+        fs::remove_dir(&home_path).unwrap();
+        symlink(&outside, &home_path).unwrap();
+        drop(home);
+        assert!(
+            fs::symlink_metadata(&home_path)
+                .unwrap()
+                .file_type()
+                .is_symlink()
+        );
+        let nonempty = fixture._temporary.path().join("owned-nonempty-home");
+        let home = FreshHome::create(&nonempty).unwrap();
+        fs::write(nonempty.join("synthetic-marker"), b"preserve").unwrap();
+        drop(home);
+        assert!(nonempty.join("synthetic-marker").exists());
+    }
+
+    #[test]
+    fn write_contention_removes_only_new_empty_homes_and_allows_a_fresh_retry() {
+        let mut fixture = fixture();
+        let parent = fixture.workspace.join("profiles");
+        prepare_directory(&parent.join(FIRST_ID)).unwrap();
+        let marker = parent.join(FIRST_ID).join("synthetic-marker");
+        fs::write(&marker, b"preserve this old home").unwrap();
+        let prepared = prepare_fixture(&mut fixture, PASSWORD).unwrap();
+        let holder = rusqlite::Connection::open(fixture.workspace.join("openusage.db")).unwrap();
+        holder
+            .pragma_update(None, "key", format!("x'{}'", "1f".repeat(32)))
+            .unwrap();
+        holder.execute_batch("BEGIN IMMEDIATE").unwrap();
+        assert_eq!(
+            apply(&mut fixture.storage, &fixture.workspace, prepared).err(),
+            Some(CommandError::RestoreFailed)
+        );
+        assert_eq!(fs::read_dir(&parent).unwrap().count(), 1);
+        assert_eq!(fs::read(&marker).unwrap(), b"preserve this old home");
+        assert_eq!(fixture.storage.list_profiles().unwrap().len(), 2);
+        holder.execute_batch("ROLLBACK").unwrap();
+        drop(holder);
+        let prepared = prepare_fixture(&mut fixture, PASSWORD).unwrap();
+        assert!(
+            apply(&mut fixture.storage, &fixture.workspace, prepared)
+                .unwrap()
+                .applied
+        );
+        assert_eq!(fs::read_dir(&parent).unwrap().count(), 2);
+        assert_eq!(fs::read(&marker).unwrap(), b"preserve this old home");
+    }
+
+    #[test]
+    fn cache_consumes_apply_token_once_without_clearing_an_unrelated_token() {
+        let mut fixture = fixture();
+        let prepared = prepare_fixture(&mut fixture, PASSWORD).unwrap();
+        let cache = RestoreCache::default();
+        let preview = cache.install(prepared).unwrap();
+        assert_eq!(
+            cache.take(SECOND_ID).err(),
+            Some(CommandError::StaleRestorePreview)
+        );
+        let retained = cache.take(&preview.preview_id).unwrap();
+        assert_eq!(
+            cache.take(&preview.preview_id).err(),
+            Some(CommandError::StaleRestorePreview)
+        );
+        drop(retained);
     }
 
     #[test]

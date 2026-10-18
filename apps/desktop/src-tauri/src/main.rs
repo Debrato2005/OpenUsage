@@ -66,6 +66,13 @@ struct CancelRestorePreviewArgs {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ApplyRestoreArgs {
+    preview_id: String,
+    confirmed: bool,
+}
+
+#[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ThemeArgs {
     theme: ThemeChoice,
@@ -438,6 +445,28 @@ async fn cancel_restore_preview(
     .map_err(|_| CommandError::BackupUnavailable)?
 }
 
+#[tauri::command]
+async fn apply_restore(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<restore::Applied, CommandError> {
+    let args: ApplyRestoreArgs = arguments(&request)?;
+    restore::validate_preview_id(&args.preview_id)?;
+    if !args.confirmed {
+        return Err(CommandError::InvalidArguments);
+    }
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut state = service.lock().map_err(|_| CommandError::RestoreFailed)?;
+        state
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .apply_restore(&args.preview_id, args.confirmed)
+    })
+    .await
+    .map_err(|_| CommandError::RestoreFailed)?
+}
+
 fn is_bundled_url(url: &tauri::Url) -> bool {
     url.username().is_empty()
         && url.password().is_none()
@@ -462,7 +491,8 @@ fn main() {
             list_backups,
             inspect_backup,
             prepare_restore_preview,
-            cancel_restore_preview
+            cancel_restore_preview,
+            apply_restore
         ])
         .setup(|app| {
             let window = &app.config().app.windows[0];
@@ -484,13 +514,21 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::{
-        ArchiveProfileArgs, BackupArgs, CancelRestorePreviewArgs, CreateProfileArgs,
-        InspectBackupArgs, ListProfilesArgs, RenameProfileArgs, SetupArgs, ThemeArgs, UnlockArgs,
-        is_bundled_url,
+        ApplyRestoreArgs, ArchiveProfileArgs, BackupArgs, CancelRestorePreviewArgs,
+        CreateProfileArgs, InspectBackupArgs, ListProfilesArgs, RenameProfileArgs, SetupArgs,
+        ThemeArgs, UnlockArgs, is_bundled_url,
     };
 
     #[test]
     fn storage_commands_reject_unexpected_fields_and_incorrect_value_types() {
+        for invalid in [
+            r#"{}"#,
+            r#"{"previewId":"synthetic"}"#,
+            r#"{"previewId":"synthetic","confirmed":"true"}"#,
+            r#"{"previewId":"synthetic","confirmed":true,"path":"/external"}"#,
+        ] {
+            assert!(serde_json::from_str::<ApplyRestoreArgs>(invalid).is_err());
+        }
         for invalid in [
             r#"{}"#,
             r#"{"previewId":null}"#,
