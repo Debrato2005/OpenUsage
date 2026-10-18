@@ -106,7 +106,10 @@ async function setTheme(theme, mode = 'pointer') {
     assert.equal(await driver.execute('return document.querySelector("#theme").textContent.trim();'), 'Dark');
     await driver.click('#theme');
     await waitFor(async () => await driver.execute('return document.querySelector("#theme").getAttribute("aria-expanded")==="true";'), 'appearance options open');
-    await keys(['\uE013', '\uE007']);
+    await waitFor(async () => await driver.execute('const option=document.activeElement;return option?.getAttribute("role")==="option"&&option.textContent.trim()==="Dark";'), 'focused current Dark appearance option');
+    await keys(['\uE013']);
+    await waitFor(async () => await driver.execute('const option=document.activeElement;return option?.getAttribute("role")==="option"&&option.textContent.trim()==="Light";'), 'ArrowUp focuses the Light appearance option');
+    await keys(['\uE007']);
   } else await driver.selectVisibleOption('#theme', { system: 'System', light: 'Light', dark: 'Dark' }[theme]);
   await waitFor(async () => (await driver.execute('return !document.querySelector("#theme").disabled&&document.documentElement.dataset.theme===arguments[0];', [theme])) === true, `${mode} appearance save`);
   await driver.request('POST', `/session/${driver.session}/execute/async`, { script: 'const done=arguments[arguments.length-1];requestAnimationFrame(()=>requestAnimationFrame(()=>done(true)));', args: [] });
