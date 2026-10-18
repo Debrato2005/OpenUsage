@@ -354,10 +354,18 @@ pub(crate) fn prepare_checkpoint(
         .map_err(|_| CommandError::StorageUnavailable)?;
     let directory = workspace.join("restore-checkpoints");
     if !existing_private_directory(&directory).map_err(|_| CommandError::RestoreCheckpointFailed)? {
-        return Err(CommandError::RestoreCheckpointFailed);
+        return Err(CommandError::CheckpointNotFound);
     }
     let held_directory = HeldPath::open(&directory, true)?;
-    let source = HeldPath::open(&directory.join(format!("{id}.sqlite")), false)?;
+    let source_path = directory.join(format!("{id}.sqlite"));
+    match fs::symlink_metadata(&source_path) {
+        Ok(_) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Err(CommandError::CheckpointNotFound);
+        }
+        Err(_) => return Err(CommandError::RestoreCheckpointFailed),
+    }
+    let source = HeldPath::open(&source_path, false)?;
     let snapshot = storage
         .read_encrypted_checkpoint(&source.path)
         .map_err(|_| CommandError::RestoreCheckpointFailed)?;
@@ -370,18 +378,24 @@ pub(crate) fn prepare_checkpoint(
     .map_err(restore_error)?;
     let home_parent_path = workspace.join("profiles");
     let home_parent = if existing_private_directory(&home_parent_path)
-        .map_err(|_| CommandError::RestoreFailed)?
+        .map_err(|_| CommandError::RestoreHomeUnavailable)?
     {
-        Some(HeldPath::open(&home_parent_path, true)?)
+        Some(
+            HeldPath::open(&home_parent_path, true)
+                .map_err(|_| CommandError::RestoreHomeUnavailable)?,
+        )
     } else if incoming.homes.is_empty() {
         None
     } else {
-        return Err(CommandError::RestoreFailed);
+        return Err(CommandError::RestoreHomeUnavailable);
     };
     let held_homes = incoming
         .homes
         .iter()
-        .map(|home| HeldPath::open(&home_parent_path.join(&home.managed_home_reference), true))
+        .map(|home| {
+            HeldPath::open(&home_parent_path.join(&home.managed_home_reference), true)
+                .map_err(|_| CommandError::RestoreHomeUnavailable)
+        })
         .collect::<Result<Vec<_>, _>>()?;
     let retained = CheckpointSource {
         snapshot,
@@ -420,10 +434,13 @@ impl CheckpointSource {
         self.source.require_unchanged()?;
         self.directory.require_identity()?;
         if let Some(parent) = &self.home_parent {
-            parent.require_identity()?;
+            parent
+                .require_identity()
+                .map_err(|_| CommandError::RestoreHomeUnavailable)?;
         }
         for home in &self.held_homes {
-            home.require_identity()?;
+            home.require_identity()
+                .map_err(|_| CommandError::RestoreHomeUnavailable)?;
         }
         Ok(())
     }
@@ -1314,7 +1331,11 @@ mod tests {
             }
             assert_eq!(
                 apply(&mut fixture.storage, &fixture.workspace, recovery).err(),
-                Some(CommandError::RestoreCheckpointFailed)
+                Some(if change_checkpoint {
+                    CommandError::RestoreCheckpointFailed
+                } else {
+                    CommandError::RestoreHomeUnavailable
+                })
             );
             assert_eq!(fixture.storage.restore_state().unwrap(), before);
             assert_eq!(

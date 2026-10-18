@@ -70,6 +70,8 @@ pub enum CommandError {
     RestoreCheckpointFailed,
     StaleRestorePreview,
     RestoreFailed,
+    CheckpointNotFound,
+    RestoreHomeUnavailable,
 }
 
 #[derive(Debug, Eq, PartialEq, Serialize)]
