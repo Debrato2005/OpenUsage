@@ -440,13 +440,10 @@ impl CheckpointSource {
         self.source.require_unchanged()?;
         self.directory.require_identity()?;
         if let Some(parent) = &self.home_parent {
-            parent
-                .require_identity()
-                .map_err(|_| CommandError::RestoreHomeUnavailable)?;
+            parent.require_home()?;
         }
         for home in &self.held_homes {
-            home.require_identity()
-                .map_err(|_| CommandError::RestoreHomeUnavailable)?;
+            home.require_home()?;
         }
         Ok(())
     }
@@ -758,6 +755,23 @@ impl HeldPath {
             Err(CommandError::RestoreCheckpointFailed)
         }
     }
+    fn require_home(&self) -> Result<(), CommandError> {
+        self.require_identity()
+            .map_err(|_| CommandError::RestoreHomeUnavailable)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::MetadataExt;
+            let metadata = self
+                .file
+                .metadata()
+                .map_err(|_| CommandError::RestoreHomeUnavailable)?;
+            if !self.directory || metadata.mode() & 0o700 != 0o700 {
+                return Err(CommandError::RestoreHomeUnavailable);
+            }
+        }
+        Ok(())
+    }
+
     fn require_unchanged(&self) -> Result<(), CommandError> {
         self.require_identity()?;
         #[cfg(unix)]
@@ -1303,7 +1317,7 @@ mod tests {
 
     #[test]
     fn recovery_rejects_source_checkpoint_changes_and_replaced_original_homes() {
-        for change_checkpoint in [true, false] {
+        for fault in ["checkpoint", "replaced_home", "home_permissions"] {
             let mut fixture = fixture();
             original_homes(&fixture);
             let archive_preview = prepare_fixture(&mut fixture, PASSWORD).unwrap();
@@ -1313,7 +1327,7 @@ mod tests {
                 prepare_checkpoint(&mut fixture.storage, &fixture.workspace, &checkpoint_id)
                     .unwrap();
             let before = fixture.storage.restore_state().unwrap();
-            if change_checkpoint {
+            if fault == "checkpoint" {
                 let path = fixture
                     .workspace
                     .join("restore-checkpoints")
@@ -1321,7 +1335,7 @@ mod tests {
                 let mut bytes = fs::read(&path).unwrap();
                 bytes[4096 + 42] ^= 1;
                 fs::write(&path, bytes).unwrap();
-            } else {
+            } else if fault == "replaced_home" {
                 let original = fixture.workspace.join("profiles").join(FIRST_ID);
                 fs::rename(
                     &original,
@@ -1334,10 +1348,16 @@ mod tests {
                     b"preserve this replacement",
                 )
                 .unwrap();
+            } else {
+                fs::set_permissions(
+                    fixture.workspace.join("profiles").join(FIRST_ID),
+                    fs::Permissions::from_mode(0o500),
+                )
+                .unwrap();
             }
             assert_eq!(
                 apply(&mut fixture.storage, &fixture.workspace, recovery).err(),
-                Some(if change_checkpoint {
+                Some(if fault == "checkpoint" {
                     CommandError::RestoreCheckpointFailed
                 } else {
                     CommandError::RestoreHomeUnavailable
@@ -1359,6 +1379,14 @@ mod tests {
                 .unwrap(),
                 SECOND_ID.as_bytes()
             );
+            if fault == "home_permissions" {
+                // Restore only the synthetic fixture permissions so its temporary directory can close.
+                fs::set_permissions(
+                    fixture.workspace.join("profiles").join(FIRST_ID),
+                    fs::Permissions::from_mode(0o700),
+                )
+                .unwrap();
+            }
         }
     }
 
