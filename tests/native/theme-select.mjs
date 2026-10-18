@@ -61,7 +61,14 @@ async function delayedSaveKeepsNewFocus() {
   assert.deepEqual(originalShape, { invokeType: 'function', coreReplaceable: true });
   await driver.execute(`const tauri=window.__TAURI__,original=tauri.core;window.__themeOriginalCore=original;window.__themeHold={started:performance.now(),held:false,nativeResolved:false};tauri.core={...original,invoke(command,...args){const pending=Reflect.apply(original.invoke,original,[command,...args]);if(command!=='set_theme'||window.__themeHold.held)return pending;window.__themeHold.held=true;return new Promise((resolve,reject)=>pending.then(value=>{window.__themeHold.nativeResolved=true;window.__themeHold.response=value;window.__themeHold.release=()=>resolve(value);},reject));}};return true;`);
   try {
-    await driver.selectVisibleOption('#theme', 'Light');
+    await openOptions();
+    const option = await driver.execute('const trigger=document.querySelector("#theme"),roots=(trigger.getAttribute("aria-controls")??"").split(/\\s+/).filter(Boolean).map(id=>document.getElementById(id)).filter(Boolean);const matches=roots.flatMap(root=>[...root.querySelectorAll("[role=option]")]).filter(node=>node.textContent.trim()==="Light"&&node.getAttribute("aria-disabled")!=="true"&&!node.closest("[hidden],[aria-hidden=true]")&&node.getBoundingClientRect().width>0&&getComputedStyle(node).visibility!=="hidden");return matches.length===1?matches[0]:null;');
+    assert.ok(option, 'One visible enabled Light option must belong to the appearance trigger.');
+    await driver.execute('arguments[0].scrollIntoView({block:"nearest",inline:"nearest",behavior:"instant"});return true;', [option]);
+    await settledFrames();
+    assert.equal(await driver.execute('const node=arguments[0],rect=node.getBoundingClientRect(),hit=document.elementFromPoint(rect.left+rect.width/2,rect.top+rect.height/2);return hit===node||node.contains(hit);', [option]), true, 'The held-response option must receive the real pointer click.');
+    await driver.request('POST', `/session/${driver.session}/element/${option['element-6066-11e4-a52e-4f735466cecf']}/click`, {});
+    await waitFor(async () => await driver.execute('return document.querySelector("#theme").getAttribute("aria-expanded")==="false";'), 'held-response appearance popup closed');
     await waitFor(async () => await driver.execute('return window.__themeHold.nativeResolved;'), 'actual Rust theme response held at the renderer boundary');
     assert.equal((await driver.invoke('bootstrap')).value.theme, 'light');
     assert.equal(await driver.execute('return document.querySelector("#theme").disabled;'), true);
