@@ -201,7 +201,7 @@ try {
     keyboardFocus.events = await driver.execute('const events=window.__managementKeyTrace;for(const name of ["keydown","keyup","focusin","focusout"]){window.removeEventListener(name,window.__managementKeyListener,true);window.removeEventListener(name,window.__managementKeyBubble,false);}delete window.__managementKeyTrace;delete window.__managementKeyListener;delete window.__managementKeyBubble;delete window.__managementPreviousFocus;return events;');
     evidence.keyboardFocusChecks ??= []; evidence.keyboardFocusChecks.push(keyboardFocus);
     evidence.triggerCounterfactual = [];
-    for (const variant of ['original', 'clone-all-attributes', 'native-same-class', 'native-default-style']) {
+    for (const variant of ['original', 'clone-all-attributes', 'native-same-class', 'native-default-style', 'native-direct-predecessor']) {
       await manage(false);
       const installed = await driver.execute(`
         const original=document.querySelector(arguments[0]);
@@ -216,6 +216,7 @@ try {
           target.id='native-trigger-counterfactual';
           original.before(target);original.style.display='none';
           window.__triggerProbe.clone=target;
+          if(variant==='native-direct-predecessor'){const previous=document.createElement('button');previous.type='button';previous.id='native-direct-predecessor';previous.textContent='Diagnostic preceding button';target.before(previous);window.__triggerProbe.previous=previous;}
         }
         window.__triggerProbe.events=[];
         const record=phase=>event=>window.__triggerProbe.events.push({phase,type:event.type,key:event.key,code:event.code,keyCode:event.keyCode,shift:event.shiftKey,prevented:event.defaultPrevented,target:event.target?.id||event.target?.textContent?.trim().slice(0,60),active:document.activeElement?.id||document.activeElement?.textContent?.trim().slice(0,60)});
@@ -229,12 +230,12 @@ try {
         assert.equal(beforeProbe.targetActive,true,'The actual pointer click must focus the probe target.');
         const nativeKeys=JSON.parse(execFileSync('/usr/bin/python3',[join(harness,'x11-reverse-tab.py'),String(evidence.nativeWindowFocus.windowId)],{env:fixture.environment,encoding:'utf8',timeout:10000}));
         await driver.request('POST',`/session/${driver.session}/execute/async`,{script:'const done=arguments[arguments.length-1];requestAnimationFrame(()=>requestAnimationFrame(()=>done(true)));',args:[]});
-        const afterProbe=await driver.execute('const node=document.activeElement;return {tag:node?.tagName,id:node?.id,text:node?.textContent.trim().slice(0,80),cancel:node?.matches(arguments[0]),targetActive:node===document.querySelector(arguments[1]),documentFocused:document.hasFocus(),events:window.__triggerProbe.events};',[cancel,installed.selector]);
+        const afterProbe=await driver.execute('const node=document.activeElement;return {tag:node?.tagName,id:node?.id,text:node?.textContent.trim().slice(0,80),cancel:node?.matches(arguments[0]),directPredecessor:node?.id==='native-direct-predecessor',targetActive:node===document.querySelector(arguments[1]),documentFocused:document.hasFocus(),events:window.__triggerProbe.events};',[cancel,installed.selector]);
         evidence.triggerCounterfactual.push({variant,installed,beforeProbe,nativeKeys,afterProbe});
       } finally {
         const restored=await driver.execute(`const p=window.__triggerProbe;
           for(const name of ['keydown','keyup','focusin','focusout']){window.removeEventListener(name,p.capture,true);window.removeEventListener(name,p.bubble,false);}
-          p.clone?.remove();if(p.style===null)p.original.removeAttribute('style');else p.original.setAttribute('style',p.style);
+          p.previous?.remove();p.clone?.remove();if(p.style===null)p.original.removeAttribute('style');else p.original.setAttribute('style',p.style);
           const restored=!document.getElementById('native-trigger-counterfactual')&&p.original.getAttribute('style')===p.style;
           delete window.__triggerProbe;return restored;`);
         assert.equal(restored,true,'Diagnostic nodes/styles must be restored exactly.');
