@@ -16,13 +16,13 @@ function failureFor(error: unknown, applying = false): Failure {
     passphrase_too_long: 'Use a shorter backup password.',
     workspace_locked: 'Unlock your workspace before you prepare a preview.',
     backup_not_found: 'That backup is no longer available. Refresh the backup list.',
-    checkpoint_not_found: 'That checkpoint is no longer available. Refresh the checkpoint list.',
+    checkpoint_not_found: 'That saved copy is no longer available. Refresh the saved copy list.',
     backup_authentication_failed: 'OpenUsage could not authenticate this archive. Check the password and file.',
     invalid_backup: 'OpenUsage could not read this archive. Keep the backup file and inspect it again.',
     invalid_backup_contents: 'The database checks failed. Keep the backup file and inspect it again.',
     unsupported_backup_contents: 'This version cannot prepare a restore preview for these records.',
     insufficient_space: 'There is not enough free space to prepare this restore. Free space on the local drive, then try again.',
-    restore_checkpoint_failed: 'OpenUsage could not verify a recovery checkpoint. Keep your workspace files and prepare a new preview.',
+    restore_checkpoint_failed: 'OpenUsage could not verify a saved copy of your current records. Keep your workspace files and prepare a new preview.',
     stale_restore_preview: 'Your workspace changed while the preview was prepared. Prepare a new preview.',
     restore_failed: 'OpenUsage could not restore these records. Prepare a new preview before you try again.',
     restore_home_unavailable: 'OpenUsage could not prepare private profile homes. Keep your workspace files, then prepare a new preview.',
@@ -30,7 +30,7 @@ function failureFor(error: unknown, applying = false): Failure {
   return {
     message: typeof error === 'string' && messages[error]
       ? messages[error] : applying
-        ? 'OpenUsage could not confirm the restore result. Keep your workspace and recovery checkpoint before you try again.'
+        ? 'OpenUsage could not confirm the restore result. Keep your workspace and saved copy before you try again.'
         : 'OpenUsage could not prepare this preview. Your current records stay unchanged.',
     password: typeof error === 'string'
       && ['invalid_passphrase', 'passphrase_too_long', 'backup_authentication_failed'].includes(error),
@@ -188,10 +188,10 @@ function RestoreRecordsPreview({ source, busy, setBusy, onRestored }: Omit<Props
       setOpen(true); setFailure(null);
       if (source.kind === 'archive') setFocusTarget('password');
       else void prepare();
-    }}>{source.kind === 'archive' ? 'Preview restore' : 'Preview checkpoint'}</Button>}
+    }}>{source.kind === 'archive' ? 'Preview restore' : 'Preview saved copy'}</Button>}
     {open && !preview && !receipt && <>
       <h4>Prepare a restore preview</h4>
-      <p className="restore-help">OpenUsage will check the selected records and save an encrypted checkpoint of your current workspace before showing the preview.</p>
+      <p className="restore-help">OpenUsage will check the selected records and save an encrypted copy of your current workspace before showing the preview.</p>
       <form className="unlock-form restore-preview-form" noValidate onSubmit={event => { event.preventDefault(); void prepare(); }}>
         {source.kind === 'archive' && <Field className="w-full" disabled={busy} invalid={!!failure?.password}>
           <FieldLabel htmlFor="restore-preview-password">Backup password</FieldLabel>
@@ -203,15 +203,15 @@ function RestoreRecordsPreview({ source, busy, setBusy, onRestored }: Omit<Props
     </>}
     {preview && <div ref={previewPanel} className="backup-receipt restore-preview" tabIndex={-1} role="region" aria-labelledby="restore-preview-title" data-preview-id={preview.previewId} data-checkpoint-id={preview.checkpoint.id} data-source-checkpoint-id={'checkpointId' in preview ? preview.checkpointId : undefined}>
       <h4 id="restore-preview-title">Restore preview</h4>
-      <p className="restore-source"><bdi>{'fileName' in preview ? preview.fileName : `Checkpoint ${preview.checkpointId}`}</bdi></p>
-      <table className="restore-comparison" role="table"><caption>Current records and selected restore source</caption><thead role="rowgroup"><tr role="row"><th scope="col" role="columnheader">Records</th><th scope="col" role="columnheader">Current</th><th scope="col" role="columnheader">{source.kind === 'archive' ? 'Backup' : 'Checkpoint'}</th></tr></thead><tbody role="rowgroup">
+      <p className="restore-source"><bdi>{'fileName' in preview ? preview.fileName : 'Selected saved copy'}</bdi></p>
+      <table className="restore-comparison" role="table"><caption>Current records and selected restore source</caption><thead role="rowgroup"><tr role="row"><th scope="col" role="columnheader">Records</th><th scope="col" role="columnheader">Current</th><th scope="col" role="columnheader">{source.kind === 'archive' ? 'Backup' : 'Saved copy'}</th></tr></thead><tbody role="rowgroup">
         {[
           ['Active profiles', preview.current.activeProfiles, preview.incoming.activeProfiles],
           ['Archived profiles', preview.current.archivedProfiles, preview.incoming.archivedProfiles],
           ['Accounts', preview.current.accounts, preview.incoming.accounts],
-        ].map(([label, current, incoming]) => <tr key={label} role="row"><th scope="row" role="rowheader">{label}</th><td role="cell"><span className="comparison-label" aria-hidden="true">Current</span><span data-restore-count>{current}</span></td><td role="cell"><span className="comparison-label" aria-hidden="true">{source.kind === 'archive' ? 'Backup' : 'Checkpoint'}</span><span data-restore-count>{incoming}</span></td></tr>)}
+        ].map(([label, current, incoming]) => <tr key={label} role="row"><th scope="row" role="rowheader">{label}</th><td role="cell"><span className="comparison-label" aria-hidden="true">Current</span><span data-restore-count>{current}</span></td><td role="cell"><span className="comparison-label" aria-hidden="true">{source.kind === 'archive' ? 'Backup' : 'Saved copy'}</span><span data-restore-count>{incoming}</span></td></tr>)}
       </tbody></table>
-      <p>Recovery checkpoint saved on this device with your workspace key.</p>
+      <p>An encrypted copy of your previous records is saved on this device with your workspace key.</p>
       <p id="restore-replacement-help" className="restore-help">Restoring replaces your current application records and saved appearance. Monitoring will stay stopped. Restored profiles will need sign-in. OpenUsage will keep existing profile homes.</p>
       <form className="restore-confirmation-form" onSubmit={event => { event.preventDefault(); void apply(); }}>
         <Field disabled={busy}>
@@ -223,7 +223,7 @@ function RestoreRecordsPreview({ source, busy, setBusy, onRestored }: Omit<Props
     {receipt && <div ref={receiptPanel} className="backup-receipt restore-result" role="status" tabIndex={-1}>
       <h4>Application records restored</h4>
       <p>Monitoring is stopped. Sign in to each restored profile before you collect new readings.</p>
-      <p className="restore-help">Your encrypted checkpoint and previous profile homes remain on this device.</p>
+      <p className="restore-help">Your saved copy and previous profile homes remain on this device.</p>
       <Button variant="outline" className="secondary-button" type="button" disabled={busy} onClick={() => { void close(); }}>Close restore result</Button>
     </div>}
     {failure && <p ref={errorMessage} id="restore-preview-error" className="operation-error" role="alert" tabIndex={-1}>{failure.message}</p>}

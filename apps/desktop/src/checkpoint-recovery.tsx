@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from './components/ui/collapsible';
 import { Button } from './components/ui/button';
 import { Field, FieldLabel, FieldDescription } from './components/ui/field';
 import { Select, SelectTrigger, SelectValue, SelectPopup, SelectItem } from './components/ui/select';
@@ -38,7 +39,7 @@ export function CheckpointRecovery({ busy, setBusy, onRestored }: Props) {
       if (cancelled) return;
       setList(null);
       setSelected('');
-      setError('OpenUsage could not read the checkpoint list. Keep your workspace files and refresh the list.');
+      setError('OpenUsage could not read the saved copy list. Keep your workspace files and refresh the list.');
       setFocus('error');
     }).finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
@@ -53,15 +54,15 @@ export function CheckpointRecovery({ busy, setBusy, onRestored }: Props) {
 
   const checkpoint = list?.checkpoints.find(item => item.id === selected);
   return <section id="checkpoint-recovery" className="backup-inspection" aria-labelledby="checkpoint-recovery-title" aria-busy={loading}>
-    <h3 id="checkpoint-recovery-title">Restore a checkpoint</h3>
-    <p className="restore-help">Checkpoints contain application records saved before a restore preview. They use this workspace key. A preview checks their records and original profile homes before you can approve replacement.</p>
+    <h3 id="checkpoint-recovery-title">Undo a restore</h3>
+    <p className="restore-help">OpenUsage saves an encrypted copy before each restore preview. Copies use this workspace key. Preview a copy before replacing your current records.</p>
     <div className="checkpoint-catalog">
-      <Button ref={refresh} type="button" variant="outline" className="secondary-button" disabled={busy || loading} onClick={() => setAttempt(value => value + 1)}>{loading ? 'Reading checkpoints…' : 'Refresh checkpoints'}</Button>
-      {loading && <p role="status">Reading local checkpoint files.</p>}
-      {!loading && list?.checkpoints.length === 0 && <p role="status">No recovery checkpoints are available in this workspace.</p>}
+      <Button ref={refresh} type="button" variant="outline" className="secondary-button" disabled={busy || loading} onClick={() => setAttempt(value => value + 1)}>{loading ? 'Reading saved copies…' : 'Refresh saved copies'}</Button>
+      {loading && <p role="status">Reading saved copies.</p>}
+      {!loading && list?.checkpoints.length === 0 && <p role="status">No saved copies are available in this workspace.</p>}
       {!loading && checkpoint && <>
         <Field className="w-full" disabled={busy}>
-          <FieldLabel nativeLabel={false} render={<div />}>Checkpoint file</FieldLabel>
+          <FieldLabel nativeLabel={false} render={<div />}>Saved copy</FieldLabel>
           <Select modal={false} value={selected} disabled={busy} items={list?.checkpoints.map(item => ({ value: item.id, label: `${checkpointDate(item.modifiedAt)} · ${item.id}` }))} onValueChange={next => {
             if (typeof next === 'string' && list?.checkpoints.some(item => item.id === next)) setSelected(next);
           }}>
@@ -72,9 +73,9 @@ export function CheckpointRecovery({ busy, setBusy, onRestored }: Props) {
           </Select>
           <FieldDescription id="checkpoint-file-help" className="restore-help">Dates come from file metadata. The list does not verify records or identify the last applied restore.</FieldDescription>
         </Field>
-        <dl className="backup-inspection-metadata"><dt>Checkpoint ID</dt><dd><bdi>{checkpoint.id}</bdi></dd><dt>File size</dt><dd>{checkpoint.fileBytes} bytes</dd></dl>
+        <Collapsible className="mt-2"><CollapsibleTrigger render={<Button variant="ghost" className="text-button" />} type="button">Copy details</CollapsibleTrigger><CollapsiblePanel><dl className="backup-inspection-metadata"><dt>Copy ID</dt><dd><bdi>{checkpoint.id}</bdi></dd><dt>File size</dt><dd>{checkpoint.fileBytes} bytes</dd></dl></CollapsiblePanel></Collapsible>
       </>}
-      {list?.truncated && <p role="status">This list is limited. Some checkpoint files are not shown.</p>}
+      {list?.truncated && <p role="status">This list is limited. Some saved copies are not shown.</p>}
       {error && <p ref={errorPanel} className="operation-error" role="alert" tabIndex={-1}>{error}</p>}
     </div>
     {!loading && checkpoint && <CheckpointRestorePreviewPanel key={`${selected}:${attempt}`} checkpointId={selected} busy={busy} setBusy={setBusy} onRestored={onRestored} />}
