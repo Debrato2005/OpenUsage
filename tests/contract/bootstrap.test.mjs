@@ -348,9 +348,13 @@ test('accepts a provisional quota preview without inventing missing windows or p
   desktopResponse(request);
   assert.deepEqual(await invoke('begin_profile_quota_read', { profileId: request.profileId, approvalId: request.approvalId }), request);
   const window = { usedPercent: 0, derivedRemainingPercent: 100, windowDurationMins: null, resetsAtUnix: null, label: 'Primary window' };
-  const preview = { ...request, providerVersion: '0.163.0', observedAtUtc: '2026-10-18T07:00:00.000Z', identityConfidence: 'provisional', verifiedIdentityKey: null, limits: [{ limitId: 'codex', limitName: null, primary: window, secondary: null, reachedType: null }] };
+  const preview = { ...request, providerVersion: '0.163.0', observedAtUtc: '2026-10-18T07:00:00.000Z', identityConfidence: 'provisional', verifiedIdentityKey: null, availableResetCredits: null, limits: [{ limitId: 'codex', limitName: null, primary: window, secondary: null, reachedType: null }] };
   desktopResponse(preview);
   assert.deepEqual(await invoke('complete_profile_quota_read', { profileId: request.profileId, requestId: request.requestId }), preview);
+  for (const availableResetCredits of [null, '0', '9007199254740993', '9223372036854775807']) {
+    desktopResponse({ ...preview, availableResetCredits });
+    assert.equal((await invoke('complete_profile_quota_read', { profileId: request.profileId, requestId: request.requestId })).availableResetCredits, availableResetCredits);
+  }
   desktopResponse({ ...preview, limits: [] });
   assert.deepEqual((await invoke('complete_profile_quota_read', { profileId: request.profileId, requestId: request.requestId })).limits, []);
 });
@@ -358,9 +362,12 @@ test('accepts a provisional quota preview without inventing missing windows or p
 test('rejects malformed or secret-bearing quota payloads and unqualified identity claims', async () => {
   const window = { usedPercent: 25, derivedRemainingPercent: 75, windowDurationMins: 300, resetsAtUnix: 1792310400, label: 'Five-hour' };
   const limit = { limitId: 'codex', limitName: null, primary: window, secondary: null, reachedType: null };
-  const value = { profileId: '11111111-1111-4111-8111-111111111111', requestId: '22222222-2222-4222-8222-222222222222', approvalId: '33333333-3333-4333-8333-333333333333', sourceKind: 'test_fixture', monitoring: 'stopped', accepted: false, providerVersion: '0.163.0', observedAtUtc: '2026-10-18T07:00:00.000Z', identityConfidence: 'provisional', verifiedIdentityKey: null, limits: [limit] };
+  const value = { profileId: '11111111-1111-4111-8111-111111111111', requestId: '22222222-2222-4222-8222-222222222222', approvalId: '33333333-3333-4333-8333-333333333333', sourceKind: 'test_fixture', monitoring: 'stopped', accepted: false, providerVersion: '0.163.0', observedAtUtc: '2026-10-18T07:00:00.000Z', identityConfidence: 'provisional', verifiedIdentityKey: null, availableResetCredits: null, limits: [limit] };
   const malformedWindows = [{ usedPercent: -1 }, { usedPercent: 101 }, { usedPercent: 25.5 }, { usedPercent: Number.NaN }, { derivedRemainingPercent: Infinity }, { windowDurationMins: 0 }, { windowDurationMins: Number.MAX_SAFE_INTEGER + 1 }, { resetsAtUnix: 253402300800 }, { label: '' }, { token: 'synthetic-must-not-enter-renderer' }].map(change => ({ ...value, limits: [{ ...limit, primary: { ...window, ...change } }] }));
-  for (const malformed of [...malformedWindows, ...[
+  const malformedCredits = [undefined, 0, -1, 1.5, true, '', '-1', '01', ' 3', '3 ', '3\n', '1.5', '1e3', '9223372036854775808', '100000000000000000000'].map(availableResetCredits => ({ ...value, availableResetCredits }));
+  const missingCredits = { ...value };
+  delete missingCredits.availableResetCredits;
+  for (const malformed of [missingCredits, ...malformedCredits, ...malformedWindows, ...[
     { accepted: true }, { monitoring: 'active' }, { identityConfidence: 'verified' }, { identityConfidence: 'unknown' }, { verifiedIdentityKey: 'synthetic-key' }, { observedAtUtc: '2026-02-30T07:00:00.000Z' }, { email: 'synthetic@example.invalid' }, { accountId: 'synthetic-private-source-scope' }, { limits: [limit, limit] }, { limits: Array.from({ length: 65 }, (_, id) => ({ ...limit, limitId: `limit-${id}` })) }, { limits: [{ ...limit, limitId: '' }] }, { limits: [{ ...limit, secondary: undefined }] }, { limits: [{ ...limit, rawFrame: '{}' }] },
   ].map(change => ({ ...value, ...change }))]) {
     desktopResponse(malformed);
