@@ -33,7 +33,7 @@ async function openProfile(page: Page, options: { approve?: boolean; cached?: Sa
         case 'list_profiles': value = { activeProfiles: options.archived ? 0 : 1, profiles: [{ id: profileId, label: 'Synthetic activity profile', environment: 'native', archived: options.archived ?? false, connectionState: 'authentication_required' }] }; break;
         case 'load_profile_activity':
           if (fixture.failLoads) throw 'provider_activity_load_failed';
-          value = fixture.deferLoads ? await new Promise((resolve, reject) => { fixture.pendingLoads.push({ resolve, reject }); }) : fixture.saved; break;
+          value = fixture.deferLoads ? await new Promise((resolve, reject) => { fixture.pendingLoads.push({ resolve, reject }); }) : structuredClone(fixture.saved); break;
         case 'inspect_provider_executable': value = { ...metadata, candidateId: '55555555-5555-4555-8555-555555555555' }; break;
         case 'approve_provider_executable': value = { ...metadata, approvalId }; break;
         case 'begin_profile_activity_read': value = { profileId, approvalId, requestId: requestIds[started++], sourceKind: 'test_fixture', monitoring: 'stopped', accepted: false }; break;
@@ -148,8 +148,12 @@ for (const archived of [false, true]) test(`renderer loads ${archived ? 'archive
 
 test('renderer preserves saved daily rows and their ages when a saved replacement has null metrics and no daily array', async ({ page }) => {
   const cached = saved(0, [{ startDate: '2024-02-29', tokens: '9007199254740993' }]);
+  cached.freshness = 'fresh'; cached.dailyUsageBuckets[0]!.freshness = 'fresh';
   await openProfile(page, { cached }); await begin(page, 0);
-  await page.evaluate(id => { (window as unknown as FixtureWindow).activityFixture.completions[id]!.reject('provider_activity_save_failed'); }, requestIds[0]!);
+  await expect(page.locator('[data-activity-freshness]')).toHaveText('Current');
+  await page.evaluate(id => { const fixture = (window as unknown as FixtureWindow).activityFixture; fixture.saved!.freshness = 'stale'; fixture.saved!.dailyUsageBuckets[0]!.freshness = 'stale'; fixture.completions[id]!.reject('provider_activity_save_failed'); }, requestIds[0]!);
+  await expect(page.locator('[data-activity-freshness]')).toHaveText('Stale');
+  await expect(page.locator('.activity-result')).toBeFocused();
   await expect(page.getByText('The reading could not be saved. Your previous activity is still available.')).toBeVisible();
   await expect(metric(page, 'lifetimeTokens')).toHaveText('9223372036854775807');
   await begin(page, 1);
@@ -189,4 +193,17 @@ test('renderer refuses an older background cache response after a newly committe
   await page.evaluate(old => { (window as unknown as FixtureWindow).activityFixture.pendingLoads[0]!.resolve(old); }, old);
   await expect(metric(page, 'lifetimeTokens')).toHaveText('9223372036854775807');
   await expect(page.getByRole('region', { name: 'Saved activity for Synthetic activity profile' })).toBeFocused();
+});
+
+
+test('renderer preserves manual saved-result focus when the sixty-second cache tick occurs during its load', async ({ page }) => {
+  await page.clock.install(); await openProfile(page, { cached: saved() }); await begin(page, 0);
+  const cached = saved();
+  await page.evaluate(({ id, value, cached }) => { const fixture = (window as unknown as FixtureWindow).activityFixture; fixture.deferLoads = true; fixture.saved = cached; fixture.completions[id]!.resolve(value); }, { id: requestIds[0]!, value: committed(0, null), cached });
+  await expect.poll(() => page.evaluate(() => (window as unknown as FixtureWindow).activityFixture.pendingLoads.length)).toBe(1);
+  await page.clock.fastForward(60_000);
+  expect(await page.evaluate(() => (window as unknown as FixtureWindow).activityFixture.pendingLoads.length)).toBe(1);
+  await page.evaluate(cached => { const fixture = (window as unknown as FixtureWindow).activityFixture; fixture.deferLoads = false; fixture.pendingLoads[0]!.resolve(cached); }, cached);
+  await expect(page.getByRole('region', { name: 'Saved activity for Synthetic activity profile' })).toBeFocused();
+  await expect(metric(page, 'lifetimeTokens')).toHaveText('9223372036854775807');
 });

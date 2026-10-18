@@ -155,7 +155,7 @@ export function ProviderSettings({ busy, setBusy, approval, onApproved }: Settin
   </section>;
 }
 
-export function ProfileProviderCheck({ profileId, profileLabel, approval, busy, managementActions, managementTrigger, onActivitySaved }: { profileId: string; profileLabel: string; approval: ProviderExecutableApproval; busy: boolean; managementActions: ReactNode; managementTrigger: ReactNode; onActivitySaved: (value: ProfileActivitySavedRead) => Promise<void> }) {
+export function ProfileProviderCheck({ profileId, profileLabel, approval, busy, managementActions, managementTrigger, onActivitySaved, onActivityFailed }: { profileId: string; profileLabel: string; approval: ProviderExecutableApproval; busy: boolean; managementActions: ReactNode; managementTrigger: ReactNode; onActivitySaved: (value: ProfileActivitySavedRead) => Promise<void>; onActivityFailed: () => Promise<void> }) {
   const [checking, setChecking] = useState(false);
   const [loggingIn, setLoggingIn] = useState(false);
   const [readingQuota, setReadingQuota] = useState(false);
@@ -174,7 +174,7 @@ export function ProfileProviderCheck({ profileId, profileLabel, approval, busy, 
     if (!checking && focus) { result.current?.focus(); setFocus(false); }
   }, [checking, focus, diagnostic, error]);
 
-  const activity = useActivityPreview({ profileId, profileLabel, approval, busy: busy || checking || loggingIn || readingQuota, onSaved: onActivitySaved, onStarted: () => {
+  const activity = useActivityPreview({ profileId, profileLabel, approval, busy: busy || checking || loggingIn || readingQuota, onSaved: onActivitySaved, onFailed: onActivityFailed, onStarted: () => {
     checkGeneration.current += 1; setDiagnostic(null); setError(null); setQuotaGeneration(value => value + 1); setLoginGeneration(value => value + 1);
   } });
 
