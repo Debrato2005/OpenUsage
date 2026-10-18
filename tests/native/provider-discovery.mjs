@@ -29,11 +29,13 @@ async function unchanged() {
     await assert.rejects(lstat(join(directory, name)), { code: 'ENOENT' });
   }
 }
+async function databaseHashes() { const result = {}; for (const path of [fixture.database, `${fixture.database}-wal`, join(dirname(fixture.database), 'database-key.v1')]) try { result[path] = await digest(path); } catch (error) { if (error.code !== 'ENOENT') throw error; } return result; }
 async function discover(expected) {
+  const before = await databaseHashes();
   const result = await driver.invoke('discover_provider_executables'); assert.equal(result.ok, true);
   assert.deepEqual(Object.keys(result.value).sort(), ['candidates', 'truncated']); assert.equal(result.value.truncated, false);
   for (const candidate of result.value.candidates) { assert.deepEqual(Object.keys(candidate).sort(), ['location', 'path']); assert.ok(['path', 'standard', 'npm_package'].includes(candidate.location)); }
-  assert.deepEqual(result.value.candidates.map(item => item.path).sort(), [...expected].sort()); evidence.discoveries.push(result.value); await unchanged(); return result.value;
+  assert.deepEqual(result.value.candidates.map(item => item.path).sort(), [...expected].sort()); evidence.discoveries.push(result.value); assert.deepEqual(await databaseHashes(), before, 'Discovery must preserve encrypted database, WAL and wrapped key bytes.'); await unchanged(); return result.value;
 }
 async function find() {
   await driver.click('[data-provider-find]');
@@ -69,7 +71,7 @@ try {
   const safe = join(home, '.local/bin'); const second = join(home, 'second/bin'); const alias = join(home, 'bin-alias'); const npmBin = join(home, 'npm/bin');
   for (const path of [safe, second, npmBin]) await ownedDirectory(path); await symlink(safe, alias);
   const excluded = [join(home, '.codex'), protectedDefault, customAlias, fixture.dirs.codex, managed, managedAlias];
-  for (const path of [protectedDefault, fixture.dirs.codex, managed]) await executable(join(path, 'codex'));
+  for (const path of [protectedDefault, fixture.dirs.codex, managed]) { await executable(join(path, 'codex')); const marker = join(path, 'synthetic-protected-content.txt'); await writeFile(marker, 'Owned synthetic protected content. No credentials.\n', { mode: 0o600 }); watched.set(marker, await digest(marker)); }
   fixture.environment.PATH = [...excluded, safe, alias, second, npmBin, '/usr/bin', '/bin'].join(':');
   evidence.syntheticRoots = { home, codexHome: customAlias, protectedDefault, protectedCustom: fixture.dirs.codex, managed, managedAlias }; evidence.discoveryPath = fixture.environment.PATH;
   driver = new NativeDriver(application, fixture.environment, join(output, 'driver.log')); await driver.start();
@@ -101,7 +103,7 @@ try {
   await waitFor(async () => await driver.execute('return document.activeElement?.matches(".provider-executable-review");'), 'npm native source review'); await unchanged();
   assert.equal(await driver.execute('return document.querySelector("#provider-executable-approved").checked;'), false); await driver.click('#provider-executable-approved'); await driver.click('.provider-approval-form button[type=submit]');
   await waitFor(async () => await driver.execute('return document.activeElement?.matches(".provider-approval-result");'), 'explicit source approval'); await unchanged();
-  evidence.steps = { syntheticHomeAndCodexHomeBeforeLaunch: true, lexicalAndPhysicalProtectedRootsExcluded: true, zeroCandidatesOpensManualEntry: true, uniqueCandidateInspectedWithoutExecution: true, symlinkAliasesDeduplicated: true, multipleCandidatesRequireSelection: true, unknownSourceCannotBeApproved: true, fixedNpmVendorBinaryLocatedWithoutWrapperExecution: true, explicitApprovalRequired: true, noExecutableOrProtectedContentChanges: true, noExecutionMarkers: true };
+  evidence.steps = { syntheticHomeAndCodexHomeBeforeLaunch: true, lexicalAndPhysicalProtectedRootsExcluded: true, zeroCandidatesOpensManualEntry: true, uniqueCandidateInspectedWithoutExecution: true, symlinkAliasesDeduplicated: true, multipleCandidatesRequireSelection: true, unknownSourceCannotBeApproved: true, fixedNpmVendorBinaryLocatedWithoutWrapperExecution: true, explicitApprovalRequired: true, noExecutableOrProtectedContentChanges: true, discoveryPreservesDatabaseWalAndKey: true, noExecutionMarkers: true };
   for (const [path, hash] of Object.entries(evidence.sourceHashes)) assert.equal(await digest(join(repository, path)), hash); for (const [path, hash] of Object.entries(evidence.harnessHashes)) assert.equal(await digest(join(harness, path)), hash);
   assert.equal(await digest(application), evidence.application.sha256); evidence.watchedSourceHashes = Object.fromEntries(watched); evidence.result = 'passed';
 } catch (error) { evidence.error = error.stack ?? String(error); process.exitCode = 1; if (driver?.session) try { await driver.screenshot(join(output, 'failure.png')); evidence.screenshots.push('failure.png'); } catch {} }
