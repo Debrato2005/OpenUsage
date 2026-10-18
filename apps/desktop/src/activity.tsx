@@ -85,7 +85,7 @@ export function useActivityPreview({ profileId, profileLabel, approval, busy, on
   }
   return {
     working,
-    clear: () => { setOutcome(null); setFocus(false); },
+    clear: () => { generation.current += 1; setOutcome(null); setFocus(false); },
     action: <Button className="text-button" variant="ghost" type="button" data-activity-read={profileId} aria-describedby={`profile-name-${profileId}`} disabled={busy || working} onClick={() => { void read(); }}>Read activity</Button>,
     content: <>
       {working && <div className="profile-actions activity-pending"><span role="status">Reading activity…</span>{requestId && <Button ref={cancelButton} className="text-button" variant="ghost" type="button" data-activity-cancel={profileId} aria-describedby={`profile-name-${profileId}`} disabled={stopping} onClick={() => { void cancel(); }}>{stopping ? 'Stopping read…' : 'Cancel activity read'}</Button>}</div>}

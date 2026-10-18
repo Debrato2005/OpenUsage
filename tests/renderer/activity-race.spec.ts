@@ -24,6 +24,8 @@ async function openProfile(page: Page) {
         case 'inspect_provider_executable': value = { ...metadata, candidateId: '55555555-5555-4555-8555-555555555555' }; break;
         case 'approve_provider_executable': value = { ...metadata, approvalId }; break;
         case 'begin_profile_activity_read': value = { profileId, approvalId, requestId: requestIds[started++], sourceKind: 'test_fixture', monitoring: 'stopped', accepted: false }; break;
+        case 'begin_profile_quota_read': value = { profileId, approvalId, requestId: requestIds[1], sourceKind: 'test_fixture', monitoring: 'stopped', accepted: false }; break;
+        case 'complete_profile_quota_read': value = await new Promise((resolve, reject) => { fixture.completions[`quota:${String(args.requestId)}`] = { resolve, reject }; }); break;
         case 'complete_profile_activity_read': value = await new Promise((resolve, reject) => { fixture.completions[String(args.requestId)] = { resolve, reject }; }); break;
         case 'cancel_profile_activity_read': value = await new Promise((resolve, reject) => { fixture.cancellations[String(args.requestId)] = { resolve, reject }; }); break;
         default: throw new Error(`Unexpected renderer fixture command: ${command}`);
@@ -100,4 +102,27 @@ test('renderer fixture distinguishes missing daily activity and refuses incompat
   await expect(page.locator(`.activity-result[data-activity-profile="${profileId}"]`)).toHaveAttribute('role', 'alert');
   await expect(page.getByRole('heading', { name: 'Activity preview', exact: true })).toHaveCount(0);
   await expect(page.locator('[data-activity-metric]')).toHaveCount(0);
+});
+
+
+test('renderer fixture keeps a new quota read focused when an old activity cancellation rejects', async ({ page }) => {
+  await openProfile(page); await begin(page, 0);
+  await page.getByRole('button', { name: 'Cancel activity read', exact: true }).click();
+  await page.evaluate(id => { (window as unknown as FixtureWindow).activityFixture.completions[id]!.reject('provider_activity_cancelled'); }, requestIds[0]!);
+  await expect(page.getByText('Activity read stopped.', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Read quotas', exact: true }).click();
+  const cancelQuota = page.locator(`[data-quota-cancel="${profileId}"]`);
+  await expect(cancelQuota).toBeFocused();
+  await page.evaluate(id => { (window as unknown as FixtureWindow).activityFixture.cancellations[id]!.reject('provider_cleanup_failed'); }, requestIds[0]!);
+  await expect(cancelQuota).toBeFocused();
+  await expect(cancelQuota).toBeEnabled();
+  await expect(page.locator('.activity-result')).toHaveCount(0);
+  await expect.poll(() => page.evaluate(id => Boolean((window as unknown as FixtureWindow).activityFixture.completions[`quota:${id}`]), requestIds[1]!)).toBe(true);
+  await page.evaluate(({ profileId, approvalId, requestId }) => {
+    (window as unknown as FixtureWindow).activityFixture.completions[`quota:${requestId}`]!.resolve({ profileId, approvalId, requestId,
+      sourceKind: 'test_fixture', monitoring: 'stopped', accepted: false, providerVersion: '0.163.0', observedAtUtc: '2026-10-18T00:00:00.000Z',
+      identityConfidence: 'provisional', verifiedIdentityKey: null, availableResetCredits: null, resetCreditDetails: null, limits: [] });
+  }, { profileId, approvalId, requestId: requestIds[1]! });
+  await expect(page.getByRole('region', { name: 'Quota preview for Synthetic activity profile' })).toBeFocused();
+  await expect(page.locator('.activity-result')).toHaveCount(0);
 });
