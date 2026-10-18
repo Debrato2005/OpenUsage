@@ -88,6 +88,12 @@ pub enum CommandError {
     ProviderHomeUnavailable,
     ProviderProfileArchived,
     ProviderShuttingDown,
+    ProviderLoginNotFound,
+    ProviderLoginInProgress,
+    ProviderLoginPromptPending,
+    ProviderLoginCancelled,
+    ProviderLoginTimedOut,
+    ProviderLoginFailed,
 }
 
 #[derive(Debug, Eq, PartialEq, Serialize)]
@@ -583,6 +589,14 @@ impl Workspace {
         &mut self,
         id: &str,
     ) -> Result<provider::PendingCheck, CommandError> {
+        let (home, revision, path) = self.selected_provider_home(id)?;
+        self.provider.start(id, &home, revision, &path)
+    }
+
+    fn selected_provider_home(
+        &mut self,
+        id: &str,
+    ) -> Result<(String, openusage_storage::StorageRevision, PathBuf), CommandError> {
         validate_profile_id(id)?;
         let storage = self.storage.as_mut().ok_or(CommandError::WorkspaceLocked)?;
         let state = storage
@@ -616,8 +630,93 @@ impl Workspace {
                 return Err(CommandError::ProviderHomeUnavailable);
             }
         }
+        Ok((home.managed_home_reference, state.revision, path))
+    }
+
+    pub fn begin_profile_login(
+        &mut self,
+        id: &str,
+        approval_id: &str,
+        confirmed: bool,
+    ) -> Result<provider::LoginReceipt, CommandError> {
+        if !confirmed {
+            return Err(CommandError::InvalidArguments);
+        }
+        restore::validate_preview_id(approval_id)?;
+        let (home, revision, path) = self.selected_provider_home(id)?;
         self.provider
-            .start(id, &home.managed_home_reference, state.revision, &path)
+            .begin_login(id, approval_id, &home, revision, &path)
+    }
+
+    pub fn await_profile_login_prompt(
+        &self,
+        id: &str,
+        attempt: &str,
+    ) -> Result<provider::AwaitingLoginPrompt, CommandError> {
+        self.storage.as_ref().ok_or(CommandError::WorkspaceLocked)?;
+        self.provider.await_login_prompt(id, attempt)
+    }
+
+    pub fn complete_profile_login(
+        &self,
+        id: &str,
+        attempt: &str,
+    ) -> Result<provider::CompletingLogin, CommandError> {
+        self.storage.as_ref().ok_or(CommandError::WorkspaceLocked)?;
+        self.provider.complete_login(id, attempt)
+    }
+
+    pub fn finish_profile_login_prompt(
+        &mut self,
+        ready: provider::ReadyLoginPrompt,
+    ) -> Result<provider::LoginPromptReceipt, CommandError> {
+        if let Err(error) = self.require_login_binding(&ready.binding) {
+            ready.abort();
+            return Err(error);
+        }
+        ready.publish()
+    }
+
+    pub fn finish_profile_login(
+        &mut self,
+        completed: provider::CompletedLogin,
+    ) -> Result<provider::LoginOutcome, CommandError> {
+        if let Err(error) = self.require_login_binding(&completed.binding) {
+            completed.abort();
+            return Err(error);
+        }
+        completed.publish()
+    }
+
+    fn require_login_binding(
+        &mut self,
+        binding: &provider::LoginBinding,
+    ) -> Result<(), CommandError> {
+        let storage = self.storage.as_mut().ok_or(CommandError::WorkspaceLocked)?;
+        let state = storage
+            .restore_state()
+            .map_err(|_| CommandError::StorageUnavailable)?;
+        if state.revision != binding.revision {
+            let profile = storage
+                .list_profiles()
+                .map_err(profile_error)?
+                .into_iter()
+                .find(|profile| profile.id == binding.profile_id)
+                .ok_or(CommandError::ProviderLoginCancelled)?;
+            if profile.archived || profile.environment != ProfileEnvironment::Native {
+                return Err(CommandError::ProviderLoginCancelled);
+            }
+            let homes = storage
+                .restore_home_mappings(&state.revision)
+                .map_err(|_| CommandError::ProviderHomeUnavailable)?;
+            if !homes.iter().any(|home| {
+                home.profile_id == binding.profile_id
+                    && home.managed_home_reference == binding.home_reference
+            }) {
+                return Err(CommandError::ProviderLoginCancelled);
+            }
+        }
+        Ok(())
     }
 
     /// This method runs only after the owned provider worker has joined.
@@ -887,6 +986,9 @@ pub(crate) fn require_local_filesystem(path: &Path) -> Result<(), CommandError> 
     }
     Ok(())
 }
+
+#[cfg(all(test, unix))]
+mod login_tests;
 
 #[cfg(test)]
 mod tests {

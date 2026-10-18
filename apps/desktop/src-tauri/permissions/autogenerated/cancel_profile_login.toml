@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-cancel-profile-login"
+description = "Enables the cancel_profile_login command without any pre-configured scope."
+commands.allow = ["cancel_profile_login"]
+
+[[permission]]
+identifier = "deny-cancel-profile-login"
+description = "Denies the cancel_profile_login command without any pre-configured scope."
+commands.deny = ["cancel_profile_login"]

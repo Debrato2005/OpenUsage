@@ -26,6 +26,10 @@
     "allow-inspect-provider-executable",
     "allow-approve-provider-executable",
     "allow-check-profile-connection",
-    "allow-cancel-profile-check"
+    "allow-cancel-profile-check",
+    "allow-begin-profile-login",
+    "allow-await-profile-login-prompt",
+    "allow-complete-profile-login",
+    "allow-cancel-profile-login"
   ]
 }
