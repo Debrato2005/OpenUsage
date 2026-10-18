@@ -1,8 +1,10 @@
 # Implementation status
 
-Updated: October 18, 2026. The mission remains ongoing. Current milestone: explicit activity sign-in recovery and simpler restore undo passed in the native Linux application. SQLCipher 4 with WAL remains mandatory. Next slice: keep explicit quota readings available after restart.
+Updated: October 18, 2026. The mission remains ongoing. Current milestone: explicit activity sign-in recovery, simpler restore undo, and quota retry preservation passed in the native Linux application. SQLCipher 4 with WAL remains mandatory. Next slice: keep explicit quota readings available after restart.
 
 ## Implemented and executed
+
+Failed or cancelled quota retries retain the previous unsaved preview and its original time. Prior errors remain visible during retry. A focused native journey and 62 renderer checks passed. See the [quota retry review](reviews/2026-10-18-quota-previous-reading.md). Durable quota storage remains the next slice.
 
 Changed activity sign-ins now show previous and current account details before explicit consent. Rust binds the next reading to that review and saves its association atomically. Nine accepted native fixture reads, 22 independent checks, and restart/restore regression passed. The UI uses Undo a restore, hides copy metadata, and retains JetBrains Mono. See the [sign-in recovery review](reviews/2026-10-18-activity-sign-in-recovery.md). Monitoring and verified aggregation remain unavailable.
 
