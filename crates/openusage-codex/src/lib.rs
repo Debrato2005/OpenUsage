@@ -5,7 +5,9 @@ use url::Url;
 mod quota;
 pub mod session;
 pub mod supervisor;
-pub use quota::{QuotaLimit, QuotaSnapshot, QuotaWindow, parse_quota};
+pub use quota::{
+    QuotaLimit, QuotaSnapshot, QuotaWindow, ResetCreditDetail, ResetCreditStatus, parse_quota,
+};
 
 pub const PROTOCOL_BASELINE: &str = "rust-v0.163.0";
 pub const MAX_MESSAGE_BYTES: usize = 1_048_576;

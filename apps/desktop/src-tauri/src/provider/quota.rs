@@ -29,6 +29,7 @@ pub(crate) struct QuotaOutcome {
     pub accepted: bool,
     pub limits: Vec<QuotaLimitView>,
     pub available_reset_credits: Option<openusage_codex::DecimalCount>,
+    pub reset_credit_details: Option<Vec<openusage_codex::ResetCreditDetail>>,
 }
 
 #[derive(Serialize)]
@@ -298,6 +299,7 @@ impl CompletedQuota {
             monitoring: "stopped",
             accepted: false,
             available_reset_credits: self.probe.quota.available_reset_credits,
+            reset_credit_details: self.probe.quota.reset_credit_details,
             limits: self
                 .probe
                 .quota
