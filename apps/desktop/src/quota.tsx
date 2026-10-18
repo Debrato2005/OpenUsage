@@ -96,7 +96,7 @@ export function ProfileQuotaRead({ profileId, profileLabel, approval, busy, onAc
         <div className="quota-preview-meta"><p>Unverified identity · Not saved</p><p className="quota-observed">Read <time dateTime={outcome.value.observedAtUtc}>{date(outcome.value.observedAtUtc)}</time></p></div>
         {outcome.value.limits.length === 0 ? <p>Codex returned no quota limits for this profile. Missing readings do not mean zero usage.</p> : outcome.value.limits.map((limit, index) => <details className="quota-limit" open={index === 0} key={`${outcome.value.requestId}:${limit.limitId}`}>
           <summary><bdi>{limit.limitName ?? limit.limitId}</bdi></summary>
-          {limit.primary && <WindowValues value={limit.primary} />}{limit.secondary && <WindowValues value={limit.secondary} />}
+          <div className="quota-windows">{limit.primary && <WindowValues value={limit.primary} />}{limit.secondary && <WindowValues value={limit.secondary} />}</div>
           {!limit.primary && !limit.secondary && <p>No quota windows were supplied for this limit.</p>}
           {(limit.primary === null || limit.secondary === null) && (limit.primary || limit.secondary) && <p className="provider-help">{limit.primary === null ? 'Primary window' : 'Secondary window'}: Not available</p>}
           <details className="quota-source-details"><summary>Reading details</summary><dl className="backup-inspection-metadata"><dt>Provider limit ID</dt><dd><bdi>{limit.limitId}</bdi></dd><dt>Provider status</dt><dd><bdi>{limit.reachedType ?? 'Not supplied'}</bdi></dd></dl></details>
