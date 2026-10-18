@@ -84,22 +84,34 @@ async function resize(width, height) {
   assert.deepEqual(actual, { width, height }, 'The real native viewport must match the requested dimensions.');
 }
 
-async function textScale(enabled) {
-  return driver.execute(`
+async function textScale(enabled, multiplier = 1.5) {
+  const result = await driver.execute(`
+    let restoration=null;
     if (window.__nativeVisualTextSizes) {
-      for (const [node,value,priority] of window.__nativeVisualTextSizes) {
-        if (value) node.style.setProperty('font-size',value,priority); else node.style.removeProperty('font-size');
+      for (const item of window.__nativeVisualTextSizes) {
+        if (item.value) item.node.style.setProperty('font-size',item.value,item.priority); else item.node.style.removeProperty('font-size');
+        if (!item.hadStyle && item.node.style.length===0) item.node.removeAttribute('style');
       }
+      const connected=window.__nativeVisualTextSizes.filter(item=>item.node.isConnected);
+      restoration={connected:connected.length,inlineMismatches:connected.filter(item=>item.node.style.getPropertyValue('font-size')!==item.value||item.node.style.getPropertyPriority('font-size')!==item.priority).map(item=>item.node.tagName),computedMismatches:connected.filter(item=>getComputedStyle(item.node).fontSize!==item.computed).map(item=>({tag:item.node.tagName,before:item.computed,after:getComputedStyle(item.node).fontSize}))};
       delete window.__nativeVisualTextSizes;
     }
     const before=parseFloat(getComputedStyle(document.body).fontSize);
     if (arguments[0]) {
-      const sizes=[...document.querySelectorAll('body,body *')].map(node=>[node,parseFloat(getComputedStyle(node).fontSize)]);
-      window.__nativeVisualTextSizes=sizes.map(([node])=>[node,node.style.getPropertyValue('font-size'),node.style.getPropertyPriority('font-size')]);
-      for (const [node,size] of sizes) if (Number.isFinite(size)) node.style.setProperty('font-size',size*1.5+'px','important');
+      window.__nativeVisualTextSizes=[...document.querySelectorAll('body,body *')].map(node=>({node,computed:getComputedStyle(node).fontSize,value:node.style.getPropertyValue('font-size'),priority:node.style.getPropertyPriority('font-size'),hadStyle:node.hasAttribute('style')}));
+      for (const item of window.__nativeVisualTextSizes) {
+        const size=parseFloat(item.computed);
+        if (Number.isFinite(size)) item.node.style.setProperty('font-size',size*arguments[1]+'px','important');
+      }
     }
-    return {before,after:parseFloat(getComputedStyle(document.body).fontSize)};
-  `, [enabled]);
+    return {before,after:parseFloat(getComputedStyle(document.body).fontSize),restoration};
+  `, [enabled, multiplier]);
+  if (result.restoration) {
+    assert.deepEqual(result.restoration.inlineMismatches, [], 'Text scaling must restore each surviving inline font-size property and priority.');
+    assert.deepEqual(result.restoration.computedMismatches, [], 'Text scaling must restore each surviving computed font size.');
+    (evidence.textRestoration ??= []).push(result.restoration);
+  }
+  return result;
 }
 
 async function theme(value) {
@@ -125,7 +137,7 @@ async function measure(state, themeName, variant, target) {
     }).slice(0,12).map(node=>({tag:node.tagName,id:node.id,className:typeof node.className==='string'?node.className:''}));
     const target=arguments[0]?document.querySelector(arguments[0])?.getBoundingClientRect():null;
     const privacy=document.querySelector('[aria-controls="privacy-details"]');
-    return {viewport:{width,height:innerHeight,outerWidth,outerHeight,devicePixelRatio},scrollWidth:document.scrollingElement.scrollWidth,bodyFont:getComputedStyle(document.body).fontFamily,fontCheck:document.fonts.check('16px '+JSON.stringify(arguments[1]),'OpenUsage'),fontStatus:document.fonts.status,fontFaces:families,metrics,clipped,overflowing,privacyRendered:Boolean(privacy && visible(privacy)),targetVisible:!arguments[0]||Boolean(target && target.bottom>0 && target.top<innerHeight)};
+    return {viewport:{width,height:innerHeight,outerWidth,outerHeight,devicePixelRatio},scrollWidth:document.scrollingElement.scrollWidth,bodyFont:getComputedStyle(document.body).fontFamily,fontCheck:document.fonts.check('16px '+JSON.stringify(arguments[1]),'OpenUsage'),fontChecks:[400,500].map(weight=>({weight,loaded:document.fonts.check(weight+' 14px '+JSON.stringify(arguments[1]),'OpenUsage 75%')})),fontStatus:document.fonts.status,fontFaces:families,metrics,clipped,overflowing,privacyRendered:Boolean(privacy && visible(privacy)),targetVisible:!arguments[0]||Boolean(target && target.bottom>0 && target.top<innerHeight)};
   `, [target, expectedFont]);
   const name = `${state}-${themeName}-${variant}.png`;
   await driver.screenshot(join(output, name));
@@ -139,6 +151,10 @@ async function measure(state, themeName, variant, target) {
   if (!data.targetVisible) fail('The state control is absent.');
   if (data.fontStatus !== 'loaded' || !data.fontCheck || data.bodyFont.split(',')[0].replaceAll('"', '').replaceAll("'", '').trim() !== expectedFont
     || !data.fontFaces.some(face => face.family.replaceAll('"', '').replaceAll("'", '') === expectedFont && face.status === 'loaded')) fail('The required local font is not loaded.');
+  for (const weight of [400, 500]) {
+    if (!data.fontChecks.some(check => check.weight === weight && check.loaded)
+      || !data.fontFaces.some(face => face.family.replaceAll('"', '').replaceAll("'", '') === expectedFont && face.weight === String(weight) && face.status === 'loaded')) fail(`The required local font weight ${weight} is not loaded.`);
+  }
   for (const label of ['Quota remaining', 'Token activity']) {
     const metric = data.metrics.find(item => item.label?.includes(label));
     if (metric?.value !== 'Not available') fail(`Missing provider metric must remain unavailable: ${label}.`);
@@ -152,14 +168,24 @@ async function captureState(state, target, narrow = false) {
     await driver.execute('window.scrollTo(0,0); if(arguments[0])document.querySelector(arguments[0]).scrollIntoView({block:"center"}); return true;', [target]);
     await measure(state, value, 'desktop', target);
     const scale = await textScale(true);
-    assert.ok(Math.abs(scale.after - scale.before * 1.5) < 0.1, 'Test-side text scaling must reach 150%.');
-    await driver.execute('window.scrollTo(0,0); if(arguments[0])document.querySelector(arguments[0]).scrollIntoView({block:"center"}); return true;', [target]);
-    await measure(state, value, 'text150', target);
-    await textScale(false);
+    try {
+      assert.ok(Math.abs(scale.after - scale.before * 1.5) < 0.1, 'Test-side text scaling must reach 150%.');
+      await driver.execute('window.scrollTo(0,0); if(arguments[0])document.querySelector(arguments[0]).scrollIntoView({block:"center"}); return true;', [target]);
+      await measure(state, value, 'text150', target);
+    } finally { await textScale(false); }
     if (narrow) {
       await resize(360, 800);
       await driver.execute('window.scrollTo(0,0); if(arguments[0])document.querySelector(arguments[0]).scrollIntoView({block:"center"}); return true;', [target]);
       await measure(state, value, 'narrow360', target);
+    }
+    if (['ready-os', 'ready-fallback'].includes(state) && value === 'dark') {
+      await resize(360, 800);
+      const enlarged = await textScale(true, 2);
+      try {
+        assert.ok(Math.abs(enlarged.after - enlarged.before * 2) < 0.1, 'READY text scaling must reach 200%.');
+        await driver.execute('window.scrollTo(0,0); if(arguments[0])document.querySelector(arguments[0]).scrollIntoView({block:"center"}); return true;', [target]);
+        await measure(state, value, 'text200-narrow360', target);
+      } finally { await textScale(false); }
     }
   }
   await resize(1280, 850);
@@ -226,7 +252,7 @@ try {
   await bootstrap('setup_required', 'os_store');
   await captureState('setup-os', '.startup-panel');
   await driver.click('.startup-content .primary-button');
-  await heading('Your workspace is ready');
+  await heading('Workspace ready');
   await bootstrap('ready', 'os_store');
   await captureState('ready-os', '.startup-panel', true);
   await keyboardFocus();
@@ -277,7 +303,7 @@ try {
   await driver.type('#workspace-passphrase', passphrase);
   await driver.type('#workspace-confirmation', passphrase);
   await driver.click('.unlock-form button[type="submit"]');
-  await heading('Your workspace is ready');
+  await heading('Workspace ready');
   await bootstrap('ready', 'passphrase');
   await closeApp();
   await openApp();
@@ -286,7 +312,7 @@ try {
   await captureState('locked-fallback', '.unlock-form');
   await driver.type('#workspace-passphrase', passphrase);
   await driver.click('.unlock-form button[type="submit"]');
-  await heading('Your workspace is ready');
+  await heading('Workspace ready');
   await captureState('ready-fallback', '.startup-panel');
   await disposeFixture();
   assert.deepEqual(evidence.violations, [], 'Native visual checks found layout or font failures.');
