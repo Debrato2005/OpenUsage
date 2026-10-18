@@ -222,13 +222,18 @@ async function replaceValue(selector, value) {
 
 async function validation(field, otherField, errorId, name) {
   await waitFor(async () => (await driver.execute('return document.activeElement?.id;')) === field, `focus after ${name}`);
-  const result = await driver.execute('const field=document.getElementById(arguments[0]),other=document.getElementById(arguments[1]),error=document.getElementById(arguments[2]);return {focused:document.activeElement===field,invalid:field.getAttribute("aria-invalid"),otherInvalid:other.getAttribute("aria-invalid"),describedBy:field.getAttribute("aria-describedby"),alert:error?.getAttribute("role"),message:error?.textContent,errorColor:error?getComputedStyle(error).color:null,invalidBorderColor:getComputedStyle(field).borderTopColor};', [field, otherField, errorId]);
+  const result = await driver.execute('const field=document.getElementById(arguments[0]),other=document.getElementById(arguments[1]),error=document.getElementById(arguments[2]),control=field.closest("[data-slot=input-control]"),controlRect=control?.getBoundingClientRect(),controlStyle=control?getComputedStyle(control):null;return {focused:document.activeElement===field,invalid:field.getAttribute("aria-invalid"),otherInvalid:other.getAttribute("aria-invalid"),describedBy:field.getAttribute("aria-describedby"),alert:error?.getAttribute("role"),message:error?.textContent,errorColor:error?getComputedStyle(error).color:null,invalidControl:{ownsField:Boolean(control&&control.contains(field)),visible:Boolean(controlRect&&controlRect.width>0&&controlRect.height>0&&controlStyle.visibility!=="hidden"&&controlStyle.display!=="none"),borderWidth:controlStyle?parseFloat(controlStyle.borderTopWidth):0,borderStyle:controlStyle?.borderTopStyle,borderColor:controlStyle?.borderTopColor}};', [field, otherField, errorId]);
   assert.equal(result.invalid, 'true');
   assert.notEqual(result.otherInvalid, 'true');
   assert.ok(result.describedBy?.split(' ').includes(errorId));
   assert.equal(result.alert, 'alert');
   assert.ok(result.message);
-  assert.equal(result.errorColor, result.invalidBorderColor, 'The error text and invalid field must use the same semantic error color.');
+  assert.equal(result.focused, true);
+  assert.equal(result.invalidControl.ownsField, true, 'The selected field must belong to its coss input control.');
+  assert.equal(result.invalidControl.visible, true, 'The selected invalid control must be visible.');
+  assert.ok(result.invalidControl.borderWidth > 0, 'The invalid control needs a visible border.');
+  assert.equal(result.invalidControl.borderStyle, 'solid');
+  assert.equal(result.errorColor, result.invalidControl.borderColor, 'The error text and owning invalid control must use the same semantic error color.');
   evidence.validationChecks.push({ name, ...result });
   const screenshot = `${name}.png`;
   await driver.screenshot(join(output, screenshot));
