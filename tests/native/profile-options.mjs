@@ -39,9 +39,10 @@ async function key(value, shift = false) {
   await driver.request('DELETE', `/session/${driver.session}/actions`);
 }
 async function optionsState() {
-  return driver.execute('const trigger=document.querySelector(arguments[0]),panel=document.getElementById(trigger?.getAttribute("aria-controls"));return {expanded:trigger?.getAttribute("aria-expanded"),panelPresent:Boolean(panel),panelVisible:Boolean(panel&&panel.getClientRects().length&&getComputedStyle(panel).display!=="none"),actions:panel?[...panel.querySelectorAll("button")].map(node=>({text:node.textContent.trim(),visible:Boolean(node.getClientRects().length)})):[]};', [options()]);
+  return driver.execute('const trigger=document.querySelector(arguments[0]),panel=trigger?.closest("[data-profile-id]").querySelector(".profile-management[data-slot=collapsible-panel]");return {controlsMatch:trigger?.getAttribute("aria-expanded")!=="true"||trigger?.getAttribute("aria-controls")===panel?.id,expanded:trigger?.getAttribute("aria-expanded"),panelPresent:Boolean(panel),panelVisible:Boolean(panel&&panel.getClientRects().length&&getComputedStyle(panel).display!=="none"),actions:panel?[...panel.querySelectorAll("button")].map(node=>({text:node.textContent.trim(),visible:Boolean(node.getClientRects().length)})):[]};', [options()]);
 }
 async function manage(open) {
+  assert.equal((await optionsState()).controlsMatch, true, 'An expanded trigger must control its selected profile panel.');
   if ((await optionsState()).expanded !== String(open)) await driver.click(options());
   await waitFor(async () => { const state = await optionsState(); return state.expanded === String(open) && state.panelVisible === open; }, `${open ? 'open' : 'closed'} Manage profile`);
 }
