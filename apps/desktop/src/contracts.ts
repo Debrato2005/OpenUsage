@@ -162,6 +162,7 @@ interface Commands {
   discover_provider_executables: { args: undefined; result: ProviderExecutableDiscovery };
   begin_profile_login: { args: { profileId: string; approvalId: string; flow: 'device_code'; confirmed: true }; result: ProviderLoginAttempt };
   await_profile_login_prompt: { args: { profileId: string; attemptId: string }; result: ProviderLoginPrompt };
+  open_profile_login_page: { args: { profileId: string; attemptId: string }; result: null };
   complete_profile_login: { args: { profileId: string; attemptId: string }; result: ProviderLoginCompletion };
   cancel_profile_login: { args: { profileId: string; attemptId: string }; result: { cancelled: boolean } };
   inspect_provider_executable: { args: { path: string }; result: ProviderExecutableCandidate };
@@ -209,6 +210,7 @@ export async function invoke<K extends keyof Commands>(
     : command === 'discover_provider_executables' ? isProviderExecutableDiscovery(response)
     : command === 'begin_profile_login' ? isProviderLoginAttempt(response)
     : command === 'await_profile_login_prompt' ? isProviderLoginPrompt(response)
+    : command === 'open_profile_login_page' ? response === null
     : command === 'complete_profile_login' ? isProviderLoginCompletion(response)
     : command === 'cancel_profile_login' ? isPreviewCancellation(response)
     : command === 'inspect_provider_executable' ? isProviderExecutableReview(response, 'candidateId')

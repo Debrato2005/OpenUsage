@@ -248,6 +248,15 @@ fn selected_login_requires_consent_and_current_source_and_publishes_only_redacte
             .exists()
     );
     assert_eq!(
+        fixture
+            .workspace
+            .open_profile_login_page(&id, &receipt.attempt_id, |_| panic!(
+                "Completed attempt must not launch."
+            ))
+            .err(),
+        Some(CommandError::ProviderLoginNotFound)
+    );
+    assert_eq!(
         fs::read_dir(fixture.home(&fixture.profiles[1]))
             .unwrap()
             .count(),
@@ -421,4 +430,184 @@ fn login_publications_refuse_reapproval_home_replacement_and_profile_mutation() 
         fs::read(retained.join("preserved-marker")).unwrap(),
         b"preserve"
     );
+}
+
+#[test]
+fn browser_handoff_requires_selected_published_attempt_and_survives_launcher_failure() {
+    let mut fixture = Fixture::new("pending");
+    let id = fixture.profiles[0].clone();
+    let other = fixture.profiles[1].clone();
+    let mut locked = Workspace::new(fixture.temporary.path().join("uninitialized")).unwrap();
+    assert_eq!(
+        locked
+            .open_profile_login_page(&id, "00000000-0000-4000-8000-000000000000", |_| panic!(
+                "Locked workspace must not launch."
+            ))
+            .err(),
+        Some(CommandError::WorkspaceLocked)
+    );
+    let approval = fixture.approve();
+    let attempt = fixture
+        .workspace
+        .begin_profile_login(&id, &approval, true)
+        .unwrap();
+    assert_eq!(
+        fixture
+            .workspace
+            .open_profile_login_page(&id, &attempt.attempt_id, |_| panic!(
+                "Unpublished prompt must not launch."
+            ))
+            .err(),
+        Some(CommandError::ProviderLoginPromptPending)
+    );
+    assert_eq!(
+        fixture
+            .workspace
+            .open_profile_login_page(&other, &attempt.attempt_id, |_| panic!(
+                "Other profile must not launch."
+            ))
+            .err(),
+        Some(CommandError::ProviderLoginNotFound)
+    );
+    let ready = fixture
+        .workspace
+        .await_profile_login_prompt(&id, &attempt.attempt_id)
+        .unwrap()
+        .wait()
+        .unwrap();
+    assert_eq!(
+        fixture
+            .workspace
+            .open_profile_login_page(&id, &attempt.attempt_id, |_| panic!(
+                "Unpublished response must not launch."
+            ))
+            .err(),
+        Some(CommandError::ProviderLoginPromptPending)
+    );
+    fixture
+        .workspace
+        .finish_profile_login_prompt(ready)
+        .unwrap();
+    let pid = fixture.observed_pid("challenge-emitted", &id);
+    let mut dispatched = Vec::new();
+    fixture
+        .workspace
+        .open_profile_login_page(&id, &attempt.attempt_id, |url| {
+            dispatched.push(url);
+            Ok(())
+        })
+        .unwrap();
+    let completing = fixture
+        .workspace
+        .complete_profile_login(&id, &attempt.attempt_id)
+        .unwrap();
+    assert_eq!(
+        fixture
+            .workspace
+            .open_profile_login_page(&id, &attempt.attempt_id, |url| {
+                dispatched.push(url);
+                Err(CommandError::ProviderBrowserUnavailable)
+            })
+            .err(),
+        Some(CommandError::ProviderBrowserUnavailable)
+    );
+    fixture
+        .workspace
+        .open_profile_login_page(&id, &attempt.attempt_id, |url| {
+            dispatched.push(url);
+            Ok(())
+        })
+        .unwrap();
+    assert_eq!(dispatched, ["https://auth.openai.com/codex/device"; 3]);
+    assert_eq!(unsafe { libc::kill(pid, 0) }, 0);
+    assert!(
+        !fixture
+            .home(&other)
+            .join("synthetic-selected-login.json")
+            .exists()
+    );
+    fixture
+        .workspace
+        .provider
+        .cancel_login(&id, &attempt.attempt_id)
+        .unwrap();
+    assert_eq!(
+        completing.wait().err(),
+        Some(CommandError::ProviderLoginCancelled)
+    );
+    gone(pid);
+    assert_eq!(
+        fixture
+            .workspace
+            .open_profile_login_page(&id, &attempt.attempt_id, |_| panic!(
+                "Ended attempt must not launch."
+            ))
+            .err(),
+        Some(CommandError::ProviderLoginNotFound)
+    );
+}
+
+#[test]
+fn browser_handoff_refuses_changed_profile_home_and_source_bindings() {
+    for fault in ["archived", "home", "approval", "quiesce"] {
+        let mut fixture = Fixture::new("pending");
+        let id = fixture.profiles[0].clone();
+        let approval = fixture.approve();
+        let attempt = fixture
+            .workspace
+            .begin_profile_login(&id, &approval, true)
+            .unwrap();
+        let ready = fixture
+            .workspace
+            .await_profile_login_prompt(&id, &attempt.attempt_id)
+            .unwrap()
+            .wait()
+            .unwrap();
+        fixture
+            .workspace
+            .finish_profile_login_prompt(ready)
+            .unwrap();
+        let completing = fixture
+            .workspace
+            .complete_profile_login(&id, &attempt.attempt_id)
+            .unwrap();
+        let pid = fixture.observed_pid("challenge-emitted", &id);
+        match fault {
+            "archived" => {
+                fixture.workspace.set_profile_archived(&id, true).unwrap();
+            }
+            "home" => {
+                fs::rename(
+                    fixture.home(&id),
+                    fixture.home(&id).with_extension("original"),
+                )
+                .unwrap();
+                fs::create_dir(fixture.home(&id)).unwrap();
+                fs::set_permissions(fixture.home(&id), fs::Permissions::from_mode(0o700)).unwrap();
+            }
+            "approval" => {
+                fixture.approve();
+            }
+            "quiesce" => {
+                fixture.workspace.provider.quiesce().unwrap();
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            fixture
+                .workspace
+                .open_profile_login_page(&id, &attempt.attempt_id, |_| panic!(
+                    "Changed binding must not launch."
+                ))
+                .is_err(),
+            "{fault}"
+        );
+        fixture
+            .workspace
+            .provider
+            .cancel_login(&id, &attempt.attempt_id)
+            .unwrap();
+        assert!(completing.wait().is_err());
+        gone(pid);
+    }
 }

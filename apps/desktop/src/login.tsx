@@ -26,6 +26,8 @@ export function ProfileDeviceLogin({ profileId, profileLabel, approval, busy, on
   const [consent, setConsent] = useState(false);
   const [working, setWorking] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [openingBrowser, setOpeningBrowser] = useState(false);
+  const [browserError, setBrowserError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState<ProviderLoginAttempt | null>(null);
   const [prompt, setPrompt] = useState<ProviderLoginPrompt | null>(null);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
@@ -40,6 +42,7 @@ export function ProfileDeviceLogin({ profileId, profileLabel, approval, busy, on
   const activeAttempt = useRef<string | null>(null);
   const generation = useRef(0);
   const alive = useRef(true);
+  const browserRequest = useRef<string | null>(null);
   useEffect(() => {
     alive.current = true;
     return () => {
@@ -57,6 +60,7 @@ export function ProfileDeviceLogin({ profileId, profileLabel, approval, busy, on
   function explain() {
     if (busy || pending.current) return;
     setOutcome(null);
+    setBrowserError(null);
     setConsent(true);
     setFocus('consent');
   }
@@ -71,6 +75,9 @@ export function ProfileDeviceLogin({ profileId, profileLabel, approval, busy, on
     setWorking(true);
     setOutcome(null);
     setPrompt(null);
+    browserRequest.current = null;
+    setOpeningBrowser(false);
+    setBrowserError(null);
     onActivity(true);
     onStarted();
     try {
@@ -105,6 +112,9 @@ export function ProfileDeviceLogin({ profileId, profileLabel, approval, busy, on
       pending.current = false;
       if (alive.current) {
         setPrompt(null);
+        browserRequest.current = null;
+        setOpeningBrowser(false);
+        setBrowserError(null);
         setAttempt(null);
         setWorking(false);
         setCancelling(false);
@@ -119,6 +129,7 @@ export function ProfileDeviceLogin({ profileId, profileLabel, approval, busy, on
     const operation = generation.current;
     cancelled.current = true;
     setPrompt(null);
+    setBrowserError(null);
     setCancelling(true);
     try { await invoke('cancel_profile_login', { profileId, attemptId: attempt.attemptId }); }
     catch (failure) {
@@ -128,6 +139,25 @@ export function ProfileDeviceLogin({ profileId, profileLabel, approval, busy, on
         setFocus('result');
       }
     } finally { if (alive.current && generation.current === operation) setCancelling(false); }
+  }
+
+  async function openBrowser() {
+    if (!attempt || !prompt || cancelled.current || cancelling || browserRequest.current) return;
+    const attemptId = attempt.attemptId;
+    const operation = generation.current;
+    browserRequest.current = attemptId;
+    setOpeningBrowser(true);
+    setBrowserError(null);
+    try {
+      await invoke('open_profile_login_page', { profileId, attemptId });
+    } catch (failure) {
+      if (alive.current && generation.current === operation && activeAttempt.current === attemptId && !cancelled.current) setBrowserError(providerFailure(failure));
+    } finally {
+      if (browserRequest.current === attemptId) {
+        browserRequest.current = null;
+        if (alive.current && generation.current === operation) setOpeningBrowser(false);
+      }
+    }
   }
 
   return <div className="profile-device-login">
@@ -149,6 +179,8 @@ export function ProfileDeviceLogin({ profileId, profileLabel, approval, busy, on
         <Field><FieldLabel htmlFor={`login-code-${profileId}`}>Your sign-in code</FieldLabel>
         <Input ref={code} id={`login-code-${profileId}`} inputClassName="login-code" type="text" autoComplete="off" readOnly value={prompt.userCode} aria-describedby={`login-wait-${profileId}`} onFocus={event => selectField(event.currentTarget)} />
         <FieldDescription id={`login-wait-${profileId}`} className="provider-help" render={<p />}>OpenUsage waits up to 15 minutes. Codex did not provide a code expiry time.</FieldDescription></Field>
+        <Button variant="outline" type="button" data-login-browser={profileId} disabled={openingBrowser || cancelling} aria-describedby={browserError ? `login-browser-error-${profileId}` : undefined} onClick={() => { void openBrowser(); }}>{openingBrowser ? 'Opening…' : 'Open sign-in page'}</Button>
+        {browserError && <p id={`login-browser-error-${profileId}`} role="alert" className="operation-error">{browserError}</p>}
       </div> : <p role="status">{cancelling || cancelled.current ? 'Stopping sign-in…' : 'Preparing your sign-in code…'}</p>}
       {attempt && <Button className="secondary-button" variant="outline" type="button" data-login-cancel={profileId} aria-describedby={`profile-name-${profileId}`} disabled={cancelling} onClick={() => { void cancel(); }}>{cancelling ? 'Stopping sign-in…' : 'Cancel sign-in'}</Button>}
     </div>}

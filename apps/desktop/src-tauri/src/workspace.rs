@@ -94,6 +94,7 @@ pub enum CommandError {
     ProviderLoginCancelled,
     ProviderLoginTimedOut,
     ProviderLoginFailed,
+    ProviderBrowserUnavailable,
     ProviderDiscoveryUnavailable,
     ProviderQuotaNotFound,
     ProviderQuotaInProgress,
@@ -669,6 +670,18 @@ impl Workspace {
     ) -> Result<provider::AwaitingLoginPrompt, CommandError> {
         self.storage.as_ref().ok_or(CommandError::WorkspaceLocked)?;
         self.provider.await_login_prompt(id, attempt)
+    }
+
+    pub fn open_profile_login_page(
+        &mut self,
+        id: &str,
+        attempt: &str,
+        dispatch: impl FnOnce(&'static str) -> Result<(), CommandError>,
+    ) -> Result<(), CommandError> {
+        self.storage.as_ref().ok_or(CommandError::WorkspaceLocked)?;
+        let binding = self.provider.login_browser_binding(id, attempt)?;
+        self.require_login_binding(&binding)?;
+        self.provider.open_login_browser(id, attempt, dispatch)
     }
 
     pub fn complete_profile_login(
