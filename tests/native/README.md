@@ -234,3 +234,17 @@ The recovery journey also captures the catalog, comparison, and confirmation at 
 It checks whole label words, comparison reflow, keyboard access to the unchecked confirmation, and horizontal overflow.
 The runner restores all temporary inline text styles before the actual restore.
 This is test-side CSS scaling, not operating-system zoom or full accessibility acceptance.
+
+## Native provider lifecycle
+
+`provider-lifecycle.mjs` uses an owned synthetic executable copied into a private fixture.
+It does not use a real Codex executable or inspect existing credential homes.
+The executable supports only version output, initialization, and a read-only account response.
+Its central execution log detects any process launch before explicit executable approval.
+The log records controlled environment values and unexpected variable names, without recording other values.
+
+The journey checks executable changes, malformed responses, two active slots, duplicate rejection, and real GUI cancellation.
+A restore must stop the old owned check before it changes home mappings.
+The next check must use the fresh restored home.
+Normal window close must stop and reap the registered provider child and process group.
+This fixture does not establish live authentication, official executable provenance, monitoring, or account identity.
