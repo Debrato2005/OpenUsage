@@ -335,7 +335,7 @@ main { max-width: 1280px; padding: var(--space-6); margin: 0 auto; }
 .quota-window [role='meter'] { margin-block: var(--space-2); }
 .quota-meter-heading { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2); }
 .quota-meter-heading [data-slot='meter-label'] { color: var(--muted); font-size: var(--text-sm); font-weight: var(--weight-normal); }
-.quota-meter-heading [data-slot='meter-value'] { font-size: var(--text-body); }
+.quota-meter-heading [data-slot='meter-value'] { flex-shrink: 0; white-space: nowrap; font-size: var(--text-body); }
 .ui-spinner { display: inline-block; width: 1rem; height: 1rem; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; }
 @media (forced-colors: active) {
   [data-slot='meter-track'] { background: Canvas; outline: 1px solid CanvasText; }

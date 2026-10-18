@@ -192,13 +192,14 @@ try {
   await driver.click('.backup-inspection-form button[type="submit"]');
   await waitFor(async () => Boolean(await driver.execute('return document.querySelector("#backup-inspection-error");')), 'wrong-password inspection guidance', 30000);
   await waitFor(async () => (await driver.execute('return document.activeElement?.id;')) === 'backup-inspection-password', 'wrong inspection password focus');
-  const failedView = await driver.execute('const field=document.querySelector("#backup-inspection-password"),error=document.querySelector("#backup-inspection-error");return {empty:field.value==="",invalid:field.getAttribute("aria-invalid"),fileInvalid:document.querySelector("#backup-file").getAttribute("aria-invalid"),describedBy:field.getAttribute("aria-describedby"),errorId:error.id,message:error.textContent,errorColor:getComputedStyle(error).color,invalidBorderColor:getComputedStyle(field).borderTopColor};');
+  const failedView = await driver.execute('const field=document.querySelector("#backup-inspection-password"),error=document.querySelector("#backup-inspection-error");return {empty:field.value==="",invalid:field.getAttribute("aria-invalid"),fileInvalid:document.querySelector("#backup-file").getAttribute("aria-invalid"),describedBy:field.getAttribute("aria-describedby"),errorId:error.id,message:error.textContent,errorColor:getComputedStyle(error).color,invalidBorderColor:getComputedStyle(field.closest("[data-slot=input-control]")??field).borderTopColor,invalidBorderWidth:getComputedStyle(field.closest("[data-slot=input-control]")??field).borderTopWidth};');
   assert.equal(failedView.empty, true);
   assert.equal(failedView.invalid, 'true');
   assert.notEqual(failedView.fileInvalid, 'true');
   assert.ok(failedView.describedBy?.split(' ').includes(failedView.errorId));
   assert.match(failedView.message, /password|authenticate/i);
   assert.equal(failedView.errorColor, failedView.invalidBorderColor);
+  assert.ok(parseFloat(failedView.invalidBorderWidth) >= 1, "The actual invalid field control must have a visible error border.");
   await driver.execute('document.querySelector("#backup-inspection-error").scrollIntoView({block:"center"});return true;');
   await driver.screenshot(join(output, 'inspection-wrong-password-dark.png'));
   evidence.screenshots.push('inspection-wrong-password-dark.png');
