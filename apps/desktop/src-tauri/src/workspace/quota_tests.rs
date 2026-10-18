@@ -202,6 +202,10 @@ fn quota_read_requires_current_approval_and_returns_only_provisional_diagnostics
     assert!(json["observedAtUtc"].as_str().unwrap().ends_with('Z'));
     assert!(json["observedAtUtc"].as_str().unwrap() <= joined_at.as_str());
     assert_eq!(json["limits"].as_array().unwrap().len(), 2);
+    for limit in json["limits"].as_array().unwrap() {
+        assert!(limit["monthlyCreditLimit"].is_null());
+        assert!(limit["spendControlReached"].is_null());
+    }
     assert_eq!(json["limits"][0]["primary"]["usedPercent"], 25);
     assert_eq!(json["limits"][0]["primary"]["derivedRemainingPercent"], 75);
     assert_eq!(json["limits"][0]["primary"]["label"], "Five-hour");
@@ -231,6 +235,10 @@ fn quota_read_requires_current_approval_and_returns_only_provisional_diagnostics
         )
         .unwrap();
         assert_eq!(outcome["limits"].as_array().unwrap().len(), count);
+        for limit in outcome["limits"].as_array().unwrap() {
+            assert!(limit["monthlyCreditLimit"].is_null());
+            assert!(limit["spendControlReached"].is_null());
+        }
         assert_eq!(outcome["availableResetCredits"], "3");
         assert!(outcome["resetCreditDetails"].is_null());
         if mode == "null_windows" {

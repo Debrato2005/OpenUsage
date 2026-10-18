@@ -171,7 +171,7 @@ test('renderer fixture preserves the new quota preview after an old connection c
       profileId, approvalId, requestId, providerVersion: '0.163.0', sourceKind: 'test_fixture',
       observedAtUtc: '2026-10-18T00:00:00.000Z', identityConfidence: 'provisional',
       verifiedIdentityKey: null, availableResetCredits: null, resetCreditDetails: null, monitoring: 'stopped', accepted: false,
-      limits: [{ limitId: 'codex', limitName: null, reachedType: null, secondary: null,
+      limits: [{ limitId: 'codex', limitName: null, reachedType: null, monthlyCreditLimit: null, spendControlReached: null, secondary: null,
         primary: { usedPercent: 25, derivedRemainingPercent: 75,
           windowDurationMins: 300, resetsAtUnix: null, label: 'Five-hour' } }],
     });
