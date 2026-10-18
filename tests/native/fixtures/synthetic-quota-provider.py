@@ -16,7 +16,11 @@ MODES = {'multi', 'legacy', 'empty', 'missing', 'invalid', 'fractional',
          'string_percent', 'mismatch', 'null_windows', 'unknown_identity',
          'signed_out', 'unsupported', 'changed_email', 'changed_plan',
          'changed_auth', 'post_unknown', 'early_auth', 'auth_notice',
-         'late_auth', 'sparse_event', 'sparse_only', 'pending'}
+         'late_auth', 'sparse_event', 'sparse_only', 'pending',
+         'credits_absent', 'credits_null', 'credits_zero', 'credits_nonzero',
+         'credits_null_details', 'credits_empty_details', 'credits_above_safe',
+         'credits_max', 'credits_negative', 'credits_fractional',
+         'credits_out_of_range', 'credits_missing_count', 'credits_null_count'}
 
 
 def observe(kind, **fields):
@@ -126,6 +130,27 @@ result = {'accountId': 'synthetic-private-account-id',
           'rateLimits': {'limitId': 'legacy-must-not-be-counted',
                          'primary': {'usedPercent': 99}},
           'rateLimitResetCredits': {'availableCount': 3, 'syntheticPrivateCredit': 123}}
+if selected == 'credits_absent':
+    del result['rateLimitResetCredits']
+elif selected == 'credits_null':
+    result['rateLimitResetCredits'] = None
+elif selected.startswith('credits_'):
+    summary = result['rateLimitResetCredits']
+    if selected == 'credits_missing_count':
+        del summary['availableCount']
+    else:
+        summary['availableCount'] = {
+            'credits_zero': 0, 'credits_nonzero': 3,
+            'credits_null_details': 3, 'credits_empty_details': 7,
+            'credits_above_safe': 9007199254740993,
+            'credits_max': 9223372036854775807, 'credits_negative': -1,
+            'credits_fractional': 1.5, 'credits_out_of_range': 9223372036854775808,
+            'credits_null_count': None,
+        }[selected]
+    if selected == 'credits_null_details':
+        summary['credits'] = None
+    elif selected == 'credits_empty_details':
+        summary['credits'] = []
 if selected == 'legacy':
     result['rateLimitsByLimitId'] = None
     result['rateLimits'] = {'limitId': 'returned-legacy', 'limitName': 'Synthetic legacy bucket',
