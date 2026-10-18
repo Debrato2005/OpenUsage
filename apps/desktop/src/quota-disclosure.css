@@ -18,3 +18,7 @@
 .quota-result .quota-disclosure-trigger:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 .quota-result .quota-credit-count { min-width: 0; max-width: 100%; overflow-x: auto; white-space: nowrap; }
 .quota-result .quota-credit-count:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+
+.quota-result .quota-credit-details { list-style: none; margin-block: var(--space-3); padding: 0; }
+.quota-credit-details > li { min-width: 0; padding-block: var(--space-3); border-top: 1px solid var(--line); }
+.quota-credit-details .quota-credit-title { margin-bottom: var(--space-2); color: var(--text); font-weight: var(--weight-medium); }

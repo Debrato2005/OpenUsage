@@ -27,6 +27,22 @@ function QuotaDisclosure({ label, className, defaultOpen = false, children }: { 
     <CollapsiblePanel>{children}</CollapsiblePanel>
   </Collapsible>;
 }
+function CreditTime({ seconds }: { seconds: number }) {
+  const value = new Date(seconds * 1000).toISOString();
+  return <time dateTime={value}>{date(value)}</time>;
+}
+function CreditDetails({ rows }: { rows: ProfileQuotaPreview['resetCreditDetails'] }) {
+  if (rows === null) return <p data-credit-detail-state="unavailable">Credit details were not supplied.</p>;
+  if (rows.length === 0) return <p data-credit-detail-state="empty">No credit rows were returned.</p>;
+  const statuses = { available: 'Available', redeeming: 'Being redeemed', redeemed: 'Redeemed', unknown: 'Unknown' };
+  return <>
+    <ul className="quota-credit-details" aria-label="Credit details">{rows.map((row, index) => <li key={index} data-credit-detail>
+      <p className="quota-credit-title"><bdi>{row.title ?? 'Title not supplied'}</bdi></p>
+      <dl className="backup-inspection-metadata"><dt>Status</dt><dd>{statuses[row.status]}</dd><dt>Granted</dt><dd><CreditTime seconds={row.grantedAtUnix} /></dd><dt>Expires</dt><dd>{row.expiresAtUnix === null ? 'No expiry' : <CreditTime seconds={row.expiresAtUnix} />}</dd></dl>
+    </li>)}</ul>
+    <p>These rows may not include every credit. The count above is separate.</p>
+  </>;
+}
 function WindowValues({ value }: { value: QuotaWindow }) {
   const reset = value.resetsAtUnix === null ? null : new Date(value.resetsAtUnix * 1000).toISOString();
   return <div className="quota-window">
@@ -113,7 +129,7 @@ export function ProfileQuotaRead({ profileId, profileLabel, approval, busy, onAc
           {(limit.primary === null || limit.secondary === null) && (limit.primary || limit.secondary) && <p className="provider-help">{limit.primary === null ? 'Primary window' : 'Secondary window'}: Not available</p>}
           <QuotaDisclosure className="quota-source-details" label="Reading details"><dl className="backup-inspection-metadata"><dt>Provider limit ID</dt><dd><bdi>{limit.limitId}</bdi></dd><dt>Provider status</dt><dd><bdi>{limit.reachedType ?? 'Not supplied'}</bdi></dd></dl></QuotaDisclosure>
         </QuotaDisclosure>)}
-        <QuotaDisclosure className="quota-preview-notes" label="About this preview"><p>These readings are not saved or included in combined totals. Monitoring is stopped.</p><p>Remaining quota is calculated from reported usage. Expected reset times do not confirm that a reset occurred.</p><dl className="backup-inspection-metadata"><dt>Earned reset credits</dt><dd className="quota-credit-count" data-earned-reset-credits tabIndex={0} aria-label="Earned reset credits"><bdi>{outcome.value.availableResetCredits ?? 'Not supplied'}</bdi></dd></dl><p>Earned reset credits are separate from subscription payments and OpenAI Platform API billing.</p><p>Credit details and activity history are not available in this preview.</p></QuotaDisclosure>
+        <QuotaDisclosure className="quota-preview-notes" label="About this preview"><p>These readings are not saved or included in combined totals. Monitoring is stopped.</p><p>Remaining quota is calculated from reported usage. Expected reset times do not confirm that a reset occurred.</p><dl className="backup-inspection-metadata"><dt>Earned reset credits</dt><dd className="quota-credit-count" data-earned-reset-credits tabIndex={0} aria-label="Earned reset credits"><bdi>{outcome.value.availableResetCredits ?? 'Not supplied'}</bdi></dd></dl><p>Earned reset credits are separate from subscription payments and OpenAI Platform API billing.</p><CreditDetails rows={outcome.value.resetCreditDetails} /><p>Activity history is not available in this preview.</p></QuotaDisclosure>
       </>}
     </div>}
   </div>;

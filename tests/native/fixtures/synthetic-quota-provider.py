@@ -20,7 +20,8 @@ MODES = {'multi', 'legacy', 'empty', 'missing', 'invalid', 'fractional',
          'credits_absent', 'credits_null', 'credits_zero', 'credits_nonzero',
          'credits_null_details', 'credits_empty_details', 'credits_above_safe',
          'credits_max', 'credits_negative', 'credits_fractional',
-         'credits_out_of_range', 'credits_missing_count', 'credits_null_count'}
+         'credits_out_of_range', 'credits_missing_count', 'credits_null_count', 'details_rows', 'details_bound', 'details_too_many',
+         'details_missing_expiry', 'details_invalid_time', 'details_invalid_title'}
 
 
 def observe(kind, **fields):
@@ -130,6 +131,33 @@ result = {'accountId': 'synthetic-private-account-id',
           'rateLimits': {'limitId': 'legacy-must-not-be-counted',
                          'primary': {'usedPercent': 99}},
           'rateLimitResetCredits': {'availableCount': 3, 'syntheticPrivateCredit': 123}}
+if selected.startswith('details_'):
+    rows = [
+        {'title': 'Synthetic available credit', 'status': 'available',
+         'grantedAt': 0, 'expiresAt': None},
+        {'title': 'Synthetic redeeming credit', 'status': 'redeeming',
+         'grantedAt': -62135596800, 'expiresAt': 253402300799},
+        {'title': None, 'status': 'redeemed',
+         'grantedAt': 0, 'expiresAt': 0},
+        {'title': '<Synthetic future credit>', 'status': 'synthetic-private-future-status',
+         'grantedAt': 1893456000, 'expiresAt': None},
+    ]
+    if selected in {'details_bound', 'details_too_many'}:
+        rows = [{'title': f'Synthetic returned credit {index + 1:02d}',
+                 'status': 'available', 'grantedAt': 1704067200, 'expiresAt': None}
+                for index in range(32 if selected == 'details_bound' else 33)]
+    elif selected == 'details_missing_expiry':
+        del rows[0]['expiresAt']
+    elif selected == 'details_invalid_time':
+        rows[0]['grantedAt'] = 253402300800
+    elif selected == 'details_invalid_title':
+        rows[0]['title'] = '界' * 86
+    for row in rows:
+        row.update(id='synthetic-private-credit-id',
+                   resetType='synthetic-private-reset-type',
+                   description='synthetic-private-credit-description')
+    result['rateLimitResetCredits']['availableCount'] = 9
+    result['rateLimitResetCredits']['credits'] = rows
 if selected == 'credits_absent':
     del result['rateLimitResetCredits']
 elif selected == 'credits_null':
