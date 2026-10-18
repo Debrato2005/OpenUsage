@@ -62,7 +62,7 @@ export function CheckpointRecovery({ busy, setBusy, onRestored }: Props) {
       {!loading && checkpoint && <>
         <Field className="w-full" disabled={busy}>
           <FieldLabel nativeLabel={false} render={<div />}>Checkpoint file</FieldLabel>
-          <Select value={selected} disabled={busy} items={list?.checkpoints.map(item => ({ value: item.id, label: `${checkpointDate(item.modifiedAt)} · ${item.id}` }))} onValueChange={next => {
+          <Select modal={false} value={selected} disabled={busy} items={list?.checkpoints.map(item => ({ value: item.id, label: `${checkpointDate(item.modifiedAt)} · ${item.id}` }))} onValueChange={next => {
             if (typeof next === 'string' && list?.checkpoints.some(item => item.id === next)) setSelected(next);
           }}>
             <SelectTrigger ref={select} id="restore-checkpoint" style={{ width: '100%' }} aria-describedby="checkpoint-file-help"><SelectValue /></SelectTrigger>

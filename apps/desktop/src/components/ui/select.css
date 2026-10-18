@@ -15,7 +15,7 @@
 [data-slot='select-trigger']::before, [data-slot='select-button']::before { box-shadow: none; }
 [data-slot='select-trigger']:focus-visible, [data-slot='select-button']:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; box-shadow: none; }
 [data-slot='select-trigger']:disabled, [data-slot='select-button']:disabled { cursor: default; }
-[data-slot='select-popup'] { color: var(--text); font-size: var(--text-body); }
+[data-slot='select-popup'] { max-width: var(--available-width); color: var(--text); font-size: var(--text-body); }
 [data-slot='select-popup'] > div:not([data-slot]) { border-color: var(--control-border); border-radius: var(--radius-control); background: var(--surface); box-shadow: none; }
 [data-slot='select-popup'] > div:not([data-slot])::before { box-shadow: none; }
 [data-slot='select-item'] { min-height: 44px; color: var(--text); font-size: var(--text-body); }

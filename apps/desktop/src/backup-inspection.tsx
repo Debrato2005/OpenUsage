@@ -133,7 +133,7 @@ export function BackupInspection({ busy, setBusy, onRestored }: Props) {
     {available && <form className="unlock-form backup-inspection-form" noValidate onSubmit={event => { event.preventDefault(); void inspect(); }}>
       <Field className="w-full" disabled={busy || loading}>
         <FieldLabel nativeLabel={false} render={<div />}>Backup file</FieldLabel>
-        <Select name="backup-file" required disabled={busy || loading} value={fileName} items={list.backups.map(file => ({ value: file.fileName, label: file.fileName }))} onValueChange={next => {
+        <Select modal={false} name="backup-file" required disabled={busy || loading} value={fileName} items={list.backups.map(file => ({ value: file.fileName, label: file.fileName }))} onValueChange={next => {
           if (typeof next !== 'string' || !list.backups.some(file => file.fileName === next)) return;
           setFileName(next); setPassword(''); setReceipt(null); setFailure(null); setStatus(null);
         }}>
