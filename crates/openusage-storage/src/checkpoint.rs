@@ -539,8 +539,9 @@ impl Storage {
         path: &Path,
     ) -> Result<crate::BackupSnapshot, CheckpointError> {
         self.with_verified_checkpoint(path,|connection,verified| {
-            connection.execute_batch("ATTACH DATABASE ':memory:' AS openusage_recovery KEY ''; PRAGMA openusage_recovery.page_size=4096; PRAGMA openusage_recovery.max_page_count=1310720;").map_err(|_|CheckpointError::Unavailable)?;
+            connection.execute_batch("ATTACH DATABASE ':memory:' AS openusage_recovery KEY '';").map_err(|_|CheckpointError::Unavailable)?;
             let result=(|| {
+                connection.execute_batch("PRAGMA openusage_recovery.page_size=4096; PRAGMA openusage_recovery.max_page_count=1310720;").map_err(|_|CheckpointError::Unavailable)?;
                 let page_size:i64=connection.pragma_query_value(Some("openusage_recovery"),"page_size",|r|r.get(0)).map_err(|_|CheckpointError::Unavailable)?;
                 let page_limit:i64=connection.pragma_query_value(Some("openusage_recovery"),"max_page_count",|r|r.get(0)).map_err(|_|CheckpointError::Unavailable)?;
                 if page_size.checked_mul(page_limit)!=Some(crate::MAX_BACKUP_SNAPSHOT_SIZE as i64) { return Err(CheckpointError::Unavailable); }
@@ -759,6 +760,18 @@ mod readonly_tests {
         let revision = live.restore_state().unwrap().revision;
         let verified = live.verify_encrypted_checkpoint(&path).unwrap();
         assert_eq!(verified.file_bytes, original.len() as u64);
+        live.connection
+            .pragma_update(None, "query_only", true)
+            .unwrap();
+        assert!(live.read_encrypted_checkpoint(&path).is_err());
+        assert!(
+            live.connection
+                .pragma_query_value(None, "query_only", |r| r.get::<_, bool>(0))
+                .unwrap()
+        );
+        live.connection
+            .pragma_update(None, "query_only", false)
+            .unwrap();
         let snapshot = live.read_encrypted_checkpoint(&path).unwrap();
         assert!(snapshot.bytes.starts_with(b"SQLite format 3\0"));
         assert_eq!(
