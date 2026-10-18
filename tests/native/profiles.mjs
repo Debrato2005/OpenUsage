@@ -94,11 +94,12 @@ async function replaceValue(selector, value) {
 const rowSelector = id => `[data-profile-id="${id}"]`;
 const optionsSelector = id => `${rowSelector(id)} [data-profile-action="options"]`;
 async function optionsState(id) {
-  return driver.execute('const trigger=document.querySelector(arguments[0]);if(!trigger)return null;const panel=document.getElementById(trigger.getAttribute("aria-controls"));return {expanded:trigger.getAttribute("aria-expanded"),panelPresent:Boolean(panel),panelVisible:Boolean(panel&&panel.getClientRects().length&&getComputedStyle(panel).display!=="none"),hiddenActions:panel?[...panel.querySelectorAll("button")].map(node=>({label:node.textContent.trim(),visible:Boolean(node.getClientRects().length)})):[]};', [optionsSelector(id)]);
+  return driver.execute('const trigger=document.querySelector(arguments[0]);if(!trigger)return null;const panel=trigger.closest("[data-profile-id]").querySelector(".profile-management[data-slot=collapsible-panel]");return {controlsMatch:trigger.getAttribute("aria-expanded")!=="true"||trigger.getAttribute("aria-controls")===panel?.id,expanded:trigger.getAttribute("aria-expanded"),panelPresent:Boolean(panel),panelVisible:Boolean(panel&&panel.getClientRects().length&&getComputedStyle(panel).display!=="none"),hiddenActions:panel?[...panel.querySelectorAll("button")].map(node=>({label:node.textContent.trim(),visible:Boolean(node.getClientRects().length)})):[]};', [optionsSelector(id)]);
 }
 async function manage(id, open = true) {
   const state = await optionsState(id);
   assert.ok(state?.panelPresent, 'Manage must retain its hidden panel.');
+  assert.equal(state.controlsMatch, true, 'An expanded trigger must control its own profile panel.');
   if (state.expanded !== String(open)) await driver.click(optionsSelector(id));
   await waitFor(async () => { const next = await optionsState(id); return next?.expanded === String(open) && next.panelVisible === open; }, `${open ? 'expanded' : 'collapsed'} management controls`);
 }
