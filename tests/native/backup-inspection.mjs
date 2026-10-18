@@ -91,6 +91,8 @@ async function focusOwnedWindow() {
 async function setTheme(theme, mode = 'pointer') {
   if ((await driver.execute('return document.querySelector("#theme").textContent.trim();')) === { system: 'System', light: 'Light', dark: 'Dark' }[theme]) return;
   await focusOwnedWindow();
+  const currentLabel = await driver.execute('return document.querySelector("#theme").textContent.trim();');
+  const optionFocused = label => driver.execute('const trigger=document.querySelector("#theme"),list=document.getElementById(trigger.getAttribute("aria-controls")),option=document.activeElement;return trigger.getAttribute("aria-expanded")==="true"&&Boolean(list?.contains(option))&&option?.getAttribute("role")==="option"&&option.textContent.trim()===arguments[0];', [label]);
   const keys = async values => {
     assert.equal(await driver.execute('return document.hasFocus();'), true);
     return driver.request('POST', `/session/${driver.session}/actions`, {
@@ -98,6 +100,7 @@ async function setTheme(theme, mode = 'pointer') {
     });
   };
   await driver.click('#theme');
+  await waitFor(async () => optionFocused(currentLabel), 'focused current appearance option before Escape');
   await keys(['\uE00C']);
   await waitFor(async () => await driver.execute('return document.querySelector("#theme").getAttribute("aria-expanded")==="false"&&document.activeElement?.id==="theme";'), 'appearance focus after Escape');
   assert.equal(await driver.execute('return document.activeElement?.id;'), 'theme');
@@ -106,9 +109,9 @@ async function setTheme(theme, mode = 'pointer') {
     assert.equal(await driver.execute('return document.querySelector("#theme").textContent.trim();'), 'Dark');
     await driver.click('#theme');
     await waitFor(async () => await driver.execute('return document.querySelector("#theme").getAttribute("aria-expanded")==="true";'), 'appearance options open');
-    await waitFor(async () => await driver.execute('const option=document.activeElement;return option?.getAttribute("role")==="option"&&option.textContent.trim()==="Dark";'), 'focused current Dark appearance option');
+    await waitFor(async () => optionFocused('Dark'), 'focused current Dark appearance option');
     await keys(['\uE013']);
-    await waitFor(async () => await driver.execute('const option=document.activeElement;return option?.getAttribute("role")==="option"&&option.textContent.trim()==="Light";'), 'ArrowUp focuses the Light appearance option');
+    await waitFor(async () => optionFocused('Light'), 'ArrowUp focuses the Light appearance option');
     await keys(['\uE007']);
   } else await driver.selectVisibleOption('#theme', { system: 'System', light: 'Light', dark: 'Dark' }[theme]);
   await waitFor(async () => (await driver.execute('return !document.querySelector("#theme").disabled&&document.documentElement.dataset.theme===arguments[0];', [theme])) === true, `${mode} appearance save`);
@@ -380,6 +383,7 @@ try {
 } catch (error) {
   evidence.error = error.message;
   process.exitCode = 1;
+  if (driver?.session) try { evidence.failureAppearance = await driver.execute('const trigger=document.querySelector("#theme"),active=document.activeElement;return {theme:document.documentElement.dataset.theme,trigger:trigger?.textContent.trim(),expanded:trigger?.getAttribute("aria-expanded"),disabled:trigger?.disabled,documentFocused:document.hasFocus(),activeTag:active?.tagName,activeRole:active?.getAttribute("role"),activeId:active?.id,activeText:active?.textContent.slice(0,160)};'); } catch { /* Preserve the first failure. */ }
   if (driver?.session) { try { await driver.screenshot(join(output, 'failure.png')); evidence.screenshots.push('failure.png'); } catch { /* Preserve the first failure. */ } }
 } finally {
   try { await driver?.stop(); } catch (error) { evidence.cleanupError = error.message; evidence.result = 'failed'; process.exitCode = 1; }
