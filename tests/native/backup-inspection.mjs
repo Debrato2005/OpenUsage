@@ -72,18 +72,21 @@ async function inspectGui(fileName, status) {
 }
 
 async function setTheme(theme, mode = 'pointer') {
-  if ((await driver.execute('return document.querySelector("#theme").value;')) === theme) return;
+  if ((await driver.execute('return document.querySelector("#theme").textContent.trim();')) === { system: 'System', light: 'Light', dark: 'Dark' }[theme]) return;
   const keys = async values => driver.request('POST', `/session/${driver.session}/actions`, {
     actions: [{ type: 'key', id: 'inspection-keyboard', actions: values.flatMap(value => [{ type: 'keyDown', value }, { type: 'keyUp', value }]) }],
   });
   await driver.click('#theme');
   await keys(['\uE00C']);
+  await waitFor(async () => await driver.execute('return document.querySelector("#theme").getAttribute("aria-expanded")==="false"&&document.activeElement?.id==="theme";'), 'appearance focus after Escape');
   assert.equal(await driver.execute('return document.activeElement?.id;'), 'theme');
   if (mode === 'keyboard') {
     assert.equal(theme, 'light');
-    assert.equal(await driver.execute('return document.querySelector("#theme").value;'), 'dark');
+    assert.equal(await driver.execute('return document.querySelector("#theme").textContent.trim();'), 'Dark');
+    await driver.click('#theme');
+    await waitFor(async () => await driver.execute('return document.querySelector("#theme").getAttribute("aria-expanded")==="true";'), 'appearance options open');
     await keys(['\uE013', '\uE007']);
-  } else await driver.click(`#theme option[value="${theme}"]`);
+  } else await driver.selectVisibleOption('#theme', { system: 'System', light: 'Light', dark: 'Dark' }[theme]);
   await waitFor(async () => (await driver.execute('return !document.querySelector("#theme").disabled&&document.documentElement.dataset.theme===arguments[0];', [theme])) === true, `${mode} appearance save`);
   await driver.request('POST', `/session/${driver.session}/execute/async`, { script: 'const done=arguments[arguments.length-1];requestAnimationFrame(()=>requestAnimationFrame(()=>done(true)));', args: [] });
   assert.equal(await driver.execute('return document.activeElement?.id;'), 'theme', 'Appearance must retain focus after its native save.');

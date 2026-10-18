@@ -103,7 +103,7 @@ async function textScale(enabled) {
 }
 
 async function theme(value) {
-  await driver.click(`#theme option[value="${value}"]`);
+  await driver.selectVisibleOption('#theme', { system: 'System', light: 'Light', dark: 'Dark' }[value]);
   await waitFor(async () => (await driver.execute('return document.documentElement.dataset.theme;')) === value, `native ${value} appearance`);
   await waitFor(async () => (await driver.execute('return document.querySelector("#theme").disabled;')) === false, 'appearance save');
 }

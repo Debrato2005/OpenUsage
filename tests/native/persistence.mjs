@@ -81,7 +81,7 @@ async function ready(theme, protection) {
 }
 
 async function darkTheme() {
-  await driver.click('#theme option[value="dark"]');
+  await driver.selectVisibleOption('#theme', 'Dark');
   await waitFor(async () => (await driver.execute('return document.documentElement.dataset.theme;')) === 'dark', 'persisted dark appearance');
 }
 

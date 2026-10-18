@@ -87,7 +87,7 @@ try {
   await driver.type('#workspace-confirmation', workspacePassphrase);
   await driver.click('.unlock-form button[type="submit"]');
   await heading('Your workspace is ready');
-  await driver.click('#theme option[value="dark"]');
+  await driver.selectVisibleOption('#theme', 'Dark');
   await waitFor(async () => (await driver.execute('return document.documentElement.dataset.theme;')) === 'dark', 'current dark appearance');
   await invokeError('create_backup', { password: 'short' }, 'passphrase_too_short');
   await invokeError('create_backup', { password: 'é'.repeat(600) }, 'passphrase_too_long');

@@ -62,7 +62,7 @@ async function capture(name, selector, width = 1280, scale = 1) {
     await driver.screenshot(join(output, name)); evidence.screenshots.push(name); evidence.views.push({ name, textScale: scale, scalingScope: 'Test-side CSS font size changes, not OS zoom.', ...view });
   } finally { if (scale !== 1) await driver.execute('for(const item of window.__discoveryFonts){if(item.style===null)item.node.removeAttribute("style");else item.node.setAttribute("style",item.style);}delete window.__discoveryFonts;return true;'); }
 }
-async function theme(value) { await driver.click(`#theme option[value="${value}"]`); await waitFor(async () => await driver.execute('return document.documentElement.dataset.theme===arguments[0]&&!document.querySelector("#theme").disabled;', [value]), `${value} appearance`); }
+async function theme(value) { await driver.selectVisibleOption('#theme', { system: 'System', light: 'Light', dark: 'Dark' }[value]); await waitFor(async () => await driver.execute('return document.documentElement.dataset.theme===arguments[0]&&!document.querySelector("#theme").disabled;', [value]), `${value} appearance`); }
 
 await mkdir(output, { recursive: true, mode: 0o700 });
 process.once('exit', () => { driver?.kill('SIGKILL'); stopGroup(fixture?.bus, 'SIGKILL'); });

@@ -61,7 +61,8 @@ test('light and dark startup views have no automated accessibility violations', 
   await page.goto('/');
   await expect(page.getByRole('status')).toHaveText('OpenUsage needs its desktop application');
   for (const theme of ['light', 'dark']) {
-    await page.getByRole('combobox', { name: 'Appearance' }).selectOption(theme);
+    await page.getByRole('combobox', { name: 'Appearance' }).click();
+    await page.getByRole('option', { name: theme === 'light' ? 'Light' : 'Dark', exact: true }).click();
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
     const result = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
     expect(result.violations).toEqual([]);

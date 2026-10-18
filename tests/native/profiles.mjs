@@ -120,7 +120,7 @@ async function unlock() {
 }
 
 async function screenshot(name, narrow = false, theme = 'dark') {
-  await driver.click(`#theme option[value="${theme}"]`);
+  await driver.selectVisibleOption('#theme', { system: 'System', light: 'Light', dark: 'Dark' }[theme]);
   await waitFor(async () => (await driver.execute('return document.documentElement.dataset.theme;')) === theme, `${theme} appearance`);
   const target = narrow ? { width: 360, height: 800 } : { width: 1280, height: 850 };
   for (let attempt = 0; attempt < 3; attempt++) {
