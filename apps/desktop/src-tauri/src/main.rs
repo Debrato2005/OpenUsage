@@ -125,6 +125,20 @@ struct LoginAttemptArgs {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct BeginQuotaArgs {
+    profile_id: String,
+    approval_id: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct QuotaRequestArgs {
+    profile_id: String,
+    request_id: String,
+}
+
+#[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ThemeArgs {
     theme: ThemeChoice,
@@ -774,6 +788,72 @@ async fn cancel_profile_login(
     .map_err(|_| CommandError::ProviderUnavailable)?
 }
 
+#[tauri::command]
+async fn begin_profile_quota_read(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<provider::QuotaReceipt, CommandError> {
+    let args: BeginQuotaArgs = arguments(&request)?;
+    workspace::validate_profile_id(&args.profile_id)?;
+    restore::validate_preview_id(&args.approval_id)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut state = service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?;
+        state
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .begin_profile_quota_read(&args.profile_id, &args.approval_id)
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+#[tauri::command]
+async fn complete_profile_quota_read(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<provider::QuotaOutcome, CommandError> {
+    let args: QuotaRequestArgs = arguments(&request)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let pending = {
+            let state = service
+                .lock()
+                .map_err(|_| CommandError::ProviderUnavailable)?;
+            state
+                .as_ref()
+                .ok_or(CommandError::WorkspaceLocked)?
+                .complete_profile_quota_read(&args.profile_id, &args.request_id)?
+        };
+        let completed = pending.wait()?;
+        let mut state = service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?;
+        state
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .finish_profile_quota_read(completed)
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+#[tauri::command]
+async fn cancel_profile_quota_read(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<provider::Cancelled, CommandError> {
+    let args: QuotaRequestArgs = arguments(&request)?;
+    let provider = service.2.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        provider.cancel_quota(&args.profile_id, &args.request_id)
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
 fn is_bundled_url(url: &tauri::Url) -> bool {
     url.username().is_empty()
         && url.password().is_none()
@@ -810,7 +890,10 @@ fn main() {
             await_profile_login_prompt,
             complete_profile_login,
             cancel_profile_login,
-            discover_provider_executables
+            discover_provider_executables,
+            begin_profile_quota_read,
+            complete_profile_quota_read,
+            cancel_profile_quota_read
         ])
         .setup(|app| {
             let window = &app.config().app.windows[0];
@@ -837,13 +920,30 @@ fn main() {
 mod tests {
     use super::{
         ApplyRestoreArgs, ApproveProviderArgs, ArchiveProfileArgs, BackupArgs, BeginLoginArgs,
-        CancelRestorePreviewArgs, CheckpointPreviewArgs, CreateProfileArgs, InspectBackupArgs,
-        InspectProviderArgs, ListProfilesArgs, LoginAttemptArgs, ProfileCheckArgs,
-        RenameProfileArgs, SetupArgs, ThemeArgs, UnlockArgs, is_bundled_url,
+        BeginQuotaArgs, CancelRestorePreviewArgs, CheckpointPreviewArgs, CreateProfileArgs,
+        InspectBackupArgs, InspectProviderArgs, ListProfilesArgs, LoginAttemptArgs,
+        ProfileCheckArgs, QuotaRequestArgs, RenameProfileArgs, SetupArgs, ThemeArgs, UnlockArgs,
+        is_bundled_url,
     };
 
     #[test]
     fn storage_commands_reject_unexpected_fields_and_incorrect_value_types() {
+        for invalid in [
+            r#"{}"#,
+            r#"{"profileId":"synthetic"}"#,
+            r#"{"profileId":"synthetic","approvalId":null}"#,
+            r#"{"profileId":"synthetic","approvalId":"synthetic","home":"/external"}"#,
+        ] {
+            assert!(serde_json::from_str::<BeginQuotaArgs>(invalid).is_err());
+        }
+        for invalid in [
+            r#"{}"#,
+            r#"{"profileId":"synthetic"}"#,
+            r#"{"profileId":"synthetic","requestId":null}"#,
+            r#"{"profileId":"synthetic","requestId":"synthetic","accountId":"injected"}"#,
+        ] {
+            assert!(serde_json::from_str::<QuotaRequestArgs>(invalid).is_err());
+        }
         for invalid in [
             r#"{}"#,
             r#"{"profileId":"synthetic","flow":"device_code","confirmed":true}"#,

@@ -26,6 +26,9 @@ fn main() {
             "complete_profile_login",
             "cancel_profile_login",
             "discover_provider_executables",
+            "begin_profile_quota_read",
+            "complete_profile_quota_read",
+            "cancel_profile_quota_read",
         ]),
     ))
     .expect("Failed to build the OpenUsage application manifest");

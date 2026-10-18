@@ -31,6 +31,9 @@
     "allow-await-profile-login-prompt",
     "allow-complete-profile-login",
     "allow-cancel-profile-login",
-    "allow-discover-provider-executables"
+    "allow-discover-provider-executables",
+    "allow-begin-profile-quota-read",
+    "allow-complete-profile-quota-read",
+    "allow-cancel-profile-quota-read"
   ]
 }

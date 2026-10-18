@@ -34,16 +34,7 @@ pub(crate) struct LoginOutcome {
     pub diagnostic: ConnectionDiagnostic,
 }
 
-#[derive(Clone)]
-pub(crate) struct LoginBinding {
-    pub profile_id: String,
-    pub home_reference: String,
-    pub revision: openusage_storage::StorageRevision,
-    held_home: Arc<HeldHome>,
-    approval_id: String,
-    source_kind: ExecutableSourceKind,
-    generation: u64,
-}
+pub(crate) type LoginBinding = ProfileBinding;
 
 #[derive(PartialEq)]
 enum Phase {
@@ -117,7 +108,14 @@ impl ProviderCoordinator {
         {
             return Err(CommandError::ProviderLoginInProgress);
         }
-        if state.logins.len() >= 2 {
+        if state
+            .quotas
+            .values()
+            .any(|entry| entry.binding.profile_id == profile_id)
+        {
+            return Err(CommandError::ProviderQuotaInProgress);
+        }
+        if state.logins.len() + state.quotas.len() >= 2 {
             return Err(CommandError::ProviderCapacityReached);
         }
         let approved = state
