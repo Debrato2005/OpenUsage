@@ -17,6 +17,8 @@ pub use restore_apply::{
     CheckpointRestoreMetadata, RestoreError, RestoreHomeMapping, RestoreInputMetadata,
     validate_checkpoint_restore_input, validate_restore_input,
 };
+#[cfg(all(test, unix))]
+mod restore_crash;
 mod restore_state;
 pub use restore_state::{RestoreState, StorageRevision};
 
