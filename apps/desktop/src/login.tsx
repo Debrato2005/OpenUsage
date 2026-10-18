@@ -13,6 +13,11 @@ type Props = {
 
 type Outcome = { kind: 'success' | 'cancelled' | 'error'; message: string };
 
+function selectField(field: HTMLInputElement | HTMLTextAreaElement) {
+  field.select();
+  requestAnimationFrame(() => { if (document.activeElement === field) field.select(); });
+}
+
 export function ProfileDeviceLogin({ profileId, profileLabel, approval, busy, onActivity, onStarted }: Props) {
   const [consent, setConsent] = useState(false);
   const [working, setWorking] = useState(false);
@@ -136,9 +141,9 @@ export function ProfileDeviceLogin({ profileId, profileLabel, approval, busy, on
       {prompt ? <div className="login-prompt" data-login-profile={profileId}>
         <p>Open this address in your browser, then enter the code.</p>
         <label htmlFor={`login-address-${profileId}`}>Sign-in page</label>
-        <textarea id={`login-address-${profileId}`} rows={3} spellCheck={false} readOnly value={prompt.verificationUrl} onFocus={event => event.currentTarget.select()} />
+        <textarea id={`login-address-${profileId}`} rows={3} spellCheck={false} readOnly value={prompt.verificationUrl} onFocus={event => selectField(event.currentTarget)} />
         <label htmlFor={`login-code-${profileId}`}>Your sign-in code</label>
-        <input ref={code} id={`login-code-${profileId}`} className="login-code" type="text" autoComplete="off" readOnly value={prompt.userCode} aria-describedby={`login-wait-${profileId}`} onFocus={event => event.currentTarget.select()} />
+        <input ref={code} id={`login-code-${profileId}`} className="login-code" type="text" autoComplete="off" readOnly value={prompt.userCode} aria-describedby={`login-wait-${profileId}`} onFocus={event => selectField(event.currentTarget)} />
         <p id={`login-wait-${profileId}`} className="provider-help">OpenUsage waits up to 15 minutes. Codex did not provide a code expiry time.</p>
       </div> : <p role="status">{cancelling || cancelled.current ? 'Stopping sign-in…' : 'Preparing your sign-in code…'}</p>}
       {attempt && <button className="secondary-button" type="button" data-login-cancel={profileId} disabled={cancelling} onClick={() => { void cancel(); }}>{cancelling ? 'Stopping sign-in…' : 'Cancel sign-in'}</button>}
