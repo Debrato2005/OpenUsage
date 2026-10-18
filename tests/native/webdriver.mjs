@@ -84,6 +84,18 @@ export class NativeDriver {
     await this.request('POST', `/session/${this.session}/element/${element}/click`, {});
   }
 
+  async selectVisibleOption(selector, label) {
+    await waitFor(async () => this.execute('const trigger=document.querySelector(arguments[0]);return Boolean(trigger&&trigger.getAttribute("role")==="combobox"&&!trigger.disabled&&trigger.getAttribute("aria-disabled")!=="true");', [selector]), `enabled combobox ${selector}`);
+    await this.click(selector);
+    let option;
+    await waitFor(async () => {
+      option = await this.execute('const trigger=document.querySelector(arguments[0]);if(trigger?.getAttribute("aria-expanded")!=="true")return null;const roots=(trigger.getAttribute("aria-controls")??"").split(/\\s+/).filter(Boolean).map(id=>document.getElementById(id)).filter(Boolean);const matches=[...new Set(roots.flatMap(root=>[...root.querySelectorAll("[role=option]")]))].filter(node=>{const rect=node.getBoundingClientRect(),style=getComputedStyle(node);return node.textContent.trim()===arguments[1]&&node.getAttribute("aria-disabled")!=="true"&&!node.closest("[hidden],[aria-hidden=true]")&&rect.width>0&&rect.height>0&&style.visibility!=="hidden"&&style.display!=="none";});return matches.length===1?matches[0]:null;', [selector, label]);
+      return Boolean(option);
+    }, `one visible enabled ${label} option controlled by ${selector}`);
+    await this.request('POST', `/session/${this.session}/element/${option['element-6066-11e4-a52e-4f735466cecf']}/click`, {});
+    await waitFor(async () => this.execute('return document.querySelector(arguments[0])?.getAttribute("aria-expanded")==="false";', [selector]), `closed combobox ${selector}`);
+  }
+
   async type(selector, text) {
     const element = await this.element(selector);
     await this.request('POST', `/session/${this.session}/element/${element}/clear`, {});

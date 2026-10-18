@@ -45,7 +45,7 @@ async function liveHashes() { const result = {}; for (const path of [fixture.dat
     }
 } return result; }
 async function rejected(command, args, error) { assert.deepEqual(await driver.invoke(command, args), { ok: false, error }); }
-async function theme(value) { await driver.click(`#theme option[value="${value}"]`); await waitFor(async () => await driver.execute('return !document.querySelector("#theme").disabled&&document.documentElement.dataset.theme===arguments[0];', [value]), 'appearance saved'); }
+async function theme(value) { await driver.selectVisibleOption('#theme', { system: 'System', light: 'Light', dark: 'Dark' }[value]); await waitFor(async () => await driver.execute('return !document.querySelector("#theme").disabled&&document.documentElement.dataset.theme===arguments[0];', [value]), 'appearance saved'); }
 async function create(label) { await driver.type('#profile-label', label); await driver.click('.profile-create-form button[type=submit]'); await waitFor(async () => await driver.execute('const input=document.querySelector("#profile-label");return !input.disabled&&input.value==="";'), 'profile form ready'); return (await state()).profiles.find(profile => profile.label === label); }
 async function open() { driver = new NativeDriver(application, fixture.environment, join(output, `driver-${++sequence}.log`)); await driver.start(); }
 async function unlock() { await driver.type('#workspace-passphrase', passphrase); await driver.click('.unlock-form button[type=submit]'); await waitFor(async () => (await driver.invoke('bootstrap')).value?.storage === 'ready', 'workspace unlocked'); }
