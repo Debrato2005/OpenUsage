@@ -1,0 +1,23 @@
+{
+  "id": 3,
+  "result": {
+    "accountId": "synthetic-private-account-id",
+    "rateLimits": { "limitId": "legacy-must-not-be-counted", "primary": { "usedPercent": 99 } },
+    "rateLimitsByLimitId": {
+      "codex": {
+        "limitId": "codex",
+        "limitName": null,
+        "primary": { "usedPercent": 25, "windowDurationMins": 300, "resetsAt": 1893456000 },
+        "secondary": { "usedPercent": 100, "windowDurationMins": 10080, "resetsAt": null },
+        "rateLimitReachedType": "rate_limit_reached"
+      },
+      "codex_other": {
+        "limitId": null,
+        "limitName": "Synthetic returned bucket",
+        "primary": { "usedPercent": 0, "windowDurationMins": null, "resetsAt": null },
+        "secondary": null
+      }
+    },
+    "rateLimitResetCredits": null
+  }
+}
