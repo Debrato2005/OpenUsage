@@ -1,6 +1,6 @@
 # Implementation status
 
-Updated: October 18, 2026. The mission remains ongoing. Current milestone: confirmed restore and checkpoint recovery verified on Linux. Next slice: native executable approval and provider lifecycle.
+Updated: October 18, 2026. The mission remains ongoing. Current milestone: native provider approval, lifecycle, official account checks, and checkpoint close/restart verified on Linux. Next slice: managed device-code sign-in.
 
 ## Implemented and executed
 
@@ -20,9 +20,9 @@ Profile creation, renaming, archiving, and restoration now use Rust commands and
 
 That earlier inspection milestone now has content validation. `NATIVE-BACKUP-CONTENT-001` passed on the rebuilt application. A GUI export of three profiles, including one archived profile, returned the expected counts after validation. Authenticated non-database bytes and broken foreign keys showed failed database checks; future manifest and database versions showed unsupported contents. Metadata remained visible, with no record counts for either warning state. Nine native captures show the resulting views. Workspace and archive hashes stayed unchanged. See `evidence/native-backup-content/` and the [content review](reviews/2026-10-18-backup-content-validation.md).
 
-Two further Rust cores passed their integrated checks. Encrypted checkpoints capture active WAL records, authenticate disk pages, and reopen with the existing protected key. They preserve existing targets and leave the live connection usable after failure. The provider supervisor limits checks to two active profiles, rejects duplicates, owns cancellation, and reports cleanup failures. Executable transport fixtures passed; native app lifecycle and live supervised profiles remain unverified. These are prerequisites for the next native slices.
+Two further Rust cores passed their integrated checks. Encrypted checkpoints capture active WAL records, authenticate disk pages, and reopen with the existing protected key. They preserve existing targets and leave the live connection usable after failure. The provider supervisor limits checks to two active profiles, rejects duplicates, owns cancellation, and reports cleanup failures. Executable transport fixtures passed; native app lifecycle and native supervised profile checks now have the evidence below. These are prerequisites for the next native slices.
 
-`NATIVE-RESTORE-PREVIEW-001` passed through the rebuilt Tauri UI. Preview preparation authenticated the archive, checked its records, and saved an encrypted checkpoint before showing the comparison. A read-only Rust verifier opened that checkpoint with the original protected key and matched the exact live records and appearance. Cancel, normal window close, restart, invalid inputs, and stale tokens preserved records and synthetic homes. Five captures cover desktop, both narrow themes, password errors, and enlarged text. The final comparison reflows into labeled pairs at 200% text size. See `evidence/native-restore-preview/` and the [review](reviews/2026-10-18-restore-preview.md). That historical preview milestone is now followed by confirmed replacement.
+`NATIVE-RESTORE-PREVIEW-001` passed through the rebuilt Tauri UI. Preview preparation authenticated the archive, checked its records, and saved an encrypted checkpoint before showing the comparison. A read-only Rust verifier opened that checkpoint with the original protected key and matched the exact live records and appearance. Cancel, WebDriver window closure, restart, invalid inputs, and stale tokens preserved records and synthetic homes. Five captures cover desktop, both narrow themes, password errors, and enlarged text. The final comparison reflows into labeled pairs at 200% text size. See `evidence/native-restore-preview/` and the [review](reviews/2026-10-18-restore-preview.md). That historical preview milestone is now followed by confirmed replacement.
 
 `NATIVE-RESTORE-APPLY-001` passed against the rebuilt application. Explicit confirmation restored the saved profile and appearance fields after restart. The original key and WAL remained intact. All imported profiles received fresh private homes, including archived profiles. Existing marker homes remained unchanged. Stale tokens, corrupt checkpoints, and filesystem faults preserved current records. Read-only oracles authenticated encrypted pages and matched the selected semantic fields. Four new captures passed desktop and narrow layout checks. The backup-content regression also passed with nine fresh captures. See `evidence/native-restore-apply/`, `evidence/native-backup-content-regression/`, and the [review](reviews/2026-10-18-confirmed-restore.md).
 
@@ -30,14 +30,18 @@ Two further Rust cores passed their integrated checks. Encrypted checkpoints cap
 
 `STORAGE-RESTORE-PROCESS-CRASH-001` passed against the production transaction. Owned SIGKILL cases preserved every old record column before COMMIT and complete restored records after COMMIT without acknowledgment. Both retained the original authenticated checkpoint. These are process-crash core checks. Native interruption and power-loss qualification remain open. See `evidence/restore-process-crash/`, the [review](reviews/2026-10-18-restore-process-crash.md), and SC-002 in `srs-clarifications.md`. This test-only slice adds a `cfg(test, unix)` module. The preceding native receipt still binds its original source and executable.
 
+`NATIVE-PROVIDER-LIFECYCLE-001`, `NATIVE-PRODUCTION-SOURCE-GATE-001`, and `NATIVE-OFFICIAL-PROVIDER-001` passed. Production approval requires the reviewed signed Codex 0.163.0 Linux x86_64 bytes and explicit confirmation. Inspection executes nothing. Native checks enforce two slots, cancellation, isolated homes, restore quiescence, and child reaping on genuine window close. The production build refuses the synthetic fixture before execution. The signed official executable returned authentication required in a fresh profile. Read-only checks preserved database, WAL, and key hashes. Eight captures cover actual dark/light layouts, narrow views, and test-side 200% text. See `evidence/native-provider-lifecycle/`, `evidence/native-provider-source-gate/`, `evidence/native-official-provider/`, and the [provider review](reviews/2026-10-18-native-provider.md).
+
+`NATIVE-CHECKPOINT-WM-REGRESSION-001` passed on the same default configuration. A pending authenticated archive preview was refused after genuine native close and restart. Selected records, key, and homes remained intact. Checkpoint recovery then restored B and its original home mappings. Independent SQLCipher oracles passed. Seven captures cover the resulting flow. Historical WebDriver last-window closures force-terminated the application. Their persistence observations remain valid, but their normal-close wording requires this qualification. See `evidence/native-checkpoint-wm-regression/`.
+
 ## Verification
 
 | Check | Executed result |
 |---|---|
-| `npm run check` | Passed: build/type check, 15 contract checks, 12 renderer checks |
-| `cargo test --workspace --offline --locked` | Passed: 82 Rust tests, including 33 native service checks. One child entry is ignored by default and executed twice by its parent test. |
+| `npm run check` | Passed: build/type check, 18 contract checks, 12 renderer checks |
+| `cargo test --workspace --offline --locked` | Passed: 88 Rust tests, including 36 native service checks. One child entry is ignored by default and executed twice by its parent test. |
 | `cargo clippy --workspace --all-targets --offline --locked -- -D warnings` | Passed |
-| Native startup | Rebuilt default production configuration passed after checkpoint recovery. See `evidence/native-checkpoint-production-smoke/`. |
+| Native startup | Default production configuration passed the source gate, real official provider, and checkpoint WM regressions. See their receipts above. |
 | Native persistence | Passed again on the backup binary with a real private Secret Service |
 | Native backup export | Passed again on the refined UI, with archive authentication and no plaintext disk staging |
 | Native profiles | GUI lifecycle, ten-active limit, Unicode clipboard input, restart, private homes, and failure preservation passed on Linux |
@@ -50,7 +54,7 @@ Two further Rust cores passed their integrated checks. Encrypted checkpoints cap
 | Checkpoint core | Four real SQLCipher checks passed: active WAL, original key, unsafe targets, cleanup/retry, and disk page authentication |
 | Provider supervisor core | Synthetic executable checks passed for two slots, duplicate rejection, cancellation, owned shutdown, home identity, and cleanup errors |
 | Native design | 46 captures passed font, overflow, keyboard focus, and field-error checks. Text scaling uses test-side CSS, not OS zoom. |
-| Windows, macOS, live provider, release performance | Not run |
+| Windows, macOS, authenticated live provider, release performance | Not run |
 
 ## Resolved faults
 
@@ -66,8 +70,8 @@ Tauri can exit without ordinary Rust destructors. The exit callback now closes t
 
 SQLCipher 4 with WAL remains mandatory. The [SQLite proposal](proposals/sqlite-wal-amendment.md) is rejected. The original SRS remains unchanged.
 
-The isolated probe was rerun after the supervisor integration. Its real-process receipt matches five current source hashes in `crates/openusage-codex/tests/evidence/real-isolated-probe.json`. Synthetic supervision evidence is beside it in `supervision-core.json`. A Rust approval reference records a caller's source decision; it does not prove executable authenticity. Native approval, application shutdown hooks, and live supervision remain incomplete. Windows is unsupported by this transport; macOS remains untested.
+Historical isolated-probe and supervisor receipts bind their original source hashes. The new native receipts bind the integrated digest and source gates. A reviewed official artifact pin now supplies production provenance, with signature evidence in `crates/openusage-codex/tests/evidence/official-codex-0.163.0-source.json`. Windows is unsupported by this transport. macOS remains untested.
 
-Next: implement native executable approval and provider lifecycle checks. Their native and test work continues in isolated persistent worktrees. Native provider approval and lifecycle integration remain separate work. Current-schema inspection checks run in isolated memory. Confirmed replacement separately requires a fresh checkpoint-backed preview and explicit approval. Other timezone/locale settings remain unsupported until their writers and validators are implemented. Restore and full acceptance remain open. Large-history backup memory use needs separate qualification. All native artifacts in this checkpoint are debug builds, including the build with the default production configuration.
+Next: implement explicit managed device-code sign-in. Core work continues in an isolated persistent worktree. Login, accepted quota collection, and verified identity remain incomplete. Current-schema inspection checks run in isolated memory. Confirmed replacement separately requires a fresh checkpoint-backed preview and explicit approval. Other timezone/locale settings remain unsupported until their writers and validators are implemented. Restore and full acceptance remain open. Large-history backup memory use needs separate qualification. All native artifacts in this checkpoint are debug builds, including the build with the default production configuration.
 
 Local commits now live in `/example/home/Projects/OpenUsage/.recovery/integration`, branch `codex/native-bootstrap`. The executor reset removed the former temporary worktrees and later Apply artifacts. Recovery used the preserved bundle through `1b3916c`, reconstructed the missing source, and reran acceptance. No surviving receipt supports the lost regression attempt. New tools, artifacts, and evidence use the persistent project directory. The new native receipts and artifact audits support this checkpoint. Primary Git metadata is read-only in this executor. Verified source is copied back to the primary worktree after each milestone. No existing Codex credential homes were inspected. No remote writes occurred.
