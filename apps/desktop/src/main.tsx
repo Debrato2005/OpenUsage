@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { DesktopUnavailable, invoke, type BackupReceipt, type Bootstrap, type Theme } from './contracts';
 import { ProfileManager } from './profiles';
 import { BackupInspection } from './backup-inspection';
+import { CheckpointRecovery } from './checkpoint-recovery';
 import './styles.css';
 
 type Startup = { kind: 'loading' } | { kind: 'desktop'; data: Bootstrap }
@@ -20,7 +21,7 @@ function App() {
   const [workspaceErrorField, setWorkspaceErrorField] = useState<'workspace-passphrase' | 'workspace-confirmation' | null>(null);
   const [passphrase, setPassphrase] = useState('');
   const [confirmation, setConfirmation] = useState('');
-  const [backupAction, setBackupAction] = useState<'create' | 'inspect' | null>(null);
+  const [backupAction, setBackupAction] = useState<'create' | 'inspect' | 'recover' | null>(null);
   const [backupRecords, setBackupRecords] = useState(false);
   const [backupPassword, setBackupPassword] = useState('');
   const [backupConfirmation, setBackupConfirmation] = useState('');
@@ -145,7 +146,7 @@ function App() {
       setBusy(false);
     }
   }
-  function toggleBackup(action: 'create' | 'inspect') {
+  function toggleBackup(action: 'create' | 'inspect' | 'recover') {
     setBackupAction(current => current === action ? null : action);
     setBackupPassword('');
     setBackupConfirmation('');
@@ -220,7 +221,7 @@ function App() {
             <div className="empty-state"><h3>Unlock to view your accounts</h3><p>Open your local workspace to manage account profiles and view saved activity.</p></div>
           </section>}
         {ready && <section className="backup-panel" aria-labelledby="backup-heading">
-          <div className="section-heading"><div><h2 id="backup-heading">Encrypted backups</h2><p>Save a password-protected copy of your application records.</p></div><div className="backup-actions"><button ref={backupToggle} className="secondary-button" disabled={busy} onClick={() => toggleBackup('create')} aria-expanded={backupOpen} aria-controls="backup-form">{backupOpen ? 'Hide backup form' : 'Create a backup'}</button><button className="secondary-button" disabled={busy} onClick={() => toggleBackup('inspect')} aria-expanded={backupAction === 'inspect'} aria-controls="backup-inspection">{backupAction === 'inspect' ? 'Hide backup inspection' : 'Inspect a backup'}</button></div></div>
+          <div className="section-heading"><div><h2 id="backup-heading">Encrypted backups</h2><p>Save a password-protected copy of your application records.</p></div><div className="backup-actions"><button ref={backupToggle} className="secondary-button" disabled={busy} onClick={() => toggleBackup('create')} aria-expanded={backupOpen} aria-controls="backup-form">{backupOpen ? 'Hide backup form' : 'Create a backup'}</button><button className="secondary-button" disabled={busy} onClick={() => toggleBackup('inspect')} aria-expanded={backupAction === 'inspect'} aria-controls="backup-inspection">{backupAction === 'inspect' ? 'Hide backup inspection' : 'Inspect a backup'}</button><button className="secondary-button" disabled={busy} onClick={() => toggleBackup('recover')} aria-expanded={backupAction === 'recover'} aria-controls="checkpoint-recovery">{backupAction === 'recover' ? 'Hide checkpoints' : 'Restore a checkpoint'}</button></div></div>
           {backupOpen && <form id="backup-form" className="unlock-form backup-form" onSubmit={event => { event.preventDefault(); void saveBackup(); }}>
             <p id="backup-records-help">Application records can include account names, email addresses, and activity. Provider credentials and local evidence are excluded.</p>
             <label className="backup-selection"><input id="backup-records" name="backup-records" type="checkbox" required checked={backupRecords} disabled={busy} aria-describedby="backup-records-help" onChange={event => setBackupRecords(event.target.checked)} />Application records</label>
@@ -233,6 +234,7 @@ function App() {
           </form>}
           {backupReceipt && <div className="backup-receipt" role="status"><p>Backup saved and authenticated.</p><p><strong>{backupReceipt.fileName}</strong><br />{backupReceipt.directory}</p></div>}
           {backupAction === 'inspect' && <section id="backup-inspection" className="backup-inspection" aria-labelledby="backup-inspection-heading"><h3 id="backup-inspection-heading">Inspect a backup</h3><BackupInspection busy={busy} setBusy={setBusy} onRestored={refreshRestoredWorkspace} /></section>}
+          {backupAction === 'recover' && <CheckpointRecovery busy={busy} setBusy={setBusy} onRestored={refreshRestoredWorkspace} />}
           <p className="backup-note">Inspect a backup before you prepare a restore. Replacing records requires confirmation.</p>
         </section>}
         <footer className="main-footer"><span>Provider data: Not available</span><span>Last observation: Not available</span></footer>

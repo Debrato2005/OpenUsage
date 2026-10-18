@@ -218,6 +218,8 @@ main { max-width: 1280px; padding: var(--space-6); margin: 0 auto; }
 .backup-inspection > h3 { font-size: var(--text-section); margin-bottom: var(--space-3); }
 .backup-inspection-help, #backup-inspection-help, .backup-inspection-status, .backup-inspection-empty, .backup-inspection-limit { margin-top: var(--space-2); color: var(--muted); font-size: var(--text-sm); }
 .backup-inspection-form select { width: 100%; max-width: 100%; min-width: 0; }
+.checkpoint-catalog { display: grid; gap: var(--space-3); max-width: 100%; min-width: 0; }
+.checkpoint-catalog select { width: 100%; max-width: 100%; min-width: 0; }
 .backup-inspection-error:focus, .backup-inspection-receipt:focus { outline: 2px solid var(--focus); outline-offset: 3px; }
 .backup-inspection-metadata { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--space-2) var(--space-4); margin-top: var(--space-4); font-size: var(--text-sm); }
 .backup-inspection-metadata dt { color: var(--muted); }
