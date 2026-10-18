@@ -19,8 +19,11 @@ def record(kind, **fields):
             output.write(json.dumps(item) + '\n')
             output.flush()
 
-mode_file = home / 'synthetic-provider-mode'
-mode = mode_file.read_text(encoding='utf-8').strip() if mode_file.exists() else 'success'
+config_path = Path(__file__).resolve().parent / 'synthetic-provider-config.json'
+config = json.loads(config_path.read_text(encoding='utf-8')) if config_path.exists() else {}
+assert isinstance(config, dict) and set(config) <= {'defaultMode', 'modesByHome'}
+mode = config.get('modesByHome', {}).get(str(home), config.get('defaultMode', 'success'))
+assert mode in {'success', 'unsupported-version', 'hang', 'malformed', 'provisional'}
 record('start', arguments=sys.argv[1:], environment={name: os.environ[name] for name in allowed if name in os.environ},
        unexpectedEnvironmentKeys=sorted(set(os.environ) - allowed), mode=mode)
 if sys.argv[1:] == ['--version']:
