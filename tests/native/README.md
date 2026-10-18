@@ -229,3 +229,8 @@ Existing synthetic markers and the two imported homes must stay intact.
 The read-only oracle requires explicit existing-home mode and exact expected mappings for this check.
 Its default mode continues to require fresh, private, empty homes for a backup import.
 This journey does not establish forced-interruption recovery or cross-platform acceptance.
+
+The recovery journey also captures the catalog, comparison, and confirmation at 360 pixels with doubled text.
+It checks whole label words, comparison reflow, keyboard access to the unchecked confirmation, and horizontal overflow.
+The runner restores all temporary inline text styles before the actual restore.
+This is test-side CSS scaling, not operating-system zoom or full accessibility acceptance.
