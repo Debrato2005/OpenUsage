@@ -21,6 +21,8 @@ use std::{
 
 mod login;
 pub(crate) use login::*;
+mod discovery;
+pub(crate) use discovery::{ExecutableDiscovery, discover};
 
 const MAX_EXECUTABLE_BYTES: u64 = 1024 * 1024 * 1024;
 
