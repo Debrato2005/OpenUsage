@@ -6,7 +6,7 @@ The immutable executable is 26,689,864 bytes. Its SHA256 is `02444003b1a011cbf90
 
 Actual startup passed argument refusal, unavailable-metric handling, stopped monitoring, keyboard privacy access, and synthetic home preservation. Production source review refused all three reviewed test providers before execution. The native backup action produced an authenticated encrypted archive. The existing independent Rust verifier checked its schema and current WAL-backed appearance, rejected wrong passwords and tampering, and left no plaintext staging.
 
-A separate native journey used a real private GNOME Secret Service and the production credential namespace. Setup stored the key through that service. Metadata searches found the production entry without reading its secret. 
+A separate native journey used a real private GNOME Secret Service and the production credential namespace. Setup stored the key through that service. Metadata searches found the production entry without reading its secret.
 
 The database and active WAL were encrypted. Database files had private modes, and unkeyed SQLite was refused. Theme and database bytes survived genuine application close, key-store restart, and application reopen. The synthetic provider home stayed unchanged. This OS-store case did not create a passphrase envelope.
 
