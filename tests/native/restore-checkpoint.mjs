@@ -66,6 +66,17 @@ async function resize(width,height) {
     await driver.request('POST',`/session/${driver.session}/window/rect`,{width:rect.width+width-actual.width,height:rect.height+height-actual.height});
   }
 }
+async function fontDiagnostic(phase) {
+ const snapshot=await driver.execute(`
+  const selectors={body:'body',catalog:'.checkpoint-catalog',trigger:'#restore-checkpoint',value:'#restore-checkpoint [data-slot=select-value]',form:'.restore-confirmation-form',password:'input[type=password]'};
+  if(arguments[0]==='before200')window.__checkpointFontDiagnosticNodes=Object.fromEntries(Object.entries(selectors).map(([key,selector])=>[key,document.querySelector(selector)]));
+  return {phase:arguments[0],width:innerWidth,fields:Object.fromEntries(Object.entries(selectors).map(([key,selector])=>{
+   const node=document.querySelector(selector),original=window.__checkpointFontDiagnosticNodes?.[key];
+   if(!node)return[key,{present:false,originalNodeConnected:original?.isConnected??null}];
+   const style=getComputedStyle(node);return[key,{present:true,tag:node.tagName,fontSize:style.fontSize,fontFamily:style.fontFamily,inlineFontSize:node.style.fontSize,inlineStyle:node.getAttribute('style'),sameOriginalNode:original?node===original:null,originalNodeConnected:original?.isConnected??null}];
+  }))};`,[phase]);
+ (evidence.fontDiagnostics??=[]).push(snapshot);
+}
 async function capture(name,selector,width=1280,height=850) {
   await resize(width,height);
   await driver.execute('document.querySelector(arguments[0]).scrollIntoView({block:"center"});return true;',[selector]);
@@ -74,10 +85,12 @@ async function capture(name,selector,width=1280,height=850) {
   const comparisonWords=await driver.execute('const words=[];for(const header of document.querySelectorAll(".restore-comparison th,.comparison-label")){const hiddenHeader=header.closest("thead");if(header.getBoundingClientRect().width<2||(hiddenHeader&&getComputedStyle(hiddenHeader).clipPath!=="none"))continue;const walker=document.createTreeWalker(header,NodeFilter.SHOW_TEXT);while(walker.nextNode()){const node=walker.currentNode;for(const match of node.textContent.matchAll(/[A-Za-z]+/g)){const range=document.createRange();range.setStart(node,match.index);range.setEnd(node,match.index+match[0].length);words.push({word:match[0],lines:[...new Set([...range.getClientRects()].filter(rect=>rect.width>0).map(rect=>Math.round(rect.top)))]});}}}return words;');
   (evidence.comparisonWordChecks??=[]).push({name,words:comparisonWords});
   assert.deepEqual(comparisonWords.filter(item=>item.lines.length>1),[],'Visible comparison words must remain whole at every captured viewport.');
+  await fontDiagnostic(`capture:${name}`);
   await driver.screenshot(join(output,name));evidence.screenshots.push(name);evidence.views.push({name,...view});
 }
 async function enlargedText() {
   await resize(360,800);
+  await fontDiagnostic('before200');
   await driver.execute('window.__checkpointFontRestore=[...document.querySelectorAll("body *")].map(node=>({node,style:node.getAttribute("style"),size:getComputedStyle(node).fontSize}));for(const item of window.__checkpointFontRestore)item.node.style.fontSize=`${parseFloat(item.size)*2}px`;return true;');
   try {
     await capture('checkpoint-catalog-light-text-200-360.png','.checkpoint-catalog',360,800);
@@ -96,6 +109,9 @@ async function enlargedText() {
     evidence.enlargedText={scale:2,viewport:{width:360,height:800},scope:'Test-side CSS text scaling only. Not OS zoom, screen-reader qualification, or full WCAG acceptance.',naturalWords:words,comparisonReflow:true,keyboardReachedUncheckedConfirmation:true,controls};
   } finally {
     await driver.execute('for(const item of window.__checkpointFontRestore){if(item.style===null)item.node.removeAttribute("style");else item.node.setAttribute("style",item.style);}delete window.__checkpointFontRestore;return true;');
+    await fontDiagnostic('after200-restoration');
+    await driver.request('POST',`/session/${driver.session}/execute/async`,{script:'const done=arguments[arguments.length-1];requestAnimationFrame(()=>requestAnimationFrame(()=>done(true)));',args:[]});
+    await fontDiagnostic('after200-restoration-two-frames');
   }
 }
 async function allHomes() {return(await readdir(join(workspace,'profiles'))).sort();}
