@@ -83,7 +83,7 @@ export function ProfileQuotaRead({ profileId, profileLabel, approval, busy, onAc
   }
 
   return <div className="profile-quota-read">
-    <div className="profile-actions"><button type="button" className="secondary-button" data-quota-read={profileId} aria-describedby={`profile-name-${profileId}`} disabled={busy || working} onClick={() => { void read(); }}>{working ? 'Reading quotas…' : 'Read quotas'}</button>{working && requestId && <button ref={cancelButton} type="button" className="text-button" data-quota-cancel={profileId} disabled={stopping} onClick={() => { void cancel(); }}>{stopping ? 'Stopping read…' : 'Cancel read'}</button>}</div>
+    <div className="profile-actions"><button type="button" className="secondary-button" data-quota-read={profileId} aria-describedby={`profile-name-${profileId}`} disabled={busy || working} onClick={() => { void read(); }}>{working ? 'Reading quotas…' : 'Read quotas'}</button>{working && requestId && <button ref={cancelButton} type="button" className="text-button" data-quota-cancel={profileId} aria-describedby={`profile-name-${profileId}`} disabled={stopping} onClick={() => { void cancel(); }}>{stopping ? 'Stopping read…' : 'Cancel read'}</button>}</div>
     {outcome && <div ref={result} className="quota-result" data-quota-profile={profileId} role={outcome.kind === 'error' ? 'alert' : outcome.kind === 'preview' ? 'region' : 'status'} aria-label={outcome.kind === 'preview' ? `Quota preview for ${profileLabel}` : undefined} tabIndex={-1}>
       {approval.sourceKind === 'test_fixture' && <p className="provider-fixture-note" data-provider-fixture>Synthetic provider fixture. These values are controlled test data.</p>}
       {outcome.kind !== 'preview' ? <p>{outcome.message}</p> : <>

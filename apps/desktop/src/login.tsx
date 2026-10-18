@@ -146,7 +146,7 @@ export function ProfileDeviceLogin({ profileId, profileLabel, approval, busy, on
         <input ref={code} id={`login-code-${profileId}`} className="login-code" type="text" autoComplete="off" readOnly value={prompt.userCode} aria-describedby={`login-wait-${profileId}`} onFocus={event => selectField(event.currentTarget)} />
         <p id={`login-wait-${profileId}`} className="provider-help">OpenUsage waits up to 15 minutes. Codex did not provide a code expiry time.</p>
       </div> : <p role="status">{cancelling || cancelled.current ? 'Stopping sign-in…' : 'Preparing your sign-in code…'}</p>}
-      {attempt && <button className="secondary-button" type="button" data-login-cancel={profileId} disabled={cancelling} onClick={() => { void cancel(); }}>{cancelling ? 'Stopping sign-in…' : 'Cancel sign-in'}</button>}
+      {attempt && <button className="secondary-button" type="button" data-login-cancel={profileId} aria-describedby={`profile-name-${profileId}`} disabled={cancelling} onClick={() => { void cancel(); }}>{cancelling ? 'Stopping sign-in…' : 'Cancel sign-in'}</button>}
     </div>}
     {outcome && <div ref={result} className="login-panel login-result" data-login-profile={profileId} role={outcome.kind === 'error' ? 'alert' : 'status'} tabIndex={-1}>
       {approval.sourceKind === 'test_fixture' && <p className="provider-fixture-note" data-provider-fixture>Synthetic provider fixture</p>}
