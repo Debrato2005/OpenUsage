@@ -17,8 +17,10 @@ const passphrase = 'OpenUsage synthetic apply workspace 2026';
 const password = 'OpenUsage synthetic apply archive 2026';
 const hash = async (path) => createHash('sha256').update(await readFile(path)).digest('hex');
 const liveVerifier = resolve(process.env.OPENUSAGE_LIVE_VERIFIER ?? join(harness, 'backup-verifier/target/debug/openusage-native-live-verifier'));
-const evidence = {requirement:'NATIVE-CHECKPOINT-RECOVERY-001',startedAt:new Date().toISOString(),result:'failed',scope:'Actual native encrypted backup restore followed by confirmed checkpoint recovery after normal restart. Synthetic homes only. Selected semantic fields and original home mappings match state B. Timestamps and unselected columns are not compared. No provider login, forced interruption, crash-durability, or cross-platform acceptance.',platform:{os:platform(),release:release()},screenshots:[],steps:[],checkpoints:[],views:[]};
+const evidence = {requirement:'NATIVE-CHECKPOINT-WM-REGRESSION-001',startedAt:new Date().toISOString(),result:'failed',scope:'Actual native encrypted backup restore followed by confirmed checkpoint recovery across genuine X11 WM_DELETE_WINDOW exits. A pending recovery preview is rejected after restart. Synthetic homes only. Selected semantic fields and original home mappings match state B. Timestamps and unselected columns are not compared. No provider login, forced interruption, crash-durability, or cross-platform acceptance.',platform:{os:platform(),release:release()},screenshots:[],steps:[],checkpoints:[],views:[]};
 let fixture, driver, workspace, checkpointDirectory, archive, fileName, sequence = 0;
+evidence.nativeCloses=[];
+async function storageFiles(){const result={};for(const path of[fixture.database,`${fixture.database}-wal`,`${fixture.database}-shm`,join(workspace,'database-key.v1')]){try{const metadata=await lstat(path);result[path]={present:true,fileBytes:String(metadata.size),mode:metadata.mode&0o777,sha256:await hash(path)};}catch(error){if(error.code!=='ENOENT')throw error;result[path]={present:false};}}return result;}
 const markers = new Map();
 let expectedA, expectedB, oldHomes;
 async function click(text) { const node = await driver.execute('return [...document.querySelectorAll("button")].find(node=>node.textContent.trim()===arguments[0]);', [text]); assert.ok(node, `Missing button: ${text}`); await driver.request('POST', `/session/${driver.session}/element/${node['element-6066-11e4-a52e-4f735466cecf']}/click`, {}); }
@@ -106,9 +108,9 @@ async function closeNormally() {
     const current=queue.shift();try{if(await readlink(`/proc/${current}/exe`)===application){pid=current;break;}queue.push(...(await readFile(`/proc/${current}/task/${current}/children`,'utf8')).trim().split(/\s+/).filter(Boolean).map(Number));}catch(error){if(error.code!=='ENOENT')throw error;}
   }
   assert.ok(pid,'Cannot identify owned native child.');
-  assert.deepEqual(await driver.request('DELETE',`/session/${driver.session}/window`),[]);
+  const before=await storageFiles();const receipt=JSON.parse(execFileSync('/usr/bin/python3',[join(harness,'x11-close.py'),String(pid)],{env:fixture.environment,encoding:'utf8',timeout:10000}));
   await waitFor(async()=>{try{await readlink(`/proc/${pid}/exe`);return false;}catch(error){if(error.code==='ENOENT')return true;throw error;}},'normal native exit');
-  driver.session=undefined;await driver.stop();driver=undefined;
+  evidence.nativeCloses.push({receipt,before,after:await storageFiles(),scope:'WM_DELETE_WINDOW sent while WebDriver remains alive; exact owned desktop PID exited before driver cleanup. SQLite may checkpoint or remove WAL/SHM during normal close; no cross-close DB byte equality claim.'});driver.session=undefined;await driver.stop();driver=undefined;
 }
 async function verifyLive(closedCopy=false, expected=expectedA, homeMode='fresh') {
  const hashes=await liveHashes();let database=fixture.database;
@@ -129,9 +131,9 @@ try {
  assert.equal(platform(),'linux');
  for(const[key,path]of Object.entries({application,verifier,generator,liveVerifier}))evidence[key]={path,sha256:await hash(path)};
  evidence.sourceCommit=execFileSync('git',['rev-parse','HEAD'],{cwd:repository,encoding:'utf8'}).trim();
- evidence.sourceHashes={};const sources=execFileSync('rg',['--files','apps/desktop/src','apps/desktop/src-tauri/src','crates/openusage-storage/src','crates/openusage-import/src'],{cwd:repository,encoding:'utf8'}).trim().split('\n');
- for(const path of [...sources,'Cargo.toml','Cargo.lock','crates/openusage-storage/Cargo.toml','crates/openusage-import/Cargo.toml','apps/desktop/src-tauri/Cargo.toml','apps/desktop/src-tauri/tauri.conf.json','apps/desktop/src-tauri/build.rs','apps/desktop/src-tauri/capabilities/main-window.json'])evidence.sourceHashes[path]=await hash(join(repository,path));
- evidence.harnessHashes={};for(const path of ['restore-checkpoint.mjs','private-fixture.mjs','webdriver.mjs','backup-verifier/Cargo.toml','backup-verifier/Cargo.lock','backup-verifier/src/bin/openusage-native-checkpoint-verifier.rs','backup-verifier/src/bin/openusage-native-live-verifier.rs','backup-verifier/src/bin/openusage-native-backup-fixtures.rs'])evidence.harnessHashes[path]=await hash(join(harness,path));
+ evidence.sourceHashes={};const sources=execFileSync('rg',['--files','apps/desktop/src','apps/desktop/src-tauri/src','crates/openusage-storage/src','crates/openusage-import/src','crates/openusage-codex/src'],{cwd:repository,encoding:'utf8'}).trim().split('\n');
+ for(const path of [...sources,'crates/openusage-codex/provider-sources/codex-0.163.0-linux-x86_64.json','Cargo.toml','Cargo.lock','crates/openusage-storage/Cargo.toml','crates/openusage-import/Cargo.toml','apps/desktop/src-tauri/Cargo.toml','apps/desktop/src-tauri/tauri.conf.json','apps/desktop/src-tauri/build.rs','apps/desktop/src-tauri/capabilities/main-window.json'])evidence.sourceHashes[path]=await hash(join(repository,path));
+ evidence.harnessHashes={};for(const path of ['restore-checkpoint.mjs','x11-close.py','private-fixture.mjs','webdriver.mjs','backup-verifier/Cargo.toml','backup-verifier/Cargo.lock','backup-verifier/src/bin/openusage-native-checkpoint-verifier.rs','backup-verifier/src/bin/openusage-native-live-verifier.rs','backup-verifier/src/bin/openusage-native-backup-fixtures.rs'])evidence.harnessHashes[path]=await hash(join(harness,path));
  fixture=await createFixture('checkpoint-recovery');workspace=dirname(fixture.database);checkpointDirectory=join(workspace,'restore-checkpoints');await open();
  await rejected('list_restore_checkpoints',{},'workspace_locked');
  await rejected('prepare_checkpoint_restore_preview',{checkpointId:randomUUID()},'workspace_locked');
@@ -155,7 +157,9 @@ try {
  assert.deepEqual(await driver.invoke('list_restore_checkpoints'),{ok:true,value:{checkpoints:[],truncated:false}});
  await inspect();const importedPreview=await prepareGui();await verifyCheckpoint(importedPreview.checkpointId,expectedB);const sourceCheckpointId=importedPreview.checkpointId;
  await driver.click('#restore-confirmed');await driver.click('.restore-confirmation-form button[type=submit]');await waitFor(async()=>Boolean(await driver.execute('return document.activeElement?.matches(".restore-result")')),'initial import result',30000);await unchanged(expectedA);await verifyLive();
- const homeSetAfterImport=await allHomes();assert.equal(homeSetAfterImport.length,5);await closeNormally();await open();await unlock();await unchanged(expectedA);
+ const homeSetAfterImport=await allHomes();assert.equal(homeSetAfterImport.length,5);
+ const pendingPreview=await driver.invoke('prepare_checkpoint_restore_preview',{checkpointId:sourceCheckpointId});assert.equal(pendingPreview.ok,true);assert.equal(pendingPreview.value.restoreAvailable,true);await verifyCheckpoint(pendingPreview.value.checkpoint.id,expectedA);evidence.pendingPreviewBeforeClose=pendingPreview.value;
+ await closeNormally();await open();await unlock();await unchanged(expectedA);const reopenedHashes=await liveHashes();await rejected('apply_restore',{previewId:pendingPreview.value.previewId,confirmed:true},'stale_restore_preview');assert.deepEqual(await liveHashes(),reopenedHashes);assert.deepEqual(await allHomes(),homeSetAfterImport);assert.equal(await hash(join(workspace,'database-key.v1')),keyHash);await unchanged(expectedA);await verifyLive();evidence.steps.push({pendingRecoveryPreviewRejectedAfterGenuineNativeClose:true,staleRefusalPreservesReopenedDatabaseWalKeyAndHomes:true});
  const listed=await driver.invoke('list_restore_checkpoints');assert.equal(listed.ok,true);assert.deepEqual(Object.keys(listed.value).sort(),['checkpoints','truncated']);assert.equal(typeof listed.value.truncated,'boolean');
  for(const item of listed.value.checkpoints){assert.deepEqual(Object.keys(item).sort(),['fileBytes','id','modifiedAt']);assert.match(item.id,/^[0-9a-f-]{36}$/);assert.match(item.fileBytes,/^[1-9][0-9]*$/);if(item.modifiedAt!==null)assert.equal(new Date(item.modifiedAt).toISOString(),item.modifiedAt);}
  assert.ok(listed.value.checkpoints.some(item=>item.id===sourceCheckpointId));evidence.catalog=listed.value;
