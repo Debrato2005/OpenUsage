@@ -126,14 +126,14 @@ struct LoginAttemptArgs {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct BeginQuotaArgs {
+struct BeginReadArgs {
     profile_id: String,
     approval_id: String,
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct QuotaRequestArgs {
+struct ProfileReadArgs {
     profile_id: String,
     request_id: String,
 }
@@ -816,7 +816,7 @@ async fn begin_profile_quota_read(
     request: tauri::ipc::Request<'_>,
     service: State<'_, WorkspaceService>,
 ) -> Result<provider::QuotaReceipt, CommandError> {
-    let args: BeginQuotaArgs = arguments(&request)?;
+    let args: BeginReadArgs = arguments(&request)?;
     workspace::validate_profile_id(&args.profile_id)?;
     restore::validate_preview_id(&args.approval_id)?;
     let service = Arc::clone(&service.0);
@@ -838,7 +838,7 @@ async fn complete_profile_quota_read(
     request: tauri::ipc::Request<'_>,
     service: State<'_, WorkspaceService>,
 ) -> Result<provider::QuotaOutcome, CommandError> {
-    let args: QuotaRequestArgs = arguments(&request)?;
+    let args: ProfileReadArgs = arguments(&request)?;
     let service = Arc::clone(&service.0);
     tauri::async_runtime::spawn_blocking(move || {
         let pending = {
@@ -868,10 +868,76 @@ async fn cancel_profile_quota_read(
     request: tauri::ipc::Request<'_>,
     service: State<'_, WorkspaceService>,
 ) -> Result<provider::Cancelled, CommandError> {
-    let args: QuotaRequestArgs = arguments(&request)?;
+    let args: ProfileReadArgs = arguments(&request)?;
     let provider = service.2.clone();
     tauri::async_runtime::spawn_blocking(move || {
         provider.cancel_quota(&args.profile_id, &args.request_id)
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+#[tauri::command]
+async fn begin_profile_activity_read(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<provider::ActivityReceipt, CommandError> {
+    let args: BeginReadArgs = arguments(&request)?;
+    workspace::validate_profile_id(&args.profile_id)?;
+    restore::validate_preview_id(&args.approval_id)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut state = service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?;
+        state
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .begin_profile_activity_read(&args.profile_id, &args.approval_id)
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+#[tauri::command]
+async fn complete_profile_activity_read(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<provider::ActivityOutcome, CommandError> {
+    let args: ProfileReadArgs = arguments(&request)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let pending = {
+            let state = service
+                .lock()
+                .map_err(|_| CommandError::ProviderUnavailable)?;
+            state
+                .as_ref()
+                .ok_or(CommandError::WorkspaceLocked)?
+                .complete_profile_activity_read(&args.profile_id, &args.request_id)?
+        };
+        let completed = pending.wait()?;
+        let mut state = service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?;
+        state
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .finish_profile_activity_read(completed)
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+#[tauri::command]
+async fn cancel_profile_activity_read(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<provider::Cancelled, CommandError> {
+    let args: ProfileReadArgs = arguments(&request)?;
+    let provider = service.2.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        provider.cancel_activity(&args.profile_id, &args.request_id)
     })
     .await
     .map_err(|_| CommandError::ProviderUnavailable)?
@@ -917,7 +983,10 @@ fn main() {
             discover_provider_executables,
             begin_profile_quota_read,
             complete_profile_quota_read,
-            cancel_profile_quota_read
+            cancel_profile_quota_read,
+            begin_profile_activity_read,
+            complete_profile_activity_read,
+            cancel_profile_activity_read
         ])
         .setup(|app| {
             let window = &app.config().app.windows[0];
@@ -944,9 +1013,9 @@ fn main() {
 mod tests {
     use super::{
         ApplyRestoreArgs, ApproveProviderArgs, ArchiveProfileArgs, BackupArgs, BeginLoginArgs,
-        BeginQuotaArgs, CancelRestorePreviewArgs, CheckpointPreviewArgs, CreateProfileArgs,
+        BeginReadArgs, CancelRestorePreviewArgs, CheckpointPreviewArgs, CreateProfileArgs,
         InspectBackupArgs, InspectProviderArgs, ListProfilesArgs, LoginAttemptArgs,
-        ProfileCheckArgs, QuotaRequestArgs, RenameProfileArgs, SetupArgs, ThemeArgs, UnlockArgs,
+        ProfileCheckArgs, ProfileReadArgs, RenameProfileArgs, SetupArgs, ThemeArgs, UnlockArgs,
         is_bundled_url,
     };
 
@@ -958,7 +1027,7 @@ mod tests {
             r#"{"profileId":"synthetic","approvalId":null}"#,
             r#"{"profileId":"synthetic","approvalId":"synthetic","home":"/external"}"#,
         ] {
-            assert!(serde_json::from_str::<BeginQuotaArgs>(invalid).is_err());
+            assert!(serde_json::from_str::<BeginReadArgs>(invalid).is_err());
         }
         for invalid in [
             r#"{}"#,
@@ -966,7 +1035,7 @@ mod tests {
             r#"{"profileId":"synthetic","requestId":null}"#,
             r#"{"profileId":"synthetic","requestId":"synthetic","accountId":"injected"}"#,
         ] {
-            assert!(serde_json::from_str::<QuotaRequestArgs>(invalid).is_err());
+            assert!(serde_json::from_str::<ProfileReadArgs>(invalid).is_err());
         }
         for invalid in [
             r#"{}"#,

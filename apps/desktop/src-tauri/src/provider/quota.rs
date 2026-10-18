@@ -113,21 +113,8 @@ impl ProviderCoordinator {
             .lock()
             .map_err(|_| CommandError::ProviderUnavailable)?;
         require_open(&state)?;
-        if state
-            .logins
-            .values()
-            .any(|entry| entry.binding.profile_id == profile_id)
-        {
-            return Err(CommandError::ProviderLoginInProgress);
-        }
-        if state
-            .quotas
-            .values()
-            .any(|entry| entry.binding.profile_id == profile_id)
-        {
-            return Err(CommandError::ProviderQuotaInProgress);
-        }
-        if state.logins.len() + state.quotas.len() >= 2 {
+        require_profile_available(&state, profile_id)?;
+        if state.logins.len() + state.quotas.len() + state.activities.len() >= 2 {
             return Err(CommandError::ProviderCapacityReached);
         }
         let approved = state

@@ -96,6 +96,11 @@ pub enum CommandError {
     ProviderLoginFailed,
     ProviderBrowserUnavailable,
     ProviderDiscoveryUnavailable,
+    ProviderActivityNotFound,
+    ProviderActivityInProgress,
+    ProviderActivityCancelled,
+    ProviderActivityTimedOut,
+    ProviderActivityFailed,
     ProviderQuotaNotFound,
     ProviderQuotaInProgress,
     ProviderQuotaCancelled,
@@ -805,6 +810,43 @@ impl Workspace {
             &binding.home_reference,
             &binding.revision,
             CommandError::ProviderQuotaCancelled,
+        ) {
+            completed.abort();
+            return Err(error);
+        }
+        completed.publish()
+    }
+
+    pub fn begin_profile_activity_read(
+        &mut self,
+        id: &str,
+        approval_id: &str,
+    ) -> Result<provider::ActivityReceipt, CommandError> {
+        restore::validate_preview_id(approval_id)?;
+        let (home, revision, path) = self.selected_provider_home(id)?;
+        self.provider
+            .begin_activity(id, approval_id, &home, revision, &path)
+    }
+
+    pub fn complete_profile_activity_read(
+        &self,
+        id: &str,
+        request_id: &str,
+    ) -> Result<provider::CompletingActivity, CommandError> {
+        self.storage.as_ref().ok_or(CommandError::WorkspaceLocked)?;
+        self.provider.complete_activity(id, request_id)
+    }
+
+    pub fn finish_profile_activity_read(
+        &mut self,
+        completed: provider::CompletedActivity,
+    ) -> Result<provider::ActivityOutcome, CommandError> {
+        let binding = &completed.binding;
+        if let Err(error) = self.require_provider_binding(
+            &binding.profile_id,
+            &binding.home_reference,
+            &binding.revision,
+            CommandError::ProviderActivityCancelled,
         ) {
             completed.abort();
             return Err(error);
@@ -1724,3 +1766,6 @@ mod tests {
         );
     }
 }
+
+#[cfg(all(test, unix))]
+mod activity_tests;

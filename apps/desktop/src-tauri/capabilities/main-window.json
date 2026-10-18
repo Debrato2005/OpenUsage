@@ -33,6 +33,9 @@
     "allow-complete-profile-login",
     "allow-cancel-profile-login",
     "allow-discover-provider-executables",
+    "allow-begin-profile-activity-read",
+    "allow-complete-profile-activity-read",
+    "allow-cancel-profile-activity-read",
     "allow-begin-profile-quota-read",
     "allow-complete-profile-quota-read",
     "allow-cancel-profile-quota-read"
