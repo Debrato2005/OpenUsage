@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
+import { Field, FieldLabel, FieldDescription } from './components/ui/field';
+import { Select, SelectTrigger, SelectValue, SelectPopup, SelectItem } from './components/ui/select';
 import { invoke, type BackupList, type BackupInspectionResult } from './contracts';
 import { BackupRestorePreview } from './backup-restore';
 
@@ -39,7 +41,7 @@ export function BackupInspection({ busy, setBusy, onRestored }: Props) {
   const [receipt, setReceipt] = useState<BackupInspectionResult | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [focusTarget, setFocusTarget] = useState<FocusTarget | null>(null);
-  const fileInput = useRef<HTMLSelectElement>(null);
+  const fileInput = useRef<HTMLButtonElement>(null);
   const passwordInput = useRef<HTMLInputElement>(null);
   const refreshButton = useRef<HTMLButtonElement>(null);
   const errorMessage = useRef<HTMLParagraphElement>(null);
@@ -129,13 +131,23 @@ export function BackupInspection({ busy, setBusy, onRestored }: Props) {
     {list?.truncated && <p className="backup-inspection-limit">The backup list reached its limit. Other backup files may be present.</p>}
     {list && !available && <p className="backup-inspection-empty">No available backup archives were found. Create a backup, then refresh this list.</p>}
     {available && <form className="unlock-form backup-inspection-form" noValidate onSubmit={event => { event.preventDefault(); void inspect(); }}>
-      <label htmlFor="backup-file">Backup file</label>
-      <select ref={fileInput} id="backup-file" name="backup-file" required disabled={busy || loading} value={fileName} aria-describedby="backup-inspection-help" onChange={event => { setFileName(event.target.value); setPassword(''); setReceipt(null); setFailure(null); setStatus(null); }}>
-        {list.backups.map(file => <option key={file.fileName} value={file.fileName}>{file.fileName}</option>)}
-      </select>
-      <label htmlFor="backup-inspection-password">Backup password</label>
-      <Input nativeInput ref={passwordInput} id="backup-inspection-password" name="backup-inspection-password" type="password" autoComplete="current-password" required maxLength={1024} disabled={busy || loading} value={password} aria-invalid={!!failure?.password} aria-describedby={`backup-inspection-password-help${failure?.password ? ' backup-inspection-error' : ''}`} onChange={event => { setPassword(event.target.value); if (failure?.password) setFailure(null); }} />
-      <p id="backup-inspection-password-help">Enter the password used when this backup was created.</p>
+      <Field className="w-full" disabled={busy || loading}>
+        <FieldLabel nativeLabel={false} render={<div />}>Backup file</FieldLabel>
+        <Select name="backup-file" required disabled={busy || loading} value={fileName} items={list.backups.map(file => ({ value: file.fileName, label: file.fileName }))} onValueChange={next => {
+          if (typeof next !== 'string' || !list.backups.some(file => file.fileName === next)) return;
+          setFileName(next); setPassword(''); setReceipt(null); setFailure(null); setStatus(null);
+        }}>
+          <SelectTrigger ref={fileInput} id="backup-file" style={{ width: '100%' }} aria-describedby="backup-inspection-help"><SelectValue /></SelectTrigger>
+          <SelectPopup alignItemWithTrigger={false}>
+            {list.backups.map(file => <SelectItem key={file.fileName} value={file.fileName} data-option-value={file.fileName}>{file.fileName}</SelectItem>)}
+          </SelectPopup>
+        </Select>
+      </Field>
+      <Field className="w-full" disabled={busy || loading} invalid={!!failure?.password}>
+        <FieldLabel htmlFor="backup-inspection-password">Backup password</FieldLabel>
+        <Input ref={passwordInput} id="backup-inspection-password" name="backup-inspection-password" type="password" autoComplete="current-password" required maxLength={1024} disabled={busy || loading} value={password} aria-invalid={!!failure?.password} aria-describedby={`backup-inspection-password-help${failure?.password ? ' backup-inspection-error' : ''}`} onChange={event => { setPassword(event.target.value); if (failure?.password) setFailure(null); }} />
+        <FieldDescription id="backup-inspection-password-help">Enter the password used when this backup was created.</FieldDescription>
+      </Field>
       <Button className="primary-button" type="submit" disabled={busy || loading}>{inspecting ? 'Authenticating archive…' : 'Inspect backup'}</Button>
     </form>}
     {failure && <p ref={errorMessage} id="backup-inspection-error" className="operation-error backup-inspection-error" role="alert" tabIndex={-1}>{failure.message}</p>}
