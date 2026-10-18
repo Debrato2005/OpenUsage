@@ -58,10 +58,18 @@ function App() {
 
   useEffect(() => { document.documentElement.dataset.theme = theme; }, [theme]);
   useEffect(() => {
-    if (!busy && themeFocusPending) {
-      if (document.activeElement === document.body) themeControl.current?.focus();
+    if (busy || !themeFocusPending || !themeControl.current) return;
+    const trigger = themeControl.current;
+    const restoreWhenEnabled = () => {
+      if (trigger.disabled) return;
+      if (document.activeElement === document.body) trigger.focus({ preventScroll: true });
       setThemeFocusPending(false);
-    }
+    };
+    // The composite control can commit its enabled state after this effect.
+    const observer = new MutationObserver(restoreWhenEnabled);
+    observer.observe(trigger, { attributes: true, attributeFilter: ['disabled'] });
+    restoreWhenEnabled();
+    return () => observer.disconnect();
   }, [busy, themeFocusPending]);
   useEffect(() => { if (backupReceipt) backupToggle.current?.focus(); }, [backupReceipt]);
   useEffect(() => {
