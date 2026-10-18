@@ -5,7 +5,7 @@
 //! <https://doc.rust-lang.org/std/os/unix/process/trait.CommandExt.html#tymethod.process_group>
 //! <https://doc.rust-lang.org/std/process/struct.Child.html#method.wait>
 
-use crate::session::{ProviderProbe, QuotaProbe, SessionError};
+use crate::session::{ActivityProbe, ProviderProbe, QuotaProbe, SessionError};
 use std::{fmt, path::Path};
 
 #[cfg(unix)]
@@ -498,6 +498,7 @@ fn retire(registry: &Mutex<Registry>, job: &Arc<Job>) {
 enum Operation {
     Check,
     QuotaDiagnostic,
+    ActivityDiagnostic,
     #[cfg(unix)]
     DeviceLogin(mpsc::SyncSender<Result<crate::DeviceLoginPrompt, SupervisorError>>),
 }
@@ -505,6 +506,7 @@ enum Operation {
 enum OperationResult {
     Check(ProviderProbe),
     Quota(QuotaProbe),
+    Activity(ActivityProbe),
 }
 
 pub struct Supervisor {
@@ -576,6 +578,20 @@ impl Supervisor {
         }
         self.start_operation(executable, home, Operation::QuotaDiagnostic)
             .map(|check| QuotaHandle { check })
+    }
+
+    /// Read provisional activity diagnostics only. It does not accept history or start monitoring.
+    pub fn start_activity_diagnostic(
+        &self,
+        executable: &ApprovedExecutable,
+        home: &ManagedProfileHome,
+    ) -> Result<ActivityHandle, SupervisorError> {
+        #[cfg(unix)]
+        if executable.pinned.is_none() {
+            return Err(SupervisorError::InvalidApproval);
+        }
+        self.start_operation(executable, home, Operation::ActivityDiagnostic)
+            .map(|check| ActivityHandle { check })
     }
 
     fn start_operation(
@@ -688,6 +704,16 @@ impl Supervisor {
                                 before_start,
                             )
                             .map(OperationResult::Quota),
+                            Operation::ActivityDiagnostic => {
+                                crate::session::unix::activity_managed(
+                                    &executable.path,
+                                    &home.directory,
+                                    Arc::clone(&worker_job.control),
+                                    timeouts,
+                                    before_start,
+                                )
+                                .map(OperationResult::Activity)
+                            }
                         }
                         .map_err(SupervisorError::from)
                     }))
@@ -918,7 +944,9 @@ impl CheckHandle {
     pub fn wait(self) -> Result<ProviderProbe, SupervisorError> {
         match self.wait_result()? {
             OperationResult::Check(probe) => Ok(probe),
-            OperationResult::Quota(_) => Err(SupervisorError::WorkerFailed),
+            OperationResult::Quota(_) | OperationResult::Activity(_) => {
+                Err(SupervisorError::WorkerFailed)
+            }
         }
     }
 
@@ -971,7 +999,29 @@ impl QuotaHandle {
     pub fn wait(self) -> Result<QuotaProbe, SupervisorError> {
         match self.check.wait_result()? {
             OperationResult::Quota(probe) => Ok(probe),
-            OperationResult::Check(_) => Err(SupervisorError::WorkerFailed),
+            OperationResult::Check(_) | OperationResult::Activity(_) => {
+                Err(SupervisorError::WorkerFailed)
+            }
+        }
+    }
+
+    pub fn cancel(&self) -> Result<(), SupervisorError> {
+        self.check.cancel()
+    }
+}
+
+/// Owns one read-only activity operation. Drop cancels and joins its process.
+pub struct ActivityHandle {
+    check: CheckHandle,
+}
+
+impl ActivityHandle {
+    pub fn wait(self) -> Result<ActivityProbe, SupervisorError> {
+        match self.check.wait_result()? {
+            OperationResult::Activity(probe) => Ok(probe),
+            OperationResult::Check(_) | OperationResult::Quota(_) => {
+                Err(SupervisorError::WorkerFailed)
+            }
         }
     }
 
@@ -1407,6 +1457,456 @@ IFS= read -r request
             !timed_out_requests
                 .lines()
                 .any(|line| serde_json::from_str::<serde_json::Value>(line).unwrap()["id"] == 4)
+        );
+    }
+
+    fn activity_fixture(mode: &str) -> Fixture {
+        let fixture = script_fixture(
+            mode,
+            include_str!("../../../tests/native/fixtures/synthetic-activity-provider.py"),
+            "Owned static synthetic activity fixture. No real provider data.",
+        );
+        activity_mode(&fixture, mode);
+        fixture
+    }
+
+    fn activity_mode(fixture: &Fixture, mode: &str) {
+        fs::write(
+            fixture
+                .temporary
+                .path()
+                .join("synthetic-activity-provider-config.json"),
+            serde_json::to_vec(&serde_json::json!({"defaultMode":mode})).unwrap(),
+        )
+        .unwrap();
+    }
+
+    fn activity_rows(fixture: &Fixture) -> Vec<serde_json::Value> {
+        match fs::read_to_string(
+            fixture
+                .temporary
+                .path()
+                .join("synthetic-activity-observations.jsonl"),
+        ) {
+            Ok(value) => value
+                .lines()
+                .map(|line| serde_json::from_str(line).unwrap())
+                .collect(),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
+            Err(error) => panic!("Synthetic activity observations failed: {error}"),
+        }
+    }
+
+    fn activity_stage(fixture: &Fixture, index: usize, kind: &str, offset: usize) -> libc::pid_t {
+        let deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            let rows = activity_rows(fixture);
+            for row in rows.iter().skip(offset).filter(|row| row["kind"] == kind) {
+                if rows.iter().any(|start| {
+                    start["kind"] == "start"
+                        && start["pid"] == row["pid"]
+                        && start["environment"]["CODEX_HOME"]
+                            == fixture.homes[index].directory.to_str().unwrap()
+                }) {
+                    return row["pid"].as_i64().unwrap() as libc::pid_t;
+                }
+            }
+            assert!(
+                Instant::now() < deadline,
+                "Synthetic activity stage was not reached: {kind}"
+            );
+            std::thread::sleep(Duration::from_millis(5));
+        }
+    }
+
+    fn activity_cleaned(fixture: &Fixture, pid: libc::pid_t) {
+        gone(pid);
+        let rows = activity_rows(fixture);
+        let start = rows
+            .iter()
+            .find(|row| row["kind"] == "start" && row["pid"] == pid)
+            .unwrap();
+        let runtime = Path::new(start["environment"]["HOME"].as_str().unwrap())
+            .parent()
+            .unwrap();
+        assert!(runtime.starts_with(fixture.temporary.path()));
+        assert!(!runtime.exists());
+    }
+
+    #[test]
+    fn synthetic_activity_exact_full_reads_preserve_scope_nulls_dates_and_redact_diagnostics() {
+        for mode in [
+            "success",
+            "sparse",
+            "null_summary",
+            "null_buckets",
+            "empty_buckets",
+            "bound",
+        ] {
+            let fixture = activity_fixture(mode);
+            let supervisor = Supervisor::new();
+            let metadata_only = ApprovedExecutable::from_reviewed_source(
+                &fixture.executable.path,
+                "Metadata review cannot authorize account activity.",
+            )
+            .unwrap();
+            assert!(matches!(
+                supervisor.start_activity_diagnostic(&metadata_only, &fixture.homes[0]),
+                Err(SupervisorError::InvalidApproval)
+            ));
+            assert!(activity_rows(&fixture).is_empty());
+            let marker = fixture.homes[0].directory.join("provider-owned-marker");
+            fs::write(&marker, b"Preserve this owned synthetic data.").unwrap();
+            let probe = supervisor
+                .start_activity_diagnostic(&fixture.executable, &fixture.homes[0])
+                .unwrap()
+                .wait()
+                .unwrap();
+            let value = serde_json::to_value(&probe.activity).unwrap();
+            assert_eq!(
+                value["scope"],
+                "account_activity_with_unknown_application_scope"
+            );
+            if mode == "null_summary" {
+                assert!(
+                    value["summary"]
+                        .as_object()
+                        .unwrap()
+                        .values()
+                        .all(serde_json::Value::is_null)
+                );
+            } else {
+                assert_eq!(value["summary"]["lifetimeTokens"], "9007199254740993");
+                assert_eq!(value["summary"]["peakDailyTokens"], "9223372036854775807");
+                assert_eq!(value["summary"]["currentStreakDays"], "0");
+                assert_eq!(
+                    value["summary"]["longestRunningTurnSec"],
+                    serde_json::Value::Null
+                );
+            }
+            match mode {
+                "null_buckets" => assert!(value["dailyUsageBuckets"].is_null()),
+                "empty_buckets" => assert_eq!(value["dailyUsageBuckets"], serde_json::json!([])),
+                "bound" => assert_eq!(
+                    value["dailyUsageBuckets"].as_array().unwrap().len(),
+                    crate::MAX_ACTIVITY_DAILY_BUCKETS
+                ),
+                _ => {
+                    assert_eq!(value["dailyUsageBuckets"][0]["startDate"], "2024-02-29");
+                    assert_eq!(value["dailyUsageBuckets"][0]["tokens"], "9007199254740993");
+                    assert_eq!(value["dailyUsageBuckets"][1]["tokens"], "0");
+                }
+            }
+            let mut debug = format!(
+                "{probe:?} {:?} {:?}",
+                probe.activity, probe.activity.summary
+            );
+            if let Some(rows) = &probe.activity.daily_usage_buckets {
+                debug.push_str(&format!("{rows:?}"));
+            }
+            if let Some(count) = &probe.activity.summary.lifetime_tokens {
+                debug.push_str(&format!("{count:?}"));
+            }
+            for private in [
+                "9007199254740993",
+                "9223372036854775807",
+                "2024-02-29",
+                "synthetic-activity@example.invalid",
+                "synthetic-private-activity-id",
+                "synthetic private activity provider",
+            ] {
+                assert!(
+                    !debug.contains(private),
+                    "Activity diagnostics must redact provider content."
+                );
+            }
+            let encoded = serde_json::to_string(&probe.activity).unwrap();
+            for private in [
+                "accountId",
+                "synthetic-private-activity-id",
+                "workTokens",
+                "modelCounts",
+                "synthetic-private-model",
+                "threadUsage",
+                "email",
+            ] {
+                assert!(!encoded.contains(private));
+            }
+            let rows = activity_rows(&fixture);
+            let requests: Vec<_> = rows
+                .iter()
+                .filter(|row| row["kind"] == "request")
+                .map(|row| row["request"].clone())
+                .collect();
+            assert_eq!(
+                requests
+                    .iter()
+                    .map(|row| (row["method"].as_str().unwrap(), row["id"].as_u64()))
+                    .collect::<Vec<_>>(),
+                [
+                    ("initialize", Some(1)),
+                    ("initialized", None),
+                    ("account/read", Some(2)),
+                    ("account/usage/read", Some(3)),
+                    ("account/read", Some(4))
+                ]
+            );
+            assert_eq!(
+                requests[0]["params"]["capabilities"]["experimentalApi"],
+                false
+            );
+            assert_eq!(
+                requests[2]["params"],
+                serde_json::json!({"refreshToken":false})
+            );
+            assert_eq!(requests[3]["params"], serde_json::json!({}));
+            assert_eq!(
+                requests[4]["params"],
+                serde_json::json!({"refreshToken":false})
+            );
+            for start in rows.iter().filter(|row| row["kind"] == "start") {
+                assert_eq!(start["unexpectedEnvironmentKeys"], serde_json::json!([]));
+                assert_eq!(start["environment"]["PATH"], "/usr/bin:/bin");
+                assert_eq!(
+                    start["environment"]["CODEX_HOME"],
+                    fixture.homes[0].directory.to_str().unwrap()
+                );
+            }
+            activity_cleaned(&fixture, probe.process_id as libc::pid_t);
+            assert_eq!(
+                fs::read(&marker).unwrap(),
+                b"Preserve this owned synthetic data."
+            );
+            assert_eq!(
+                fs::read_dir(&fixture.homes[0].directory).unwrap().count(),
+                1
+            );
+            assert!(
+                fs::read_dir(&fixture.homes[1].directory)
+                    .unwrap()
+                    .next()
+                    .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn synthetic_activity_observation_precedes_the_held_final_account_response() {
+        let fixture = activity_fixture("post_hold");
+        let supervisor = Supervisor::new();
+        let started_at = std::time::SystemTime::now();
+        let activity = supervisor
+            .start_activity_diagnostic(&fixture.executable, &fixture.homes[0])
+            .unwrap();
+        let pid = activity_stage(&fixture, 0, "post-read-pending", 0);
+        let held_at = std::time::SystemTime::now();
+        activity_mode(&fixture, "success");
+        let probe = activity.wait().unwrap();
+        assert!(probe.observed_at >= started_at && probe.observed_at <= held_at);
+        assert_eq!(
+            serde_json::to_value(&probe.activity).unwrap()["summary"]["lifetimeTokens"],
+            "9007199254740993"
+        );
+        activity_cleaned(&fixture, pid);
+    }
+
+    #[test]
+    fn synthetic_activity_rejects_auth_changes_invalid_fields_thread_scope_and_excess_rows() {
+        for (mode, error) in [
+            ("unknown", ProtocolError::AccountIdentityUnavailable),
+            ("unsupported", ProtocolError::UnsupportedAuthentication),
+            ("signed_out", ProtocolError::UnsupportedAuthentication),
+            ("changed_email", ProtocolError::AccountChanged),
+            ("changed_plan", ProtocolError::AccountChanged),
+            ("changed_auth", ProtocolError::AccountChanged),
+            ("post_unknown", ProtocolError::AccountChanged),
+            ("early_auth", ProtocolError::AccountChanged),
+            ("auth_notice", ProtocolError::AccountChanged),
+            ("late_auth", ProtocolError::AccountChanged),
+            ("negative", ProtocolError::InvalidField),
+            ("fractional", ProtocolError::InvalidMessage),
+            ("string_count", ProtocolError::InvalidMessage),
+            ("overflow", ProtocolError::InvalidMessage),
+            ("missing_summary", ProtocolError::InvalidMessage),
+            ("invalid_date", ProtocolError::InvalidField),
+            ("duplicate_date", ProtocolError::InvalidField),
+            ("too_many", ProtocolError::InvalidField),
+            ("thread_scope", ProtocolError::IncompatibleUsageScope),
+            ("wrong_id", ProtocolError::MismatchedRequest),
+            ("rpc_error", ProtocolError::ProviderFailure),
+            ("unsupported_method", ProtocolError::UnsupportedMethod),
+            ("malformed", ProtocolError::InvalidMessage),
+            ("oversized", ProtocolError::OversizedMessage),
+        ] {
+            let fixture = activity_fixture(mode);
+            let supervisor = Supervisor::new();
+            let result = supervisor
+                .start_activity_diagnostic(&fixture.executable, &fixture.homes[0])
+                .unwrap()
+                .wait();
+            assert_eq!(
+                result.err(),
+                Some(SupervisorError::Session(SessionError::Protocol(error))),
+                "{mode}"
+            );
+            let rows = activity_rows(&fixture);
+            let start = rows
+                .iter()
+                .find(|row| row["kind"] == "start" && row["arguments"][0] == "app-server")
+                .unwrap();
+            activity_cleaned(&fixture, start["pid"].as_i64().unwrap() as libc::pid_t);
+            if ["unknown", "unsupported", "signed_out", "early_auth"].contains(&mode) {
+                assert!(
+                    !rows
+                        .iter()
+                        .any(|row| row["request"]["method"] == "account/usage/read")
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn synthetic_activity_shared_slots_and_stale_handle_cancellation_preserve_the_successor() {
+        let fixture = activity_fixture("pending");
+        let quota_fixture = quota_fixture("hang");
+        let supervisor = Supervisor::new();
+        let first = supervisor
+            .start_activity_diagnostic(&fixture.executable, &fixture.homes[0])
+            .unwrap();
+        let first_pid = activity_stage(&fixture, 0, "activity-read-pending", 0);
+        let quota = supervisor
+            .start_quota_diagnostic(&quota_fixture.executable, &fixture.homes[1])
+            .unwrap();
+        let quota_pid = fixture.child(1);
+        assert!(matches!(
+            supervisor.start_check(&fixture.executable, &fixture.homes[0]),
+            Err(SupervisorError::DuplicateProfile)
+        ));
+        assert!(matches!(
+            supervisor.start_activity_diagnostic(&fixture.executable, &fixture.homes[2]),
+            Err(SupervisorError::CapacityReached)
+        ));
+        first.cancel().unwrap();
+        activity_cleaned(&fixture, first_pid);
+        let offset = activity_rows(&fixture).len();
+        let successor = supervisor
+            .start_activity_diagnostic(&fixture.executable, &fixture.homes[0])
+            .unwrap();
+        let successor_pid = activity_stage(&fixture, 0, "activity-read-pending", offset);
+        first.cancel().unwrap();
+        assert_eq!(first.wait().err(), Some(SupervisorError::Cancelled));
+        assert_eq!(unsafe { libc::kill(successor_pid, 0) }, 0);
+        assert_eq!(unsafe { libc::kill(quota_pid, 0) }, 0);
+        assert_eq!(supervisor.cancel(&fixture.homes[0].profile_id), Ok(true));
+        assert_eq!(successor.wait().err(), Some(SupervisorError::Cancelled));
+        activity_cleaned(&fixture, successor_pid);
+        quota.cancel().unwrap();
+        assert_eq!(quota.wait().err(), Some(SupervisorError::Cancelled));
+        gone(quota_pid);
+        fixture.runtime_removed(1);
+    }
+
+    #[test]
+    fn synthetic_activity_drop_shutdown_and_profile_binding_own_only_their_processes() {
+        let fixture = activity_fixture("pending");
+        let login_fixture = login_fixture("pending");
+        let supervisor = Supervisor::new();
+        let dropped = supervisor
+            .start_activity_diagnostic(&fixture.executable, &fixture.homes[0])
+            .unwrap();
+        let pid = activity_stage(&fixture, 0, "activity-read-pending", 0);
+        drop(dropped);
+        activity_cleaned(&fixture, pid);
+        let alias = ManagedProfileHome::new(
+            fixture.homes[1].profile_id.clone(),
+            fixture.homes[0].profile_id.as_str(),
+            &fixture.homes[0].directory,
+        )
+        .unwrap();
+        assert!(matches!(
+            supervisor.start_activity_diagnostic(&fixture.executable, &alias),
+            Err(SupervisorError::HomeInUse)
+        ));
+        let original = fixture.temporary.path().join("preserved-old-home");
+        fs::rename(&fixture.homes[0].directory, &original).unwrap();
+        fs::DirBuilder::new()
+            .mode(0o700)
+            .create(&fixture.homes[0].directory)
+            .unwrap();
+        let replacement = ManagedProfileHome::new(
+            fixture.homes[0].profile_id.clone(),
+            fixture.homes[0].profile_id.as_str(),
+            &fixture.homes[0].directory,
+        )
+        .unwrap();
+        assert!(matches!(
+            supervisor.start_activity_diagnostic(&fixture.executable, &replacement),
+            Err(SupervisorError::HomeChanged)
+        ));
+        let activity = supervisor
+            .start_activity_diagnostic(&fixture.executable, &fixture.homes[1])
+            .unwrap();
+        let activity_pid = activity_stage(&fixture, 1, "activity-read-pending", 0);
+        let mut login = supervisor
+            .start_device_login(&login_fixture.executable, &fixture.homes[2])
+            .unwrap();
+        login.prompt().unwrap();
+        let login_pid = fixture.child(2);
+        supervisor.shutdown().unwrap();
+        assert_eq!(activity.wait().err(), Some(SupervisorError::Cancelled));
+        assert_eq!(login.wait().err(), Some(SupervisorError::Cancelled));
+        activity_cleaned(&fixture, activity_pid);
+        gone(login_pid);
+        fixture.runtime_removed(2);
+        assert!(matches!(
+            supervisor.start_activity_diagnostic(&fixture.executable, &fixture.homes[1]),
+            Err(SupervisorError::Closed)
+        ));
+    }
+
+    #[test]
+    fn synthetic_activity_deadlines_and_cleanup_faults_reap_the_owned_child() {
+        for mode in ["pending", "partial"] {
+            let fixture = activity_fixture(mode);
+            let supervisor = Supervisor {
+                registry: Arc::default(),
+                timeouts: Timeouts {
+                    ready: Duration::from_secs(2),
+                    read: Duration::from_millis(150),
+                    login: Duration::from_secs(2),
+                },
+            };
+            assert_eq!(
+                supervisor
+                    .start_activity_diagnostic(&fixture.executable, &fixture.homes[0])
+                    .unwrap()
+                    .wait()
+                    .err(),
+                Some(SupervisorError::Session(SessionError::TimedOut))
+            );
+            let pid = activity_stage(&fixture, 0, "activity-read-pending", 0);
+            activity_cleaned(&fixture, pid);
+            assert!(
+                !activity_rows(&fixture)
+                    .iter()
+                    .any(|row| row["request"]["id"] == 4)
+            );
+        }
+        let fixture = activity_fixture("cleanup_fault");
+        let supervisor = Supervisor::new();
+        assert_eq!(
+            supervisor
+                .start_activity_diagnostic(&fixture.executable, &fixture.homes[0])
+                .unwrap()
+                .wait()
+                .err(),
+            Some(SupervisorError::Session(SessionError::CleanupFailed))
+        );
+        let pid = activity_stage(&fixture, 0, "activity-read-pending", 0);
+        gone(pid);
+        assert_eq!(
+            supervisor.shutdown(),
+            Err(SupervisorError::Session(SessionError::CleanupFailed))
         );
     }
 

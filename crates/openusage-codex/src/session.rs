@@ -86,6 +86,26 @@ impl fmt::Debug for QuotaProbe {
     }
 }
 
+/// Provisional full account-activity read only; no account identity is published.
+pub struct ActivityProbe {
+    /// Captured after full activity validation, before the final account check.
+    pub observed_at: std::time::SystemTime,
+    pub server: ServerInfo,
+    pub activity: crate::ActivitySnapshot,
+    pub version: &'static str,
+    /// The owned child is terminated and reaped before this result returns.
+    pub process_id: u32,
+}
+
+impl fmt::Debug for ActivityProbe {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("ActivityProbe")
+            .field("version", &self.version)
+            .finish_non_exhaustive()
+    }
+}
+
 /// The Rust caller must approve the executable's source. A version string alone is not provenance.
 /// This blocking probe belongs on a worker thread. It performs no login or inference.
 pub fn probe_account(
@@ -631,6 +651,23 @@ pub(crate) mod unix {
         result
     }
 
+    pub(crate) fn activity_managed(
+        executable: &Path,
+        home: &Path,
+        control: Arc<ProcessControl>,
+        timeouts: Timeouts,
+        before_start: impl Fn() -> Result<(), SessionError>,
+    ) -> Result<ActivityProbe, SessionError> {
+        control.check_cancelled()?;
+        let sandbox = Sandbox::with_home(home, Some(home))?;
+        let result = run_activity(executable, &sandbox, control, timeouts, before_start);
+        sandbox
+            .root
+            .close()
+            .map_err(|_| SessionError::CleanupFailed)?;
+        result
+    }
+
     pub(crate) fn login_managed(
         executable: &Path,
         home: &Path,
@@ -697,7 +734,7 @@ pub(crate) mod unix {
                     2,
                     Instant::now() + timeouts.read,
                     true,
-                    quota_notification,
+                    account_bound_notification,
                 )?,
                 2,
             )?;
@@ -714,7 +751,7 @@ pub(crate) mod unix {
                     3,
                     Instant::now() + timeouts.read,
                     true,
-                    quota_notification,
+                    account_bound_notification,
                 )?,
                 3,
             )?;
@@ -725,7 +762,7 @@ pub(crate) mod unix {
                     4,
                     Instant::now() + timeouts.read,
                     true,
-                    quota_notification,
+                    account_bound_notification,
                 )?,
                 4,
             )?;
@@ -750,7 +787,77 @@ pub(crate) mod unix {
         result
     }
 
-    fn quota_notification(bytes: Zeroizing<Vec<u8>>) -> Result<(), SessionError> {
+    fn run_activity(
+        executable: &Path,
+        sandbox: &Sandbox,
+        control: Arc<ProcessControl>,
+        timeouts: Timeouts,
+        before_start: impl Fn() -> Result<(), SessionError>,
+    ) -> Result<ActivityProbe, SessionError> {
+        let (mut process, server) =
+            start_initialized(executable, sandbox, control, timeouts, before_start)?;
+        let process_id = process.id()?;
+        let result = (|| {
+            process.send(&Request::account_read(2).to_line()?)?;
+            let before = parse_account(
+                &process.response_routed(
+                    2,
+                    Instant::now() + timeouts.read,
+                    true,
+                    account_bound_notification,
+                )?,
+                2,
+            )?;
+            if before.authentication != crate::AccountAuth::Chatgpt || !before.requires_openai_auth
+            {
+                return Err(ProtocolError::UnsupportedAuthentication.into());
+            }
+            if before.identity != crate::IdentityConfidence::Provisional {
+                return Err(ProtocolError::AccountIdentityUnavailable.into());
+            }
+            process.send(&Request::account_usage_read(3).to_line()?)?;
+            let activity = crate::parse_account_usage(
+                &process.response_routed(
+                    3,
+                    Instant::now() + timeouts.read,
+                    true,
+                    account_bound_notification,
+                )?,
+                3,
+            )?;
+            let observed_at = std::time::SystemTime::now();
+            process.send(&Request::account_read(4).to_line()?)?;
+            let after = parse_account(
+                &process.response_routed(
+                    4,
+                    Instant::now() + timeouts.read,
+                    true,
+                    account_bound_notification,
+                )?,
+                4,
+            )?;
+            // Descriptive equality detects changes; it never establishes a stable identity key.
+            if before.authentication != after.authentication
+                || before.identity != after.identity
+                || before.requires_openai_auth != after.requires_openai_auth
+                || before.email != after.email
+                || before.plan != after.plan
+            {
+                return Err(ProtocolError::AccountChanged.into());
+            }
+            Ok(ActivityProbe {
+                observed_at,
+                server,
+                activity,
+                version: TESTED_PROVIDER_VERSION,
+                process_id,
+            })
+        })();
+        process.stop()?;
+        result
+    }
+
+    fn account_bound_notification(bytes: Zeroizing<Vec<u8>>) -> Result<(), SessionError> {
         #[derive(Deserialize)]
         struct Notice {
             method: String,
@@ -760,7 +867,7 @@ pub(crate) mod unix {
         if notice.method == "account/updated" {
             return Err(ProtocolError::AccountChanged.into());
         }
-        // Sparse quota events are never merged into this full-read diagnostic or credit/reset state.
+        // Sparse provider events never replace a full account-bound diagnostic response.
         Ok(())
     }
 
