@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import { chmod, copyFile, link, lstat, mkdir, readFile, readdir, rm, stat, symlink, writeFile } from 'node:fs/promises';
+import { chmod, copyFile, link, lstat, mkdir, readFile, readdir, readlink, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { arch, platform, release, tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -71,11 +71,32 @@ async function inspectGui(fileName, status) {
   return view;
 }
 
+async function focusOwnedWindow() {
+  const queue = [driver.child.pid];
+  for (let count = 0; queue.length && count < 64; count++) {
+    const pid = queue.shift();
+    try {
+      if (await readlink(`/proc/${pid}/exe`) === application) {
+        const focus = JSON.parse(execFileSync('/usr/bin/python3', [join(harness, 'x11-close.py'), String(pid), 'focus'], { env: fixture.environment, encoding: 'utf8', timeout: 10000 }));
+        (evidence.focus ??= []).push(focus);
+        await waitFor(async () => await driver.execute('return document.hasFocus();'), 'owned native document focus');
+        return;
+      }
+      queue.push(...(await readFile(`/proc/${pid}/task/${pid}/children`, 'utf8')).trim().split(/\s+/).filter(Boolean).map(Number));
+    } catch (error) { if (error.code !== 'ENOENT') throw error; }
+  }
+  assert.fail('The owned native application was not found.');
+}
+
 async function setTheme(theme, mode = 'pointer') {
   if ((await driver.execute('return document.querySelector("#theme").textContent.trim();')) === { system: 'System', light: 'Light', dark: 'Dark' }[theme]) return;
-  const keys = async values => driver.request('POST', `/session/${driver.session}/actions`, {
-    actions: [{ type: 'key', id: 'inspection-keyboard', actions: values.flatMap(value => [{ type: 'keyDown', value }, { type: 'keyUp', value }]) }],
-  });
+  await focusOwnedWindow();
+  const keys = async values => {
+    assert.equal(await driver.execute('return document.hasFocus();'), true);
+    return driver.request('POST', `/session/${driver.session}/actions`, {
+      actions: [{ type: 'key', id: 'inspection-keyboard', actions: values.flatMap(value => [{ type: 'keyDown', value }, { type: 'keyUp', value }]) }],
+    });
+  };
   await driver.click('#theme');
   await keys(['\uE00C']);
   await waitFor(async () => await driver.execute('return document.querySelector("#theme").getAttribute("aria-expanded")==="false"&&document.activeElement?.id==="theme";'), 'appearance focus after Escape');
@@ -124,7 +145,7 @@ try {
   const sources = execFileSync('rg', ['--files', 'apps/desktop/src', 'apps/desktop/src-tauri/src', 'crates/openusage-storage/src', 'crates/openusage-import/src'], { cwd: repository, encoding: 'utf8' }).trim().split('\n');
   for (const path of [...sources, 'Cargo.toml', 'Cargo.lock', 'crates/openusage-storage/Cargo.toml', 'crates/openusage-import/Cargo.toml', 'apps/desktop/src-tauri/Cargo.toml', 'apps/desktop/src-tauri/tauri.conf.json', 'apps/desktop/src-tauri/build.rs', 'apps/desktop/src-tauri/capabilities/main-window.json']) evidence.sourceHashes[path] = await hash(join(repository, path));
   evidence.harnessHashes = {};
-  for (const path of ['backup-inspection.mjs', 'private-fixture.mjs', 'webdriver.mjs', 'backup-verifier/Cargo.toml', 'backup-verifier/Cargo.lock', 'backup-verifier/src/bin/openusage-native-backup-fixtures.rs']) evidence.harnessHashes[path] = await hash(join(harness, path));
+  for (const path of ['backup-inspection.mjs', 'private-fixture.mjs', 'webdriver.mjs', 'x11-close.py', 'backup-verifier/Cargo.toml', 'backup-verifier/Cargo.lock', 'backup-verifier/src/bin/openusage-native-backup-fixtures.rs']) evidence.harnessHashes[path] = await hash(join(harness, path));
   fixture = await createFixture('backup-inspection');
   driver = new NativeDriver(application, fixture.environment, join(output, 'driver.log'));
   await driver.start();
