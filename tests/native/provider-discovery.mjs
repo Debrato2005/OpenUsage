@@ -60,8 +60,8 @@ await mkdir(output, { recursive: true, mode: 0o700 });
 process.once('exit', () => { driver?.kill('SIGKILL'); stopGroup(fixture?.bus, 'SIGKILL'); });
 try {
   evidence.application = { path: application, sha256: await digest(application) }; evidence.sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repository, encoding: 'utf8' }).trim();
-  evidence.sourceHashes = {}; const sources = execFileSync('rg', ['--files', 'apps/desktop/src', 'apps/desktop/src-tauri/src', 'apps/desktop/src-tauri/permissions', 'crates/openusage-codex/src'], { cwd: repository, encoding: 'utf8' }).trim().split('\n');
-  for (const path of [...sources, 'Cargo.lock', 'apps/desktop/src-tauri/Cargo.toml', 'apps/desktop/src-tauri/build.rs', 'apps/desktop/src-tauri/capabilities/main-window.json']) evidence.sourceHashes[path] = await digest(join(repository, path));
+  evidence.sourceHashes = {}; const sources = execFileSync('rg', ['--files', 'apps/desktop/src', 'apps/desktop/src-tauri/src', 'apps/desktop/src-tauri/permissions', 'crates/openusage-codex/src', 'crates/openusage-storage/src'], { cwd: repository, encoding: 'utf8' }).trim().split('\n');
+  for (const path of [...sources, 'Cargo.toml', 'Cargo.lock', 'crates/openusage-codex/provider-sources/codex-0.163.0-linux-x86_64.json', 'apps/desktop/src-tauri/Cargo.toml', 'apps/desktop/src-tauri/tauri.conf.json', 'apps/desktop/src-tauri/build.rs', 'apps/desktop/src-tauri/capabilities/main-window.json']) evidence.sourceHashes[path] = await digest(join(repository, path));
   evidence.harnessHashes = {}; for (const path of ['provider-discovery.mjs', 'private-fixture.mjs', 'webdriver.mjs', 'fixtures/synthetic-provider.py']) evidence.harnessHashes[path] = await digest(join(harness, path));
   fixture = await createFixture('provider-discovery');
   const home = join(fixture.root, 'synthetic-home'); await ownedDirectory(home); fixture.environment.HOME = home;
