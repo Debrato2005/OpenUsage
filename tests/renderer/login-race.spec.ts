@@ -227,7 +227,10 @@ test('renderer retains the previous unsaved quota through pending, invalid respo
   await expect(root.getByText('OpenUsage could not complete this request. Review the executable and try again.', { exact: true })).toBeVisible();
   await expect(root.getByText('75%', { exact: true })).toBeVisible();
   await expect(root.locator('.quota-observed time')).toHaveAttribute('datetime', '2026-10-18T00:00:00.000Z');
-  await startQuota(page); await page.locator(`[data-quota-cancel="${profileId}"]`).click();
+  await startQuota(page);
+  await expect(root.getByText('OpenUsage could not complete this request. Review the executable and try again.', { exact: true })).toBeVisible();
+  await expect(page.locator(`[data-quota-cancel="${profileId}"]`)).toBeFocused();
+  await page.locator(`[data-quota-cancel="${profileId}"]`).click();
   await expect.poll(() => page.evaluate(requestId => Boolean((window as unknown as FixtureWindow).loginFixture.cancellations[`quota:${requestId}`]), attempts[0]!)).toBe(true);
   await page.evaluate(requestId => { const fixture = (window as unknown as FixtureWindow).loginFixture; fixture.cancellations[`quota:${requestId}`]!.resolve({ cancelled: true }); fixture.completions[`quota:${requestId}`]!.reject('provider_quota_cancelled'); }, attempts[0]!);
   await expect(root).toBeFocused(); await expect(root).toHaveAttribute('role', 'status');
