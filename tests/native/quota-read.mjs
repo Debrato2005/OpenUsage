@@ -59,7 +59,22 @@ async function complete(request, expectedError) {
   const result = await driver.invoke('complete_profile_quota_read', { profileId: request.profileId, requestId: request.requestId }); active.delete(request.requestId);
   if (expectedError) assert.deepEqual(result, { ok: false, error: expectedError }); else { assert.equal(result.ok, true); validateOutcome(result.value, request); } return result.value;
 }
-async function guiRead(mode = 'multi') { await config(home, mode); const offset = (await observations()).length; await waitFor(async () => await driver.execute('return Boolean(document.querySelector(arguments[0])&&!document.querySelector(arguments[0]).disabled);', [readSelector(first.id)]), 'enabled Read quotas action'); await driver.click(readSelector(first.id)); await stage('final-account-emitted', home, offset); await waitFor(async () => await driver.execute('return document.activeElement?.matches(arguments[0])&&!document.querySelector(arguments[1]).disabled;', [resultSelector(first.id), readSelector(first.id)]), 'quota result focus'); return driver.execute('return document.querySelector(arguments[0]).textContent;', [resultSelector(first.id)]); }
+async function guiRead(mode = 'multi') {
+  await config(home, mode); const offset = (await observations()).length;
+  await waitFor(async () => await driver.execute('return Boolean(document.querySelector(arguments[0])&&!document.querySelector(arguments[0]).disabled);', [readSelector(first.id)]), 'enabled Read quotas action');
+  await driver.click(readSelector(first.id));
+  await waitFor(async () => await driver.execute('return document.activeElement?.matches(arguments[0])&&!document.querySelector(arguments[1]).disabled;', [resultSelector(first.id), readSelector(first.id)]), 'completed quota result focus');
+  const preview = await driver.execute('const root=document.querySelector(arguments[0]);return {role:root.getAttribute("role"),heading:root.querySelector("h3")?.textContent.trim(),text:root.textContent};', [resultSelector(first.id)]);
+  assert.equal(preview.role, 'region', 'A failed terminal result must not count as a successful read.'); assert.equal(preview.heading, 'Quota preview');
+  const rows = await observations(), starts = new Map(rows.filter(row => row.kind === 'start').map(row => [row.pid, row]));
+  const finalRequest = rows.slice(offset).find(row => row.kind === 'request' && row.request.id === 4 && row.request.method === 'account/read' && starts.get(row.pid)?.environment.CODEX_HOME === home);
+  assert.ok(finalRequest, 'This selected-home read must reach a new final account request.');
+  assert.deepEqual(finalRequest.request.params, { refreshToken: false });
+  assert.deepEqual(rows.filter(row=>row.kind==='request'&&row.pid===finalRequest.pid).map(row=>({method:row.request.method,id:row.request.id??null})), [{method:'initialize',id:1},{method:'initialized',id:null},{method:'account/read',id:2},{method:'account/rateLimits/read',id:3},{method:'account/read',id:4}]);
+  // Native accepts the final response and reaps its child before the fixture's later log can run.
+  (evidence.guiReadBarriers ??= []).push({ mode, processId: finalRequest.pid, selectedHomeFinalAccountRequest: true, focusedSuccessfulPreview: true, postResponseMarkerObserved: rows.some(row=>row.kind==='final-account-emitted'&&row.pid===finalRequest.pid), markerScope: 'Optional post-response fixture log; it follows stdout flush and may lose a race with owned-child cleanup.' });
+  return preview.text;
+}
 async function disclosureState(selector, index = 0) {
   return driver.execute('const root=document.querySelectorAll(arguments[0])[arguments[1]],trigger=root&&[...root.children].find(node=>node.matches("[data-slot=collapsible-trigger]")),panel=trigger&&document.getElementById(trigger.getAttribute("aria-controls"));const visible=node=>Boolean(node&&node.getBoundingClientRect().width>0&&node.getBoundingClientRect().height>0&&getComputedStyle(node).visibility!=="hidden"&&getComputedStyle(node).display!=="none");return{tag:trigger?.tagName,label:trigger?.textContent.trim(),expanded:trigger?.getAttribute("aria-expanded"),triggerVisible:visible(trigger),disabled:trigger?.disabled,panelVisible:visible(panel),ownsPanel:trigger?.getAttribute("aria-expanded")!=="true"||Boolean(panel&&panel.parentElement===root&&panel.matches("[data-slot=collapsible-panel]")),focused:document.activeElement===trigger};', [selector,index]);
 }
