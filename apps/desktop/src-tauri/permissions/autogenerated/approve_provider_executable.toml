@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-approve-provider-executable"
+description = "Enables the approve_provider_executable command without any pre-configured scope."
+commands.allow = ["approve_provider_executable"]
+
+[[permission]]
+identifier = "deny-approve-provider-executable"
+description = "Denies the approve_provider_executable command without any pre-configured scope."
+commands.deny = ["approve_provider_executable"]

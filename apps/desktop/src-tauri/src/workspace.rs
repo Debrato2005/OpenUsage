@@ -1,4 +1,5 @@
 use crate::keyvault::{KeyVault, VaultError};
+use crate::provider::{self, ProviderCoordinator};
 use crate::restore::{self, Cancelled, RestoreCache, RestorePreview};
 use openusage_storage::{
     ProfileConnectionState, ProfileEnvironment, ProfileError, Storage, StorageError, Theme, keywrap,
@@ -72,6 +73,21 @@ pub enum CommandError {
     RestoreFailed,
     CheckpointNotFound,
     RestoreHomeUnavailable,
+    InvalidProviderExecutable,
+    ProviderExecutableNotApproved,
+    ProviderSourceUnverified,
+    StaleProviderApproval,
+    ProviderUnavailable,
+    ProviderUnsupported,
+    ProviderCheckInProgress,
+    ProviderCapacityReached,
+    ProviderCheckCancelled,
+    ProviderCheckTimedOut,
+    ProviderProtocolFailed,
+    ProviderCleanupFailed,
+    ProviderHomeUnavailable,
+    ProviderProfileArchived,
+    ProviderShuttingDown,
 }
 
 #[derive(Debug, Eq, PartialEq, Serialize)]
@@ -142,6 +158,7 @@ pub struct Workspace {
     storage: Option<Storage>,
     protection: KeyProtection,
     restore_preview: RestoreCache,
+    provider: ProviderCoordinator,
 }
 
 impl Workspace {
@@ -150,9 +167,18 @@ impl Workspace {
         Self::with_restore_cache(directory, RestoreCache::default())
     }
 
+    #[cfg(test)]
     pub fn with_restore_cache(
         directory: PathBuf,
         restore_preview: RestoreCache,
+    ) -> Result<Self, CommandError> {
+        Self::with_services(directory, restore_preview, ProviderCoordinator::default())
+    }
+
+    pub fn with_services(
+        directory: PathBuf,
+        restore_preview: RestoreCache,
+        provider: ProviderCoordinator,
     ) -> Result<Self, CommandError> {
         prepare_directory(&directory)?;
         let lock_path = directory.join(".instance.lock");
@@ -167,6 +193,7 @@ impl Workspace {
             storage: None,
             protection: KeyProtection::Unavailable,
             restore_preview,
+            provider,
         })
     }
 
@@ -397,6 +424,7 @@ impl Workspace {
     pub fn create_profile(&mut self, label: &str) -> Result<ProfileView, CommandError> {
         let storage = self.storage.as_mut().ok_or(CommandError::WorkspaceLocked)?;
         validate_profile_label(label)?;
+        self.provider.quiesce()?;
         let mut random = [0u8; 16];
         getrandom::fill(&mut random).map_err(|_| CommandError::ProfileUnavailable)?;
         let id = uuid::Builder::from_random_bytes(random)
@@ -439,6 +467,8 @@ impl Workspace {
     pub fn rename_profile(&mut self, id: &str, label: &str) -> Result<ProfileView, CommandError> {
         validate_profile_id(id)?;
         validate_profile_label(label)?;
+        self.storage.as_ref().ok_or(CommandError::WorkspaceLocked)?;
+        self.provider.quiesce()?;
         self.storage
             .as_mut()
             .ok_or(CommandError::WorkspaceLocked)?
@@ -454,6 +484,8 @@ impl Workspace {
         archived: bool,
     ) -> Result<ProfileView, CommandError> {
         validate_profile_id(id)?;
+        self.storage.as_ref().ok_or(CommandError::WorkspaceLocked)?;
+        self.provider.quiesce()?;
         self.storage
             .as_mut()
             .ok_or(CommandError::WorkspaceLocked)?
@@ -519,7 +551,8 @@ impl Workspace {
         }
         let storage = self.storage.as_mut().ok_or(CommandError::WorkspaceLocked)?;
         let prepared = self.restore_preview.take(id)?;
-        // The native application currently owns no provider children. Monitoring remains stopped.
+        // Owned children must finish cleanup before records can point at different managed homes.
+        self.provider.quiesce()?;
         restore::apply(storage, &self.directory, prepared)
     }
 
@@ -527,6 +560,96 @@ impl Workspace {
         restore::validate_preview_id(id)?;
         self.storage.as_ref().ok_or(CommandError::WorkspaceLocked)?;
         self.restore_preview.cancel(id)
+    }
+
+    pub fn inspect_provider_executable(
+        &self,
+        path: &str,
+    ) -> Result<provider::ExecutableCandidate, CommandError> {
+        self.storage.as_ref().ok_or(CommandError::WorkspaceLocked)?;
+        self.provider.inspect(path)
+    }
+
+    pub fn approve_provider_executable(
+        &self,
+        id: &str,
+        confirmed: bool,
+    ) -> Result<provider::ExecutableApproval, CommandError> {
+        self.storage.as_ref().ok_or(CommandError::WorkspaceLocked)?;
+        self.provider.approve(id, confirmed)
+    }
+
+    pub fn start_profile_check(
+        &mut self,
+        id: &str,
+    ) -> Result<provider::PendingCheck, CommandError> {
+        validate_profile_id(id)?;
+        let storage = self.storage.as_mut().ok_or(CommandError::WorkspaceLocked)?;
+        let state = storage
+            .restore_state()
+            .map_err(|_| CommandError::StorageUnavailable)?;
+        let profile = storage
+            .list_profiles()
+            .map_err(profile_error)?
+            .into_iter()
+            .find(|profile| profile.id == id)
+            .ok_or(CommandError::ProfileNotFound)?;
+        if profile.archived {
+            return Err(CommandError::ProviderProfileArchived);
+        }
+        if profile.environment != ProfileEnvironment::Native {
+            return Err(CommandError::ProviderUnsupported);
+        }
+        let mappings = storage
+            .restore_home_mappings(&state.revision)
+            .map_err(|_| CommandError::ProviderHomeUnavailable)?;
+        let home = mappings
+            .into_iter()
+            .find(|home| home.profile_id == id)
+            .ok_or(CommandError::ProviderHomeUnavailable)?;
+        let parent = self.directory.join("profiles");
+        let path = parent.join(&home.managed_home_reference);
+        for directory in [&parent, &path] {
+            if !existing_private_directory(directory)
+                .map_err(|_| CommandError::ProviderHomeUnavailable)?
+            {
+                return Err(CommandError::ProviderHomeUnavailable);
+            }
+        }
+        self.provider
+            .start(id, &home.managed_home_reference, state.revision, &path)
+    }
+
+    /// This method runs only after the owned provider worker has joined.
+    pub fn finish_profile_check(
+        &mut self,
+        check: provider::JoinedCheck,
+    ) -> Result<provider::ConnectionDiagnostic, CommandError> {
+        let storage = self.storage.as_mut().ok_or(CommandError::WorkspaceLocked)?;
+        let state = storage
+            .restore_state()
+            .map_err(|_| CommandError::StorageUnavailable)?;
+        if state.revision != check.revision {
+            let profile = storage
+                .list_profiles()
+                .map_err(profile_error)?
+                .into_iter()
+                .find(|profile| profile.id == check.profile_id)
+                .ok_or(CommandError::ProviderCheckCancelled)?;
+            if profile.archived || profile.environment != ProfileEnvironment::Native {
+                return Err(CommandError::ProviderCheckCancelled);
+            }
+            let homes = storage
+                .restore_home_mappings(&state.revision)
+                .map_err(|_| CommandError::ProviderHomeUnavailable)?;
+            if !homes.iter().any(|home| {
+                home.profile_id == check.profile_id
+                    && home.managed_home_reference == check.home_reference
+            }) {
+                return Err(CommandError::ProviderCheckCancelled);
+            }
+        }
+        check.finish()
     }
 
     fn ready(&self) -> Bootstrap {
@@ -561,6 +684,14 @@ impl Workspace {
             KeyProtection::PassphraseRequired,
             Some(StorageIssue::KeyStoreUnavailable),
         )
+    }
+}
+
+impl Drop for Workspace {
+    fn drop(&mut self) {
+        // Stop owned processes before field cleanup releases the workspace lease or database.
+        self.restore_preview.close();
+        let _ = self.provider.close();
     }
 }
 
@@ -707,7 +838,7 @@ fn check_directory(path: &Path, create: bool) -> Result<bool, CommandError> {
 }
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
-fn require_local_filesystem(path: &Path) -> Result<(), CommandError> {
+pub(crate) fn require_local_filesystem(path: &Path) -> Result<(), CommandError> {
     use std::os::unix::ffi::OsStrExt;
     let path = std::ffi::CString::new(path.as_os_str().as_bytes())
         .map_err(|_| CommandError::StorageUnavailable)?;
@@ -739,7 +870,7 @@ fn require_local_filesystem(path: &Path) -> Result<(), CommandError> {
 }
 
 #[cfg(target_os = "windows")]
-fn require_local_filesystem(path: &Path) -> Result<(), CommandError> {
+pub(crate) fn require_local_filesystem(path: &Path) -> Result<(), CommandError> {
     use std::path::{Component, Prefix};
     use windows_sys::Win32::Storage::FileSystem::{DRIVE_FIXED, GetDriveTypeW};
     let drive = match path.components().next() {

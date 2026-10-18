@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-inspect-provider-executable"
+description = "Enables the inspect_provider_executable command without any pre-configured scope."
+commands.allow = ["inspect_provider_executable"]
+
+[[permission]]
+identifier = "deny-inspect-provider-executable"
+description = "Denies the inspect_provider_executable command without any pre-configured scope."
+commands.deny = ["inspect_provider_executable"]

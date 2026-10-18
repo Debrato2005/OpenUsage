@@ -3,6 +3,7 @@
 mod backup;
 mod backup_inspection;
 mod keyvault;
+mod provider;
 mod restore;
 mod workspace;
 
@@ -17,7 +18,11 @@ use workspace::{Bootstrap, CommandError, ProfileView, Workspace};
 use zeroize::Zeroizing;
 
 #[derive(Default)]
-struct WorkspaceService(Arc<Mutex<Option<Workspace>>>, restore::RestoreCache);
+struct WorkspaceService(
+    Arc<Mutex<Option<Workspace>>>,
+    restore::RestoreCache,
+    provider::ProviderCoordinator,
+);
 
 struct Passphrase(Zeroizing<String>);
 
@@ -76,6 +81,25 @@ struct ApplyRestoreArgs {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct CheckpointPreviewArgs {
     checkpoint_id: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct InspectProviderArgs {
+    path: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ApproveProviderArgs {
+    candidate_id: String,
+    confirmed: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ProfileCheckArgs {
+    profile_id: String,
 }
 
 #[derive(Deserialize)]
@@ -156,9 +180,10 @@ async fn run_workspace(
                 .app_local_data_dir()
                 .map_err(|_| CommandError::StorageUnavailable)?
                 .join("workspace");
-            match Workspace::with_restore_cache(
+            match Workspace::with_services(
                 directory,
                 app.state::<WorkspaceService>().1.clone(),
+                app.state::<WorkspaceService>().2.clone(),
             ) {
                 Ok(workspace) => *state = Some(workspace),
                 Err(error) if matches!(operation, Operation::Bootstrap) => {
@@ -514,6 +539,95 @@ async fn prepare_checkpoint_restore_preview(
     .map_err(|_| CommandError::RestoreCheckpointFailed)?
 }
 
+#[tauri::command]
+async fn inspect_provider_executable(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<provider::ExecutableCandidate, CommandError> {
+    let args: InspectProviderArgs = arguments(&request)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?;
+        state
+            .as_ref()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .inspect_provider_executable(&args.path)
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+#[tauri::command]
+async fn approve_provider_executable(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<provider::ExecutableApproval, CommandError> {
+    let args: ApproveProviderArgs = arguments(&request)?;
+    crate::restore::validate_preview_id(&args.candidate_id)?;
+    if !args.confirmed {
+        return Err(CommandError::InvalidArguments);
+    }
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?;
+        state
+            .as_ref()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .approve_provider_executable(&args.candidate_id, args.confirmed)
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+#[tauri::command]
+async fn check_profile_connection(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<provider::ConnectionDiagnostic, CommandError> {
+    let args: ProfileCheckArgs = arguments(&request)?;
+    workspace::validate_profile_id(&args.profile_id)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let pending = {
+            let mut state = service
+                .lock()
+                .map_err(|_| CommandError::ProviderUnavailable)?;
+            state
+                .as_mut()
+                .ok_or(CommandError::WorkspaceLocked)?
+                .start_profile_check(&args.profile_id)?
+        };
+        let joined = pending.wait()?;
+        let mut state = service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?;
+        state
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .finish_profile_check(joined)
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+#[tauri::command]
+async fn cancel_profile_check(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<provider::Cancelled, CommandError> {
+    let args: ProfileCheckArgs = arguments(&request)?;
+    workspace::validate_profile_id(&args.profile_id)?;
+    let provider = service.2.clone();
+    // Cancellation needs no Workspace lock and can interrupt a check while another operation waits.
+    tauri::async_runtime::spawn_blocking(move || provider.cancel(&args.profile_id))
+        .await
+        .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
 fn is_bundled_url(url: &tauri::Url) -> bool {
     url.username().is_empty()
         && url.password().is_none()
@@ -541,7 +655,11 @@ fn main() {
             cancel_restore_preview,
             apply_restore,
             list_restore_checkpoints,
-            prepare_checkpoint_restore_preview
+            prepare_checkpoint_restore_preview,
+            inspect_provider_executable,
+            approve_provider_executable,
+            check_profile_connection,
+            cancel_profile_check
         ])
         .setup(|app| {
             let window = &app.config().app.windows[0];
@@ -556,6 +674,10 @@ fn main() {
         .run(|app, event| {
             if matches!(event, tauri::RunEvent::Exit) {
                 app.state::<WorkspaceService>().1.close();
+                if app.state::<WorkspaceService>().2.close().is_err() {
+                    // Typed cleanup failure only. Never log provider frames, credentials, or paths.
+                    eprintln!("OpenUsage could not complete owned provider cleanup.");
+                }
             }
         });
 }
@@ -563,13 +685,37 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::{
-        ApplyRestoreArgs, ArchiveProfileArgs, BackupArgs, CancelRestorePreviewArgs,
-        CheckpointPreviewArgs, CreateProfileArgs, InspectBackupArgs, ListProfilesArgs,
-        RenameProfileArgs, SetupArgs, ThemeArgs, UnlockArgs, is_bundled_url,
+        ApplyRestoreArgs, ApproveProviderArgs, ArchiveProfileArgs, BackupArgs,
+        CancelRestorePreviewArgs, CheckpointPreviewArgs, CreateProfileArgs, InspectBackupArgs,
+        InspectProviderArgs, ListProfilesArgs, ProfileCheckArgs, RenameProfileArgs, SetupArgs,
+        ThemeArgs, UnlockArgs, is_bundled_url,
     };
 
     #[test]
     fn storage_commands_reject_unexpected_fields_and_incorrect_value_types() {
+        for invalid in [
+            r#"{}"#,
+            r#"{"path":null}"#,
+            r#"{"path":"/synthetic","args":["exec"]}"#,
+        ] {
+            assert!(serde_json::from_str::<InspectProviderArgs>(invalid).is_err());
+        }
+        for invalid in [
+            r#"{}"#,
+            r#"{"candidateId":"synthetic"}"#,
+            r#"{"candidateId":"synthetic","confirmed":"true"}"#,
+            r#"{"candidateId":"synthetic","confirmed":true,"sha256":"caller-controlled"}"#,
+        ] {
+            assert!(serde_json::from_str::<ApproveProviderArgs>(invalid).is_err());
+        }
+        for invalid in [
+            r#"{}"#,
+            r#"{"profileId":null}"#,
+            r#"{"profileId":"synthetic","home":"/external"}"#,
+            r#"{"profileId":"synthetic","timeout":1}"#,
+        ] {
+            assert!(serde_json::from_str::<ProfileCheckArgs>(invalid).is_err());
+        }
         for invalid in [
             r#"{}"#,
             r#"{"checkpointId":null}"#,

@@ -13,6 +13,8 @@ tauri-build = { version = "=2.7.3", features = [] }
 getrandom = "=0.4.3"
 keyring-core = "=1.0.1"
 libc = "=0.2.191"
+openusage-codex = { path = "../../../crates/openusage-codex" }
+sha2 = "=0.10.9"
 openusage-import = { path = "../../../crates/openusage-import" }
 openusage-storage = { path = "../../../crates/openusage-storage" }
 serde = { version = "=1.0.229", features = ["derive"] }
