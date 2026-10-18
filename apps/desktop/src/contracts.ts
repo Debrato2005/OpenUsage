@@ -106,7 +106,34 @@ export interface ProviderConnectionDiagnostic {
   sourceKind: 'official_artifact' | 'test_fixture';
 }
 
+export interface ProviderLoginAttempt {
+  profileId: string;
+  attemptId: string;
+  approvalId: string;
+  sourceKind: ProviderConnectionDiagnostic['sourceKind'];
+  monitoring: 'stopped';
+  applicationWaitLimitSeconds: 900;
+}
+
+export interface ProviderLoginPrompt {
+  profileId: string;
+  attemptId: string;
+  verificationUrl: 'https://auth.openai.com/codex/device';
+  userCode: string;
+  sourceKind: ProviderConnectionDiagnostic['sourceKind'];
+  applicationWaitLimitSeconds: 900;
+}
+
+export interface ProviderLoginCompletion {
+  attemptId: string;
+  diagnostic: ProviderConnectionDiagnostic;
+}
+
 interface Commands {
+  begin_profile_login: { args: { profileId: string; approvalId: string; flow: 'device_code'; confirmed: true }; result: ProviderLoginAttempt };
+  await_profile_login_prompt: { args: { profileId: string; attemptId: string }; result: ProviderLoginPrompt };
+  complete_profile_login: { args: { profileId: string; attemptId: string }; result: ProviderLoginCompletion };
+  cancel_profile_login: { args: { profileId: string; attemptId: string }; result: { cancelled: boolean } };
   inspect_provider_executable: { args: { path: string }; result: ProviderExecutableCandidate };
   approve_provider_executable: { args: { candidateId: string; confirmed: true }; result: ProviderExecutableApproval };
   check_profile_connection: { args: { profileId: string }; result: ProviderConnectionDiagnostic };
@@ -146,7 +173,11 @@ export async function invoke<K extends keyof Commands>(
   const core = window.__TAURI__?.core;
   if (!core) throw new DesktopUnavailable('Open the installed OpenUsage desktop application.');
   const response = await core.invoke<unknown>(command, args[0]);
-  const valid = command === 'inspect_provider_executable' ? isProviderExecutableReview(response, 'candidateId')
+  const valid = command === 'begin_profile_login' ? isProviderLoginAttempt(response)
+    : command === 'await_profile_login_prompt' ? isProviderLoginPrompt(response)
+    : command === 'complete_profile_login' ? isProviderLoginCompletion(response)
+    : command === 'cancel_profile_login' ? isPreviewCancellation(response)
+    : command === 'inspect_provider_executable' ? isProviderExecutableReview(response, 'candidateId')
     : command === 'approve_provider_executable' ? isProviderExecutableReview(response, 'approvalId')
     : command === 'check_profile_connection' ? isProviderConnectionDiagnostic(response)
     : command === 'cancel_profile_check' ? isPreviewCancellation(response)
@@ -215,6 +246,34 @@ function isProviderConnectionDiagnostic(value: unknown): value is ProviderConnec
     && typeof v.requiresOpenaiAuth === 'boolean' && (v.checkedAt === null || isUtcTimestamp(v.checkedAt))
     && v.monitoring === 'stopped' && v.persisted === false
     && (v.sourceKind === 'official_artifact' || v.sourceKind === 'test_fixture');
+}
+
+function isProviderLoginAttempt(value: unknown): value is ProviderLoginAttempt {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  return !Object.keys(v).some(key => !['profileId', 'attemptId', 'approvalId', 'sourceKind', 'monitoring', 'applicationWaitLimitSeconds'].includes(key))
+    && isUuid(v.profileId) && isUuid(v.attemptId) && isUuid(v.approvalId)
+    && (v.sourceKind === 'official_artifact' || v.sourceKind === 'test_fixture')
+    && v.monitoring === 'stopped' && v.applicationWaitLimitSeconds === 900;
+}
+
+function isProviderLoginPrompt(value: unknown): value is ProviderLoginPrompt {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  return !Object.keys(v).some(key => !['profileId', 'attemptId', 'verificationUrl', 'userCode', 'sourceKind', 'applicationWaitLimitSeconds'].includes(key))
+    && isUuid(v.profileId) && isUuid(v.attemptId)
+    && v.verificationUrl === 'https://auth.openai.com/codex/device'
+    && typeof v.userCode === 'string' && v.userCode.length > 0 && v.userCode.length <= 64
+    && /^[\x20-\x7e]+$/.test(v.userCode) && v.userCode.trim().length > 0
+    && (v.sourceKind === 'official_artifact' || v.sourceKind === 'test_fixture')
+    && v.applicationWaitLimitSeconds === 900;
+}
+
+function isProviderLoginCompletion(value: unknown): value is ProviderLoginCompletion {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  return Object.keys(v).length === 2 && isUuid(v.attemptId)
+    && isProviderConnectionDiagnostic(v.diagnostic) && v.diagnostic.authentication === 'chatgpt';
 }
 
 function isRestoreCheckpointList(value: unknown): value is RestoreCheckpointList {
