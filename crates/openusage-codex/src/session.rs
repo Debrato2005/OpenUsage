@@ -66,6 +66,24 @@ pub struct ProviderProbe {
     pub process_id: u32,
 }
 
+/// Provisional full-read diagnostics only. No identity key, email, or account claim is exposed.
+pub struct QuotaProbe {
+    pub server: ServerInfo,
+    pub quota: crate::QuotaSnapshot,
+    pub version: &'static str,
+    pub process_id: u32,
+}
+
+impl fmt::Debug for QuotaProbe {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("QuotaProbe")
+            .field("version", &self.version)
+            .field("quota", &self.quota)
+            .finish()
+    }
+}
+
 /// The Rust caller must approve the executable's source. A version string alone is not provenance.
 /// This blocking probe belongs on a worker thread. It performs no login or inference.
 pub fn probe_account(
@@ -594,6 +612,23 @@ pub(crate) mod unix {
         result
     }
 
+    pub(crate) fn quota_managed(
+        executable: &Path,
+        home: &Path,
+        control: Arc<ProcessControl>,
+        timeouts: Timeouts,
+        before_start: impl Fn() -> Result<(), SessionError>,
+    ) -> Result<QuotaProbe, SessionError> {
+        control.check_cancelled()?;
+        let sandbox = Sandbox::with_home(home, Some(home))?;
+        let result = run_quota(executable, &sandbox, control, timeouts, before_start);
+        sandbox
+            .root
+            .close()
+            .map_err(|_| SessionError::CleanupFailed)?;
+        result
+    }
+
     pub(crate) fn login_managed(
         executable: &Path,
         home: &Path,
@@ -641,6 +676,88 @@ pub(crate) mod unix {
         })();
         process.stop()?;
         result
+    }
+
+    fn run_quota(
+        executable: &Path,
+        sandbox: &Sandbox,
+        control: Arc<ProcessControl>,
+        timeouts: Timeouts,
+        before_start: impl Fn() -> Result<(), SessionError>,
+    ) -> Result<QuotaProbe, SessionError> {
+        let (mut process, server) =
+            start_initialized(executable, sandbox, control, timeouts, before_start)?;
+        let process_id = process.id()?;
+        let result = (|| {
+            process.send(&Request::account_read(2).to_line()?)?;
+            let before = parse_account(
+                &process.response_routed(
+                    2,
+                    Instant::now() + timeouts.read,
+                    true,
+                    quota_notification,
+                )?,
+                2,
+            )?;
+            if before.authentication != crate::AccountAuth::Chatgpt || !before.requires_openai_auth
+            {
+                return Err(ProtocolError::UnsupportedAuthentication.into());
+            }
+            if before.identity != crate::IdentityConfidence::Provisional {
+                return Err(ProtocolError::AccountIdentityUnavailable.into());
+            }
+            process.send(&Request::rate_limits_read(3).to_line()?)?;
+            let quota = crate::parse_quota(
+                &process.response_routed(
+                    3,
+                    Instant::now() + timeouts.read,
+                    true,
+                    quota_notification,
+                )?,
+                3,
+            )?;
+            process.send(&Request::account_read(4).to_line()?)?;
+            let after = parse_account(
+                &process.response_routed(
+                    4,
+                    Instant::now() + timeouts.read,
+                    true,
+                    quota_notification,
+                )?,
+                4,
+            )?;
+            // Descriptive equality detects changes; it never establishes a stable identity key.
+            if before.authentication != after.authentication
+                || before.identity != after.identity
+                || before.requires_openai_auth != after.requires_openai_auth
+                || before.email != after.email
+                || before.plan != after.plan
+            {
+                return Err(ProtocolError::AccountChanged.into());
+            }
+            Ok(QuotaProbe {
+                server,
+                quota,
+                version: TESTED_PROVIDER_VERSION,
+                process_id,
+            })
+        })();
+        process.stop()?;
+        result
+    }
+
+    fn quota_notification(bytes: Zeroizing<Vec<u8>>) -> Result<(), SessionError> {
+        #[derive(Deserialize)]
+        struct Notice {
+            method: String,
+        }
+        let notice: Notice =
+            serde_json::from_slice(&bytes).map_err(|_| ProtocolError::InvalidMessage)?;
+        if notice.method == "account/updated" {
+            return Err(ProtocolError::AccountChanged.into());
+        }
+        // Sparse quota events are never merged into this full-read diagnostic or credit/reset state.
+        Ok(())
     }
 
     fn start_initialized(
