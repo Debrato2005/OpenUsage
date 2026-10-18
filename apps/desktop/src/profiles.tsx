@@ -6,6 +6,7 @@ import { Collapsible, CollapsibleTrigger, CollapsiblePanel } from './components/
 import './profile-actions.css';
 import { invoke, type ProfileRecord, type ProfileView, type ProviderExecutableApproval } from './contracts';
 import { ProfileProviderCheck } from './provider';
+import { ProfileActivity } from './activity';
 
 type Props = {
   busy: boolean;
@@ -186,9 +187,9 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval }: Pro
     const managementTrigger = <CollapsibleTrigger render={<Button variant="ghost" className="text-button" />} type="button" data-profile-action="options" aria-describedby={nameId} disabled={busy || loading || current}>Manage profile</CollapsibleTrigger>;
     return <Collapsible render={<li />} className="profile-row" data-profile-id={profile.id} key={profile.id} open={managed === profile.id || current} onOpenChange={open => setManaged(open ? profile.id : null)}>
       <div className="profile-details"><bdi id={nameId} className="profile-label">{profile.label}</bdi><p className="profile-meta">{profile.environment === 'native' ? 'On this device' : 'WSL profile'}</p></div>
-      {profile.archived ? managementActions : providerApproval
-        ? <ProfileProviderCheck key={`${profile.id}:${providerApproval.approvalId}`} profileId={profile.id} profileLabel={profile.label} approval={providerApproval} busy={busy || loading || current} managementActions={managementActions} managementTrigger={managementTrigger} />
-        : <>{managementTrigger}<CollapsiblePanel keepMounted className="profile-management">{managementActions}</CollapsiblePanel></>}
+      <ProfileActivity profileId={profile.id} profileLabel={profile.label}>{onActivitySaved => profile.archived ? managementActions : providerApproval
+        ? <ProfileProviderCheck key={`${profile.id}:${providerApproval.approvalId}`} profileId={profile.id} profileLabel={profile.label} approval={providerApproval} busy={busy || loading || current} managementActions={managementActions} managementTrigger={managementTrigger} onActivitySaved={onActivitySaved} />
+        : <>{managementTrigger}<CollapsiblePanel keepMounted className="profile-management">{managementActions}</CollapsiblePanel></>}</ProfileActivity>
       {rowError && !current && error()}
     </Collapsible>;
   }

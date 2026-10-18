@@ -401,7 +401,7 @@ test('rejects malformed or secret-bearing quota payloads and unqualified identit
 });
 
 const activityRequest = { profileId: '11111111-1111-4111-8111-111111111111', requestId: '22222222-2222-4222-8222-222222222222', approvalId: '33333333-3333-4333-8333-333333333333', sourceKind: 'test_fixture', monitoring: 'stopped', accepted: false };
-const activityPreview = { ...activityRequest, providerVersion: '0.163.0', observedAtUtc: '2026-10-18T00:00:00.000Z', identityConfidence: 'provisional', verifiedIdentityKey: null, coverage: 'unknown', scope: 'account_activity_with_unknown_application_scope', summary: { lifetimeTokens: '9223372036854775807', peakDailyTokens: '9007199254740993', longestRunningTurnSec: null, currentStreakDays: '0', longestStreakDays: '1' }, dailyUsageBuckets: [{ startDate: '2024-02-29', tokens: '9223372036854775807' }, { startDate: '0001-01-01', tokens: '0' }] };
+const activityPreview = { ...activityRequest, accepted: true, collectionRunId: '44444444-4444-4444-8444-444444444444', bindingId: '55555555-5555-4555-8555-555555555555', providerVersion: '0.163.0', observedAtUtc: '2026-10-18T00:00:00.000Z', identityConfidence: 'provisional', verifiedIdentityKey: null, coverage: 'unknown', scope: 'account_activity_with_unknown_application_scope', summary: { lifetimeTokens: '9223372036854775807', peakDailyTokens: '9007199254740993', longestRunningTurnSec: null, currentStreakDays: '0', longestStreakDays: '1' }, dailyUsageBuckets: [{ startDate: '2024-02-29', tokens: '9223372036854775807' }, { startDate: '0001-01-01', tokens: '0' }] };
 const activityArgs = { profileId: activityRequest.profileId, requestId: activityRequest.requestId };
 
 test('accepts exact bounded activity previews without replacing null or reordering literal dates', async () => {
@@ -418,7 +418,7 @@ test('accepts exact bounded activity previews without replacing null or reorderi
 test('rejects activity completeness claims, leaked fields, malformed counts and missing summary metrics', async () => {
   const summary = activityPreview.summary;
   for (const change of [
-    { accepted: true }, { monitoring: 'running' }, { coverage: 'complete' }, { scope: 'codex_only' }, { verifiedIdentityKey: 'account' },
+    { accepted: false }, { monitoring: 'running' }, { coverage: 'complete' }, { scope: 'codex_only' }, { verifiedIdentityKey: 'account' },
     { accountId: 'private' }, { observedAtUtc: '2026-02-30T00:00:00.000Z' }, { summary: null },
     ...[undefined, 0, -1, '01', '-1', '1.0', '9223372036854775808', ' 1', '1\n'].map(lifetimeTokens => ({ summary: { ...summary, lifetimeTokens } })),
     { summary: { ...summary, rawPayload: 'private' } }, { summary: { ...summary, currentStreakDays: undefined } },
@@ -438,5 +438,37 @@ test('rejects oversized activity previews and invalid Gregorian days without tru
   ]) {
     desktopResponse({ ...activityPreview, dailyUsageBuckets });
     await assert.rejects(invoke('complete_profile_activity_read', activityArgs), /desktop response is incompatible/);
+  }
+});
+
+const savedActivity = (() => {
+  const { requestId, approvalId, dailyUsageBuckets, ...value } = activityPreview;
+  return { ...value, freshness: 'unknown', dailyState: 'returned', dailyTruncated: false, dailyUsageBuckets: dailyUsageBuckets.map(row => ({ date: row.startDate, tokens: row.tokens, observedAtUtc: value.observedAtUtc, freshness: 'stale' })) };
+})();
+
+test('accepts committed cached activity without approval fields and preserves daily cache independent of latest array state', async () => {
+  desktopResponse(null);
+  assert.equal(await invoke('load_profile_activity', { profileId: activityRequest.profileId }), null);
+  for (const dailyState of ['unavailable', 'empty', 'returned']) {
+    const value = { ...savedActivity, dailyState, summary: { ...savedActivity.summary, lifetimeTokens: null } };
+    desktopResponse(value);
+    assert.deepEqual(await invoke('load_profile_activity', { profileId: activityRequest.profileId }), value);
+  }
+});
+
+test('refuses malformed cached provenance, uncommitted results, guessed freshness and lossy cached totals', async () => {
+  for (const change of [
+    { accepted: false }, { collectionRunId: undefined }, { bindingId: 'not-a-uuid' }, { freshness: ['fresh'] }, { freshness: 'online' },
+    { sourceKind: ['test_fixture'] }, { dailyState: ['returned'] }, { dailyTruncated: 'false' }, { approvalId: activityRequest.approvalId },
+    { summary: { ...savedActivity.summary, lifetimeTokens: 9007199254740992 } },
+    ...[
+      { tokens: '9223372036854775808' }, { date: '2024-02-30' }, { date: '2024-02-29Z' }, { observedAtUtc: 'yesterday' },
+      { freshness: ['stale'] }, { freshness: 'current' }, { accountId: 'private' },
+    ].map(change => ({ dailyUsageBuckets: [{ ...savedActivity.dailyUsageBuckets[0], ...change }] })),
+    { dailyUsageBuckets: [savedActivity.dailyUsageBuckets[0], savedActivity.dailyUsageBuckets[0]] },
+    { dailyUsageBuckets: Array(4097).fill(savedActivity.dailyUsageBuckets[0]) },
+  ]) {
+    desktopResponse({ ...savedActivity, ...change });
+    await assert.rejects(invoke('load_profile_activity', { profileId: activityRequest.profileId }), /desktop response is incompatible/);
   }
 });
