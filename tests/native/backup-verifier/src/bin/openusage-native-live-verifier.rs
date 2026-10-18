@@ -187,6 +187,6 @@ fn main() {
     let shm_changed = fs::read(sidecar("-shm")).ok() != shm_before;
     println!(
         "{}",
-        json!({"verified":true,"readOnly":true,"schemaVersion":1,"exactStateMatched":true,"originalProtectedKeyUsed":true,"plaintextDiskStaging":false,"walUnchanged":wal_unchanged,"walRecordsUnchanged":true,"emptyWalSidecarCreated":empty_wal_created,"sharedMemoryMetadataChanged":shm_changed,"freshPrivateEmptyHomes":home_references.len(),"monitoringStopped":true})
+        json!({"verified":true,"readOnly":true,"schemaVersion":1,"exactStateMatched":true,"selectedSemanticFieldsMatched":true,"stateMatchScope":"Theme, account count, profile IDs, labels, archival flags, environment, and connection state. Not every column or timestamp.","encryptedPagesAuthenticated":true,"originalProtectedKeyUsed":true,"plaintextDiskStaging":false,"walUnchanged":wal_unchanged,"walRecordsUnchanged":true,"emptyWalSidecarCreated":empty_wal_created,"sharedMemoryMetadataChanged":shm_changed,"freshPrivateEmptyHomes":home_references.len(),"monitoringStopped":true})
     );
 }

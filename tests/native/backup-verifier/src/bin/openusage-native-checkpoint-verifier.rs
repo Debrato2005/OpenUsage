@@ -75,6 +75,13 @@ fn main() {
             .exists([])
             .expect("Cannot check relations.")
     );
+    assert!(
+        !database
+            .prepare("PRAGMA cipher_integrity_check")
+            .expect("Cannot authenticate checkpoint pages.")
+            .exists([])
+            .expect("Cannot authenticate checkpoint pages.")
+    );
     let theme: String = database
         .query_row("SELECT theme FROM settings WHERE id=1", [], |row| {
             row.get(0)
@@ -106,6 +113,7 @@ fn main() {
         );
     }
     println!(
-        "{{\"verified\":true,\"readOnly\":true,\"schemaVersion\":1,\"exactStateMatched\":true,\"originalProtectedKeyUsed\":true,\"plaintextDiskStaging\":false}}"
+        "{}",
+        json!({"verified":true,"readOnly":true,"schemaVersion":1,"exactStateMatched":true,"selectedSemanticFieldsMatched":true,"stateMatchScope":"Theme, account count, profile IDs, labels, archival flags, environment, and connection state. Not every column or timestamp.","originalProtectedKeyUsed":true,"plaintextDiskStaging":false,"encryptedPagesAuthenticated":true})
     );
 }
