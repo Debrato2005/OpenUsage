@@ -125,7 +125,7 @@ result = {'accountId': 'synthetic-private-account-id',
           'rateLimitsByLimitId': {'codex': codex, 'codex_other': other},
           'rateLimits': {'limitId': 'legacy-must-not-be-counted',
                          'primary': {'usedPercent': 99}},
-          'rateLimitResetCredits': {'syntheticPrivateCredit': 123}}
+          'rateLimitResetCredits': {'availableCount': 3, 'syntheticPrivateCredit': 123}}
 if selected == 'legacy':
     result['rateLimitsByLimitId'] = None
     result['rateLimits'] = {'limitId': 'returned-legacy', 'limitName': 'Synthetic legacy bucket',

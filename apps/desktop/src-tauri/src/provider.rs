@@ -77,7 +77,7 @@ fn reviewed_source(digest: &[u8; 32]) -> SourceProof {
         digest.as_str(),
         "91c56f02d6d020bcb9a29c69c00bb108c306f169849971b5c42dbcd085398080"
             | "25476e3759cbdc1cc74bcd9e46f4a01d1d85ea8ccc34425ddb45a38df27b9859"
-            | "cae93994fd4e64bc63f5c6ac82e973273ad7efbaf20f4055749d99c8c6cbf570"
+            | "0385e5877ffcb2c0979a1cc80aee2b21e8ff9aad8a8a75e9f93b0bd6f2269210"
     ) {
         return SourceProof {
             kind: ExecutableSourceKind::TestFixture,

@@ -146,6 +146,7 @@ export interface QuotaWindow {
 export interface ProfileQuotaPreview extends ProfileQuotaRequest {
   providerVersion: string; observedAtUtc: string;
   identityConfidence: 'provisional'; verifiedIdentityKey: null;
+  availableResetCredits: string | null;
   limits: { limitId: string; limitName: string | null; primary: QuotaWindow | null; secondary: QuotaWindow | null; reachedType: string | null }[];
 }
 
@@ -261,12 +262,16 @@ function isQuotaWindow(value: unknown): value is QuotaWindow | null {
     && (v.resetsAtUnix === null || (Number.isSafeInteger(v.resetsAtUnix) && Number(v.resetsAtUnix) >= -62135596800 && Number(v.resetsAtUnix) <= 253402300799))
     && quotaText(v.label, 128);
 }
+function isResetCreditCount(value: unknown): value is string | null {
+  return value === null || (typeof value === 'string' && value.trim() === value && /^(0|[1-9][0-9]{0,18})$/.test(value)
+    && (value.length < 19 || value <= '9223372036854775807'));
+}
 function isProfileQuotaPreview(value: unknown): value is ProfileQuotaPreview {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   const v = value as Record<string, unknown>;
-  if (Object.keys(v).some(key => !['profileId', 'requestId', 'approvalId', 'sourceKind', 'monitoring', 'accepted', 'providerVersion', 'observedAtUtc', 'identityConfidence', 'verifiedIdentityKey', 'limits'].includes(key))
+  if (Object.keys(v).some(key => !['profileId', 'requestId', 'approvalId', 'sourceKind', 'monitoring', 'accepted', 'providerVersion', 'observedAtUtc', 'identityConfidence', 'verifiedIdentityKey', 'availableResetCredits', 'limits'].includes(key))
     || !isQuotaBinding(v) || !quotaText(v.providerVersion, 80) || !isUtcTimestamp(v.observedAtUtc)
-    || v.identityConfidence !== 'provisional' || v.verifiedIdentityKey !== null || !Array.isArray(v.limits) || v.limits.length > 64) return false;
+    || v.identityConfidence !== 'provisional' || v.verifiedIdentityKey !== null || !isResetCreditCount(v.availableResetCredits) || !Array.isArray(v.limits) || v.limits.length > 64) return false;
   const ids = new Set<string>();
   return v.limits.every(value => {
     if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
