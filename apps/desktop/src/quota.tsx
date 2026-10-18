@@ -87,7 +87,7 @@ export function ProfileQuotaRead({ profileId, profileLabel, approval, busy, onAc
     pending.current = true;
     stopped.current = false;
     cancellationFailure.current = null;
-    setWorking(true); setOutcome(null); onActivity(true); onStarted();
+    setWorking(true); setOutcome(current => current?.kind === 'error' ? current : null); onActivity(true); onStarted();
     try {
       const begun = await invoke('begin_profile_quota_read', { profileId, approvalId: approval.approvalId });
       if (begun.profileId !== profileId || begun.approvalId !== approval.approvalId || begun.sourceKind !== approval.sourceKind) throw new Error('Incompatible quota binding.');
