@@ -43,7 +43,9 @@ async function liveHashes() {
   const result = {}; for (const path of [fixture.database, `${fixture.database}-wal`, join(dirname(fixture.database), 'database-key.v1')]) try { result[path] = await hash(path); } catch (error) { if (error.code !== 'ENOENT') throw error; } return result;
 }
 async function saved(value) {
+  try {
   await waitFor(async () => (await driver.invoke('bootstrap')).value?.theme === value && await driver.execute('const trigger=document.querySelector("#theme");return !trigger.disabled&&trigger.textContent.trim()===arguments[0]&&document.activeElement===trigger&&trigger.getAttribute("aria-expanded")==="false";', [{ system: 'System', light: 'Light', dark: 'Dark' }[value]]), `saved ${value} preference and trigger focus`);
+  } catch (error) { evidence.themeWaitFailure = { expected: value, bootstrap: await driver.invoke('bootstrap'), view: await driver.execute('const trigger=document.querySelector("#theme"),active=document.activeElement;return {triggerText:trigger.textContent.trim(),disabled:trigger.disabled,expanded:trigger.getAttribute("aria-expanded"),triggerFocused:active===trigger,documentFocused:document.hasFocus(),activeId:active?.id,activeTag:active?.tagName,activeRole:active?.getAttribute("role")};') }; throw error; }
   const expected = value === 'system' ? await driver.execute('return matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";') : value;
   assert.equal(await driver.execute('return document.documentElement.dataset.theme;'), expected);
 }
