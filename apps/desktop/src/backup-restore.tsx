@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { invoke, type RestorePreview, type RestoreReceipt } from './contracts';
+import { invoke, type CheckpointRestorePreview, type RestorePreview, type RestoreReceipt } from './contracts';
 
 type Props = { fileName: string; busy: boolean; setBusy: (busy: boolean) => void; onRestored: () => Promise<void> };
+type Source = { kind: 'archive'; fileName: string } | { kind: 'checkpoint'; checkpointId: string };
 type Failure = { message: string; password: boolean };
 
 function failureFor(error: unknown, applying = false): Failure {
@@ -11,12 +12,13 @@ function failureFor(error: unknown, applying = false): Failure {
     passphrase_too_long: 'Use a shorter backup password.',
     workspace_locked: 'Unlock your workspace before you prepare a preview.',
     backup_not_found: 'That backup is no longer available. Refresh the backup list.',
+    checkpoint_not_found: 'That checkpoint is no longer available. Refresh the checkpoint list.',
     backup_authentication_failed: 'OpenUsage could not authenticate this archive. Check the password and file.',
     invalid_backup: 'OpenUsage could not read this archive. Keep the backup file and inspect it again.',
     invalid_backup_contents: 'The database checks failed. Keep the backup file and inspect it again.',
     unsupported_backup_contents: 'This version cannot prepare a restore preview for these records.',
     insufficient_space: 'There is not enough free space to prepare this restore. Free space on the local drive, then try again.',
-    restore_checkpoint_failed: 'OpenUsage could not save a verified recovery checkpoint. Your current records stay unchanged.',
+    restore_checkpoint_failed: 'OpenUsage could not verify a recovery checkpoint. Keep your workspace files and prepare a new preview.',
     stale_restore_preview: 'Your workspace changed while the preview was prepared. Prepare a new preview.',
     restore_failed: 'OpenUsage could not restore these records. Prepare a new preview before you try again.',
     restore_home_unavailable: 'OpenUsage could not prepare private profile homes. Keep your workspace files, then prepare a new preview.',
@@ -31,10 +33,18 @@ function failureFor(error: unknown, applying = false): Failure {
   };
 }
 
-export function BackupRestorePreview({ fileName, busy, setBusy, onRestored }: Props) {
+export function BackupRestorePreview({ fileName, ...props }: Props) {
+  return <RestoreRecordsPreview {...props} source={{ kind: 'archive', fileName }} />;
+}
+
+export function CheckpointRestorePreviewPanel({ checkpointId, ...props }: Omit<Props, 'fileName'> & { checkpointId: string }) {
+  return <RestoreRecordsPreview {...props} source={{ kind: 'checkpoint', checkpointId }} />;
+}
+
+function RestoreRecordsPreview({ source, busy, setBusy, onRestored }: Omit<Props, 'fileName'> & { source: Source }) {
   const [open, setOpen] = useState(false);
   const [password, setPassword] = useState('');
-  const [preview, setPreview] = useState<RestorePreview | null>(null);
+  const [preview, setPreview] = useState<RestorePreview | CheckpointRestorePreview | null>(null);
   const [failure, setFailure] = useState<Failure | null>(null);
   const [preparing, setPreparing] = useState(false);
   const [restoring, setRestoring] = useState(false);
@@ -74,7 +84,7 @@ export function BackupRestorePreview({ fileName, busy, setBusy, onRestored }: Pr
     if (busy || pending.current) return;
     const entered = password;
     setPassword('');
-    if (!entered || new TextEncoder().encode(entered).length > 1024) {
+    if (source.kind === 'archive' && (!entered || new TextEncoder().encode(entered).length > 1024)) {
       setFailure(failureFor(entered ? 'passphrase_too_long' : 'invalid_passphrase'));
       setFocusTarget('password');
       return;
@@ -86,7 +96,9 @@ export function BackupRestorePreview({ fileName, busy, setBusy, onRestored }: Pr
     setConfirmed(false);
     setReceipt(null);
     try {
-      const result = await invoke('prepare_restore_preview', { fileName, password: entered });
+      const result = source.kind === 'archive'
+        ? await invoke('prepare_restore_preview', { fileName: source.fileName, password: entered })
+        : await invoke('prepare_checkpoint_restore_preview', { checkpointId: source.checkpointId });
       if (!alive.current) {
         await invoke('cancel_restore_preview', { previewId: result.previewId });
         return;
@@ -168,29 +180,33 @@ export function BackupRestorePreview({ fileName, busy, setBusy, onRestored }: Pr
   }
 
   return <section className="restore-preparation" aria-label="Restore application records" aria-busy={preparing || restoring}>
-    {!open && <button ref={toggle} type="button" className="secondary-button" disabled={busy} onClick={() => { setOpen(true); setFailure(null); setFocusTarget('password'); }}>Preview restore</button>}
+    {!open && <button ref={toggle} type="button" className="secondary-button" disabled={busy} onClick={() => {
+      setOpen(true); setFailure(null);
+      if (source.kind === 'archive') setFocusTarget('password');
+      else void prepare();
+    }}>{source.kind === 'archive' ? 'Preview restore' : 'Preview checkpoint'}</button>}
     {open && !preview && !receipt && <>
       <h4>Prepare a restore preview</h4>
-      <p className="restore-help">OpenUsage will check this backup and save an encrypted checkpoint of your current workspace before showing the preview.</p>
+      <p className="restore-help">OpenUsage will check the selected records and save an encrypted checkpoint of your current workspace before showing the preview.</p>
       <form className="unlock-form restore-preview-form" noValidate onSubmit={event => { event.preventDefault(); void prepare(); }}>
-        <label htmlFor="restore-preview-password">Backup password</label>
+        {source.kind === 'archive' && <><label htmlFor="restore-preview-password">Backup password</label>
         <input ref={passwordInput} id="restore-preview-password" name="restore-preview-password" type="password" autoComplete="current-password" required maxLength={1024} value={password} disabled={busy} aria-invalid={!!failure?.password} aria-describedby={`restore-preview-password-help${failure?.password ? ' restore-preview-error' : ''}`} onChange={event => { setPassword(event.target.value); if (failure?.password) setFailure(null); }} />
-        <p id="restore-preview-password-help">Enter the password used when this backup was created.</p>
+        <p id="restore-preview-password-help">Enter the password used when this backup was created.</p></>}
         <div className="restore-actions"><button className="primary-button" type="submit" disabled={busy}>{preparing ? 'Preparing preview…' : 'Prepare preview'}</button><button className="text-button" type="button" disabled={busy} onClick={() => { void close(); }}>Cancel</button></div>
       </form>
     </>}
-    {preview && <div ref={previewPanel} className="backup-receipt restore-preview" tabIndex={-1} role="region" aria-labelledby="restore-preview-title" data-preview-id={preview.previewId} data-checkpoint-id={preview.checkpoint.id}>
+    {preview && <div ref={previewPanel} className="backup-receipt restore-preview" tabIndex={-1} role="region" aria-labelledby="restore-preview-title" data-preview-id={preview.previewId} data-checkpoint-id={preview.checkpoint.id} data-source-checkpoint-id={'checkpointId' in preview ? preview.checkpointId : undefined}>
       <h4 id="restore-preview-title">Restore preview</h4>
-      <p className="restore-source"><bdi>{preview.fileName}</bdi></p>
-      <table className="restore-comparison" role="table"><caption>Records in the saved checkpoint and backup</caption><thead role="rowgroup"><tr role="row"><th scope="col" role="columnheader">Records</th><th scope="col" role="columnheader">Current</th><th scope="col" role="columnheader">Backup</th></tr></thead><tbody role="rowgroup">
+      <p className="restore-source"><bdi>{'fileName' in preview ? preview.fileName : `Checkpoint ${preview.checkpointId}`}</bdi></p>
+      <table className="restore-comparison" role="table"><caption>Current records and selected restore source</caption><thead role="rowgroup"><tr role="row"><th scope="col" role="columnheader">Records</th><th scope="col" role="columnheader">Current</th><th scope="col" role="columnheader">{source.kind === 'archive' ? 'Backup' : 'Checkpoint'}</th></tr></thead><tbody role="rowgroup">
         {[
           ['Active profiles', preview.current.activeProfiles, preview.incoming.activeProfiles],
           ['Archived profiles', preview.current.archivedProfiles, preview.incoming.archivedProfiles],
           ['Accounts', preview.current.accounts, preview.incoming.accounts],
-        ].map(([label, current, incoming]) => <tr key={label} role="row"><th scope="row" role="rowheader">{label}</th><td role="cell"><span className="comparison-label" aria-hidden="true">Current</span><span data-restore-count>{current}</span></td><td role="cell"><span className="comparison-label" aria-hidden="true">Backup</span><span data-restore-count>{incoming}</span></td></tr>)}
+        ].map(([label, current, incoming]) => <tr key={label} role="row"><th scope="row" role="rowheader">{label}</th><td role="cell"><span className="comparison-label" aria-hidden="true">Current</span><span data-restore-count>{current}</span></td><td role="cell"><span className="comparison-label" aria-hidden="true">{source.kind === 'archive' ? 'Backup' : 'Checkpoint'}</span><span data-restore-count>{incoming}</span></td></tr>)}
       </tbody></table>
       <p>Recovery checkpoint saved on this device with your workspace key.</p>
-      <p id="restore-replacement-help" className="restore-help">Restoring replaces your current application records and saved appearance. Monitoring will stay stopped. Imported profiles will need sign-in. OpenUsage will keep existing profile homes.</p>
+      <p id="restore-replacement-help" className="restore-help">Restoring replaces your current application records and saved appearance. Monitoring will stay stopped. Restored profiles will need sign-in. OpenUsage will keep existing profile homes.</p>
       <form className="restore-confirmation-form" onSubmit={event => { event.preventDefault(); void apply(); }}>
         <label className="backup-selection"><input id="restore-confirmed" name="restore-confirmed" type="checkbox" required checked={confirmed} disabled={busy} aria-describedby="restore-replacement-help" onChange={event => setConfirmed(event.target.checked)} />I approve replacing my current application records.</label>
         <div className="restore-actions"><button className="primary-button" type="submit" disabled={busy || !confirmed}>{restoring ? 'Restoring records…' : 'Restore records'}</button><button className="text-button" type="button" disabled={busy} onClick={() => { void close(); }}>Close preview</button></div>

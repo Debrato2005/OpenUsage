@@ -209,3 +209,43 @@ test('preview cancellation accepts already-closed state and rejects incompatible
     await assert.rejects(invoke('cancel_restore_preview', args), /desktop response is incompatible/);
   }
 });
+
+test('checkpoint catalogs reject unsafe IDs, false dates, and unexpected metadata', async () => {
+  const item = { id: '00000001-0000-4000-8000-000000000000', fileBytes: '12000000000', modifiedAt: '2026-10-18T04:00:00.123Z' };
+  for (const modifiedAt of [item.modifiedAt, null]) {
+    const list = { checkpoints: [{ ...item, modifiedAt }], truncated: false };
+    desktopResponse(list);
+    assert.deepEqual(await invoke('list_restore_checkpoints'), list);
+  }
+  for (const changes of [{ id: '../outside' }, { fileBytes: 123 }, { fileBytes: '0' },
+    { modifiedAt: '2026-02-30T04:00:00.123Z' }, { modifiedAt: '2026-10-18' },
+    { modifiedAt: undefined }, { path: '/private/checkpoint' }]) {
+    desktopResponse({ checkpoints: [{ ...item, ...changes }], truncated: false });
+    await assert.rejects(invoke('list_restore_checkpoints'), /desktop response is incompatible/);
+  }
+  for (const checkpoints of [[item, item], Array.from({ length: 101 }, () => item)]) {
+    desktopResponse({ checkpoints, truncated: true });
+    await assert.rejects(invoke('list_restore_checkpoints'), /desktop response is incompatible/);
+  }
+});
+
+test('checkpoint previews carry opaque source and recovery IDs without file paths', async () => {
+  const preview = {
+    checkpointId: '00000001-0000-4000-8000-000000000000',
+    previewId: '00000002-0000-4000-8000-000000000000',
+    current: { activeProfiles: 1, archivedProfiles: '1', accounts: '0' },
+    incoming: { activeProfiles: 3, archivedProfiles: '0', accounts: '0' },
+    checkpoint: { id: '00000003-0000-4000-8000-000000000000', fileBytes: '12288' },
+    restoreAvailable: true,
+  };
+  const args = { checkpointId: preview.checkpointId };
+  desktopResponse(preview);
+  assert.deepEqual(await invoke('prepare_checkpoint_restore_preview', args), preview);
+  for (const changes of [{ checkpointId: '../outside' }, { restoreAvailable: false },
+    { fileName: 'openusage-backup-0123456789abcdef.oubackup' },
+    { checkpoint: { ...preview.checkpoint, path: '/private' } },
+    { incoming: { ...preview.incoming, accounts: 0 } }]) {
+    desktopResponse({ ...preview, ...changes });
+    await assert.rejects(invoke('prepare_checkpoint_restore_preview', args), /desktop response is incompatible/);
+  }
+});
