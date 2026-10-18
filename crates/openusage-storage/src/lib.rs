@@ -9,9 +9,14 @@ pub use backup_validation::{
     BackupContentSummary, BackupValidationError, validate_backup_snapshot,
     validate_native_restore_snapshot,
 };
-pub use checkpoint::{CheckpointError, CheckpointMetadata};
+pub use checkpoint::{CheckpointError, CheckpointMetadata, CheckpointVerification};
 mod profiles;
 pub use profiles::{ProfileConnectionState, ProfileEnvironment, ProfileError, ProfileSummary};
+mod restore_apply;
+pub use restore_apply::{
+    CheckpointRestoreMetadata, RestoreError, RestoreHomeMapping, RestoreInputMetadata,
+    validate_checkpoint_restore_input, validate_restore_input,
+};
 mod restore_state;
 pub use restore_state::{RestoreState, StorageRevision};
 
@@ -134,7 +139,8 @@ impl Storage {
     fn connect(path: &Path, key: &[u8; 32]) -> Result<Self, StorageError> {
         let flags = OpenFlags::SQLITE_OPEN_READ_WRITE
             | OpenFlags::SQLITE_OPEN_NO_MUTEX
-            | OpenFlags::SQLITE_OPEN_NOFOLLOW;
+            | OpenFlags::SQLITE_OPEN_NOFOLLOW
+            | OpenFlags::SQLITE_OPEN_URI;
         let mut connection =
             Connection::open_with_flags(path, flags).map_err(|_| StorageError::OpenFailed)?;
 
