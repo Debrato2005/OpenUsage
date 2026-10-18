@@ -97,7 +97,7 @@ async function consentGui(profile, keyboard = false) {
   await waitFor(async () => await driver.execute('return Boolean(document.querySelector(arguments[0]));', [consentSelector(profile.id)]), 'selected-profile consent');
   const consent = await driver.execute('const form=document.querySelector(arguments[0]);return{text:form.textContent,focus:document.activeElement===form.querySelector("button[type=submit]"),checkboxes:form.querySelectorAll("input[type=checkbox]").length};', [consentSelector(profile.id)]);
   assert.match(consent.text, new RegExp(profile.label)); assert.match(consent.text, /OpenAI/); assert.match(consent.text, /credential/i); assert.equal(consent.focus, true); assert.equal(consent.checkboxes, 0); assert.equal((await observations()).length, before, 'Showing consent must not execute a provider.');
-  if (keyboard) { await key('\uE004'); assert.match(await driver.execute('return document.activeElement?.textContent.trim();'), /Cancel|Back/); await key('\uE004', true); assert.equal(await driver.execute('return document.activeElement?.textContent.trim();'), 'Get sign-in code'); await key('\uE007'); }
+  if (keyboard) { await capture('device-login-consent-dark-desktop.png',consentSelector(profile.id),1280,850);await capture('device-login-consent-dark-360.png',consentSelector(profile.id));assert.equal((await observations()).length,before);await key('\uE004'); assert.match(await driver.execute('return document.activeElement?.textContent.trim();'), /Cancel|Back/); await key('\uE004', true); assert.equal(await driver.execute('return document.activeElement?.textContent.trim();'), 'Get sign-in code'); await key('\uE007'); }
   else await driver.click(`${consentSelector(profile.id)} button[type=submit]`);
 }
 async function promptGui(profile) {
