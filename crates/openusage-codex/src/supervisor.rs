@@ -109,13 +109,22 @@ struct ExecutableIdentity {
 
 #[cfg(unix)]
 fn executable_identity(path: &Path) -> Result<ExecutableIdentity, SessionError> {
-    use std::os::unix::fs::MetadataExt;
     if !absolute_normal_path(path) {
         return Err(SessionError::InvalidExecutable);
     }
     let metadata = std::fs::symlink_metadata(path).map_err(|_| SessionError::InvalidExecutable)?;
-    if path.canonicalize().ok().as_deref() != Some(path)
-        || !metadata.is_file()
+    if path.canonicalize().ok().as_deref() != Some(path) {
+        return Err(SessionError::InvalidExecutable);
+    }
+    identity_from_metadata(&metadata)
+}
+
+#[cfg(unix)]
+fn identity_from_metadata(
+    metadata: &std::fs::Metadata,
+) -> Result<ExecutableIdentity, SessionError> {
+    use std::os::unix::fs::MetadataExt;
+    if !metadata.is_file()
         || metadata.file_type().is_symlink()
         || metadata.mode() & 0o111 == 0
         || metadata.mode() & 0o6022 != 0
@@ -140,6 +149,77 @@ pub struct ApprovedExecutable {
     review_reference: String,
     #[cfg(unix)]
     identity: ExecutableIdentity,
+    #[cfg(unix)]
+    pinned: Option<PinnedExecutable>,
+}
+
+#[cfg(unix)]
+#[derive(Clone)]
+struct PinnedExecutable {
+    file: Arc<std::fs::File>,
+    sha256: [u8; 32],
+}
+
+#[cfg(unix)]
+const MAX_APPROVED_EXECUTABLE_BYTES: u64 = 1024 * 1024 * 1024;
+
+#[cfg(unix)]
+fn hash_executable(
+    path: &Path,
+    file: &std::fs::File,
+) -> Result<([u8; 32], ExecutableIdentity), SessionError> {
+    use sha2::{Digest, Sha256};
+    use std::os::unix::fs::FileExt;
+    let before = executable_identity(path)?;
+    if !(1..=MAX_APPROVED_EXECUTABLE_BYTES).contains(&before.length)
+        || identity_from_metadata(
+            &file
+                .metadata()
+                .map_err(|_| SessionError::InvalidExecutable)?,
+        )? != before
+    {
+        return Err(SessionError::InvalidExecutable);
+    }
+    let mut digest = Sha256::new();
+    let mut buffer = [0_u8; 64 * 1024];
+    let mut offset = 0_u64;
+    while offset < before.length {
+        let available = usize::try_from((before.length - offset).min(buffer.len() as u64))
+            .map_err(|_| SessionError::InvalidExecutable)?;
+        let read = loop {
+            match file.read_at(&mut buffer[..available], offset) {
+                Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+                result => break result.map_err(|_| SessionError::InvalidExecutable)?,
+            }
+        };
+        if read == 0 {
+            return Err(SessionError::InvalidExecutable);
+        }
+        digest.update(&buffer[..read]);
+        offset = offset
+            .checked_add(read as u64)
+            .ok_or(SessionError::InvalidExecutable)?;
+    }
+    if executable_identity(path)? != before
+        || identity_from_metadata(
+            &file
+                .metadata()
+                .map_err(|_| SessionError::InvalidExecutable)?,
+        )? != before
+    {
+        return Err(SessionError::InvalidExecutable);
+    }
+    Ok((digest.finalize().into(), before))
+}
+
+fn validate_review_reference(review_reference: &str) -> Result<(), SupervisorError> {
+    if review_reference.len() > 1024
+        || review_reference.trim().is_empty()
+        || review_reference.chars().any(char::is_control)
+    {
+        return Err(SupervisorError::InvalidApproval);
+    }
+    Ok(())
 }
 
 impl ApprovedExecutable {
@@ -149,23 +229,58 @@ impl ApprovedExecutable {
         path: &Path,
         review_reference: &str,
     ) -> Result<Self, SupervisorError> {
-        if review_reference.len() > 1024
-            || review_reference.trim().is_empty()
-            || review_reference.chars().any(char::is_control)
-        {
-            return Err(SupervisorError::InvalidApproval);
-        }
+        validate_review_reference(review_reference)?;
         #[cfg(unix)]
         {
             Ok(Self {
                 path: path.to_owned(),
                 review_reference: review_reference.into(),
                 identity: executable_identity(path)?,
+                pinned: None,
             })
         }
         #[cfg(not(unix))]
         {
             let _ = path;
+            Err(SessionError::UnsupportedPlatform.into())
+        }
+    }
+
+    /// Bind a caller's explicit review to these executable bytes. A digest does not prove publisher authenticity.
+    /// The held descriptor and digest are checked again before each provider process starts.
+    pub fn from_reviewed_source_with_sha256(
+        path: &Path,
+        review_reference: &str,
+        expected: [u8; 32],
+    ) -> Result<Self, SupervisorError> {
+        validate_review_reference(review_reference)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            // Validate the path before opening so FIFOs and unsafe paths never reach a blocking open.
+            executable_identity(path)?;
+            let file = std::fs::OpenOptions::new()
+                .read(true)
+                .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK)
+                .open(path)
+                .map_err(|_| SessionError::InvalidExecutable)?;
+            let (sha256, identity) = hash_executable(path, &file)?;
+            if sha256 != expected {
+                return Err(SessionError::InvalidExecutable.into());
+            }
+            Ok(Self {
+                path: path.into(),
+                review_reference: review_reference.into(),
+                identity,
+                pinned: Some(PinnedExecutable {
+                    file: Arc::new(file),
+                    sha256: expected,
+                }),
+            })
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = (path, expected);
             Err(SessionError::UnsupportedPlatform.into())
         }
     }
@@ -178,6 +293,12 @@ impl ApprovedExecutable {
     fn recheck(&self) -> Result<(), SessionError> {
         if executable_identity(&self.path)? != self.identity {
             return Err(SessionError::InvalidExecutable);
+        }
+        if let Some(pinned) = &self.pinned {
+            let (digest, identity) = hash_executable(&self.path, &pinned.file)?;
+            if identity != self.identity || digest != pinned.sha256 {
+                return Err(SessionError::InvalidExecutable);
+            }
         }
         Ok(())
     }
@@ -991,6 +1112,168 @@ IFS= read -r request
                 .count(),
             1
         );
+    }
+
+    #[test]
+    fn digest_approval_rejects_wrong_bytes_and_retains_the_approved_inode() {
+        use sha2::{Digest, Sha256};
+        use std::io::{Seek, SeekFrom};
+        let fixture = Fixture::new(Mode::Success);
+        let path = &fixture.executable.path;
+        let original = fs::read(path).unwrap();
+        let expected: [u8; 32] = Sha256::digest(&original).into();
+        let mut wrong = expected;
+        wrong[0] ^= 1;
+        assert!(matches!(
+            ApprovedExecutable::from_reviewed_source_with_sha256(
+                path,
+                "Synthetic digest review.",
+                wrong
+            ),
+            Err(SupervisorError::Session(SessionError::InvalidExecutable))
+        ));
+        let approved = ApprovedExecutable::from_reviewed_source_with_sha256(
+            path,
+            "Synthetic digest review.",
+            expected,
+        )
+        .unwrap();
+        // File clones share a cursor. Hashing must use independent offsets, including concurrent jobs.
+        approved
+            .pinned
+            .as_ref()
+            .unwrap()
+            .file
+            .try_clone()
+            .unwrap()
+            .seek(SeekFrom::End(0))
+            .unwrap();
+        std::thread::scope(|scope| {
+            for _ in 0..2 {
+                let approved = approved.clone();
+                scope.spawn(move || {
+                    for _ in 0..8 {
+                        approved.recheck().unwrap();
+                    }
+                });
+            }
+        });
+        let mut changed = original.clone();
+        *changed.last_mut().unwrap() ^= 1;
+        fs::write(path, changed).unwrap();
+        let mut refreshed_metadata = approved.clone();
+        // Exercise the digest guard independently of stat changes. Public callers cannot change this fence.
+        refreshed_metadata.identity = executable_identity(path).unwrap();
+        assert_eq!(
+            refreshed_metadata.recheck(),
+            Err(SessionError::InvalidExecutable)
+        );
+        fs::write(path, &original).unwrap();
+        let reviewed_again = ApprovedExecutable::from_reviewed_source_with_sha256(
+            path,
+            "Synthetic second review.",
+            expected,
+        )
+        .unwrap();
+        let old = fixture.temporary.path().join("retained-original");
+        fs::rename(path, &old).unwrap();
+        fs::copy(&old, path).unwrap();
+        assert_eq!(
+            reviewed_again.recheck(),
+            Err(SessionError::InvalidExecutable)
+        );
+        assert_eq!(fs::read(&old).unwrap(), original);
+        assert!(
+            fs::read_dir(&fixture.homes[0].directory)
+                .unwrap()
+                .next()
+                .is_none()
+        );
+        let oversized = fixture
+            .temporary
+            .path()
+            .join("oversized-synthetic-provider");
+        let file = fs::File::create(&oversized).unwrap();
+        file.set_len(MAX_APPROVED_EXECUTABLE_BYTES + 1).unwrap();
+        fs::set_permissions(&oversized, fs::Permissions::from_mode(0o700)).unwrap();
+        assert!(
+            ApprovedExecutable::from_reviewed_source_with_sha256(
+                &oversized,
+                "Synthetic oversized review.",
+                expected
+            )
+            .is_err()
+        );
+        let linked = fixture.temporary.path().join("linked-approved-provider");
+        symlink(&old, &linked).unwrap();
+        assert!(
+            ApprovedExecutable::from_reviewed_source_with_sha256(
+                &linked,
+                "Synthetic linked review.",
+                expected
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn digest_approval_checks_both_spawn_boundaries_and_supports_two_owned_checks() {
+        use sha2::{Digest, Sha256};
+        let fixture = Fixture::new(Mode::Success);
+        let original = fs::read_to_string(&fixture.executable.path).unwrap();
+        let script = original.replace("  printf 'codex-cli 0.163.0\\n'", "  printf '# changed after the version process started\\n' >> \"$0\"\n  printf 'codex-cli 0.163.0\\n'");
+        assert_ne!(script, original);
+        fs::write(&fixture.executable.path, &script).unwrap();
+        let approved = ApprovedExecutable::from_reviewed_source_with_sha256(
+            &fixture.executable.path,
+            "Synthetic self-changing fixture review.",
+            Sha256::digest(script.as_bytes()).into(),
+        )
+        .unwrap();
+        let supervisor = Supervisor::new();
+        assert!(matches!(
+            supervisor
+                .start_check(&approved, &fixture.homes[0])
+                .unwrap()
+                .wait(),
+            Err(SupervisorError::Session(SessionError::InvalidExecutable))
+        ));
+        assert!(
+            fs::read_to_string(&fixture.executable.path)
+                .unwrap()
+                .ends_with("# changed after the version process started\n")
+        );
+        assert!(
+            fs::read_dir(&fixture.homes[0].directory)
+                .unwrap()
+                .next()
+                .is_none(),
+            "No app-server process or runtime home may survive the failed second fence."
+        );
+        supervisor.shutdown().unwrap();
+
+        let fixture = Fixture::new(Mode::Success);
+        let mut script = fs::read(&fixture.executable.path).unwrap();
+        script.extend_from_slice(format!("\n#{}\n", "x".repeat(3 * 64 * 1024)).as_bytes());
+        fs::write(&fixture.executable.path, &script).unwrap();
+        let approved = ApprovedExecutable::from_reviewed_source_with_sha256(
+            &fixture.executable.path,
+            "Synthetic multi-chunk concurrent review.",
+            Sha256::digest(&script).into(),
+        )
+        .unwrap();
+        let supervisor = Supervisor::new();
+        let first = supervisor
+            .start_check(&approved, &fixture.homes[0])
+            .unwrap();
+        let second = supervisor
+            .start_check(&approved, &fixture.homes[1])
+            .unwrap();
+        for result in [first.wait().unwrap(), second.wait().unwrap()] {
+            assert!(result.account.requires_openai_auth);
+            gone(result.process_id as libc::pid_t);
+        }
+        supervisor.shutdown().unwrap();
     }
 
     #[test]
