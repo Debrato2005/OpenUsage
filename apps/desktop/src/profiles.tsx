@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
 import { Field, FieldLabel } from './components/ui/field';
+import { Collapsible, CollapsibleTrigger, CollapsiblePanel } from './components/ui/collapsible';
+import './profile-actions.css';
 import { invoke, type ProfileRecord, type ProfileView, type ProviderExecutableApproval } from './contracts';
 import { ProfileProviderCheck } from './provider';
 
@@ -20,7 +22,7 @@ type Failure = {
 };
 
 type FocusTarget = 'create' | 'rename' | 'error'
-  | { id: string; action: 'rename' | 'archive' | 'restore' };
+  | { id: string; action: 'options' | 'rename' | 'restore' };
 
 
 function invalidLabel(value: string): boolean {
@@ -48,6 +50,7 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval }: Pro
   const [saving, setSaving] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [label, setLabel] = useState('');
+  const [managed, setManaged] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ id: string; label: string } | null>(null);
   const [failure, setFailure] = useState<Failure | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -143,7 +146,8 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval }: Pro
     void change(() => invoke('rename_profile', { id: current.id, label: current.label.trim() }), { target: 'rename', id: current.id }, next => {
       setEditing(null);
       setStatus(`Profile renamed. ${next.activeProfiles} of 10 active.`);
-      setFocusTarget({ id: current.id, action: 'rename' });
+      setManaged(null);
+      setFocusTarget({ id: current.id, action: next.profiles.find(profile => profile.id === current.id)?.archived ? 'rename' : 'options' });
     });
   }
 
@@ -152,11 +156,12 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval }: Pro
     const index = active.findIndex(item => item.id === profile.id);
     void change(() => invoke('set_profile_archived', { id: profile.id, archived: !profile.archived }), { target: 'row', id: profile.id }, next => {
       setStatus(`Profile ${profile.archived ? 'restored' : 'archived'}. ${next.activeProfiles} of 10 active.`);
-      if (profile.archived) setFocusTarget({ id: profile.id, action: 'rename' });
+      setManaged(null);
+      if (profile.archived) setFocusTarget({ id: profile.id, action: 'options' });
       else {
         const remaining = next.profiles.filter(item => !item.archived);
         const adjacent = remaining[Math.min(Math.max(index, 0), remaining.length - 1)];
-        setFocusTarget(adjacent ? { id: adjacent.id, action: 'archive' } : 'create');
+        setFocusTarget(adjacent ? { id: adjacent.id, action: 'options' } : 'create');
       }
     });
   }
@@ -169,20 +174,23 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval }: Pro
     const current = editing?.id === profile.id;
     const rowError = failure?.id === profile.id;
     const nameId = `profile-name-${profile.id}`;
-    return <li className="profile-row" data-profile-id={profile.id} key={profile.id}>
+    const managementActions = current ? <Field className="profile-rename-form" render={<form onSubmit={event => { event.preventDefault(); rename(); }} />}>
+      <FieldLabel htmlFor={`profile-label-${profile.id}`}>New profile label</FieldLabel>
+      <Input ref={renameInput} id={`profile-label-${profile.id}`} name="profile-label" autoComplete="off" maxLength={1024} disabled={busy || loading} value={editing.label} aria-invalid={rowError && !!failure?.invalidLabel} aria-describedby={rowError ? 'profiles-error' : undefined} onChange={event => { setEditing({ id: profile.id, label: event.target.value }); setFailure(null); }} />
+      <div className="profile-actions"><Button className="primary-button" type="submit" disabled={busy || loading}>Save</Button><Button className="secondary-button" variant="outline" type="button" disabled={busy || loading} onClick={() => { setEditing(null); setManaged(null); setFailure(null); setFocusTarget({ id: profile.id, action: profile.archived ? 'rename' : 'options' }); }}>Cancel rename</Button></div>
+      {rowError && error()}
+    </Field> : <div className="profile-actions">
+      <Button className="text-button" variant="ghost" type="button" data-profile-action="rename" aria-label="Rename profile" aria-describedby={nameId} disabled={busy || loading} onClick={() => { setManaged(profile.id); setEditing({ id: profile.id, label: profile.label }); setFailure(null); setFocusTarget('rename'); }}>Rename</Button>
+      <Button className="text-button" variant="ghost" type="button" data-profile-action={profile.archived ? 'restore' : 'archive'} aria-label={profile.archived ? 'Restore profile' : 'Archive profile'} aria-describedby={nameId} disabled={busy || loading} onClick={() => archive(profile)}>{profile.archived ? 'Restore' : 'Archive'}</Button>
+    </div>;
+    const managementTrigger = <CollapsibleTrigger render={<Button variant="ghost" className="text-button" />} type="button" data-profile-action="options" aria-describedby={nameId} disabled={busy || loading || current}>Manage profile</CollapsibleTrigger>;
+    return <Collapsible render={<li />} className="profile-row" data-profile-id={profile.id} key={profile.id} open={managed === profile.id || current} onOpenChange={open => setManaged(open ? profile.id : null)}>
       <div className="profile-details"><bdi id={nameId} className="profile-label">{profile.label}</bdi><p className="profile-meta">{profile.environment === 'native' ? 'On this device' : 'WSL profile'}</p></div>
-      {current ? <Field className="profile-rename-form" render={<form onSubmit={event => { event.preventDefault(); rename(); }} />}>
-        <FieldLabel htmlFor={`profile-label-${profile.id}`}>New profile label</FieldLabel>
-        <Input ref={renameInput} id={`profile-label-${profile.id}`} name="profile-label" autoComplete="off" maxLength={1024} disabled={busy || loading} value={editing.label} aria-invalid={rowError && !!failure?.invalidLabel} aria-describedby={rowError ? 'profiles-error' : undefined} onChange={event => { setEditing({ id: profile.id, label: event.target.value }); setFailure(null); }} />
-        <div className="profile-actions"><Button className="primary-button" type="submit" disabled={busy || loading}>Save</Button><Button className="secondary-button" variant="outline" type="button" disabled={busy || loading} onClick={() => { setEditing(null); setFailure(null); setFocusTarget({ id: profile.id, action: 'rename' }); }}>Cancel rename</Button></div>
-        {rowError && error()}
-      </Field> : <div className="profile-actions">
-        <Button className="secondary-button" variant="outline" type="button" data-profile-action="rename" aria-label="Rename profile" aria-describedby={nameId} disabled={busy || loading} onClick={() => { setEditing({ id: profile.id, label: profile.label }); setFailure(null); setFocusTarget('rename'); }}>Rename</Button>
-        <Button className="secondary-button" variant="outline" type="button" data-profile-action={profile.archived ? 'restore' : 'archive'} aria-label={profile.archived ? 'Restore profile' : 'Archive profile'} aria-describedby={nameId} disabled={busy || loading} onClick={() => archive(profile)}>{profile.archived ? 'Restore' : 'Archive'}</Button>
-      </div>}
-      {!profile.archived && providerApproval && <ProfileProviderCheck key={`${profile.id}:${providerApproval.approvalId}`} profileId={profile.id} profileLabel={profile.label} approval={providerApproval} busy={busy || loading || current} />}
+      {profile.archived ? managementActions : providerApproval
+        ? <ProfileProviderCheck key={`${profile.id}:${providerApproval.approvalId}`} profileId={profile.id} profileLabel={profile.label} approval={providerApproval} busy={busy || loading || current} managementActions={managementActions} managementTrigger={managementTrigger} />
+        : <>{managementTrigger}<CollapsiblePanel keepMounted className="profile-management">{managementActions}</CollapsiblePanel></>}
       {rowError && !current && error()}
-    </li>;
+    </Collapsible>;
   }
 
   const active = view?.profiles.filter(profile => !profile.archived) ?? [];
@@ -202,7 +210,7 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval }: Pro
       </Field>
       {active.length ? <ul className="profile-list" aria-label="Active profiles">{active.map(row)}</ul> : <p className="profile-empty">No active profiles. Create a profile or restore an archived one.</p>}
       {archived.length > 0 && <details className="archived-profiles"><summary>Archived profiles ({archived.length})</summary><p>Archived profiles keep their local data.</p><ul className="profile-list" aria-label="Archived profiles">{archived.map(row)}</ul></details>}
-      <p className="profile-meta">Sign in to a profile, then preview its quota readings. Scheduled collection is not available yet.</p>
+      <p className="profile-meta">{providerApproval ? 'Sign in to a profile, then preview its quota readings. Scheduled collection is not available yet.' : 'Review Codex in Codex connection to enable sign-in and quota previews.'}</p>
     </>}
   </section>;
 }

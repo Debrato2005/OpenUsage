@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
 import { Checkbox } from './components/ui/checkbox';
 import { Radio, RadioGroup } from './components/ui/radio-group';
 import { Field, FieldLabel, FieldDescription, FieldItem } from './components/ui/field';
+import { CollapsiblePanel } from './components/ui/collapsible';
 import { providerFailure } from './provider-errors';
 import { ProfileQuotaRead } from './quota';
 import { ProfileDeviceLogin } from './login';
@@ -153,7 +154,7 @@ export function ProviderSettings({ busy, setBusy, approval, onApproved }: Settin
   </section>;
 }
 
-export function ProfileProviderCheck({ profileId, profileLabel, approval, busy }: { profileId: string; profileLabel: string; approval: ProviderExecutableApproval; busy: boolean }) {
+export function ProfileProviderCheck({ profileId, profileLabel, approval, busy, managementActions, managementTrigger }: { profileId: string; profileLabel: string; approval: ProviderExecutableApproval; busy: boolean; managementActions: ReactNode; managementTrigger: ReactNode }) {
   const [checking, setChecking] = useState(false);
   const [loggingIn, setLoggingIn] = useState(false);
   const [readingQuota, setReadingQuota] = useState(false);
@@ -201,11 +202,15 @@ export function ProfileProviderCheck({ profileId, profileLabel, approval, busy }
   const title = diagnostic?.authentication === 'authentication_required' ? 'Sign-in required'
     : diagnostic?.authentication === 'chatgpt' ? 'Account response received' : 'Account type not supported';
   return <div className="profile-provider-check">
-    <div className="profile-actions"><Button className="secondary-button" variant="outline" type="button" data-provider-check={profileId} aria-describedby={`profile-name-${profileId}`} disabled={busy || checking || loggingIn || readingQuota} onClick={() => { void check(); }}>{checking ? 'Checking connection…' : 'Check connection'}</Button>
-      {checking && <Button className="text-button" variant="ghost" type="button" data-provider-cancel={profileId} aria-describedby={`profile-name-${profileId}`} disabled={cancelling} onClick={() => { void cancel(); }}>{cancelling ? 'Cancelling…' : 'Cancel check'}</Button>}
-    </div>
+    {checking && <div className="profile-actions"><span role="status">Checking connection…</span><Button className="text-button" variant="ghost" type="button" data-provider-cancel={profileId} aria-describedby={`profile-name-${profileId}`} disabled={cancelling} onClick={() => { void cancel(); }}>{cancelling ? 'Cancelling…' : 'Cancel check'}</Button></div>}
     <ProfileDeviceLogin key={`login:${loginGeneration}`} profileId={profileId} profileLabel={profileLabel} approval={approval} busy={busy || checking || readingQuota} onActivity={setLoggingIn} onStarted={() => { checkGeneration.current += 1; setDiagnostic(null); setError(null); setQuotaGeneration(value => value + 1); }} />
-    <ProfileQuotaRead key={`quota:${quotaGeneration}`} profileId={profileId} profileLabel={profileLabel} approval={approval} busy={busy || checking || loggingIn} onActivity={setReadingQuota} onStarted={() => { checkGeneration.current += 1; setDiagnostic(null); setError(null); setLoginGeneration(value => value + 1); }} />
+    <ProfileQuotaRead key={`quota:${quotaGeneration}`} profileId={profileId} profileLabel={profileLabel} approval={approval} busy={busy || checking || loggingIn} onActivity={setReadingQuota} onStarted={() => { checkGeneration.current += 1; setDiagnostic(null); setError(null); setLoginGeneration(value => value + 1); }} actionSiblings={<>
+      {managementTrigger}
+      <CollapsiblePanel keepMounted className="profile-management">
+        {managementActions}
+        <Button className="text-button" variant="ghost" type="button" data-provider-check={profileId} aria-describedby={`profile-name-${profileId}`} disabled={busy || checking || loggingIn || readingQuota} onClick={() => { void check(); }}>Check connection</Button>
+      </CollapsiblePanel>
+    </>} />
     {(diagnostic || error) && <div ref={result} className="provider-diagnostic" data-provider-profile={profileId} tabIndex={-1} role={error ? 'alert' : 'status'}>
       {error ? <p>{error}</p> : diagnostic && <>{diagnostic.sourceKind === 'test_fixture' && <p className="provider-fixture-note" data-provider-fixture>Synthetic provider fixture</p>}<p><strong>{title}</strong></p><p>{diagnostic.authentication === 'authentication_required'
         ? 'Codex reported no authorized account in this profile. Choose Sign in to connect this profile.'
