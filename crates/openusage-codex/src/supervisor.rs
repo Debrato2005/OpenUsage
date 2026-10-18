@@ -107,15 +107,47 @@ struct ExecutableIdentity {
     changed: (i64, i64),
 }
 
+/// Check the executable pathname's ancestors without reading or executing its contents.
+/// This policy does not approve a source or establish publisher authenticity.
+pub fn validate_executable_source_path(path: &Path) -> Result<(), SupervisorError> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        if !absolute_normal_path(path) || path.canonicalize().ok().as_deref() != Some(path) {
+            return Err(SessionError::InvalidExecutable.into());
+        }
+        // An unmapped UID must remain untrusted. Never treat the namespace overflow UID as root.
+        let effective_uid = unsafe { libc::geteuid() };
+        let trusted_owner = |uid| uid == 0 || uid == effective_uid;
+        let mut child = path;
+        for ancestor in path.ancestors().skip(1) {
+            let parent =
+                std::fs::symlink_metadata(ancestor).map_err(|_| SessionError::InvalidExecutable)?;
+            if !parent.is_dir() || parent.file_type().is_symlink() || !trusted_owner(parent.uid()) {
+                return Err(SessionError::InvalidExecutable.into());
+            }
+            if parent.mode() & 0o022 != 0 {
+                let child_metadata = std::fs::symlink_metadata(child)
+                    .map_err(|_| SessionError::InvalidExecutable)?;
+                if parent.mode() & 0o1000 == 0 || !trusted_owner(child_metadata.uid()) {
+                    return Err(SessionError::InvalidExecutable.into());
+                }
+            }
+            child = ancestor;
+        }
+        Ok(())
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = path;
+        Err(SessionError::UnsupportedPlatform.into())
+    }
+}
+
 #[cfg(unix)]
 fn executable_identity(path: &Path) -> Result<ExecutableIdentity, SessionError> {
-    if !absolute_normal_path(path) {
-        return Err(SessionError::InvalidExecutable);
-    }
+    validate_executable_source_path(path).map_err(|_| SessionError::InvalidExecutable)?;
     let metadata = std::fs::symlink_metadata(path).map_err(|_| SessionError::InvalidExecutable)?;
-    if path.canonicalize().ok().as_deref() != Some(path) {
-        return Err(SessionError::InvalidExecutable);
-    }
     identity_from_metadata(&metadata)
 }
 
@@ -1115,6 +1147,29 @@ IFS= read -r request
     }
 
     #[test]
+    fn source_path_policy_refuses_an_unmapped_root_owner() {
+        use std::os::unix::fs::MetadataExt;
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("nonexecuted-synthetic-source");
+        fs::write(&path, b"synthetic metadata only").unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o700)).unwrap();
+        let root_uid = fs::metadata("/").unwrap().uid();
+        let effective_uid = unsafe { libc::geteuid() };
+        let result = validate_executable_source_path(&path);
+        if root_uid != 0 && root_uid != effective_uid {
+            assert!(matches!(
+                result,
+                Err(SupervisorError::Session(SessionError::InvalidExecutable))
+            ));
+            println!(
+                "Ancestor policy refused unmapped filesystem-root owner {root_uid} for effective UID {effective_uid}."
+            );
+        } else {
+            result.unwrap();
+        }
+    }
+
+    #[test]
     fn digest_approval_rejects_wrong_bytes_and_retains_the_approved_inode() {
         use sha2::{Digest, Sha256};
         use std::io::{Seek, SeekFrom};
@@ -1189,6 +1244,48 @@ IFS= read -r request
                 .next()
                 .is_none()
         );
+        let unsafe_parent = fixture.temporary.path().join("replaceable-ancestor");
+        fs::DirBuilder::new()
+            .mode(0o700)
+            .create(&unsafe_parent)
+            .unwrap();
+        let nested = unsafe_parent.join("reviewed-provider");
+        fs::copy(&old, &nested).unwrap();
+        let nested_approval = ApprovedExecutable::from_reviewed_source_with_sha256(
+            &nested,
+            "Synthetic ancestor review.",
+            expected,
+        )
+        .unwrap();
+        fs::set_permissions(&unsafe_parent, fs::Permissions::from_mode(0o770)).unwrap();
+        assert!(
+            ApprovedExecutable::from_reviewed_source_with_sha256(
+                &nested,
+                "Synthetic permissive ancestor review.",
+                expected
+            )
+            .is_err()
+        );
+        let supervisor = Supervisor::new();
+        assert!(matches!(
+            supervisor
+                .start_check(&nested_approval, &fixture.homes[0])
+                .unwrap()
+                .wait(),
+            Err(SupervisorError::Session(SessionError::InvalidExecutable))
+        ));
+        assert!(
+            fs::read_dir(&fixture.homes[0].directory)
+                .unwrap()
+                .next()
+                .is_none(),
+            "A writable ancestor must fail before either provider process starts."
+        );
+        supervisor.shutdown().unwrap();
+        // A sticky directory protects its immediately owned child, including standard /tmp fixtures.
+        fs::set_permissions(&unsafe_parent, fs::Permissions::from_mode(0o1777)).unwrap();
+        validate_executable_source_path(&nested).unwrap();
+        fs::set_permissions(&unsafe_parent, fs::Permissions::from_mode(0o700)).unwrap();
         let oversized = fixture
             .temporary
             .path()
