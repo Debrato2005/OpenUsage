@@ -73,6 +73,12 @@ struct ApplyRestoreArgs {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CheckpointPreviewArgs {
+    checkpoint_id: String,
+}
+
+#[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ThemeArgs {
     theme: ThemeChoice,
@@ -467,6 +473,47 @@ async fn apply_restore(
     .map_err(|_| CommandError::RestoreFailed)?
 }
 
+#[tauri::command]
+async fn list_restore_checkpoints(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<restore::CheckpointList, CommandError> {
+    let _: ListProfilesArgs = arguments(&request)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = service
+            .lock()
+            .map_err(|_| CommandError::RestoreCheckpointFailed)?;
+        state
+            .as_ref()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .list_restore_checkpoints()
+    })
+    .await
+    .map_err(|_| CommandError::RestoreCheckpointFailed)?
+}
+
+#[tauri::command]
+async fn prepare_checkpoint_restore_preview(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<restore::CheckpointRestorePreview, CommandError> {
+    let args: CheckpointPreviewArgs = arguments(&request)?;
+    restore::validate_preview_id(&args.checkpoint_id)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut state = service
+            .lock()
+            .map_err(|_| CommandError::RestoreCheckpointFailed)?;
+        state
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .prepare_checkpoint_restore_preview(&args.checkpoint_id)
+    })
+    .await
+    .map_err(|_| CommandError::RestoreCheckpointFailed)?
+}
+
 fn is_bundled_url(url: &tauri::Url) -> bool {
     url.username().is_empty()
         && url.password().is_none()
@@ -492,7 +539,9 @@ fn main() {
             inspect_backup,
             prepare_restore_preview,
             cancel_restore_preview,
-            apply_restore
+            apply_restore,
+            list_restore_checkpoints,
+            prepare_checkpoint_restore_preview
         ])
         .setup(|app| {
             let window = &app.config().app.windows[0];
@@ -515,12 +564,20 @@ fn main() {
 mod tests {
     use super::{
         ApplyRestoreArgs, ArchiveProfileArgs, BackupArgs, CancelRestorePreviewArgs,
-        CreateProfileArgs, InspectBackupArgs, ListProfilesArgs, RenameProfileArgs, SetupArgs,
-        ThemeArgs, UnlockArgs, is_bundled_url,
+        CheckpointPreviewArgs, CreateProfileArgs, InspectBackupArgs, ListProfilesArgs,
+        RenameProfileArgs, SetupArgs, ThemeArgs, UnlockArgs, is_bundled_url,
     };
 
     #[test]
     fn storage_commands_reject_unexpected_fields_and_incorrect_value_types() {
+        for invalid in [
+            r#"{}"#,
+            r#"{"checkpointId":null}"#,
+            r#"{"checkpointId":"synthetic","path":"/external"}"#,
+            r#"{"checkpointId":"synthetic","password":"unnecessary"}"#,
+        ] {
+            assert!(serde_json::from_str::<CheckpointPreviewArgs>(invalid).is_err());
+        }
         for invalid in [
             r#"{}"#,
             r#"{"previewId":"synthetic"}"#,

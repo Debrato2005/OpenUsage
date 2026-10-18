@@ -20,6 +20,8 @@
     "allow-inspect-backup",
     "allow-prepare-restore-preview",
     "allow-cancel-restore-preview",
-    "allow-apply-restore"
+    "allow-apply-restore",
+    "allow-list-restore-checkpoints",
+    "allow-prepare-checkpoint-restore-preview"
   ]
 }

@@ -485,6 +485,27 @@ impl Workspace {
         self.restore_preview.install(prepared)
     }
 
+    pub fn list_restore_checkpoints(&self) -> Result<restore::CheckpointList, CommandError> {
+        self.storage.as_ref().ok_or(CommandError::WorkspaceLocked)?;
+        restore::list_checkpoints(&self.directory)
+    }
+
+    pub fn prepare_checkpoint_restore_preview(
+        &mut self,
+        id: &str,
+    ) -> Result<restore::CheckpointRestorePreview, CommandError> {
+        restore::validate_preview_id(id)?;
+        self.restore_preview.require_open()?;
+        self.restore_preview.clear();
+        let storage = self.storage.as_mut().ok_or(CommandError::WorkspaceLocked)?;
+        let prepared = restore::prepare_checkpoint(storage, &self.directory, id)?;
+        let preview = self.restore_preview.install(prepared)?;
+        Ok(restore::CheckpointRestorePreview::from_preview(
+            id.into(),
+            preview,
+        ))
+    }
+
     pub fn apply_restore(
         &mut self,
         id: &str,
