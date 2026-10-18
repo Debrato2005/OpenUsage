@@ -10,7 +10,7 @@ type Outcome = { kind: 'error' | 'cancelled'; message: string } | { kind: 'previ
 const labels = { lifetimeTokens: 'Lifetime tokens', peakDailyTokens: 'Peak daily tokens', currentStreakDays: 'Current streak (days)', longestStreakDays: 'Longest streak (days)', longestRunningTurnSec: 'Longest turn (seconds)' };
 const observedDate = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' });
 function Metric({ name, value }: { name: keyof typeof labels; value: string | null }) {
-  return <div><dt>{labels[name]}</dt><dd data-activity-metric={name} className="activity-count" tabIndex={0} aria-label={labels[name]}><bdi>{value ?? 'Not supplied'}</bdi></dd></div>;
+  return <div><dt>{labels[name]}</dt><dd data-activity-metric={name} className="activity-count" tabIndex={0} aria-label={labels[name]}><bdi>{value ?? 'Not available'}</bdi></dd></div>;
 }
 function ActivityValues({ value }: { value: ProfileActivityPreview }) {
   const [page, setPage] = useState(0);
@@ -24,7 +24,7 @@ function ActivityValues({ value }: { value: ProfileActivityPreview }) {
         <dl className="activity-summary activity-secondary">{(['longestRunningTurnSec', 'longestStreakDays'] as const).map(name => <Metric key={name} name={name} value={value.summary[name]} />)}</dl>
         <h4>Returned daily usage</h4>
         <p className="provider-help">Dates are shown as returned. Missing dates do not mean zero usage.</p>
-        {buckets === null ? <p data-activity-daily-state="unavailable">Daily usage was not supplied.</p> : buckets.length === 0 ? <p data-activity-daily-state="empty">No daily rows were returned.</p> : <>
+        {buckets === null ? <p data-activity-daily-state="unavailable">Daily usage is not available.</p> : buckets.length === 0 ? <p data-activity-daily-state="empty">No daily rows were returned.</p> : <>
           <ol className="activity-days" aria-label="Returned daily usage">{buckets.slice(start, start + 50).map((row, index) => <li data-activity-day key={start + index}><time dateTime={row.startDate}>{row.startDate}</time><span className="activity-count" tabIndex={0} aria-label={`Tokens for ${row.startDate}`}><bdi>{row.tokens}</bdi></span></li>)}</ol>
           {buckets.length > 50 && <nav className="activity-pagination" aria-label="Daily usage pages"><p role="status">Rows {start + 1}–{Math.min(start + 50, buckets.length)} of {buckets.length} returned</p><Button type="button" variant="outline" disabled={page === 0} onClick={() => setPage(current => current - 1)}>Previous</Button><Button type="button" variant="outline" disabled={start + 50 >= buckets.length} onClick={() => setPage(current => current + 1)}>Next</Button></nav>}
         </>}

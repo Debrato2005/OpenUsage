@@ -63,7 +63,7 @@ test('renderer fixture keeps activity running outside Manage and pages exact ret
   const rows = Array.from({ length: 51 }, (_, index) => ({ startDate: index === 0 ? '2024-02-29' : new Date(Date.UTC(2023, 0, index)).toISOString().slice(0, 10), tokens: index === 0 ? '9223372036854775807' : '0' }));
   await resolvePreview(page, 0, rows);
   await expect(page.locator('[data-activity-metric=lifetimeTokens]')).toHaveText('9223372036854775807');
-  await expect(page.locator('[data-activity-metric=currentStreakDays]')).toHaveText('Not supplied');
+  await expect(page.locator('[data-activity-metric=currentStreakDays]')).toHaveText('Not available');
   await expect(page.getByText('Account activity; application scope and coverage are unknown. Monitoring is stopped.')).toBeVisible();
   await expect(page.locator('[data-activity-day]')).toHaveCount(0);
   await page.getByRole('button', { name: 'Activity details', exact: true }).click();
@@ -95,7 +95,7 @@ test('renderer fixture isolates an old cancel failure from the successor activit
 test('renderer fixture distinguishes missing daily activity and refuses incompatible completion data', async ({ page }) => {
   await openProfile(page); await begin(page, 0); await resolvePreview(page, 0, null);
   await page.getByRole('button', { name: 'Activity details', exact: true }).click();
-  await expect(page.locator('[data-activity-daily-state=unavailable]')).toHaveText('Daily usage was not supplied.');
+  await expect(page.locator('[data-activity-daily-state=unavailable]')).toHaveText('Daily usage is not available.');
   await expect(page.getByRole('navigation', { name: 'Daily usage pages' })).toHaveCount(0);
   await begin(page, 1);
   await page.evaluate(({ id, value }) => { (window as unknown as FixtureWindow).activityFixture.completions[id]!.resolve({ ...value, coverage: 'complete', accountId: 'private' }); }, { id: requestIds[1]!, value: preview(requestIds[1]!, []) });
