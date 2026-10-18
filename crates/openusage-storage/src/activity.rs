@@ -160,48 +160,12 @@ impl Storage {
         &mut self,
         input: ActivityBindingInput,
     ) -> Result<ActivityBinding> {
-        require_uuid(&input.profile_id)?;
-        require_uuid(&input.expected_home_reference)?;
-        require_uuid(&input.new_binding_id)?;
-        if let Some(id) = &input.expected_previous_binding_id {
-            require_uuid(id)?;
-        }
-        validate_evidence(&input.evidence)?;
-        require(activity_utc_timestamp(&input.observed_at_utc))?;
+        validate_association(&input)?;
         let tx = self
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(write_error)?;
-        require_profile(&tx, &input.profile_id, &input.expected_home_reference)?;
-        let previous: Option<String> = tx
-            .query_row(
-                "SELECT binding_id FROM current_activity WHERE profile_id=?1",
-                [&input.profile_id],
-                |r| r.get(0),
-            )
-            .optional()
-            .map_err(read_error)?;
-        if previous != input.expected_previous_binding_id {
-            return Err(ActivityError::BindingChanged);
-        }
-        if tx
-            .query_row(
-                "SELECT EXISTS(SELECT 1 FROM profile_identity_events WHERE id=?1)",
-                [&input.new_binding_id],
-                |r| r.get::<_, bool>(0),
-            )
-            .map_err(read_error)?
-        {
-            return Err(ActivityError::BindingChanged);
-        }
-        tx.execute("INSERT INTO profile_identity_events(id,profile_id,home_reference,previous_binding_id,returned_email,returned_plan,identity_confidence,verified_identity_key,observed_at_utc) VALUES (?1,?2,?3,?4,?5,?6,'provisional',NULL,?7)", params![input.new_binding_id,input.profile_id,input.expected_home_reference,previous,input.evidence.email,input.evidence.plan,input.observed_at_utc]).map_err(write_error)?;
-        // Current rows are a replaceable cache. Their complete accepted observations stay in history.
-        tx.execute(
-            "DELETE FROM current_activity_days WHERE profile_id=?1",
-            [&input.profile_id],
-        )
-        .map_err(write_error)?;
-        tx.execute("INSERT INTO current_activity(profile_id,binding_id,summary_id,collection_run_id,created_at_utc,updated_at_utc) VALUES (?1,?2,NULL,NULL,?3,?3) ON CONFLICT(profile_id) DO UPDATE SET binding_id=excluded.binding_id,summary_id=NULL,collection_run_id=NULL,updated_at_utc=excluded.updated_at_utc", params![input.profile_id,input.new_binding_id,input.observed_at_utc]).map_err(write_error)?;
+        associate_in_transaction(&tx, &input)?;
         tx.commit().map_err(write_error)?;
         Ok(ActivityBinding {
             profile_id: input.profile_id,
@@ -211,64 +175,42 @@ impl Storage {
     }
 
     /// The native coordinator holds request/source/generation and physical-home fences through COMMIT.
-    /// This transaction compares only the selected profile, so another profile's commit is harmless.
+    /// Another profile's commit does not invalidate this selected profile's association.
     pub fn accept_activity(&mut self, reading: ActivityReading) -> Result<ActivityCommit> {
+        self.accept_activity_with_binding(reading, None)
+    }
+
+    /// Atomically associate an explicitly approved account description and accept its first reading.
+    /// No new binding, cleared cache, or partial observation survives a failed acceptance.
+    pub fn accept_activity_with_binding(
+        &mut self,
+        reading: ActivityReading,
+        association: Option<ActivityBindingInput>,
+    ) -> Result<ActivityCommit> {
         validate_reading(&reading)?;
+        if let Some(input) = &association {
+            validate_association(input)?;
+            require(
+                input.profile_id == reading.binding.profile_id
+                    && input.expected_home_reference == reading.binding.home_reference
+                    && input.new_binding_id == reading.binding.binding_id
+                    && input.evidence == reading.identity_evidence
+                    && input.observed_at_utc == reading.observed_at_utc,
+            )?;
+        }
         let tx = self
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(write_error)?;
-        require_profile(
-            &tx,
-            &reading.binding.profile_id,
-            &reading.binding.home_reference,
-        )?;
-        let current: Option<(String,String,Option<String>,String)> = tx.query_row("SELECT c.binding_id,e.returned_email,e.returned_plan,e.home_reference FROM current_activity c JOIN profile_identity_events e ON e.id=c.binding_id AND e.profile_id=c.profile_id WHERE c.profile_id=?1", [&reading.binding.profile_id], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).optional().map_err(read_error)?;
-        let Some((binding, email, plan, home)) = current else {
-            return Err(ActivityError::BindingChanged);
-        };
-        if binding != reading.binding.binding_id || home != reading.binding.home_reference {
-            return Err(ActivityError::BindingChanged);
+        if let Some(input) = &association {
+            require_profile(&tx, &input.profile_id, &input.expected_home_reference)?;
+            // Check before association clears the current pointer; a new binding cannot bypass freshness.
+            require_new_reading(&tx, &reading)?;
+            associate_in_transaction(&tx, input)?;
         }
-        if email != reading.identity_evidence.email || plan != reading.identity_evidence.plan {
-            return Err(ActivityError::IdentityChanged);
-        }
-        if tx
-            .query_row(
-                "SELECT EXISTS(SELECT 1 FROM collection_runs WHERE id=?1)",
-                [&reading.run_id],
-                |r| r.get::<_, bool>(0),
-            )
-            .map_err(read_error)?
-        {
-            return Err(ActivityError::AlreadyAccepted);
-        }
-        let latest: Option<String> = tx.query_row("SELECT r.observed_at_utc FROM current_activity c JOIN collection_runs r ON r.id=c.collection_run_id WHERE c.profile_id=?1", [&reading.binding.profile_id], |r| r.get(0)).optional().map_err(read_error)?;
-        if latest.is_some_and(|value| value > reading.observed_at_utc) {
-            return Err(ActivityError::StaleObservation);
-        }
-        tx.execute("INSERT INTO collection_runs(id,profile_id,binding_id,started_at_utc,completed_at_utc,observed_at_utc,source_method,provider_version,source_kind,source_scope,raw_scope,normalized_unit,coverage,identity_confidence,verified_identity_key,outcome) VALUES (?1,?2,?3,?4,?5,?6,'account/usage/read',?7,?8,'account_activity_with_unknown_application_scope',NULL,'tokens','unknown','provisional',NULL,'accepted')",params![reading.run_id,reading.binding.profile_id,reading.binding.binding_id,reading.started_at_utc,reading.completed_at_utc,reading.observed_at_utc,reading.provider_version,reading.source_kind.as_str()]).map_err(write_error)?;
-        let daily_state = match &reading.daily_usage {
-            None => "unavailable",
-            Some(rows) if rows.is_empty() => "empty",
-            Some(_) => "returned",
-        };
-        let s = &reading.summary;
-        tx.execute("INSERT INTO activity_summaries(id,profile_id,binding_id,collection_run_id,lifetime_tokens,peak_daily_tokens,longest_running_turn_sec,current_streak_days,longest_streak_days,daily_state) VALUES (?1,?2,?3,?1,?4,?5,?6,?7,?8,?9)",params![reading.run_id,reading.binding.profile_id,reading.binding.binding_id,s.lifetime_tokens,s.peak_daily_tokens,s.longest_running_turn_sec,s.current_streak_days,s.longest_streak_days,daily_state]).map_err(write_error)?;
-        for day in reading.daily_usage.iter().flatten() {
-            let previous: Option<String> = tx.query_row("SELECT tokens FROM current_activity_days WHERE profile_id=?1 AND provider_date=?2 AND source_scope=?3",params![reading.binding.profile_id,day.provider_date,ACTIVITY_SOURCE_SCOPE], |r| r.get(0)).optional().map_err(read_error)?;
-            tx.execute("INSERT INTO activity_day_history(id,profile_id,provider_date,source_scope,binding_id,collection_run_id,prior_tokens,accepted_tokens,observed_at_utc) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)",params![new_uuid()?,reading.binding.profile_id,day.provider_date,ACTIVITY_SOURCE_SCOPE,reading.binding.binding_id,reading.run_id,previous,day.tokens,reading.observed_at_utc]).map_err(write_error)?;
-            tx.execute("INSERT INTO current_activity_days(profile_id,provider_date,source_scope,binding_id,collection_run_id,tokens,observed_at_utc,created_at_utc,updated_at_utc) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?8) ON CONFLICT(profile_id,provider_date,source_scope) DO UPDATE SET binding_id=excluded.binding_id,collection_run_id=excluded.collection_run_id,tokens=excluded.tokens,observed_at_utc=excluded.observed_at_utc,updated_at_utc=excluded.updated_at_utc",params![reading.binding.profile_id,day.provider_date,ACTIVITY_SOURCE_SCOPE,reading.binding.binding_id,reading.run_id,day.tokens,reading.observed_at_utc,reading.completed_at_utc]).map_err(write_error)?;
-        }
-        tx.execute("UPDATE current_activity SET summary_id=?1,collection_run_id=?1,updated_at_utc=?2 WHERE profile_id=?3",params![reading.run_id,reading.completed_at_utc,reading.binding.profile_id]).map_err(write_error)?;
+        let commit = accept_in_transaction(&tx, reading)?;
         tx.commit().map_err(write_error)?;
-        Ok(ActivityCommit {
-            profile_id: reading.binding.profile_id,
-            binding_id: reading.binding.binding_id,
-            collection_run_id: reading.run_id.clone(),
-            snapshot_id: reading.run_id,
-            observed_at_utc: reading.observed_at_utc,
-        })
+        Ok(commit)
     }
 
     pub fn current_activity(&self, profile_id: &str) -> Result<Option<StoredActivity>> {
@@ -346,6 +288,110 @@ impl Storage {
         rows.truncate(maximum_rows);
         Ok(ActivityDayPage { rows, truncated })
     }
+}
+
+fn validate_association(input: &ActivityBindingInput) -> Result<()> {
+    require_uuid(&input.profile_id)?;
+    require_uuid(&input.expected_home_reference)?;
+    require_uuid(&input.new_binding_id)?;
+    if let Some(id) = &input.expected_previous_binding_id {
+        require_uuid(id)?;
+    }
+    validate_evidence(&input.evidence)?;
+    require(activity_utc_timestamp(&input.observed_at_utc))?;
+    Ok(())
+}
+
+fn associate_in_transaction(tx: &Connection, input: &ActivityBindingInput) -> Result<()> {
+    require_profile(tx, &input.profile_id, &input.expected_home_reference)?;
+    let previous: Option<String> = tx
+        .query_row(
+            "SELECT binding_id FROM current_activity WHERE profile_id=?1",
+            [&input.profile_id],
+            |r| r.get(0),
+        )
+        .optional()
+        .map_err(read_error)?;
+    if previous != input.expected_previous_binding_id {
+        return Err(ActivityError::BindingChanged);
+    }
+    if tx
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM profile_identity_events WHERE id=?1)",
+            [&input.new_binding_id],
+            |r| r.get::<_, bool>(0),
+        )
+        .map_err(read_error)?
+    {
+        return Err(ActivityError::BindingChanged);
+    }
+    tx.execute("INSERT INTO profile_identity_events(id,profile_id,home_reference,previous_binding_id,returned_email,returned_plan,identity_confidence,verified_identity_key,observed_at_utc) VALUES (?1,?2,?3,?4,?5,?6,'provisional',NULL,?7)", params![input.new_binding_id,input.profile_id,input.expected_home_reference,previous,input.evidence.email,input.evidence.plan,input.observed_at_utc]).map_err(write_error)?;
+    // Current rows are a replaceable cache. Their complete accepted observations stay in history.
+    tx.execute(
+        "DELETE FROM current_activity_days WHERE profile_id=?1",
+        [&input.profile_id],
+    )
+    .map_err(write_error)?;
+    tx.execute("INSERT INTO current_activity(profile_id,binding_id,summary_id,collection_run_id,created_at_utc,updated_at_utc) VALUES (?1,?2,NULL,NULL,?3,?3) ON CONFLICT(profile_id) DO UPDATE SET binding_id=excluded.binding_id,summary_id=NULL,collection_run_id=NULL,updated_at_utc=excluded.updated_at_utc", params![input.profile_id,input.new_binding_id,input.observed_at_utc]).map_err(write_error)?;
+    Ok(())
+}
+
+fn require_new_reading(tx: &Connection, reading: &ActivityReading) -> Result<()> {
+    if tx
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM collection_runs WHERE id=?1)",
+            [&reading.run_id],
+            |r| r.get::<_, bool>(0),
+        )
+        .map_err(read_error)?
+    {
+        return Err(ActivityError::AlreadyAccepted);
+    }
+    let latest: Option<String> = tx.query_row("SELECT r.observed_at_utc FROM current_activity c JOIN collection_runs r ON r.id=c.collection_run_id WHERE c.profile_id=?1", [&reading.binding.profile_id], |r| r.get(0)).optional().map_err(read_error)?;
+    if latest.is_some_and(|value| value > reading.observed_at_utc) {
+        return Err(ActivityError::StaleObservation);
+    }
+    Ok(())
+}
+
+fn accept_in_transaction(tx: &Connection, reading: ActivityReading) -> Result<ActivityCommit> {
+    require_profile(
+        tx,
+        &reading.binding.profile_id,
+        &reading.binding.home_reference,
+    )?;
+    let current: Option<(String,String,Option<String>,String)> = tx.query_row("SELECT c.binding_id,e.returned_email,e.returned_plan,e.home_reference FROM current_activity c JOIN profile_identity_events e ON e.id=c.binding_id AND e.profile_id=c.profile_id WHERE c.profile_id=?1", [&reading.binding.profile_id], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).optional().map_err(read_error)?;
+    let Some((binding, email, plan, home)) = current else {
+        return Err(ActivityError::BindingChanged);
+    };
+    if binding != reading.binding.binding_id || home != reading.binding.home_reference {
+        return Err(ActivityError::BindingChanged);
+    }
+    if email != reading.identity_evidence.email || plan != reading.identity_evidence.plan {
+        return Err(ActivityError::IdentityChanged);
+    }
+    require_new_reading(tx, &reading)?;
+    tx.execute("INSERT INTO collection_runs(id,profile_id,binding_id,started_at_utc,completed_at_utc,observed_at_utc,source_method,provider_version,source_kind,source_scope,raw_scope,normalized_unit,coverage,identity_confidence,verified_identity_key,outcome) VALUES (?1,?2,?3,?4,?5,?6,'account/usage/read',?7,?8,'account_activity_with_unknown_application_scope',NULL,'tokens','unknown','provisional',NULL,'accepted')",params![reading.run_id,reading.binding.profile_id,reading.binding.binding_id,reading.started_at_utc,reading.completed_at_utc,reading.observed_at_utc,reading.provider_version,reading.source_kind.as_str()]).map_err(write_error)?;
+    let daily_state = match &reading.daily_usage {
+        None => "unavailable",
+        Some(rows) if rows.is_empty() => "empty",
+        Some(_) => "returned",
+    };
+    let s = &reading.summary;
+    tx.execute("INSERT INTO activity_summaries(id,profile_id,binding_id,collection_run_id,lifetime_tokens,peak_daily_tokens,longest_running_turn_sec,current_streak_days,longest_streak_days,daily_state) VALUES (?1,?2,?3,?1,?4,?5,?6,?7,?8,?9)",params![reading.run_id,reading.binding.profile_id,reading.binding.binding_id,s.lifetime_tokens,s.peak_daily_tokens,s.longest_running_turn_sec,s.current_streak_days,s.longest_streak_days,daily_state]).map_err(write_error)?;
+    for day in reading.daily_usage.iter().flatten() {
+        let previous: Option<String> = tx.query_row("SELECT tokens FROM current_activity_days WHERE profile_id=?1 AND provider_date=?2 AND source_scope=?3",params![reading.binding.profile_id,day.provider_date,ACTIVITY_SOURCE_SCOPE], |r| r.get(0)).optional().map_err(read_error)?;
+        tx.execute("INSERT INTO activity_day_history(id,profile_id,provider_date,source_scope,binding_id,collection_run_id,prior_tokens,accepted_tokens,observed_at_utc) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)",params![new_uuid()?,reading.binding.profile_id,day.provider_date,ACTIVITY_SOURCE_SCOPE,reading.binding.binding_id,reading.run_id,previous,day.tokens,reading.observed_at_utc]).map_err(write_error)?;
+        tx.execute("INSERT INTO current_activity_days(profile_id,provider_date,source_scope,binding_id,collection_run_id,tokens,observed_at_utc,created_at_utc,updated_at_utc) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?8) ON CONFLICT(profile_id,provider_date,source_scope) DO UPDATE SET binding_id=excluded.binding_id,collection_run_id=excluded.collection_run_id,tokens=excluded.tokens,observed_at_utc=excluded.observed_at_utc,updated_at_utc=excluded.updated_at_utc",params![reading.binding.profile_id,day.provider_date,ACTIVITY_SOURCE_SCOPE,reading.binding.binding_id,reading.run_id,day.tokens,reading.observed_at_utc,reading.completed_at_utc]).map_err(write_error)?;
+    }
+    tx.execute("UPDATE current_activity SET summary_id=?1,collection_run_id=?1,updated_at_utc=?2 WHERE profile_id=?3",params![reading.run_id,reading.completed_at_utc,reading.binding.profile_id]).map_err(write_error)?;
+    Ok(ActivityCommit {
+        profile_id: reading.binding.profile_id,
+        binding_id: reading.binding.binding_id,
+        collection_run_id: reading.run_id.clone(),
+        snapshot_id: reading.run_id,
+        observed_at_utc: reading.observed_at_utc,
+    })
 }
 
 fn require_profile(connection: &Connection, id: &str, home: &str) -> Result<()> {
@@ -553,6 +599,307 @@ mod tests {
     }
     fn counts(storage: &Storage) -> (i64, i64, i64, i64) {
         storage.connection.query_row("SELECT (SELECT count(*) FROM collection_runs),(SELECT count(*) FROM activity_summaries),(SELECT count(*) FROM current_activity_days),(SELECT count(*) FROM activity_day_history)",[],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).unwrap()
+    }
+
+    fn association(reading: &ActivityReading, previous: Option<&str>) -> ActivityBindingInput {
+        ActivityBindingInput {
+            profile_id: reading.binding.profile_id.clone(),
+            expected_home_reference: reading.binding.home_reference.clone(),
+            expected_previous_binding_id: previous.map(str::to_string),
+            new_binding_id: reading.binding.binding_id.clone(),
+            evidence: reading.identity_evidence.clone(),
+            observed_at_utc: reading.observed_at_utc.clone(),
+        }
+    }
+
+    fn all_activity_records(storage: &Storage) -> Vec<Vec<Vec<rusqlite::types::Value>>> {
+        [
+            ("profile_identity_events", "id"),
+            ("collection_runs", "id"),
+            ("activity_summaries", "id"),
+            ("current_activity", "profile_id"),
+            (
+                "current_activity_days",
+                "profile_id,provider_date,source_scope",
+            ),
+            ("activity_day_history", "id"),
+        ]
+        .into_iter()
+        .map(|(table, order)| {
+            let mut statement = storage
+                .connection
+                .prepare(&format!("SELECT * FROM {table} ORDER BY {order}"))
+                .unwrap();
+            let columns = statement.column_count();
+            statement
+                .query_map([], |row| (0..columns).map(|index| row.get(index)).collect())
+                .unwrap()
+                .collect::<rusqlite::Result<Vec<_>>>()
+                .unwrap()
+        })
+        .collect()
+    }
+
+    #[test]
+    fn activity_atomic_first_association_rolls_back_every_record_then_accepts_and_reopens() {
+        let directory = crate::tests::private_directory();
+        let path = directory.path().join("atomic.db");
+        let mut storage = Storage::create(&path, &KEY).unwrap();
+        storage
+            .create_profile(PROFILE, "First atomic profile", HOME)
+            .unwrap();
+        let binding = ActivityBinding {
+            profile_id: PROFILE.into(),
+            home_reference: HOME.into(),
+            binding_id: BINDING.into(),
+        };
+        let first = reading(&binding, 1, TIME);
+        let baseline = all_activity_records(&storage);
+        storage.connection.execute_batch("CREATE TRIGGER fail_atomic BEFORE INSERT ON activity_day_history BEGIN SELECT RAISE(ABORT,'synthetic first acceptance failure'); END;").unwrap();
+        assert_eq!(
+            storage.accept_activity_with_binding(first.clone(), Some(association(&first, None))),
+            Err(ActivityError::WriteFailed)
+        );
+        assert_eq!(all_activity_records(&storage), baseline);
+        assert_eq!(storage.activity_binding(PROFILE).unwrap(), None);
+        assert_eq!(storage.current_activity(PROFILE).unwrap(), None);
+        storage
+            .connection
+            .execute_batch("DROP TRIGGER fail_atomic")
+            .unwrap();
+        let commit = storage
+            .accept_activity_with_binding(first.clone(), Some(association(&first, None)))
+            .unwrap();
+        assert_eq!(commit.binding_id, BINDING);
+        assert_eq!(counts(&storage), (1, 1, 2, 2));
+        let accepted = all_activity_records(&storage);
+        drop(storage);
+        let mut reopened = Storage::open(&path, &KEY).unwrap();
+        assert_eq!(all_activity_records(&reopened), accepted);
+        assert_eq!(
+            reopened.accept_activity_with_binding(first.clone(), Some(association(&first, None))),
+            Err(ActivityError::AlreadyAccepted)
+        );
+        assert_eq!(all_activity_records(&reopened), accepted);
+    }
+
+    #[test]
+    fn activity_atomic_reassociation_faults_restore_all_six_tables_at_every_write_stage() {
+        let (_directory, mut storage, binding) = setup();
+        storage
+            .accept_activity(reading(&binding, 1, LATER))
+            .unwrap();
+        // Model the fresh mapping after an approved archive restore. Historical home stays old.
+        storage
+            .connection
+            .execute(
+                "UPDATE profiles SET approved_home_reference=?1 WHERE id=?2",
+                params![OTHER_HOME, PROFILE],
+            )
+            .unwrap();
+        let next_binding = ActivityBinding {
+            profile_id: PROFILE.into(),
+            home_reference: OTHER_HOME.into(),
+            binding_id: NEXT_BINDING.into(),
+        };
+        let mut next = reading(&next_binding, 2, LAST);
+        next.identity_evidence.email = "new-synthetic@example.invalid".into();
+        let baseline = all_activity_records(&storage);
+        for stage in [
+            "INSERT ON profile_identity_events",
+            "DELETE ON current_activity_days",
+            "UPDATE ON current_activity WHEN NEW.summary_id IS NULL",
+            "INSERT ON collection_runs",
+            "INSERT ON activity_summaries",
+            "INSERT ON activity_day_history",
+            "INSERT ON current_activity_days",
+            "UPDATE ON current_activity WHEN NEW.summary_id IS NOT NULL",
+        ] {
+            storage.connection.execute_batch(&format!("CREATE TRIGGER fail_atomic BEFORE {stage} BEGIN SELECT RAISE(ABORT,'synthetic reassociation failure'); END;")).unwrap();
+            assert_eq!(
+                storage.accept_activity_with_binding(
+                    next.clone(),
+                    Some(association(&next, Some(BINDING)))
+                ),
+                Err(ActivityError::WriteFailed),
+                "Fault stage: {stage}"
+            );
+            assert_eq!(
+                all_activity_records(&storage),
+                baseline,
+                "Rollback stage: {stage}"
+            );
+            storage
+                .connection
+                .execute_batch("DROP TRIGGER fail_atomic")
+                .unwrap();
+        }
+        assert_eq!(storage.activity_binding(PROFILE).unwrap(), Some(binding));
+    }
+
+    #[test]
+    fn activity_atomic_reassociation_preserves_old_evidence_and_history_and_replaces_only_cache() {
+        let (_directory, mut storage, binding) = setup();
+        storage.accept_activity(reading(&binding, 1, TIME)).unwrap();
+        storage
+            .create_profile(OTHER, "Unchanged other profile", OTHER_HOME)
+            .unwrap();
+        let other = associate(
+            &mut storage,
+            OTHER,
+            OTHER_HOME,
+            "30000000-0000-4000-8000-000000000003",
+            None,
+        );
+        storage.accept_activity(reading(&other, 3, TIME)).unwrap();
+        let old = all_activity_records(&storage);
+        let next_binding = ActivityBinding {
+            binding_id: NEXT_BINDING.into(),
+            ..binding.clone()
+        };
+        let mut next = reading(&next_binding, 2, LATER);
+        next.identity_evidence.email = "new-synthetic@example.invalid".into();
+        next.identity_evidence.plan = Some("different descriptive plan".into());
+        next.daily_usage = Some(vec![ActivityDayValue {
+            provider_date: "2024-03-02".into(),
+            tokens: "7".into(),
+        }]);
+        let commit = storage
+            .accept_activity_with_binding(next.clone(), Some(association(&next, Some(BINDING))))
+            .unwrap();
+        assert_eq!(commit.binding_id, NEXT_BINDING);
+        let now = all_activity_records(&storage);
+        for index in [0, 1, 2, 5] {
+            for row in &old[index] {
+                assert!(
+                    now[index].contains(row),
+                    "Immutable table {index} lost an old field."
+                );
+            }
+        }
+        let all_days = storage
+            .activity_days(PROFILE, "2024-02-29", "2024-03-02", 10)
+            .unwrap();
+        assert_eq!(all_days.rows.len(), 1);
+        assert_eq!(all_days.rows[0].value, next.daily_usage.unwrap()[0]);
+        let prior: Option<String> = storage
+            .connection
+            .query_row(
+                "SELECT prior_tokens FROM activity_day_history WHERE collection_run_id=?1",
+                [commit.collection_run_id],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(prior, None);
+        let other_profile = |records: &Vec<Vec<Vec<rusqlite::types::Value>>>| {
+            records
+                .iter()
+                .map(|rows| {
+                    rows.iter()
+                        .filter(|row| row.contains(&rusqlite::types::Value::Text(OTHER.into())))
+                        .cloned()
+                        .collect::<Vec<_>>()
+                })
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(other_profile(&now), other_profile(&old));
+        let evidence_rows:Vec<(String,Option<String>)>=storage.connection.prepare("SELECT identity_confidence,verified_identity_key FROM profile_identity_events WHERE profile_id=?1").unwrap().query_map([PROFILE],|r|Ok((r.get(0)?,r.get(1)?))).unwrap().collect::<rusqlite::Result<_>>().unwrap();
+        assert_eq!(
+            evidence_rows,
+            vec![("provisional".into(), None), ("provisional".into(), None)]
+        );
+        assert_eq!(
+            storage
+                .connection
+                .query_row("SELECT count(*) FROM accounts", [], |r| r.get::<_, i64>(0))
+                .unwrap(),
+            0
+        );
+    }
+
+    #[test]
+    fn activity_atomic_header_cas_replay_and_stale_guards_leave_every_record_unchanged() {
+        let (_directory, mut storage, binding) = setup();
+        storage
+            .accept_activity(reading(&binding, 1, LATER))
+            .unwrap();
+        let next_binding = ActivityBinding {
+            binding_id: NEXT_BINDING.into(),
+            ..binding.clone()
+        };
+        let next = reading(&next_binding, 2, LAST);
+        let baseline = all_activity_records(&storage);
+        for mismatch in 0..6 {
+            let mut input = association(&next, Some(BINDING));
+            match mismatch {
+                0 => input.profile_id = OTHER.into(),
+                1 => input.expected_home_reference = OTHER_HOME.into(),
+                2 => input.new_binding_id = HOME.into(),
+                3 => input.evidence.email = "mismatch@example.invalid".into(),
+                4 => input.evidence.plan = None,
+                _ => input.observed_at_utc = LATER.into(),
+            }
+            assert_eq!(
+                storage.accept_activity_with_binding(next.clone(), Some(input)),
+                Err(ActivityError::InvalidInput)
+            );
+            assert_eq!(all_activity_records(&storage), baseline);
+        }
+        for previous in [None, Some(NEXT_BINDING)] {
+            assert_eq!(
+                storage
+                    .accept_activity_with_binding(next.clone(), Some(association(&next, previous))),
+                Err(ActivityError::BindingChanged)
+            );
+            assert_eq!(all_activity_records(&storage), baseline);
+        }
+        let replay = reading(&next_binding, 1, LAST);
+        assert_eq!(
+            storage.accept_activity_with_binding(
+                replay.clone(),
+                Some(association(&replay, Some(BINDING)))
+            ),
+            Err(ActivityError::AlreadyAccepted)
+        );
+        let stale = reading(&next_binding, 2, TIME);
+        assert_eq!(
+            storage.accept_activity_with_binding(
+                stale.clone(),
+                Some(association(&stale, Some(BINDING)))
+            ),
+            Err(ActivityError::StaleObservation)
+        );
+        assert_eq!(all_activity_records(&storage), baseline);
+        let cross_profile = ActivityBinding {
+            profile_id: OTHER.into(),
+            home_reference: OTHER_HOME.into(),
+            binding_id: NEXT_BINDING.into(),
+        };
+        storage
+            .create_profile(OTHER, "Separate profile", OTHER_HOME)
+            .unwrap();
+        let other_reading = reading(&cross_profile, 2, LAST);
+        assert_eq!(
+            storage.accept_activity_with_binding(
+                other_reading.clone(),
+                Some(association(&other_reading, Some(BINDING)))
+            ),
+            Err(ActivityError::BindingChanged)
+        );
+        assert_eq!(all_activity_records(&storage), baseline);
+        let wrong_home = ActivityBinding {
+            home_reference: HOME.into(),
+            ..cross_profile
+        };
+        let wrong_home_reading = reading(&wrong_home, 2, LAST);
+        assert_eq!(
+            storage.accept_activity_with_binding(
+                wrong_home_reading.clone(),
+                Some(association(&wrong_home_reading, None))
+            ),
+            Err(ActivityError::ProfileUnavailable)
+        );
+        assert_eq!(all_activity_records(&storage), baseline);
     }
 
     #[test]
