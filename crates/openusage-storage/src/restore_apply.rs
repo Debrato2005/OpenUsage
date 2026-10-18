@@ -237,7 +237,10 @@ fn copy_rows(source: &Connection, target: &Connection, select: &str, insert: &st
         .map_err(|_| RestoreError::WriteFailed)?;
     while let Some(row) = rows.next().map_err(|_| RestoreError::InvalidBackup)? {
         let values = (0..columns)
-            .map(|index| row.get_ref(index))
+            .map(|index| {
+                row.get_ref(index)
+                    .map(rusqlite::types::ToSqlOutput::Borrowed)
+            })
             .collect::<rusqlite::Result<Vec<_>>>()
             .map_err(|_| RestoreError::InvalidBackup)?;
         write
@@ -441,7 +444,7 @@ mod tests {
             .unwrap();
         live.set_theme(Theme::Dark).unwrap();
         let expected = live.restore_state().unwrap().revision;
-        let pages: u64 = live
+        let pages: i64 = live
             .connection
             .pragma_query_value(None, "page_count", |r| r.get(0))
             .unwrap();

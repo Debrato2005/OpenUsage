@@ -225,18 +225,23 @@ fn verify_checkpoint(connection: &Connection, schema_version: u32) -> Result<(),
         "PRAGMA openusage_checkpoint.cipher_integrity_check",
         "PRAGMA openusage_checkpoint.foreign_key_check",
     ] {
-        let mut statement = connection
-            .prepare(pragma)
-            .map_err(|_| CheckpointError::VerificationFailed)?;
-        if statement
-            .query([])
-            .map_err(|_| CheckpointError::VerificationFailed)?
-            .next()
-            .map_err(|_| CheckpointError::VerificationFailed)?
-            .is_some()
-        {
-            return Err(CheckpointError::VerificationFailed);
-        }
+        require_empty_pragma(connection, pragma)?;
+    }
+    Ok(())
+}
+
+fn require_empty_pragma(connection: &Connection, pragma: &str) -> Result<(), CheckpointError> {
+    let mut statement = connection
+        .prepare(pragma)
+        .map_err(|_| CheckpointError::VerificationFailed)?;
+    if statement
+        .query([])
+        .map_err(|_| CheckpointError::VerificationFailed)?
+        .next()
+        .map_err(|_| CheckpointError::VerificationFailed)?
+        .is_some()
+    {
+        return Err(CheckpointError::VerificationFailed);
     }
     Ok(())
 }
@@ -536,9 +541,9 @@ impl Storage {
         self.with_verified_checkpoint(path,|connection,verified| {
             connection.execute_batch("ATTACH DATABASE ':memory:' AS openusage_recovery KEY ''; PRAGMA openusage_recovery.page_size=4096; PRAGMA openusage_recovery.max_page_count=1310720;").map_err(|_|CheckpointError::Unavailable)?;
             let result=(|| {
-                let page_size:u64=connection.pragma_query_value(Some("openusage_recovery"),"page_size",|r|r.get(0)).map_err(|_|CheckpointError::Unavailable)?;
-                let page_limit:u64=connection.pragma_query_value(Some("openusage_recovery"),"max_page_count",|r|r.get(0)).map_err(|_|CheckpointError::Unavailable)?;
-                if page_size.checked_mul(page_limit)!=Some(crate::MAX_BACKUP_SNAPSHOT_SIZE) { return Err(CheckpointError::Unavailable); }
+                let page_size:i64=connection.pragma_query_value(Some("openusage_recovery"),"page_size",|r|r.get(0)).map_err(|_|CheckpointError::Unavailable)?;
+                let page_limit:i64=connection.pragma_query_value(Some("openusage_recovery"),"max_page_count",|r|r.get(0)).map_err(|_|CheckpointError::Unavailable)?;
+                if page_size.checked_mul(page_limit)!=Some(crate::MAX_BACKUP_SNAPSHOT_SIZE as i64) { return Err(CheckpointError::Unavailable); }
                 connection.execute_batch("SELECT sqlcipher_export('openusage_recovery','openusage_checkpoint');").map_err(|_|CheckpointError::Unavailable)?;
                 connection.pragma_update(Some("openusage_recovery"),"user_version",verified.schema_version).map_err(|_|CheckpointError::Unavailable)?;
                 let serialized=connection.serialize("openusage_recovery").map_err(|_|CheckpointError::Unavailable)?;
@@ -583,6 +588,11 @@ impl Storage {
                 }
                 let mut options = ValidationOptions::new(&self.connection)?;
                 let checked = (|| {
+                    require_encryption(&self.connection)?;
+                    require_empty_pragma(
+                        &self.connection,
+                        "PRAGMA openusage_checkpoint.cipher_integrity_check",
+                    )?;
                     let schema_version: u32 = self
                         .connection
                         .pragma_query_value(Some("openusage_checkpoint"), "user_version", |r| {
@@ -592,7 +602,6 @@ impl Storage {
                     if schema_version != CURRENT_SCHEMA_VERSION {
                         return Err(CheckpointError::UnsupportedSchema);
                     }
-                    verify_checkpoint(&self.connection, schema_version)?;
                     let summary = crate::backup_validation::validate_schema_connection(
                         &self.connection,
                         CURRENT_SCHEMA_VERSION,
