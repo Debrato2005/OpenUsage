@@ -84,6 +84,14 @@ export class NativeDriver {
     await this.request('POST', `/session/${this.session}/element/${element}/click`, {});
   }
 
+  async openProfileOptions(profileId) {
+    if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(profileId)) throw new Error('A profile options action requires a UUID.');
+    const selector = `[data-profile-id="${profileId}"] [data-profile-action="options"]`;
+    await waitFor(async () => this.execute('const trigger=document.querySelector(arguments[0]);if(!trigger||trigger.disabled)return false;const rect=trigger.getBoundingClientRect();return trigger.tagName==="BUTTON"&&["true","false"].includes(trigger.getAttribute("aria-expanded"))&&rect.width>0&&rect.height>0&&getComputedStyle(trigger).visibility!=="hidden";', [selector]), `enabled Manage profile action for ${profileId}`);
+    if (await this.execute('return document.querySelector(arguments[0]).getAttribute("aria-expanded")==="false";', [selector])) await this.click(selector);
+    await waitFor(async () => this.execute('const trigger=document.querySelector(arguments[0]),panel=document.getElementById(trigger.getAttribute("aria-controls"));if(trigger.getAttribute("aria-expanded")!=="true"||!panel)return false;const rect=panel.getBoundingClientRect();return !panel.hidden&&rect.width>0&&rect.height>0&&getComputedStyle(panel).visibility!=="hidden";', [selector]), `visible profile options for ${profileId}`);
+  }
+
   async selectVisibleOption(selector, label) {
     await waitFor(async () => this.execute('const trigger=document.querySelector(arguments[0]);return Boolean(trigger&&trigger.getAttribute("role")==="combobox"&&!trigger.disabled&&trigger.getAttribute("aria-disabled")!=="true");', [selector]), `enabled combobox ${selector}`);
     await this.click(selector);
