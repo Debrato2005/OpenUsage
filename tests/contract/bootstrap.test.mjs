@@ -475,11 +475,32 @@ test('refuses malformed cached provenance, uncommitted results, guessed freshnes
 
 
 test('reassociation begins with an unaccepted owned request and rejects committed or extra-field replies', async () => {
-  const args = { profileId: activityRequest.profileId, approvalId: activityRequest.approvalId, confirmed: true };
+  const args = { profileId: activityRequest.profileId, approvalId: activityRequest.approvalId, reviewId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', confirmed: true };
   desktopResponse(activityRequest);
   assert.deepEqual(await invoke('begin_profile_activity_reassociation', args), activityRequest);
   for (const value of [{ ...activityRequest, accepted: true }, { ...activityRequest, privateHome: '/private' }, { ...activityRequest, requestId: 'invalid' }]) {
     desktopResponse(value);
     await assert.rejects(invoke('begin_profile_activity_reassociation', args), /desktop response is incompatible/);
+  }
+});
+
+
+test('association review accepts only bounded descriptive evidence and an exact provisional receipt', async () => {
+  const args = { profileId: activityRequest.profileId, approvalId: activityRequest.approvalId };
+  const review = { ...args, reviewId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', observedAtUtc: '2026-10-18T00:00:00.000Z', previous: { email: 'previous@synthetic.invalid', plan: null }, current: { email: 'current@synthetic.invalid', plan: 'Synthetic plan' }, homeChanged: true, identityConfidence: 'provisional' };
+  desktopResponse(review); assert.deepEqual(await invoke('review_profile_activity_association', args), review);
+  const boundary = { ...review, previous: { email: 'é'.repeat(127), plan: 'é'.repeat(32) }, homeChanged: false };
+  desktopResponse(boundary); assert.deepEqual(await invoke('review_profile_activity_association', args), boundary);
+  for (const change of [
+    { reviewId: 'invalid' }, { profileId: 'invalid' }, { approvalId: 'invalid' }, { observedAtUtc: '2026-02-30T00:00:00.000Z' },
+    { identityConfidence: 'verified' }, { homeChanged: null }, { privateHome: '/private' },
+    { previous: null }, { previous: { email: 'x', plan: null, token: 'private' } },
+    { current: { email: '', plan: null } }, { current: { email: 'x\n', plan: null } },
+    { current: { email: 'é'.repeat(128), plan: null } }, { current: { email: 'current@synthetic.invalid' } },
+    { current: { email: 'current@synthetic.invalid', plan: 'é'.repeat(33) } },
+    { current: { email: 'current@synthetic.invalid', plan: '' } },
+  ]) {
+    desktopResponse({ ...review, ...change });
+    await assert.rejects(invoke('review_profile_activity_association', args), /desktop response is incompatible/);
   }
 });
