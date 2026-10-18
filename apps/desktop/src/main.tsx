@@ -111,10 +111,8 @@ function App() {
 
   function changeTheme(next: Theme) {
     if (ready) {
-      const wasFocused = document.activeElement === themeControl.current
-        || themeControl.current?.getAttribute('aria-expanded') === 'true';
       void updateWorkspace(() => invoke('set_theme', { theme: next })).then(() => {
-        if (wasFocused) setThemeFocusPending(true);
+        setThemeFocusPending(true);
       });
     } else {
       setTheme(next);
