@@ -19,6 +19,9 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+mod login;
+pub(crate) use login::*;
+
 const MAX_EXECUTABLE_BYTES: u64 = 1024 * 1024 * 1024;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
@@ -66,7 +69,11 @@ fn reviewed_source(digest: &[u8; 32]) -> SourceProof {
         }
     }
     #[cfg(any(test, feature = "native-test"))]
-    if digest == "91c56f02d6d020bcb9a29c69c00bb108c306f169849971b5c42dbcd085398080" {
+    if matches!(
+        digest.as_str(),
+        "91c56f02d6d020bcb9a29c69c00bb108c306f169849971b5c42dbcd085398080"
+            | "25476e3759cbdc1cc74bcd9e46f4a01d1d85ea8ccc34425ddb45a38df27b9859"
+    ) {
         return SourceProof {
             kind: ExecutableSourceKind::TestFixture,
             url: None,
@@ -155,6 +162,7 @@ struct ProviderState {
     candidate: Option<Candidate>,
     approved: Option<Approved>,
     supervisor: Arc<Supervisor>,
+    logins: std::collections::HashMap<String, login::Entry>,
 }
 impl Default for ProviderState {
     fn default() -> Self {
@@ -164,6 +172,7 @@ impl Default for ProviderState {
             candidate: None,
             approved: None,
             supervisor: Arc::new(Supervisor::new()),
+            logins: std::collections::HashMap::new(),
         }
     }
 }
@@ -276,6 +285,13 @@ impl ProviderCoordinator {
             .lock()
             .map_err(|_| CommandError::ProviderUnavailable)?;
         require_open(&state)?;
+        if state
+            .logins
+            .values()
+            .any(|login| login.binding.profile_id == profile_id)
+        {
+            return Err(CommandError::ProviderLoginInProgress);
+        }
         let approved = state
             .approved
             .as_mut()
@@ -307,6 +323,14 @@ impl ProviderCoordinator {
             .0
             .lock()
             .map_err(|_| CommandError::ProviderUnavailable)?;
+        // This command authorizes check cancellation only. Login needs its exact attempt token.
+        if state
+            .logins
+            .values()
+            .any(|login| login.binding.profile_id == profile_id)
+        {
+            return Err(CommandError::ProviderLoginInProgress);
+        }
         let cancelled = state.supervisor.cancel(&profile).map_err(provider_error)?;
         Ok(Cancelled { cancelled })
     }
@@ -329,12 +353,15 @@ impl ProviderCoordinator {
         state.closed = true;
         state.candidate = None;
         state.approved = None;
-        state.supervisor.shutdown().map_err(provider_error)
+        state.supervisor.shutdown().map_err(provider_error)?;
+        state.logins.clear();
+        Ok(())
     }
 }
 
 fn reset(state: &mut ProviderState) -> Result<(), CommandError> {
     state.supervisor.shutdown().map_err(provider_error)?;
+    state.logins.clear();
     state.generation = state
         .generation
         .checked_add(1)

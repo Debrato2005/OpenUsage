@@ -103,6 +103,28 @@ struct ProfileCheckArgs {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum LoginFlowChoice {
+    DeviceCode,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct BeginLoginArgs {
+    profile_id: String,
+    approval_id: String,
+    flow: LoginFlowChoice,
+    confirmed: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct LoginAttemptArgs {
+    profile_id: String,
+    attempt_id: String,
+}
+
+#[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ThemeArgs {
     theme: ThemeChoice,
@@ -628,6 +650,107 @@ async fn cancel_profile_check(
         .map_err(|_| CommandError::ProviderUnavailable)?
 }
 
+#[tauri::command]
+async fn begin_profile_login(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<provider::LoginReceipt, CommandError> {
+    let args: BeginLoginArgs = arguments(&request)?;
+    workspace::validate_profile_id(&args.profile_id)?;
+    restore::validate_preview_id(&args.approval_id)?;
+    if !args.confirmed {
+        return Err(CommandError::InvalidArguments);
+    }
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut state = service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?;
+        match args.flow {
+            LoginFlowChoice::DeviceCode => state
+                .as_mut()
+                .ok_or(CommandError::WorkspaceLocked)?
+                .begin_profile_login(&args.profile_id, &args.approval_id, args.confirmed),
+        }
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+#[tauri::command]
+async fn await_profile_login_prompt(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<provider::LoginPromptReceipt, CommandError> {
+    let args: LoginAttemptArgs = arguments(&request)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let pending = {
+            let state = service
+                .lock()
+                .map_err(|_| CommandError::ProviderUnavailable)?;
+            state
+                .as_ref()
+                .ok_or(CommandError::WorkspaceLocked)?
+                .await_profile_login_prompt(&args.profile_id, &args.attempt_id)?
+        };
+        let ready = pending.wait()?;
+        let mut state = service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?;
+        state
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .finish_profile_login_prompt(ready)
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+#[tauri::command]
+async fn complete_profile_login(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<provider::LoginOutcome, CommandError> {
+    let args: LoginAttemptArgs = arguments(&request)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let pending = {
+            let state = service
+                .lock()
+                .map_err(|_| CommandError::ProviderUnavailable)?;
+            state
+                .as_ref()
+                .ok_or(CommandError::WorkspaceLocked)?
+                .complete_profile_login(&args.profile_id, &args.attempt_id)?
+        };
+        let completed = pending.wait()?;
+        let mut state = service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?;
+        state
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .finish_profile_login(completed)
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+#[tauri::command]
+async fn cancel_profile_login(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<provider::Cancelled, CommandError> {
+    let args: LoginAttemptArgs = arguments(&request)?;
+    let provider = service.2.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        provider.cancel_login(&args.profile_id, &args.attempt_id)
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
 fn is_bundled_url(url: &tauri::Url) -> bool {
     url.username().is_empty()
         && url.password().is_none()
@@ -659,7 +782,11 @@ fn main() {
             inspect_provider_executable,
             approve_provider_executable,
             check_profile_connection,
-            cancel_profile_check
+            cancel_profile_check,
+            begin_profile_login,
+            await_profile_login_prompt,
+            complete_profile_login,
+            cancel_profile_login
         ])
         .setup(|app| {
             let window = &app.config().app.windows[0];
@@ -685,14 +812,31 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::{
-        ApplyRestoreArgs, ApproveProviderArgs, ArchiveProfileArgs, BackupArgs,
+        ApplyRestoreArgs, ApproveProviderArgs, ArchiveProfileArgs, BackupArgs, BeginLoginArgs,
         CancelRestorePreviewArgs, CheckpointPreviewArgs, CreateProfileArgs, InspectBackupArgs,
-        InspectProviderArgs, ListProfilesArgs, ProfileCheckArgs, RenameProfileArgs, SetupArgs,
-        ThemeArgs, UnlockArgs, is_bundled_url,
+        InspectProviderArgs, ListProfilesArgs, LoginAttemptArgs, ProfileCheckArgs,
+        RenameProfileArgs, SetupArgs, ThemeArgs, UnlockArgs, is_bundled_url,
     };
 
     #[test]
     fn storage_commands_reject_unexpected_fields_and_incorrect_value_types() {
+        for invalid in [
+            r#"{}"#,
+            r#"{"profileId":"synthetic","flow":"device_code","confirmed":true}"#,
+            r#"{"profileId":"synthetic","approvalId":"synthetic","flow":"api_key","confirmed":true}"#,
+            r#"{"profileId":"synthetic","approvalId":"synthetic","flow":"device_code","confirmed":"true"}"#,
+            r#"{"profileId":"synthetic","approvalId":"synthetic","flow":"device_code","confirmed":true,"url":"https://external.invalid"}"#,
+        ] {
+            assert!(serde_json::from_str::<BeginLoginArgs>(invalid).is_err());
+        }
+        for invalid in [
+            r#"{}"#,
+            r#"{"profileId":"synthetic"}"#,
+            r#"{"profileId":"synthetic","attemptId":null}"#,
+            r#"{"profileId":"synthetic","attemptId":"synthetic","providerLoginId":"injected"}"#,
+        ] {
+            assert!(serde_json::from_str::<LoginAttemptArgs>(invalid).is_err());
+        }
         for invalid in [
             r#"{}"#,
             r#"{"path":null}"#,
