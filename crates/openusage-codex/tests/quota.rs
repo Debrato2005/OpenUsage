@@ -326,3 +326,118 @@ fn credit_details_validate_utc_values_and_distinguish_no_expiry_from_missing_exp
         assert!(parse_quota(&credit_details(details), 3).is_err());
     }
 }
+
+fn monthly_limit(limit: Value) -> Vec<u8> {
+    message(json!({"rateLimitsByLimitId":{"codex":limit}}))
+}
+
+#[test]
+fn monthly_credit_limit_and_spend_state_preserve_nullable_independent_values() {
+    for individual in [None, Some(Value::Null), Some(json!({"limit":"0"}))] {
+        for reached in [
+            None,
+            Some(Value::Null),
+            Some(json!(false)),
+            Some(json!(true)),
+        ] {
+            let mut limit = json!({});
+            if let Some(value) = &individual {
+                limit["individualLimit"] = value.clone();
+            }
+            if let Some(value) = &reached {
+                limit["spendControlReached"] = value.clone();
+            }
+            let snapshot = parse_quota(&monthly_limit(limit), 3).unwrap();
+            let output = serde_json::to_value(snapshot).unwrap();
+            assert_eq!(
+                output["limits"][0]["monthlyCreditLimit"],
+                if individual.as_ref().is_some_and(Value::is_object) {
+                    json!("0")
+                } else {
+                    Value::Null
+                }
+            );
+            assert_eq!(
+                output["limits"][0]["spendControlReached"],
+                reached.unwrap_or(Value::Null)
+            );
+        }
+    }
+}
+
+#[test]
+fn monthly_credit_limit_preserves_provider_string_bytes_without_numeric_or_currency_rules() {
+    for amount in [
+        "0".into(),
+        "9007199254740993.012345678900".into(),
+        "100.00".into(),
+        " 001.2500 ".into(),
+        "provider-format".into(),
+        "é".repeat(128),
+    ] {
+        let snapshot = parse_quota(
+            &monthly_limit(json!({"individualLimit":{"limit":amount}})),
+            3,
+        )
+        .unwrap();
+        assert_eq!(
+            snapshot.limits[0].monthly_credit_limit.as_deref(),
+            Some(amount.as_str())
+        );
+        let debug = format!("{snapshot:?}");
+        assert!(!debug.contains(&amount));
+    }
+}
+
+#[test]
+fn monthly_credit_limit_rejects_malformed_values_and_spend_state_without_coercion() {
+    for individual in [
+        json!({}),
+        json!({"limit":null}),
+        json!({"limit":0}),
+        json!({"limit":1.5}),
+        json!({"limit":true}),
+        json!({"limit":[]}),
+        json!({"limit":""}),
+        json!({"limit":" "}),
+        json!({"limit":"synthetic\nprivate"}),
+        json!({"limit":"é".repeat(129)}),
+        json!({"limit":"x".repeat(257)}),
+        json!([]),
+        json!("3"),
+    ] {
+        let error = parse_quota(&monthly_limit(json!({"individualLimit":individual})), 3)
+            .err()
+            .unwrap();
+        assert!(!format!("{error:?} {error}").contains("synthetic"));
+    }
+    for reached in [json!(0), json!(1), json!("true"), json!([]), json!({})] {
+        assert!(parse_quota(&monthly_limit(json!({"spendControlReached":reached})), 3).is_err());
+    }
+}
+
+#[test]
+fn monthly_credit_limit_uses_each_selected_bucket_and_excludes_unreviewed_fields() {
+    let legacy = json!({"limitId":"legacy", "individualLimit":{"limit":"10.00","used":"synthetic-private-used","remainingPercent":"unreviewed-value","resetsAt":"synthetic-private-reset","accountId":"synthetic-private-account"},"spendControlReached":false,"credits":{"balance":"synthetic-private-balance"}});
+    let legacy_output =
+        serde_json::to_value(parse_quota(&message(json!({"rateLimits":legacy})), 3).unwrap())
+            .unwrap();
+    assert_eq!(legacy_output["limits"][0]["monthlyCreditLimit"], "10.00");
+    assert_eq!(legacy_output["limits"][0]["spendControlReached"], false);
+    assert!(!legacy_output.to_string().contains("synthetic-private"));
+    let response = message(
+        json!({"ordinaryUsageAllowed":true,"rateLimits":{"invalid":"ignored-legacy","individualLimit":{"limit":false}},"rateLimitsByLimitId":{"codex":{"individualLimit":{"limit":"1.000"},"spendControlReached":false},"other":{"spendControlReached":true,"credits":{"balance":"99999","unlimited":true}}}}),
+    );
+    let output = serde_json::to_value(parse_quota(&response, 3).unwrap()).unwrap();
+    let rows = output["limits"].as_array().unwrap();
+    let codex = rows.iter().find(|row| row["limitId"] == "codex").unwrap();
+    let other = rows.iter().find(|row| row["limitId"] == "other").unwrap();
+    assert_eq!(codex["monthlyCreditLimit"], "1.000");
+    assert_eq!(codex["spendControlReached"], false);
+    assert!(other["monthlyCreditLimit"].is_null());
+    assert_eq!(other["spendControlReached"], true);
+    assert!(!output.to_string().contains("99999"));
+    assert!(!output.to_string().contains("ordinaryUsageAllowed"));
+    let empty=serde_json::to_value(parse_quota(&message(json!({"rateLimitsByLimitId":{},"rateLimits":{"individualLimit":{"limit":"invalid-legacy"}}})),3).unwrap()).unwrap();
+    assert_eq!(empty["limits"], json!([]));
+}

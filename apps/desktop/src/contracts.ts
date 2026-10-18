@@ -152,7 +152,7 @@ export interface ProfileQuotaPreview extends ProfileQuotaRequest {
   identityConfidence: 'provisional'; verifiedIdentityKey: null;
   availableResetCredits: string | null;
   resetCreditDetails: ResetCreditDetail[] | null;
-  limits: { limitId: string; limitName: string | null; primary: QuotaWindow | null; secondary: QuotaWindow | null; reachedType: string | null }[];
+  limits: { limitId: string; limitName: string | null; primary: QuotaWindow | null; secondary: QuotaWindow | null; reachedType: string | null; monthlyCreditLimit: string | null; spendControlReached: boolean | null }[];
 }
 
 interface Commands {
@@ -294,9 +294,11 @@ function isProfileQuotaPreview(value: unknown): value is ProfileQuotaPreview {
   return v.limits.every(value => {
     if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
     const limit = value as Record<string, unknown>;
-    if (Object.keys(limit).length !== 5 || !quotaText(limit.limitId, 128) || ids.has(limit.limitId)
+    if (Object.keys(limit).length !== 7 || !quotaText(limit.limitId, 128) || ids.has(limit.limitId)
       || !(limit.limitName === null || quotaText(limit.limitName, 256))
       || !(limit.reachedType === null || quotaText(limit.reachedType, 128))
+      || !(limit.monthlyCreditLimit === null || (quotaText(limit.monthlyCreditLimit, 256) && new TextEncoder().encode(limit.monthlyCreditLimit).length <= 256))
+      || !(limit.spendControlReached === null || typeof limit.spendControlReached === 'boolean')
       || !isQuotaWindow(limit.primary) || !isQuotaWindow(limit.secondary)) return false;
     ids.add(limit.limitId); return true;
   });

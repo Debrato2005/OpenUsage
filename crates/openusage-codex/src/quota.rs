@@ -42,6 +42,8 @@ pub struct QuotaLimit {
     pub primary: Option<QuotaWindow>,
     pub secondary: Option<QuotaWindow>,
     pub reached_type: Option<String>,
+    pub monthly_credit_limit: Option<String>,
+    pub spend_control_reached: Option<bool>,
 }
 
 #[derive(Serialize)]
@@ -191,6 +193,15 @@ struct LimitWire {
     primary: Option<WindowWire>,
     secondary: Option<WindowWire>,
     rate_limit_reached_type: Option<String>,
+    individual_limit: Option<IndividualLimitWire>,
+    spend_control_reached: Option<bool>,
+}
+
+// This reviewed field is an exact provider string, not a local decimal or currency.
+// https://github.com/openai/codex/blob/83086188ae0614bd882818ff1aa23f3194962012/codex-rs/app-server-protocol/src/protocol/v2/account.rs#L792-L798
+#[derive(Deserialize)]
+struct IndividualLimitWire {
+    limit: String,
 }
 
 #[derive(Deserialize)]
@@ -259,12 +270,18 @@ impl LimitWire {
         if let Some(reached) = &self.rate_limit_reached_type {
             validate_text(reached, 128)?;
         }
+        let monthly_credit_limit = self.individual_limit.map(|individual| individual.limit);
+        if let Some(limit) = &monthly_credit_limit {
+            validate_text(limit, 256)?;
+        }
         Ok(QuotaLimit {
             limit_id,
             limit_name: self.limit_name,
             primary: self.primary.map(WindowWire::validate).transpose()?,
             secondary: self.secondary.map(WindowWire::validate).transpose()?,
             reached_type: self.rate_limit_reached_type,
+            monthly_credit_limit,
+            spend_control_reached: self.spend_control_reached,
         })
     }
 }
