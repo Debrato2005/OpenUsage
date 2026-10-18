@@ -19,6 +19,14 @@ x.XInternAtom.restype = Atom
 x.XQueryTree.argtypes = [Display, Window, c.POINTER(Window), c.POINTER(Window), c.POINTER(c.POINTER(Window)), c.POINTER(c.c_uint)]
 x.XGetWindowProperty.argtypes = [Display, Window, Atom, c.c_long, c.c_long, c.c_int, Atom, c.POINTER(Atom), c.POINTER(c.c_int), c.POINTER(c.c_ulong), c.POINTER(c.c_ulong), c.POINTER(c.POINTER(c.c_ubyte))]
 x.XGetWMProtocols.argtypes = [Display, Window, c.POINTER(c.POINTER(Atom)), c.POINTER(c.c_int)]
+class Attributes(c.Structure):
+    _fields_ = [(name, kind) for name, kind in [
+        ('x', c.c_int), ('y', c.c_int), ('width', c.c_int), ('height', c.c_int), ('border_width', c.c_int), ('depth', c.c_int),
+        ('visual', c.c_void_p), ('root', Window), ('window_class', c.c_int), ('bit_gravity', c.c_int), ('win_gravity', c.c_int), ('backing_store', c.c_int),
+        ('backing_planes', c.c_ulong), ('backing_pixel', c.c_ulong), ('save_under', c.c_int), ('colormap', c.c_ulong), ('map_installed', c.c_int), ('map_state', c.c_int),
+        ('all_event_masks', c.c_long), ('your_event_mask', c.c_long), ('do_not_propagate_mask', c.c_long), ('override_redirect', c.c_int), ('screen', c.c_void_p)]]
+x.XGetWindowAttributes.argtypes = [Display, Window, c.POINTER(Attributes)]
+x.XFetchName.argtypes = [Display, Window, c.POINTER(c.c_void_p)]
 x.XFree.argtypes = [c.c_void_p]
 x.XFlush.argtypes = [Display]
 x.XCloseDisplay.argtypes = [Display]
@@ -42,6 +50,7 @@ try:
     assert pid_atom and protocols and delete
     pending = [x.XDefaultRootWindow(display)]
     matches = []
+    owned_windows = []
     while pending:
         window = pending.pop()
         root, parent, children, count = Window(), Window(), c.POINTER(Window)(), c.c_uint()
@@ -56,13 +65,22 @@ try:
             x.XFree(data)
         if not owned:
             continue
+        attributes, name_pointer = Attributes(), c.c_void_p()
+        assert x.XGetWindowAttributes(display, window, c.byref(attributes))
+        title = ''
+        if x.XFetchName(display, window, c.byref(name_pointer)) and name_pointer:
+            title = c.string_at(name_pointer).decode('utf8', errors='replace')
+            x.XFree(name_pointer)
+        owned_windows.append({'windowId': window, 'title': title, 'mapState': attributes.map_state})
+        if attributes.map_state != 2 or title != 'OpenUsage':
+            continue
         values, length = c.POINTER(Atom)(), c.c_int()
         if x.XGetWMProtocols(display, window, c.byref(values), c.byref(length)):
             if delete in [values[i] for i in range(length.value)]:
                 matches.append(window)
             if values:
                 x.XFree(values)
-    assert len(matches) == 1, f'Expected one owned closeable X11 window, found {len(matches)}.'
+    assert len(matches) == 1, f'Expected one visible owned OpenUsage window, found {len(matches)}; owned windows: {owned_windows}.'
     event = Event()
     event.xclient.type = 33
     event.xclient.send_event = 1
@@ -74,6 +92,6 @@ try:
     event.xclient.data.l[1] = 0
     assert x.XSendEvent(display, matches[0], 0, 0, c.byref(event)), 'X11 refused WM_DELETE_WINDOW.'
     x.XFlush(display)
-    print(json.dumps({'applicationPid': pid, 'windowId': matches[0], 'method': 'X11 WM_PROTOCOLS WM_DELETE_WINDOW', 'display': os.environ.get('DISPLAY')}))
+    print(json.dumps({'applicationPid': pid, 'windowId': matches[0], 'method': 'X11 WM_PROTOCOLS WM_DELETE_WINDOW', 'display': os.environ.get('DISPLAY'), 'ownedWindows': owned_windows}))
 finally:
     x.XCloseDisplay(display)
