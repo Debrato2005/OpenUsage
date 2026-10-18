@@ -1,6 +1,6 @@
 # Implementation status
 
-Updated: October 18, 2026. The mission remains ongoing. Current milestone: quota disclosure labels passed native pointer and reverse-keyboard verification. Next slice: optimized native Linux execution and provisional account activity collection.
+Updated: October 18, 2026. The mission remains ongoing. Current milestone: the first optimized default Linux executable passed four native journeys. Next slice: provisional account activity collection and native verification.
 
 ## Implemented and executed
 
@@ -130,3 +130,8 @@ The full native 900-second wait also passed on the earlier `741f8c0` executable:
 Quota disclosures now keep whole-label and caret hits on the native button, including bidirectionally isolated labels. The rebuilt quota journey passed 47 provider cases and all six strict glyph/caret reverse-Tab checks with visible focus. The default production configuration refused all three synthetic providers before execution. All 24 acceptance images were reviewed. A suspected metadata overlap was checked in enlarged original and settled crops: their decoded pixels match and the four rows are separate. The original observation and correction remain recorded.
 
 All 166 source/harness files match the frozen build before and after execution. The frontend check passed 24 contracts and 18 renderer journeys. Rust/Cargo files remain byte-identical to the fresh 123-test, strict-Clippy and formatting qualification. One owned child helper remains intentionally ignored. See `evidence/native-quota-hit-verification/` and the [review](reviews/2026-10-18-quota-disclosure-keyboard.md). These debug Linux checks do not complete AT-36 or full accessibility. SQLCipher 4 with WAL remains mandatory. Optimized execution and provisional activity reads are the next slices.
+
+
+The first optimized default Linux executable now passes actual startup, all-three-fixture production refusal, encrypted authenticated export, and real private production-namespace Secret Service setup/theme/restart. It uses Cargo release defaults, custom protocol, and no native-test feature. The immutable executable is 26,689,864 bytes and binds source `86ace3d`, before the later activity draft. All 168 tracked source/harness/build hashes and ten embedded frontend asset hashes match. Four fresh native images were reviewed.
+
+The OS-store journey confirmed encrypted main and active WAL, private file modes, unkeyed SQLite refusal, unchanged database bytes through genuine close and key-store restart, and preserved synthetic homes. It queried credential metadata without reading the secret. The native export passed independent archive authentication, wrong-password/tamper refusal, schema/current-theme checks, and no plaintext staging. Initial dependency-link and freeze-precheck failures remain historical with their narrow resolution. See `evidence/native-optimized-linux-verification/` and the [review](reviews/2026-10-18-optimized-native-linux.md). Other feature matrices retain their exact earlier debug-artifact scopes. This does not establish release readiness, full features, platform coverage, live identity/history, or performance targets. Activity collection remains the next slice.
