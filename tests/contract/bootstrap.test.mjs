@@ -325,3 +325,20 @@ test('sign-in completion requires a fresh ChatGPT diagnostic while verified iden
     await assert.rejects(invoke('complete_profile_login', args), /desktop response is incompatible/);
   }
 });
+
+test('accepts bounded advisory discovery without trusting extra fields or malformed paths', async () => {
+  const candidate = { path: '/synthetic/bin/codex', location: 'path' };
+  const value = { candidates: [candidate], truncated: false };
+  desktopResponse(value);
+  assert.deepEqual(await invoke('discover_provider_executables'), value);
+  for (const malformed of [
+    { ...value, approved: true }, { ...value, truncated: 'false' },
+    { ...value, candidates: Array(17).fill(candidate) },
+    { ...value, candidates: [candidate, candidate] },
+    ...[{ path: 'relative/codex' }, { path: '/bad\0path' }, { location: ['path'] },
+      { location: 'unknown' }, { sourceVerified: true }].map(change => ({ ...value, candidates: [{ ...candidate, ...change }] })),
+  ]) {
+    desktopResponse(malformed);
+    await assert.rejects(invoke('discover_provider_executables'), /desktop response is incompatible/);
+  }
+});

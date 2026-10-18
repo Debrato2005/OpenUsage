@@ -1,5 +1,6 @@
 export function providerFailure(error: unknown): string {
   const messages: Record<string, string> = {
+    provider_discovery_unavailable: 'OpenUsage could not safely check executable locations. Enter the path to Codex to review it.',
     provider_login_not_found: 'This sign-in attempt has ended. Start a new sign-in if you still need it.',
     provider_login_in_progress: 'A sign-in is already in progress for this profile. Finish it or cancel it first.',
     provider_login_prompt_pending: 'Codex is preparing your sign-in code. Wait for the code before you continue.',

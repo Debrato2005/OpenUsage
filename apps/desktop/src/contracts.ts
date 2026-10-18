@@ -129,7 +129,13 @@ export interface ProviderLoginCompletion {
   diagnostic: ProviderConnectionDiagnostic;
 }
 
+export interface ProviderExecutableDiscovery {
+  candidates: { path: string; location: 'path' | 'standard' | 'npm_package' }[];
+  truncated: boolean;
+}
+
 interface Commands {
+  discover_provider_executables: { args: undefined; result: ProviderExecutableDiscovery };
   begin_profile_login: { args: { profileId: string; approvalId: string; flow: 'device_code'; confirmed: true }; result: ProviderLoginAttempt };
   await_profile_login_prompt: { args: { profileId: string; attemptId: string }; result: ProviderLoginPrompt };
   complete_profile_login: { args: { profileId: string; attemptId: string }; result: ProviderLoginCompletion };
@@ -173,7 +179,8 @@ export async function invoke<K extends keyof Commands>(
   const core = window.__TAURI__?.core;
   if (!core) throw new DesktopUnavailable('Open the installed OpenUsage desktop application.');
   const response = await core.invoke<unknown>(command, args[0]);
-  const valid = command === 'begin_profile_login' ? isProviderLoginAttempt(response)
+  const valid = command === 'discover_provider_executables' ? isProviderExecutableDiscovery(response)
+    : command === 'begin_profile_login' ? isProviderLoginAttempt(response)
     : command === 'await_profile_login_prompt' ? isProviderLoginPrompt(response)
     : command === 'complete_profile_login' ? isProviderLoginCompletion(response)
     : command === 'cancel_profile_login' ? isPreviewCancellation(response)
@@ -208,6 +215,23 @@ function isWideCount(value: unknown): value is string {
 function isUtcTimestamp(value: unknown): value is string {
   return typeof value === 'string' && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(value)
     && Number.isFinite(Date.parse(value)) && new Date(value).toISOString() === value;
+}
+
+function isProviderExecutableDiscovery(value: unknown): value is ProviderExecutableDiscovery {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  if (Object.keys(v).length !== 2 || typeof v.truncated !== 'boolean'
+    || !Array.isArray(v.candidates) || v.candidates.length > 16) return false;
+  const paths = new Set<string>();
+  return v.candidates.every(item => {
+    if (typeof item !== 'object' || item === null || Array.isArray(item)) return false;
+    const c = item as Record<string, unknown>;
+    if (Object.keys(c).length !== 2 || typeof c.path !== 'string' || !c.path.startsWith('/')
+      || c.path.length > 4096 || /\p{Cc}/u.test(c.path) || paths.has(c.path)
+      || typeof c.location !== 'string' || !['path', 'standard', 'npm_package'].includes(c.location)) return false;
+    paths.add(c.path);
+    return true;
+  });
 }
 
 function isProviderExecutableReview(value: unknown, id: 'candidateId' | 'approvalId'): boolean {
