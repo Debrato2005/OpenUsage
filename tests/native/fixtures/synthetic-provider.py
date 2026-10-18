@@ -6,10 +6,13 @@ from pathlib import Path
 import sys
 import time
 
-home = Path(os.environ['CODEX_HOME'])
+home_value = os.environ.get('CODEX_HOME')
+home = Path(home_value) if home_value else None
 allowed = {'HOME', 'CODEX_HOME', 'XDG_CONFIG_HOME', 'XDG_DATA_HOME', 'XDG_CACHE_HOME',
            'XDG_STATE_HOME', 'XDG_RUNTIME_DIR', 'TMPDIR', 'PATH', 'LANG', 'LC_CTYPE'}
-observations = [home / 'synthetic-provider-observations.jsonl', Path(__file__).resolve().parent / 'synthetic-execution-observations.jsonl']
+observations = [Path(__file__).resolve().parent / 'synthetic-execution-observations.jsonl']
+if home is not None:
+    observations.append(home / 'synthetic-provider-observations.jsonl')
 
 def record(kind, **fields):
     item = {'kind': kind, 'pid': os.getpid(), 'processGroup': os.getpgrp(), **fields}
@@ -26,6 +29,7 @@ mode = config.get('modesByHome', {}).get(str(home), config.get('defaultMode', 's
 assert mode in {'success', 'unsupported-version', 'hang', 'malformed', 'provisional'}
 record('start', arguments=sys.argv[1:], environment={name: os.environ[name] for name in allowed if name in os.environ},
        unexpectedEnvironmentKeys=sorted(set(os.environ) - allowed), mode=mode)
+assert home is not None, 'The fixture needs an isolated CODEX_HOME.'
 if sys.argv[1:] == ['--version']:
     print('codex-cli 0.163.0' if mode != 'unsupported-version' else 'codex-cli 0.0.0', flush=True)
     raise SystemExit(0)
