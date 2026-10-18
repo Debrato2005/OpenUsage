@@ -6,7 +6,7 @@ Updated: October 18, 2026. These foundations cover the native workspace, account
 
 The overview places storage state first, followed by a compact summary and accounts. Backups use a disclosure below accounts. Recovery messages retain the original database and key. Missing provider readings show “Not available”. Only the unlocked database supplies the profile count.
 
-Privacy stays accessible in narrow windows. Native controls retain keyboard behavior, visible focus, labels, and password-manager support. Errors appear near their controls. A completed backup closes its form, clears passwords, and returns focus to the disclosure button. Its receipt stays visible. No animation or UI dependency was added.
+Privacy stays accessible in narrow windows. Native controls retain keyboard behavior, visible focus, labels, and password-manager support. Errors appear near their controls. A completed backup closes its form, clears passwords, and returns focus to the disclosure button. Its receipt stays visible. The original foundation slice added no animation or UI dependency. The later coss adoption adds the reviewed shared controls.
 
 Restore preview compares the current checkpoint with incoming backup counts. The first native capture showed broken column headings at 200% text size. An em-based container query now presents each record category with two labeled values when space is limited. Explicit table roles retain the comparison structure. Five native captures cover desktop, both narrow themes, errors, and enlarged text. Native DOM and keyboard checks passed; screen-reader acceptance remains open. See `../evidence/native-restore-preview/`.
 
@@ -14,16 +14,16 @@ The layout uses one page scroll area, a 208-pixel sidebar, and a 1,280-pixel con
 
 ## Typography and tokens
 
-Geist is the single UI family. The unmodified variable WOFF2 is bundled locally with the complete SIL Open Font License. The app makes no font request to a remote server. A preload and `font-display: swap` keep text available during font loading.
+JetBrains Mono is the active UI family, as the user requested. Unmodified Regular, Medium, and SemiBold WOFF2 files are bundled locally with the complete SIL Open Font License. The app makes no font request to a remote server. Only Regular is preloaded. `font-display: swap` keeps text available during font loading. Ligatures and synthetic weights are disabled.
 
 | Role | Size | Weight | Line height |
 |---|---|---|---|
 | Metadata | 12 px | 400 | 1.5 |
 | Secondary labels | 13 px | 400–500 | 1.5 |
 | Body and controls | 14 px | 400–500 | 1.5 |
-| Section headings | 16 px | 600 | 1.3 |
+| Section headings | 16 px | 500 | 1.3 |
 | Summary values | 20 px | 500 | 1.3 |
-| Page title | 22 px | 600 | 1.3 |
+| Page title | 20 px | 500 | 1.3 |
 
 Sizes use `rem` units. The 14-pixel body serves the desktop information density. Enlarged text and narrow windows need native checks for clipping and control access. Numeric roles use tabular numerals. Future quota, token, time, and money columns must use that same numeric role.
 
@@ -45,7 +45,11 @@ The UI/UX search did not return an exact desktop account workflow. Its landing-p
 
 ## Font provenance
 
-Source: [Vercel Geist](https://github.com/vercel/geist-font), revision `e1f671c727f6de7e97c1e1d26dbb44f349c19459`. Original path: `fonts/Geist/webfonts/Geist[wght].woff2`.
+Current source: [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono), revision `19371302b95d218af43299bce79ddbddd0bc364d`. Exact byte counts and hashes are in [the source manifest](jetbrains-mono-source.json). The adjacent `JetBrainsMono-OFL.txt` retains the complete copyright and license. Native checks observed loaded Regular and Medium faces. SemiBold remains bundled and was unused in the captured quota view.
+
+The following Geist record describes the earlier foundation milestone. Its assets remain for that historical evidence and are no longer active.
+
+Historical source: [Vercel Geist](https://github.com/vercel/geist-font), revision `e1f671c727f6de7e97c1e1d26dbb44f349c19459`. Original path: `fonts/Geist/webfonts/Geist[wght].woff2`.
 
 Bundled path: `apps/desktop/public/fonts/Geist-Variable.woff2`. SHA-256: `2ffebe993e969069a9789d15164b7715d42491b5835516c5e3b935d5f81b05f1`. The adjacent `OFL.txt` contains the full license and copyright notice.
 
@@ -68,3 +72,7 @@ Long paths wrap in the choice list. Size and checksum remain under Executable de
 The first coss slice replaces common controls across existing screens and adds a labeled remaining-capacity meter. Profile actions precede the preview. Remaining capacity and its tabular percentage sit above an eight-pixel track. Used percentage and expected reset remain below. Missing data stays explicit. Limit and source details use progressive disclosure.
 
 Native review fixed the percentage wrapping at 200% text. Seven final quota captures passed visual and geometry checks. Native sign-in and backup-content regressions checked the visible coss control wrappers, password clearing, selected read-only text, and error/focus states. These checks qualify the first shared-control slice. Selection controls, disclosures, feedback components, and record views still need migration. See `../evidence/native-quota-preview/` and `../evidence/native-quota-verification/`.
+
+## Compact quota context
+
+The current quota view replaces the long introductory paragraph with one title, visible fixture provenance, identity uncertainty, saved status, and observation time. About this preview retains the monitoring, history, derived-value, and reset explanations. The result uses a separator instead of another bordered card. Related windows share columns on wider screens and stack on narrow screens. Their details use an em-based wrap threshold so enlarged reset dates have room.

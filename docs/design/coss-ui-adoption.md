@@ -12,7 +12,7 @@ The adapters use Base UI 1.9.0, class-variance-authority 0.7.1, clsx 2.1.1, and 
 
 ## Application adaptations
 
-Local component files preserve coss composition and use OpenUsage theme tokens. Geist, tabular numerals, readable density, 44-pixel control targets, and visible focus remain mandatory. The token bridge distinguishes muted text from muted surfaces. Explicit themes and the system theme use the same semantic colors.
+Local component files preserve coss composition and use OpenUsage theme tokens. JetBrains Mono, tabular numerals, readable density, 44-pixel control targets, and visible focus remain mandatory. The token bridge distinguishes muted text from muted surfaces. Explicit themes and the system theme use the same semantic colors.
 
 Button variants distinguish primary, outline, and ghost actions. Existing request ownership and form handlers remain in workflow modules. The Input native branch retains HTML validation, password autocomplete, labels, and focus references. One small adapter property keeps sign-in code typography on the actual input. The Textarea adapter retains selectable read-only address text.
 
