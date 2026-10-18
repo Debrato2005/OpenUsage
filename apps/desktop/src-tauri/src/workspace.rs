@@ -13,7 +13,7 @@ use std::{
 use zeroize::Zeroizing;
 
 mod activity_storage;
-pub(crate) use activity_storage::SavedProfileActivity;
+pub(crate) use activity_storage::{ActivityAssociationReview, SavedProfileActivity};
 
 const DATABASE_FILE: &str = "openusage.db";
 const WRAPPED_KEY_FILE: &str = "database-key.v1";
@@ -105,6 +105,8 @@ pub enum CommandError {
     ProviderActivityTimedOut,
     ProviderActivityFailed,
     ProviderActivitySaveFailed,
+    ProviderActivityAssociationChanged,
+    ProviderActivityReviewUnavailable,
     ProviderActivityLoadFailed,
     ProviderQuotaNotFound,
     ProviderQuotaInProgress,
@@ -187,6 +189,7 @@ pub struct Workspace {
     provider: ProviderCoordinator,
     activity_sessions: std::collections::BTreeMap<String, (String, Option<std::time::Instant>)>,
     activity_requests: std::collections::BTreeMap<String, String>,
+    activity_reviews: std::collections::BTreeMap<String, activity_storage::CachedActivityReview>,
 }
 
 impl Workspace {
@@ -224,6 +227,7 @@ impl Workspace {
             provider,
             activity_sessions: Default::default(),
             activity_requests: Default::default(),
+            activity_reviews: Default::default(),
         })
     }
 
@@ -455,6 +459,7 @@ impl Workspace {
         let storage = self.storage.as_mut().ok_or(CommandError::WorkspaceLocked)?;
         validate_profile_label(label)?;
         self.provider.quiesce()?;
+        self.activity_reviews.clear();
         let mut random = [0u8; 16];
         getrandom::fill(&mut random).map_err(|_| CommandError::ProfileUnavailable)?;
         let id = uuid::Builder::from_random_bytes(random)
@@ -499,6 +504,7 @@ impl Workspace {
         validate_profile_label(label)?;
         self.storage.as_ref().ok_or(CommandError::WorkspaceLocked)?;
         self.provider.quiesce()?;
+        self.activity_reviews.clear();
         self.storage
             .as_mut()
             .ok_or(CommandError::WorkspaceLocked)?
@@ -516,6 +522,7 @@ impl Workspace {
         validate_profile_id(id)?;
         self.storage.as_ref().ok_or(CommandError::WorkspaceLocked)?;
         self.provider.quiesce()?;
+        self.activity_reviews.clear();
         self.storage
             .as_mut()
             .ok_or(CommandError::WorkspaceLocked)?
@@ -583,9 +590,11 @@ impl Workspace {
         let prepared = self.restore_preview.take(id)?;
         // Owned children must finish cleanup before records can point at different managed homes.
         self.provider.quiesce()?;
+        self.activity_reviews.clear();
         let applied = restore::apply(storage, &self.directory, prepared)?;
         self.activity_sessions.clear();
         self.activity_requests.clear();
+        self.activity_reviews.clear();
         Ok(applied)
     }
 
@@ -834,6 +843,38 @@ impl Workspace {
         id: &str,
         approval_id: &str,
     ) -> Result<provider::ActivityReceipt, CommandError> {
+        let receipt = self.begin_profile_activity(id, approval_id, None)?;
+        self.activity_reviews.remove(id);
+        Ok(receipt)
+    }
+
+    pub fn begin_profile_activity_reassociation(
+        &mut self,
+        id: &str,
+        approval_id: &str,
+        review_id: &str,
+        confirmed: bool,
+    ) -> Result<provider::ActivityReceipt, CommandError> {
+        if !confirmed {
+            return Err(CommandError::InvalidArguments);
+        }
+        restore::validate_preview_id(review_id)?;
+        let review = self.valid_activity_review(id, approval_id)?;
+        if review.review_id != review_id {
+            return Err(CommandError::ProviderActivityReviewUnavailable);
+        }
+        let receipt = self.begin_profile_activity(id, approval_id, Some(review))?;
+        // Only a successful start consumes the one-use approval.
+        self.activity_reviews.remove(id);
+        Ok(receipt)
+    }
+
+    fn begin_profile_activity(
+        &mut self,
+        id: &str,
+        approval_id: &str,
+        review: Option<activity_storage::CachedActivityReview>,
+    ) -> Result<provider::ActivityReceipt, CommandError> {
         restore::validate_preview_id(approval_id)?;
         let (home, revision, path) = self.selected_provider_home(id)?;
         let expected_binding = self
@@ -843,13 +884,21 @@ impl Workspace {
             .activity_binding(id)
             .map_err(|_| CommandError::ProviderActivityLoadFailed)?
             .map(|binding| binding.binding_id);
+        if review.as_ref().is_some_and(|review| {
+            Some(&review.previous_binding.binding_id) != expected_binding.as_ref()
+        }) {
+            return Err(CommandError::ProviderActivityReviewUnavailable);
+        }
         let receipt = self.provider.begin_activity(
             id,
             approval_id,
             &home,
             revision,
             &path,
-            expected_binding,
+            provider::ActivityAssociation {
+                expected_binding,
+                review: review.map(|review| review.fence),
+            },
         )?;
         self.activity_requests
             .insert(id.into(), receipt.request_id.clone());

@@ -171,7 +171,7 @@ pub(crate) struct ProfileBinding {
     pub home_reference: String,
     pub revision: openusage_storage::StorageRevision,
     held_home: Arc<HeldHome>,
-    approval_id: String,
+    pub approval_id: String,
     pub source_kind: ExecutableSourceKind,
     generation: u64,
 }

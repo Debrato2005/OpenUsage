@@ -1,4 +1,4 @@
-//! Durable profile activity; no credential or provider identity evidence crosses IPC.
+//! Durable profile activity. Only explicit review exposes non-secret account descriptions.
 
 use super::*;
 use openusage_codex::{DecimalCount, session::ActivityProbe};
@@ -9,6 +9,41 @@ use openusage_storage::{
 use std::time::{Duration, Instant, SystemTime};
 
 const FRESH_FOR: Duration = Duration::from_secs(30 * 60);
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ActivityAssociationReview {
+    pub review_id: String,
+    profile_id: String,
+    approval_id: String,
+    observed_at_utc: String,
+    previous: ActivityAssociationHint,
+    current: ActivityAssociationHint,
+    home_changed: bool,
+    identity_confidence: &'static str,
+}
+#[derive(Serialize)]
+struct ActivityAssociationHint {
+    email: String,
+    plan: Option<String>,
+}
+impl From<&ActivityIdentityEvidence> for ActivityAssociationHint {
+    fn from(evidence: &ActivityIdentityEvidence) -> Self {
+        Self {
+            email: evidence.email.clone(),
+            plan: evidence.plan.clone(),
+        }
+    }
+}
+#[derive(Clone)]
+pub(super) struct CachedActivityReview {
+    pub review_id: String,
+    approval_id: String,
+    pub previous_binding: openusage_storage::ActivityBinding,
+    pub previous: ActivityIdentityEvidence,
+    pub observed_at_utc: String,
+    pub fence: provider::ActivityReviewFence,
+}
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -68,6 +103,64 @@ enum ActivityFreshness {
 }
 
 impl Workspace {
+    /// Return an already observed mismatch; this command never starts a provider.
+    pub fn review_profile_activity_association(
+        &mut self,
+        id: &str,
+        approval_id: &str,
+    ) -> Result<ActivityAssociationReview, CommandError> {
+        let review = self.valid_activity_review(id, approval_id)?;
+        Ok(ActivityAssociationReview {
+            review_id: review.review_id,
+            profile_id: id.into(),
+            approval_id: approval_id.into(),
+            observed_at_utc: review.observed_at_utc,
+            previous: (&review.previous).into(),
+            current: (&review.fence.current).into(),
+            home_changed: review.previous_binding.home_reference
+                != review.fence.binding.home_reference,
+            identity_confidence: "provisional",
+        })
+    }
+
+    pub(super) fn valid_activity_review(
+        &mut self,
+        id: &str,
+        approval_id: &str,
+    ) -> Result<CachedActivityReview, CommandError> {
+        restore::validate_preview_id(id)?;
+        restore::validate_preview_id(approval_id)?;
+        self.storage.as_ref().ok_or(CommandError::WorkspaceLocked)?;
+        let review = self
+            .activity_reviews
+            .get(id)
+            .cloned()
+            .ok_or(CommandError::ProviderActivityReviewUnavailable)?;
+        let (home, _, _) = self
+            .selected_provider_home(id)
+            .map_err(|_| CommandError::ProviderActivityReviewUnavailable)?;
+        let storage = self.storage.as_ref().ok_or(CommandError::WorkspaceLocked)?;
+        if review.approval_id != approval_id
+            || review.fence.created.elapsed() >= provider::ACTIVITY_REVIEW_LIFETIME
+            || home != review.fence.binding.home_reference
+            || storage
+                .activity_binding(id)
+                .map_err(|_| CommandError::ProviderActivityReviewUnavailable)?
+                .as_ref()
+                != Some(&review.previous_binding)
+            || storage
+                .activity_binding_evidence(&review.previous_binding)
+                .map_err(|_| CommandError::ProviderActivityReviewUnavailable)?
+                != review.previous
+        {
+            return Err(CommandError::ProviderActivityReviewUnavailable);
+        }
+        self.provider
+            .validate_activity_review(&review.fence)
+            .map_err(|_| CommandError::ProviderActivityReviewUnavailable)?;
+        Ok(review)
+    }
+
     /// Read saved records after unlock, including archived profiles, without executable approval.
     pub fn load_profile_activity(
         &self,
@@ -157,6 +250,7 @@ impl Workspace {
         });
         match &outcome {
             Ok(value) => {
+                self.activity_reviews.remove(&id);
                 self.activity_sessions
                     .insert(id, (value.collection_run_id.clone(), Some(Instant::now())));
                 // A preview prepared before this durable write must be prepared again.
@@ -188,7 +282,7 @@ impl Workspace {
         binding: &provider::ProfileBinding,
         probe: &ActivityProbe,
         request_id: &str,
-        expected_binding: Option<&str>,
+        association: &provider::ActivityAssociation,
     ) -> Result<openusage_storage::ActivityCommit, CommandError> {
         let source_kind = match binding.source_kind {
             provider::ExecutableSourceKind::OfficialArtifact => {
@@ -214,51 +308,96 @@ impl Workspace {
         let current = storage
             .activity_binding(&binding.profile_id)
             .map_err(save_error)?;
-        if current.as_ref().map(|b| b.binding_id.as_str()) != expected_binding {
+        if current.as_ref().map(|b| b.binding_id.as_str())
+            != association.expected_binding.as_deref()
+        {
             return Err(CommandError::ProviderActivityCancelled);
         }
-        let local_binding = match current {
-            Some(current) => current,
-            None => storage
-                .associate_activity_binding(ActivityBindingInput {
-                    profile_id: binding.profile_id.clone(),
-                    expected_home_reference: binding.home_reference.clone(),
-                    expected_previous_binding_id: None,
-                    new_binding_id: provider::new_id()?,
-                    evidence: evidence.clone(),
-                    observed_at_utc: observed_at_utc.clone(),
-                })
-                .map_err(save_error)?,
+        if let Some(review) = &association.review {
+            if review.current != evidence {
+                return Err(CommandError::ProviderAccountChanged);
+            }
+        } else if let Some(existing) = &current {
+            let previous = storage
+                .activity_binding_evidence(existing)
+                .map_err(save_error)?;
+            if existing.home_reference != binding.home_reference || previous != evidence {
+                self.activity_reviews.insert(
+                    binding.profile_id.clone(),
+                    CachedActivityReview {
+                        review_id: provider::new_id()?,
+                        approval_id: binding.approval_id.clone(),
+                        previous_binding: existing.clone(),
+                        previous,
+                        observed_at_utc: observed_at_utc.clone(),
+                        fence: provider::ActivityReviewFence {
+                            binding: binding.clone(),
+                            current: evidence,
+                            created: Instant::now(),
+                        },
+                    },
+                );
+                return Err(CommandError::ProviderActivityAssociationChanged);
+            }
+        }
+        // Replacing an existing association requires the separate, explicit native consent command.
+        let create_binding = current.is_none() || association.review.is_some();
+        let next_binding_id = if create_binding {
+            provider::new_id()?
+        } else {
+            let existing = current
+                .as_ref()
+                .ok_or(CommandError::ProviderActivityCancelled)?;
+            if existing.home_reference != binding.home_reference {
+                return Err(CommandError::ProviderActivityAssociationChanged);
+            }
+            existing.binding_id.clone()
+        };
+        let new_association = create_binding.then(|| ActivityBindingInput {
+            profile_id: binding.profile_id.clone(),
+            expected_home_reference: binding.home_reference.clone(),
+            expected_previous_binding_id: association.expected_binding.clone(),
+            new_binding_id: next_binding_id.clone(),
+            evidence: evidence.clone(),
+            observed_at_utc: observed_at_utc.clone(),
+        });
+        let local_binding = openusage_storage::ActivityBinding {
+            profile_id: binding.profile_id.clone(),
+            home_reference: binding.home_reference.clone(),
+            binding_id: next_binding_id,
         };
         let summary = &probe.activity.summary;
         storage
-            .accept_activity(ActivityReading {
-                run_id: request_id.into(),
-                binding: local_binding,
-                identity_evidence: evidence,
-                provider_version: probe.version.into(),
-                source_kind,
-                started_at_utc: restore::timestamp(probe.started_at)
-                    .ok_or(CommandError::ProviderActivitySaveFailed)?,
-                observed_at_utc,
-                completed_at_utc: restore::timestamp(probe.completed_at)
-                    .ok_or(CommandError::ProviderActivitySaveFailed)?,
-                summary: ActivitySummaryValues {
-                    lifetime_tokens: exact(&summary.lifetime_tokens),
-                    peak_daily_tokens: exact(&summary.peak_daily_tokens),
-                    longest_running_turn_sec: exact(&summary.longest_running_turn_sec),
-                    current_streak_days: exact(&summary.current_streak_days),
-                    longest_streak_days: exact(&summary.longest_streak_days),
+            .accept_activity_with_binding(
+                ActivityReading {
+                    run_id: request_id.into(),
+                    binding: local_binding,
+                    identity_evidence: evidence,
+                    provider_version: probe.version.into(),
+                    source_kind,
+                    started_at_utc: restore::timestamp(probe.started_at)
+                        .ok_or(CommandError::ProviderActivitySaveFailed)?,
+                    observed_at_utc,
+                    completed_at_utc: restore::timestamp(probe.completed_at)
+                        .ok_or(CommandError::ProviderActivitySaveFailed)?,
+                    summary: ActivitySummaryValues {
+                        lifetime_tokens: exact(&summary.lifetime_tokens),
+                        peak_daily_tokens: exact(&summary.peak_daily_tokens),
+                        longest_running_turn_sec: exact(&summary.longest_running_turn_sec),
+                        current_streak_days: exact(&summary.current_streak_days),
+                        longest_streak_days: exact(&summary.longest_streak_days),
+                    },
+                    daily_usage: probe.activity.daily_usage_buckets.as_ref().map(|rows| {
+                        rows.iter()
+                            .map(|row| ActivityDayValue {
+                                provider_date: row.start_date.clone(),
+                                tokens: row.tokens.as_str().into(),
+                            })
+                            .collect()
+                    }),
                 },
-                daily_usage: probe.activity.daily_usage_buckets.as_ref().map(|rows| {
-                    rows.iter()
-                        .map(|row| ActivityDayValue {
-                            provider_date: row.start_date.clone(),
-                            tokens: row.tokens.as_str().into(),
-                        })
-                        .collect()
-                }),
-            })
+                new_association,
+            )
             .map_err(save_error)
     }
 }
@@ -271,7 +410,7 @@ fn load_error(_: ActivityError) -> CommandError {
 }
 fn save_error(error: ActivityError) -> CommandError {
     match error {
-        ActivityError::IdentityChanged => CommandError::ProviderAccountChanged,
+        ActivityError::IdentityChanged => CommandError::ProviderActivityAssociationChanged,
         ActivityError::BindingChanged
         | ActivityError::ProfileUnavailable
         | ActivityError::AlreadyAccepted

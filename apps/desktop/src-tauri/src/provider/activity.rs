@@ -34,10 +34,48 @@ pub(crate) struct ActivityOutcome {
     pub activity: openusage_codex::ActivitySnapshot,
 }
 
+/// Rust-only authorization and compare-and-swap state captured before the provider worker starts.
+#[derive(Clone)]
+pub(crate) struct ActivityAssociation {
+    pub expected_binding: Option<String>,
+    pub review: Option<ActivityReviewFence>,
+}
+
+/// Retained only in Rust memory; it authorizes exactly the account description the user reviewed.
+#[derive(Clone)]
+pub(crate) struct ActivityReviewFence {
+    pub binding: ProfileBinding,
+    pub current: openusage_storage::ActivityIdentityEvidence,
+    pub created: std::time::Instant,
+}
+
+pub(crate) const ACTIVITY_REVIEW_LIFETIME: std::time::Duration =
+    std::time::Duration::from_secs(300);
+
+fn require_review(
+    state: &mut ProviderState,
+    review: &ActivityReviewFence,
+) -> Result<(), CommandError> {
+    require_open(state)?;
+    let approved = state
+        .approved
+        .as_mut()
+        .ok_or(CommandError::ProviderActivityReviewUnavailable)?;
+    if review.created.elapsed() >= ACTIVITY_REVIEW_LIFETIME
+        || state.generation != review.binding.generation
+        || approved.metadata.approval_id != review.binding.approval_id
+    {
+        return Err(CommandError::ProviderActivityReviewUnavailable);
+    }
+    approved.held.recheck()?;
+    review.binding.held_home.require_identity()?;
+    Ok(())
+}
+
 pub(super) struct Entry {
     pub(super) binding: ProfileBinding,
     handle: Option<ActivityHandle>,
-    expected_activity_binding: Option<String>,
+    association: ActivityAssociation,
 }
 
 pub(crate) struct CompletingActivity {
@@ -45,7 +83,7 @@ pub(crate) struct CompletingActivity {
     request_id: String,
     binding: ProfileBinding,
     handle: ActivityHandle,
-    expected_activity_binding: Option<String>,
+    association: ActivityAssociation,
 }
 
 pub(crate) struct CompletedActivity {
@@ -53,10 +91,23 @@ pub(crate) struct CompletedActivity {
     pub request_id: String,
     pub binding: ProfileBinding,
     probe: ActivityProbe,
-    expected_activity_binding: Option<String>,
+    association: ActivityAssociation,
 }
 
 impl ProviderCoordinator {
+    /// Validate a cached review without starting or contacting a provider process.
+    pub fn validate_activity_review(
+        &self,
+        review: &ActivityReviewFence,
+    ) -> Result<(), CommandError> {
+        let mut state = self
+            .0
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?;
+        require_review(&mut state, review)?;
+        require_profile_available(&state, &review.binding.profile_id)
+    }
+
     pub fn begin_activity(
         &self,
         profile_id: &str,
@@ -64,7 +115,7 @@ impl ProviderCoordinator {
         home_reference: &str,
         revision: openusage_storage::StorageRevision,
         path: &Path,
-        expected_activity_binding: Option<String>,
+        association: ActivityAssociation,
     ) -> Result<ActivityReceipt, CommandError> {
         validate_ids(profile_id, approval_id)?;
         let held_home = Arc::new(HeldHome::open(path)?);
@@ -80,6 +131,15 @@ impl ProviderCoordinator {
             .map_err(|_| CommandError::ProviderUnavailable)?;
         require_open(&state)?;
         require_profile_available(&state, profile_id)?;
+        if let Some(review) = &association.review {
+            require_review(&mut state, review)?;
+            if review.binding.profile_id != profile_id
+                || review.binding.home_reference != home_reference
+                || review.binding.approval_id != approval_id
+            {
+                return Err(CommandError::ProviderActivityReviewUnavailable);
+            }
+        }
         if state.logins.len() + state.quotas.len() + state.activities.len() >= 2 {
             return Err(CommandError::ProviderCapacityReached);
         }
@@ -120,7 +180,7 @@ impl ProviderCoordinator {
             Entry {
                 binding,
                 handle: Some(handle),
-                expected_activity_binding,
+                association,
             },
         );
         Ok(receipt)
@@ -150,7 +210,7 @@ impl ProviderCoordinator {
             coordinator: self.clone(),
             request_id: request_id.into(),
             binding: entry.binding.clone(),
-            expected_activity_binding: entry.expected_activity_binding.clone(),
+            association: entry.association.clone(),
             handle,
         })
     }
@@ -205,7 +265,7 @@ impl CompletingActivity {
                 request_id: self.request_id,
                 binding: self.binding,
                 probe,
-                expected_activity_binding: self.expected_activity_binding,
+                association: self.association,
             }),
             Err(error) => {
                 self.coordinator.discard_activity(&self.request_id);
@@ -227,7 +287,7 @@ impl CompletedActivity {
             &ProfileBinding,
             &ActivityProbe,
             &str,
-            Option<&str>,
+            &ActivityAssociation,
         ) -> Result<openusage_storage::ActivityCommit, CommandError>,
     ) -> Result<ActivityOutcome, CommandError> {
         let mut state = self
@@ -258,7 +318,7 @@ impl CompletedActivity {
             &self.binding,
             &self.probe,
             &self.request_id,
-            self.expected_activity_binding.as_deref(),
+            &self.association,
         )?;
         Ok(ActivityOutcome {
             request_id: self.request_id,

@@ -29,6 +29,8 @@ fn main() {
             "discover_provider_executables",
             "load_profile_activity",
             "begin_profile_activity_read",
+            "begin_profile_activity_reassociation",
+            "review_profile_activity_association",
             "complete_profile_activity_read",
             "cancel_profile_activity_read",
             "begin_profile_quota_read",

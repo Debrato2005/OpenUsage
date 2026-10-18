@@ -635,3 +635,515 @@ fn activity_obsolete_failures_cannot_downgrade_a_newer_committed_reading() {
     assert_eq!(saved["freshness"], "fresh");
     assert_eq!(saved["dailyUsageBuckets"][0]["freshness"], "fresh");
 }
+
+fn activity_tables(
+    workspace: &mut Workspace,
+) -> std::collections::BTreeMap<String, Vec<Vec<rusqlite::types::Value>>> {
+    let snapshot = workspace.backup_snapshot().unwrap();
+    let mut memory = rusqlite::Connection::open_in_memory().unwrap();
+    memory
+        .deserialize_read_exact(
+            "main",
+            std::io::Cursor::new(snapshot.bytes.as_slice()),
+            snapshot.bytes.len(),
+            true,
+        )
+        .unwrap();
+    let mut all = std::collections::BTreeMap::new();
+    for table in [
+        "profile_identity_events",
+        "collection_runs",
+        "activity_summaries",
+        "current_activity",
+        "current_activity_days",
+        "activity_day_history",
+    ] {
+        let mut statement = memory
+            .prepare(&format!("SELECT * FROM {table} ORDER BY 1,2"))
+            .unwrap();
+        let columns = statement.column_count();
+        let rows = statement
+            .query_map([], |row| {
+                (0..columns)
+                    .map(|index| row.get(index))
+                    .collect::<rusqlite::Result<Vec<rusqlite::types::Value>>>()
+            })
+            .unwrap()
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .unwrap();
+        all.insert(table.into(), rows);
+    }
+    all
+}
+
+fn restore_activity_to_fresh_homes(
+    fixture: &mut Fixture,
+) -> Vec<openusage_storage::RestoreHomeMapping> {
+    let snapshot = fixture.workspace.backup_snapshot().unwrap();
+    let homes = fixture
+        .profiles
+        .iter()
+        .map(|profile| {
+            let home = provider::new_id().unwrap();
+            prepare_directory(&fixture.workspace.directory.join("profiles").join(&home)).unwrap();
+            openusage_storage::RestoreHomeMapping {
+                profile_id: profile.clone(),
+                managed_home_reference: home,
+            }
+        })
+        .collect::<Vec<_>>();
+    fixture.workspace.provider.quiesce().unwrap();
+    let storage = fixture.workspace.storage.as_mut().unwrap();
+    let before = storage.restore_state().unwrap();
+    storage
+        .replace_records_from_backup(
+            &snapshot.bytes,
+            snapshot.schema_version,
+            &before.revision,
+            &homes,
+        )
+        .unwrap();
+    fixture.workspace.activity_sessions.clear();
+    fixture.workspace.activity_requests.clear();
+    fixture.workspace.activity_reviews.clear();
+    homes
+}
+
+fn fresh_activity_review(
+    fixture: &mut Fixture,
+    id: &str,
+    approval: &str,
+) -> super::activity_storage::ActivityAssociationReview {
+    fixture.mode("success");
+    let completed = fixture.read(id, approval).unwrap();
+    assert_eq!(
+        fixture
+            .workspace
+            .finish_profile_activity_read(completed)
+            .err(),
+        Some(CommandError::ProviderActivityAssociationChanged)
+    );
+    fixture
+        .workspace
+        .review_profile_activity_association(id, approval)
+        .unwrap()
+}
+
+#[test]
+fn restored_activity_requires_explicit_new_sign_in_consent_and_keeps_original_history() {
+    let mut fixture = Fixture::new("success");
+    let id = fixture.profiles[0].clone();
+    let approval = fixture.approve();
+    assert_eq!(
+        fixture
+            .workspace
+            .begin_profile_activity_reassociation(
+                &id,
+                &approval,
+                &provider::new_id().unwrap(),
+                true
+            )
+            .err(),
+        Some(CommandError::ProviderActivityReviewUnavailable)
+    );
+    let completed = fixture.read(&id, &approval).unwrap();
+    let initial = fixture
+        .workspace
+        .finish_profile_activity_read(completed)
+        .unwrap();
+    let old_tables = activity_tables(&mut fixture.workspace);
+    let old_home = fixture.home(&id);
+    let homes = restore_activity_to_fresh_homes(&mut fixture);
+    let completed = fixture.read(&id, &approval).unwrap();
+    assert_eq!(
+        fixture
+            .workspace
+            .finish_profile_activity_read(completed)
+            .err(),
+        Some(CommandError::ProviderActivityAssociationChanged)
+    );
+    assert_eq!(activity_tables(&mut fixture.workspace), old_tables);
+    let review = fixture
+        .workspace
+        .review_profile_activity_association(&id, &approval)
+        .unwrap();
+    assert_eq!(
+        fixture
+            .workspace
+            .begin_profile_activity_reassociation(&id, &approval, &review.review_id, false)
+            .err(),
+        Some(CommandError::InvalidArguments)
+    );
+    assert_eq!(activity_tables(&mut fixture.workspace), old_tables);
+    let consented = fixture
+        .workspace
+        .begin_profile_activity_reassociation(&id, &approval, &review.review_id, true)
+        .unwrap();
+    assert!(!consented.accepted);
+    let completed = fixture
+        .workspace
+        .complete_profile_activity_read(&id, &consented.request_id)
+        .unwrap()
+        .wait()
+        .unwrap();
+    let accepted = fixture
+        .workspace
+        .finish_profile_activity_read(completed)
+        .unwrap();
+    assert!(accepted.accepted);
+    assert_ne!(accepted.binding_id, initial.binding_id);
+    let updated = activity_tables(&mut fixture.workspace);
+    for table in [
+        "profile_identity_events",
+        "collection_runs",
+        "activity_summaries",
+        "activity_day_history",
+    ] {
+        for row in &old_tables[table] {
+            assert!(
+                updated[table].contains(row),
+                "The association switch changed a historical field in {table}."
+            );
+        }
+    }
+    assert_eq!(updated["profile_identity_events"].len(), 2);
+    assert_eq!(updated["collection_runs"].len(), 2);
+    let cached = fixture
+        .workspace
+        .storage
+        .as_ref()
+        .unwrap()
+        .current_activity(&id)
+        .unwrap()
+        .unwrap();
+    assert_eq!(cached.binding.binding_id, accepted.binding_id);
+    assert_eq!(
+        cached.binding.home_reference,
+        homes
+            .iter()
+            .find(|home| home.profile_id == id)
+            .unwrap()
+            .managed_home_reference
+    );
+    assert_eq!(
+        cached.summary.lifetime_tokens.as_deref(),
+        Some("9007199254740993")
+    );
+    assert_eq!(
+        fs::read(old_home.join("preserved-marker")).unwrap(),
+        b"preserve"
+    );
+}
+
+#[test]
+fn confirmed_activity_switch_still_refuses_unstable_account_responses_and_cancellation() {
+    let mut fixture = Fixture::new("success");
+    let id = fixture.profiles[0].clone();
+    let approval = fixture.approve();
+    let completed = fixture.read(&id, &approval).unwrap();
+    fixture
+        .workspace
+        .finish_profile_activity_read(completed)
+        .unwrap();
+    restore_activity_to_fresh_homes(&mut fixture);
+    let review = fresh_activity_review(&mut fixture, &id, &approval);
+    let before = activity_tables(&mut fixture.workspace);
+    fixture.mode("changed_email");
+    let consented = fixture
+        .workspace
+        .begin_profile_activity_reassociation(&id, &approval, &review.review_id, true)
+        .unwrap();
+    assert_eq!(
+        fixture
+            .workspace
+            .complete_profile_activity_read(&id, &consented.request_id)
+            .unwrap()
+            .wait()
+            .err(),
+        Some(CommandError::ProviderAccountChanged)
+    );
+    assert_eq!(activity_tables(&mut fixture.workspace), before);
+    let review = fresh_activity_review(&mut fixture, &id, &approval);
+    fixture.mode("pending");
+    let consented = fixture
+        .workspace
+        .begin_profile_activity_reassociation(&id, &approval, &review.review_id, true)
+        .unwrap();
+    let pid = fixture.pending_pid(&id, None);
+    let pending = fixture
+        .workspace
+        .complete_profile_activity_read(&id, &consented.request_id)
+        .unwrap();
+    assert!(
+        fixture
+            .workspace
+            .provider
+            .cancel_activity(&id, &consented.request_id)
+            .unwrap()
+            .cancelled
+    );
+    assert_eq!(
+        pending.wait().err(),
+        Some(CommandError::ProviderActivityCancelled)
+    );
+    gone(pid);
+    assert_eq!(activity_tables(&mut fixture.workspace), before);
+    let review = fresh_activity_review(&mut fixture, &id, &approval);
+    let stale = fixture
+        .workspace
+        .begin_profile_activity_reassociation(&id, &approval, &review.review_id, true)
+        .unwrap();
+    let completed = fixture
+        .workspace
+        .complete_profile_activity_read(&id, &stale.request_id)
+        .unwrap()
+        .wait()
+        .unwrap();
+    fixture.approve();
+    assert_eq!(
+        fixture
+            .workspace
+            .finish_profile_activity_read(completed)
+            .err(),
+        Some(CommandError::ProviderActivityCancelled)
+    );
+    assert_eq!(activity_tables(&mut fixture.workspace), before);
+}
+
+#[test]
+fn activity_review_exposes_only_bounded_hints_without_execution_and_consumes_only_a_started_read() {
+    let mut fixture = Fixture::new("success");
+    let id = fixture.profiles[0].clone();
+    let approval = fixture.approve();
+    let completed = fixture.read(&id, &approval).unwrap();
+    fixture
+        .workspace
+        .finish_profile_activity_read(completed)
+        .unwrap();
+    restore_activity_to_fresh_homes(&mut fixture);
+    let review = fresh_activity_review(&mut fixture, &id, &approval);
+    let before = activity_tables(&mut fixture.workspace);
+    let observations = fixture
+        .temporary
+        .path()
+        .join("synthetic-activity-observations.jsonl");
+    let executions = fs::read(&observations).unwrap();
+    let repeated = fixture
+        .workspace
+        .review_profile_activity_association(&id, &approval)
+        .unwrap();
+    assert_eq!(review.review_id, repeated.review_id);
+    let view = serde_json::to_value(&repeated).unwrap();
+    assert_eq!(view.as_object().unwrap().len(), 8);
+    assert_eq!(view["profileId"], id);
+    assert_eq!(view["approvalId"], approval);
+    assert_eq!(view["identityConfidence"], "provisional");
+    assert_eq!(view["homeChanged"], true);
+    assert_eq!(
+        view["previous"],
+        serde_json::json!({"email":"synthetic-activity@example.invalid","plan":"plus"})
+    );
+    assert_eq!(view["current"], view["previous"]);
+    assert_eq!(
+        fixture
+            .workspace
+            .begin_profile_activity_reassociation(&id, &approval, &review.review_id, false)
+            .err(),
+        Some(CommandError::InvalidArguments)
+    );
+    assert_eq!(
+        fixture
+            .workspace
+            .begin_profile_activity_reassociation(
+                &id,
+                &approval,
+                &provider::new_id().unwrap(),
+                true
+            )
+            .err(),
+        Some(CommandError::ProviderActivityReviewUnavailable)
+    );
+    assert_eq!(
+        fixture
+            .workspace
+            .review_profile_activity_association(&id, &provider::new_id().unwrap())
+            .err(),
+        Some(CommandError::ProviderActivityReviewUnavailable)
+    );
+    assert_eq!(
+        fixture
+            .workspace
+            .review_profile_activity_association(&fixture.profiles[1], &approval)
+            .err(),
+        Some(CommandError::ProviderActivityReviewUnavailable)
+    );
+    assert_eq!(
+        fixture
+            .workspace
+            .review_profile_activity_association("bad-id", &approval)
+            .err(),
+        Some(CommandError::InvalidArguments)
+    );
+    assert_eq!(
+        fixture
+            .workspace
+            .review_profile_activity_association(&id, &approval)
+            .unwrap()
+            .review_id,
+        review.review_id
+    );
+    assert_eq!(fs::read(&observations).unwrap(), executions);
+    assert_eq!(activity_tables(&mut fixture.workspace), before);
+    // A successful start spends this review even when the user subsequently cancels.
+    fixture.mode("pending");
+    let request = fixture
+        .workspace
+        .begin_profile_activity_reassociation(&id, &approval, &review.review_id, true)
+        .unwrap();
+    assert_eq!(
+        fixture
+            .workspace
+            .review_profile_activity_association(&id, &approval)
+            .err(),
+        Some(CommandError::ProviderActivityReviewUnavailable)
+    );
+    let pending = fixture
+        .workspace
+        .complete_profile_activity_read(&id, &request.request_id)
+        .unwrap();
+    assert!(
+        fixture
+            .workspace
+            .provider
+            .cancel_activity(&id, &request.request_id)
+            .unwrap()
+            .cancelled
+    );
+    assert_eq!(
+        pending.wait().err(),
+        Some(CommandError::ProviderActivityCancelled)
+    );
+    assert_eq!(activity_tables(&mut fixture.workspace), before);
+}
+
+#[test]
+fn activity_review_refuses_expired_or_invalidated_fences_and_changed_postconsent_description() {
+    for fault in [
+        "expiry",
+        "approval",
+        "home",
+        "binding",
+        "archived",
+        "description",
+    ] {
+        let mut fixture = Fixture::new("success");
+        let id = fixture.profiles[0].clone();
+        let approval = fixture.approve();
+        let completed = fixture.read(&id, &approval).unwrap();
+        fixture
+            .workspace
+            .finish_profile_activity_read(completed)
+            .unwrap();
+        restore_activity_to_fresh_homes(&mut fixture);
+        let review = fresh_activity_review(&mut fixture, &id, &approval);
+        match fault {
+            "expiry" => {
+                fixture
+                    .workspace
+                    .activity_reviews
+                    .get_mut(&id)
+                    .unwrap()
+                    .fence
+                    .created = Instant::now() - Duration::from_secs(301)
+            }
+            "approval" => {
+                fixture.approve();
+            }
+            "home" => {
+                let reference = &fixture.workspace.activity_reviews[&id]
+                    .fence
+                    .binding
+                    .home_reference;
+                let path = fixture.workspace.directory.join("profiles").join(reference);
+                fs::rename(&path, path.with_extension("displaced")).unwrap();
+                prepare_directory(&path).unwrap();
+            }
+            "binding" => {
+                let cached = &fixture.workspace.activity_reviews[&id];
+                fixture
+                    .workspace
+                    .storage
+                    .as_mut()
+                    .unwrap()
+                    .associate_activity_binding(openusage_storage::ActivityBindingInput {
+                        profile_id: id.clone(),
+                        expected_home_reference: cached.fence.binding.home_reference.clone(),
+                        expected_previous_binding_id: Some(
+                            cached.previous_binding.binding_id.clone(),
+                        ),
+                        new_binding_id: provider::new_id().unwrap(),
+                        evidence: cached.fence.current.clone(),
+                        observed_at_utc: cached.observed_at_utc.clone(),
+                    })
+                    .unwrap();
+            }
+            "archived" => {
+                fixture.workspace.set_profile_archived(&id, true).unwrap();
+            }
+            "description" => {
+                // Model a reviewed account description that differs from the next stable full probe.
+                fixture
+                    .workspace
+                    .activity_reviews
+                    .get_mut(&id)
+                    .unwrap()
+                    .fence
+                    .current
+                    .email = "reviewed-other@example.invalid".into();
+            }
+            _ => unreachable!(),
+        }
+        let before = activity_tables(&mut fixture.workspace);
+        if fault == "description" {
+            let request = fixture
+                .workspace
+                .begin_profile_activity_reassociation(&id, &approval, &review.review_id, true)
+                .unwrap();
+            let completed = fixture
+                .workspace
+                .complete_profile_activity_read(&id, &request.request_id)
+                .unwrap()
+                .wait()
+                .unwrap();
+            assert_eq!(
+                fixture
+                    .workspace
+                    .finish_profile_activity_read(completed)
+                    .err(),
+                Some(CommandError::ProviderAccountChanged)
+            );
+        } else {
+            assert_eq!(
+                fixture
+                    .workspace
+                    .review_profile_activity_association(&id, &approval)
+                    .err(),
+                Some(CommandError::ProviderActivityReviewUnavailable),
+                "Fault: {fault}"
+            );
+            assert_eq!(
+                fixture
+                    .workspace
+                    .begin_profile_activity_reassociation(&id, &approval, &review.review_id, true)
+                    .err(),
+                Some(CommandError::ProviderActivityReviewUnavailable),
+                "Fault: {fault}"
+            );
+        }
+        assert_eq!(
+            activity_tables(&mut fixture.workspace),
+            before,
+            "Fault: {fault}"
+        );
+    }
+}

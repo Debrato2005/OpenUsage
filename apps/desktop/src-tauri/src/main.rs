@@ -133,6 +133,15 @@ struct BeginReadArgs {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ActivityReassociationArgs {
+    profile_id: String,
+    approval_id: String,
+    review_id: String,
+    confirmed: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ProfileReadArgs {
     profile_id: String,
     request_id: String,
@@ -920,6 +929,57 @@ async fn begin_profile_activity_read(
 }
 
 #[tauri::command]
+async fn review_profile_activity_association(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<workspace::ActivityAssociationReview, CommandError> {
+    let args: BeginReadArgs = arguments(&request)?;
+    restore::validate_preview_id(&args.profile_id)?;
+    restore::validate_preview_id(&args.approval_id)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .review_profile_activity_association(&args.profile_id, &args.approval_id)
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+#[tauri::command]
+async fn begin_profile_activity_reassociation(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<provider::ActivityReceipt, CommandError> {
+    let args: ActivityReassociationArgs = arguments(&request)?;
+    restore::validate_preview_id(&args.profile_id)?;
+    restore::validate_preview_id(&args.approval_id)?;
+    restore::validate_preview_id(&args.review_id)?;
+    if !args.confirmed {
+        return Err(CommandError::InvalidArguments);
+    }
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .begin_profile_activity_reassociation(
+                &args.profile_id,
+                &args.approval_id,
+                &args.review_id,
+                args.confirmed,
+            )
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+#[tauri::command]
 async fn complete_profile_activity_read(
     request: tauri::ipc::Request<'_>,
     service: State<'_, WorkspaceService>,
@@ -1016,6 +1076,8 @@ fn main() {
             cancel_profile_quota_read,
             load_profile_activity,
             begin_profile_activity_read,
+            begin_profile_activity_reassociation,
+            review_profile_activity_association,
             complete_profile_activity_read,
             cancel_profile_activity_read
         ])
