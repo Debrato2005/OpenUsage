@@ -198,7 +198,9 @@ It changes that workspace to three active profiles with Dark appearance.
 The test checks stale previews, strict confirmation arguments, checkpoint faults, and unsafe home permissions.
 Each refusal must preserve the live records, key, and existing homes.
 The GUI requires an unchecked confirmation before Restore records becomes available.
-After confirmation, the test checks exact restored records, appearance, and a normal restart.
+After confirmation, the test checks selected restored fields, appearance, and a normal restart.
+Those fields are profile IDs, labels, archival flags, environment, connection state, and account count.
+It does not compare every column or timestamp.
 A changed source archive must not replace the retained authenticated contents.
 
 The live verifier opens SQLCipher read-only with WAL support and no migrations.
