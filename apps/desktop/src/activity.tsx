@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Button } from './components/ui/button';
-import { Checkbox } from './components/ui/checkbox';
-import { Field, FieldLabel } from './components/ui/field';
+import { AssociationReview } from './association-review';
 import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from './components/ui/collapsible';
 import { invoke, type ProfileActivityAssociationReview, type ActivityFreshness, type ProfileActivitySavedRead, type SavedProfileActivity, type ProviderExecutableApproval } from './contracts';
 import { providerFailure } from './provider-errors';
@@ -179,17 +178,7 @@ export function useActivityPreview({ profileId, approval, busy, onStarted, onSav
         {outcome.reassociationAvailable && <Collapsible open={reassociationOpen} onOpenChange={open => { if (open) void reviewAssociation(); else closeReview(); }}>
           <CollapsibleTrigger ref={reassociationTrigger} render={<Button variant="ghost" className="text-button h-auto max-w-full whitespace-normal" />} type="button" data-activity-reassociate={profileId} disabled={busy || working}>Use current sign-in</CollapsibleTrigger>
           <CollapsiblePanel>
-            {reviewing && <p role="status">Loading account review…</p>}
-            {reviewError && <div><p role="alert">{reviewError}</p><Button type="button" variant="outline" disabled={busy || working || reviewing} onClick={() => { void reviewAssociation(); }}>Retry account review</Button></div>}
-            {associationReview && <form onSubmit={event => { event.preventDefault(); void read(true); }}>
-              <dl className="activity-summary">{(['previous', 'current'] as const).map(kind => <div key={kind} data-activity-association={kind}><dt>{kind === 'previous' ? 'Previous account' : 'Current account'}</dt><dd className="activity-count" tabIndex={0}><bdi>{associationReview[kind].email}</bdi></dd><dd className="provider-help [overflow-wrap:anywhere]">Plan: <bdi>{associationReview[kind].plan ?? 'Not available'}</bdi></dd></div>)}</dl>
-              {associationReview.homeChanged && <p className="provider-help">Profile environment changed.</p>}
-              <p className="provider-help">Account details do not verify identity.</p>
-              <p id={`activity-reassociation-help-${profileId}`} className="provider-help">New readings will use the current sign-in. Previous readings stay in encrypted history.</p>
-              <Field disabled={busy || working}><FieldLabel className="backup-selection"><Checkbox ref={reassociationConsent} nativeButton render={<button type="button" />} id={`activity-reassociation-consent-${profileId}`} required checked={reassociationApproved} disabled={busy || working} aria-describedby={`profile-name-${profileId} activity-reassociation-help-${profileId}`} onCheckedChange={checked => setReassociationApproved(checked === true)} />I approve using the current sign-in for this profile.</FieldLabel></Field>
-              <div className="profile-actions"><Button type="submit" className="h-auto max-w-full whitespace-normal" disabled={busy || working || !reassociationApproved}>Confirm and read</Button></div>
-            </form>}
-            <Button type="button" variant="ghost" className="text-button h-auto max-w-full whitespace-normal" disabled={busy || working} onClick={() => { closeReview(); reassociationTrigger.current?.focus(); }}>Keep saved readings</Button>
+            <AssociationReview profileId={profileId} purpose="activity" review={associationReview} reviewing={reviewing} error={reviewError} approved={reassociationApproved} busy={busy || working} consentRef={reassociationConsent} onApproved={setReassociationApproved} onRetry={() => { void reviewAssociation(); }} onConfirm={() => { void read(true); }} onKeep={() => { closeReview(); reassociationTrigger.current?.focus(); }} />
           </CollapsiblePanel>
         </Collapsible>}
       </div>}

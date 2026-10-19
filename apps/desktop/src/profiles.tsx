@@ -6,6 +6,7 @@ import { Collapsible, CollapsibleTrigger, CollapsiblePanel } from './components/
 import './profile-actions.css';
 import { invoke, type ProfileRecord, type ProfileView, type ProviderExecutableApproval } from './contracts';
 import { ProfileProviderCheck } from './provider';
+import { SavedProfileQuota } from './quota';
 import { ProfileActivity } from './activity';
 
 type Props = {
@@ -187,9 +188,9 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval }: Pro
     const managementTrigger = <CollapsibleTrigger render={<Button variant="ghost" className="text-button" />} type="button" data-profile-action="options" aria-describedby={nameId} disabled={busy || loading || current}>Manage profile</CollapsibleTrigger>;
     return <Collapsible render={<li />} className="profile-row" data-profile-id={profile.id} key={profile.id} open={managed === profile.id || current} onOpenChange={open => setManaged(open ? profile.id : null)}>
       <div className="profile-details"><bdi id={nameId} className="profile-label">{profile.label}</bdi><p className="profile-meta">{profile.environment === 'native' ? 'On this device' : 'WSL profile'}</p></div>
-      <ProfileActivity profileId={profile.id} profileLabel={profile.label}>{(onActivitySaved, onActivityFailed) => profile.archived ? managementActions : providerApproval
-        ? <ProfileProviderCheck key={`${profile.id}:${providerApproval.approvalId}`} profileId={profile.id} profileLabel={profile.label} approval={providerApproval} busy={busy || loading || current} managementActions={managementActions} managementTrigger={managementTrigger} onActivitySaved={onActivitySaved} onActivityFailed={onActivityFailed} />
-        : <>{managementTrigger}<CollapsiblePanel keepMounted className="profile-management">{managementActions}</CollapsiblePanel></>}</ProfileActivity>
+      <ProfileActivity profileId={profile.id} profileLabel={profile.label}>{(onActivitySaved, onActivityFailed) => <SavedProfileQuota profileId={profile.id} profileLabel={profile.label}>{(onQuotaSaved, onQuotaFailed) => profile.archived ? managementActions : providerApproval
+        ? <ProfileProviderCheck key={`${profile.id}:${providerApproval.approvalId}`} profileId={profile.id} profileLabel={profile.label} approval={providerApproval} busy={busy || loading || current} managementActions={managementActions} managementTrigger={managementTrigger} onActivitySaved={async value => { await Promise.all([onActivitySaved(value), onQuotaFailed()]); }} onActivityFailed={onActivityFailed} onQuotaSaved={async value => { await Promise.all([onQuotaSaved(value), onActivityFailed()]); }} onQuotaFailed={onQuotaFailed} />
+        : <>{managementTrigger}<CollapsiblePanel keepMounted className="profile-management">{managementActions}</CollapsiblePanel></>}</SavedProfileQuota>}</ProfileActivity>
       {rowError && !current && error()}
     </Collapsible>;
   }
@@ -211,7 +212,7 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval }: Pro
       </Field>
       {active.length ? <ul className="profile-list" aria-label="Active profiles">{active.map(row)}</ul> : <p className="profile-empty">No active profiles. Create a profile or restore an archived one.</p>}
       {archived.length > 0 && <details className="archived-profiles"><summary>Archived profiles ({archived.length})</summary><p>Archived profiles keep their local data.</p><ul className="profile-list" aria-label="Archived profiles">{archived.map(row)}</ul></details>}
-      <p className="profile-meta">{providerApproval ? 'Sign in to a profile, then preview its quota readings. Scheduled collection is not available yet.' : 'Review Codex in Codex connection to enable sign-in and quota previews.'}</p>
+      <p className="profile-meta">{providerApproval ? 'Sign in to a profile, then read and save its quotas. Scheduled collection is not available yet.' : 'Review Codex in Codex connection to enable sign-in and quota reads.'}</p>
     </>}
   </section>;
 }

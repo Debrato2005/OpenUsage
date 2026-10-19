@@ -3,7 +3,7 @@ import type { ProfileActivitySavedRead, SavedProfileActivity } from '../../apps/
 
 // Renderer-only synthetic IPC; SQLCipher, provider ownership and COMMIT are native acceptance scope.
 type Deferred = { resolve: (value: unknown) => void; reject: (error: string) => void };
-type Fixture = { completions: Record<string, Deferred>; cancellations: Record<string, Deferred>; requests: string[]; requestCalls: { command: string; args: Record<string, unknown> }[]; saved: SavedProfileActivity | null; failLoads: boolean; deferLoads: boolean; pendingLoads: Deferred[]; review: unknown; failReviews: boolean | string; deferReviews: boolean; pendingReviews: Deferred[] };
+type Fixture = { completions: Record<string, Deferred>; cancellations: Record<string, Deferred>; savedQuota: unknown; requests: string[]; requestCalls: { command: string; args: Record<string, unknown> }[]; saved: SavedProfileActivity | null; failLoads: boolean; deferLoads: boolean; pendingLoads: Deferred[]; review: unknown; failReviews: boolean | string; deferReviews: boolean; pendingReviews: Deferred[] };
 type FixtureWindow = Window & { activityFixture: Fixture };
 const profileId = '11111111-1111-4111-8111-111111111111';
 const approvalId = '22222222-2222-4222-8222-222222222222';
@@ -24,7 +24,7 @@ function saved(index = 0, rows: { startDate: string; tokens: string }[] | null =
 }
 async function openProfile(page: Page, options: { approve?: boolean; cached?: SavedProfileActivity | null; archived?: boolean } = {}) {
   await page.addInitScript(({ profileId, approvalId, requestIds, reviewId, observedAtUtc, options }) => {
-    const fixture: Fixture = { completions: {}, cancellations: {}, requests: [], requestCalls: [], saved: options.cached ?? null, failLoads: false, deferLoads: false, pendingLoads: [], review: { reviewId, profileId, approvalId, observedAtUtc, previous: { email: 'previous@synthetic.invalid', plan: null }, current: { email: 'current@synthetic.invalid', plan: 'Synthetic plan' }, homeChanged: true, identityConfidence: 'provisional' }, failReviews: false, deferReviews: false, pendingReviews: [] };
+    const fixture: Fixture = { completions: {}, cancellations: {}, savedQuota: null, requests: [], requestCalls: [], saved: options.cached ?? null, failLoads: false, deferLoads: false, pendingLoads: [], review: { reviewId, profileId, approvalId, observedAtUtc, previous: { email: 'previous@synthetic.invalid', plan: null }, current: { email: 'current@synthetic.invalid', plan: 'Synthetic plan' }, homeChanged: true, identityConfidence: 'provisional' }, failReviews: false, deferReviews: false, pendingReviews: [] };
     Object.assign(window, { activityFixture: fixture }); let started = 0;
     const metadata = { path: '/synthetic/reviewed-codex', fileBytes: '100', sha256: 'a'.repeat(64), testedVersion: '0.163.0', versionChecked: false, sourceVerified: true, sourceKind: 'test_fixture', sourceUrl: null };
     window.__TAURI__ = { core: { invoke: async <T>(command: string, args: Record<string, unknown> = {}) => {
@@ -32,6 +32,7 @@ async function openProfile(page: Page, options: { approve?: boolean; cached?: Sa
       switch (command) {
         case 'bootstrap': value = { storage: 'ready', theme: 'light', schemaVersion: 1, activeProfiles: options.archived ? 0 : 1, monitoring: 'stopped', provider: 'not_configured', keyProtection: 'passphrase', storageIssue: null }; break;
         case 'list_profiles': value = { activeProfiles: options.archived ? 0 : 1, profiles: [{ id: profileId, label: 'Synthetic activity profile', environment: 'native', archived: options.archived ?? false, connectionState: 'authentication_required' }] }; break;
+        case 'load_profile_quota': value = structuredClone(fixture.savedQuota); break;
         case 'load_profile_activity':
           if (fixture.failLoads) throw 'provider_activity_load_failed';
           value = fixture.deferLoads ? await new Promise((resolve, reject) => { fixture.pendingLoads.push({ resolve, reject }); }) : structuredClone(fixture.saved); break;
@@ -45,7 +46,8 @@ async function openProfile(page: Page, options: { approve?: boolean; cached?: Sa
         case 'complete_profile_activity_read': value = await new Promise((resolve, reject) => { fixture.completions[String(args.requestId)] = { resolve, reject }; }); break;
         case 'cancel_profile_activity_read': value = await new Promise((resolve, reject) => { fixture.cancellations[String(args.requestId)] = { resolve, reject }; }); break;
         case 'begin_profile_quota_read': value = { profileId, approvalId, requestId: requestIds[1], sourceKind: 'test_fixture', monitoring: 'stopped', accepted: false }; break;
-        case 'complete_profile_quota_read': value = await new Promise((resolve, reject) => { fixture.completions[`quota:${String(args.requestId)}`] = { resolve, reject }; }); break;
+        case 'complete_profile_quota_read': value = await new Promise((resolve, reject) => { fixture.completions[`quota:${String(args.requestId)}`] = { resolve, reject }; });
+          if (typeof value === 'object' && value !== null && 'bindingId' in value) { const { requestId: _requestId, approvalId: _approvalId, ...saved } = value as Record<string, unknown>; fixture.savedQuota = { ...saved, freshness: 'unknown', coverage: 'unknown', scope: 'account_quota_with_unknown_application_scope' }; } break;
         default: throw new Error(`Unexpected renderer fixture command: ${command}`);
       }
       return value as T;
@@ -134,10 +136,10 @@ test('renderer keeps a new quota read focused when an old activity cancellation 
   await page.evaluate(id => { (window as unknown as FixtureWindow).activityFixture.cancellations[id]!.reject('provider_cleanup_failed'); }, requestIds[0]!);
   await expect(cancelQuota).toBeFocused(); await expect(cancelQuota).toBeEnabled(); await expect(page.locator('.activity-result')).toHaveCount(0);
   await page.evaluate(({ profileId, approvalId, requestId }) => {
-    (window as unknown as FixtureWindow).activityFixture.completions[`quota:${requestId}`]!.resolve({ profileId, approvalId, requestId, sourceKind: 'test_fixture', monitoring: 'stopped', accepted: false,
+    (window as unknown as FixtureWindow).activityFixture.completions[`quota:${requestId}`]!.resolve({ profileId, approvalId, requestId, sourceKind: 'test_fixture', monitoring: 'stopped', accepted: true, bindingId: '66666666-6666-4666-8666-666666666666', collectionRunId: '77777777-7777-4777-8777-777777777777',
       providerVersion: '0.163.0', observedAtUtc: '2026-10-18T00:00:00.000Z', identityConfidence: 'provisional', verifiedIdentityKey: null, availableResetCredits: null, resetCreditDetails: null, limits: [] });
   }, { profileId, approvalId, requestId: requestIds[1]! });
-  await expect(page.getByRole('region', { name: 'Quota preview for Synthetic activity profile' })).toBeFocused();
+  await expect(page.getByRole('region', { name: 'Saved quotas for Synthetic activity profile' })).toBeFocused();
   await expect(page.locator('.activity-result')).toHaveCount(0);
 });
 

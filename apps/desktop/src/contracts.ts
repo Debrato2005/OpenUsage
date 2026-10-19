@@ -147,13 +147,18 @@ export interface ResetCreditDetail {
   title: string | null; status: 'available' | 'redeeming' | 'redeemed' | 'unknown';
   grantedAtUnix: number; expiresAtUnix: number | null;
 }
-export interface ProfileQuotaPreview extends ProfileQuotaRequest {
+export interface ProfileQuotaSavedRead extends Omit<ProfileQuotaRequest, 'accepted'> {
+  accepted: true; bindingId: string; collectionRunId: string;
   providerVersion: string; observedAtUtc: string;
   identityConfidence: 'provisional'; verifiedIdentityKey: null;
   availableResetCredits: string | null;
   resetCreditDetails: ResetCreditDetail[] | null;
   limits: { limitId: string; limitName: string | null; primary: QuotaWindow | null; secondary: QuotaWindow | null; reachedType: string | null; monthlyCreditLimit: string | null; spendControlReached: boolean | null }[];
 }
+export interface SavedProfileQuota extends Omit<ProfileQuotaSavedRead, 'requestId' | 'approvalId'> {
+  coverage: 'unknown'; scope: 'account_quota_with_unknown_application_scope'; freshness: ActivityFreshness;
+}
+
 
 
 export interface ProfileActivityRequest {
@@ -196,7 +201,10 @@ interface Commands {
   complete_profile_activity_read: { args: { profileId: string; requestId: string }; result: ProfileActivitySavedRead };
   cancel_profile_activity_read: { args: { profileId: string; requestId: string }; result: { cancelled: boolean } };
   begin_profile_quota_read: { args: { profileId: string; approvalId: string }; result: ProfileQuotaRequest };
-  complete_profile_quota_read: { args: { profileId: string; requestId: string }; result: ProfileQuotaPreview };
+  complete_profile_quota_read: { args: { profileId: string; requestId: string }; result: ProfileQuotaSavedRead };
+  load_profile_quota: { args: { profileId: string }; result: SavedProfileQuota | null };
+  review_profile_quota_association: { args: { profileId: string; approvalId: string }; result: ProfileActivityAssociationReview };
+  begin_profile_quota_reassociation: { args: { profileId: string; approvalId: string; reviewId: string; confirmed: true }; result: ProfileQuotaRequest };
   cancel_profile_quota_read: { args: { profileId: string; requestId: string }; result: { cancelled: boolean } };
   discover_provider_executables: { args: undefined; result: ProviderExecutableDiscovery };
   begin_profile_login: { args: { profileId: string; approvalId: string; flow: 'device_code'; confirmed: true }; result: ProviderLoginAttempt };
@@ -248,8 +256,10 @@ export async function invoke<K extends keyof Commands>(
     : command === 'complete_profile_activity_read' ? isProfileActivitySavedRead(response)
     : command === 'load_profile_activity' ? isSavedProfileActivity(response)
     : command === 'cancel_profile_activity_read' ? isPreviewCancellation(response)
-    : command === 'begin_profile_quota_read' ? isProfileQuotaRequest(response)
-    : command === 'complete_profile_quota_read' ? isProfileQuotaPreview(response)
+    : (command === 'begin_profile_quota_read' || command === 'begin_profile_quota_reassociation') ? isProfileQuotaRequest(response)
+    : command === 'complete_profile_quota_read' ? isProfileQuotaSavedRead(response)
+    : command === 'load_profile_quota' ? isSavedProfileQuota(response)
+    : command === 'review_profile_quota_association' ? isActivityAssociationReview(response)
     : command === 'cancel_profile_quota_read' ? isPreviewCancellation(response)
     : command === 'discover_provider_executables' ? isProviderExecutableDiscovery(response)
     : command === 'begin_profile_login' ? isProviderLoginAttempt(response)
@@ -343,11 +353,21 @@ function isResetCreditDetails(value: unknown): value is ResetCreditDetail[] | nu
       && (v.expiresAtUnix === null || (Number.isSafeInteger(v.expiresAtUnix) && Number(v.expiresAtUnix) >= -62135596800 && Number(v.expiresAtUnix) <= 253402300799));
   });
 }
-function isProfileQuotaPreview(value: unknown): value is ProfileQuotaPreview {
+function isProfileQuotaSavedRead(value: unknown): value is ProfileQuotaSavedRead {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   const v = value as Record<string, unknown>;
-  if (Object.keys(v).some(key => !['profileId', 'requestId', 'approvalId', 'sourceKind', 'monitoring', 'accepted', 'providerVersion', 'observedAtUtc', 'identityConfidence', 'verifiedIdentityKey', 'availableResetCredits', 'resetCreditDetails', 'limits'].includes(key))
-    || !isQuotaBinding(v) || !quotaText(v.providerVersion, 80) || !isUtcTimestamp(v.observedAtUtc)
+  return Object.keys(v).length === 15 && isQuotaBinding(v, true) && isUuid(v.bindingId) && isUuid(v.collectionRunId) && isQuotaValues(v);
+}
+function isSavedProfileQuota(value: unknown): value is SavedProfileQuota | null {
+  if (value === null) return true;
+  if (typeof value !== 'object' || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  return Object.keys(v).length === 16 && isUuid(v.profileId) && isUuid(v.bindingId) && isUuid(v.collectionRunId)
+    && (v.sourceKind === 'official_artifact' || v.sourceKind === 'test_fixture') && v.accepted === true && v.monitoring === 'stopped'
+    && v.coverage === 'unknown' && v.scope === 'account_quota_with_unknown_application_scope' && isActivityFreshness(v.freshness) && isQuotaValues(v);
+}
+function isQuotaValues(v: Record<string, unknown>): boolean {
+  if (!quotaText(v.providerVersion, 80) || !isUtcTimestamp(v.observedAtUtc)
     || v.identityConfidence !== 'provisional' || v.verifiedIdentityKey !== null || !isResetCreditCount(v.availableResetCredits) || !isResetCreditDetails(v.resetCreditDetails) || !Array.isArray(v.limits) || v.limits.length > 64) return false;
   const ids = new Set<string>();
   return v.limits.every(value => {

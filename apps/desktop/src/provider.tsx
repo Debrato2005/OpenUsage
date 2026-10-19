@@ -9,7 +9,7 @@ import { providerFailure } from './provider-errors';
 import { ProfileQuotaRead } from './quota';
 import { useActivityPreview } from './activity';
 import { ProfileDeviceLogin } from './login';
-import { invoke, type ProfileActivitySavedRead, type ProviderConnectionDiagnostic, type ProviderExecutableApproval, type ProviderExecutableCandidate, type ProviderExecutableDiscovery } from './contracts';
+import { invoke, type ProfileActivitySavedRead, type ProfileQuotaSavedRead, type ProviderConnectionDiagnostic, type ProviderExecutableApproval, type ProviderExecutableCandidate, type ProviderExecutableDiscovery } from './contracts';
 
 
 type SettingsProps = {
@@ -113,7 +113,7 @@ export function ProviderSettings({ busy, setBusy, approval, onApproved }: Settin
   return <section className="provider-panel" aria-labelledby="provider-heading">
     <details>
       <summary data-provider-settings><h2 id="provider-heading">Codex connection</h2></summary>
-      <p className="provider-help">Review Codex for this session, then sign in or preview quotas and activity for a profile. Scheduled collection is not available yet.</p>
+      <p className="provider-help">Review Codex for this session, then sign in or save quota and activity readings for a profile. Scheduled collection is not available yet.</p>
       {approval && <div ref={approvalPanel} className="backup-receipt provider-approval-result" role="status" tabIndex={-1}>
         <h3>Executable approved for this session</h3><p className="provider-path"><bdi>{approval.path}</bdi></p>
         <p className="provider-help">OpenUsage checks compatibility before each connection check.</p>
@@ -155,7 +155,7 @@ export function ProviderSettings({ busy, setBusy, approval, onApproved }: Settin
   </section>;
 }
 
-export function ProfileProviderCheck({ profileId, profileLabel, approval, busy, managementActions, managementTrigger, onActivitySaved, onActivityFailed }: { profileId: string; profileLabel: string; approval: ProviderExecutableApproval; busy: boolean; managementActions: ReactNode; managementTrigger: ReactNode; onActivitySaved: (value: ProfileActivitySavedRead) => Promise<void>; onActivityFailed: () => Promise<void> }) {
+export function ProfileProviderCheck({ profileId, profileLabel, approval, busy, managementActions, managementTrigger, onActivitySaved, onActivityFailed, onQuotaSaved, onQuotaFailed }: { profileId: string; profileLabel: string; approval: ProviderExecutableApproval; busy: boolean; managementActions: ReactNode; managementTrigger: ReactNode; onActivitySaved: (value: ProfileActivitySavedRead) => Promise<void>; onActivityFailed: () => Promise<void>; onQuotaSaved: (value: ProfileQuotaSavedRead) => Promise<void>; onQuotaFailed: () => Promise<void> }) {
   const [checking, setChecking] = useState(false);
   const [loggingIn, setLoggingIn] = useState(false);
   const [readingQuota, setReadingQuota] = useState(false);
@@ -210,7 +210,7 @@ export function ProfileProviderCheck({ profileId, profileLabel, approval, busy, 
   return <div className="profile-provider-check">
     {checking && <div className="profile-actions"><span role="status">Checking connection…</span><Button className="text-button" variant="ghost" type="button" data-provider-cancel={profileId} aria-describedby={`profile-name-${profileId}`} disabled={cancelling} onClick={() => { void cancel(); }}>{cancelling ? 'Cancelling…' : 'Cancel check'}</Button></div>}
     <ProfileDeviceLogin key={`login:${loginGeneration}`} profileId={profileId} profileLabel={profileLabel} approval={approval} busy={busy || checking || readingQuota || activity.working} onActivity={setLoggingIn} onStarted={() => { activity.clear(); checkGeneration.current += 1; setDiagnostic(null); setError(null); setQuotaGeneration(value => value + 1); }} />
-    <ProfileQuotaRead key={`quota:${quotaGeneration}`} profileId={profileId} profileLabel={profileLabel} approval={approval} busy={busy || checking || loggingIn || activity.working} onActivity={setReadingQuota} onStarted={() => { activity.clear(); checkGeneration.current += 1; setDiagnostic(null); setError(null); setLoginGeneration(value => value + 1); }} actionSiblings={<>
+    <ProfileQuotaRead onSaved={onQuotaSaved} onFailed={onQuotaFailed} key={`quota:${quotaGeneration}`} profileId={profileId} profileLabel={profileLabel} approval={approval} busy={busy || checking || loggingIn || activity.working} onActivity={setReadingQuota} onStarted={() => { activity.clear(); checkGeneration.current += 1; setDiagnostic(null); setError(null); setLoginGeneration(value => value + 1); }} actionSiblings={<>
       {managementTrigger}
       <CollapsiblePanel keepMounted className="profile-management">
         {managementActions}
