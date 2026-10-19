@@ -55,7 +55,7 @@ pub(crate) struct QuotaWindowView {
     pub resets_at_unix: Option<i64>,
     pub label: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub reset_due: Option<bool>,
+    pub reset_state: Option<&'static str>,
 }
 
 impl QuotaWindowView {
@@ -72,7 +72,7 @@ impl QuotaWindowView {
             window_duration_mins: window.window_duration_mins,
             resets_at_unix: window.resets_at_unix,
             label,
-            reset_due: None,
+            reset_state: None,
         }
     }
 }

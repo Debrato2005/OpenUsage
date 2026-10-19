@@ -1,4 +1,4 @@
-//! Durable full quota readings. Local associations remain provisional and never confirm resets.
+//! Durable full quota readings and conservative local reset assessments. Identity stays provisional.
 use crate::activity::{
     activity_decimal, activity_utc_timestamp, associate_in_transaction, read_error, require,
     require_profile, require_uuid, safe_text, validate_association, validate_evidence, write_error,
@@ -91,6 +91,7 @@ pub struct StoredQuota {
     pub limits: Vec<QuotaLimit>,
     pub available_reset_credits: Option<String>,
     pub reset_credit_details: Option<Vec<QuotaCreditDetail>>,
+    pub reset_assessments: Vec<crate::QuotaResetAssessment>,
 }
 impl fmt::Debug for StoredQuota {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -140,6 +141,18 @@ impl Storage {
         if email != reading.identity_evidence.email || plan != reading.identity_evidence.plan {
             return Err(ActivityError::IdentityChanged);
         }
+        let previous_run: Option<String> = tx
+            .query_row(
+                "SELECT collection_run_id FROM current_quota_readings WHERE profile_id=?1",
+                [&reading.binding.profile_id],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(read_error)?;
+        let previous = previous_run
+            .as_ref()
+            .map(|run| load_snapshot(&tx, "main", run))
+            .transpose()?;
         tx.execute("INSERT INTO collection_runs VALUES (?1,?2,?3,?4,?5,?6,'account/rateLimits/read',?7,?8,'account_quota_with_unknown_application_scope',NULL,'percent','unknown','provisional',NULL,'accepted')",params![reading.run_id,reading.binding.profile_id,reading.binding.binding_id,reading.started_at_utc,reading.completed_at_utc,reading.observed_at_utc,reading.provider_version,reading.source_kind.as_str()]).map_err(write_error)?;
         let detail_state = match &reading.reset_credit_details {
             None => "unavailable",
@@ -147,13 +160,14 @@ impl Storage {
             Some(_) => "returned",
         };
         tx.execute(
-            "INSERT INTO quota_snapshots VALUES (?1,?2,?3,?4,?5)",
+            "INSERT INTO quota_snapshots VALUES (?1,?2,?3,?4,?5,?6)",
             params![
                 reading.run_id,
                 reading.binding.profile_id,
                 reading.binding.binding_id,
                 reading.available_reset_credits,
-                detail_state
+                detail_state,
+                previous_run
             ],
         )
         .map_err(write_error)?;
@@ -222,6 +236,8 @@ impl Storage {
             )
             .map_err(write_error)?;
         }
+        let packet = load_snapshot_packet(&tx, "main", &reading.run_id)?;
+        crate::quota_resets::save(&tx, &packet, previous.as_ref())?;
         let commit = QuotaCommit {
             profile_id: reading.binding.profile_id,
             binding_id: reading.binding.binding_id,
@@ -322,7 +338,7 @@ fn valid_unix(value: i64) -> bool {
 }
 
 // Proleptic Gregorian calendar. The accepted Unix range covers UTC years 0001 through 9999.
-fn unix_to_utc(value: i64) -> String {
+pub(crate) fn unix_to_utc(value: i64) -> String {
     let days = value.div_euclid(86_400) + 719_468;
     let seconds = value.rem_euclid(86_400);
     let era = days.div_euclid(146_097);
@@ -343,7 +359,7 @@ fn unix_to_utc(value: i64) -> String {
     )
 }
 
-fn utc_to_unix(value: &str) -> Result<i64> {
+pub(crate) fn utc_to_unix(value: &str) -> Result<i64> {
     require(activity_utc_timestamp(value) && value.ends_with(".000Z"))?;
     let number = |start, end| {
         value[start..end]
@@ -390,6 +406,16 @@ fn validate_reading(r: &QuotaReading) -> Result<()> {
 }
 
 pub(crate) fn load_snapshot(
+    connection: &Connection,
+    schema: &str,
+    run: &str,
+) -> Result<StoredQuota> {
+    let mut packet = load_snapshot_packet(connection, schema, run)?;
+    packet.reset_assessments = crate::quota_resets::load(connection, schema, run)?;
+    Ok(packet)
+}
+
+pub(crate) fn load_snapshot_packet(
     connection: &Connection,
     schema: &str,
     run: &str,
@@ -489,6 +515,7 @@ pub(crate) fn load_snapshot(
         limits,
         available_reset_credits: count,
         reset_credit_details,
+        reset_assessments: Vec::new(),
     })
 }
 

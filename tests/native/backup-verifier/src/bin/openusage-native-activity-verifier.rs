@@ -63,7 +63,7 @@ fn constrain(connection: &Connection) {
         .query_row("PRAGMA cipher_version", [], |r| r.get(0))
         .unwrap();
     assert!(version.starts_with("4."));
-    assert!([2, 3].contains(&schema_version(connection)));
+    assert!([2, 3, 4].contains(&schema_version(connection)));
     assert_eq!(
         connection
             .query_row("PRAGMA integrity_check", [], |r| r.get::<_, String>(0))
@@ -96,7 +96,7 @@ fn state(connection: &Connection) -> Value {
         ),
         ("activity_day_history", "id"),
     ];
-    if schema_version(connection) == 3 {
+    if schema_version(connection) >= 3 {
         selected.extend([
             ("profile_bindings", "profile_id"),
             ("quota_snapshots", "id"),
@@ -105,6 +105,12 @@ fn state(connection: &Connection) -> Value {
             ("current_quota_readings", "profile_id"),
             ("current_quota", "profile_id,limit_id,window_role"),
         ]);
+    }
+    if schema_version(connection) == 4 {
+        selected.push((
+            "quota_reset_assessments",
+            "collection_run_id,limit_id,window_role",
+        ));
     }
     for (table, order) in selected {
         // Both identifiers and ordering expressions are fixed trusted test source, never request data.
@@ -212,7 +218,7 @@ fn main() {
             free_bytes(stage),
         )
         .expect("Synthetic archive did not authenticate.");
-        assert!([2, 3].contains(&verified.manifest().schema_version));
+        assert!([2, 3, 4].contains(&verified.manifest().schema_version));
         assert_eq!(verified.manifest().entries.len(), 1);
         assert_eq!(verified.manifest().entries[0].name, "records.sqlite");
         verified.copy_payload(&mut *payload).unwrap();

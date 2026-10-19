@@ -246,10 +246,14 @@ fn quota_backup_and_encrypted_checkpoint_restore_all_fields_and_history() {
     let bytes = snapshot.bytes.clone();
     crate::backup_validation::with_validated_snapshot::<_, crate::BackupValidationError>(
         &snapshot.bytes,
-        3,
+        crate::CURRENT_SCHEMA_VERSION,
         true,
         |source, _| {
-            let copy = crate::backup_validation::trusted_memory_copy(source, "main", 3)?;
+            let copy = crate::backup_validation::trusted_memory_copy(
+                source,
+                "main",
+                crate::CURRENT_SCHEMA_VERSION,
+            )?;
             assert_eq!(crate::backup_validation::activity_records(&copy), expected);
             Ok(())
         },
@@ -270,12 +274,18 @@ fn quota_backup_and_encrypted_checkpoint_restore_all_fields_and_history() {
     storage.accept_quota(next, None).unwrap();
     assert_ne!(storage.restore_state().unwrap().revision, revision);
     let recovered = storage.read_encrypted_checkpoint(&checkpoint).unwrap();
-    let homes = crate::validate_checkpoint_restore_input(&recovered.bytes, 3)
-        .unwrap()
-        .homes;
+    let homes =
+        crate::validate_checkpoint_restore_input(&recovered.bytes, crate::CURRENT_SCHEMA_VERSION)
+            .unwrap()
+            .homes;
     let revision = storage.restore_state().unwrap().revision;
     storage
-        .replace_records_from_checkpoint(&recovered.bytes, 3, &revision, &homes)
+        .replace_records_from_checkpoint(
+            &recovered.bytes,
+            crate::CURRENT_SCHEMA_VERSION,
+            &revision,
+            &homes,
+        )
         .unwrap();
     assert_eq!(all(&storage), expected);
     assert_eq!(storage.current_quota(&id(1)).unwrap(), Some(saved.clone()));
@@ -294,7 +304,12 @@ fn quota_backup_and_encrypted_checkpoint_restore_all_fields_and_history() {
         },
     ];
     target
-        .replace_records_from_backup(&snapshot.bytes, 3, &revision, &homes)
+        .replace_records_from_backup(
+            &snapshot.bytes,
+            crate::CURRENT_SCHEMA_VERSION,
+            &revision,
+            &homes,
+        )
         .unwrap();
     assert_eq!(all(&target), expected);
     assert_eq!(target.current_quota(&id(1)).unwrap(), Some(saved));
@@ -335,7 +350,7 @@ fn quota_authenticated_snapshot_semantics_reject_malformed_fields_and_incomplete
         let snapshot = storage.backup_snapshot().unwrap();
         let original = snapshot.bytes.clone();
         assert_eq!(
-            crate::validate_backup_snapshot(&snapshot.bytes, 3),
+            crate::validate_backup_snapshot(&snapshot.bytes, crate::CURRENT_SCHEMA_VERSION),
             Err(crate::BackupValidationError::InvalidDatabase),
             "{sql}"
         );
@@ -345,6 +360,9 @@ fn quota_authenticated_snapshot_semantics_reject_malformed_fields_and_incomplete
 
 #[path = "quota_migration_tests.rs"]
 mod migration_tests;
+
+#[path = "quota_reset_tests.rs"]
+mod reset_tests;
 #[test]
 fn quota_first_exact_nullable_packet_reopens_and_is_readable_when_archived() {
     let (dir, mut storage, r) = fixture();

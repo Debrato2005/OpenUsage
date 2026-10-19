@@ -1,4 +1,4 @@
-//! Semantic checks for authenticated, exact-catalog schema 3 snapshots.
+//! Semantic checks for authenticated quota snapshots with an exact catalog.
 use crate::activity::activity_utc_timestamp;
 use crate::backup_validation::{
     BackupValidationError, canonical_uuid, optional_text, require, sql_error, text,
@@ -21,7 +21,7 @@ pub(crate) fn validate_quota(connection: &Connection, schema: &str) -> Result<()
         .map_err(sql_error)?;
     let mut rows = statement.query([]).map_err(sql_error)?;
     while let Some(row) = rows.next().map_err(sql_error)? {
-        crate::quota::load_snapshot(connection, schema, text(row, 0)?)
+        crate::quota::load_snapshot_packet(connection, schema, text(row, 0)?)
             .map_err(|_| BackupValidationError::InvalidDatabase)?;
     }
     for table in ["current_quota_readings", "current_quota"] {

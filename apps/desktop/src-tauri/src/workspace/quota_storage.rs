@@ -6,6 +6,7 @@ use super::*;
 use openusage_codex::session::QuotaProbe;
 use openusage_storage::{
     ActivityError, ActivitySourceKind, ProfileBindingInput, ProfileIdentityEvidence,
+    QuotaResetAssessment, QuotaResetState, QuotaWindowRole,
 };
 use std::time::{Duration, Instant, SystemTime};
 
@@ -68,6 +69,37 @@ impl Workspace {
             now,
             Duration::from_secs(600),
         );
+        let limits = saved
+            .limits
+            .into_iter()
+            .map(|limit| {
+                let window = |value: Option<openusage_storage::QuotaWindow>, role, fallback| {
+                    value
+                        .map(|w| {
+                            let assessment = saved
+                                .reset_assessments
+                                .iter()
+                                .find(|a| a.limit_id == limit.limit_id && a.window_role == role)
+                                .ok_or(CommandError::ProviderQuotaLoadFailed)?;
+                            Ok::<_, CommandError>(window_view(w, fallback, assessment, now))
+                        })
+                        .transpose()
+                };
+                Ok(provider::QuotaLimitView {
+                    primary: window(limit.primary, QuotaWindowRole::Primary, "Primary window")?,
+                    secondary: window(
+                        limit.secondary,
+                        QuotaWindowRole::Secondary,
+                        "Secondary window",
+                    )?,
+                    limit_id: limit.limit_id,
+                    limit_name: limit.limit_name,
+                    reached_type: limit.reached_type,
+                    monthly_credit_limit: limit.monthly_credit_limit,
+                    spend_control_reached: limit.spend_control_reached,
+                })
+            })
+            .collect::<Result<Vec<_>, CommandError>>()?;
         Ok(Some(SavedProfileQuota {
             profile_id: id.into(),
             binding_id: saved.binding.binding_id,
@@ -82,21 +114,7 @@ impl Workspace {
             coverage: "unknown",
             scope: openusage_storage::QUOTA_SOURCE_SCOPE,
             freshness,
-            limits: saved
-                .limits
-                .into_iter()
-                .map(|limit| provider::QuotaLimitView {
-                    limit_id: limit.limit_id,
-                    limit_name: limit.limit_name,
-                    primary: limit.primary.map(|w| window_view(w, "Primary window", now)),
-                    secondary: limit
-                        .secondary
-                        .map(|w| window_view(w, "Secondary window", now)),
-                    reached_type: limit.reached_type,
-                    monthly_credit_limit: limit.monthly_credit_limit,
-                    spend_control_reached: limit.spend_control_reached,
-                })
-                .collect(),
+            limits,
             available_reset_credits: saved.available_reset_credits,
             reset_credit_details: saved.reset_credit_details.map(|rows| {
                 rows.into_iter()
@@ -346,9 +364,19 @@ pub(super) fn reset_due(reset: Option<i64>, now: SystemTime) -> bool {
 fn window_view(
     w: openusage_storage::QuotaWindow,
     fallback: &str,
+    assessment: &QuotaResetAssessment,
     now: SystemTime,
 ) -> provider::QuotaWindowView {
-    let due = reset_due(w.resets_at_unix, now);
+    // Keep a prior unresolved deadline visible even if the provider moves or omits it.
+    let state = if reset_due(assessment.pending_reset_at_unix, now) {
+        "due"
+    } else if assessment.state == QuotaResetState::Confirmed {
+        "confirmed"
+    } else if assessment.pending_reset_at_unix == w.resets_at_unix {
+        "expected"
+    } else {
+        "unconfirmed"
+    };
     let mut view = provider::QuotaWindowView::from_window(
         openusage_codex::QuotaWindow {
             used_percent: w.used_percent,
@@ -358,7 +386,7 @@ fn window_view(
         },
         fallback,
     );
-    view.reset_due = Some(due);
+    view.reset_state = Some(state);
     view
 }
 fn save_error(e: ActivityError) -> CommandError {

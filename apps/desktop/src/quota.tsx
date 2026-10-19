@@ -48,13 +48,14 @@ function CreditDetails({ rows }: { rows: SavedQuota['resetCreditDetails'] }) {
 }
 function WindowValues({ value }: { value: SavedQuotaWindow }) {
   const reset = value.resetsAtUnix === null ? null : new Date(value.resetsAtUnix * 1000).toISOString();
+  const resetStatus = { expected: null, due: 'Reset due; awaiting confirmation', unconfirmed: 'Reset status not confirmed', confirmed: 'Reset confirmed' }[value.resetState];
   return <div className="quota-window">
     <h4>{value.label}</h4>
     <Meter min={0} max={100} value={value.derivedRemainingPercent} aria-label={`${value.label}: ${value.derivedRemainingPercent}% remaining (derived)`} aria-valuetext={`${value.derivedRemainingPercent}% remaining (derived)`}>
       <div className="quota-meter-heading"><MeterLabel><span className="sr-only">{value.label}: </span>Remaining (derived)</MeterLabel><MeterValue>{(_formatted, remaining) => `${remaining}%`}</MeterValue></div>
       <MeterTrack><MeterIndicator /></MeterTrack>
     </Meter>
-    <dl className="quota-values"><div><dt>Used</dt><dd>{value.usedPercent}%</dd></div><div><dt>Expected reset</dt><dd>{reset ? <time dateTime={reset}>{date(reset)}</time> : 'Not available'}{value.resetDue && <p className="provider-help" data-quota-reset-due>Reset due; awaiting confirmation</p>}</dd></div></dl>
+    <dl className="quota-values"><div><dt>Used</dt><dd>{value.usedPercent}%</dd></div><div><dt>Expected reset</dt><dd>{reset ? <time dateTime={reset}>{date(reset)}</time> : 'Not available'}{resetStatus && <p className="provider-help" data-quota-reset-state={value.resetState} data-quota-reset-due={value.resetState === 'due' ? '' : undefined}>{resetStatus}</p>}</dd></div></dl>
   </div>;
 }
 

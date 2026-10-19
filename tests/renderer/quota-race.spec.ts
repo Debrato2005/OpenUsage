@@ -19,7 +19,7 @@ function committed(index = 0): ProfileQuotaSavedRead {
 }
 function saved(index = 0): SavedProfileQuota {
   const { requestId: _requestId, approvalId: _approvalId, ...value } = committed(index);
-  return { ...value, freshness: 'unknown', coverage: 'unknown', scope: 'account_quota_with_unknown_application_scope', limits: value.limits.map(limit => ({ ...limit, primary: limit.primary && { ...limit.primary, resetDue: false }, secondary: limit.secondary && { ...limit.secondary, resetDue: false } })) };
+  return { ...value, freshness: 'unknown', coverage: 'unknown', scope: 'account_quota_with_unknown_application_scope', limits: value.limits.map(limit => ({ ...limit, primary: limit.primary && { ...limit.primary, resetState: 'expected' }, secondary: limit.secondary && { ...limit.secondary, resetState: 'expected' } })) };
 }
 async function openProfile(page: Page, options: { approve?: boolean; cached?: SavedProfileQuota | null; archived?: boolean } = {}) {
   await page.addInitScript(({ profileId, approvalId, requestIds, reviewId, observedAtUtc, options }) => {
@@ -185,11 +185,11 @@ test('renderer offers no blind quota consent when review fails and ignores a lat
   await expect(page.locator('[data-quota-association]')).toHaveCount(0); await expect(remaining(page)).toBeVisible();
 });
 
-test('renderer preserves due, missing and future reset readings through cache failure and recovery', async ({ page }) => {
+test('renderer preserves Rust due state after a future timestamp, cache failure and recovery', async ({ page }) => {
   const cached = saved(); cached.freshness = 'fresh';
   const limit = cached.limits[0]!, nearReset = '2026-10-18T00:00:30.000Z', futureReset = '2030-01-01T00:00:00.000Z';
   limit.primary!.resetsAtUnix = Date.parse(nearReset) / 1000;
-  limit.secondary = { ...limit.primary!, label: 'Seven-day', usedPercent: 100, derivedRemainingPercent: 0, resetsAtUnix: null, resetDue: false };
+  limit.secondary = { ...limit.primary!, label: 'Seven-day', usedPercent: 100, derivedRemainingPercent: 0, resetsAtUnix: null, resetState: 'expected' };
   cached.limits.push({ ...limit, limitId: 'future', limitName: 'Future limit', primary: { ...limit.primary!, label: 'Primary window', usedPercent: 0, derivedRemainingPercent: 100, resetsAtUnix: Date.parse(futureReset) / 1000 }, secondary: null });
   await page.clock.install({ time: new Date(observedAtUtc) });
   await openProfile(page, { approve: false, cached });
@@ -202,18 +202,28 @@ test('renderer preserves due, missing and future reset readings through cache fa
   await expect(windows.nth(0).locator('time')).toHaveAttribute('datetime', nearReset);
   await expect(windows.nth(1)).toContainText('Not available');
   await expect(windows.nth(2).locator('time')).toHaveAttribute('datetime', futureReset);
+  let expectedReset = nearReset;
   const unchanged = async () => {
     for (const [index, value] of ['75', '0', '100'].entries()) await expect(windows.nth(index).getByRole('meter')).toHaveAttribute('aria-valuenow', value);
     await expect(root.locator('[data-earned-reset-credits]')).toHaveText('9223372036854775807');
     await expect(root.locator('.quota-observed time')).toHaveAttribute('datetime', observedAtUtc);
-    await expect(windows.nth(0).locator('time')).toHaveAttribute('datetime', nearReset);
+    await expect(windows.nth(0).locator('time')).toHaveAttribute('datetime', expectedReset);
   };
   await unchanged();
-  await page.evaluate(() => { (window as unknown as FixtureWindow).quotaFixture.saved!.limits[0]!.primary!.resetDue = true; });
+  await page.evaluate(() => { (window as unknown as FixtureWindow).quotaFixture.saved!.limits[0]!.primary!.resetState = 'due'; });
   await page.clock.fastForward(60_000);
   await expect(windows.nth(0).locator('[data-quota-reset-due]')).toHaveText('Reset due; awaiting confirmation');
   await expect(windows.nth(1).locator('[data-quota-reset-due]')).toHaveCount(0);
   await expect(windows.nth(2).locator('[data-quota-reset-due]')).toHaveCount(0);
+  await unchanged();
+  await page.evaluate(futureReset => {
+    (window as unknown as FixtureWindow).quotaFixture.saved!.limits[0]!.primary!.resetsAtUnix = Date.parse(futureReset) / 1000;
+  }, futureReset);
+  expectedReset = futureReset;
+  await page.clock.fastForward(60_000);
+  await expect(windows.nth(0).locator('time')).toHaveAttribute('datetime', futureReset);
+  await expect(windows.nth(0).locator('[data-quota-reset-due]')).toHaveText('Reset due; awaiting confirmation');
+  await expect(root.getByText('Reset confirmed', { exact: true })).toHaveCount(0);
   await unchanged();
   await page.evaluate(() => { (window as unknown as FixtureWindow).quotaFixture.failLoads = true; });
   await page.clock.fastForward(60_000);
@@ -229,4 +239,28 @@ test('renderer preserves due, missing and future reset readings through cache fa
   await expect(windows.nth(0).locator('[data-quota-reset-due]')).toHaveText('Reset due; awaiting confirmation');
   await unchanged();
   expect(await page.evaluate(() => (window as unknown as FixtureWindow).quotaFixture.requests.filter(command => /begin_|complete_/.test(command)))).toEqual([]);
+});
+
+test('renderer shows uncertain reset evidence until Rust accepts confirmation', async ({ page }) => {
+  const cached = saved(), futureReset = '2030-01-01T00:00:00.000Z';
+  cached.limits[0]!.primary = { ...cached.limits[0]!.primary!, resetsAtUnix: Date.parse(futureReset) / 1000, resetState: 'unconfirmed' };
+  await page.clock.install({ time: new Date(observedAtUtc) });
+  await openProfile(page, { cached });
+  const root = region(page), window = root.locator('.quota-window').first();
+  await expect(window.locator('[data-quota-reset-state]')).toHaveText('Reset status not confirmed');
+  await page.clock.fastForward(60_000);
+  await expect(window.locator('[data-quota-reset-state]')).toHaveText('Reset status not confirmed');
+  await expect(window.locator('[data-quota-reset-due]')).toHaveCount(0);
+  await expect(remaining(page)).toHaveAttribute('aria-valuenow', '75');
+  await begin(page, 0);
+  const confirmed = structuredClone(cached); confirmed.limits[0]!.primary!.resetState = 'confirmed';
+  await publish(page, 0, confirmed);
+  await expect(root).toBeFocused();
+  await expect(window.locator('[data-quota-reset-state]')).toHaveText('Reset confirmed');
+  await expect(window.locator('[data-quota-reset-state]')).toHaveCount(1);
+  await expect(window.locator('[data-quota-reset-due]')).toHaveCount(0);
+  await expect(root.getByText('Reset status not confirmed', { exact: true })).toHaveCount(0);
+  await expect(root.locator('[data-quota-freshness]')).toHaveText('Freshness unknown');
+  await expect(window.locator('time')).toHaveAttribute('datetime', futureReset);
+  await expect(remaining(page)).toHaveAttribute('aria-valuenow', '75');
 });

@@ -152,7 +152,8 @@ fn quota_v2_migration_rolls_back_every_rebuild_stage_fk_failure_and_commit_failu
     assert_legacy_unchanged(&connection, &before);
     crate::migrate_data_connection(&mut connection).unwrap();
     assert_eq!(records(&connection), before);
-    crate::backup_validation::validate_connection(&connection, 3).unwrap();
+    crate::backup_validation::validate_connection(&connection, crate::CURRENT_SCHEMA_VERSION)
+        .unwrap();
 }
 
 #[test]
@@ -175,7 +176,8 @@ fn quota_v2_migration_begin_contention_restores_enforcement_and_allows_retry() {
     blocker.execute_batch("ROLLBACK").unwrap();
     crate::migrate_data_connection(&mut connection).unwrap();
     assert_eq!(records(&connection), before);
-    crate::backup_validation::validate_connection(&connection, 3).unwrap();
+    crate::backup_validation::validate_connection(&connection, crate::CURRENT_SCHEMA_VERSION)
+        .unwrap();
 }
 
 #[test]
@@ -227,7 +229,7 @@ fn quota_legacy_v2_archive_and_checkpoint_copy_keep_history_and_original_input()
         )
         .unwrap();
     // No quota rows exist. Restore the exact v2 collection-run catalog from trusted SQL.
-    live.connection.execute_batch("PRAGMA foreign_keys=OFF; BEGIN IMMEDIATE; DROP TABLE old_fixture.current_quota; DROP TABLE old_fixture.current_quota_readings; DROP TABLE old_fixture.credit_snapshots; DROP TABLE old_fixture.quota_limits; DROP TABLE old_fixture.quota_snapshots; DROP TABLE old_fixture.profile_bindings; DROP TABLE old_fixture.collection_runs;").unwrap();
+    live.connection.execute_batch("PRAGMA foreign_keys=OFF; BEGIN IMMEDIATE; DROP TABLE old_fixture.quota_reset_assessments; DROP TABLE old_fixture.current_quota; DROP TABLE old_fixture.current_quota_readings; DROP TABLE old_fixture.credit_snapshots; DROP TABLE old_fixture.quota_limits; DROP TABLE old_fixture.quota_snapshots; DROP TABLE old_fixture.profile_bindings; DROP TABLE old_fixture.collection_runs;").unwrap();
     let v2 = crate::MIGRATIONS[1];
     let start = v2.find("CREATE TABLE collection_runs (").unwrap();
     let end = start + v2[start..].find(") STRICT;").unwrap() + ") STRICT;".len();
@@ -255,5 +257,5 @@ fn quota_legacy_v2_archive_and_checkpoint_copy_keep_history_and_original_input()
     assert_eq!(std::fs::read(&checkpoint).unwrap(), encrypted_original);
     assert_eq!(records(&live.connection)[3..], before[3..]);
     assert_eq!(all(&live), expected);
-    assert_eq!(snapshot.schema_version, 3);
+    assert_eq!(snapshot.schema_version, crate::CURRENT_SCHEMA_VERSION);
 }

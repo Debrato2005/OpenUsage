@@ -83,7 +83,7 @@ async function openSyntheticProfile(page: Page) {
           value = await deferred(fixture.completions, `quota:${String(args.requestId)}`);
           if (typeof value === 'object' && value !== null && 'bindingId' in value) {
             const { requestId: _requestId, approvalId: _approvalId, ...saved } = value as ProfileQuotaSavedRead;
-            fixture.savedQuota = { ...saved, limits: saved.limits.map(limit => ({ ...limit, primary: limit.primary && { ...limit.primary, resetDue: false }, secondary: limit.secondary && { ...limit.secondary, resetDue: false } })), freshness: 'unknown', coverage: 'unknown', scope: 'account_quota_with_unknown_application_scope' };
+            fixture.savedQuota = { ...saved, limits: saved.limits.map(limit => ({ ...limit, primary: limit.primary && { ...limit.primary, resetState: 'expected' }, secondary: limit.secondary && { ...limit.secondary, resetState: 'expected' } })), freshness: 'unknown', coverage: 'unknown', scope: 'account_quota_with_unknown_application_scope' };
           }
           break;
         default: throw new Error(`Unexpected renderer fixture command: ${command}`);

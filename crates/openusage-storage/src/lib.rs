@@ -13,8 +13,10 @@ pub use checkpoint::{CheckpointError, CheckpointMetadata, CheckpointVerification
 mod profiles;
 pub use profiles::{ProfileConnectionState, ProfileEnvironment, ProfileError, ProfileSummary};
 mod quota;
+mod quota_resets;
 mod quota_validation;
 pub use quota::*;
+pub use quota_resets::{QuotaResetAssessment, QuotaResetState, QuotaWindowRole};
 mod activity;
 pub use activity::*;
 mod restore_apply;
@@ -31,6 +33,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("schema.sql"),
     include_str!("schema_v2.sql"),
     include_str!("schema_v3.sql"),
+    include_str!("schema_v4.sql"),
 ];
 pub const CURRENT_SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
 const MAX_BACKUP_SNAPSHOT_SIZE: u64 = 5 * 1024 * 1024 * 1024;

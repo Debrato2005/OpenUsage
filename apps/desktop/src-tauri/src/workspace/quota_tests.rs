@@ -190,7 +190,7 @@ fn quota_reset_due_requires_a_known_reached_deadline_and_a_supported_clock() {
 }
 
 #[test]
-fn saved_quota_reset_due_is_boolean_and_keeps_every_accepted_measurement_unchanged() {
+fn saved_quota_reset_state_keeps_every_accepted_measurement_unchanged() {
     let mut fixture = Fixture::new("multi");
     let id = fixture.profiles[0].clone();
     let approval = fixture.approve();
@@ -206,7 +206,7 @@ fn saved_quota_reset_due_is_boolean_and_keeps_every_accepted_measurement_unchang
         for role in ["primary", "secondary"] {
             if let Some(window) = limit[role].as_object() {
                 assert_eq!(window.len(), 5);
-                assert!(!window.contains_key("resetDue"));
+                assert!(!window.contains_key("resetState"));
             }
         }
     }
@@ -247,13 +247,13 @@ fn saved_quota_reset_due_is_boolean_and_keeps_every_accepted_measurement_unchang
     let before = fixture.database_hashes();
     let saved =
         serde_json::to_value(fixture.workspace.load_profile_quota(&id).unwrap().unwrap()).unwrap();
-    for (role, due, used, remaining, reset) in [
-        ("primary", true, 25, 75, -1i64),
-        ("secondary", false, 75, 25, 253_402_300_799),
+    for (role, state, used, remaining, reset) in [
+        ("primary", "due", 25, 75, -1i64),
+        ("secondary", "expected", 75, 25, 253_402_300_799),
     ] {
         let window = &saved["limits"][0][role];
         assert_eq!(window.as_object().unwrap().len(), 6);
-        assert_eq!(window["resetDue"], due);
+        assert_eq!(window["resetState"], state);
         assert_eq!(window["usedPercent"], used);
         assert_eq!(window["derivedRemainingPercent"], remaining);
         assert_eq!(window["resetsAtUnix"], reset);

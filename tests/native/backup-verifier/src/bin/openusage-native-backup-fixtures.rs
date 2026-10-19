@@ -128,7 +128,8 @@ fn main() {
         free_bytes(staging),
     )
     .expect("The source archive did not authenticate.");
-    assert_eq!(verified.manifest().schema_version, 1);
+    let schema = verified.manifest().schema_version;
+    assert!((1..=openusage_storage::CURRENT_SCHEMA_VERSION).contains(&schema));
     assert_eq!(verified.manifest().entries.len(), 1);
     assert_eq!(verified.manifest().entries[0].name, "records.sqlite");
     assert!(
@@ -147,7 +148,7 @@ fn main() {
         output,
         staging,
         "FixtureNonSqlite",
-        1,
+        schema,
         &non_database,
         &password,
     );
@@ -167,7 +168,7 @@ fn main() {
         output,
         staging,
         "FixtureFutureDB1",
-        1,
+        schema,
         &future_payload,
         &password,
     );
@@ -187,7 +188,7 @@ fn main() {
         output,
         staging,
         "FixtureBadRows01",
-        1,
+        schema,
         &invalid_payload,
         &password,
     );

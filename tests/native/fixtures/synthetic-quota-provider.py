@@ -13,6 +13,9 @@ ALLOWED_ENVIRONMENT = {'HOME', 'CODEX_HOME', 'XDG_CONFIG_HOME', 'XDG_DATA_HOME',
                        'XDG_CACHE_HOME', 'XDG_STATE_HOME', 'XDG_RUNTIME_DIR',
                        'TMPDIR', 'PATH', 'LANG', 'LC_CTYPE'}
 MODES = {'multi', 'reset_soon', 'legacy', 'empty', 'missing', 'invalid', 'fractional',
+         'reset_previous', 'reset_confirmed', 'reset_same_usage',
+         'reset_higher_usage', 'reset_decrease_only', 'reset_before_deadline',
+         'reset_duration_mismatch', 'reset_no_deadline',
          'string_percent', 'mismatch', 'null_windows', 'unknown_identity',
          'signed_out', 'unsupported', 'changed_email', 'changed_plan',
          'changed_auth', 'post_unknown', 'early_auth', 'auth_notice',
@@ -41,12 +44,19 @@ observe('start', arguments=sys.argv[1:],
 HOME = Path(os.environ['CODEX_HOME'])
 
 
-def mode():
+def configuration():
     try:
         value = json.loads(CONFIG.read_text(encoding='utf8'))
     except FileNotFoundError:
         value = {}
-    assert isinstance(value, dict) and set(value) <= {'defaultMode', 'modesByHome'}
+    assert isinstance(value, dict) and set(value) <= {'defaultMode', 'modesByHome', 'resetAnchorUnix'}
+    if 'resetAnchorUnix' in value:
+        assert type(value['resetAnchorUnix']) is int and -62135596800 <= value['resetAnchorUnix'] <= 253402282799
+    return value
+
+
+def mode():
+    value = configuration()
     selected = value.get('modesByHome', {}).get(str(HOME), value.get('defaultMode', 'multi'))
     assert selected in MODES
     return selected
@@ -125,6 +135,20 @@ if selected == 'auth_notice':
 primary = {'usedPercent': 25, 'windowDurationMins': 300, 'resetsAt': 1893456000}
 if selected == 'reset_soon':
     primary['resetsAt'] = int(time.time()) + 12
+elif selected.startswith('reset_'):
+    anchor = configuration()['resetAnchorUnix']
+    used, duration, offset = {
+        'reset_previous': (80, 300, 0),
+        'reset_confirmed': (20, 300, 18000),
+        'reset_same_usage': (80, 300, 18000),
+        'reset_higher_usage': (90, 300, 18000),
+        'reset_decrease_only': (20, 300, 0),
+        'reset_before_deadline': (80, 300, 1200),
+        'reset_duration_mismatch': (20, 1440, 18000),
+        'reset_no_deadline': (80, 300, None),
+    }[selected]
+    primary.update(usedPercent=used, windowDurationMins=duration,
+                   resetsAt=None if offset is None else anchor + offset)
 codex = {'limitId': 'codex', 'limitName': None, 'primary': primary,
          'secondary': {'usedPercent': 100, 'windowDurationMins': 10080, 'resetsAt': None},
          'rateLimitReachedType': 'rate_limit_reached'}

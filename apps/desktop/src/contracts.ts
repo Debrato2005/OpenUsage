@@ -143,7 +143,7 @@ export interface QuotaWindow {
   usedPercent: number; derivedRemainingPercent: number;
   windowDurationMins: number | null; resetsAtUnix: number | null; label: string;
 }
-export interface SavedQuotaWindow extends QuotaWindow { resetDue: boolean }
+export interface SavedQuotaWindow extends QuotaWindow { resetState: 'expected' | 'due' | 'unconfirmed' | 'confirmed' }
 export interface ResetCreditDetail {
   title: string | null; status: 'available' | 'redeeming' | 'redeemed' | 'unknown';
   grantedAtUnix: number; expiresAtUnix: number | null;
@@ -333,7 +333,7 @@ function isQuotaWindow(value: unknown, saved = false): value is QuotaWindow | nu
   if (typeof value !== 'object' || Array.isArray(value)) return false;
   const v = value as Record<string, unknown>;
   return Object.keys(v).length === (saved ? 6 : 5)
-    && (!saved || (typeof v.resetDue === 'boolean' && (v.resetsAtUnix !== null || v.resetDue === false)))
+    && (!saved || v.resetState === 'expected' || v.resetState === 'due' || v.resetState === 'unconfirmed' || v.resetState === 'confirmed')
     && Number.isInteger(v.usedPercent) && Number(v.usedPercent) >= 0 && Number(v.usedPercent) <= 100
     && Number.isInteger(v.derivedRemainingPercent) && Number(v.derivedRemainingPercent) >= 0 && Number(v.derivedRemainingPercent) <= 100
     && (v.windowDurationMins === null || (Number.isSafeInteger(v.windowDurationMins) && Number(v.windowDurationMins) > 0))

@@ -185,7 +185,7 @@ pub(crate) fn with_validated_snapshot<T, E: From<BackupValidationError>>(
 
 pub(crate) fn supported_schema_version(version: u32) -> bool {
     // A later migration must add explicit content/copy support before becoming restorable.
-    matches!(version, 1..=3) && version <= CURRENT_SCHEMA_VERSION
+    matches!(version, 1..=4) && version <= CURRENT_SCHEMA_VERSION
 }
 
 fn validate_size(size: u64) -> Result<()> {
@@ -327,6 +327,10 @@ pub(crate) fn validate_schema_connection(
         validate_activity(connection, schema, manifest_version)?;
         if manifest_version >= 3 {
             crate::quota_validation::validate_quota(connection, schema)?;
+            if manifest_version >= 4 {
+                crate::quota_resets::validate(connection, schema)
+                    .map_err(|_| BackupValidationError::InvalidDatabase)?;
+            }
         }
     }
     if !settings_supported || !accounts_supported {
@@ -528,6 +532,26 @@ pub(crate) fn copy_activity_records(
     if version >= 3 {
         for (table, columns) in QUOTA_TABLES {
             copy_fields(source, target, schema, table, columns, columns)?;
+        }
+    }
+    if version >= 4 {
+        copy_fields(
+            source,
+            target,
+            schema,
+            "quota_reset_assessments",
+            "collection_run_id,profile_id,binding_id,limit_id,window_role,state,pending_reset_at_utc,generation_run_id",
+            "collection_run_id,profile_id,binding_id,limit_id,window_role,state,pending_reset_at_utc,generation_run_id",
+        )?;
+        let mut statement = source.prepare(&format!("SELECT id,previous_quota_run_id FROM {schema}.quota_snapshots WHERE previous_quota_run_id IS NOT NULL")).map_err(sql_error)?;
+        let mut rows = statement.query([]).map_err(sql_error)?;
+        while let Some(row) = rows.next().map_err(sql_error)? {
+            target
+                .execute(
+                    "UPDATE quota_snapshots SET previous_quota_run_id=?2 WHERE id=?1",
+                    rusqlite::params![text(row, 0)?, text(row, 1)?],
+                )
+                .map_err(sql_error)?;
         }
     }
     Ok(())
@@ -962,6 +986,7 @@ pub(crate) fn activity_records(connection: &Connection) -> Vec<Vec<Vec<rusqlite:
         "credit_snapshots",
         "current_quota_readings",
         "current_quota",
+        "quota_reset_assessments",
     ]
     .into_iter()
     .map(|table| {

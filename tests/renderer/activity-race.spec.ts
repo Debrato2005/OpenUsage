@@ -47,7 +47,7 @@ async function openProfile(page: Page, options: { approve?: boolean; cached?: Sa
         case 'cancel_profile_activity_read': value = await new Promise((resolve, reject) => { fixture.cancellations[String(args.requestId)] = { resolve, reject }; }); break;
         case 'begin_profile_quota_read': value = { profileId, approvalId, requestId: requestIds[1], sourceKind: 'test_fixture', monitoring: 'stopped', accepted: false }; break;
         case 'complete_profile_quota_read': value = await new Promise((resolve, reject) => { fixture.completions[`quota:${String(args.requestId)}`] = { resolve, reject }; });
-          if (typeof value === 'object' && value !== null && 'bindingId' in value) { const { requestId: _requestId, approvalId: _approvalId, ...saved } = value as ProfileQuotaSavedRead; fixture.savedQuota = { ...saved, freshness: 'unknown', coverage: 'unknown', scope: 'account_quota_with_unknown_application_scope', limits: saved.limits.map(limit => ({ ...limit, primary: limit.primary && { ...limit.primary, resetDue: false }, secondary: limit.secondary && { ...limit.secondary, resetDue: false } })) }; } break;
+          if (typeof value === 'object' && value !== null && 'bindingId' in value) { const { requestId: _requestId, approvalId: _approvalId, ...saved } = value as ProfileQuotaSavedRead; fixture.savedQuota = { ...saved, freshness: 'unknown', coverage: 'unknown', scope: 'account_quota_with_unknown_application_scope', limits: saved.limits.map(limit => ({ ...limit, primary: limit.primary && { ...limit.primary, resetState: 'expected' }, secondary: limit.secondary && { ...limit.secondary, resetState: 'expected' } })) }; } break;
         default: throw new Error(`Unexpected renderer fixture command: ${command}`);
       }
       return value as T;
