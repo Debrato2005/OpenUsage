@@ -32,4 +32,6 @@ Both delayed-publication service checks failed before this fix. The existing hel
 
 The rebuilt native journey passed eight normal quota cases, explicit association, activity collection, twenty SQLCipher checks, restart, restore, and undo. Four fresh captures were reviewed. The default build refused all four fixtures. All 199 source hashes and ten assets matched. The 49 frontend/config/test files match the preceding 34-contract/88-renderer qualification, so those checks were reused. See the [observation verification record](../evidence/native-observation-anchor/verification.json), source `8fad7d1`.
 
-The default debug link took 14 minutes 38 seconds during host memory pressure. It finished without cancellation or compiler changes. Native execution followed both completed builds. Next: verify a bounded Linux linker recipe, then implement conservative reset confirmation.
+The default debug link took 14 minutes 38 seconds during host memory pressure. It finished without cancellation or compiler changes. Native execution followed both completed builds.
+
+A subsequent Linux/LLD build limited the final link to one worker with `cargo rustc`. It finished in 39.17 seconds and produced identical binary bytes. The existing default native qualification therefore applies. The [README recipe](../../README.md) cites the official Cargo and LLD options. This is an uncontrolled host observation, not a benchmark. Next: implement conservative reset confirmation and persistent window generations.

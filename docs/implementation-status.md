@@ -1,8 +1,10 @@
 # Implementation status
 
-Updated: October 19, 2026. The mission remains ongoing. Current milestone: quota and activity freshness start at measurement observation, including delayed publication. SQLCipher 4 with WAL remains mandatory. Next: verify a bounded Linux linker recipe, then implement conservative reset confirmation.
+Updated: October 19, 2026. The mission remains ongoing. Current milestone: observation-time freshness passed native verification, and a bounded Linux linker command produced the same tested binary. SQLCipher 4 with WAL remains mandatory. Next: implement conservative reset confirmation and persistent window generations.
 
 ## Implemented and executed
+
+The documented Linux/LLD build limits final-link workers without changing dependency flags. It completed in 39.17 seconds and produced a byte-identical copy of the native-tested default binary. All 199 product/source hashes and ten assets match. This is an uncontrolled host observation, not a performance benchmark. See the [README recipe](../README.md) and `evidence/linux-bounded-linker/`.
 
 Quota and activity now retain their actual observation-time monotonic anchors after successful COMMIT. Focused regressions reproduced the old publication-time bug. The full workspace passed 176 checks, strict Clippy, and formatting. The rebuilt native app passed twenty SQLCipher checks, four reviewed captures, restart, encrypted restore and undo. Default production refused all four test providers. Renderer checks were reused after exact 49-file/ten-asset parity. Debug linking reached 14m38s during memory pressure, but finished without intervention. See the [quota review](reviews/2026-10-19-durable-quota.md) and `evidence/native-observation-anchor/`.
 
