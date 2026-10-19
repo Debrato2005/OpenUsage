@@ -294,12 +294,14 @@ fn quota_read_commits_exact_provisional_values_and_loads_without_approval() {
         .revision;
     let completed = fixture.read(&id, &approval).unwrap();
     let joined_at = crate::restore::timestamp(std::time::SystemTime::now()).unwrap();
+    let joined_monotonic = Instant::now();
     // Delayed IPC publication must retain the read time, even after the worker has joined.
     std::thread::sleep(Duration::from_millis(20));
     let outcome = fixture
         .workspace
         .finish_profile_quota_read(completed)
         .unwrap();
+    assert!(fixture.workspace.quota_sessions[&id].1.unwrap() <= joined_monotonic);
     let json = serde_json::to_value(outcome).unwrap();
     assert_eq!(json["profileId"], id);
     assert_eq!(json["approvalId"], approval);

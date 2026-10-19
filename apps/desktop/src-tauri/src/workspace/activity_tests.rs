@@ -183,6 +183,7 @@ fn activity_acceptance_keeps_exact_counts_unknown_scope_and_independent_cached_d
     let before = fixture.database_hashes();
     let completed = fixture.read(&id, &approval).unwrap();
     let joined = crate::restore::timestamp(std::time::SystemTime::now()).unwrap();
+    let joined_monotonic = Instant::now();
     std::thread::sleep(Duration::from_millis(20));
     let value = serde_json::to_value(
         fixture
@@ -191,6 +192,7 @@ fn activity_acceptance_keeps_exact_counts_unknown_scope_and_independent_cached_d
             .unwrap(),
     )
     .unwrap();
+    assert!(fixture.workspace.activity_sessions[&id].1.unwrap() <= joined_monotonic);
     assert_eq!(value["profileId"], id);
     assert_eq!(value["approvalId"], approval);
     assert_eq!(value["identityConfidence"], "provisional");

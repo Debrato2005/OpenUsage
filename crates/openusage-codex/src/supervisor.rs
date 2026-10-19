@@ -1310,6 +1310,7 @@ IFS= read -r request
         let fixture = quota_fixture("post_hold");
         let supervisor = Supervisor::new();
         let started_at = std::time::SystemTime::now();
+        let started_monotonic = Instant::now();
         let quota = supervisor
             .start_quota_diagnostic(&fixture.executable, &fixture.homes[0])
             .unwrap();
@@ -1324,12 +1325,17 @@ IFS= read -r request
         }
         // The provider received the post-read only after the full quota response was parsed.
         let held_at = std::time::SystemTime::now();
+        let held_monotonic = Instant::now();
         fs::write(home.join("synthetic-quota-release"), b"release").unwrap();
         let probe = quota.wait().unwrap();
         let returned_at = std::time::SystemTime::now();
+        let returned_monotonic = Instant::now();
         assert!(probe.started_at >= started_at && probe.started_at <= probe.observed_at);
         assert!(probe.observed_at <= held_at);
         assert!(probe.completed_at >= held_at && probe.completed_at <= returned_at);
+        assert!(probe.observed_monotonic >= started_monotonic);
+        assert!(probe.observed_monotonic <= held_monotonic);
+        assert!(held_monotonic < returned_monotonic);
         assert_eq!(
             probe.quota.limits[0].primary.as_ref().unwrap().used_percent,
             25
@@ -1712,16 +1718,22 @@ IFS= read -r request
         let fixture = activity_fixture("post_hold");
         let supervisor = Supervisor::new();
         let started_at = std::time::SystemTime::now();
+        let started_monotonic = Instant::now();
         let activity = supervisor
             .start_activity_diagnostic(&fixture.executable, &fixture.homes[0])
             .unwrap();
         let pid = activity_stage(&fixture, 0, "post-read-pending", 0);
         let held_at = std::time::SystemTime::now();
+        let held_monotonic = Instant::now();
         activity_mode(&fixture, "success");
         let probe = activity.wait().unwrap();
+        let returned_monotonic = Instant::now();
         assert!(probe.observed_at >= started_at && probe.observed_at <= held_at);
         assert!(probe.started_at >= started_at && probe.started_at <= probe.observed_at);
         assert!(probe.completed_at >= held_at);
+        assert!(probe.observed_monotonic >= started_monotonic);
+        assert!(probe.observed_monotonic <= held_monotonic);
+        assert!(held_monotonic < returned_monotonic);
         assert_eq!(
             probe.account_evidence.email.as_deref(),
             Some("synthetic-activity@example.invalid")

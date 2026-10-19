@@ -273,6 +273,10 @@ impl CompletingActivity {
 }
 
 impl CompletedActivity {
+    pub fn observed_monotonic(&self) -> std::time::Instant {
+        self.probe.observed_monotonic
+    }
+
     pub fn abort(self) {
         self.coordinator.discard_activity(&self.request_id);
     }

@@ -278,6 +278,7 @@ impl Workspace {
             self.note_activity_failure(&id, &request_id);
             return Err(error);
         }
+        let observed_monotonic = completed.observed_monotonic();
         let outcome = completed.publish(|binding, probe, request, expected| {
             self.persist_activity(binding, probe, request, expected)
         });
@@ -286,7 +287,7 @@ impl Workspace {
                 self.activity_reviews.remove(&id);
                 self.activity_sessions.insert(
                     id.clone(),
-                    (value.collection_run_id.clone(), Some(Instant::now())),
+                    (value.collection_run_id.clone(), Some(observed_monotonic)),
                 );
                 if self
                     .storage
@@ -535,5 +536,16 @@ mod tests {
             freshness(Some(&expired), &recent, now),
             ActivityFreshness::Stale
         );
+        let observed_now = restore::timestamp(now).unwrap();
+        for fresh_for in [Duration::from_secs(600), FRESH_FOR] {
+            let expired = (
+                "run".into(),
+                Some(Instant::now().checked_sub(fresh_for).unwrap()),
+            );
+            assert_eq!(
+                freshness_for(Some(&expired), &observed_now, now, fresh_for),
+                ActivityFreshness::Stale
+            );
+        }
     }
 }

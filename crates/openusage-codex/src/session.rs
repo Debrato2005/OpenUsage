@@ -75,6 +75,8 @@ pub struct QuotaProbe {
     pub completed_at: std::time::SystemTime,
     /// Local full-response observation time, retained across delayed completion/publication.
     pub observed_at: std::time::SystemTime,
+    /// Process-local freshness anchor captured with the validated full response.
+    pub observed_monotonic: std::time::Instant,
     pub server: ServerInfo,
     pub quota: crate::QuotaSnapshot,
     pub version: &'static str,
@@ -100,6 +102,8 @@ pub struct ActivityProbe {
     pub completed_at: std::time::SystemTime,
     /// Captured after full activity validation, before the final account check.
     pub observed_at: std::time::SystemTime,
+    /// Process-local freshness anchor captured with the validated full response.
+    pub observed_monotonic: std::time::Instant,
     pub server: ServerInfo,
     pub activity: crate::ActivitySnapshot,
     pub version: &'static str,
@@ -773,6 +777,7 @@ pub(crate) mod unix {
                 3,
             )?;
             let observed_at = std::time::SystemTime::now();
+            let observed_monotonic = Instant::now();
             process.send(&Request::account_read(4).to_line()?)?;
             let after = parse_account(
                 &process.response_routed(
@@ -797,6 +802,7 @@ pub(crate) mod unix {
                 started_at,
                 completed_at: std::time::SystemTime::now(),
                 observed_at,
+                observed_monotonic,
                 server,
                 quota,
                 version: TESTED_PROVIDER_VERSION,
@@ -847,6 +853,7 @@ pub(crate) mod unix {
                 3,
             )?;
             let observed_at = std::time::SystemTime::now();
+            let observed_monotonic = Instant::now();
             process.send(&Request::account_read(4).to_line()?)?;
             let after = parse_account(
                 &process.response_routed(
@@ -871,6 +878,7 @@ pub(crate) mod unix {
                 started_at,
                 completed_at: std::time::SystemTime::now(),
                 observed_at,
+                observed_monotonic,
                 server,
                 activity,
                 version: TESTED_PROVIDER_VERSION,

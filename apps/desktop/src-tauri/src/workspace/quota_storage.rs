@@ -128,6 +128,7 @@ impl Workspace {
             self.note_quota_failure(&id, &request);
             return Err(error);
         }
+        let observed_monotonic = completed.observed_monotonic();
         let result = completed.publish(|binding, probe, request, association| {
             self.persist_quota(binding, probe, request, association)
         });
@@ -135,7 +136,7 @@ impl Workspace {
             Ok(value) => {
                 self.quota_sessions.insert(
                     id.clone(),
-                    (value.collection_run_id.clone(), Some(Instant::now())),
+                    (value.collection_run_id.clone(), Some(observed_monotonic)),
                 );
                 if self
                     .storage
