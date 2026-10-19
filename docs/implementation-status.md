@@ -1,8 +1,10 @@
 # Implementation status
 
-Updated: October 18, 2026. The mission remains ongoing. Current milestone: explicit activity sign-in recovery, simpler restore undo, and quota retry preservation passed in the native Linux application. SQLCipher 4 with WAL remains mandatory. Next slice: keep explicit quota readings available after restart.
+Updated: October 19, 2026. The mission remains ongoing. Current milestone: quota readings survive restart and encrypted restore, with explicit consent for changed sign-ins. SQLCipher 4 with WAL remains mandatory. Next: inspect freshness and reset-state behavior, then implement the next daily-use slice.
 
 ## Implemented and executed
+
+Saved quota readings now load without provider approval after unlock, restart, or archival. Failed reads and cancellation retain values. Quota and activity share one atomic profile association. Native review and keyboard confirmation after restore preserve previous history and other profiles. Eighteen independent SQLCipher checks verify all twelve tables through export, restore, and undo. Four native captures were reviewed. Workspace tests passed 174 checks, strict Clippy and formatting; the frontend passed 34 contracts and 86 renderer checks. See the [durable quota review](reviews/2026-10-19-durable-quota.md). Older preview-only records below retain their historical scope. Monitoring, verified aggregation, and full quota/credit acceptance remain incomplete.
 
 Failed or cancelled quota retries retain the previous unsaved preview and its original time. Prior errors remain visible during retry. A focused native journey and 62 renderer checks passed. See the [quota retry review](reviews/2026-10-18-quota-previous-reading.md). Durable quota storage remains the next slice.
 
