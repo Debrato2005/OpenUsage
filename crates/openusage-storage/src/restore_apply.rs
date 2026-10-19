@@ -181,7 +181,7 @@ impl Storage {
                     .map_err(|_| RestoreError::WriteFailed)?;
                 transaction
                     .execute_batch(
-                        "DELETE FROM activity_day_history; DELETE FROM current_activity_days;
+                        "DELETE FROM current_quota; DELETE FROM current_quota_readings; DELETE FROM credit_snapshots; DELETE FROM quota_limits; DELETE FROM quota_snapshots; DELETE FROM profile_bindings; DELETE FROM activity_day_history; DELETE FROM current_activity_days;
                          DELETE FROM current_activity; DELETE FROM activity_summaries;
                          DELETE FROM collection_runs;
                          UPDATE profile_identity_events SET previous_binding_id=NULL;
@@ -371,7 +371,7 @@ mod tests {
             live.accept_activity(crate::ActivityReading {
                 run_id: id(300),
                 binding: old_binding,
-                identity_evidence: crate::ActivityIdentityEvidence {
+                identity_evidence: crate::ProfileIdentityEvidence {
                     email: "synthetic-history@example.invalid".into(),
                     plan: Some("synthetic".into())
                 },
@@ -634,7 +634,7 @@ mod tests {
             .accept_activity(crate::ActivityReading {
                 run_id: id(999),
                 binding,
-                identity_evidence: crate::ActivityIdentityEvidence {
+                identity_evidence: crate::ProfileIdentityEvidence {
                     email: "synthetic-history@example.invalid".into(),
                     plan: Some("synthetic".into()),
                 },

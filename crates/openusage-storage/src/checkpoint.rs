@@ -1002,7 +1002,7 @@ mod recovery_tests {
                 [path.to_str().unwrap()],
             )
             .unwrap();
-        live.connection.execute_batch("DROP TABLE old_fixture.activity_day_history; DROP TABLE old_fixture.current_activity_days; DROP TABLE old_fixture.current_activity; DROP TABLE old_fixture.activity_summaries; DROP TABLE old_fixture.collection_runs; DROP TABLE old_fixture.profile_identity_events; PRAGMA old_fixture.user_version=1; DETACH DATABASE old_fixture;").unwrap();
+        live.connection.execute_batch("DROP TABLE old_fixture.current_quota; DROP TABLE old_fixture.current_quota_readings; DROP TABLE old_fixture.credit_snapshots; DROP TABLE old_fixture.quota_limits; DROP TABLE old_fixture.quota_snapshots; DROP TABLE old_fixture.profile_bindings; DROP TABLE old_fixture.activity_day_history; DROP TABLE old_fixture.current_activity_days; DROP TABLE old_fixture.current_activity; DROP TABLE old_fixture.activity_summaries; DROP TABLE old_fixture.collection_runs; DROP TABLE old_fixture.profile_identity_events; PRAGMA old_fixture.user_version=1; DETACH DATABASE old_fixture;").unwrap();
         require_no_sidecars(&path).unwrap();
         let original = fs::read(&path).unwrap();
         let verified = live.verify_encrypted_checkpoint(&path).unwrap();
