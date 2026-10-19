@@ -343,12 +343,12 @@ test('accepts bounded advisory discovery without trusting extra fields or malfor
   }
 });
 
-test('accepts a provisional quota preview without inventing missing windows or persistence', async () => {
+test('accepts provisional saved quota receipts without inventing missing windows', async () => {
   const request = { profileId: '11111111-1111-4111-8111-111111111111', requestId: '22222222-2222-4222-8222-222222222222', approvalId: '33333333-3333-4333-8333-333333333333', sourceKind: 'test_fixture', monitoring: 'stopped', accepted: false };
   desktopResponse(request);
   assert.deepEqual(await invoke('begin_profile_quota_read', { profileId: request.profileId, approvalId: request.approvalId }), request);
   const window = { usedPercent: 0, derivedRemainingPercent: 100, windowDurationMins: null, resetsAtUnix: null, label: 'Primary window' };
-  const preview = { ...request, providerVersion: '0.163.0', observedAtUtc: '2026-10-18T07:00:00.000Z', identityConfidence: 'provisional', verifiedIdentityKey: null, availableResetCredits: null, resetCreditDetails: null, limits: [{ limitId: 'codex', limitName: null, primary: window, secondary: null, reachedType: null, monthlyCreditLimit: null, spendControlReached: null }] };
+  const preview = { ...request, accepted: true, bindingId: '44444444-4444-4444-8444-444444444444', collectionRunId: '55555555-5555-4555-8555-555555555555', providerVersion: '0.163.0', observedAtUtc: '2026-10-18T07:00:00.000Z', identityConfidence: 'provisional', verifiedIdentityKey: null, availableResetCredits: null, resetCreditDetails: null, limits: [{ limitId: 'codex', limitName: null, primary: window, secondary: null, reachedType: null, monthlyCreditLimit: null, spendControlReached: null }] };
   desktopResponse(preview);
   assert.deepEqual(await invoke('complete_profile_quota_read', { profileId: request.profileId, requestId: request.requestId }), preview);
   for (const availableResetCredits of [null, '0', '9007199254740993', '9223372036854775807']) {
@@ -377,7 +377,7 @@ test('accepts a provisional quota preview without inventing missing windows or p
 test('rejects malformed or secret-bearing quota payloads and unqualified identity claims', async () => {
   const window = { usedPercent: 25, derivedRemainingPercent: 75, windowDurationMins: 300, resetsAtUnix: 1792310400, label: 'Five-hour' };
   const limit = { limitId: 'codex', limitName: null, primary: window, secondary: null, reachedType: null, monthlyCreditLimit: null, spendControlReached: null };
-  const value = { profileId: '11111111-1111-4111-8111-111111111111', requestId: '22222222-2222-4222-8222-222222222222', approvalId: '33333333-3333-4333-8333-333333333333', sourceKind: 'test_fixture', monitoring: 'stopped', accepted: false, providerVersion: '0.163.0', observedAtUtc: '2026-10-18T07:00:00.000Z', identityConfidence: 'provisional', verifiedIdentityKey: null, availableResetCredits: null, resetCreditDetails: null, limits: [limit] };
+  const value = { profileId: '11111111-1111-4111-8111-111111111111', requestId: '22222222-2222-4222-8222-222222222222', approvalId: '33333333-3333-4333-8333-333333333333', sourceKind: 'test_fixture', monitoring: 'stopped', accepted: true, bindingId: '44444444-4444-4444-8444-444444444444', collectionRunId: '55555555-5555-4555-8555-555555555555', providerVersion: '0.163.0', observedAtUtc: '2026-10-18T07:00:00.000Z', identityConfidence: 'provisional', verifiedIdentityKey: null, availableResetCredits: null, resetCreditDetails: null, limits: [limit] };
   const malformedMonthly = [
     ...[undefined, 0, 1.5, true, '', ' ', 'synthetic\nprivate', 'x'.repeat(257), 'é'.repeat(129), [], {}].map(monthlyCreditLimit => ({ ...limit, monthlyCreditLimit })),
     ...[undefined, 0, 1, 'true', [], {}].map(spendControlReached => ({ ...limit, spendControlReached })),
@@ -393,7 +393,7 @@ test('rejects malformed or secret-bearing quota payloads and unqualified identit
   const missingCredits = { ...value };
   delete missingCredits.availableResetCredits;
   for (const malformed of [...malformedMonthly, missingDetails, ...malformedDetails, missingCredits, ...malformedCredits, ...malformedWindows, ...[
-    { accepted: true }, { monitoring: 'active' }, { identityConfidence: 'verified' }, { identityConfidence: 'unknown' }, { verifiedIdentityKey: 'synthetic-key' }, { observedAtUtc: '2026-02-30T07:00:00.000Z' }, { email: 'synthetic@example.invalid' }, { accountId: 'synthetic-private-source-scope' }, { limits: [limit, limit] }, { limits: Array.from({ length: 65 }, (_, id) => ({ ...limit, limitId: `limit-${id}` })) }, { limits: [{ ...limit, limitId: '' }] }, { limits: [{ ...limit, secondary: undefined }] }, { limits: [{ ...limit, rawFrame: '{}' }] },
+    { accepted: false }, { monitoring: 'active' }, { identityConfidence: 'verified' }, { identityConfidence: 'unknown' }, { verifiedIdentityKey: 'synthetic-key' }, { observedAtUtc: '2026-02-30T07:00:00.000Z' }, { email: 'synthetic@example.invalid' }, { accountId: 'synthetic-private-source-scope' }, { limits: [limit, limit] }, { limits: Array.from({ length: 65 }, (_, id) => ({ ...limit, limitId: `limit-${id}` })) }, { limits: [{ ...limit, limitId: '' }] }, { limits: [{ ...limit, secondary: undefined }] }, { limits: [{ ...limit, rawFrame: '{}' }] },
   ].map(change => ({ ...value, ...change }))]) {
     desktopResponse(malformed);
     await assert.rejects(invoke('complete_profile_quota_read', { profileId: value.profileId, requestId: value.requestId }), /desktop response is incompatible/);
@@ -474,23 +474,23 @@ test('refuses malformed cached provenance, uncommitted results, guessed freshnes
 });
 
 
-test('reassociation begins with an unaccepted owned request and rejects committed or extra-field replies', async () => {
+for (const command of ['begin_profile_activity_reassociation', 'begin_profile_quota_reassociation']) test(`${command} begins with an unaccepted owned request and rejects committed or extra-field replies`, async () => {
   const args = { profileId: activityRequest.profileId, approvalId: activityRequest.approvalId, reviewId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', confirmed: true };
   desktopResponse(activityRequest);
-  assert.deepEqual(await invoke('begin_profile_activity_reassociation', args), activityRequest);
+  assert.deepEqual(await invoke(command, args), activityRequest);
   for (const value of [{ ...activityRequest, accepted: true }, { ...activityRequest, privateHome: '/private' }, { ...activityRequest, requestId: 'invalid' }]) {
     desktopResponse(value);
-    await assert.rejects(invoke('begin_profile_activity_reassociation', args), /desktop response is incompatible/);
+    await assert.rejects(invoke(command, args), /desktop response is incompatible/);
   }
 });
 
 
-test('association review accepts only bounded descriptive evidence and an exact provisional receipt', async () => {
+for (const command of ['review_profile_activity_association', 'review_profile_quota_association']) test(`${command} accepts only bounded descriptive evidence and an exact provisional receipt`, async () => {
   const args = { profileId: activityRequest.profileId, approvalId: activityRequest.approvalId };
   const review = { ...args, reviewId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', observedAtUtc: '2026-10-18T00:00:00.000Z', previous: { email: 'previous@synthetic.invalid', plan: null }, current: { email: 'current@synthetic.invalid', plan: 'Synthetic plan' }, homeChanged: true, identityConfidence: 'provisional' };
-  desktopResponse(review); assert.deepEqual(await invoke('review_profile_activity_association', args), review);
+  desktopResponse(review); assert.deepEqual(await invoke(command, args), review);
   const boundary = { ...review, previous: { email: 'é'.repeat(127), plan: 'é'.repeat(32) }, homeChanged: false };
-  desktopResponse(boundary); assert.deepEqual(await invoke('review_profile_activity_association', args), boundary);
+  desktopResponse(boundary); assert.deepEqual(await invoke(command, args), boundary);
   for (const change of [
     { reviewId: 'invalid' }, { profileId: 'invalid' }, { approvalId: 'invalid' }, { observedAtUtc: '2026-02-30T00:00:00.000Z' },
     { identityConfidence: 'verified' }, { homeChanged: null }, { privateHome: '/private' },
@@ -501,6 +501,20 @@ test('association review accepts only bounded descriptive evidence and an exact 
     { current: { email: 'current@synthetic.invalid', plan: '' } },
   ]) {
     desktopResponse({ ...review, ...change });
-    await assert.rejects(invoke('review_profile_activity_association', args), /desktop response is incompatible/);
+    await assert.rejects(invoke(command, args), /desktop response is incompatible/);
   }
+});
+
+
+test('saved quota loads accept only exact bounded provisional cache values', async () => {
+  const args = { profileId: '11111111-1111-4111-8111-111111111111' };
+  const value = { ...args, bindingId: '44444444-4444-4444-8444-444444444444', collectionRunId: '55555555-5555-4555-8555-555555555555',
+    providerVersion: '0.163.0', sourceKind: 'test_fixture', observedAtUtc: '2026-10-18T00:00:00.000Z', identityConfidence: 'provisional', verifiedIdentityKey: null,
+    monitoring: 'stopped', accepted: true, coverage: 'unknown', scope: 'account_quota_with_unknown_application_scope', freshness: 'unknown', limits: [], availableResetCredits: null, resetCreditDetails: null };
+  desktopResponse(null); assert.equal(await invoke('load_profile_quota', args), null);
+  for (const freshness of ['unknown', 'fresh', 'stale']) { desktopResponse({ ...value, freshness }); assert.deepEqual(await invoke('load_profile_quota', args), { ...value, freshness }); }
+  for (const change of [{ accepted: false }, { freshness: 'expired' }, { bindingId: '../private' }, { collectionRunId: null }, { coverage: 'complete' }, { scope: 'account_activity_with_unknown_application_scope' }, { verifiedIdentityKey: 'secret' }, { identityConfidence: 'verified' }, { requestId: args.profileId }, { email: 'private@invalid' }, { availableResetCredits: '9223372036854775808' }, { resetCreditDetails: [{}] }, { limits: [{}] }]) {
+    desktopResponse({ ...value, ...change }); await assert.rejects(invoke('load_profile_quota', args), /desktop response is incompatible/);
+  }
+  for (const key of Object.keys(value)) { const missing = { ...value }; delete missing[key]; desktopResponse(missing); await assert.rejects(invoke('load_profile_quota', args), /desktop response is incompatible/); }
 });

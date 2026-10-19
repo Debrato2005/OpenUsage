@@ -3,7 +3,8 @@ import { Collapsible, CollapsibleTrigger, CollapsiblePanel } from './components/
 import './quota-disclosure.css';
 import { Meter, MeterIndicator, MeterLabel, MeterTrack, MeterValue } from './components/ui/meter';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { invoke, type ProviderExecutableApproval, type ProfileQuotaPreview, type QuotaWindow } from './contracts';
+import { invoke, type ProviderExecutableApproval, type ProfileQuotaSavedRead, type SavedProfileQuota as SavedQuota, type ProfileActivityAssociationReview, type QuotaWindow } from './contracts';
+import { AssociationReview } from './association-review';
 import { providerFailure } from './provider-errors';
 
 type Props = {
@@ -14,8 +15,10 @@ type Props = {
   onActivity: (active: boolean) => void;
   onStarted: () => void;
   actionSiblings?: ReactNode;
+  onSaved: (value: ProfileQuotaSavedRead) => Promise<void>;
+  onFailed: () => Promise<void>;
 };
-type Outcome = { kind: 'error' | 'cancelled'; message: string };
+type Outcome = { kind: 'error' | 'cancelled'; message: string; reassociationAvailable?: boolean };
 const dateFormat = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' });
 function date(value: string) { return dateFormat.format(new Date(value)); }
 function QuotaDisclosure({ label, className, defaultOpen = false, children }: { label: ReactNode; className: string; defaultOpen?: boolean; children: ReactNode }) {
@@ -31,7 +34,7 @@ function CreditTime({ seconds }: { seconds: number }) {
   const value = new Date(seconds * 1000).toISOString();
   return <time dateTime={value}>{date(value)}</time>;
 }
-function CreditDetails({ rows }: { rows: ProfileQuotaPreview['resetCreditDetails'] }) {
+function CreditDetails({ rows }: { rows: SavedQuota['resetCreditDetails'] }) {
   if (rows === null) return <p data-credit-detail-state="unavailable">Credit details were not supplied.</p>;
   if (rows.length === 0) return <p data-credit-detail-state="empty">No credit rows were returned.</p>;
   const statuses = { available: 'Available', redeeming: 'Being redeemed', redeemed: 'Redeemed', unknown: 'Unknown' };
@@ -55,11 +58,75 @@ function WindowValues({ value }: { value: QuotaWindow }) {
   </div>;
 }
 
-export function ProfileQuotaRead({ profileId, profileLabel, approval, busy, onActivity, onStarted, actionSiblings }: Props) {
+function QuotaValues({ value }: { value: SavedQuota }) {
+  return <>
+        {value.limits.length === 0 ? <p>Codex returned no quota limits for this profile. Missing readings do not mean zero usage.</p> : value.limits.map((limit, index) => <QuotaDisclosure className="quota-limit" defaultOpen={index === 0} key={`${value.collectionRunId}:${limit.limitId}`} label={<bdi>{limit.limitName ?? limit.limitId}</bdi>}>
+          <div className="quota-windows">{limit.primary && <WindowValues value={limit.primary} />}{limit.secondary && <WindowValues value={limit.secondary} />}</div>
+          {!limit.primary && !limit.secondary && <p>No quota windows were supplied for this limit.</p>}
+          {(limit.primary === null || limit.secondary === null) && (limit.primary || limit.secondary) && <p className="provider-help">{limit.primary === null ? 'Primary window' : 'Secondary window'}: Not available</p>}
+          <QuotaDisclosure className="quota-source-details" label="Reading details"><dl className="backup-inspection-metadata"><dt>Provider limit ID</dt><dd><bdi>{limit.limitId}</bdi></dd><dt>Provider status</dt><dd><bdi>{limit.reachedType ?? 'Not supplied'}</bdi></dd><dt>Monthly credit limit</dt><dd className="quota-credit-count" data-monthly-credit-limit={limit.limitId} tabIndex={0} aria-label={`Monthly credit limit for ${limit.limitName ?? limit.limitId}`}><bdi className="whitespace-pre">{limit.monthlyCreditLimit ?? 'Not supplied'}</bdi></dd><dt>Spend control</dt><dd data-spend-control={limit.limitId}>{limit.spendControlReached === null ? 'Not supplied' : limit.spendControlReached ? 'Reached' : 'Not reached'}</dd></dl></QuotaDisclosure>
+        </QuotaDisclosure>)}
+        <QuotaDisclosure className="quota-preview-notes" label="About these readings"><p>These readings are saved locally and excluded from combined totals. Monitoring is stopped.</p><p>Remaining quota is calculated from reported usage. Expected reset times do not confirm that a reset occurred.</p><dl className="backup-inspection-metadata"><dt>Earned reset credits</dt><dd className="quota-credit-count" data-earned-reset-credits tabIndex={0} aria-label="Earned reset credits"><bdi>{value.availableResetCredits ?? 'Not supplied'}</bdi></dd></dl><p>Earned reset credits are separate from subscription payments and OpenAI Platform API billing.</p><CreditDetails rows={value.resetCreditDetails} /><p>Account quota. Application scope and coverage are unknown.</p></QuotaDisclosure>
+  </>;
+}
+
+// Cache reads do not require executable approval or execute the provider.
+export function SavedProfileQuota({ profileId, profileLabel, children }: { profileId: string; profileLabel: string; children: (onSaved: (value: ProfileQuotaSavedRead) => Promise<void>, onFailed: () => Promise<void>) => ReactNode }) {
+  const [value, setValue] = useState<SavedQuota | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [focus, setFocus] = useState(false);
+  const result = useRef<HTMLDivElement>(null);
+  const alive = useRef(true);
+  const loadGeneration = useRef(0);
+  const manualLoad = useRef(false);
+  useEffect(() => {
+    alive.current = true; void load();
+    const interval = window.setInterval(() => { void load(); }, 60_000);
+    return () => { alive.current = false; loadGeneration.current += 1; window.clearInterval(interval); };
+  }, [profileId]);
+  useEffect(() => { if (focus && result.current) { result.current.focus(); setFocus(false); } }, [focus, value, error]);
+  async function load(committed?: ProfileQuotaSavedRead, focusResult = false) {
+    if (!committed && !focusResult && manualLoad.current) return;
+    if (committed) manualLoad.current = true;
+    const operation = ++loadGeneration.current; setLoading(true);
+    try {
+      const next = await invoke('load_profile_quota', { profileId });
+      if (next && next.profileId !== profileId) throw new Error('Incompatible saved quota profile.');
+      if (committed && (!next || next.bindingId !== committed.bindingId || next.collectionRunId !== committed.collectionRunId)) throw new Error('Incompatible saved quota observation.');
+      if (alive.current && operation === loadGeneration.current) { setValue(next); setError(null); }
+    } catch {
+      if (alive.current && operation === loadGeneration.current) setError(providerFailure('provider_quota_load_failed'));
+    } finally {
+      if (committed) manualLoad.current = false;
+      if (alive.current && operation === loadGeneration.current) { setLoading(false); if (focusResult || committed) setFocus(true); }
+    }
+  }
+  const freshnessLabels = { unknown: 'Freshness unknown', fresh: 'Current', stale: 'Stale' };
+  return <>
+    {children(receipt => load(receipt, true), () => load())}
+    {(value || error) && <div ref={result} className="quota-result" data-quota-saved={profileId} role="region" aria-label={`Saved quotas for ${profileLabel}`} tabIndex={-1}>
+      <div className="quota-preview-heading"><h3>Saved quotas</h3>{value?.sourceKind === 'test_fixture' && <span className="quota-fixture-label" data-provider-fixture>Synthetic test data</span>}</div>
+      {error && <div><p role="alert" data-quota-cache-error>{error}</p><Button type="button" variant="outline" disabled={loading} onClick={() => { void load(undefined, true); }}>Reload saved quotas</Button></div>}
+      {value && <>
+        <div className="quota-preview-meta"><p>Unverified identity · Saved locally</p><p className="quota-observed"><span data-quota-freshness={value.freshness}>{freshnessLabels[value.freshness]}</span> · Last read <time dateTime={value.observedAtUtc}>{date(value.observedAtUtc)}</time></p></div>
+        <QuotaValues key={`${value.bindingId}:${value.collectionRunId}`} value={value} />
+      </>}
+    </div>}
+  </>;
+}
+
+export function ProfileQuotaRead({ profileId, approval, busy, onActivity, onStarted, actionSiblings, onSaved, onFailed }: Props) {
+  const [associationReview, setAssociationReview] = useState<ProfileActivityAssociationReview | null>(null);
+  const [reassociationOpen, setReassociationOpen] = useState(false);
+  const [reassociationApproved, setReassociationApproved] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
+  const reassociationConsent = useRef<HTMLButtonElement>(null);
+  const reassociationTrigger = useRef<HTMLButtonElement>(null);
   const [working, setWorking] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [requestId, setRequestId] = useState<string | null>(null);
-  const [lastPreview, setLastPreview] = useState<ProfileQuotaPreview | null>(null);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [focus, setFocus] = useState(false);
   const result = useRef<HTMLDivElement>(null);
@@ -79,34 +146,54 @@ export function ProfileQuotaRead({ profileId, profileLabel, approval, busy, onAc
     };
   }, [profileId]);
   useEffect(() => { if (working && requestId) cancelButton.current?.focus(); }, [working, requestId]);
+  useEffect(() => { if (outcome && !working) setFocus(true); }, [outcome, working]);
   useEffect(() => { if (focus && !working && result.current) { result.current.focus(); setFocus(false); } }, [focus, working, outcome]);
 
-  async function read() {
-    if (busy || pending.current) return;
+  useEffect(() => { if (reassociationOpen && associationReview && !working) reassociationConsent.current?.focus(); }, [reassociationOpen, associationReview, working]);
+  function closeReview() {
+    generation.current += 1; setReassociationOpen(false); setReassociationApproved(false); setAssociationReview(null); setReviewError(null); setReviewing(false);
+  }
+  async function reviewAssociation() {
+    if (busy || pending.current || reviewing) return;
+    const operation = ++generation.current;
+    setAssociationReview(null); setReassociationApproved(false); setReviewError(null); setReviewing(true); setReassociationOpen(true);
+    try {
+      const review = await invoke('review_profile_quota_association', { profileId, approvalId: approval.approvalId });
+      if (review.profileId !== profileId || review.approvalId !== approval.approvalId) throw new Error('Incompatible association review.');
+      if (alive.current && operation === generation.current) setAssociationReview(review);
+    } catch (failure) {
+      if (alive.current && operation === generation.current) setReviewError(failure === 'provider_quota_review_unavailable' ? 'Read quotas again to review the current sign-in.' : 'The account review could not be loaded. Try again.');
+    } finally { if (alive.current && operation === generation.current) setReviewing(false); }
+  }
+  async function read(reassociate = false) {
+    if (busy || pending.current || reviewing || (reassociate && (!outcome?.reassociationAvailable || !reassociationOpen || !reassociationApproved || !associationReview))) return;
+    const reviewId = associationReview?.reviewId;
+    closeReview();
     generation.current += 1;
     pending.current = true;
     stopped.current = false;
     cancellationFailure.current = null;
     setWorking(true); setOutcome(current => current?.kind === 'error' ? current : null); onActivity(true); onStarted();
     try {
-      const begun = await invoke('begin_profile_quota_read', { profileId, approvalId: approval.approvalId });
+      const begun = reassociate
+        ? await invoke('begin_profile_quota_reassociation', { profileId, approvalId: approval.approvalId, reviewId: reviewId!, confirmed: true })
+        : await invoke('begin_profile_quota_read', { profileId, approvalId: approval.approvalId });
       if (begun.profileId !== profileId || begun.approvalId !== approval.approvalId || begun.sourceKind !== approval.sourceKind) throw new Error('Incompatible quota binding.');
       activeRequest.current = begun.requestId;
       if (!alive.current) { await invoke('cancel_profile_quota_read', { profileId, requestId: begun.requestId }); return; }
       setRequestId(begun.requestId);
       const value = await invoke('complete_profile_quota_read', { profileId, requestId: begun.requestId });
       if (value.profileId !== profileId || value.requestId !== begun.requestId || value.approvalId !== approval.approvalId || value.sourceKind !== begun.sourceKind) throw new Error('Incompatible quota result.');
-      if (alive.current) {
-        if (cancellationFailure.current) setOutcome({ kind: 'error', message: providerFailure(cancellationFailure.current) });
-        else if (stopped.current) setOutcome({ kind: 'cancelled', message: 'Quota read stopped.' });
-        else { setLastPreview(value); setOutcome(null); }
-      }
+      if (alive.current) { setOutcome(null); await onSaved(value); if (alive.current && cancellationFailure.current) setOutcome({ kind: 'error', message: providerFailure(cancellationFailure.current) }); }
     } catch (failure) {
       const cancelled = failure === 'provider_quota_cancelled' || (stopped.current && failure === 'provider_quota_not_found');
-      if (alive.current) setOutcome(!cancellationFailure.current && cancelled ? { kind: 'cancelled', message: 'Quota read stopped.' } : { kind: 'error', message: providerFailure(cancellationFailure.current ?? failure) });
+      if (alive.current) {
+        setOutcome(!cancellationFailure.current && cancelled ? { kind: 'cancelled', message: 'Quota read stopped.' } : { kind: 'error', message: providerFailure(cancellationFailure.current ?? failure), reassociationAvailable: !cancellationFailure.current && failure === 'provider_quota_association_changed' });
+        void onFailed();
+      }
     } finally {
       pending.current = false; activeRequest.current = null;
-      if (alive.current) { setWorking(false); setStopping(false); setRequestId(null); setFocus(true); onActivity(false); }
+      if (alive.current) { setWorking(false); setStopping(false); setRequestId(null); onActivity(false); }
     }
   }
 
@@ -123,21 +210,13 @@ export function ProfileQuotaRead({ profileId, profileLabel, approval, busy, onAc
   return <div className="profile-quota-read">
     <div className="profile-actions"><Button type="button" variant="outline" className="secondary-button" data-quota-read={profileId} aria-describedby={`profile-name-${profileId}`} disabled={busy || working} onClick={() => { void read(); }}>{working ? 'Reading quotas…' : 'Read quotas'}</Button>{working && requestId && <Button ref={cancelButton} type="button" variant="ghost" className="text-button" data-quota-cancel={profileId} aria-describedby={`profile-name-${profileId}`} disabled={stopping} onClick={() => { void cancel(); }}>{stopping ? 'Stopping read…' : 'Cancel read'}</Button>}</div>
     {actionSiblings}
-    {(outcome || lastPreview) && <div ref={result} className="quota-result" data-quota-profile={profileId} role={outcome?.kind === 'error' ? 'alert' : outcome?.kind === 'cancelled' ? 'status' : 'region'} aria-label={!outcome && lastPreview ? `Quota preview for ${profileLabel}` : undefined} tabIndex={-1}>
-      {!lastPreview && approval.sourceKind === 'test_fixture' && <p className="quota-fixture-label" data-provider-fixture>Synthetic test data</p>}
-      {outcome && <p>{outcome.message}</p>}
-      {lastPreview && <>
-        {(working || outcome) && <p data-quota-previous>Previous reading</p>}
-        <div className="quota-preview-heading"><h3>Quota preview</h3>{approval.sourceKind === 'test_fixture' && <span className="quota-fixture-label" data-provider-fixture>Synthetic test data</span>}</div>
-        <div className="quota-preview-meta"><p>Unverified identity · Not saved</p><p className="quota-observed">Read <time dateTime={lastPreview.observedAtUtc}>{date(lastPreview.observedAtUtc)}</time></p></div>
-        {lastPreview.limits.length === 0 ? <p>Codex returned no quota limits for this profile. Missing readings do not mean zero usage.</p> : lastPreview.limits.map((limit, index) => <QuotaDisclosure className="quota-limit" defaultOpen={index === 0} key={`${lastPreview.requestId}:${limit.limitId}`} label={<bdi>{limit.limitName ?? limit.limitId}</bdi>}>
-          <div className="quota-windows">{limit.primary && <WindowValues value={limit.primary} />}{limit.secondary && <WindowValues value={limit.secondary} />}</div>
-          {!limit.primary && !limit.secondary && <p>No quota windows were supplied for this limit.</p>}
-          {(limit.primary === null || limit.secondary === null) && (limit.primary || limit.secondary) && <p className="provider-help">{limit.primary === null ? 'Primary window' : 'Secondary window'}: Not available</p>}
-          <QuotaDisclosure className="quota-source-details" label="Reading details"><dl className="backup-inspection-metadata"><dt>Provider limit ID</dt><dd><bdi>{limit.limitId}</bdi></dd><dt>Provider status</dt><dd><bdi>{limit.reachedType ?? 'Not supplied'}</bdi></dd><dt>Monthly credit limit</dt><dd className="quota-credit-count" data-monthly-credit-limit={limit.limitId} tabIndex={0} aria-label={`Monthly credit limit for ${limit.limitName ?? limit.limitId}`}><bdi className="whitespace-pre">{limit.monthlyCreditLimit ?? 'Not supplied'}</bdi></dd><dt>Spend control</dt><dd data-spend-control={limit.limitId}>{limit.spendControlReached === null ? 'Not supplied' : limit.spendControlReached ? 'Reached' : 'Not reached'}</dd></dl></QuotaDisclosure>
-        </QuotaDisclosure>)}
-        <QuotaDisclosure className="quota-preview-notes" label="About this preview"><p>These readings are not saved or included in combined totals. Monitoring is stopped.</p><p>Remaining quota is calculated from reported usage. Expected reset times do not confirm that a reset occurred.</p><dl className="backup-inspection-metadata"><dt>Earned reset credits</dt><dd className="quota-credit-count" data-earned-reset-credits tabIndex={0} aria-label="Earned reset credits"><bdi>{lastPreview.availableResetCredits ?? 'Not supplied'}</bdi></dd></dl><p>Earned reset credits are separate from subscription payments and OpenAI Platform API billing.</p><CreditDetails rows={lastPreview.resetCreditDetails} /><p>Activity history is not available in this preview.</p></QuotaDisclosure>
-      </>}
+    {outcome && <div ref={result} className="quota-result" data-quota-profile={profileId} role={outcome.kind === 'error' ? 'alert' : 'status'} tabIndex={-1}>
+      {approval.sourceKind === 'test_fixture' && <p className="quota-fixture-label" data-provider-fixture>Synthetic test data</p>}
+      <p>{outcome.message}</p>
+      {outcome.reassociationAvailable && <Collapsible open={reassociationOpen} onOpenChange={open => { if (open) void reviewAssociation(); else closeReview(); }}>
+        <CollapsibleTrigger ref={reassociationTrigger} render={<Button variant="ghost" className="text-button h-auto max-w-full whitespace-normal" />} type="button" data-quota-reassociate={profileId} disabled={busy || working}>Use current sign-in</CollapsibleTrigger>
+        <CollapsiblePanel><AssociationReview profileId={profileId} purpose="quota" review={associationReview} reviewing={reviewing} error={reviewError} approved={reassociationApproved} busy={busy || working} consentRef={reassociationConsent} onApproved={setReassociationApproved} onRetry={() => { void reviewAssociation(); }} onConfirm={() => { void read(true); }} onKeep={() => { closeReview(); reassociationTrigger.current?.focus(); }} /></CollapsiblePanel>
+      </Collapsible>}
     </div>}
   </div>;
 }

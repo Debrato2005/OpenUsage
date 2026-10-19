@@ -10,6 +10,10 @@ export function providerFailure(error: unknown): string {
     provider_activity_timed_out: 'Codex did not finish the activity read in time. Try again.',
     provider_activity_failed: 'Activity is not available. Check the connection or sign in to this profile, then try again.',
 
+    provider_quota_association_changed: "The current sign-in no longer matches this profile's saved quotas. Review the current sign-in to save new readings.",
+    provider_quota_review_unavailable: 'Read quotas again to review the current sign-in.',
+    provider_quota_save_failed: 'The reading could not be saved. Your previous quotas are still available.',
+    provider_quota_load_failed: 'Saved quotas could not be loaded. Try again.',
     provider_quota_not_found: 'This quota read has ended. Read quotas again if you still need the preview.',
     provider_quota_in_progress: 'A quota read is already in progress for this profile. Finish it or cancel it first.',
     provider_quota_cancelled: 'Quota read stopped.',
