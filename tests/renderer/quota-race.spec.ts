@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
 import type { ProfileQuotaSavedRead, SavedProfileQuota } from '../../apps/desktop/src/contracts';
 
 // Renderer-only synthetic IPC; SQLCipher, provider ownership and COMMIT are native acceptance scope.
@@ -163,7 +164,14 @@ test('renderer requires displayed quota account review and fresh consent for quo
   const consent = page.getByRole('checkbox', { name: 'I approve using the current sign-in for this profile.', exact: true });
   await expect(consent).toBeFocused(); await expect(consent).not.toBeChecked();
   await expect(page.getByRole('button', { name: 'Confirm and read', exact: true })).toBeDisabled();
-  await consent.check(); await page.getByRole('button', { name: 'Keep saved readings', exact: true }).click();
+  await consent.check();
+  for (const theme of ['light', 'dark']) {
+    await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
+    const audit = await new AxeBuilder({ page }).include('.quota-result button[type="submit"]').withRules(['color-contrast']).analyze();
+    expect(audit.violations, `Enabled confirmation label contrast in ${theme} theme`).toEqual([]);
+  }
+  await page.evaluate(() => { document.documentElement.dataset.theme = 'light'; });
+  await page.getByRole('button', { name: 'Keep saved readings', exact: true }).click();
   await expect(trigger).toBeFocused(); await trigger.click(); await expect(consent).not.toBeChecked();
   await consent.check(); await page.getByRole('button', { name: 'Confirm and read', exact: true }).click();
   await expect.poll(() => page.evaluate(() => (window as unknown as FixtureWindow).quotaFixture.requestCalls.filter(call => call.command === 'begin_profile_quota_reassociation'))).toEqual([{ command: 'begin_profile_quota_reassociation', args: { profileId, approvalId, reviewId, confirmed: true } }]);

@@ -115,7 +115,7 @@
 }
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 320px; font-size: var(--text-body); line-height: var(--leading-body); }
-button, select, input { font: inherit; color: inherit; }
+button, select, input { font: inherit; }
 button, select, a { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 button, select { min-height: 44px; }
 button { cursor: pointer; }
