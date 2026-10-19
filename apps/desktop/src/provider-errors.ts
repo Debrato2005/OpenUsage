@@ -1,5 +1,6 @@
 export function providerFailure(error: unknown): string {
   const messages: Record<string, string> = {
+    provider_refresh_cooldown: 'Wait a moment before reading this profile again. Your saved readings are still available.',
     provider_activity_review_unavailable: 'Read activity again to review the current sign-in.',
     provider_activity_association_changed: "The current sign-in no longer matches this profile's saved activity. Your saved readings are still available.",
     provider_activity_save_failed: 'The reading could not be saved. Your previous activity is still available.',

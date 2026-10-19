@@ -146,11 +146,14 @@ impl ProviderCoordinator {
         approved.held.recheck()?;
         let executable = approved.executable.clone();
         let source_kind = approved.metadata.source_kind;
+        require_refresh_ready(&mut state, profile_id)?;
         let request_id = new_id()?;
+        let started = Instant::now();
         let handle = state
             .supervisor
             .start_quota_diagnostic(&executable, &home)
             .map_err(quota_error)?;
+        state.refresh_starts.insert(profile_id.into(), started);
         let binding = ProfileBinding {
             profile_id: profile_id.into(),
             home_reference: home_reference.into(),

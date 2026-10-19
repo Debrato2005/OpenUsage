@@ -17,6 +17,7 @@ use std::{
     io::{Read, Seek, SeekFrom},
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
+    time::{Duration, Instant},
 };
 
 mod activity;
@@ -178,6 +179,7 @@ pub(crate) struct ProfileBinding {
 
 struct ProviderState {
     closed: bool,
+    refresh_starts: std::collections::HashMap<String, Instant>,
     generation: u64,
     candidate: Option<Candidate>,
     approved: Option<Approved>,
@@ -190,6 +192,7 @@ impl Default for ProviderState {
     fn default() -> Self {
         Self {
             closed: false,
+            refresh_starts: std::collections::HashMap::new(),
             generation: 0,
             candidate: None,
             approved: None,
@@ -203,7 +206,47 @@ impl Default for ProviderState {
 
 #[derive(Clone, Default)]
 pub(crate) struct ProviderCoordinator(Arc<Mutex<ProviderState>>);
+const MANUAL_REFRESH_INTERVAL: Duration = Duration::from_secs(30);
+
+#[derive(Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ProfileRefreshStatus {
+    pub profile_id: String,
+    pub retry_after_seconds: u8,
+}
+
+fn refresh_wait(state: &ProviderState, profile_id: &str, now: Instant) -> u8 {
+    let Some(started) = state.refresh_starts.get(profile_id) else {
+        return 0;
+    };
+    let remaining = MANUAL_REFRESH_INTERVAL.saturating_sub(now.saturating_duration_since(*started));
+    (remaining.as_secs() + u64::from(remaining.subsec_nanos() > 0)) as u8
+}
+
+fn require_refresh_ready(state: &mut ProviderState, profile_id: &str) -> Result<(), CommandError> {
+    let now = Instant::now();
+    state
+        .refresh_starts
+        .retain(|_, started| now.saturating_duration_since(*started) < MANUAL_REFRESH_INTERVAL);
+    if refresh_wait(state, profile_id, now) != 0 {
+        return Err(CommandError::ProviderRefreshCooldown);
+    }
+    Ok(())
+}
+
 impl ProviderCoordinator {
+    pub fn refresh_status(&self, profile_id: &str) -> Result<ProfileRefreshStatus, CommandError> {
+        let state = self
+            .0
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?;
+        require_open(&state)?;
+        Ok(ProfileRefreshStatus {
+            profile_id: profile_id.into(),
+            retry_after_seconds: refresh_wait(&state, profile_id, Instant::now()),
+        })
+    }
+
     pub fn inspect(&self, path: &str) -> Result<ExecutableCandidate, CommandError> {
         let mut state = self
             .0
@@ -736,13 +779,61 @@ pub(crate) fn new_id() -> Result<String, CommandError> {
 }
 
 #[cfg(all(test, unix))]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use openusage_storage::Storage;
     use std::{
         os::unix::fs::{PermissionsExt, symlink},
         time::{Duration, Instant},
     };
+
+    // Only Rust tests advance this timestamp. Native journeys use the real thirty-second wait.
+    pub(crate) fn elapse_refresh(provider: &ProviderCoordinator, profile_id: &str) {
+        if let Some(started) = provider
+            .0
+            .lock()
+            .unwrap()
+            .refresh_starts
+            .get_mut(profile_id)
+        {
+            *started = Instant::now().checked_sub(Duration::from_secs(30)).unwrap();
+        }
+    }
+
+    #[test]
+    fn refresh_wait_rounds_up_and_preserves_deadlines_through_quiescence() {
+        let started = Instant::now();
+        let mut state = ProviderState::default();
+        state.refresh_starts.insert("profile".into(), started);
+        assert_eq!(refresh_wait(&state, "profile", started), 30);
+        assert_eq!(
+            refresh_wait(&state, "profile", started + Duration::from_millis(29999)),
+            1
+        );
+        assert_eq!(
+            refresh_wait(&state, "profile", started + Duration::from_secs(30)),
+            0
+        );
+        assert_eq!(
+            refresh_wait(
+                &state,
+                "profile",
+                started.checked_sub(Duration::from_secs(1)).unwrap()
+            ),
+            30
+        );
+        assert_eq!(refresh_wait(&state, "other", started), 0);
+        reset(&mut state).unwrap();
+        assert_eq!(refresh_wait(&state, "profile", started), 30);
+        assert_eq!(
+            require_refresh_ready(&mut state, "profile"),
+            Err(CommandError::ProviderRefreshCooldown)
+        );
+        *state.refresh_starts.get_mut("profile").unwrap() =
+            started.checked_sub(Duration::from_secs(31)).unwrap();
+        assert_eq!(require_refresh_ready(&mut state, "profile"), Ok(()));
+        assert!(state.refresh_starts.is_empty());
+    }
 
     struct Fixture {
         _temporary: tempfile::TempDir,

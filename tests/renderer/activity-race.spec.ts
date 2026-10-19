@@ -3,7 +3,7 @@ import type { ProfileActivitySavedRead, ProfileQuotaSavedRead, SavedProfileActiv
 
 // Renderer-only synthetic IPC; SQLCipher, provider ownership and COMMIT are native acceptance scope.
 type Deferred = { resolve: (value: unknown) => void; reject: (error: string) => void };
-type Fixture = { completions: Record<string, Deferred>; cancellations: Record<string, Deferred>; savedQuota: unknown; requests: string[]; requestCalls: { command: string; args: Record<string, unknown> }[]; saved: SavedProfileActivity | null; failLoads: boolean; deferLoads: boolean; pendingLoads: Deferred[]; review: unknown; failReviews: boolean | string; deferReviews: boolean; pendingReviews: Deferred[] };
+type Fixture = { completions: Record<string, Deferred>; cancellations: Record<string, Deferred>; savedQuota: unknown; requests: string[]; requestCalls: { command: string; args: Record<string, unknown> }[]; saved: SavedProfileActivity | null; failLoads: boolean; deferLoads: boolean; pendingLoads: Deferred[]; review: unknown; failReviews: boolean | string; deferReviews: boolean; pendingReviews: Deferred[]; refreshSeconds: number };
 type FixtureWindow = Window & { activityFixture: Fixture };
 const profileId = '11111111-1111-4111-8111-111111111111';
 const approvalId = '22222222-2222-4222-8222-222222222222';
@@ -24,7 +24,7 @@ function saved(index = 0, rows: { startDate: string; tokens: string }[] | null =
 }
 async function openProfile(page: Page, options: { approve?: boolean; cached?: SavedProfileActivity | null; archived?: boolean } = {}) {
   await page.addInitScript(({ profileId, approvalId, requestIds, reviewId, observedAtUtc, options }) => {
-    const fixture: Fixture = { completions: {}, cancellations: {}, savedQuota: null, requests: [], requestCalls: [], saved: options.cached ?? null, failLoads: false, deferLoads: false, pendingLoads: [], review: { reviewId, profileId, approvalId, observedAtUtc, previous: { email: 'previous@synthetic.invalid', plan: null }, current: { email: 'current@synthetic.invalid', plan: 'Synthetic plan' }, homeChanged: true, identityConfidence: 'provisional' }, failReviews: false, deferReviews: false, pendingReviews: [] };
+    const fixture: Fixture = { completions: {}, cancellations: {}, savedQuota: null, requests: [], requestCalls: [], saved: options.cached ?? null, failLoads: false, deferLoads: false, pendingLoads: [], review: { reviewId, profileId, approvalId, observedAtUtc, previous: { email: 'previous@synthetic.invalid', plan: null }, current: { email: 'current@synthetic.invalid', plan: 'Synthetic plan' }, homeChanged: true, identityConfidence: 'provisional' }, failReviews: false, deferReviews: false, pendingReviews: [], refreshSeconds: 0 };
     Object.assign(window, { activityFixture: fixture }); let started = 0;
     const metadata = { path: '/synthetic/reviewed-codex', fileBytes: '100', sha256: 'a'.repeat(64), testedVersion: '0.163.0', versionChecked: false, sourceVerified: true, sourceKind: 'test_fixture', sourceUrl: null };
     window.__TAURI__ = { core: { invoke: async <T>(command: string, args: Record<string, unknown> = {}) => {
@@ -32,6 +32,7 @@ async function openProfile(page: Page, options: { approve?: boolean; cached?: Sa
       switch (command) {
         case 'bootstrap': value = { storage: 'ready', theme: 'light', schemaVersion: 1, activeProfiles: options.archived ? 0 : 1, monitoring: 'stopped', provider: 'not_configured', keyProtection: 'passphrase', storageIssue: null }; break;
         case 'list_profiles': value = { activeProfiles: options.archived ? 0 : 1, profiles: [{ id: profileId, label: 'Synthetic activity profile', environment: 'native', archived: options.archived ?? false, connectionState: 'authentication_required' }] }; break;
+        case 'load_profile_refresh_status': value = { profileId, retryAfterSeconds: fixture.refreshSeconds }; break;
         case 'load_profile_quota': value = structuredClone(fixture.savedQuota); break;
         case 'load_profile_activity':
           if (fixture.failLoads) throw 'provider_activity_load_failed';
@@ -355,4 +356,19 @@ test('renderer requests a new read when account review evidence is no longer ava
   await expect(page.getByRole('button', { name: 'Confirm and read', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Keep saved readings', exact: true }).click();
   await expect(metric(page, 'lifetimeTokens')).toHaveText('9223372036854775807');
+});
+
+
+test('renderer applies the shared cooldown after an activity read completes', async ({ page }) => {
+  await page.clock.install();
+  await openProfile(page); await begin(page, 0);
+  await page.evaluate(() => { (window as unknown as FixtureWindow).activityFixture.refreshSeconds = 3; });
+  await publish(page, 0, null);
+  await expect(page.locator(`[data-profile-refresh-status="${profileId}"]`)).toHaveText('Next reading in 3s');
+  await expect(page.getByRole('button', { name: 'Read activity', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Read quotas', exact: true })).toBeDisabled();
+  await expect(metric(page, 'lifetimeTokens')).toHaveText('9223372036854775807');
+  await page.clock.fastForward(3000);
+  await expect(page.getByRole('button', { name: 'Read activity', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Read quotas', exact: true })).toBeEnabled();
 });

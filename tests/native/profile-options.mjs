@@ -190,6 +190,7 @@ try {
   await waitFor(async () => driver.execute('return document.documentElement.dataset.theme==="light"&&!document.querySelector("#theme").disabled;'), 'saved light appearance');
   await ordinaryButton();
   for (const provider of providers) {
+    await driver.waitForProfileRefresh(profile.id);
     provider.executable = await approve(provider);
     const idle = await driver.execute('const row=document.querySelector(arguments[0]);return [...row.querySelectorAll("button")].filter(node=>node.getClientRects().length&&!node.disabled).map(node=>node.textContent.trim());', [row()]);
     assert.deepEqual(idle, ['Sign in', 'Read quotas', 'Manage profile']);

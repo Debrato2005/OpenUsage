@@ -70,6 +70,10 @@ impl Fixture {
         self.workspace.directory.join("profiles").join(id)
     }
     fn mode(&self, mode: &str) {
+        // These parser/persistence cases advance only their test fixture's monotonic timestamps.
+        for id in &self.profiles {
+            provider::tests::elapse_refresh(&self.workspace.provider, id);
+        }
         fs::write(
             self.temporary
                 .path()
@@ -97,6 +101,7 @@ impl Fixture {
         id: &str,
         approval: &str,
     ) -> Result<provider::CompletedActivity, CommandError> {
+        provider::tests::elapse_refresh(&self.workspace.provider, id);
         let receipt = self.workspace.begin_profile_activity_read(id, approval)?;
         self.workspace
             .complete_profile_activity_read(id, &receipt.request_id)?
@@ -352,6 +357,14 @@ fn activity_exact_cancellation_blocks_other_operations_and_reaps_on_quiescence()
         Some(CommandError::ProviderActivityCancelled)
     );
     gone(pid);
+    assert_eq!(
+        fixture
+            .workspace
+            .begin_profile_activity_read(&id, &approval)
+            .err(),
+        Some(CommandError::ProviderRefreshCooldown)
+    );
+    provider::tests::elapse_refresh(&fixture.workspace.provider, &id);
     let successor = fixture
         .workspace
         .begin_profile_activity_read(&id, &approval)
@@ -777,6 +790,15 @@ fn restored_activity_requires_explicit_new_sign_in_consent_and_keeps_original_hi
         Some(CommandError::InvalidArguments)
     );
     assert_eq!(activity_tables(&mut fixture.workspace), old_tables);
+    assert_eq!(
+        fixture
+            .workspace
+            .begin_profile_activity_reassociation(&id, &approval, &review.review_id, true)
+            .err(),
+        Some(CommandError::ProviderRefreshCooldown)
+    );
+    assert_eq!(activity_tables(&mut fixture.workspace), old_tables);
+    provider::tests::elapse_refresh(&fixture.workspace.provider, &id);
     let consented = fixture
         .workspace
         .begin_profile_activity_reassociation(&id, &approval, &review.review_id, true)
@@ -891,6 +913,7 @@ fn confirmed_activity_switch_still_refuses_unstable_account_responses_and_cancel
     gone(pid);
     assert_eq!(activity_tables(&mut fixture.workspace), before);
     let review = fresh_activity_review(&mut fixture, &id, &approval);
+    provider::tests::elapse_refresh(&fixture.workspace.provider, &id);
     let stale = fixture
         .workspace
         .begin_profile_activity_reassociation(&id, &approval, &review.review_id, true)
@@ -1107,6 +1130,7 @@ fn activity_review_refuses_expired_or_invalidated_fences_and_changed_postconsent
         }
         let before = activity_tables(&mut fixture.workspace);
         if fault == "description" {
+            provider::tests::elapse_refresh(&fixture.workspace.provider, &id);
             let request = fixture
                 .workspace
                 .begin_profile_activity_reassociation(&id, &approval, &review.review_id, true)

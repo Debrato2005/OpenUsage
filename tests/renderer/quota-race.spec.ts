@@ -4,7 +4,7 @@ import type { ProfileQuotaSavedRead, SavedProfileQuota } from '../../apps/deskto
 
 // Renderer-only synthetic IPC; SQLCipher, provider ownership and COMMIT are native acceptance scope.
 type Deferred = { resolve: (value: unknown) => void; reject: (error: string) => void };
-type Fixture = { completions: Record<string, Deferred>; cancellations: Record<string, Deferred>; requests: string[]; requestCalls: { command: string; args: Record<string, unknown> }[]; saved: SavedProfileQuota | null; failLoads: boolean; deferLoads: boolean; pendingLoads: Deferred[]; review: unknown; failReviews: boolean | string; deferReviews: boolean; pendingReviews: Deferred[] };
+type Fixture = { completions: Record<string, Deferred>; cancellations: Record<string, Deferred>; requests: string[]; requestCalls: { command: string; args: Record<string, unknown> }[]; saved: SavedProfileQuota | null; failLoads: boolean; deferLoads: boolean; pendingLoads: Deferred[]; review: unknown; failReviews: boolean | string; deferReviews: boolean; pendingReviews: Deferred[]; refreshStatus: unknown; deferRefresh: boolean; pendingRefresh: Deferred[]; startError?: string };
 type FixtureWindow = Window & { quotaFixture: Fixture };
 const profileId = '11111111-1111-4111-8111-111111111111';
 const approvalId = '22222222-2222-4222-8222-222222222222';
@@ -22,9 +22,9 @@ function saved(index = 0): SavedProfileQuota {
   const { requestId: _requestId, approvalId: _approvalId, ...value } = committed(index);
   return { ...value, freshness: 'unknown', coverage: 'unknown', scope: 'account_quota_with_unknown_application_scope', limits: value.limits.map(limit => ({ ...limit, primary: limit.primary && { ...limit.primary, resetState: 'expected' }, secondary: limit.secondary && { ...limit.secondary, resetState: 'expected' } })) };
 }
-async function openProfile(page: Page, options: { approve?: boolean; cached?: SavedProfileQuota | null; archived?: boolean } = {}) {
+async function openProfile(page: Page, options: { approve?: boolean; cached?: SavedProfileQuota | null; archived?: boolean; refreshSeconds?: number; deferRefresh?: boolean } = {}) {
   await page.addInitScript(({ profileId, approvalId, requestIds, reviewId, observedAtUtc, options }) => {
-    const fixture: Fixture = { completions: {}, cancellations: {}, requests: [], requestCalls: [], saved: options.cached ?? null, failLoads: false, deferLoads: false, pendingLoads: [], review: { reviewId, profileId, approvalId, observedAtUtc, previous: { email: 'previous@synthetic.invalid', plan: null }, current: { email: 'current@synthetic.invalid', plan: 'Synthetic plan' }, homeChanged: true, identityConfidence: 'provisional' }, failReviews: false, deferReviews: false, pendingReviews: [] };
+    const fixture: Fixture = { completions: {}, cancellations: {}, requests: [], requestCalls: [], saved: options.cached ?? null, failLoads: false, deferLoads: false, pendingLoads: [], review: { reviewId, profileId, approvalId, observedAtUtc, previous: { email: 'previous@synthetic.invalid', plan: null }, current: { email: 'current@synthetic.invalid', plan: 'Synthetic plan' }, homeChanged: true, identityConfidence: 'provisional' }, failReviews: false, deferReviews: false, pendingReviews: [], refreshStatus: { profileId, retryAfterSeconds: options.refreshSeconds ?? 0 }, deferRefresh: options.deferRefresh ?? false, pendingRefresh: [] };
     Object.assign(window, { quotaFixture: fixture }); let started = 0;
     const metadata = { path: '/synthetic/reviewed-codex', fileBytes: '100', sha256: 'a'.repeat(64), testedVersion: '0.163.0', versionChecked: false, sourceVerified: true, sourceKind: 'test_fixture', sourceUrl: null };
     window.__TAURI__ = { core: { invoke: async <T>(command: string, args: Record<string, unknown> = {}) => {
@@ -33,6 +33,7 @@ async function openProfile(page: Page, options: { approve?: boolean; cached?: Sa
         case 'bootstrap': value = { storage: 'ready', theme: 'light', schemaVersion: 1, activeProfiles: options.archived ? 0 : 1, monitoring: 'stopped', provider: 'not_configured', keyProtection: 'passphrase', storageIssue: null }; break;
         case 'list_profiles': value = { activeProfiles: options.archived ? 0 : 1, profiles: [{ id: profileId, label: 'Synthetic quota profile', environment: 'native', archived: options.archived ?? false, connectionState: 'authentication_required' }] }; break;
         case 'load_profile_activity': value = null; break;
+        case 'load_profile_refresh_status': value = fixture.deferRefresh ? await new Promise((resolve, reject) => { fixture.pendingRefresh.push({ resolve, reject }); }) : structuredClone(fixture.refreshStatus); break;
         case 'load_profile_quota':
           if (fixture.failLoads) throw 'provider_quota_load_failed';
           value = fixture.deferLoads ? await new Promise((resolve, reject) => { fixture.pendingLoads.push({ resolve, reject }); }) : structuredClone(fixture.saved); break;
@@ -42,7 +43,9 @@ async function openProfile(page: Page, options: { approve?: boolean; cached?: Sa
           if (fixture.failReviews) throw typeof fixture.failReviews === 'string' ? fixture.failReviews : 'provider_quota_association_changed';
           value = fixture.deferReviews ? await new Promise((resolve, reject) => { fixture.pendingReviews.push({ resolve, reject }); }) : structuredClone(fixture.review); break;
         case 'begin_profile_quota_reassociation':
-        case 'begin_profile_quota_read': value = { profileId, approvalId, requestId: requestIds[started++], sourceKind: 'test_fixture', monitoring: 'stopped', accepted: false }; break;
+        case 'begin_profile_quota_read':
+          if (fixture.startError) throw fixture.startError;
+          value = { profileId, approvalId, requestId: requestIds[started++], sourceKind: 'test_fixture', monitoring: 'stopped', accepted: false }; break;
         case 'complete_profile_quota_read': value = await new Promise((resolve, reject) => { fixture.completions[String(args.requestId)] = { resolve, reject }; }); break;
         case 'cancel_profile_quota_read': value = await new Promise((resolve, reject) => { fixture.cancellations[String(args.requestId)] = { resolve, reject }; }); break;
         default: throw new Error(`Unexpected renderer fixture command: ${command}`);
@@ -271,4 +274,102 @@ test('renderer shows uncertain reset evidence until Rust accepts confirmation', 
   await expect(root.locator('[data-quota-freshness]')).toHaveText('Freshness unknown');
   await expect(window.locator('time')).toHaveAttribute('datetime', futureReset);
   await expect(remaining(page)).toHaveAttribute('aria-valuenow', '75');
+});
+
+// Synthetic renderer clock only; native cooldown acceptance uses real elapsed time.
+test('renderer shares the Rust cooldown across quota and activity without polling or blocking sign-in checks', async ({ page }) => {
+  await page.clock.install();
+  await openProfile(page, { refreshSeconds: 3 });
+  const notice = page.locator(`[data-profile-refresh-status="${profileId}"]`);
+  await expect(notice).toHaveText('Next reading in 3s');
+  const initialStatusCalls = await page.evaluate(() => (window as unknown as FixtureWindow).quotaFixture.requests.filter(c => c === 'load_profile_refresh_status').length);
+  await expect(notice).not.toHaveAttribute('role', 'status');
+  await expect(notice).not.toHaveAttribute('aria-live');
+  await expect(page.getByRole('button', { name: 'Read quotas', exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: 'Manage profile', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Read activity', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Check connection', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeEnabled();
+  await page.clock.setSystemTime(new Date('2020-01-01T00:00:00Z'));
+  await page.clock.fastForward(1000);
+  await expect(notice).toHaveText('Next reading in 2s');
+  await page.clock.fastForward(2000);
+  await expect(notice).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Read quotas', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Read activity', exact: true })).toBeEnabled();
+  expect(await page.evaluate(() => (window as unknown as FixtureWindow).quotaFixture.requests.filter(c => c === 'load_profile_refresh_status').length)).toBe(initialStatusCalls);
+});
+
+test('renderer reloads cooldown after a failed quota read and retains its accepted values', async ({ page }) => {
+  await page.clock.install();
+  await openProfile(page, { cached: saved() });
+  const initialStatusCalls = await page.evaluate(() => (window as unknown as FixtureWindow).quotaFixture.requests.filter(c => c === 'load_profile_refresh_status').length);
+  await begin(page, 0);
+  await page.evaluate(profileId => { (window as unknown as FixtureWindow).quotaFixture.refreshStatus = { profileId, retryAfterSeconds: 30 }; }, profileId);
+  await fail(page);
+  await expect(page.locator(`[data-profile-refresh-status="${profileId}"]`)).toHaveText('Next reading in 30s');
+  await expect(remaining(page)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Read quotas', exact: true })).toBeDisabled();
+  expect(await page.evaluate(() => (window as unknown as FixtureWindow).quotaFixture.requests.filter(c => c === 'load_profile_refresh_status').length)).toBe(initialStatusCalls + 1);
+});
+
+test('renderer validates the exact bounded refresh status contract', async ({ page }) => {
+  await openProfile(page);
+  const results = await page.evaluate(async profileId => {
+    const modulePath = '/src/contracts.ts';
+    const { invoke } = await import(modulePath);
+    const values: unknown[] = [
+      { profileId, retryAfterSeconds: 0 }, { profileId, retryAfterSeconds: 30 },
+      { profileId, retryAfterSeconds: -1 }, { profileId, retryAfterSeconds: 31 },
+      { profileId, retryAfterSeconds: 1.5 }, { profileId, retryAfterSeconds: '3' },
+      { profileId, retryAfterSeconds: null }, { profileId },
+      { profileId, retryAfterSeconds: 0, extra: true }, { profileId: 'email@example.invalid', retryAfterSeconds: 0 },
+    ];
+    const results = [];
+    for (const value of values) {
+      (window as unknown as FixtureWindow).quotaFixture.refreshStatus = value;
+      try { await invoke('load_profile_refresh_status', { profileId }); results.push(true); }
+      catch { results.push(false); }
+    }
+    return results;
+  }, profileId);
+  expect(results).toEqual([true, true, false, false, false, false, false, false, false, false]);
+});
+
+
+test('renderer refreshes the wait after a cancelled quota read and ignores older status replies', async ({ page }) => {
+  await page.clock.install();
+  await openProfile(page, { deferRefresh: true });
+  await begin(page, 0);
+  await page.evaluate(profileId => {
+    const fixture = (window as unknown as FixtureWindow).quotaFixture;
+    fixture.deferRefresh = false; fixture.refreshStatus = { profileId, retryAfterSeconds: 3 };
+  }, profileId);
+  await page.getByRole('button', { name: 'Cancel read', exact: true }).click();
+  await page.evaluate(id => {
+    const fixture = (window as unknown as FixtureWindow).quotaFixture;
+    fixture.cancellations[id]!.resolve({ cancelled: true });
+    fixture.completions[id]!.reject('provider_quota_cancelled');
+  }, requestIds[0]!);
+  const notice = page.locator(`[data-profile-refresh-status="${profileId}"]`);
+  await expect(notice).toHaveText('Next reading in 3s');
+  await page.evaluate(profileId => {
+    for (const pending of (window as unknown as FixtureWindow).quotaFixture.pendingRefresh) pending.resolve({ profileId, retryAfterSeconds: 0 });
+  }, profileId);
+  await expect(notice).toHaveText('Next reading in 3s');
+  await expect(page.getByText('Quota read stopped.', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Read quotas', exact: true })).toBeDisabled();
+});
+
+test('renderer explains an authoritative cooldown refusal and loads the remaining wait', async ({ page }) => {
+  await page.clock.install();
+  await openProfile(page);
+  await page.evaluate(profileId => {
+    const fixture = (window as unknown as FixtureWindow).quotaFixture;
+    fixture.startError = 'provider_refresh_cooldown'; fixture.refreshStatus = { profileId, retryAfterSeconds: 3 };
+  }, profileId);
+  await page.getByRole('button', { name: 'Read quotas', exact: true }).click();
+  await expect(page.getByText('Wait a moment before reading this profile again. Your saved readings are still available.', { exact: true })).toBeVisible();
+  await expect(page.locator(`[data-profile-refresh-status="${profileId}"]`)).toHaveText('Next reading in 3s');
+  expect(await page.evaluate(() => Object.keys((window as unknown as FixtureWindow).quotaFixture.completions))).toEqual([]);
 });

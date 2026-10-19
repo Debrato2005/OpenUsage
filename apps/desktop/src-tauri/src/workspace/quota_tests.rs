@@ -70,6 +70,10 @@ impl Fixture {
         self.workspace.directory.join("profiles").join(id)
     }
     fn mode(&self, mode: &str) {
+        // These parser/persistence cases advance only their test fixture's monotonic timestamps.
+        for id in &self.profiles {
+            provider::tests::elapse_refresh(&self.workspace.provider, id);
+        }
         fs::write(
             self.temporary
                 .path()
@@ -93,6 +97,7 @@ impl Fixture {
             .approval_id
     }
     fn read(&mut self, id: &str, approval: &str) -> Result<provider::CompletedQuota, CommandError> {
+        provider::tests::elapse_refresh(&self.workspace.provider, id);
         let receipt = self.workspace.begin_profile_quota_read(id, approval)?;
         self.workspace
             .complete_profile_quota_read(id, &receipt.request_id)?
@@ -467,6 +472,14 @@ fn quota_exact_cancel_shared_slots_and_quiescence_own_the_actual_pending_process
         Some(CommandError::ProviderQuotaCancelled)
     );
     gone(pid);
+    assert_eq!(
+        fixture
+            .workspace
+            .begin_profile_quota_read(&id, &approval)
+            .err(),
+        Some(CommandError::ProviderRefreshCooldown)
+    );
+    provider::tests::elapse_refresh(&fixture.workspace.provider, &id);
     let successor = fixture
         .workspace
         .begin_profile_quota_read(&id, &approval)
@@ -499,6 +512,14 @@ fn quota_exact_cancel_shared_slots_and_quiescence_own_the_actual_pending_process
             .unwrap()
             .cancelled
     );
+    assert_eq!(
+        fixture
+            .workspace
+            .begin_profile_quota_read(&id, &approval)
+            .err(),
+        Some(CommandError::ProviderRefreshCooldown)
+    );
+    provider::tests::elapse_refresh(&fixture.workspace.provider, &id);
     let final_request = fixture
         .workspace
         .begin_profile_quota_read(&id, &approval)
@@ -754,6 +775,15 @@ fn quota_reassociation_reviews_are_read_only_one_use_and_bound_to_quota() {
     );
     assert_eq!(fs::read(&observations).unwrap(), executions);
     assert_eq!(fixture.database_hashes(), hashes);
+    assert_eq!(
+        fixture
+            .workspace
+            .begin_profile_quota_reassociation(&id, &approval, &token, true)
+            .err(),
+        Some(CommandError::ProviderRefreshCooldown)
+    );
+    assert_eq!(fixture.database_hashes(), hashes);
+    provider::tests::elapse_refresh(&fixture.workspace.provider, &id);
     let receipt = fixture
         .workspace
         .begin_profile_quota_reassociation(&id, &approval, &token, true)
@@ -802,5 +832,135 @@ fn quota_reassociation_reviews_are_read_only_one_use_and_bound_to_quota() {
             .current_activity(&id)
             .unwrap()
             .is_none()
+    );
+}
+
+#[test]
+fn manual_refresh_cooldown_refuses_repeat_and_cross_kind_reads_before_spawn() {
+    let mut fixture = Fixture::new("multi");
+    let id = fixture.profiles[0].clone();
+    let approval = fixture.approve();
+    assert_eq!(
+        fixture
+            .workspace
+            .load_profile_refresh_status(&id)
+            .unwrap()
+            .retry_after_seconds,
+        0
+    );
+    let completed = fixture.read(&id, &approval).unwrap();
+    fixture
+        .workspace
+        .finish_profile_quota_read(completed)
+        .unwrap();
+    let status = fixture.workspace.load_profile_refresh_status(&id).unwrap();
+    assert_eq!(status.profile_id, id);
+    assert!((1..=30).contains(&status.retry_after_seconds));
+    let observations = fixture
+        .temporary
+        .path()
+        .join("synthetic-quota-observations.jsonl");
+    let before = fs::read(&observations).unwrap();
+    let repeat = fixture.workspace.begin_profile_quota_read(&id, &approval);
+    // Cleanup also runs against the old implementation, where this start incorrectly succeeds.
+    if let Ok(receipt) = &repeat {
+        fixture
+            .workspace
+            .provider
+            .cancel_quota(&id, &receipt.request_id)
+            .unwrap();
+    }
+    assert_eq!(
+        repeat
+            .err()
+            .map(|error| serde_json::to_value(error).unwrap()),
+        Some(serde_json::json!("provider_refresh_cooldown"))
+    );
+    assert_eq!(fs::read(&observations).unwrap(), before);
+    assert_eq!(
+        fixture
+            .workspace
+            .begin_profile_activity_read(&id, &approval)
+            .err()
+            .map(|error| serde_json::to_value(error).unwrap()),
+        Some(serde_json::json!("provider_refresh_cooldown"))
+    );
+    assert_eq!(fs::read(&observations).unwrap(), before);
+    let approval = fixture.approve();
+    assert_eq!(
+        fixture
+            .workspace
+            .begin_profile_quota_read(&id, &approval)
+            .err(),
+        Some(CommandError::ProviderRefreshCooldown)
+    );
+    let other = fixture.profiles[1].clone();
+    let completed = fixture.read(&other, &approval).unwrap();
+    fixture
+        .workspace
+        .finish_profile_quota_read(completed)
+        .unwrap();
+    assert!(
+        (1..=30).contains(
+            &fixture
+                .workspace
+                .load_profile_refresh_status(&id)
+                .unwrap()
+                .retry_after_seconds
+        )
+    );
+    let missing = provider::new_id().unwrap();
+    assert_eq!(
+        fixture
+            .workspace
+            .load_profile_refresh_status(&missing)
+            .err(),
+        Some(CommandError::ProfileNotFound)
+    );
+    let third = fixture.profiles[2].clone();
+    assert_eq!(
+        fixture
+            .workspace
+            .begin_profile_quota_read(&third, &missing)
+            .err(),
+        Some(CommandError::StaleProviderApproval)
+    );
+    assert_eq!(
+        fixture
+            .workspace
+            .load_profile_refresh_status(&third)
+            .unwrap()
+            .retry_after_seconds,
+        0
+    );
+    let previous_pid = fixture.pending_pid(&id, None);
+    fixture.mode("pending");
+    let request = fixture
+        .workspace
+        .begin_profile_quota_read(&id, &approval)
+        .unwrap();
+    let pid = fixture.pending_pid(&id, Some(previous_pid));
+    fixture
+        .workspace
+        .provider
+        .cancel_quota(&id, &request.request_id)
+        .unwrap();
+    gone(pid);
+    assert_eq!(
+        fixture
+            .workspace
+            .begin_profile_quota_read(&id, &approval)
+            .err(),
+        Some(CommandError::ProviderRefreshCooldown)
+    );
+    fixture.workspace.provider.quiesce().unwrap();
+    assert!(
+        (1..=30).contains(
+            &fixture
+                .workspace
+                .load_profile_refresh_status(&id)
+                .unwrap()
+                .retry_after_seconds
+        )
     );
 }

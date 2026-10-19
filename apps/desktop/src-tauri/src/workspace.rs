@@ -86,6 +86,7 @@ pub enum CommandError {
     ProviderUnsupported,
     ProviderCheckInProgress,
     ProviderCapacityReached,
+    ProviderRefreshCooldown,
     ProviderCheckCancelled,
     ProviderCheckTimedOut,
     ProviderProtocolFailed,
@@ -811,6 +812,23 @@ impl Workspace {
             CommandError::ProviderCheckCancelled,
         )?;
         check.finish()
+    }
+
+    pub fn load_profile_refresh_status(
+        &self,
+        id: &str,
+    ) -> Result<provider::ProfileRefreshStatus, CommandError> {
+        validate_profile_id(id)?;
+        let storage = self.storage.as_ref().ok_or(CommandError::WorkspaceLocked)?;
+        if !storage
+            .list_profiles()
+            .map_err(profile_error)?
+            .iter()
+            .any(|profile| profile.id == id)
+        {
+            return Err(CommandError::ProfileNotFound);
+        }
+        self.provider.refresh_status(id)
     }
 
     pub fn begin_profile_quota_read(

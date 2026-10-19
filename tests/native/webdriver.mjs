@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import assert from 'node:assert/strict';
 import { createServer } from 'node:net';
 import { resolve } from 'node:path';
 import { writeFile } from 'node:fs/promises';
@@ -72,6 +73,20 @@ export class NativeDriver {
       script: 'const done=arguments[arguments.length-1]; window.__TAURI__.core.invoke(arguments[0],arguments[1]).then(value=>done({ok:true,value}),error=>done({ok:false,error}));',
       args: [command, args ?? {}],
     });
+  }
+
+  async waitForProfileRefresh(profileId) {
+    await waitFor(async () => {
+      const response = await this.invoke('load_profile_refresh_status', { profileId });
+      assert.equal(response.ok, true);
+      assert.deepEqual(Object.keys(response.value).sort(), ['profileId', 'retryAfterSeconds']);
+      assert.equal(response.value.profileId, profileId);
+      const seconds = response.value.retryAfterSeconds;
+      assert.ok(Number.isInteger(seconds) && seconds >= 0 && seconds <= 30);
+      if (seconds === 0) return true;
+      await delay(seconds * 1000);
+      return false;
+    }, 'real per-profile manual-refresh cooldown', 45000);
   }
 
   async element(selector) {

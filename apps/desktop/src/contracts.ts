@@ -134,6 +134,10 @@ export interface ProviderExecutableDiscovery {
   truncated: boolean;
 }
 
+export interface ProfileRefreshStatus {
+  profileId: string; retryAfterSeconds: number;
+}
+
 export interface ProfileQuotaRequest {
   profileId: string; requestId: string; approvalId: string;
   sourceKind: ProviderConnectionDiagnostic['sourceKind'];
@@ -196,6 +200,7 @@ export interface SavedProfileActivity {
 }
 
 interface Commands {
+  load_profile_refresh_status: { args: { profileId: string }; result: ProfileRefreshStatus };
   load_profile_activity: { args: { profileId: string }; result: SavedProfileActivity | null };
   begin_profile_activity_read: { args: { profileId: string; approvalId: string }; result: ProfileActivityRequest };
   review_profile_activity_association: { args: { profileId: string; approvalId: string }; result: ProfileActivityAssociationReview };
@@ -254,6 +259,7 @@ export async function invoke<K extends keyof Commands>(
   if (!core) throw new DesktopUnavailable('Open the installed OpenUsage desktop application.');
   const response = await core.invoke<unknown>(command, args[0]);
   const valid = (command === 'begin_profile_activity_read' || command === 'begin_profile_activity_reassociation') ? isProfileQuotaRequest(response)
+    : command === 'load_profile_refresh_status' ? isProfileRefreshStatus(response)
     : command === 'review_profile_activity_association' ? isActivityAssociationReview(response)
     : command === 'complete_profile_activity_read' ? isProfileActivitySavedRead(response)
     : command === 'load_profile_activity' ? isSavedProfileActivity(response)
@@ -315,6 +321,13 @@ function isActivityAssociationReview(value: unknown): value is ProfileActivityAs
     && isUtcTimestamp(v.observedAtUtc) && descriptor(v.previous) && descriptor(v.current)
     && typeof v.homeChanged === 'boolean' && v.identityConfidence === 'provisional';
 }
+function isProfileRefreshStatus(value: unknown): value is ProfileRefreshStatus {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  return Object.keys(v).length === 2 && isUuid(v.profileId)
+    && Number.isInteger(v.retryAfterSeconds) && Number(v.retryAfterSeconds) >= 0 && Number(v.retryAfterSeconds) <= 30;
+}
+
 function isProfileQuotaRequest(value: unknown): value is ProfileQuotaRequest {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   const v = value as Record<string, unknown>;

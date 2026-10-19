@@ -821,6 +821,26 @@ async fn cancel_profile_login(
 }
 
 #[tauri::command]
+async fn load_profile_refresh_status(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<provider::ProfileRefreshStatus, CommandError> {
+    let args: ProfileCheckArgs = arguments(&request)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?;
+        state
+            .as_ref()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .load_profile_refresh_status(&args.profile_id)
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+#[tauri::command]
 async fn begin_profile_quota_read(
     request: tauri::ipc::Request<'_>,
     service: State<'_, WorkspaceService>,
@@ -1152,6 +1172,7 @@ fn main() {
             complete_profile_login,
             cancel_profile_login,
             discover_provider_executables,
+            load_profile_refresh_status,
             begin_profile_quota_read,
             complete_profile_quota_read,
             cancel_profile_quota_read,

@@ -159,6 +159,7 @@ export function ProfileProviderCheck({ profileId, profileLabel, approval, busy, 
   const [checking, setChecking] = useState(false);
   const [loggingIn, setLoggingIn] = useState(false);
   const [readingQuota, setReadingQuota] = useState(false);
+  const [refreshWait, setRefreshWait] = useState(0);
   const [quotaGeneration, setQuotaGeneration] = useState(0);
   const [loginGeneration, setLoginGeneration] = useState(0);
   const checkGeneration = useRef(0);
@@ -174,9 +175,27 @@ export function ProfileProviderCheck({ profileId, profileLabel, approval, busy, 
     if (!checking && focus) { result.current?.focus(); setFocus(false); }
   }, [checking, focus, diagnostic, error]);
 
-  const activity = useActivityPreview({ profileId, profileLabel, approval, busy: busy || checking || loggingIn || readingQuota, onSaved: onActivitySaved, onFailed: onActivityFailed, onStarted: () => {
+  const activity = useActivityPreview({ profileId, profileLabel, approval, busy: busy || checking || loggingIn || readingQuota || refreshWait > 0, onSaved: onActivitySaved, onFailed: onActivityFailed, onStarted: () => {
     checkGeneration.current += 1; setDiagnostic(null); setError(null); setQuotaGeneration(value => value + 1); setLoginGeneration(value => value + 1);
   } });
+
+  useEffect(() => {
+    if (readingQuota || activity.working) return;
+    let current = true;
+    let timer: number | undefined;
+    void invoke('load_profile_refresh_status', { profileId }).then(status => {
+      if (!current || status.profileId !== profileId) return;
+      const deadline = performance.now() + status.retryAfterSeconds * 1000;
+      const update = () => {
+        const remaining = Math.max(0, Math.ceil((deadline - performance.now()) / 1000));
+        setRefreshWait(remaining);
+        if (remaining === 0) window.clearInterval(timer);
+      };
+      update();
+      if (status.retryAfterSeconds > 0) timer = window.setInterval(update, 250);
+    }).catch(() => { /* Rust still checks eligibility before every provider start. */ });
+    return () => { current = false; window.clearInterval(timer); };
+  }, [profileId, readingQuota, activity.working]);
 
   async function check() {
     if (busy || loggingIn || readingQuota || activity.working || pending.current) return;
@@ -210,7 +229,7 @@ export function ProfileProviderCheck({ profileId, profileLabel, approval, busy, 
   return <div className="profile-provider-check">
     {checking && <div className="profile-actions"><span role="status">Checking connection…</span><Button className="text-button" variant="ghost" type="button" data-provider-cancel={profileId} aria-describedby={`profile-name-${profileId}`} disabled={cancelling} onClick={() => { void cancel(); }}>{cancelling ? 'Cancelling…' : 'Cancel check'}</Button></div>}
     <ProfileDeviceLogin key={`login:${loginGeneration}`} profileId={profileId} profileLabel={profileLabel} approval={approval} busy={busy || checking || readingQuota || activity.working} onActivity={setLoggingIn} onStarted={() => { activity.clear(); checkGeneration.current += 1; setDiagnostic(null); setError(null); setQuotaGeneration(value => value + 1); }} />
-    <ProfileQuotaRead onSaved={onQuotaSaved} onFailed={onQuotaFailed} key={`quota:${quotaGeneration}`} profileId={profileId} profileLabel={profileLabel} approval={approval} busy={busy || checking || loggingIn || activity.working} onActivity={setReadingQuota} onStarted={() => { activity.clear(); checkGeneration.current += 1; setDiagnostic(null); setError(null); setLoginGeneration(value => value + 1); }} actionSiblings={<>
+    <ProfileQuotaRead retryAfterSeconds={refreshWait} onSaved={onQuotaSaved} onFailed={onQuotaFailed} key={`quota:${quotaGeneration}`} profileId={profileId} profileLabel={profileLabel} approval={approval} busy={busy || checking || loggingIn || activity.working} onActivity={setReadingQuota} onStarted={() => { activity.clear(); checkGeneration.current += 1; setDiagnostic(null); setError(null); setLoginGeneration(value => value + 1); }} actionSiblings={<>
       {managementTrigger}
       <CollapsiblePanel keepMounted className="profile-management">
         {managementActions}
@@ -218,6 +237,7 @@ export function ProfileProviderCheck({ profileId, profileLabel, approval, busy, 
         <Button className="text-button" variant="ghost" type="button" data-provider-check={profileId} aria-describedby={`profile-name-${profileId}`} disabled={busy || checking || loggingIn || readingQuota || activity.working} onClick={() => { void check(); }}>Check connection</Button>
       </CollapsiblePanel>
     </>} />
+    {refreshWait > 0 && <p className="provider-help" data-profile-refresh-status={profileId}>Next reading in {refreshWait}s</p>}
     {activity.content}
     {(diagnostic || error) && <div ref={result} className="provider-diagnostic" data-provider-profile={profileId} tabIndex={-1} role={error ? 'alert' : 'status'}>
       {error ? <p>{error}</p> : diagnostic && <>{diagnostic.sourceKind === 'test_fixture' && <p className="provider-fixture-note" data-provider-fixture>Synthetic provider fixture</p>}<p><strong>{title}</strong></p><p>{diagnostic.authentication === 'authentication_required'

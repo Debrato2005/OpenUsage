@@ -40,6 +40,7 @@ async function openSyntheticProfile(page: Page) {
             monitoring: 'stopped', provider: 'not_configured', keyProtection: 'passphrase', storageIssue: null };
           break;
         case 'load_profile_activity': value = null; break;
+        case 'load_profile_refresh_status': value = { profileId, retryAfterSeconds: 0 }; break;
         case 'load_profile_quota': value = structuredClone(fixture.savedQuota); break;
         case 'list_profiles':
           value = { activeProfiles: 1, profiles: [{ id: profileId, label: 'Synthetic login profile',

@@ -15,6 +15,7 @@ type Props = {
   onActivity: (active: boolean) => void;
   onStarted: () => void;
   actionSiblings?: ReactNode;
+  retryAfterSeconds?: number;
   onSaved: (value: ProfileQuotaSavedRead) => Promise<void>;
   onFailed: () => Promise<void>;
 };
@@ -120,7 +121,7 @@ export function SavedProfileQuota({ profileId, profileLabel, children }: { profi
   </>;
 }
 
-export function ProfileQuotaRead({ profileId, approval, busy, onActivity, onStarted, actionSiblings, onSaved, onFailed }: Props) {
+export function ProfileQuotaRead({ profileId, approval, busy, onActivity, onStarted, actionSiblings, onSaved, onFailed, retryAfterSeconds = 0 }: Props) {
   const [associationReview, setAssociationReview] = useState<ProfileActivityAssociationReview | null>(null);
   const [reassociationOpen, setReassociationOpen] = useState(false);
   const [reassociationApproved, setReassociationApproved] = useState(false);
@@ -158,7 +159,7 @@ export function ProfileQuotaRead({ profileId, approval, busy, onActivity, onStar
     generation.current += 1; setReassociationOpen(false); setReassociationApproved(false); setAssociationReview(null); setReviewError(null); setReviewing(false);
   }
   async function reviewAssociation() {
-    if (busy || pending.current || reviewing) return;
+    if (busy || retryAfterSeconds > 0 || pending.current || reviewing) return;
     const operation = ++generation.current;
     setAssociationReview(null); setReassociationApproved(false); setReviewError(null); setReviewing(true); setReassociationOpen(true);
     try {
@@ -170,7 +171,7 @@ export function ProfileQuotaRead({ profileId, approval, busy, onActivity, onStar
     } finally { if (alive.current && operation === generation.current) setReviewing(false); }
   }
   async function read(reassociate = false) {
-    if (busy || pending.current || reviewing || (reassociate && (!outcome?.reassociationAvailable || !reassociationOpen || !reassociationApproved || !associationReview))) return;
+    if (busy || retryAfterSeconds > 0 || pending.current || reviewing || (reassociate && (!outcome?.reassociationAvailable || !reassociationOpen || !reassociationApproved || !associationReview))) return;
     const reviewId = associationReview?.reviewId;
     closeReview();
     generation.current += 1;
@@ -212,13 +213,13 @@ export function ProfileQuotaRead({ profileId, approval, busy, onActivity, onStar
   }
 
   return <div className="profile-quota-read">
-    <div className="profile-actions"><Button type="button" variant="outline" className="secondary-button" data-quota-read={profileId} aria-describedby={`profile-name-${profileId}`} disabled={busy || working} onClick={() => { void read(); }}>{working ? 'Reading quotas…' : 'Read quotas'}</Button>{working && requestId && <Button ref={cancelButton} type="button" variant="ghost" className="text-button" data-quota-cancel={profileId} aria-describedby={`profile-name-${profileId}`} disabled={stopping} onClick={() => { void cancel(); }}>{stopping ? 'Stopping read…' : 'Cancel read'}</Button>}</div>
+    <div className="profile-actions"><Button type="button" variant="outline" className="secondary-button" data-quota-read={profileId} aria-describedby={`profile-name-${profileId}`} disabled={busy || working || retryAfterSeconds > 0} onClick={() => { void read(); }}>{working ? 'Reading quotas…' : 'Read quotas'}</Button>{working && requestId && <Button ref={cancelButton} type="button" variant="ghost" className="text-button" data-quota-cancel={profileId} aria-describedby={`profile-name-${profileId}`} disabled={stopping} onClick={() => { void cancel(); }}>{stopping ? 'Stopping read…' : 'Cancel read'}</Button>}</div>
     {actionSiblings}
     {outcome && <div ref={result} className="quota-result" data-quota-profile={profileId} role={outcome.kind === 'error' ? 'alert' : 'status'} tabIndex={-1}>
       {approval.sourceKind === 'test_fixture' && <p className="quota-fixture-label" data-provider-fixture>Synthetic test data</p>}
       <p>{outcome.message}</p>
       {outcome.reassociationAvailable && <Collapsible open={reassociationOpen} onOpenChange={open => { if (open) void reviewAssociation(); else closeReview(); }}>
-        <CollapsibleTrigger ref={reassociationTrigger} render={<Button variant="ghost" className="text-button h-auto max-w-full whitespace-normal" />} type="button" data-quota-reassociate={profileId} disabled={busy || working}>Use current sign-in</CollapsibleTrigger>
+        <CollapsibleTrigger ref={reassociationTrigger} render={<Button variant="ghost" className="text-button h-auto max-w-full whitespace-normal" />} type="button" data-quota-reassociate={profileId} disabled={busy || working || retryAfterSeconds > 0}>Use current sign-in</CollapsibleTrigger>
         <CollapsiblePanel><AssociationReview profileId={profileId} purpose="quota" review={associationReview} reviewing={reviewing} error={reviewError} approved={reassociationApproved} busy={busy || working} consentRef={reassociationConsent} onApproved={setReassociationApproved} onRetry={() => { void reviewAssociation(); }} onConfirm={() => { void read(true); }} onKeep={() => { closeReview(); reassociationTrigger.current?.focus(); }} /></CollapsiblePanel>
       </Collapsible>}
     </div>}
