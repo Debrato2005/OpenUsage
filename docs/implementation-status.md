@@ -1,8 +1,10 @@
 # Implementation status
 
-Updated: October 19, 2026. The mission remains ongoing. Current milestone: saved quota windows show overdue expectations, and cache errors remove unsupported Current labels. SQLCipher 4 with WAL remains mandatory. Next: anchor monotonic freshness at source observation, then implement conservative reset confirmation.
+Updated: October 19, 2026. The mission remains ongoing. Current milestone: quota and activity freshness start at measurement observation, including delayed publication. SQLCipher 4 with WAL remains mandatory. Next: verify a bounded Linux linker recipe, then implement conservative reset confirmation.
 
 ## Implemented and executed
+
+Quota and activity now retain their actual observation-time monotonic anchors after successful COMMIT. Focused regressions reproduced the old publication-time bug. The full workspace passed 176 checks, strict Clippy, and formatting. The rebuilt native app passed twenty SQLCipher checks, four reviewed captures, restart, encrypted restore and undo. Default production refused all four test providers. Renderer checks were reused after exact 49-file/ten-asset parity. Debug linking reached 14m38s during memory pressure, but finished without intervention. See the [quota review](reviews/2026-10-19-durable-quota.md) and `evidence/native-observation-anchor/`.
 
 Elapsed reset timestamps now show Reset due; awaiting confirmation. Rust derives the flag without changing saved measurements. The native sixty-second cache refresh, restart, twenty independent SQLCipher checks, encrypted restore and undo passed. Four captures were reviewed. Cache-load errors retain quota/activity values and source times with Freshness unknown. The frontend passed 34 contracts and 88 renderer checks. Rust passed 176 workspace checks, strict Clippy, and formatting. Two failed native attempts remain retained with the later unchanged-artifact timing run. The isolated input stall's cause remains unconfirmed. See the [quota review](reviews/2026-10-19-durable-quota.md). Positive reset confirmation and alert generations remain incomplete.
 

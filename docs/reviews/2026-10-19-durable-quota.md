@@ -22,4 +22,14 @@ The native deadline check passed after 47 seconds through the existing sixty-sec
 
 Two failed native attempts remain retained. Setup timed out during concurrent linking. A separate attempt later stalled during WebDriver path entry after saving activity. No owned native processes remained. The same artifact and unchanged timeouts then passed with command timing only. The longest command took 1,394 ms and path entry took at most 257 ms. The isolated stall's cause remains unconfirmed. These figures do not qualify product performance.
 
-This is partial OU-QUOTA-015. Positive reset confirmation still requires all five SRS conditions. Persistent alert generations remain unimplemented. Next: anchor monotonic freshness at source observation, then implement conservative reset confirmation without relaxing the SRS.
+This is partial OU-QUOTA-015. Positive reset confirmation still requires all five SRS conditions. Persistent alert generations remain unimplemented.
+
+## Observation-time freshness
+
+Quota and activity now capture a Rust monotonic timestamp with each validated measurement, before the final account check. Successful publication retains that timestamp instead of starting a new freshness period. The anchor stays in Rust memory. Restart still gives unknown freshness. No database or IPC field changes.
+
+Both delayed-publication service checks failed before this fix. The existing held-response core checks prove that observation precedes the final account response. The expiry check also keeps a reading stale when its wall-clock age is zero. All 176 workspace checks, strict Clippy, and formatting passed.
+
+The rebuilt native journey passed eight normal quota cases, explicit association, activity collection, twenty SQLCipher checks, restart, restore, and undo. Four fresh captures were reviewed. The default build refused all four fixtures. All 199 source hashes and ten assets matched. The 49 frontend/config/test files match the preceding 34-contract/88-renderer qualification, so those checks were reused. See the [observation verification record](../evidence/native-observation-anchor/verification.json), source `8fad7d1`.
+
+The default debug link took 14 minutes 38 seconds during host memory pressure. It finished without cancellation or compiler changes. Native execution followed both completed builds. Next: verify a bounded Linux linker recipe, then implement conservative reset confirmation.
