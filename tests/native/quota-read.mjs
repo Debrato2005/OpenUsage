@@ -258,7 +258,7 @@ async function resetConfirmation() {
   await waitFor(async () => driver.execute('return document.querySelector(arguments[0]).querySelector("[data-quota-reset-state=confirmed]")?.textContent.trim()==="Reset confirmed";', [savedSelector(resetProfile.id)]), 'native confirmed reset status'); await capture('quota-reset-confirmed-light-desktop.png', savedSelector(resetProfile.id));
   const repeated = await persistedGuiRead('reset_confirmed', resetProfile), repeatedState = await quotaOracle('repeated full snapshot retains one reset generation'), repeatedRow = assessment(repeatedState, repeated); assert.equal(repeated.limits.find(limit => limit.limitId === 'codex').primary.resetState, 'confirmed'); assert.equal(repeatedRow.state, 'confirmed'); assert.equal(repeatedRow.generation_run_id, row.generation_run_id);
   const generations = new Set(repeatedState.tables.quota_reset_assessments.filter(row => row.profile_id === resetProfile.id && row.limit_id === 'codex' && row.window_role === 'primary').map(row => row.generation_run_id).filter(Boolean)); assert.deepEqual([...generations], [confirmed.collectionRunId]);
-  for (const profile of before.profiles) assert.deepEqual(quotaProfile(repeatedState, profile.id), quotaProfile(before, profile.id));
+  for (const profile of before.profiles.filter(profile => profile.id !== resetProfile.id)) assert.deepEqual(quotaProfile(repeatedState, profile.id), quotaProfile(before, profile.id));
   evidence.resetConfirmation = { profileId: resetProfile.id, cases, confirmedCollectionRunId: confirmed.collectionRunId, generationRunId: row.generation_run_id, repeatedCollectionRunId: repeated.collectionRunId, generationCount: generations.size, otherProfilesUnchanged: true };
   return repeated;
 }

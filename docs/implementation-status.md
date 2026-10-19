@@ -1,8 +1,10 @@
 # Implementation status
 
-Updated: October 19, 2026. The mission remains ongoing. Current milestone: observation-time freshness passed native verification, and a bounded Linux linker command produced the same tested binary. SQLCipher 4 with WAL remains mandatory. Next: implement conservative reset confirmation and persistent window generations.
+Updated: October 20, 2026. The mission remains ongoing. Current milestone: conservative reset confirmation and persistent generations passed native verification, including encrypted restore and undo. SQLCipher 4 with WAL remains mandatory. Next: improve disabled action legibility, then continue monitoring and alerts.
 
 ## Implemented and executed
+
+Reset confirmation now requires all five SRS conditions. Schema 4 retains unresolved deadlines and generations through repeat reads, restart, backup, restore, and undo. The native journey passed 23 quota reads, explicit reassociation, a separate activity seed, and 29 independent SQLCipher checks across thirteen tables. Native backup-content, private OS key-store persistence, and default fixture refusal also passed. All 21 captures were reviewed. Rust passed 184 workspace checks, strict Clippy, and formatting; the frontend passed 34 contracts and 90 renderer checks. The two corrected harness assertions changed no product source. OS alert delivery remains incomplete. See the [quota review](reviews/2026-10-19-durable-quota.md) and `evidence/native-quota-reset-confirmation/`.
 
 The documented Linux/LLD build limits final-link workers without changing dependency flags. It completed in 39.17 seconds and produced a byte-identical copy of the native-tested default binary. All 199 product/source hashes and ten assets match. This is an uncontrolled host observation, not a performance benchmark. See the [README recipe](../README.md) and `evidence/linux-bounded-linker/`.
 
@@ -68,8 +70,8 @@ The Details disclosure now has an eight-pixel top margin. Actual native Tab reac
 
 | Check | Executed result |
 |---|---|
-| `npm run check` | Passed: build/type check, 29 contract checks, 38 renderer checks across Chromium and WebKit; exact integrated source parity |
-| `cargo test --workspace --offline --locked` | Passed: 149 Rust checks, including 56 native service checks and 41 storage checks. One owned child entry is intentionally ignored and executes through its parent. |
+| `npm run check` | Passed: build/type check, 34 contract checks, 90 renderer checks across Chromium and WebKit. Synthetic IPC scope. |
+| `cargo test --workspace --offline --locked` | Passed: 184 Rust checks, including 68 storage checks. One owned child entry is intentionally ignored and executes through its parent. |
 | `cargo clippy --workspace --all-targets --offline --locked -- -D warnings` | Passed |
 | JetBrains Mono and coss appearance | Fresh native quota, sign-in, appearance, encrypted backup-content, production refusal, and signed official read-only journeys passed. Desktop/narrow themes, test-side 200% text, actual loaded fonts, source/binary audits, and 31 captures qualify this slice. |
 | Details keyboard-focus spacing | Full native backup-content regression, actual Tab, focus-visible, positive outline clearance, unchanged storage, and eleven reviewed captures passed on the one-class follow-up artifact. |

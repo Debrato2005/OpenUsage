@@ -35,3 +35,19 @@ The rebuilt native journey passed eight normal quota cases, explicit association
 The default debug link took 14 minutes 38 seconds during host memory pressure. It finished without cancellation or compiler changes. Native execution followed both completed builds.
 
 A subsequent Linux/LLD build limited the final link to one worker with `cargo rustc`. It finished in 39.17 seconds and produced identical binary bytes. The existing default native qualification therefore applies. The [README recipe](../../README.md) cites the official Cargo and LLD options. This is an uncontrolled host observation, not a benchmark. Next: implement conservative reset confirmation and persistent window generations.
+
+## Reset confirmation
+
+Schema 4 saves each reset assessment with its accepted quota snapshot. Rust requires all five SRS conditions before it creates a generation. Repeated readings retain that generation. An unconfirmed timestamp change cannot clear an unresolved deadline. Provider version changes also retain the deadline and generation, without confirming a reset.
+
+Migration initializes old readings as baselines without replaying reset events. Backup validation checks packet links and recomputes assessments. Equal observation timestamps use the stored unique predecessor chain. These checks establish internal consistency, not provider origin. The original schema files and normative SRS remain unchanged.
+
+The native Linux journey passed 23 quota reads, explicit reassociation, a separate activity seed, and 29 SQLCipher checks across all thirteen tables. Six negative reset cases created no generation. Full confirmation created one generation. Repeated reads, restart, encrypted restore, and undo preserved it. The real cache interval showed an overdue reset without provider execution or database writes. Six captures were reviewed.
+
+The rebuilt app also passed native backup-content checks, isolated OS key-store persistence, and default-production refusal of all four fixtures. There are 21 reviewed captures across these journeys. Rust passed 184 workspace checks, strict Clippy, and formatting. The frontend passed 34 contract and 90 renderer checks. The verification record binds both desktop builds, both test tools, 202 source hashes, and ten assets. Two later harness corrections changed no product source.
+
+Initial failures remain retained. A long temporary path prevented private D-Bus startup. A shorter private path resolved it. Two harness assertions also needed correction: stale interface copy and an isolation check that included its intentionally changed profile. The unchanged binaries passed after these corrections.
+
+OS alert delivery, delivered-event deduplication, monitoring, real OAuth, and other-platform qualification remain incomplete.
+
+See the [reset confirmation verification record](../evidence/native-quota-reset-confirmation/verification.json). Saved views use one Rust-owned status field. Generation identifiers stay in Rust.
