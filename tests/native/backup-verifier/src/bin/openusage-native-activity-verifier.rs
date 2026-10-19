@@ -1,4 +1,4 @@
-//! Test-only, read-only oracle for synthetic schema-two activity records.
+//! Test-only, read-only oracle for synthetic activity and quota records.
 //! Never opens Storage, migrates an input, or writes plaintext database bytes to disk.
 use openusage_storage::keywrap::unwrap_key;
 use rusqlite::{Connection, OpenFlags, types::ValueRef};
@@ -63,12 +63,7 @@ fn constrain(connection: &Connection) {
         .query_row("PRAGMA cipher_version", [], |r| r.get(0))
         .unwrap();
     assert!(version.starts_with("4."));
-    assert_eq!(
-        connection
-            .pragma_query_value(None, "user_version", |r| r.get::<_, u32>(0))
-            .unwrap(),
-        2
-    );
+    assert!([2, 3].contains(&schema_version(connection)));
     assert_eq!(
         connection
             .query_row("PRAGMA integrity_check", [], |r| r.get::<_, String>(0))
@@ -83,9 +78,14 @@ fn constrain(connection: &Connection) {
             .unwrap()
     );
 }
+fn schema_version(connection: &Connection) -> u32 {
+    connection
+        .pragma_query_value(None, "user_version", |r| r.get(0))
+        .unwrap()
+}
 fn state(connection: &Connection) -> Value {
     let mut tables = Map::new();
-    for (table, order) in [
+    let mut selected = vec![
         ("profile_identity_events", "id"),
         ("collection_runs", "id"),
         ("activity_summaries", "id"),
@@ -95,11 +95,22 @@ fn state(connection: &Connection) -> Value {
             "profile_id,provider_date,source_scope",
         ),
         ("activity_day_history", "id"),
-    ] {
+    ];
+    if schema_version(connection) == 3 {
+        selected.extend([
+            ("profile_bindings", "profile_id"),
+            ("quota_snapshots", "id"),
+            ("quota_limits", "collection_run_id,limit_id"),
+            ("credit_snapshots", "collection_run_id,ordinal"),
+            ("current_quota_readings", "profile_id"),
+            ("current_quota", "profile_id,limit_id,window_role"),
+        ]);
+    }
+    for (table, order) in selected {
         // Both identifiers and ordering expressions are fixed trusted test source, never request data.
         let mut statement = connection
             .prepare(&format!("SELECT * FROM {table} ORDER BY {order}"))
-            .expect("Missing activity table.");
+            .expect("Missing persistent record table.");
         let names = statement
             .column_names()
             .into_iter()
@@ -201,7 +212,7 @@ fn main() {
             free_bytes(stage),
         )
         .expect("Synthetic archive did not authenticate.");
-        assert_eq!(verified.manifest().schema_version, 2);
+        assert!([2, 3].contains(&verified.manifest().schema_version));
         assert_eq!(verified.manifest().entries.len(), 1);
         assert_eq!(verified.manifest().entries[0].name, "records.sqlite");
         verified.copy_payload(&mut *payload).unwrap();
@@ -254,11 +265,12 @@ fn main() {
             "wal"
         );
     }
+    let schema_version = schema_version(&connection);
     let actual = state(&connection);
     if let Some(expected) = request.get("expectedTables") {
         assert_eq!(
             &actual["tables"], expected,
-            "Persistent activity fields changed."
+            "Persistent record fields changed."
         );
     }
     drop(connection);
@@ -282,6 +294,6 @@ fn main() {
     }
     println!(
         "{}",
-        json!({"verified":true,"readOnly":true,"mode":mode,"schemaVersion":2,"encryptedPagesAuthenticated":mode!="backup","archiveAuthenticated":mode=="backup","originalProtectedKeyUsed":mode!="backup","plaintextDiskStaging":false,"inputUnchanged":true,"keyEnvelopeUnchanged":true,"walRecordsUnchanged":true,"emptyWalSidecarCreated":empty_wal_created,"sharedMemoryMetadataChanged":optional_bytes(&sidecar(input_path,"-shm"))!=shm_before,"state":actual})
+        json!({"verified":true,"readOnly":true,"mode":mode,"schemaVersion":schema_version,"encryptedPagesAuthenticated":mode!="backup","archiveAuthenticated":mode=="backup","originalProtectedKeyUsed":mode!="backup","plaintextDiskStaging":false,"inputUnchanged":true,"keyEnvelopeUnchanged":true,"walRecordsUnchanged":true,"emptyWalSidecarCreated":empty_wal_created,"sharedMemoryMetadataChanged":optional_bytes(&sidecar(input_path,"-shm"))!=shm_before,"state":actual})
     );
 }
