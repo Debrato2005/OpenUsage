@@ -513,6 +513,12 @@ test('saved quota loads accept only exact bounded provisional cache values', asy
     monitoring: 'stopped', accepted: true, coverage: 'unknown', scope: 'account_quota_with_unknown_application_scope', freshness: 'unknown', limits: [], availableResetCredits: null, resetCreditDetails: null };
   desktopResponse(null); assert.equal(await invoke('load_profile_quota', args), null);
   for (const freshness of ['unknown', 'fresh', 'stale']) { desktopResponse({ ...value, freshness }); assert.deepEqual(await invoke('load_profile_quota', args), { ...value, freshness }); }
+  const window = { usedPercent: 100, derivedRemainingPercent: 0, windowDurationMins: 300, resetsAtUnix: 0, label: 'Five-hour', resetDue: true };
+  const withWindow = primary => ({ ...value, limits: [{ limitId: 'codex', limitName: null, primary, secondary: null, reachedType: null, monthlyCreditLimit: null, spendControlReached: null }] });
+  desktopResponse(withWindow(window)); assert.deepEqual(await invoke('load_profile_quota', args), withWindow(window));
+  for (const change of [{ resetDue: undefined }, { resetDue: null }, { resetDue: 'true' }, { resetDue: true, resetsAtUnix: null }, { resetConfirmed: true }]) {
+    desktopResponse(withWindow({ ...window, ...change })); await assert.rejects(invoke('load_profile_quota', args), /desktop response is incompatible/);
+  }
   for (const change of [{ accepted: false }, { freshness: 'expired' }, { bindingId: '../private' }, { collectionRunId: null }, { coverage: 'complete' }, { scope: 'account_activity_with_unknown_application_scope' }, { verifiedIdentityKey: 'secret' }, { identityConfidence: 'verified' }, { requestId: args.profileId }, { email: 'private@invalid' }, { availableResetCredits: '9223372036854775808' }, { resetCreditDetails: [{}] }, { limits: [{}] }]) {
     desktopResponse({ ...value, ...change }); await assert.rejects(invoke('load_profile_quota', args), /desktop response is incompatible/);
   }

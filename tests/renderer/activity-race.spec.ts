@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import type { ProfileActivitySavedRead, SavedProfileActivity } from '../../apps/desktop/src/contracts';
+import type { ProfileActivitySavedRead, ProfileQuotaSavedRead, SavedProfileActivity } from '../../apps/desktop/src/contracts';
 
 // Renderer-only synthetic IPC; SQLCipher, provider ownership and COMMIT are native acceptance scope.
 type Deferred = { resolve: (value: unknown) => void; reject: (error: string) => void };
@@ -47,7 +47,7 @@ async function openProfile(page: Page, options: { approve?: boolean; cached?: Sa
         case 'cancel_profile_activity_read': value = await new Promise((resolve, reject) => { fixture.cancellations[String(args.requestId)] = { resolve, reject }; }); break;
         case 'begin_profile_quota_read': value = { profileId, approvalId, requestId: requestIds[1], sourceKind: 'test_fixture', monitoring: 'stopped', accepted: false }; break;
         case 'complete_profile_quota_read': value = await new Promise((resolve, reject) => { fixture.completions[`quota:${String(args.requestId)}`] = { resolve, reject }; });
-          if (typeof value === 'object' && value !== null && 'bindingId' in value) { const { requestId: _requestId, approvalId: _approvalId, ...saved } = value as Record<string, unknown>; fixture.savedQuota = { ...saved, freshness: 'unknown', coverage: 'unknown', scope: 'account_quota_with_unknown_application_scope' }; } break;
+          if (typeof value === 'object' && value !== null && 'bindingId' in value) { const { requestId: _requestId, approvalId: _approvalId, ...saved } = value as ProfileQuotaSavedRead; fixture.savedQuota = { ...saved, freshness: 'unknown', coverage: 'unknown', scope: 'account_quota_with_unknown_application_scope', limits: saved.limits.map(limit => ({ ...limit, primary: limit.primary && { ...limit.primary, resetDue: false }, secondary: limit.secondary && { ...limit.secondary, resetDue: false } })) }; } break;
         default: throw new Error(`Unexpected renderer fixture command: ${command}`);
       }
       return value as T;
@@ -178,15 +178,24 @@ test('renderer preserves saved daily rows and their ages when a saved replacemen
 });
 
 test('renderer refreshes cached state through Rust and retries load failures without hiding saved values', async ({ page }) => {
-  await page.clock.install(); await openProfile(page, { approve: false, cached: saved() });
+  const cached = saved(0, [{ startDate: '2024-02-29', tokens: '9007199254740993' }]);
+  cached.freshness = 'fresh'; cached.dailyUsageBuckets[0]!.freshness = 'fresh';
+  await page.clock.install(); await openProfile(page, { approve: false, cached });
   await expect(metric(page, 'lifetimeTokens')).toBeVisible();
+  await expect(page.locator('[data-activity-freshness]')).toHaveText('Current');
+  await page.getByRole('button', { name: 'Activity details', exact: true }).click();
   await page.evaluate(() => { (window as unknown as FixtureWindow).activityFixture.failLoads = true; });
   await page.clock.fastForward(60_000);
   await expect(page.getByText('Saved activity could not be loaded. Try again.')).toBeVisible();
   await expect(metric(page, 'lifetimeTokens')).toHaveText('9223372036854775807');
-  await page.evaluate(() => { const fixture = (window as unknown as FixtureWindow).activityFixture; fixture.failLoads = false; fixture.saved!.freshness = 'stale'; });
+  await expect(page.locator('[data-activity-freshness]')).toHaveText('Freshness unknown');
+  await expect(page.locator('[data-activity-day]')).toHaveAttribute('data-activity-day-freshness', 'unknown');
+  await expect(page.locator('[data-activity-day] .activity-count')).toHaveText('9007199254740993');
+  await expect(page.locator('[data-activity-day] [data-activity-observed]')).toHaveAttribute('datetime', observedAtUtc);
+  await page.evaluate(() => { const fixture = (window as unknown as FixtureWindow).activityFixture; fixture.failLoads = false; fixture.saved!.freshness = 'stale'; fixture.saved!.dailyUsageBuckets[0]!.freshness = 'stale'; });
   await page.getByRole('button', { name: 'Reload saved activity', exact: true }).click();
   await expect(page.locator('[data-activity-freshness]')).toHaveText('Stale');
+  await expect(page.locator('[data-activity-day]')).toHaveAttribute('data-activity-day-freshness', 'stale');
   await expect(page.getByText('Saved activity could not be loaded. Try again.')).toHaveCount(0);
 });
 

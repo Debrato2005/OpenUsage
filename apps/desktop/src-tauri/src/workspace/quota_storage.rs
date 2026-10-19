@@ -61,10 +61,11 @@ impl Workspace {
             .quota_sessions
             .get(id)
             .filter(|(run, _)| run == &saved.commit.collection_run_id);
+        let now = SystemTime::now();
         let freshness = freshness_for(
             session,
             &saved.commit.observed_at_utc,
-            SystemTime::now(),
+            now,
             Duration::from_secs(600),
         );
         Ok(Some(SavedProfileQuota {
@@ -87,8 +88,10 @@ impl Workspace {
                 .map(|limit| provider::QuotaLimitView {
                     limit_id: limit.limit_id,
                     limit_name: limit.limit_name,
-                    primary: limit.primary.map(|w| window_view(w, "Primary window")),
-                    secondary: limit.secondary.map(|w| window_view(w, "Secondary window")),
+                    primary: limit.primary.map(|w| window_view(w, "Primary window", now)),
+                    secondary: limit
+                        .secondary
+                        .map(|w| window_view(w, "Secondary window", now)),
                     reached_type: limit.reached_type,
                     monthly_credit_limit: limit.monthly_credit_limit,
                     spend_control_reached: limit.spend_control_reached,
@@ -321,8 +324,31 @@ fn stored_window(w: &openusage_codex::QuotaWindow) -> openusage_storage::QuotaWi
         resets_at_unix: w.resets_at_unix,
     }
 }
-fn window_view(w: openusage_storage::QuotaWindow, fallback: &str) -> provider::QuotaWindowView {
-    provider::QuotaWindowView::from_window(
+pub(super) fn reset_due(reset: Option<i64>, now: SystemTime) -> bool {
+    let Some(reset @ -62_135_596_800..=253_402_300_799) = reset else {
+        return false;
+    };
+    let time = |seconds: i64| {
+        let duration = Duration::from_secs(seconds.unsigned_abs());
+        if seconds >= 0 {
+            std::time::UNIX_EPOCH.checked_add(duration)
+        } else {
+            std::time::UNIX_EPOCH.checked_sub(duration)
+        }
+    };
+    match (time(-62_135_596_800), time(253_402_300_800), time(reset)) {
+        (Some(first), Some(end), Some(deadline)) => now >= first && now < end && now >= deadline,
+        _ => false,
+    }
+}
+
+fn window_view(
+    w: openusage_storage::QuotaWindow,
+    fallback: &str,
+    now: SystemTime,
+) -> provider::QuotaWindowView {
+    let due = reset_due(w.resets_at_unix, now);
+    let mut view = provider::QuotaWindowView::from_window(
         openusage_codex::QuotaWindow {
             used_percent: w.used_percent,
             derived_remaining_percent: 100 - w.used_percent,
@@ -330,7 +356,9 @@ fn window_view(w: openusage_storage::QuotaWindow, fallback: &str) -> provider::Q
             resets_at_unix: w.resets_at_unix,
         },
         fallback,
-    )
+    );
+    view.reset_due = Some(due);
+    view
 }
 fn save_error(e: ActivityError) -> CommandError {
     match e {

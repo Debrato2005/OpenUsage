@@ -12,7 +12,7 @@ const harness = dirname(fileURLToPath(import.meta.url));
 const repository = resolve(process.env.OPENUSAGE_NATIVE_SOURCE_ROOT ?? join(harness, '../..'));
 const application = resolve(process.env.OPENUSAGE_NATIVE_BINARY ?? join(repository, 'target/debug/openusage-desktop'));
 const output = resolve(process.env.OPENUSAGE_NATIVE_EVIDENCE ?? join(tmpdir(), `openusage-native-quota-${randomUUID()}`));
-const fixtureDigest = 'fecabb5cc4f5f799c3b7ab3e5475926551d7be5862413d1bbb650313abe66616';
+const fixtureDigest = '4f41b9d2d682d885318982840e0edc2730c04ec524b24e241608d14cc96d3566';
 const hash = async path => createHash('sha256').update(await readFile(path)).digest('hex');
 const flags = process.argv.slice(2);
 assert.ok(flags.every(flag => ['--historical-preview', '--retention-only', '--persistence-only'].includes(flag)), 'Unknown native quota journey flag.');
@@ -120,6 +120,7 @@ async function loadQuota(profile = first) {
   assert.equal(value.profileId, profile.id); assert.equal(value.accepted, true); assert.equal(value.identityConfidence, 'provisional'); assert.equal(value.verifiedIdentityKey, null); assert.equal(value.sourceKind, 'test_fixture'); assert.equal(value.providerVersion, '0.163.0'); assert.equal(value.monitoring, 'stopped'); assert.equal(value.coverage, 'unknown'); assert.equal(value.scope, 'account_quota_with_unknown_application_scope');
   for (const name of ['bindingId', 'collectionRunId']) assert.match(value[name], /^[0-9a-f-]{36}$/);
   assert.ok(['fresh', 'stale', 'unknown'].includes(value.freshness)); assert.ok(Number.isFinite(Date.parse(value.observedAtUtc)));
+  for (const limit of value.limits) for (const window of [limit.primary, limit.secondary].filter(Boolean)) { assert.deepEqual(Object.keys(window).sort(), ['derivedRemainingPercent', 'label', 'resetDue', 'resetsAtUnix', 'usedPercent', 'windowDurationMins']); assert.equal(typeof window.resetDue, 'boolean'); }
   return value;
 }
 const withoutFreshness = ({ freshness, ...value }) => value;
@@ -212,6 +213,19 @@ async function quotaReassociation(restored) {
   for (const profile of restored.profiles.filter(row => row.id !== first.id)) assert.deepEqual(quotaProfile(rebound, profile.id), quotaProfile(restored, profile.id));
   evidence.quotaAssociationReview = { ...review.value, keptSameToken: true, reviewAndKeepWithoutProviderExecutionOrStorageWrites: true, actualSpaceTabEnter: true, acceptedBindingId: accepted.bindingId, acceptedCollectionRunId: accepted.collectionRunId, immutableHistoryAndOtherProfilesPreserved: true };
 }
+async function resetDeadline() {
+  const upcoming = await persistedGuiRead('reset_soon'), primary = upcoming.limits.find(limit => limit.limitId === 'codex').primary, startedAt = Date.now();
+  assert.equal(primary.resetDue, false); assert.ok(primary.resetsAtUnix * 1000 > startedAt); assert.equal(upcoming.availableResetCredits, '3'); assert.equal(upcoming.resetCreditDetails, null);
+  assert.deepEqual(upcoming.limits.map(limit => [limit.primary?.usedPercent ?? null, limit.secondary?.usedPercent ?? null]), [[25, 100], [0, null]]);
+  assert.equal(await driver.execute('return document.querySelector(arguments[0]).querySelectorAll("[data-quota-reset-due]").length;', [savedSelector(first.id)]), 0);
+  const before = await liveHashes(), state = await quotaOracle('short future reset before the real cache refresh'), executions = (await observations()).length;
+  await waitFor(async () => driver.execute('const note=document.querySelector(arguments[0]).querySelector("[data-quota-reset-due]");return Boolean(note&&note.textContent.trim()==="Reset due; awaiting confirmation"&&note.getBoundingClientRect().height>0);', [savedSelector(first.id)]), 'real sixty-second cache refresh shows an overdue reset without a provider read', 80000);
+  const due = await loadQuota(); assert.deepEqual(due, { ...upcoming, limits: upcoming.limits.map(limit => ({ ...limit, primary: limit.primary ? { ...limit.primary, resetDue: limit.limitId === 'codex' } : null })) });
+  const visible = await driver.execute('const root=document.querySelector(arguments[0]),note=root.querySelector("[data-quota-reset-due]"),reset=note.closest("dd").querySelector("time");return {text:note.textContent.trim(),reset:reset.dateTime,observed:root.querySelector(".quota-observed time").dateTime,meters:[...root.querySelectorAll("[role=meter]")].map(node=>node.getAttribute("aria-valuenow"))};', [savedSelector(first.id)]);
+  assert.deepEqual(visible, { text: 'Reset due; awaiting confirmation', reset: new Date(primary.resetsAtUnix * 1000).toISOString(), observed: upcoming.observedAtUtc, meters: ['75', '0'] });
+  assert.ok(Date.now() >= primary.resetsAtUnix * 1000); assert.equal((await observations()).length, executions); assert.deepEqual(await liveHashes(), before); assert.deepEqual((await quotaOracle('reset deadline changes no quota or activity records')).tables, state.tables);
+  evidence.resetDeadline = { collectionRunId: due.collectionRunId, observedAtUtc: due.observedAtUtc, resetsAtUnix: primary.resetsAtUnix, elapsedMs: Date.now() - startedAt, refresh: 'Actual existing sixty-second cache interval, without clock or timer changes.', visible, noProviderExecution: true, allTwelveTablesAndStorageBytesUnchanged: true }; return due;
+}
 async function quotaPersistence() {
   evidence.verifier = { path: verifier, sha256: await hash(verifier) };
   await theme('light'); assert.equal(await loadQuota(), null); assert.equal(await loadQuota(other), null); assert.equal(await loadQuota(archived), null);
@@ -238,13 +252,15 @@ async function quotaPersistence() {
   assert.deepEqual(withoutFreshness(await loadQuota()), withoutFreshness(detailed)); assert.deepEqual(await liveHashes(), beforeFailureHashes); assert.deepEqual((await quotaOracle('keyboard cancellation preserves all twelve tables')).tables, beforeFailure.tables);
   const second = await persistedGuiRead('legacy', other); assert.notEqual(second.bindingId, initial.bindingId); const isolated = await quotaOracle('same descriptive account stays profile-scoped'); assert.deepEqual(quotaProfile(isolated, first.id), quotaProfile(beforeFailure, first.id)); assert.equal(isolated.accounts, 0);
   await driver.openProfileOptions(other.id); await driver.click(`[data-profile-id="${other.id}"] [data-profile-action="archive"]`); await waitFor(async () => (await profiles()).find(profile => profile.id === other.id)?.archived, 'saved quota profile archived');
+  const overdue = await resetDeadline();
   await theme('dark'); await capture('quota-saved-dark-desktop.png', savedSelector(first.id)); await theme('light'); await capture('quota-saved-light-360.png', savedSelector(first.id), 360);
   const a = await quotaOracle('state A before genuine restart'); await closeNormally(); const noExecution = (await observations()).length;
   driver = new NativeDriver(application, fixture.environment, join(output, 'driver-restart.log')); await driver.start(); await waitFor(async () => driver.execute('const field=document.querySelector("#workspace-passphrase");return Boolean(field&&!field.disabled);'), 'fallback unlock after genuine restart');
   await driver.type('#workspace-passphrase', password); await driver.click('.unlock-form button[type=submit]'); await waitFor(async () => (await driver.invoke('bootstrap')).value?.storage === 'ready', 'unlocked saved quota workspace');
-  assert.equal((await loadQuota()).freshness, 'unknown'); assert.equal((await loadQuota(other)).freshness, 'unknown'); assert.equal(await loadQuota(archived), null);
+  const restarted = await loadQuota(); assert.equal(restarted.freshness, 'unknown'); assert.deepEqual(withoutFreshness(restarted), withoutFreshness(overdue)); assert.equal((await loadQuota(other)).freshness, 'unknown'); assert.equal(await loadQuota(archived), null);
   await waitFor(async () => driver.execute('return Boolean(document.querySelector(arguments[0])&&document.querySelector(arguments[1]));', [savedSelector(first.id), savedSelector(other.id)]), 'saved active and archived quotas without approval');
   assert.equal(await driver.execute('return document.querySelector(arguments[0]).querySelector("[data-quota-freshness=unknown]")?.textContent.trim();', [savedSelector(first.id)]), 'Freshness unknown');
+  assert.equal(await driver.execute('return document.querySelector(arguments[0]).querySelector("[data-quota-reset-due]")?.textContent.trim();', [savedSelector(first.id)]), 'Reset due; awaiting confirmation'); evidence.resetDeadline.restartWithoutApprovalShowsDue = true;
   await rejected('check_profile_connection', { profileId: first.id }, 'provider_executable_not_approved'); assert.equal((await observations()).length, noExecution); assert.deepEqual((await quotaOracle('restart preserves cached records without execution')).tables, a.tables); await capture('quota-saved-restart-light-360.png', savedSelector(first.id), 360);
   await button('Create a backup'); await driver.type('#backup-password', backupPassword); await driver.type('#backup-confirmation', backupPassword); await driver.click('#backup-records'); await driver.click('.backup-form button[type=submit]'); await waitFor(async () => driver.execute('return document.querySelector(".backup-receipt")?.textContent.includes("Backup saved and authenticated.");'), 'authenticated quota backup');
   const archives = (await readdir(join(fixture.dirs.downloads, 'OpenUsage'))).filter(name => name.endsWith('.oubackup')); assert.equal(archives.length, 1); const archive = join(fixture.dirs.downloads, 'OpenUsage', archives[0]); await copyFile(archive, join(output, archives[0])); await chmod(join(output, archives[0]), 0o600);

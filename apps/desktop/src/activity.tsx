@@ -64,7 +64,10 @@ export function ProfileActivity({ profileId, profileLabel, children }: { profile
       if (committed && (!next || next.bindingId !== committed.bindingId || next.collectionRunId !== committed.collectionRunId)) throw new Error('Incompatible saved activity observation.');
       if (alive.current && operation === loadGeneration.current) { setValue(next); setError(null); }
     } catch {
-      if (alive.current && operation === loadGeneration.current) setError(providerFailure('provider_activity_load_failed'));
+      if (alive.current && operation === loadGeneration.current) {
+        setValue(current => current && { ...current, freshness: 'unknown', dailyUsageBuckets: current.dailyUsageBuckets.map(row => ({ ...row, freshness: 'unknown' })) });
+        setError(providerFailure('provider_activity_load_failed'));
+      }
     } finally {
       if (committed) manualLoad.current = false;
       if (alive.current && operation === loadGeneration.current) { setLoading(false); if (focusResult || committed) setFocus(true); }

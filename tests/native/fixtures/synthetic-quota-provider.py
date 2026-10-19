@@ -12,7 +12,7 @@ CONFIG = ROOT / 'synthetic-quota-provider-config.json'
 ALLOWED_ENVIRONMENT = {'HOME', 'CODEX_HOME', 'XDG_CONFIG_HOME', 'XDG_DATA_HOME',
                        'XDG_CACHE_HOME', 'XDG_STATE_HOME', 'XDG_RUNTIME_DIR',
                        'TMPDIR', 'PATH', 'LANG', 'LC_CTYPE'}
-MODES = {'multi', 'legacy', 'empty', 'missing', 'invalid', 'fractional',
+MODES = {'multi', 'reset_soon', 'legacy', 'empty', 'missing', 'invalid', 'fractional',
          'string_percent', 'mismatch', 'null_windows', 'unknown_identity',
          'signed_out', 'unsupported', 'changed_email', 'changed_plan',
          'changed_auth', 'post_unknown', 'early_auth', 'auth_notice',
@@ -123,6 +123,8 @@ if selected == 'auth_notice':
     notice('account/updated', {'authMode': 'chatgpt'})
 
 primary = {'usedPercent': 25, 'windowDurationMins': 300, 'resetsAt': 1893456000}
+if selected == 'reset_soon':
+    primary['resetsAt'] = int(time.time()) + 12
 codex = {'limitId': 'codex', 'limitName': None, 'primary': primary,
          'secondary': {'usedPercent': 100, 'windowDurationMins': 10080, 'resetsAt': None},
          'rateLimitReachedType': 'rate_limit_reached'}

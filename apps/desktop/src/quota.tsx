@@ -3,7 +3,7 @@ import { Collapsible, CollapsibleTrigger, CollapsiblePanel } from './components/
 import './quota-disclosure.css';
 import { Meter, MeterIndicator, MeterLabel, MeterTrack, MeterValue } from './components/ui/meter';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { invoke, type ProviderExecutableApproval, type ProfileQuotaSavedRead, type SavedProfileQuota as SavedQuota, type ProfileActivityAssociationReview, type QuotaWindow } from './contracts';
+import { invoke, type ProviderExecutableApproval, type ProfileQuotaSavedRead, type SavedProfileQuota as SavedQuota, type ProfileActivityAssociationReview, type SavedQuotaWindow } from './contracts';
 import { AssociationReview } from './association-review';
 import { providerFailure } from './provider-errors';
 
@@ -46,7 +46,7 @@ function CreditDetails({ rows }: { rows: SavedQuota['resetCreditDetails'] }) {
     <p>These rows may not include every credit. The count above is separate.</p>
   </>;
 }
-function WindowValues({ value }: { value: QuotaWindow }) {
+function WindowValues({ value }: { value: SavedQuotaWindow }) {
   const reset = value.resetsAtUnix === null ? null : new Date(value.resetsAtUnix * 1000).toISOString();
   return <div className="quota-window">
     <h4>{value.label}</h4>
@@ -54,7 +54,7 @@ function WindowValues({ value }: { value: QuotaWindow }) {
       <div className="quota-meter-heading"><MeterLabel><span className="sr-only">{value.label}: </span>Remaining (derived)</MeterLabel><MeterValue>{(_formatted, remaining) => `${remaining}%`}</MeterValue></div>
       <MeterTrack><MeterIndicator /></MeterTrack>
     </Meter>
-    <dl className="quota-values"><div><dt>Used</dt><dd>{value.usedPercent}%</dd></div><div><dt>Expected reset</dt><dd>{reset ? <time dateTime={reset}>{date(reset)}</time> : 'Not available'}</dd></div></dl>
+    <dl className="quota-values"><div><dt>Used</dt><dd>{value.usedPercent}%</dd></div><div><dt>Expected reset</dt><dd>{reset ? <time dateTime={reset}>{date(reset)}</time> : 'Not available'}{value.resetDue && <p className="provider-help" data-quota-reset-due>Reset due; awaiting confirmation</p>}</dd></div></dl>
   </div>;
 }
 
@@ -96,7 +96,10 @@ export function SavedProfileQuota({ profileId, profileLabel, children }: { profi
       if (committed && (!next || next.bindingId !== committed.bindingId || next.collectionRunId !== committed.collectionRunId)) throw new Error('Incompatible saved quota observation.');
       if (alive.current && operation === loadGeneration.current) { setValue(next); setError(null); }
     } catch {
-      if (alive.current && operation === loadGeneration.current) setError(providerFailure('provider_quota_load_failed'));
+      if (alive.current && operation === loadGeneration.current) {
+        setValue(current => current && { ...current, freshness: 'unknown' });
+        setError(providerFailure('provider_quota_load_failed'));
+      }
     } finally {
       if (committed) manualLoad.current = false;
       if (alive.current && operation === loadGeneration.current) { setLoading(false); if (focusResult || committed) setFocus(true); }

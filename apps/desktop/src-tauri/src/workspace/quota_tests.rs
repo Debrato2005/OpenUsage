@@ -158,6 +158,113 @@ fn gone(pid: libc::pid_t) {
 }
 
 #[test]
+fn quota_reset_due_requires_a_known_reached_deadline_and_a_supported_clock() {
+    use super::quota_storage::reset_due;
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let time = |seconds: i64| -> SystemTime {
+        let duration = Duration::from_secs(seconds.unsigned_abs());
+        if seconds >= 0 {
+            UNIX_EPOCH.checked_add(duration).unwrap()
+        } else {
+            UNIX_EPOCH.checked_sub(duration).unwrap()
+        }
+    };
+    for reset in [-62_135_596_800, -1, 0, 253_402_300_799] {
+        let at = time(reset);
+        assert!(reset_due(Some(reset), at));
+        assert!(reset_due(
+            Some(reset),
+            at.checked_add(Duration::from_nanos(1)).unwrap()
+        ));
+        assert!(!reset_due(
+            Some(reset),
+            at.checked_sub(Duration::from_nanos(1)).unwrap()
+        ));
+    }
+    assert!(!reset_due(None, UNIX_EPOCH));
+    for reset in [i64::MIN, -62_135_596_801, 253_402_300_800, i64::MAX] {
+        assert!(!reset_due(Some(reset), UNIX_EPOCH));
+    }
+    assert!(!reset_due(Some(-1), time(-62_135_596_801)));
+    assert!(!reset_due(Some(0), time(253_402_300_800)));
+}
+
+#[test]
+fn saved_quota_reset_due_is_boolean_and_keeps_every_accepted_measurement_unchanged() {
+    let mut fixture = Fixture::new("multi");
+    let id = fixture.profiles[0].clone();
+    let approval = fixture.approve();
+    let completed = fixture.read(&id, &approval).unwrap();
+    let outcome = serde_json::to_value(
+        fixture
+            .workspace
+            .finish_profile_quota_read(completed)
+            .unwrap(),
+    )
+    .unwrap();
+    for limit in outcome["limits"].as_array().unwrap() {
+        for role in ["primary", "secondary"] {
+            if let Some(window) = limit[role].as_object() {
+                assert_eq!(window.len(), 5);
+                assert!(!window.contains_key("resetDue"));
+            }
+        }
+    }
+    let storage = fixture.workspace.storage.as_mut().unwrap();
+    let original = storage.current_quota(&id).unwrap().unwrap();
+    let reading = openusage_storage::QuotaReading {
+        run_id: provider::new_id().unwrap(),
+        binding: original.binding.clone(),
+        identity_evidence: storage.profile_binding_evidence(&original.binding).unwrap(),
+        provider_version: original.provider_version.clone(),
+        source_kind: original.source_kind,
+        started_at_utc: original.commit.observed_at_utc.clone(),
+        observed_at_utc: original.commit.observed_at_utc.clone(),
+        completed_at_utc: original.commit.observed_at_utc.clone(),
+        limits: vec![openusage_storage::QuotaLimit {
+            limit_id: "synthetic-reset-boundaries".into(),
+            limit_name: None,
+            primary: Some(openusage_storage::QuotaWindow {
+                used_percent: 25,
+                window_duration_mins: Some(300),
+                resets_at_unix: Some(-1),
+            }),
+            secondary: Some(openusage_storage::QuotaWindow {
+                used_percent: 75,
+                window_duration_mins: Some(10_080),
+                resets_at_unix: Some(253_402_300_799),
+            }),
+            reached_type: None,
+            monthly_credit_limit: None,
+            spend_control_reached: None,
+        }],
+        available_reset_credits: original.available_reset_credits,
+        reset_credit_details: original.reset_credit_details,
+    };
+    storage.accept_quota(reading, None).unwrap();
+    let accepted = storage.current_quota(&id).unwrap();
+    let revision = storage.restore_state().unwrap().revision;
+    let before = fixture.database_hashes();
+    let saved =
+        serde_json::to_value(fixture.workspace.load_profile_quota(&id).unwrap().unwrap()).unwrap();
+    for (role, due, used, remaining, reset) in [
+        ("primary", true, 25, 75, -1i64),
+        ("secondary", false, 75, 25, 253_402_300_799),
+    ] {
+        let window = &saved["limits"][0][role];
+        assert_eq!(window.as_object().unwrap().len(), 6);
+        assert_eq!(window["resetDue"], due);
+        assert_eq!(window["usedPercent"], used);
+        assert_eq!(window["derivedRemainingPercent"], remaining);
+        assert_eq!(window["resetsAtUnix"], reset);
+    }
+    assert_eq!(fixture.database_hashes(), before);
+    let storage = fixture.workspace.storage.as_mut().unwrap();
+    assert_eq!(storage.current_quota(&id).unwrap(), accepted);
+    assert_eq!(storage.restore_state().unwrap().revision, revision);
+}
+
+#[test]
 fn quota_read_commits_exact_provisional_values_and_loads_without_approval() {
     let mut fixture = Fixture::new("multi");
     let id = fixture.profiles[0].clone();

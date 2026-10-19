@@ -143,6 +143,7 @@ export interface QuotaWindow {
   usedPercent: number; derivedRemainingPercent: number;
   windowDurationMins: number | null; resetsAtUnix: number | null; label: string;
 }
+export interface SavedQuotaWindow extends QuotaWindow { resetDue: boolean }
 export interface ResetCreditDetail {
   title: string | null; status: 'available' | 'redeeming' | 'redeemed' | 'unknown';
   grantedAtUnix: number; expiresAtUnix: number | null;
@@ -155,8 +156,9 @@ export interface ProfileQuotaSavedRead extends Omit<ProfileQuotaRequest, 'accept
   resetCreditDetails: ResetCreditDetail[] | null;
   limits: { limitId: string; limitName: string | null; primary: QuotaWindow | null; secondary: QuotaWindow | null; reachedType: string | null; monthlyCreditLimit: string | null; spendControlReached: boolean | null }[];
 }
-export interface SavedProfileQuota extends Omit<ProfileQuotaSavedRead, 'requestId' | 'approvalId'> {
+export interface SavedProfileQuota extends Omit<ProfileQuotaSavedRead, 'requestId' | 'approvalId' | 'limits'> {
   coverage: 'unknown'; scope: 'account_quota_with_unknown_application_scope'; freshness: ActivityFreshness;
+  limits: (Omit<ProfileQuotaSavedRead['limits'][number], 'primary' | 'secondary'> & { primary: SavedQuotaWindow | null; secondary: SavedQuotaWindow | null })[];
 }
 
 
@@ -326,11 +328,13 @@ function isQuotaBinding(v: Record<string, unknown>, accepted: false | true = fal
 function quotaText(value: unknown, maximum: number): value is string {
   return typeof value === 'string' && value.length <= maximum && value.trim().length > 0 && !/\p{Cc}/u.test(value);
 }
-function isQuotaWindow(value: unknown): value is QuotaWindow | null {
+function isQuotaWindow(value: unknown, saved = false): value is QuotaWindow | null {
   if (value === null) return true;
   if (typeof value !== 'object' || Array.isArray(value)) return false;
   const v = value as Record<string, unknown>;
-  return Object.keys(v).length === 5 && Number.isInteger(v.usedPercent) && Number(v.usedPercent) >= 0 && Number(v.usedPercent) <= 100
+  return Object.keys(v).length === (saved ? 6 : 5)
+    && (!saved || (typeof v.resetDue === 'boolean' && (v.resetsAtUnix !== null || v.resetDue === false)))
+    && Number.isInteger(v.usedPercent) && Number(v.usedPercent) >= 0 && Number(v.usedPercent) <= 100
     && Number.isInteger(v.derivedRemainingPercent) && Number(v.derivedRemainingPercent) >= 0 && Number(v.derivedRemainingPercent) <= 100
     && (v.windowDurationMins === null || (Number.isSafeInteger(v.windowDurationMins) && Number(v.windowDurationMins) > 0))
     && (v.resetsAtUnix === null || (Number.isSafeInteger(v.resetsAtUnix) && Number(v.resetsAtUnix) >= -62135596800 && Number(v.resetsAtUnix) <= 253402300799))
@@ -364,9 +368,9 @@ function isSavedProfileQuota(value: unknown): value is SavedProfileQuota | null 
   const v = value as Record<string, unknown>;
   return Object.keys(v).length === 16 && isUuid(v.profileId) && isUuid(v.bindingId) && isUuid(v.collectionRunId)
     && (v.sourceKind === 'official_artifact' || v.sourceKind === 'test_fixture') && v.accepted === true && v.monitoring === 'stopped'
-    && v.coverage === 'unknown' && v.scope === 'account_quota_with_unknown_application_scope' && isActivityFreshness(v.freshness) && isQuotaValues(v);
+    && v.coverage === 'unknown' && v.scope === 'account_quota_with_unknown_application_scope' && isActivityFreshness(v.freshness) && isQuotaValues(v, true);
 }
-function isQuotaValues(v: Record<string, unknown>): boolean {
+function isQuotaValues(v: Record<string, unknown>, saved = false): boolean {
   if (!quotaText(v.providerVersion, 80) || !isUtcTimestamp(v.observedAtUtc)
     || v.identityConfidence !== 'provisional' || v.verifiedIdentityKey !== null || !isResetCreditCount(v.availableResetCredits) || !isResetCreditDetails(v.resetCreditDetails) || !Array.isArray(v.limits) || v.limits.length > 64) return false;
   const ids = new Set<string>();
@@ -378,7 +382,7 @@ function isQuotaValues(v: Record<string, unknown>): boolean {
       || !(limit.reachedType === null || quotaText(limit.reachedType, 128))
       || !(limit.monthlyCreditLimit === null || (quotaText(limit.monthlyCreditLimit, 256) && new TextEncoder().encode(limit.monthlyCreditLimit).length <= 256))
       || !(limit.spendControlReached === null || typeof limit.spendControlReached === 'boolean')
-      || !isQuotaWindow(limit.primary) || !isQuotaWindow(limit.secondary)) return false;
+      || !isQuotaWindow(limit.primary, saved) || !isQuotaWindow(limit.secondary, saved)) return false;
     ids.add(limit.limitId); return true;
   });
 }

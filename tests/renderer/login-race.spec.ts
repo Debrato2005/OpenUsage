@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import type { ProfileQuotaSavedRead } from '../../apps/desktop/src/contracts';
 
 // Renderer-only synthetic IPC. No native process, credential home, network login, or storage.
 type Deferred = { resolve: (value: unknown) => void; reject: (error: string) => void };
@@ -80,7 +81,10 @@ async function openSyntheticProfile(page: Page) {
           break;
         case 'complete_profile_quota_read':
           value = await deferred(fixture.completions, `quota:${String(args.requestId)}`);
-          if (typeof value === 'object' && value !== null && 'bindingId' in value) { const { requestId: _requestId, approvalId: _approvalId, ...saved } = value as Record<string, unknown>; fixture.savedQuota = { ...saved, freshness: 'unknown', coverage: 'unknown', scope: 'account_quota_with_unknown_application_scope' }; }
+          if (typeof value === 'object' && value !== null && 'bindingId' in value) {
+            const { requestId: _requestId, approvalId: _approvalId, ...saved } = value as ProfileQuotaSavedRead;
+            fixture.savedQuota = { ...saved, limits: saved.limits.map(limit => ({ ...limit, primary: limit.primary && { ...limit.primary, resetDue: false }, secondary: limit.secondary && { ...limit.secondary, resetDue: false } })), freshness: 'unknown', coverage: 'unknown', scope: 'account_quota_with_unknown_application_scope' };
+          }
           break;
         default: throw new Error(`Unexpected renderer fixture command: ${command}`);
       }
