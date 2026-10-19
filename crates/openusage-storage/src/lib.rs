@@ -12,6 +12,9 @@ pub use backup_validation::{
 pub use checkpoint::{CheckpointError, CheckpointMetadata, CheckpointVerification};
 mod profiles;
 pub use profiles::{ProfileConnectionState, ProfileEnvironment, ProfileError, ProfileSummary};
+mod quota;
+mod quota_validation;
+pub use quota::*;
 mod activity;
 pub use activity::*;
 mod restore_apply;
@@ -24,7 +27,11 @@ mod restore_crash;
 mod restore_state;
 pub use restore_state::{RestoreState, StorageRevision};
 
-const MIGRATIONS: &[&str] = &[include_str!("schema.sql"), include_str!("schema_v2.sql")];
+const MIGRATIONS: &[&str] = &[
+    include_str!("schema.sql"),
+    include_str!("schema_v2.sql"),
+    include_str!("schema_v3.sql"),
+];
 pub const CURRENT_SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
 const MAX_BACKUP_SNAPSHOT_SIZE: u64 = 5 * 1024 * 1024 * 1024;
 
@@ -339,25 +346,64 @@ impl Storage {
     }
 }
 
+// Only constructor-owned live connections or private validated RAM copies call this function.
+// No failed migration connection may be published to application operations.
 fn migrate(connection: &mut Connection, migrations: &[&str]) -> Result<(), StorageError> {
-    let transaction = connection
-        .transaction_with_behavior(TransactionBehavior::Immediate)
-        .map_err(|_| StorageError::MigrationFailed)?;
-    let version: u32 = transaction
-        .pragma_query_value(None, "user_version", |row| row.get(0))
-        .map_err(|_| StorageError::MigrationFailed)?;
+    let failed = |_| StorageError::MigrationFailed;
+    let version: u32 = connection
+        .pragma_query_value(None, "user_version", |r| r.get(0))
+        .map_err(failed)?;
     if version as usize > migrations.len() {
         return Err(StorageError::UnsupportedSchema);
     }
-    for (index, migration) in migrations.iter().enumerate().skip(version as usize) {
-        transaction
-            .execute_batch(migration)
-            .and_then(|()| transaction.pragma_update(None, "user_version", (index + 1) as u32))
-            .map_err(|_| StorageError::MigrationFailed)?;
+    if version as usize == migrations.len() {
+        return Ok(());
     }
-    transaction
-        .commit()
-        .map_err(|_| StorageError::MigrationFailed)
+    // SQLite's documented table-rebuild procedure requires this before BEGIN, never inside SQL.
+    let result = (|| {
+        connection
+            .pragma_update(None, "foreign_keys", false)
+            .map_err(failed)?;
+        if connection
+            .pragma_query_value(None, "foreign_keys", |r| r.get::<_, bool>(0))
+            .map_err(failed)?
+        {
+            return Err(StorageError::MigrationFailed);
+        }
+        let transaction = connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(failed)?;
+        for (index, migration) in migrations.iter().enumerate().skip(version as usize) {
+            transaction.execute_batch(migration).map_err(failed)?;
+            transaction
+                .pragma_update(None, "user_version", (index + 1) as u32)
+                .map_err(failed)?;
+        }
+        let invalid: bool = transaction
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM pragma_foreign_key_check)",
+                [],
+                |r| r.get(0),
+            )
+            .map_err(failed)?;
+        if invalid {
+            return Err(StorageError::MigrationFailed);
+        }
+        transaction.commit().map_err(failed)
+    })();
+    // Transaction drop rolls back errors before FK enforcement is restored. On cleanup failure the
+    // owning constructor discards this connection rather than returning a usable Storage handle.
+    let rollback = if !connection.is_autocommit() {
+        connection.execute_batch("ROLLBACK")
+    } else {
+        Ok(())
+    };
+    let enabled = connection.pragma_update(None, "foreign_keys", true);
+    let checked = connection.pragma_query_value(None, "foreign_keys", |r| r.get::<_, bool>(0));
+    if rollback.is_err() || enabled.is_err() || checked != Ok(true) {
+        return Err(StorageError::MigrationFailed);
+    }
+    result
 }
 
 /// Apply only trusted application migrations to an already hardened private connection.

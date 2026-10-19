@@ -9,28 +9,28 @@ pub const ACTIVITY_SOURCE_SCOPE: &str = "account_activity_with_unknown_applicati
 pub const MAX_ACTIVITY_ROWS_PER_READ: usize = 4096;
 
 #[derive(Clone, PartialEq, Eq)]
-pub struct ActivityIdentityEvidence {
+pub struct ProfileIdentityEvidence {
     pub email: String,
     pub plan: Option<String>,
 }
-impl fmt::Debug for ActivityIdentityEvidence {
+impl fmt::Debug for ProfileIdentityEvidence {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("ActivityIdentityEvidence { .. }")
+        f.write_str("ProfileIdentityEvidence { .. }")
     }
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ActivityBinding {
+pub struct ProfileBinding {
     pub profile_id: String,
     pub home_reference: String,
     pub binding_id: String,
 }
-pub struct ActivityBindingInput {
+pub struct ProfileBindingInput {
     pub profile_id: String,
     pub expected_home_reference: String,
     /// None permits only the first association. A new association needs an exact previous binding.
     pub expected_previous_binding_id: Option<String>,
     pub new_binding_id: String,
-    pub evidence: ActivityIdentityEvidence,
+    pub evidence: ProfileIdentityEvidence,
     pub observed_at_utc: String,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -72,8 +72,8 @@ impl fmt::Debug for ActivityDayValue {
 #[derive(Clone)]
 pub struct ActivityReading {
     pub run_id: String,
-    pub binding: ActivityBinding,
-    pub identity_evidence: ActivityIdentityEvidence,
+    pub binding: ProfileBinding,
+    pub identity_evidence: ProfileIdentityEvidence,
     pub provider_version: String,
     pub source_kind: ActivitySourceKind,
     pub started_at_utc: String,
@@ -98,7 +98,7 @@ pub enum ActivityDailyState {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StoredActivity {
-    pub binding: ActivityBinding,
+    pub binding: ProfileBinding,
     pub commit: ActivityCommit,
     pub source_kind: ActivitySourceKind,
     pub provider_version: String,
@@ -151,16 +151,16 @@ type Result<T> = std::result::Result<T, ActivityError>;
 
 impl Storage {
     /// A local association reference only; it establishes no verified provider identity.
-    pub fn activity_binding(&self, profile_id: &str) -> Result<Option<ActivityBinding>> {
+    pub fn profile_binding(&self, profile_id: &str) -> Result<Option<ProfileBinding>> {
         require_uuid(profile_id)?;
-        self.connection.query_row("SELECT e.home_reference,c.binding_id FROM current_activity c JOIN profile_identity_events e ON e.id=c.binding_id AND e.profile_id=c.profile_id WHERE c.profile_id=?1",[profile_id],|r|Ok(ActivityBinding {profile_id:profile_id.into(),home_reference:r.get(0)?,binding_id:r.get(1)?})).optional().map_err(read_error)
+        self.connection.query_row("SELECT e.home_reference,c.binding_id FROM profile_bindings c JOIN profile_identity_events e ON e.id=c.binding_id AND e.profile_id=c.profile_id WHERE c.profile_id=?1",[profile_id],|r|Ok(ProfileBinding {profile_id:profile_id.into(),home_reference:r.get(0)?,binding_id:r.get(1)?})).optional().map_err(read_error)
     }
 
     /// Return descriptive evidence only for the exact local profile, home and association.
-    pub fn activity_binding_evidence(
+    pub fn profile_binding_evidence(
         &self,
-        binding: &ActivityBinding,
-    ) -> Result<ActivityIdentityEvidence> {
+        binding: &ProfileBinding,
+    ) -> Result<ProfileIdentityEvidence> {
         for id in [
             &binding.profile_id,
             &binding.home_reference,
@@ -172,17 +172,17 @@ impl Storage {
             .query_row(
                 "SELECT returned_email,returned_plan FROM profile_identity_events WHERE id=?1 AND profile_id=?2 AND home_reference=?3",
                 params![binding.binding_id, binding.profile_id, binding.home_reference],
-                |row| Ok(ActivityIdentityEvidence { email: row.get(0)?, plan: row.get(1)? }),
+                |row| Ok(ProfileIdentityEvidence { email: row.get(0)?, plan: row.get(1)? }),
             )
             .optional()
             .map_err(read_error)?
             .ok_or(ActivityError::BindingChanged)
     }
     /// Native code must authorize a new association. Old history keeps its original binding.
-    pub fn associate_activity_binding(
+    pub fn associate_profile_binding(
         &mut self,
-        input: ActivityBindingInput,
-    ) -> Result<ActivityBinding> {
+        input: ProfileBindingInput,
+    ) -> Result<ProfileBinding> {
         validate_association(&input)?;
         let tx = self
             .connection
@@ -190,7 +190,7 @@ impl Storage {
             .map_err(write_error)?;
         associate_in_transaction(&tx, &input)?;
         tx.commit().map_err(write_error)?;
-        Ok(ActivityBinding {
+        Ok(ProfileBinding {
             profile_id: input.profile_id,
             home_reference: input.expected_home_reference,
             binding_id: input.new_binding_id,
@@ -208,7 +208,7 @@ impl Storage {
     pub fn accept_activity_with_binding(
         &mut self,
         reading: ActivityReading,
-        association: Option<ActivityBindingInput>,
+        association: Option<ProfileBindingInput>,
     ) -> Result<ActivityCommit> {
         validate_reading(&reading)?;
         if let Some(input) = &association {
@@ -239,7 +239,7 @@ impl Storage {
     pub fn current_activity(&self, profile_id: &str) -> Result<Option<StoredActivity>> {
         require_uuid(profile_id)?;
         self.connection.query_row("SELECT e.home_reference,c.binding_id,r.id,r.observed_at_utc,r.source_kind,r.provider_version,s.lifetime_tokens,s.peak_daily_tokens,s.longest_running_turn_sec,s.current_streak_days,s.longest_streak_days,s.daily_state FROM current_activity c JOIN profile_identity_events e ON e.id=c.binding_id JOIN collection_runs r ON r.id=c.collection_run_id JOIN activity_summaries s ON s.id=c.summary_id WHERE c.profile_id=?1",[profile_id],|r| {
-            let binding = ActivityBinding {
+            let binding = ProfileBinding {
                 profile_id: profile_id.into(), home_reference: r.get(0)?, binding_id: r.get(1)?,
             };
             let source_kind = match r.get::<_, String>(4)?.as_str() {
@@ -313,7 +313,7 @@ impl Storage {
     }
 }
 
-fn validate_association(input: &ActivityBindingInput) -> Result<()> {
+pub(crate) fn validate_association(input: &ProfileBindingInput) -> Result<()> {
     require_uuid(&input.profile_id)?;
     require_uuid(&input.expected_home_reference)?;
     require_uuid(&input.new_binding_id)?;
@@ -325,11 +325,11 @@ fn validate_association(input: &ActivityBindingInput) -> Result<()> {
     Ok(())
 }
 
-fn associate_in_transaction(tx: &Connection, input: &ActivityBindingInput) -> Result<()> {
+pub(crate) fn associate_in_transaction(tx: &Connection, input: &ProfileBindingInput) -> Result<()> {
     require_profile(tx, &input.profile_id, &input.expected_home_reference)?;
     let previous: Option<String> = tx
         .query_row(
-            "SELECT binding_id FROM current_activity WHERE profile_id=?1",
+            "SELECT binding_id FROM profile_bindings WHERE profile_id=?1",
             [&input.profile_id],
             |r| r.get(0),
         )
@@ -355,7 +355,22 @@ fn associate_in_transaction(tx: &Connection, input: &ActivityBindingInput) -> Re
         [&input.profile_id],
     )
     .map_err(write_error)?;
-    tx.execute("INSERT INTO current_activity(profile_id,binding_id,summary_id,collection_run_id,created_at_utc,updated_at_utc) VALUES (?1,?2,NULL,NULL,?3,?3) ON CONFLICT(profile_id) DO UPDATE SET binding_id=excluded.binding_id,summary_id=NULL,collection_run_id=NULL,updated_at_utc=excluded.updated_at_utc", params![input.profile_id,input.new_binding_id,input.observed_at_utc]).map_err(write_error)?;
+    tx.execute(
+        "DELETE FROM current_activity WHERE profile_id=?1",
+        [&input.profile_id],
+    )
+    .map_err(write_error)?;
+    tx.execute(
+        "DELETE FROM current_quota WHERE profile_id=?1",
+        [&input.profile_id],
+    )
+    .map_err(write_error)?;
+    tx.execute(
+        "DELETE FROM current_quota_readings WHERE profile_id=?1",
+        [&input.profile_id],
+    )
+    .map_err(write_error)?;
+    tx.execute("INSERT INTO profile_bindings(profile_id,binding_id,created_at_utc,updated_at_utc) VALUES (?1,?2,?3,?3) ON CONFLICT(profile_id) DO UPDATE SET binding_id=excluded.binding_id,updated_at_utc=excluded.updated_at_utc",params![input.profile_id,input.new_binding_id,input.observed_at_utc]).map_err(write_error)?;
     Ok(())
 }
 
@@ -370,7 +385,7 @@ fn require_new_reading(tx: &Connection, reading: &ActivityReading) -> Result<()>
     {
         return Err(ActivityError::AlreadyAccepted);
     }
-    let latest: Option<String> = tx.query_row("SELECT r.observed_at_utc FROM current_activity c JOIN collection_runs r ON r.id=c.collection_run_id WHERE c.profile_id=?1", [&reading.binding.profile_id], |r| r.get(0)).optional().map_err(read_error)?;
+    let latest: Option<String> = tx.query_row("SELECT max(r.observed_at_utc) FROM collection_runs r JOIN profile_bindings b ON b.profile_id=r.profile_id AND b.binding_id=r.binding_id WHERE b.profile_id=?1 AND r.source_method='account/usage/read'", [&reading.binding.profile_id], |r| r.get(0)).map_err(read_error)?;
     if latest.is_some_and(|value| value > reading.observed_at_utc) {
         return Err(ActivityError::StaleObservation);
     }
@@ -383,7 +398,7 @@ fn accept_in_transaction(tx: &Connection, reading: ActivityReading) -> Result<Ac
         &reading.binding.profile_id,
         &reading.binding.home_reference,
     )?;
-    let current: Option<(String,String,Option<String>,String)> = tx.query_row("SELECT c.binding_id,e.returned_email,e.returned_plan,e.home_reference FROM current_activity c JOIN profile_identity_events e ON e.id=c.binding_id AND e.profile_id=c.profile_id WHERE c.profile_id=?1", [&reading.binding.profile_id], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).optional().map_err(read_error)?;
+    let current: Option<(String,String,Option<String>,String)> = tx.query_row("SELECT c.binding_id,e.returned_email,e.returned_plan,e.home_reference FROM profile_bindings c JOIN profile_identity_events e ON e.id=c.binding_id AND e.profile_id=c.profile_id WHERE c.profile_id=?1", [&reading.binding.profile_id], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).optional().map_err(read_error)?;
     let Some((binding, email, plan, home)) = current else {
         return Err(ActivityError::BindingChanged);
     };
@@ -407,7 +422,7 @@ fn accept_in_transaction(tx: &Connection, reading: ActivityReading) -> Result<Ac
         tx.execute("INSERT INTO activity_day_history(id,profile_id,provider_date,source_scope,binding_id,collection_run_id,prior_tokens,accepted_tokens,observed_at_utc) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)",params![new_uuid()?,reading.binding.profile_id,day.provider_date,ACTIVITY_SOURCE_SCOPE,reading.binding.binding_id,reading.run_id,previous,day.tokens,reading.observed_at_utc]).map_err(write_error)?;
         tx.execute("INSERT INTO current_activity_days(profile_id,provider_date,source_scope,binding_id,collection_run_id,tokens,observed_at_utc,created_at_utc,updated_at_utc) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?8) ON CONFLICT(profile_id,provider_date,source_scope) DO UPDATE SET binding_id=excluded.binding_id,collection_run_id=excluded.collection_run_id,tokens=excluded.tokens,observed_at_utc=excluded.observed_at_utc,updated_at_utc=excluded.updated_at_utc",params![reading.binding.profile_id,day.provider_date,ACTIVITY_SOURCE_SCOPE,reading.binding.binding_id,reading.run_id,day.tokens,reading.observed_at_utc,reading.completed_at_utc]).map_err(write_error)?;
     }
-    tx.execute("UPDATE current_activity SET summary_id=?1,collection_run_id=?1,updated_at_utc=?2 WHERE profile_id=?3",params![reading.run_id,reading.completed_at_utc,reading.binding.profile_id]).map_err(write_error)?;
+    tx.execute("INSERT INTO current_activity(profile_id,binding_id,summary_id,collection_run_id,created_at_utc,updated_at_utc) VALUES (?3,?4,?1,?1,?2,?2) ON CONFLICT(profile_id) DO UPDATE SET binding_id=excluded.binding_id,summary_id=excluded.summary_id,collection_run_id=excluded.collection_run_id,updated_at_utc=excluded.updated_at_utc",params![reading.run_id,reading.completed_at_utc,reading.binding.profile_id,reading.binding.binding_id]).map_err(write_error)?;
     Ok(ActivityCommit {
         profile_id: reading.binding.profile_id,
         binding_id: reading.binding.binding_id,
@@ -417,7 +432,7 @@ fn accept_in_transaction(tx: &Connection, reading: ActivityReading) -> Result<Ac
     })
 }
 
-fn require_profile(connection: &Connection, id: &str, home: &str) -> Result<()> {
+pub(crate) fn require_profile(connection: &Connection, id: &str, home: &str) -> Result<()> {
     let eligible: bool = connection.query_row("SELECT EXISTS(SELECT 1 FROM profiles WHERE id=?1 AND approved_home_reference=?2 AND archived=0 AND environment='native')",params![id,home],|r|r.get(0)).map_err(read_error)?;
     if eligible {
         Ok(())
@@ -469,26 +484,26 @@ fn validate_reading(r: &ActivityReading) -> Result<()> {
     }
     Ok(())
 }
-fn validate_evidence(e: &ActivityIdentityEvidence) -> Result<()> {
+pub(crate) fn validate_evidence(e: &ProfileIdentityEvidence) -> Result<()> {
     require(safe_text(&e.email, 254) && e.plan.as_ref().is_none_or(|v| safe_text(v, 64)))
 }
-fn safe_text(v: &str, max: usize) -> bool {
+pub(crate) fn safe_text(v: &str, max: usize) -> bool {
     !v.trim().is_empty() && v.len() <= max && !v.chars().any(char::is_control)
 }
-fn require_uuid(v: &str) -> Result<()> {
+pub(crate) fn require_uuid(v: &str) -> Result<()> {
     require(crate::backup_validation::canonical_uuid(v))
 }
-fn require(v: bool) -> Result<()> {
+pub(crate) fn require(v: bool) -> Result<()> {
     if v {
         Ok(())
     } else {
         Err(ActivityError::InvalidInput)
     }
 }
-fn read_error(_: rusqlite::Error) -> ActivityError {
+pub(crate) fn read_error(_: rusqlite::Error) -> ActivityError {
     ActivityError::ReadFailed
 }
-fn write_error(_: rusqlite::Error) -> ActivityError {
+pub(crate) fn write_error(_: rusqlite::Error) -> ActivityError {
     ActivityError::WriteFailed
 }
 fn new_uuid() -> Result<String> {
@@ -558,8 +573,8 @@ mod tests {
     const TIME: &str = "2026-10-18T12:00:00.000Z";
     const LATER: &str = "2026-10-18T12:00:01.000Z";
     const LAST: &str = "2026-10-18T12:00:02.000Z";
-    fn evidence() -> ActivityIdentityEvidence {
-        ActivityIdentityEvidence {
+    fn evidence() -> ProfileIdentityEvidence {
+        ProfileIdentityEvidence {
             email: "synthetic-private@example.invalid".into(),
             plan: Some("synthetic-private-plan".into()),
         }
@@ -570,9 +585,9 @@ mod tests {
         home: &str,
         binding: &str,
         previous: Option<&str>,
-    ) -> ActivityBinding {
+    ) -> ProfileBinding {
         storage
-            .associate_activity_binding(ActivityBindingInput {
+            .associate_profile_binding(ProfileBindingInput {
                 profile_id: profile.into(),
                 expected_home_reference: home.into(),
                 expected_previous_binding_id: previous.map(str::to_string),
@@ -582,7 +597,7 @@ mod tests {
             })
             .unwrap()
     }
-    fn setup() -> (tempfile::TempDir, Storage, ActivityBinding) {
+    fn setup() -> (tempfile::TempDir, Storage, ProfileBinding) {
         let directory = crate::tests::private_directory();
         let mut storage = Storage::create(&directory.path().join("activity.db"), &KEY).unwrap();
         storage
@@ -601,7 +616,7 @@ mod tests {
         let other = associate(&mut storage, OTHER, OTHER_HOME, NEXT_BINDING, None);
         let original = all_activity_records(&storage);
         assert_eq!(
-            storage.activity_binding_evidence(&binding).unwrap(),
+            storage.profile_binding_evidence(&binding).unwrap(),
             evidence()
         );
         for (field, replacement) in [
@@ -616,7 +631,7 @@ mod tests {
                 _ => mixed.binding_id = replacement.into(),
             }
             assert_eq!(
-                storage.activity_binding_evidence(&mixed),
+                storage.profile_binding_evidence(&mixed),
                 Err(ActivityError::BindingChanged)
             );
             match field {
@@ -625,13 +640,13 @@ mod tests {
                 _ => mixed.binding_id = "not-a-uuid".into(),
             }
             assert_eq!(
-                storage.activity_binding_evidence(&mixed),
+                storage.profile_binding_evidence(&mixed),
                 Err(ActivityError::InvalidInput)
             );
         }
         assert_eq!(all_activity_records(&storage), original);
     }
-    fn reading(binding: &ActivityBinding, number: u32, time: &str) -> ActivityReading {
+    fn reading(binding: &ProfileBinding, number: u32, time: &str) -> ActivityReading {
         ActivityReading {
             run_id: format!("40000000-0000-4000-8000-{number:012x}"),
             binding: binding.clone(),
@@ -664,8 +679,8 @@ mod tests {
         storage.connection.query_row("SELECT (SELECT count(*) FROM collection_runs),(SELECT count(*) FROM activity_summaries),(SELECT count(*) FROM current_activity_days),(SELECT count(*) FROM activity_day_history)",[],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).unwrap()
     }
 
-    fn association(reading: &ActivityReading, previous: Option<&str>) -> ActivityBindingInput {
-        ActivityBindingInput {
+    fn association(reading: &ActivityReading, previous: Option<&str>) -> ProfileBindingInput {
+        ProfileBindingInput {
             profile_id: reading.binding.profile_id.clone(),
             expected_home_reference: reading.binding.home_reference.clone(),
             expected_previous_binding_id: previous.map(str::to_string),
@@ -711,7 +726,7 @@ mod tests {
         storage
             .create_profile(PROFILE, "First atomic profile", HOME)
             .unwrap();
-        let binding = ActivityBinding {
+        let binding = ProfileBinding {
             profile_id: PROFILE.into(),
             home_reference: HOME.into(),
             binding_id: BINDING.into(),
@@ -724,7 +739,7 @@ mod tests {
             Err(ActivityError::WriteFailed)
         );
         assert_eq!(all_activity_records(&storage), baseline);
-        assert_eq!(storage.activity_binding(PROFILE).unwrap(), None);
+        assert_eq!(storage.profile_binding(PROFILE).unwrap(), None);
         assert_eq!(storage.current_activity(PROFILE).unwrap(), None);
         storage
             .connection
@@ -760,7 +775,7 @@ mod tests {
                 params![OTHER_HOME, PROFILE],
             )
             .unwrap();
-        let next_binding = ActivityBinding {
+        let next_binding = ProfileBinding {
             profile_id: PROFILE.into(),
             home_reference: OTHER_HOME.into(),
             binding_id: NEXT_BINDING.into(),
@@ -771,12 +786,12 @@ mod tests {
         for stage in [
             "INSERT ON profile_identity_events",
             "DELETE ON current_activity_days",
-            "UPDATE ON current_activity WHEN NEW.summary_id IS NULL",
+            "DELETE ON current_activity",
             "INSERT ON collection_runs",
             "INSERT ON activity_summaries",
             "INSERT ON activity_day_history",
             "INSERT ON current_activity_days",
-            "UPDATE ON current_activity WHEN NEW.summary_id IS NOT NULL",
+            "INSERT ON current_activity",
         ] {
             storage.connection.execute_batch(&format!("CREATE TRIGGER fail_atomic BEFORE {stage} BEGIN SELECT RAISE(ABORT,'synthetic reassociation failure'); END;")).unwrap();
             assert_eq!(
@@ -797,7 +812,7 @@ mod tests {
                 .execute_batch("DROP TRIGGER fail_atomic")
                 .unwrap();
         }
-        assert_eq!(storage.activity_binding(PROFILE).unwrap(), Some(binding));
+        assert_eq!(storage.profile_binding(PROFILE).unwrap(), Some(binding));
     }
 
     #[test]
@@ -816,7 +831,7 @@ mod tests {
         );
         storage.accept_activity(reading(&other, 3, TIME)).unwrap();
         let old = all_activity_records(&storage);
-        let next_binding = ActivityBinding {
+        let next_binding = ProfileBinding {
             binding_id: NEXT_BINDING.into(),
             ..binding.clone()
         };
@@ -886,7 +901,7 @@ mod tests {
         storage
             .accept_activity(reading(&binding, 1, LATER))
             .unwrap();
-        let next_binding = ActivityBinding {
+        let next_binding = ProfileBinding {
             binding_id: NEXT_BINDING.into(),
             ..binding.clone()
         };
@@ -933,7 +948,7 @@ mod tests {
             Err(ActivityError::StaleObservation)
         );
         assert_eq!(all_activity_records(&storage), baseline);
-        let cross_profile = ActivityBinding {
+        let cross_profile = ProfileBinding {
             profile_id: OTHER.into(),
             home_reference: OTHER_HOME.into(),
             binding_id: NEXT_BINDING.into(),
@@ -950,7 +965,7 @@ mod tests {
             Err(ActivityError::BindingChanged)
         );
         assert_eq!(all_activity_records(&storage), baseline);
-        let wrong_home = ActivityBinding {
+        let wrong_home = ProfileBinding {
             home_reference: HOME.into(),
             ..cross_profile
         };
@@ -1063,7 +1078,7 @@ mod tests {
     }
 
     #[test]
-    fn activity_binding_replay_clock_archive_and_transaction_faults_preserve_records() {
+    fn profile_binding_replay_clock_archive_and_transaction_faults_preserve_records() {
         let (_directory, mut storage, binding) = setup();
         let initial = reading(&binding, 1, LATER);
         storage.accept_activity(initial.clone()).unwrap();
@@ -1134,7 +1149,7 @@ mod tests {
         storage.accept_activity(pending_first).unwrap();
         assert!(storage.current_activity(PROFILE).unwrap().is_some());
         assert!(storage.current_activity(OTHER).unwrap().is_some());
-        let rejected = storage.associate_activity_binding(ActivityBindingInput {
+        let rejected = storage.associate_profile_binding(ProfileBindingInput {
             profile_id: PROFILE.into(),
             expected_home_reference: HOME.into(),
             expected_previous_binding_id: None,
@@ -1264,7 +1279,10 @@ mod tests {
         );
         drop(connection);
         let mut upgraded = Storage::open(&path, &KEY).unwrap();
-        assert_eq!(upgraded.metadata().unwrap().schema_version, 2);
+        assert_eq!(
+            upgraded.metadata().unwrap().schema_version,
+            crate::CURRENT_SCHEMA_VERSION
+        );
         assert_eq!(upgraded.metadata().unwrap().theme, crate::Theme::Dark);
         upgraded.create_profile(PROFILE, "Upgraded", HOME).unwrap();
         let binding = associate(&mut upgraded, PROFILE, HOME, BINDING, None);

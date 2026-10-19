@@ -185,7 +185,7 @@ pub(crate) fn with_validated_snapshot<T, E: From<BackupValidationError>>(
 
 pub(crate) fn supported_schema_version(version: u32) -> bool {
     // A later migration must add explicit content/copy support before becoming restorable.
-    matches!(version, 1 | 2) && version <= CURRENT_SCHEMA_VERSION
+    matches!(version, 1..=3) && version <= CURRENT_SCHEMA_VERSION
 }
 
 fn validate_size(size: u64) -> Result<()> {
@@ -324,7 +324,10 @@ pub(crate) fn validate_schema_connection(
     let (accounts, accounts_supported) = validate_accounts(connection, schema)?;
     let (active_profiles, archived_profiles) = validate_profiles(connection, schema)?;
     if manifest_version >= 2 {
-        validate_activity(connection, schema)?;
+        validate_activity(connection, schema, manifest_version)?;
+        if manifest_version >= 3 {
+            crate::quota_validation::validate_quota(connection, schema)?;
+        }
     }
     if !settings_supported || !accounts_supported {
         return Err(BackupValidationError::UnsupportedContent);
@@ -418,6 +421,33 @@ const ACTIVITY_TABLES: &[(&str, &str)] = &[
     ),
 ];
 
+const QUOTA_TABLES: &[(&str, &str)] = &[
+    (
+        "profile_bindings",
+        "profile_id,binding_id,created_at_utc,updated_at_utc",
+    ),
+    (
+        "quota_snapshots",
+        "id,profile_id,binding_id,available_reset_credits,credit_details_state",
+    ),
+    (
+        "quota_limits",
+        "collection_run_id,profile_id,binding_id,limit_id,limit_name,reached_type,monthly_credit_limit,spend_control_reached,primary_used_percent,primary_duration_mins,primary_resets_at_utc,secondary_used_percent,secondary_duration_mins,secondary_resets_at_utc",
+    ),
+    (
+        "credit_snapshots",
+        "collection_run_id,profile_id,binding_id,ordinal,title,status,granted_at_unix,expires_at_unix",
+    ),
+    (
+        "current_quota_readings",
+        "profile_id,binding_id,collection_run_id,created_at_utc,updated_at_utc",
+    ),
+    (
+        "current_quota",
+        "profile_id,limit_id,window_role,binding_id,collection_run_id,used_percent,window_duration_mins,resets_at_utc,created_at_utc,updated_at_utc",
+    ),
+];
+
 /// Copy only validated known fields into a fresh private RAM database of the original version.
 /// The checkpoint/manifest version remains unchanged; callers may then migrate this private copy.
 pub(crate) fn trusted_memory_copy(
@@ -492,6 +522,14 @@ pub(crate) fn copy_activity_records(
     for (table, columns) in ACTIVITY_TABLES {
         copy_fields(source, target, schema, table, columns, columns)?;
     }
+    let version: u32 = source
+        .pragma_query_value(Some(schema), "user_version", |r| r.get(0))
+        .map_err(sql_error)?;
+    if version >= 3 {
+        for (table, columns) in QUOTA_TABLES {
+            copy_fields(source, target, schema, table, columns, columns)?;
+        }
+    }
     Ok(())
 }
 
@@ -527,7 +565,7 @@ fn copy_fields(
     Ok(())
 }
 
-fn validate_activity(connection: &Connection, schema: &str) -> Result<()> {
+fn validate_activity(connection: &Connection, schema: &str, version: u32) -> Result<()> {
     use crate::activity::{activity_date, activity_decimal, activity_utc_timestamp};
     let valid_text =
         |s: &str, maximum: usize| !s.trim().is_empty() && s.len() <= maximum && safe_text(s);
@@ -561,14 +599,20 @@ fn validate_activity(connection: &Connection, schema: &str) -> Result<()> {
             require(activity_utc_timestamp(text(row, col)?))?;
         }
         require(text(row, 3)? <= text(row, 5)? && text(row, 5)? <= text(row, 4)?)?;
-        require(text(row, 6)? == "account/usage/read" && valid_text(text(row, 7)?, 64))?;
+        let activity = text(row, 6)? == "account/usage/read"
+            && text(row, 9)? == crate::activity::ACTIVITY_SOURCE_SCOPE
+            && text(row, 11)? == "tokens";
+        let quota = version >= 3
+            && text(row, 6)? == crate::QUOTA_SOURCE_METHOD
+            && text(row, 9)? == crate::QUOTA_SOURCE_SCOPE
+            && text(row, 11)? == "percent";
         require(
-            matches!(text(row, 8)?, "official_artifact" | "test_fixture")
-                && text(row, 9)? == crate::activity::ACTIVITY_SOURCE_SCOPE,
+            (activity || quota)
+                && valid_text(text(row, 7)?, 64)
+                && matches!(text(row, 8)?, "official_artifact" | "test_fixture"),
         )?;
         require(
             optional_text(row, 10)?.is_none()
-                && text(row, 11)? == "tokens"
                 && text(row, 12)? == "unknown"
                 && text(row, 13)? == "provisional"
                 && optional_text(row, 14)?.is_none()
@@ -641,21 +685,22 @@ fn validate_activity(connection: &Connection, schema: &str) -> Result<()> {
     // Foreign keys bind profile/run/binding IDs; these checks bind their accepted value/time semantics.
     let invalid: bool = connection.query_row(&format!("SELECT
         EXISTS(SELECT 1 FROM {schema}.activity_day_history GROUP BY collection_run_id HAVING count(*)>4096)
-        OR EXISTS(SELECT 1 FROM {schema}.collection_runs r LEFT JOIN {schema}.activity_summaries s ON s.collection_run_id=r.id WHERE s.id IS NULL)
+        OR EXISTS(SELECT 1 FROM {schema}.collection_runs r LEFT JOIN {schema}.activity_summaries s ON s.collection_run_id=r.id WHERE r.source_method='account/usage/read' AND s.id IS NULL)
+        OR EXISTS(SELECT 1 FROM {schema}.activity_summaries s JOIN {schema}.collection_runs r ON r.id=s.collection_run_id WHERE r.source_method!='account/usage/read')
         OR EXISTS(SELECT 1 FROM {schema}.activity_summaries s WHERE (s.daily_state='returned') != EXISTS(SELECT 1 FROM {schema}.activity_day_history h WHERE h.collection_run_id=s.collection_run_id))
         OR EXISTS(SELECT 1 FROM {schema}.activity_day_history h JOIN {schema}.collection_runs r ON r.id=h.collection_run_id WHERE h.observed_at_utc!=r.observed_at_utc)
         OR EXISTS(SELECT 1 FROM {schema}.current_activity_days d LEFT JOIN {schema}.current_activity c ON c.profile_id=d.profile_id LEFT JOIN {schema}.activity_day_history h ON h.collection_run_id=d.collection_run_id AND h.provider_date=d.provider_date AND h.source_scope=d.source_scope WHERE c.binding_id IS NULL OR c.binding_id!=d.binding_id OR h.id IS NULL OR d.tokens!=h.accepted_tokens OR d.observed_at_utc!=h.observed_at_utc)"), [], |r|r.get(0)).map_err(sql_error)?;
     require(!invalid)
 }
 
-fn text<'row>(row: &'row Row<'_>, column: usize) -> Result<&'row str> {
+pub(crate) fn text<'row>(row: &'row Row<'_>, column: usize) -> Result<&'row str> {
     row.get_ref(column)
         .map_err(sql_error)?
         .as_str()
         .map_err(|_| BackupValidationError::InvalidDatabase)
 }
 
-fn optional_text<'row>(row: &'row Row<'_>, column: usize) -> Result<Option<&'row str>> {
+pub(crate) fn optional_text<'row>(row: &'row Row<'_>, column: usize) -> Result<Option<&'row str>> {
     let value = row.get_ref(column).map_err(sql_error)?;
     if value == rusqlite::types::ValueRef::Null {
         Ok(None)
@@ -667,7 +712,7 @@ fn optional_text<'row>(row: &'row Row<'_>, column: usize) -> Result<Option<&'row
     }
 }
 
-fn require(condition: bool) -> Result<()> {
+pub(crate) fn require(condition: bool) -> Result<()> {
     if condition {
         Ok(())
     } else {
@@ -830,7 +875,7 @@ fn utc_timestamp(value: &str) -> bool {
     year > 0 && day > 0 && day <= days && hour < 24 && minute < 60 && second < 60
 }
 
-fn sql_error(error: rusqlite::Error) -> BackupValidationError {
+pub(crate) fn sql_error(error: rusqlite::Error) -> BackupValidationError {
     match error {
         rusqlite::Error::SqliteFailure(error, _)
             if matches!(
@@ -847,18 +892,18 @@ fn sql_error(error: rusqlite::Error) -> BackupValidationError {
 #[cfg(test)]
 pub(crate) fn activity_fixture(storage: &mut crate::Storage, profile: &str, home: &str, seed: u32) {
     use crate::{
-        ActivityBindingInput, ActivityDayValue, ActivityIdentityEvidence, ActivityReading,
-        ActivitySourceKind, ActivitySummaryValues,
+        ActivityDayValue, ActivityReading, ActivitySourceKind, ActivitySummaryValues,
+        ProfileBindingInput, ProfileIdentityEvidence,
     };
     let id = |n| format!("{n:08x}-0000-4000-8000-000000000000");
-    let evidence = ActivityIdentityEvidence {
+    let evidence = ProfileIdentityEvidence {
         email: "synthetic-history@example.invalid".into(),
         plan: Some("synthetic".into()),
     };
     let mut previous = None;
     for generation in 0..2 {
         let binding = storage
-            .associate_activity_binding(ActivityBindingInput {
+            .associate_profile_binding(ProfileBindingInput {
                 profile_id: profile.into(),
                 expected_home_reference: home.into(),
                 expected_previous_binding_id: previous,
@@ -911,6 +956,12 @@ pub(crate) fn activity_records(connection: &Connection) -> Vec<Vec<Vec<rusqlite:
         "current_activity",
         "current_activity_days",
         "activity_day_history",
+        "profile_bindings",
+        "quota_snapshots",
+        "quota_limits",
+        "credit_snapshots",
+        "current_quota_readings",
+        "current_quota",
     ]
     .into_iter()
     .map(|table| {
