@@ -51,3 +51,11 @@ Initial failures remain retained. A long temporary path prevented private D-Bus 
 OS alert delivery, delivered-event deduplication, monitoring, real OAuth, and other-platform qualification remain incomplete.
 
 See the [reset confirmation verification record](../evidence/native-quota-reset-confirmation/verification.json). Saved views use one Rust-owned status field. Generation identifiers stay in Rust.
+
+## Confirmation button contrast
+
+The global control color rule overrode coss foreground utilities. Enabled confirmation text measured 1.06:1 contrast. Removing that declaration restored the component colors without adding styles or dependencies. The full renderer check passed: 34 contracts and 90 Chromium/WebKit checks, including enabled confirmation contrast in both themes. Rust passed 184 workspace checks, formatting, and strict Clippy.
+
+The rebuilt native application passed quota persistence, keyboard consent, encrypted restore and undo. Native backup-content checks and default fixture refusal also passed. All eighteen screenshots were reviewed. The consent button now uses its coss foreground color. This is a focused contrast correction, not full accessibility qualification. SQLCipher 4 with WAL and the normative SRS remain unchanged.
+
+See the [native confirmation receipt](../evidence/native-button-foreground/quota/result.json) and [enabled confirmation capture](../evidence/native-button-foreground/quota/quota-association-consent-enabled-light-desktop.png). Source: `d92e88e`.

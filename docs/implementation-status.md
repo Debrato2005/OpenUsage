@@ -1,6 +1,6 @@
 # Implementation status
 
-Updated: October 20, 2026. The mission remains ongoing. Current milestone: conservative reset confirmation and persistent generations passed native verification, including encrypted restore and undo. SQLCipher 4 with WAL remains mandatory. Next: improve disabled action legibility, then continue monitoring and alerts.
+Updated: October 20, 2026. The mission remains ongoing. Current milestone: coss confirmation text is readable, with native keyboard consent, encrypted restore, undo, and backup controls verified. SQLCipher 4 with WAL remains mandatory. Next: enforce the per-profile manual refresh cooldown, then continue monitoring and alerts.
 
 ## Implemented and executed
 
