@@ -26,6 +26,7 @@ struct Fixture {
     workspace: Workspace,
     executable: PathBuf,
     profiles: Vec<String>,
+    vault: MemoryVault,
 }
 impl Fixture {
     fn new(mode: &str) -> Self {
@@ -38,7 +39,8 @@ impl Fixture {
         .unwrap();
         fs::set_permissions(&executable, fs::Permissions::from_mode(0o700)).unwrap();
         let mut workspace = Workspace::new(temporary.path().join("workspace")).unwrap();
-        workspace.setup(Ok(&MemoryVault::default()), None).unwrap();
+        let vault = MemoryVault::default();
+        workspace.setup(Ok(&vault), None).unwrap();
         for number in 1..=3 {
             workspace
                 .create_profile(&format!("Synthetic quota profile {number}"))
@@ -56,6 +58,7 @@ impl Fixture {
             workspace,
             executable,
             profiles,
+            vault,
         };
         fixture.mode(mode);
         for id in &fixture.profiles {
@@ -155,7 +158,7 @@ fn gone(pid: libc::pid_t) {
 }
 
 #[test]
-fn quota_read_requires_current_approval_and_returns_only_provisional_diagnostics_without_writes() {
+fn quota_read_commits_exact_provisional_values_and_loads_without_approval() {
     let mut fixture = Fixture::new("multi");
     let id = fixture.profiles[0].clone();
     let approval = fixture.approve();
@@ -196,7 +199,7 @@ fn quota_read_requires_current_approval_and_returns_only_provisional_diagnostics
     assert_eq!(json["identityConfidence"], "provisional");
     assert!(json["verifiedIdentityKey"].is_null());
     assert_eq!(json["monitoring"], "stopped");
-    assert_eq!(json["accepted"], false);
+    assert_eq!(json["accepted"], true);
     assert_eq!(json["availableResetCredits"], "3");
     assert!(json["resetCreditDetails"].is_null());
     assert!(json["observedAtUtc"].as_str().unwrap().ends_with('Z'));
@@ -249,7 +252,7 @@ fn quota_read_requires_current_approval_and_returns_only_provisional_diagnostics
             assert_eq!(outcome["limits"][0]["primary"]["label"], "1440 minutes");
         }
     }
-    assert_eq!(
+    assert_ne!(
         fixture
             .workspace
             .storage
@@ -260,8 +263,18 @@ fn quota_read_requires_current_approval_and_returns_only_provisional_diagnostics
             .revision,
         revision
     );
-    assert_eq!(fixture.database_hashes(), before);
-    assert!(before.iter().take(2).all(Option::is_some));
+    assert_ne!(fixture.database_hashes(), before);
+    let saved =
+        serde_json::to_value(fixture.workspace.load_profile_quota(&id).unwrap().unwrap()).unwrap();
+    assert_eq!(saved["accepted"], true);
+    assert_eq!(saved["freshness"], "fresh");
+    assert_eq!(saved["limits"][0]["primary"]["label"], "1440 minutes");
+    assert_eq!(saved["bindingId"], json["bindingId"]);
+    assert_ne!(saved["collectionRunId"], json["collectionRunId"]);
+    fixture.workspace.provider.quiesce().unwrap();
+    assert!(fixture.workspace.load_profile_quota(&id).unwrap().is_some());
+    fixture.workspace.set_profile_archived(&id, true).unwrap();
+    assert!(fixture.workspace.load_profile_quota(&id).unwrap().is_some());
     assert_eq!(
         fs::read(fixture.home(&id).join("preserved-marker")).unwrap(),
         b"preserve"
@@ -453,5 +466,232 @@ fn quota_publication_refuses_source_home_profile_changes_and_redacts_protocol_fa
     assert_eq!(
         fs::read(home.join("preserved-marker")).unwrap(),
         b"preserve"
+    );
+}
+
+#[test]
+fn saved_quota_failures_keep_exact_values_and_request_scoped_freshness_after_restart() {
+    let mut fixture = Fixture::new("multi");
+    let id = fixture.profiles[0].clone();
+    let other = fixture.profiles[1].clone();
+    let approval = fixture.approve();
+    let completed = fixture.read(&id, &approval).unwrap();
+    fixture
+        .workspace
+        .finish_profile_quota_read(completed)
+        .unwrap();
+    let original = fixture
+        .workspace
+        .storage
+        .as_ref()
+        .unwrap()
+        .current_quota(&id)
+        .unwrap()
+        .unwrap();
+    assert!(
+        fixture
+            .workspace
+            .load_profile_quota(&other)
+            .unwrap()
+            .is_none()
+    );
+    fixture.mode("invalid");
+    assert_eq!(
+        fixture.read(&id, &approval).err(),
+        Some(CommandError::ProviderQuotaFailed)
+    );
+    let failed = fixture.workspace.quota_requests[&id].clone();
+    fixture.workspace.note_quota_failure(&id, &failed);
+    assert_eq!(
+        fixture
+            .workspace
+            .storage
+            .as_ref()
+            .unwrap()
+            .current_quota(&id)
+            .unwrap(),
+        Some(original.clone())
+    );
+    assert_eq!(
+        serde_json::to_value(fixture.workspace.load_profile_quota(&id).unwrap()).unwrap()["freshness"],
+        "stale"
+    );
+    fixture.mode("legacy");
+    let completed = fixture.read(&id, &approval).unwrap();
+    fixture
+        .workspace
+        .finish_profile_quota_read(completed)
+        .unwrap();
+    fixture.workspace.note_quota_failure(&id, &failed);
+    assert_eq!(
+        serde_json::to_value(fixture.workspace.load_profile_quota(&id).unwrap()).unwrap()["freshness"],
+        "fresh"
+    );
+    let current = fixture
+        .workspace
+        .storage
+        .as_ref()
+        .unwrap()
+        .current_quota(&id)
+        .unwrap();
+    let directory = fixture.workspace.directory.clone();
+    drop(fixture.workspace);
+    let mut workspace = Workspace::new(directory).unwrap();
+    assert_eq!(
+        workspace.bootstrap(Ok(&fixture.vault)).storage,
+        StorageState::Ready
+    );
+    assert_eq!(
+        workspace
+            .storage
+            .as_ref()
+            .unwrap()
+            .current_quota(&id)
+            .unwrap(),
+        current
+    );
+    assert_eq!(
+        serde_json::to_value(workspace.load_profile_quota(&id).unwrap()).unwrap()["freshness"],
+        "unknown"
+    );
+}
+
+#[test]
+fn quota_reassociation_reviews_are_read_only_one_use_and_bound_to_quota() {
+    let mut fixture = Fixture::new("multi");
+    let id = fixture.profiles[0].clone();
+    let approval = fixture.approve();
+    let completed = fixture.read(&id, &approval).unwrap();
+    fixture
+        .workspace
+        .finish_profile_quota_read(completed)
+        .unwrap();
+    let snapshot = fixture.workspace.backup_snapshot().unwrap();
+    let mappings = fixture
+        .profiles
+        .iter()
+        .map(|id| {
+            let home = provider::new_id().unwrap();
+            prepare_directory(&fixture.workspace.directory.join("profiles").join(&home)).unwrap();
+            openusage_storage::RestoreHomeMapping {
+                profile_id: id.clone(),
+                managed_home_reference: home,
+            }
+        })
+        .collect::<Vec<_>>();
+    fixture.workspace.provider.quiesce().unwrap();
+    let storage = fixture.workspace.storage.as_mut().unwrap();
+    let revision = storage.restore_state().unwrap().revision;
+    storage
+        .replace_records_from_backup(
+            &snapshot.bytes,
+            snapshot.schema_version,
+            &revision,
+            &mappings,
+        )
+        .unwrap();
+    let before = storage.current_quota(&id).unwrap().unwrap();
+    let approval = fixture.approve();
+    let completed = fixture.read(&id, &approval).unwrap();
+    assert_eq!(
+        fixture.workspace.finish_profile_quota_read(completed).err(),
+        Some(CommandError::ProviderQuotaAssociationChanged)
+    );
+    let observations = fixture
+        .temporary
+        .path()
+        .join("synthetic-quota-observations.jsonl");
+    let executions = fs::read(&observations).unwrap();
+    let hashes = fixture.database_hashes();
+    let review = fixture
+        .workspace
+        .review_profile_quota_association(&id, &approval)
+        .unwrap();
+    let token = review.review_id.clone();
+    let json = serde_json::to_value(review).unwrap();
+    assert_eq!(json.as_object().unwrap().len(), 8);
+    assert_eq!(json["homeChanged"], true);
+    assert_eq!(json["previous"], json["current"]);
+    assert_eq!(
+        serde_json::to_value(
+            fixture
+                .workspace
+                .review_profile_quota_association(&id, &approval)
+                .unwrap()
+        )
+        .unwrap(),
+        json
+    );
+    assert_eq!(
+        fixture
+            .workspace
+            .review_profile_activity_association(&id, &approval)
+            .err(),
+        Some(CommandError::ProviderActivityReviewUnavailable)
+    );
+    assert_eq!(
+        fixture
+            .workspace
+            .begin_profile_quota_reassociation(&id, &approval, &token, false)
+            .err(),
+        Some(CommandError::InvalidArguments)
+    );
+    assert_eq!(
+        fixture
+            .workspace
+            .begin_profile_quota_reassociation(&id, &provider::new_id().unwrap(), &token, true)
+            .err(),
+        Some(CommandError::ProviderQuotaReviewUnavailable)
+    );
+    assert_eq!(fs::read(&observations).unwrap(), executions);
+    assert_eq!(fixture.database_hashes(), hashes);
+    let receipt = fixture
+        .workspace
+        .begin_profile_quota_reassociation(&id, &approval, &token, true)
+        .unwrap();
+    assert_eq!(
+        fixture
+            .workspace
+            .review_profile_quota_association(&id, &approval)
+            .err(),
+        Some(CommandError::ProviderQuotaReviewUnavailable)
+    );
+    let completed = fixture
+        .workspace
+        .complete_profile_quota_read(&id, &receipt.request_id)
+        .unwrap()
+        .wait()
+        .unwrap();
+    let accepted = fixture
+        .workspace
+        .finish_profile_quota_read(completed)
+        .unwrap();
+    assert_ne!(accepted.binding_id, before.binding.binding_id);
+    assert_eq!(
+        fixture
+            .workspace
+            .storage
+            .as_ref()
+            .unwrap()
+            .current_quota(&id)
+            .unwrap()
+            .unwrap()
+            .binding
+            .home_reference,
+        mappings
+            .iter()
+            .find(|m| m.profile_id == id)
+            .unwrap()
+            .managed_home_reference
+    );
+    assert!(
+        fixture
+            .workspace
+            .storage
+            .as_ref()
+            .unwrap()
+            .current_activity(&id)
+            .unwrap()
+            .is_none()
     );
 }

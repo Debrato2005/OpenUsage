@@ -36,25 +36,25 @@ pub(crate) struct ActivityOutcome {
 
 /// Rust-only authorization and compare-and-swap state captured before the provider worker starts.
 #[derive(Clone)]
-pub(crate) struct ActivityAssociation {
+pub(crate) struct ReadAssociation {
     pub expected_binding: Option<String>,
-    pub review: Option<ActivityReviewFence>,
+    pub review: Option<ReadReviewFence>,
 }
 
 /// Retained only in Rust memory; it authorizes exactly the account description the user reviewed.
 #[derive(Clone)]
-pub(crate) struct ActivityReviewFence {
+pub(crate) struct ReadReviewFence {
     pub binding: ProfileBinding,
-    pub current: openusage_storage::ActivityIdentityEvidence,
+    pub current: openusage_storage::ProfileIdentityEvidence,
     pub created: std::time::Instant,
 }
 
 pub(crate) const ACTIVITY_REVIEW_LIFETIME: std::time::Duration =
     std::time::Duration::from_secs(300);
 
-fn require_review(
+pub(super) fn require_review(
     state: &mut ProviderState,
-    review: &ActivityReviewFence,
+    review: &ReadReviewFence,
 ) -> Result<(), CommandError> {
     require_open(state)?;
     let approved = state
@@ -75,7 +75,7 @@ fn require_review(
 pub(super) struct Entry {
     pub(super) binding: ProfileBinding,
     handle: Option<ActivityHandle>,
-    association: ActivityAssociation,
+    association: ReadAssociation,
 }
 
 pub(crate) struct CompletingActivity {
@@ -83,7 +83,7 @@ pub(crate) struct CompletingActivity {
     request_id: String,
     binding: ProfileBinding,
     handle: ActivityHandle,
-    association: ActivityAssociation,
+    association: ReadAssociation,
 }
 
 pub(crate) struct CompletedActivity {
@@ -91,15 +91,12 @@ pub(crate) struct CompletedActivity {
     pub request_id: String,
     pub binding: ProfileBinding,
     probe: ActivityProbe,
-    association: ActivityAssociation,
+    association: ReadAssociation,
 }
 
 impl ProviderCoordinator {
     /// Validate a cached review without starting or contacting a provider process.
-    pub fn validate_activity_review(
-        &self,
-        review: &ActivityReviewFence,
-    ) -> Result<(), CommandError> {
+    pub fn validate_activity_review(&self, review: &ReadReviewFence) -> Result<(), CommandError> {
         let mut state = self
             .0
             .lock()
@@ -115,7 +112,7 @@ impl ProviderCoordinator {
         home_reference: &str,
         revision: openusage_storage::StorageRevision,
         path: &Path,
-        association: ActivityAssociation,
+        association: ReadAssociation,
     ) -> Result<ActivityReceipt, CommandError> {
         validate_ids(profile_id, approval_id)?;
         let held_home = Arc::new(HeldHome::open(path)?);
@@ -287,7 +284,7 @@ impl CompletedActivity {
             &ProfileBinding,
             &ActivityProbe,
             &str,
-            &ActivityAssociation,
+            &ReadAssociation,
         ) -> Result<openusage_storage::ActivityCommit, CommandError>,
     ) -> Result<ActivityOutcome, CommandError> {
         let mut state = self

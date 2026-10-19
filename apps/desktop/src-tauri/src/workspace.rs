@@ -13,7 +13,9 @@ use std::{
 use zeroize::Zeroizing;
 
 mod activity_storage;
-pub(crate) use activity_storage::{ActivityAssociationReview, SavedProfileActivity};
+mod quota_storage;
+pub(crate) use activity_storage::{ReadAssociationReview, SavedProfileActivity};
+pub(crate) use quota_storage::SavedProfileQuota;
 
 const DATABASE_FILE: &str = "openusage.db";
 const WRAPPED_KEY_FILE: &str = "database-key.v1";
@@ -113,6 +115,10 @@ pub enum CommandError {
     ProviderQuotaCancelled,
     ProviderQuotaTimedOut,
     ProviderQuotaFailed,
+    ProviderQuotaSaveFailed,
+    ProviderQuotaLoadFailed,
+    ProviderQuotaAssociationChanged,
+    ProviderQuotaReviewUnavailable,
     ProviderAccountChanged,
     ProviderAccountIdentityUnavailable,
     ProviderIncompatibleQuotaScope,
@@ -188,8 +194,10 @@ pub struct Workspace {
     restore_preview: RestoreCache,
     provider: ProviderCoordinator,
     activity_sessions: std::collections::BTreeMap<String, (String, Option<std::time::Instant>)>,
+    quota_sessions: std::collections::BTreeMap<String, (String, Option<std::time::Instant>)>,
+    quota_requests: std::collections::BTreeMap<String, String>,
     activity_requests: std::collections::BTreeMap<String, String>,
-    activity_reviews: std::collections::BTreeMap<String, activity_storage::CachedActivityReview>,
+    activity_reviews: std::collections::BTreeMap<String, activity_storage::CachedAssociationReview>,
 }
 
 impl Workspace {
@@ -227,6 +235,8 @@ impl Workspace {
             provider,
             activity_sessions: Default::default(),
             activity_requests: Default::default(),
+            quota_sessions: Default::default(),
+            quota_requests: Default::default(),
             activity_reviews: Default::default(),
         })
     }
@@ -593,6 +603,8 @@ impl Workspace {
         self.activity_reviews.clear();
         let applied = restore::apply(storage, &self.directory, prepared)?;
         self.activity_sessions.clear();
+        self.quota_sessions.clear();
+        self.quota_requests.clear();
         self.activity_requests.clear();
         self.activity_reviews.clear();
         Ok(applied)
@@ -806,10 +818,75 @@ impl Workspace {
         id: &str,
         approval_id: &str,
     ) -> Result<provider::QuotaReceipt, CommandError> {
+        let receipt = self.begin_profile_quota(id, approval_id, None)?;
+        self.activity_reviews.remove(id);
+        Ok(receipt)
+    }
+
+    pub fn review_profile_quota_association(
+        &mut self,
+        id: &str,
+        approval_id: &str,
+    ) -> Result<ReadAssociationReview, CommandError> {
+        self.review_profile_association(id, approval_id, activity_storage::ReadKind::Quota)
+    }
+
+    pub fn begin_profile_quota_reassociation(
+        &mut self,
+        id: &str,
+        approval_id: &str,
+        review_id: &str,
+        confirmed: bool,
+    ) -> Result<provider::QuotaReceipt, CommandError> {
+        if !confirmed {
+            return Err(CommandError::InvalidArguments);
+        }
+        restore::validate_preview_id(review_id)?;
+        let review =
+            self.valid_profile_review(id, approval_id, activity_storage::ReadKind::Quota)?;
+        if review.review_id != review_id {
+            return Err(CommandError::ProviderQuotaReviewUnavailable);
+        }
+        let receipt = self.begin_profile_quota(id, approval_id, Some(review))?;
+        self.activity_reviews.remove(id);
+        Ok(receipt)
+    }
+
+    fn begin_profile_quota(
+        &mut self,
+        id: &str,
+        approval_id: &str,
+        review: Option<activity_storage::CachedAssociationReview>,
+    ) -> Result<provider::QuotaReceipt, CommandError> {
         restore::validate_preview_id(approval_id)?;
         let (home, revision, path) = self.selected_provider_home(id)?;
-        self.provider
-            .begin_quota(id, approval_id, &home, revision, &path)
+        let expected_binding = self
+            .storage
+            .as_ref()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .profile_binding(id)
+            .map_err(|_| CommandError::ProviderQuotaLoadFailed)?
+            .map(|b| b.binding_id);
+        if review
+            .as_ref()
+            .is_some_and(|r| Some(&r.previous_binding.binding_id) != expected_binding.as_ref())
+        {
+            return Err(CommandError::ProviderQuotaReviewUnavailable);
+        }
+        let receipt = self.provider.begin_quota(
+            id,
+            approval_id,
+            &home,
+            revision,
+            &path,
+            provider::ReadAssociation {
+                expected_binding,
+                review: review.map(|r| r.fence),
+            },
+        )?;
+        self.quota_requests
+            .insert(id.into(), receipt.request_id.clone());
+        Ok(receipt)
     }
 
     pub fn complete_profile_quota_read(
@@ -819,23 +896,6 @@ impl Workspace {
     ) -> Result<provider::CompletingQuota, CommandError> {
         self.storage.as_ref().ok_or(CommandError::WorkspaceLocked)?;
         self.provider.complete_quota(id, request_id)
-    }
-
-    pub fn finish_profile_quota_read(
-        &mut self,
-        completed: provider::CompletedQuota,
-    ) -> Result<provider::QuotaOutcome, CommandError> {
-        let binding = &completed.binding;
-        if let Err(error) = self.require_provider_binding(
-            &binding.profile_id,
-            &binding.home_reference,
-            &binding.revision,
-            CommandError::ProviderQuotaCancelled,
-        ) {
-            completed.abort();
-            return Err(error);
-        }
-        completed.publish()
     }
 
     pub fn begin_profile_activity_read(
@@ -873,7 +933,7 @@ impl Workspace {
         &mut self,
         id: &str,
         approval_id: &str,
-        review: Option<activity_storage::CachedActivityReview>,
+        review: Option<activity_storage::CachedAssociationReview>,
     ) -> Result<provider::ActivityReceipt, CommandError> {
         restore::validate_preview_id(approval_id)?;
         let (home, revision, path) = self.selected_provider_home(id)?;
@@ -881,7 +941,7 @@ impl Workspace {
             .storage
             .as_ref()
             .ok_or(CommandError::WorkspaceLocked)?
-            .activity_binding(id)
+            .profile_binding(id)
             .map_err(|_| CommandError::ProviderActivityLoadFailed)?
             .map(|binding| binding.binding_id);
         if review.as_ref().is_some_and(|review| {
@@ -895,7 +955,7 @@ impl Workspace {
             &home,
             revision,
             &path,
-            provider::ActivityAssociation {
+            provider::ReadAssociation {
                 expected_binding,
                 review: review.map(|review| review.fence),
             },

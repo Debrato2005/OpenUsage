@@ -3,8 +3,8 @@
 use super::*;
 use openusage_codex::{DecimalCount, session::ActivityProbe};
 use openusage_storage::{
-    ActivityBindingInput, ActivityDailyState, ActivityDayValue, ActivityError,
-    ActivityIdentityEvidence, ActivityReading, ActivitySourceKind, ActivitySummaryValues,
+    ActivityDailyState, ActivityDayValue, ActivityError, ActivityReading, ActivitySourceKind,
+    ActivitySummaryValues, ProfileBindingInput, ProfileIdentityEvidence,
 };
 use std::time::{Duration, Instant, SystemTime};
 
@@ -12,37 +12,51 @@ const FRESH_FOR: Duration = Duration::from_secs(30 * 60);
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct ActivityAssociationReview {
+pub(crate) struct ReadAssociationReview {
     pub review_id: String,
     profile_id: String,
     approval_id: String,
     observed_at_utc: String,
-    previous: ActivityAssociationHint,
-    current: ActivityAssociationHint,
+    previous: ReadAssociationHint,
+    current: ReadAssociationHint,
     home_changed: bool,
     identity_confidence: &'static str,
 }
 #[derive(Serialize)]
-struct ActivityAssociationHint {
+struct ReadAssociationHint {
     email: String,
     plan: Option<String>,
 }
-impl From<&ActivityIdentityEvidence> for ActivityAssociationHint {
-    fn from(evidence: &ActivityIdentityEvidence) -> Self {
+impl From<&ProfileIdentityEvidence> for ReadAssociationHint {
+    fn from(evidence: &ProfileIdentityEvidence) -> Self {
         Self {
             email: evidence.email.clone(),
             plan: evidence.plan.clone(),
         }
     }
 }
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum ReadKind {
+    Activity,
+    Quota,
+}
+impl ReadKind {
+    pub fn unavailable(self) -> CommandError {
+        match self {
+            Self::Activity => CommandError::ProviderActivityReviewUnavailable,
+            Self::Quota => CommandError::ProviderQuotaReviewUnavailable,
+        }
+    }
+}
 #[derive(Clone)]
-pub(super) struct CachedActivityReview {
+pub(super) struct CachedAssociationReview {
     pub review_id: String,
-    approval_id: String,
-    pub previous_binding: openusage_storage::ActivityBinding,
-    pub previous: ActivityIdentityEvidence,
+    pub kind: ReadKind,
+    pub approval_id: String,
+    pub previous_binding: openusage_storage::ProfileBinding,
+    pub previous: ProfileIdentityEvidence,
     pub observed_at_utc: String,
-    pub fence: provider::ActivityReviewFence,
+    pub fence: provider::ReadReviewFence,
 }
 
 #[derive(Serialize)]
@@ -96,7 +110,7 @@ struct SavedActivityDay {
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
-enum ActivityFreshness {
+pub(super) enum ActivityFreshness {
     Unknown,
     Fresh,
     Stale,
@@ -108,9 +122,18 @@ impl Workspace {
         &mut self,
         id: &str,
         approval_id: &str,
-    ) -> Result<ActivityAssociationReview, CommandError> {
-        let review = self.valid_activity_review(id, approval_id)?;
-        Ok(ActivityAssociationReview {
+    ) -> Result<ReadAssociationReview, CommandError> {
+        self.review_profile_association(id, approval_id, ReadKind::Activity)
+    }
+
+    pub(super) fn review_profile_association(
+        &mut self,
+        id: &str,
+        approval_id: &str,
+        kind: ReadKind,
+    ) -> Result<ReadAssociationReview, CommandError> {
+        let review = self.valid_profile_review(id, approval_id, kind)?;
+        Ok(ReadAssociationReview {
             review_id: review.review_id,
             profile_id: id.into(),
             approval_id: approval_id.into(),
@@ -127,7 +150,16 @@ impl Workspace {
         &mut self,
         id: &str,
         approval_id: &str,
-    ) -> Result<CachedActivityReview, CommandError> {
+    ) -> Result<CachedAssociationReview, CommandError> {
+        self.valid_profile_review(id, approval_id, ReadKind::Activity)
+    }
+
+    pub(super) fn valid_profile_review(
+        &mut self,
+        id: &str,
+        approval_id: &str,
+        kind: ReadKind,
+    ) -> Result<CachedAssociationReview, CommandError> {
         restore::validate_preview_id(id)?;
         restore::validate_preview_id(approval_id)?;
         self.storage.as_ref().ok_or(CommandError::WorkspaceLocked)?;
@@ -135,29 +167,30 @@ impl Workspace {
             .activity_reviews
             .get(id)
             .cloned()
-            .ok_or(CommandError::ProviderActivityReviewUnavailable)?;
+            .ok_or(kind.unavailable())?;
         let (home, _, _) = self
             .selected_provider_home(id)
-            .map_err(|_| CommandError::ProviderActivityReviewUnavailable)?;
+            .map_err(|_| kind.unavailable())?;
         let storage = self.storage.as_ref().ok_or(CommandError::WorkspaceLocked)?;
-        if review.approval_id != approval_id
+        if review.kind != kind
+            || review.approval_id != approval_id
             || review.fence.created.elapsed() >= provider::ACTIVITY_REVIEW_LIFETIME
             || home != review.fence.binding.home_reference
             || storage
-                .activity_binding(id)
-                .map_err(|_| CommandError::ProviderActivityReviewUnavailable)?
+                .profile_binding(id)
+                .map_err(|_| kind.unavailable())?
                 .as_ref()
                 != Some(&review.previous_binding)
             || storage
-                .activity_binding_evidence(&review.previous_binding)
-                .map_err(|_| CommandError::ProviderActivityReviewUnavailable)?
+                .profile_binding_evidence(&review.previous_binding)
+                .map_err(|_| kind.unavailable())?
                 != review.previous
         {
-            return Err(CommandError::ProviderActivityReviewUnavailable);
+            return Err(kind.unavailable());
         }
         self.provider
             .validate_activity_review(&review.fence)
-            .map_err(|_| CommandError::ProviderActivityReviewUnavailable)?;
+            .map_err(|_| kind.unavailable())?;
         Ok(review)
     }
 
@@ -251,8 +284,19 @@ impl Workspace {
         match &outcome {
             Ok(value) => {
                 self.activity_reviews.remove(&id);
-                self.activity_sessions
-                    .insert(id, (value.collection_run_id.clone(), Some(Instant::now())));
+                self.activity_sessions.insert(
+                    id.clone(),
+                    (value.collection_run_id.clone(), Some(Instant::now())),
+                );
+                if self
+                    .storage
+                    .as_ref()
+                    .and_then(|s| s.current_quota(&id).ok())
+                    .flatten()
+                    .is_none()
+                {
+                    self.quota_sessions.remove(&id);
+                }
                 // A preview prepared before this durable write must be prepared again.
                 self.restore_preview.clear();
             }
@@ -282,7 +326,7 @@ impl Workspace {
         binding: &provider::ProfileBinding,
         probe: &ActivityProbe,
         request_id: &str,
-        association: &provider::ActivityAssociation,
+        association: &provider::ReadAssociation,
     ) -> Result<openusage_storage::ActivityCommit, CommandError> {
         let source_kind = match binding.source_kind {
             provider::ExecutableSourceKind::OfficialArtifact => {
@@ -294,7 +338,7 @@ impl Workspace {
                 return Err(CommandError::ProviderSourceUnverified);
             }
         };
-        let evidence = ActivityIdentityEvidence {
+        let evidence = ProfileIdentityEvidence {
             email: probe
                 .account_evidence
                 .email
@@ -306,7 +350,7 @@ impl Workspace {
             .ok_or(CommandError::ProviderActivitySaveFailed)?;
         let storage = self.storage.as_mut().ok_or(CommandError::WorkspaceLocked)?;
         let current = storage
-            .activity_binding(&binding.profile_id)
+            .profile_binding(&binding.profile_id)
             .map_err(save_error)?;
         if current.as_ref().map(|b| b.binding_id.as_str())
             != association.expected_binding.as_deref()
@@ -319,18 +363,19 @@ impl Workspace {
             }
         } else if let Some(existing) = &current {
             let previous = storage
-                .activity_binding_evidence(existing)
+                .profile_binding_evidence(existing)
                 .map_err(save_error)?;
             if existing.home_reference != binding.home_reference || previous != evidence {
                 self.activity_reviews.insert(
                     binding.profile_id.clone(),
-                    CachedActivityReview {
+                    CachedAssociationReview {
                         review_id: provider::new_id()?,
+                        kind: ReadKind::Activity,
                         approval_id: binding.approval_id.clone(),
                         previous_binding: existing.clone(),
                         previous,
                         observed_at_utc: observed_at_utc.clone(),
-                        fence: provider::ActivityReviewFence {
+                        fence: provider::ReadReviewFence {
                             binding: binding.clone(),
                             current: evidence,
                             created: Instant::now(),
@@ -353,7 +398,7 @@ impl Workspace {
             }
             existing.binding_id.clone()
         };
-        let new_association = create_binding.then(|| ActivityBindingInput {
+        let new_association = create_binding.then(|| ProfileBindingInput {
             profile_id: binding.profile_id.clone(),
             expected_home_reference: binding.home_reference.clone(),
             expected_previous_binding_id: association.expected_binding.clone(),
@@ -361,7 +406,7 @@ impl Workspace {
             evidence: evidence.clone(),
             observed_at_utc: observed_at_utc.clone(),
         });
-        let local_binding = openusage_storage::ActivityBinding {
+        let local_binding = openusage_storage::ProfileBinding {
             profile_id: binding.profile_id.clone(),
             home_reference: binding.home_reference.clone(),
             binding_id: next_binding_id,
@@ -423,6 +468,15 @@ fn freshness(
     observed: &str,
     now: SystemTime,
 ) -> ActivityFreshness {
+    freshness_for(session, observed, now, FRESH_FOR)
+}
+
+pub(super) fn freshness_for(
+    session: Option<&(String, Option<Instant>)>,
+    observed: &str,
+    now: SystemTime,
+    fresh_for: Duration,
+) -> ActivityFreshness {
     let Some((_, observed_in_session)) = session else {
         return ActivityFreshness::Unknown;
     };
@@ -435,10 +489,10 @@ fn freshness(
     if observed > now_utc.as_str() {
         return ActivityFreshness::Unknown;
     }
-    let Some(threshold) = now.checked_sub(FRESH_FOR).and_then(restore::timestamp) else {
+    let Some(threshold) = now.checked_sub(fresh_for).and_then(restore::timestamp) else {
         return ActivityFreshness::Unknown;
     };
-    if observed_in_session.elapsed() >= FRESH_FOR || observed <= threshold.as_str() {
+    if observed_in_session.elapsed() >= fresh_for || observed <= threshold.as_str() {
         ActivityFreshness::Stale
     } else {
         ActivityFreshness::Fresh

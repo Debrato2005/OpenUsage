@@ -1,4 +1,4 @@
-//! One-shot quota diagnostics. No reading is accepted or written to application storage.
+//! One explicit quota read. Publish only after Rust commits the complete validated reading.
 
 use super::*;
 use openusage_codex::{session::QuotaProbe, supervisor::QuotaHandle};
@@ -27,6 +27,8 @@ pub(crate) struct QuotaOutcome {
     pub verified_identity_key: Option<String>,
     pub monitoring: &'static str,
     pub accepted: bool,
+    pub binding_id: String,
+    pub collection_run_id: String,
     pub limits: Vec<QuotaLimitView>,
     pub available_reset_credits: Option<openusage_codex::DecimalCount>,
     pub reset_credit_details: Option<Vec<openusage_codex::ResetCreditDetail>>,
@@ -55,7 +57,7 @@ pub(crate) struct QuotaWindowView {
 }
 
 impl QuotaWindowView {
-    fn from_window(window: openusage_codex::QuotaWindow, fallback: &str) -> Self {
+    pub(crate) fn from_window(window: openusage_codex::QuotaWindow, fallback: &str) -> Self {
         let label = match window.window_duration_mins {
             Some(300) => "Five-hour".into(),
             Some(10080) => "Seven-day".into(),
@@ -75,6 +77,7 @@ impl QuotaWindowView {
 pub(super) struct Entry {
     pub(super) binding: ProfileBinding,
     handle: Option<QuotaHandle>,
+    association: ReadAssociation,
 }
 
 pub(crate) struct CompletingQuota {
@@ -82,13 +85,15 @@ pub(crate) struct CompletingQuota {
     request_id: String,
     binding: ProfileBinding,
     handle: QuotaHandle,
+    association: ReadAssociation,
 }
 
 pub(crate) struct CompletedQuota {
     coordinator: ProviderCoordinator,
-    request_id: String,
+    pub request_id: String,
     pub binding: ProfileBinding,
     probe: QuotaProbe,
+    association: ReadAssociation,
 }
 
 impl ProviderCoordinator {
@@ -99,6 +104,7 @@ impl ProviderCoordinator {
         home_reference: &str,
         revision: openusage_storage::StorageRevision,
         path: &Path,
+        association: ReadAssociation,
     ) -> Result<QuotaReceipt, CommandError> {
         validate_ids(profile_id, approval_id)?;
         let held_home = Arc::new(HeldHome::open(path)?);
@@ -114,6 +120,16 @@ impl ProviderCoordinator {
             .map_err(|_| CommandError::ProviderUnavailable)?;
         require_open(&state)?;
         require_profile_available(&state, profile_id)?;
+        if let Some(review) = &association.review {
+            super::activity::require_review(&mut state, review)
+                .map_err(|_| CommandError::ProviderQuotaReviewUnavailable)?;
+            if review.binding.profile_id != profile_id
+                || review.binding.home_reference != home_reference
+                || review.binding.approval_id != approval_id
+            {
+                return Err(CommandError::ProviderQuotaReviewUnavailable);
+            }
+        }
         if state.logins.len() + state.quotas.len() + state.activities.len() >= 2 {
             return Err(CommandError::ProviderCapacityReached);
         }
@@ -154,6 +170,7 @@ impl ProviderCoordinator {
             Entry {
                 binding,
                 handle: Some(handle),
+                association,
             },
         );
         Ok(receipt)
@@ -183,6 +200,7 @@ impl ProviderCoordinator {
             coordinator: self.clone(),
             request_id: request_id.into(),
             binding: entry.binding.clone(),
+            association: entry.association.clone(),
             handle,
         })
     }
@@ -237,6 +255,7 @@ impl CompletingQuota {
                 request_id: self.request_id,
                 binding: self.binding,
                 probe,
+                association: self.association,
             }),
             Err(error) => {
                 self.coordinator.discard_quota(&self.request_id);
@@ -251,7 +270,16 @@ impl CompletedQuota {
         self.coordinator.discard_quota(&self.request_id);
     }
 
-    pub fn publish(self) -> Result<QuotaOutcome, CommandError> {
+    /// Keep Workspace and Provider locked through the selected profile transaction.
+    pub fn publish(
+        self,
+        persist: impl FnOnce(
+            &ProfileBinding,
+            &QuotaProbe,
+            &str,
+            &ReadAssociation,
+        ) -> Result<openusage_storage::QuotaCommit, CommandError>,
+    ) -> Result<QuotaOutcome, CommandError> {
         let mut state = self
             .coordinator
             .0
@@ -276,7 +304,15 @@ impl CompletedQuota {
         }
         let observed_at_utc = crate::restore::timestamp(self.probe.observed_at)
             .ok_or(CommandError::ProviderUnavailable)?;
+        let committed = persist(
+            &self.binding,
+            &self.probe,
+            &self.request_id,
+            &self.association,
+        )?;
         Ok(QuotaOutcome {
+            binding_id: committed.binding_id,
+            collection_run_id: committed.collection_run_id,
             request_id: self.request_id,
             profile_id: self.binding.profile_id,
             approval_id: self.binding.approval_id,
@@ -286,7 +322,7 @@ impl CompletedQuota {
             identity_confidence: "provisional",
             verified_identity_key: None,
             monitoring: "stopped",
-            accepted: false,
+            accepted: true,
             available_reset_credits: self.probe.quota.available_reset_credits,
             reset_credit_details: self.probe.quota.reset_credit_details,
             limits: self

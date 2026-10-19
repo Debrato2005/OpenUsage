@@ -1,4 +1,4 @@
-//! Native approval and lifecycle for bounded profile operations. Only Rust accepts saved activity.
+//! Native approval and lifecycle for bounded profile operations. Only Rust accepts remote readings.
 //! Lock order is Workspace -> Provider -> Supervisor. Owned workers never take the Workspace lock.
 //! Executions use checked paths, not atomic fexecve. This does not isolate hostile same-UID path changes.
 

@@ -560,7 +560,7 @@ fn activity_two_completed_profiles_commit_independently_and_binding_change_refus
         .storage
         .as_ref()
         .unwrap()
-        .activity_binding(&first)
+        .profile_binding(&first)
         .unwrap()
         .unwrap();
     fixture
@@ -568,12 +568,12 @@ fn activity_two_completed_profiles_commit_independently_and_binding_change_refus
         .storage
         .as_mut()
         .unwrap()
-        .associate_activity_binding(openusage_storage::ActivityBindingInput {
+        .associate_profile_binding(openusage_storage::ProfileBindingInput {
             profile_id: first.clone(),
             expected_home_reference: old.home_reference,
             expected_previous_binding_id: Some(old.binding_id),
             new_binding_id: provider::new_id().unwrap(),
-            evidence: openusage_storage::ActivityIdentityEvidence {
+            evidence: openusage_storage::ProfileIdentityEvidence {
                 email: "new-synthetic@example.invalid".into(),
                 plan: None,
             },
@@ -713,7 +713,7 @@ fn fresh_activity_review(
     fixture: &mut Fixture,
     id: &str,
     approval: &str,
-) -> super::activity_storage::ActivityAssociationReview {
+) -> super::activity_storage::ReadAssociationReview {
     fixture.mode("success");
     let completed = fixture.read(id, approval).unwrap();
     assert_eq!(
@@ -1075,7 +1075,7 @@ fn activity_review_refuses_expired_or_invalidated_fences_and_changed_postconsent
                     .storage
                     .as_mut()
                     .unwrap()
-                    .associate_activity_binding(openusage_storage::ActivityBindingInput {
+                    .associate_profile_binding(openusage_storage::ProfileBindingInput {
                         profile_id: id.clone(),
                         expected_home_reference: cached.fence.binding.home_reference.clone(),
                         expected_previous_binding_id: Some(
