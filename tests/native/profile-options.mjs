@@ -55,11 +55,12 @@ async function clickLabelCenter(selector, label) {
   (evidence.centeredLabelClicks ??= []).push({ selector, ...point });
 }
 async function manage(open) {
+  await driver.openProfileReadings(profile.id);
   assert.equal((await optionsState()).controlsMatch, true, 'An expanded trigger must control its selected profile panel.');
   if ((await optionsState()).expanded !== String(open)) await clickLabelCenter(options(), 'Manage profile');
   await waitFor(async () => { const state = await optionsState(); return state.expanded === String(open) && state.panelVisible === open; }, `${open ? 'open' : 'closed'} Manage profile`);
 }
-async function create(label) {
+async function create(label) { await driver.openProfileCreate();
   await waitFor(async () => driver.execute('return Boolean(document.querySelector("#profile-label")&&!document.querySelector("#profile-label").disabled);'), 'profile creation control');
   await driver.type('#profile-label', label);
   await driver.click('.profile-create-form button[type=submit]');
@@ -67,7 +68,7 @@ async function create(label) {
   const result = await driver.invoke('list_profiles'); assert.equal(result.ok, true);
   const added = result.value.profiles.find(value => value.label === label); assert.ok(added); return added;
 }
-async function approve(provider) {
+async function approve(provider) { await driver.navigate('settings');
   const executable = join(fixture.root, provider.name + '-synthetic-provider');
   await copyFile(join(harness, 'fixtures', provider.file), executable); await chmod(executable, 0o700);
   assert.equal(await hash(executable), provider.digest);
@@ -114,7 +115,7 @@ async function viewport(width) {
 }
 async function ordinaryButton() {
   await viewport(1280);
-  const selector = '.sidebar-note button[aria-controls="privacy-details"]', overview = 'nav[aria-label="Main"] a[aria-current="page"][href="#main"]';
+  const selector = '.sidebar-note button[aria-controls="privacy-details"]', overview = 'nav[aria-label="Main"] [data-workspace-nav="settings"]';
   const before = await liveHashes();
   assert.equal(await driver.execute('return document.querySelector(arguments[0]).getAttribute("aria-expanded");', [selector]), 'false');
   await driver.execute('window.__privacyClickCount=0;window.__privacyClickListener=()=>window.__privacyClickCount++;document.querySelector(arguments[0]).addEventListener("click",window.__privacyClickListener,true);return true;', [selector]);
@@ -124,9 +125,9 @@ async function ordinaryButton() {
     const activation = await driver.execute('const n=document.querySelector(arguments[0]);return {clicks:window.__privacyClickCount,active:document.activeElement===n,tag:n.tagName,name:n.textContent.trim(),ariaLabel:n.getAttribute("aria-label")};', [selector]);
     assert.equal(activation.clicks, 1); assert.equal(activation.active, true); assert.equal(activation.tag, 'BUTTON'); assert.equal(activation.name, 'Hide privacy details'); assert.equal(activation.ariaLabel, null);
     const nativeReverseTab = JSON.parse(execFileSync('/usr/bin/python3', [join(harness, 'x11-reverse-tab.py'), String(evidence.nativeWindowFocus.windowId)], { env: fixture.environment, encoding: 'utf8', timeout: 10000 }));
-    await waitFor(async () => driver.execute('return document.activeElement===document.querySelector(arguments[0]);', [overview]), 'ordinary button reverse Tab reaches exact Overview link', 1000);
-    const destination = await driver.execute('const n=document.activeElement,s=getComputedStyle(n);return {documentFocused:document.hasFocus(),tag:n.tagName,name:n.textContent.trim(),exactOverview:n===document.querySelector(arguments[0]),focusVisible:n.matches(":focus-visible"),outlineWidth:s.outlineWidth,outlineStyle:s.outlineStyle,outlineColor:s.outlineColor,clicks:window.__privacyClickCount,privacyExpanded:document.querySelector(arguments[1]).getAttribute("aria-expanded")};', [overview, selector]);
-    assert.equal(destination.documentFocused, true); assert.equal(destination.tag, 'A'); assert.equal(destination.name, 'Overview'); assert.equal(destination.exactOverview, true); assert.equal(destination.focusVisible, true); assert.ok(parseFloat(destination.outlineWidth) >= 2); assert.equal(destination.outlineStyle, 'solid'); assert.notEqual(destination.outlineColor, 'rgba(0, 0, 0, 0)'); assert.equal(destination.clicks, 1); assert.equal(destination.privacyExpanded, 'true');
+    await waitFor(async () => driver.execute('return document.activeElement===document.querySelector(arguments[0]);', [overview]), 'ordinary button reverse Tab reaches exact Settings link', 1000);
+    const destination = await driver.execute('const n=document.activeElement,s=getComputedStyle(n);return {documentFocused:document.hasFocus(),tag:n.tagName,name:n.textContent.trim(),exactSettings:n===document.querySelector(arguments[0]),focusVisible:n.matches(":focus-visible"),outlineWidth:s.outlineWidth,outlineStyle:s.outlineStyle,outlineColor:s.outlineColor,clicks:window.__privacyClickCount,privacyExpanded:document.querySelector(arguments[1]).getAttribute("aria-expanded")};', [overview, selector]);
+    assert.equal(destination.documentFocused, true); assert.equal(destination.tag, 'A'); assert.equal(destination.name, 'Settings'); assert.equal(destination.exactSettings, true); assert.equal(destination.focusVisible, true); assert.ok(parseFloat(destination.outlineWidth) >= 2); assert.equal(destination.outlineStyle, 'solid'); assert.notEqual(destination.outlineColor, 'rgba(0, 0, 0, 0)'); assert.equal(destination.clicks, 1); assert.equal(destination.privacyExpanded, 'true');
     assert.deepEqual(await liveHashes(), before, 'Privacy expansion and reverse Tab must preserve database, WAL, and key bytes.');
     await driver.screenshot(join(output, 'ordinary-button-privacy-reverse-light-desktop.png')); evidence.screenshots.push('ordinary-button-privacy-reverse-light-desktop.png');
     evidence.ordinaryButton = { activation, nativeReverseTab, destination, storageHashesPreserved: true };
@@ -186,14 +187,14 @@ try {
   await waitFor(async () => (await driver.invoke('bootstrap')).value?.storage === 'ready', 'synthetic workspace setup');
   profile = await create('Selected synthetic management profile'); other = await create('Other synthetic management profile');
   await focusWindow();
-  await driver.selectVisibleOption('#theme', 'Light');
+  await driver.setAppearance('light');
   await waitFor(async () => driver.execute('return document.documentElement.dataset.theme==="light"&&!document.querySelector("#theme").disabled;'), 'saved light appearance');
   await ordinaryButton();
   for (const provider of providers) {
     await driver.waitForProfileRefresh(profile.id);
     provider.executable = await approve(provider);
     const idle = await driver.execute('const row=document.querySelector(arguments[0]);return [...row.querySelectorAll("button")].filter(node=>node.getClientRects().length&&!node.disabled).map(node=>node.textContent.trim());', [row()]);
-    assert.deepEqual(idle, ['Sign in', 'Read quotas', 'Manage profile']);
+    assert.deepEqual(idle, ['Hide readings', 'Sign in', 'Read quotas', 'Manage profile']);
     const state = await optionsState(); assert.equal(state.panelPresent, true); assert.equal(state.panelVisible, false); assert.ok(state.actions.length >= 3 && state.actions.every(value => !value.visible));
     const before = await liveHashes(), offset = (await observations(provider)).length;
     if (provider.name === 'check') { await manage(true); await driver.click(`${row()} [data-provider-check]`); }

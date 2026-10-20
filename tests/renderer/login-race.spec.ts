@@ -1,3 +1,4 @@
+import { navigate, openReadings } from './navigation';
 import { expect, test, type Page } from '@playwright/test';
 import type { ProfileQuotaSavedRead } from '../../apps/desktop/src/contracts';
 
@@ -93,6 +94,9 @@ async function openSyntheticProfile(page: Page) {
     } } };
   }, { profileId, approvalId, attempts });
   await page.goto('/');
+  await navigate(page, 'accounts');
+  await openReadings(page, profileId);
+  await navigate(page, 'settings');
   await page.getByRole('heading', { name: 'Codex connection', exact: true }).click();
   await page.locator('[data-provider-manual]').click();
   await page.getByLabel('Codex executable', { exact: true }).fill('/synthetic/reviewed-codex');
@@ -100,6 +104,7 @@ async function openSyntheticProfile(page: Page) {
   await page.getByLabel('I trust this executable for account checks and previews.').check();
   await page.getByRole('button', { name: 'Approve executable', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Executable approved for this session' })).toBeVisible();
+  await navigate(page, 'accounts');
 }
 
 async function begin(page: Page, code: string) {

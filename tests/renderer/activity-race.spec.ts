@@ -1,3 +1,4 @@
+import { navigate, openReadings } from './navigation';
 import { expect, test, type Page } from '@playwright/test';
 import type { ProfileActivitySavedRead, ProfileQuotaSavedRead, SavedProfileActivity } from '../../apps/desktop/src/contracts';
 
@@ -55,27 +56,32 @@ async function openProfile(page: Page, options: { approve?: boolean; cached?: Sa
     } } };
   }, { profileId, approvalId, requestIds, reviewId, observedAtUtc, options });
   await page.goto('/');
-  if (options.archived) await page.getByText('Archived profiles (1)', { exact: true }).click();
+  await navigate(page, 'accounts');
+  if (options.archived) await accounts(page).getByText('Archived profiles (1)', { exact: true }).click();
+  await openReadings(page, profileId);
   if (options.approve === false) return;
+  await navigate(page, 'settings');
   await page.getByRole('heading', { name: 'Codex connection', exact: true }).click();
-  await page.locator('[data-provider-manual]').click();
+  await page.locator('[data-workspace-view="settings"] [data-provider-manual]').click();
   await page.getByLabel('Codex executable', { exact: true }).fill('/synthetic/reviewed-codex');
   await page.getByRole('button', { name: 'Inspect executable', exact: true }).click();
   await page.getByLabel('I trust this executable for account checks and previews.').check();
   await page.getByRole('button', { name: 'Approve executable', exact: true }).click();
+  await navigate(page, 'accounts');
   await expect(page.getByRole('button', { name: 'Read activity', exact: true })).toBeHidden();
   await page.getByRole('button', { name: 'Manage profile', exact: true }).click();
 }
 async function begin(page: Page, index: number) {
   await page.getByRole('button', { name: 'Read activity', exact: true }).click();
-  await expect(page.locator(`[data-activity-cancel="${profileId}"]`)).toBeFocused();
+  await expect(accounts(page).locator(`[data-activity-cancel="${profileId}"]`)).toBeFocused();
   await expect.poll(() => page.evaluate(id => Boolean((window as unknown as FixtureWindow).activityFixture.completions[id]), requestIds[index]!)).toBe(true);
 }
 async function publish(page: Page, index: number, rows: { startDate: string; tokens: string }[] | null, cached = saved(index, rows), receipt = { ...committed(index, rows), summary: cached.summary, collectionRunId: cached.collectionRunId, bindingId: cached.bindingId }) {
   await page.evaluate(({ id, value, cached }) => { const fixture = (window as unknown as FixtureWindow).activityFixture; fixture.saved = cached; fixture.completions[id]!.resolve(value); }, { id: requestIds[index]!, value: receipt, cached });
   await expect(page.getByRole('region', { name: 'Saved activity for Synthetic activity profile' })).toBeFocused();
 }
-const metric = (page: Page, name: string) => page.locator(`[data-activity-saved] [data-activity-metric="${name}"]`);
+const accounts = (page: Page) => page.locator('[data-workspace-view="accounts"]');
+const metric = (page: Page, name: string) => accounts(page).locator(`[data-activity-saved] [data-activity-metric="${name}"]`);
 
 test('renderer saves activity outside Manage and pages exact cached rows after committed completion', async ({ page }) => {
   await openProfile(page); await begin(page, 0);
@@ -88,41 +94,43 @@ test('renderer saves activity outside Manage and pages exact cached rows after c
   await publish(page, 0, rows);
   await expect(metric(page, 'lifetimeTokens')).toHaveText('9223372036854775807');
   await expect(metric(page, 'currentStreakDays')).toHaveText('Not available');
-  await expect(page.getByText('Unverified identity · Saved locally')).toBeVisible();
-  await expect(page.getByText('Combined totals are not available. Open a profile to view its activity.', { exact: true })).toBeVisible();
-  for (const misleading of ['No accepted provider reading', 'Saved readings: Not available', 'Last saved reading: Not available']) await expect(page.getByText(misleading, { exact: true })).toHaveCount(0);
-  await expect(page.locator('[data-activity-day]')).toHaveCount(0);
+  await expect(accounts(page).getByText('Unverified identity · Saved locally')).toBeVisible();
+  await navigate(page, 'overview');
+  await expect(page.getByText('Combined totals are not available. Profile readings are shown separately.', { exact: true })).toBeVisible();
+  await navigate(page, 'accounts');
+  for (const misleading of ['No accepted provider reading', 'Saved readings: Not available', 'Last saved reading: Not available']) await expect(accounts(page).getByText(misleading, { exact: true })).toHaveCount(0);
+  await expect(accounts(page).locator('[data-activity-day]')).toHaveCount(0);
   await page.getByRole('button', { name: 'Activity details', exact: true }).click();
-  await expect(page.locator('[data-activity-day]')).toHaveCount(50);
-  await expect(page.locator('[data-activity-day]').first().locator('time').first()).toHaveText('2024-02-29');
-  await expect(page.locator('[data-activity-day]').first().locator('.activity-count')).toHaveText('9223372036854775807');
+  await expect(accounts(page).locator('[data-activity-day]')).toHaveCount(50);
+  await expect(accounts(page).locator('[data-activity-day]').first().locator('time').first()).toHaveText('2024-02-29');
+  await expect(accounts(page).locator('[data-activity-day]').first().locator('.activity-count')).toHaveText('9223372036854775807');
   await expect(page.getByRole('button', { name: 'Previous', exact: true })).toBeDisabled();
   await page.getByRole('button', { name: 'Next', exact: true }).click();
-  await expect(page.locator('[data-activity-day]')).toHaveCount(1);
-  await expect(page.getByText('Rows 51–51 of 51 shown')).toBeVisible();
+  await expect(accounts(page).locator('[data-activity-day]')).toHaveCount(1);
+  await expect(accounts(page).getByText('Rows 51–51 of 51 shown')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Next', exact: true })).toBeDisabled();
   await page.getByRole('button', { name: 'Previous', exact: true }).click();
-  await expect(page.locator('[data-activity-day]')).toHaveCount(50);
+  await expect(accounts(page).locator('[data-activity-day]')).toHaveCount(50);
 });
 
 test('renderer isolates an old cancel failure from the successor saved activity', async ({ page }) => {
   await openProfile(page); await begin(page, 0);
   await page.getByRole('button', { name: 'Cancel activity read', exact: true }).click();
   await page.evaluate(id => { (window as unknown as FixtureWindow).activityFixture.completions[id]!.reject('provider_activity_cancelled'); }, requestIds[0]!);
-  await expect(page.getByText('Activity read stopped.', { exact: true })).toBeVisible();
+  await expect(accounts(page).getByText('Activity read stopped.', { exact: true })).toBeVisible();
   await begin(page, 1);
   await page.evaluate(id => { (window as unknown as FixtureWindow).activityFixture.cancellations[id]!.reject('provider_cleanup_failed'); }, requestIds[0]!);
   await expect(page.getByRole('button', { name: 'Cancel activity read', exact: true })).toBeEnabled();
   await publish(page, 1, []);
   await page.getByRole('button', { name: 'Activity details', exact: true }).click();
-  await expect(page.locator('[data-activity-daily-state=empty]')).toHaveText('The latest read returned no daily rows.');
-  await expect(page.getByText('OpenUsage could not confirm that the provider process stopped.', { exact: false })).toHaveCount(0);
+  await expect(accounts(page).locator('[data-activity-daily-state=empty]')).toHaveText('The latest read returned no daily rows.');
+  await expect(accounts(page).getByText('OpenUsage could not confirm that the provider process stopped.', { exact: false })).toHaveCount(0);
 });
 
 test('renderer rejects incompatible completion while keeping the last accepted saved values', async ({ page }) => {
   await openProfile(page, { cached: saved() }); await begin(page, 0);
   await page.evaluate(({ id, value }) => { (window as unknown as FixtureWindow).activityFixture.completions[id]!.resolve({ ...value, coverage: 'complete', accountId: 'private' }); }, { id: requestIds[0]!, value: committed(0, []) });
-  await expect(page.locator('.activity-result')).toHaveAttribute('role', 'alert');
+  await expect(accounts(page).locator('.activity-result')).toHaveAttribute('role', 'alert');
   await expect(metric(page, 'lifetimeTokens')).toHaveText('9223372036854775807');
   await expect(page.getByRole('heading', { name: 'Saved activity', exact: true })).toBeVisible();
 });
@@ -131,27 +139,27 @@ test('renderer keeps a new quota read focused when an old activity cancellation 
   await openProfile(page); await begin(page, 0);
   await page.getByRole('button', { name: 'Cancel activity read', exact: true }).click();
   await page.evaluate(id => { (window as unknown as FixtureWindow).activityFixture.completions[id]!.reject('provider_activity_cancelled'); }, requestIds[0]!);
-  await expect(page.getByText('Activity read stopped.', { exact: true })).toBeVisible();
+  await expect(accounts(page).getByText('Activity read stopped.', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Read quotas', exact: true }).click();
-  const cancelQuota = page.locator(`[data-quota-cancel="${profileId}"]`); await expect(cancelQuota).toBeFocused();
+  const cancelQuota = accounts(page).locator(`[data-quota-cancel="${profileId}"]`); await expect(cancelQuota).toBeFocused();
   await page.evaluate(id => { (window as unknown as FixtureWindow).activityFixture.cancellations[id]!.reject('provider_cleanup_failed'); }, requestIds[0]!);
-  await expect(cancelQuota).toBeFocused(); await expect(cancelQuota).toBeEnabled(); await expect(page.locator('.activity-result')).toHaveCount(0);
+  await expect(cancelQuota).toBeFocused(); await expect(cancelQuota).toBeEnabled(); await expect(accounts(page).locator('.activity-result')).toHaveCount(0);
   await page.evaluate(({ profileId, approvalId, requestId }) => {
     (window as unknown as FixtureWindow).activityFixture.completions[`quota:${requestId}`]!.resolve({ profileId, approvalId, requestId, sourceKind: 'test_fixture', monitoring: 'stopped', accepted: true, bindingId: '66666666-6666-4666-8666-666666666666', collectionRunId: '77777777-7777-4777-8777-777777777777',
       providerVersion: '0.163.0', observedAtUtc: '2026-10-18T00:00:00.000Z', identityConfidence: 'provisional', verifiedIdentityKey: null, availableResetCredits: null, resetCreditDetails: null, limits: [] });
   }, { profileId, approvalId, requestId: requestIds[1]! });
   await expect(page.getByRole('region', { name: 'Saved quotas for Synthetic activity profile' })).toBeFocused();
-  await expect(page.locator('.activity-result')).toHaveCount(0);
+  await expect(accounts(page).locator('.activity-result')).toHaveCount(0);
 });
 
 for (const archived of [false, true]) test(`renderer loads ${archived ? 'archived' : 'active'} saved activity without provider approval`, async ({ page }) => {
   const cached = saved(0, [{ startDate: '2024-02-29', tokens: '9007199254740993' }]);
   await openProfile(page, { approve: false, cached, archived });
   await expect(metric(page, 'lifetimeTokens')).toHaveText('9223372036854775807');
-  await expect(page.locator('[data-activity-freshness]')).toHaveText('Freshness unknown');
+  await expect(accounts(page).locator('[data-activity-freshness]')).toHaveText('Freshness unknown');
   await expect(page.getByRole('button', { name: 'Read activity', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Activity details', exact: true }).click();
-  await expect(page.locator('[data-activity-day] time').first()).toHaveText('2024-02-29');
+  await expect(accounts(page).locator('[data-activity-day] time').first()).toHaveText('2024-02-29');
   const requests = await page.evaluate(() => (window as unknown as FixtureWindow).activityFixture.requests);
   expect(requests).toContain('load_profile_activity'); expect(requests.some(command => command.startsWith('begin_profile_'))).toBe(false);
 });
@@ -160,22 +168,22 @@ test('renderer preserves saved daily rows and their ages when a saved replacemen
   const cached = saved(0, [{ startDate: '2024-02-29', tokens: '9007199254740993' }]);
   cached.freshness = 'fresh'; cached.dailyUsageBuckets[0]!.freshness = 'fresh';
   await openProfile(page, { cached }); await begin(page, 0);
-  await expect(page.locator('[data-activity-freshness]')).toHaveText('Current');
+  await expect(accounts(page).locator('[data-activity-freshness]')).toHaveText('Current');
   await page.evaluate(id => { const fixture = (window as unknown as FixtureWindow).activityFixture; fixture.saved!.freshness = 'stale'; fixture.saved!.dailyUsageBuckets[0]!.freshness = 'stale'; fixture.completions[id]!.reject('provider_activity_save_failed'); }, requestIds[0]!);
-  await expect(page.locator('[data-activity-freshness]')).toHaveText('Stale');
-  await expect(page.locator('.activity-result')).toBeFocused();
-  await expect(page.getByText('The reading could not be saved. Your previous activity is still available.')).toBeVisible();
+  await expect(accounts(page).locator('[data-activity-freshness]')).toHaveText('Stale');
+  await expect(accounts(page).locator('.activity-result')).toBeFocused();
+  await expect(accounts(page).getByText('The reading could not be saved. Your previous activity is still available.')).toBeVisible();
   await expect(metric(page, 'lifetimeTokens')).toHaveText('9223372036854775807');
   await begin(page, 1);
   const next = saved(1); next.summary = { lifetimeTokens: null, peakDailyTokens: null, longestRunningTurnSec: null, currentStreakDays: null, longestStreakDays: null }; next.freshness = 'fresh'; next.dailyUsageBuckets = cached.dailyUsageBuckets.map(row => ({ ...row, freshness: 'stale' }));
   await publish(page, 1, null, next);
   await expect(metric(page, 'lifetimeTokens')).toHaveText('Not available');
-  await expect(page.getByText('The reading could not be saved. Your previous activity is still available.')).toHaveCount(0);
+  await expect(accounts(page).getByText('The reading could not be saved. Your previous activity is still available.')).toHaveCount(0);
   await page.getByRole('button', { name: 'Activity details', exact: true }).click();
-  await expect(page.locator('[data-activity-daily-state=unavailable]')).toBeVisible();
-  await expect(page.locator('[data-activity-day]')).toHaveCount(1);
-  await expect(page.locator('[data-activity-day]')).toHaveAttribute('data-activity-day-freshness', 'stale');
-  await expect(page.locator('[data-activity-observed]')).toHaveAttribute('datetime', observedAtUtc);
+  await expect(accounts(page).locator('[data-activity-daily-state=unavailable]')).toBeVisible();
+  await expect(accounts(page).locator('[data-activity-day]')).toHaveCount(1);
+  await expect(accounts(page).locator('[data-activity-day]')).toHaveAttribute('data-activity-day-freshness', 'stale');
+  await expect(accounts(page).locator('[data-activity-observed]')).toHaveAttribute('datetime', observedAtUtc);
 });
 
 test('renderer refreshes cached state through Rust and retries load failures without hiding saved values', async ({ page }) => {
@@ -183,21 +191,21 @@ test('renderer refreshes cached state through Rust and retries load failures wit
   cached.freshness = 'fresh'; cached.dailyUsageBuckets[0]!.freshness = 'fresh';
   await page.clock.install(); await openProfile(page, { approve: false, cached });
   await expect(metric(page, 'lifetimeTokens')).toBeVisible();
-  await expect(page.locator('[data-activity-freshness]')).toHaveText('Current');
+  await expect(accounts(page).locator('[data-activity-freshness]')).toHaveText('Current');
   await page.getByRole('button', { name: 'Activity details', exact: true }).click();
   await page.evaluate(() => { (window as unknown as FixtureWindow).activityFixture.failLoads = true; });
   await page.clock.fastForward(60_000);
-  await expect(page.getByText('Saved activity could not be loaded. Try again.')).toBeVisible();
+  await expect(accounts(page).getByText('Saved activity could not be loaded. Try again.')).toBeVisible();
   await expect(metric(page, 'lifetimeTokens')).toHaveText('9223372036854775807');
-  await expect(page.locator('[data-activity-freshness]')).toHaveText('Freshness unknown');
-  await expect(page.locator('[data-activity-day]')).toHaveAttribute('data-activity-day-freshness', 'unknown');
-  await expect(page.locator('[data-activity-day] .activity-count')).toHaveText('9007199254740993');
-  await expect(page.locator('[data-activity-day] [data-activity-observed]')).toHaveAttribute('datetime', observedAtUtc);
+  await expect(accounts(page).locator('[data-activity-freshness]')).toHaveText('Freshness unknown');
+  await expect(accounts(page).locator('[data-activity-day]')).toHaveAttribute('data-activity-day-freshness', 'unknown');
+  await expect(accounts(page).locator('[data-activity-day] .activity-count')).toHaveText('9007199254740993');
+  await expect(accounts(page).locator('[data-activity-day] [data-activity-observed]')).toHaveAttribute('datetime', observedAtUtc);
   await page.evaluate(() => { const fixture = (window as unknown as FixtureWindow).activityFixture; fixture.failLoads = false; fixture.saved!.freshness = 'stale'; fixture.saved!.dailyUsageBuckets[0]!.freshness = 'stale'; });
   await page.getByRole('button', { name: 'Reload saved activity', exact: true }).click();
-  await expect(page.locator('[data-activity-freshness]')).toHaveText('Stale');
-  await expect(page.locator('[data-activity-day]')).toHaveAttribute('data-activity-day-freshness', 'stale');
-  await expect(page.getByText('Saved activity could not be loaded. Try again.')).toHaveCount(0);
+  await expect(accounts(page).locator('[data-activity-freshness]')).toHaveText('Stale');
+  await expect(accounts(page).locator('[data-activity-day]')).toHaveAttribute('data-activity-day-freshness', 'stale');
+  await expect(accounts(page).getByText('Saved activity could not be loaded. Try again.')).toHaveCount(0);
 });
 
 test('renderer refuses an older background cache response after a newly committed reading loads', async ({ page }) => {
@@ -237,7 +245,7 @@ async function confirmReassociation(page: Page) {
   await page.getByRole('button', { name: 'Use current sign-in', exact: true }).click();
   await page.getByRole('checkbox', { name: 'I approve using the current sign-in for this profile.', exact: true }).check();
   await page.getByRole('button', { name: 'Confirm and read', exact: true }).click();
-  await expect(page.locator(`[data-activity-cancel="${profileId}"]`)).toBeFocused();
+  await expect(accounts(page).locator(`[data-activity-cancel="${profileId}"]`)).toBeFocused();
   await expect.poll(() => page.evaluate(id => Boolean((window as unknown as FixtureWindow).activityFixture.completions[id]), requestIds[1]!)).toBe(true);
 }
 
@@ -248,14 +256,14 @@ test('renderer requires fresh explicit reassociation consent and Keep saved read
   await trigger.click();
   const consent = page.getByRole('checkbox', { name: 'I approve using the current sign-in for this profile.', exact: true });
   await expect(consent).not.toBeChecked(); await expect(consent).toBeFocused();
-  await expect(page.locator('[data-activity-association=previous]')).toContainText('previous@synthetic.invalid');
-  await expect(page.locator('[data-activity-association=previous]')).toContainText('Plan: Not available');
-  await expect(page.locator('[data-activity-association=current]')).toContainText('current@synthetic.invalid');
-  await expect(page.locator('[data-activity-association=current]')).toContainText('Plan: Synthetic plan');
-  await expect(page.getByText('Profile environment changed.', { exact: true })).toBeVisible();
-  await expect(page.getByText('Account details do not verify identity.', { exact: true })).toBeVisible();
+  await expect(accounts(page).locator('[data-activity-association=previous]')).toContainText('previous@synthetic.invalid');
+  await expect(accounts(page).locator('[data-activity-association=previous]')).toContainText('Plan: Not available');
+  await expect(accounts(page).locator('[data-activity-association=current]')).toContainText('current@synthetic.invalid');
+  await expect(accounts(page).locator('[data-activity-association=current]')).toContainText('Plan: Synthetic plan');
+  await expect(accounts(page).getByText('Profile environment changed.', { exact: true })).toBeVisible();
+  await expect(accounts(page).getByText('Account details do not verify identity.', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Confirm and read', exact: true })).toBeDisabled();
-  await expect(page.getByText('New readings will use the current sign-in. Previous readings stay in encrypted history.')).toBeVisible();
+  await expect(accounts(page).getByText('New readings will use the current sign-in. Previous readings stay in encrypted history.')).toBeVisible();
   await page.setViewportSize({ width: 360, height: 900 });
   await page.evaluate(() => { const root = document.querySelector('.activity-result')!; const nodes = [root, ...root.querySelectorAll('*')]; const sizes = nodes.map(node => ({ node: node as HTMLElement, size: getComputedStyle(node).fontSize })); for (const { node, size } of sizes) node.style.fontSize = `${parseFloat(size) * 2}px`; });
   expect(await page.evaluate(() => { const root = document.querySelector('.activity-result')!; return { pageWidth: document.documentElement.scrollWidth, viewport: innerWidth, buttons: [...root.querySelectorAll('button')].filter(node => node.getClientRects().length).map(node => ({ text: node.textContent?.trim(), width: node.getBoundingClientRect().width, container: root.getBoundingClientRect().width })) }; })).toMatchObject({ pageWidth: 360, viewport: 360 });
@@ -272,7 +280,7 @@ test('renderer requires fresh explicit reassociation consent and Keep saved read
 test('renderer never offers reassociation after an unsafe account change during the read', async ({ page }) => {
   await openProfile(page, { cached: saved() }); await begin(page, 0);
   await page.evaluate(id => { (window as unknown as FixtureWindow).activityFixture.completions[id]!.reject('provider_account_changed'); }, requestIds[0]!);
-  await expect(page.getByText('The Codex account information changed during this read. Check the intended account, then read again.')).toBeVisible();
+  await expect(accounts(page).getByText('The Codex account information changed during this read. Check the intended account, then read again.')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Use current sign-in', exact: true })).toHaveCount(0);
   await expect(page.getByRole('checkbox', { name: 'I approve using the current sign-in for this profile.', exact: true })).toHaveCount(0);
   await expect(metric(page, 'lifetimeTokens')).toHaveText('9223372036854775807');
@@ -295,7 +303,7 @@ test('renderer keeps old saved values when confirmed reassociation fails before 
   const cached = saved(); cached.summary.lifetimeTokens = '1';
   await openProfile(page, { cached }); await offerReassociation(page); await confirmReassociation(page);
   await page.evaluate(id => { (window as unknown as FixtureWindow).activityFixture.completions[id]!.reject('provider_activity_save_failed'); }, requestIds[1]!);
-  await expect(page.getByText('The reading could not be saved. Your previous activity is still available.')).toBeVisible();
+  await expect(accounts(page).getByText('The reading could not be saved. Your previous activity is still available.')).toBeVisible();
   await expect(metric(page, 'lifetimeTokens')).toHaveText('1');
   await expect(page.getByRole('checkbox', { name: 'I approve using the current sign-in for this profile.', exact: true })).toHaveCount(0);
 });
@@ -304,7 +312,7 @@ test('renderer refuses a saved load with the wrong binding after reassociation c
   const cached = saved(); cached.summary.lifetimeTokens = '1';
   await openProfile(page, { cached }); await offerReassociation(page); await confirmReassociation(page);
   await page.evaluate(({ id, receipt }) => { (window as unknown as FixtureWindow).activityFixture.completions[id]!.resolve(receipt); }, { id: requestIds[1]!, receipt: { ...committed(1, null), bindingId: '99999999-9999-4999-8999-999999999999' } });
-  await expect(page.getByText('Saved activity could not be loaded. Try again.')).toBeVisible();
+  await expect(accounts(page).getByText('Saved activity could not be loaded. Try again.')).toBeVisible();
   await expect(metric(page, 'lifetimeTokens')).toHaveText('1');
   await expect(page.getByRole('button', { name: 'Reload saved activity', exact: true })).toBeVisible();
 });
@@ -314,13 +322,13 @@ test('renderer refuses blind consent after review loading fails and retries with
   await openProfile(page, { cached: saved() }); await offerReassociation(page);
   await page.evaluate(() => { (window as unknown as FixtureWindow).activityFixture.failReviews = true; });
   await page.getByRole('button', { name: 'Use current sign-in', exact: true }).click();
-  await expect(page.getByText('The account review could not be loaded. Try again.', { exact: true })).toBeVisible();
+  await expect(accounts(page).getByText('The account review could not be loaded. Try again.', { exact: true })).toBeVisible();
   await expect(page.getByRole('checkbox', { name: 'I approve using the current sign-in for this profile.', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Confirm and read', exact: true })).toHaveCount(0);
   await expect(metric(page, 'lifetimeTokens')).toHaveText('9223372036854775807');
   await page.evaluate(() => { (window as unknown as FixtureWindow).activityFixture.failReviews = false; });
   await page.getByRole('button', { name: 'Retry account review', exact: true }).click();
-  await expect(page.locator('[data-activity-association=current]')).toContainText('current@synthetic.invalid');
+  await expect(accounts(page).locator('[data-activity-association=current]')).toContainText('current@synthetic.invalid');
   await page.getByRole('button', { name: 'Keep saved readings', exact: true }).click();
   expect(await page.evaluate(() => (window as unknown as FixtureWindow).activityFixture.requests.filter(command => command === 'begin_profile_activity_reassociation'))).toEqual([]);
 });
@@ -329,8 +337,8 @@ for (const field of ['profileId', 'approvalId'] as const) test(`renderer rejects
   await openProfile(page, { cached: saved() }); await offerReassociation(page);
   await page.evaluate(field => { const fixture = (window as unknown as FixtureWindow).activityFixture; fixture.review = { ...(fixture.review as Record<string, unknown>), [field]: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' }; }, field);
   await page.getByRole('button', { name: 'Use current sign-in', exact: true }).click();
-  await expect(page.getByText('The account review could not be loaded. Try again.', { exact: true })).toBeVisible();
-  await expect(page.locator('[data-activity-association]')).toHaveCount(0);
+  await expect(accounts(page).getByText('The account review could not be loaded. Try again.', { exact: true })).toBeVisible();
+  await expect(accounts(page).locator('[data-activity-association]')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Confirm and read', exact: true })).toHaveCount(0);
 });
 
@@ -338,12 +346,12 @@ test('renderer discards a late account review after Keep saved readings', async 
   await openProfile(page, { cached: saved() }); await offerReassociation(page);
   await page.evaluate(() => { (window as unknown as FixtureWindow).activityFixture.deferReviews = true; });
   await page.getByRole('button', { name: 'Use current sign-in', exact: true }).click();
-  await expect(page.getByText('Loading account review…', { exact: true })).toBeVisible();
+  await expect(accounts(page).getByText('Loading account review…', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Confirm and read', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Keep saved readings', exact: true }).click();
   await page.evaluate(() => { const fixture = (window as unknown as FixtureWindow).activityFixture; fixture.pendingReviews[0]!.resolve(fixture.review); });
   await expect(page.getByRole('button', { name: 'Use current sign-in', exact: true })).toBeFocused();
-  await expect(page.locator('[data-activity-association]')).toHaveCount(0);
+  await expect(accounts(page).locator('[data-activity-association]')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Confirm and read', exact: true })).toHaveCount(0);
 });
 
@@ -352,7 +360,7 @@ test('renderer requests a new read when account review evidence is no longer ava
   await openProfile(page, { cached: saved() }); await offerReassociation(page);
   await page.evaluate(() => { (window as unknown as FixtureWindow).activityFixture.failReviews = 'provider_activity_review_unavailable'; });
   await page.getByRole('button', { name: 'Use current sign-in', exact: true }).click();
-  await expect(page.getByText('Read activity again to review the current sign-in.', { exact: true })).toBeVisible();
+  await expect(accounts(page).getByText('Read activity again to review the current sign-in.', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Confirm and read', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Keep saved readings', exact: true }).click();
   await expect(metric(page, 'lifetimeTokens')).toHaveText('9223372036854775807');
@@ -364,7 +372,7 @@ test('renderer applies the shared cooldown after an activity read completes', as
   await openProfile(page); await begin(page, 0);
   await page.evaluate(() => { (window as unknown as FixtureWindow).activityFixture.refreshSeconds = 3; });
   await publish(page, 0, null);
-  await expect(page.locator(`[data-profile-refresh-status="${profileId}"]`)).toHaveText('Next reading in 3s');
+  await expect(accounts(page).locator(`[data-profile-refresh-status="${profileId}"]`)).toHaveText('Next reading in 3s');
   await expect(page.getByRole('button', { name: 'Read activity', exact: true })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Read quotas', exact: true })).toBeDisabled();
   await expect(metric(page, 'lifetimeTokens')).toHaveText('9223372036854775807');

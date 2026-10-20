@@ -1,6 +1,6 @@
 # Implementation status
 
-Updated: October 20, 2026. The mission remains ongoing. Current milestone: production-configuration export, preview, confirmed restore, and undo passed current schema 4 verification. The manual refresh cooldown also passed native verification. SQLCipher 4 with WAL remains mandatory. Typed transient backoff now passed native verification, including real waits, successful recovery, and preserved data. Next: implement the approved compact reference layout with coss components and JetBrains Mono, then continue scheduled monitoring and alerts.
+Updated: October 20, 2026. The mission remains ongoing. Current milestone: production-configuration export, preview, confirmed restore, and undo passed current schema 4 verification. The manual refresh cooldown also passed native verification. SQLCipher 4 with WAL remains mandatory. Typed transient backoff now passed native verification, including real waits, successful recovery, and preserved data. The reference workspace layout now passed native visual, backup-content, and checkpoint recovery checks. Next: remove repeated headings and notices found in native review, capture enlarged secondary-page content, then continue scheduled monitoring and alerts.
 
 ## Implemented and executed
 

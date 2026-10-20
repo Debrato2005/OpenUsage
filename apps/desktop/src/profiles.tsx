@@ -4,6 +4,7 @@ import { Input } from './components/ui/input';
 import { Field, FieldLabel } from './components/ui/field';
 import { Collapsible, CollapsibleTrigger, CollapsiblePanel } from './components/ui/collapsible';
 import './profile-actions.css';
+import './profile-layout.css';
 import { invoke, type ProfileRecord, type ProfileView, type ProviderExecutableApproval } from './contracts';
 import { ProfileProviderCheck } from './provider';
 import { SavedProfileQuota } from './quota';
@@ -14,6 +15,8 @@ type Props = {
   setBusy: (busy: boolean) => void;
   onCount: (count: number) => void;
   providerApproval: ProviderExecutableApproval | null;
+  onProfilesChange?: (profiles: ProfileRecord[]) => void;
+  onReadingsChanged?: () => void;
 };
 
 type Failure = {
@@ -46,12 +49,14 @@ function errorMessage(error: unknown): string {
     ? messages[error] : 'OpenUsage could not complete this profile request. Reload profiles and try again.';
 }
 
-export function ProfileManager({ busy, setBusy, onCount, providerApproval }: Props) {
+export function ProfileManager({ busy, setBusy, onCount, providerApproval, onProfilesChange, onReadingsChanged }: Props) {
   const [view, setView] = useState<ProfileView | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [label, setLabel] = useState('');
+  const [createOpen, setCreateOpen] = useState(false);
+  const [readings, setReadings] = useState<Record<string, boolean>>({});
   const [managed, setManaged] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ id: string; label: string } | null>(null);
   const [failure, setFailure] = useState<Failure | null>(null);
@@ -59,11 +64,16 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval }: Pro
   const [focusTarget, setFocusTarget] = useState<FocusTarget | null>(null);
   const section = useRef<HTMLElement>(null);
   const createInput = useRef<HTMLInputElement>(null);
+  const createToggle = useRef<HTMLButtonElement>(null);
   const renameInput = useRef<HTMLInputElement>(null);
   const pending = useRef(false);
   const reportCount = useRef(onCount);
+  const reportProfiles = useRef(onProfilesChange);
+  const reportReading = useRef(onReadingsChanged);
 
   useEffect(() => { reportCount.current = onCount; }, [onCount]);
+  useEffect(() => { reportProfiles.current = onProfilesChange; }, [onProfilesChange]);
+  useEffect(() => { reportReading.current = onReadingsChanged; }, [onReadingsChanged]);
 
   useEffect(() => {
     let cancelled = false;
@@ -74,6 +84,7 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval }: Pro
       if (!cancelled) {
         setView(next);
         reportCount.current(next.activeProfiles);
+        reportProfiles.current?.(next.profiles);
         setStatus(`Profiles loaded. ${next.activeProfiles} of 10 active.`);
         if (attempt > 0) setFocusTarget('create');
       }
@@ -93,10 +104,10 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval }: Pro
       : focusTarget === 'create' ? createInput.current
       : focusTarget === 'rename' ? renameInput.current
       : section.current?.querySelector<HTMLElement>('#profiles-error');
-    if (target?.getClientRects().length) target.focus();
-    else createInput.current?.focus();
+    if (target?.getClientRects().length && !target.closest('[hidden]')) target.focus();
+    else if (createToggle.current?.getClientRects().length && !createToggle.current.closest('[hidden]')) createToggle.current.focus();
     setFocusTarget(null);
-  }, [busy, loading, focusTarget, view, editing, failure]);
+  }, [busy, loading, focusTarget, view, editing, failure, createOpen, readings]);
 
   async function change(
     operation: () => Promise<ProfileView>,
@@ -113,6 +124,7 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval }: Pro
       const next = await operation();
       setView(next);
       reportCount.current(next.activeProfiles);
+      reportProfiles.current?.(next.profiles);
       done(next);
     } catch (error: unknown) {
       const fieldError = error === 'invalid_profile_label';
@@ -159,10 +171,14 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval }: Pro
     void change(() => invoke('set_profile_archived', { id: profile.id, archived: !profile.archived }), { target: 'row', id: profile.id }, next => {
       setStatus(`Profile ${profile.archived ? 'restored' : 'archived'}. ${next.activeProfiles} of 10 active.`);
       setManaged(null);
-      if (profile.archived) setFocusTarget({ id: profile.id, action: 'options' });
+      if (profile.archived) {
+        setReadings(current => ({ ...current, [profile.id]: true }));
+        setFocusTarget({ id: profile.id, action: 'options' });
+      }
       else {
         const remaining = next.profiles.filter(item => !item.archived);
         const adjacent = remaining[Math.min(Math.max(index, 0), remaining.length - 1)];
+        if (adjacent) setReadings(current => ({ ...current, [adjacent.id]: true }));
         setFocusTarget(adjacent ? { id: adjacent.id, action: 'options' } : 'create');
       }
     });
@@ -176,6 +192,10 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval }: Pro
     const current = editing?.id === profile.id;
     const rowError = failure?.id === profile.id;
     const nameId = `profile-name-${profile.id}`;
+    const connection = {
+      connected: 'Connected', authentication_required: 'Sign-in required', unauthorized: 'Sign-in required',
+      offline: 'Offline', unsupported: 'Unsupported account', error: 'Connection error',
+    }[profile.connectionState];
     const managementActions = current ? <Field className="profile-rename-form" render={<form onSubmit={event => { event.preventDefault(); rename(); }} />}>
       <FieldLabel htmlFor={`profile-label-${profile.id}`}>New profile label</FieldLabel>
       <Input ref={renameInput} id={`profile-label-${profile.id}`} name="profile-label" autoComplete="off" maxLength={1024} disabled={busy || loading} value={editing.label} aria-invalid={rowError && !!failure?.invalidLabel} aria-describedby={rowError ? 'profiles-error' : undefined} onChange={event => { setEditing({ id: profile.id, label: event.target.value }); setFailure(null); }} />
@@ -186,31 +206,44 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval }: Pro
       <Button className="text-button" variant="ghost" type="button" data-profile-action={profile.archived ? 'restore' : 'archive'} aria-label={profile.archived ? 'Restore profile' : 'Archive profile'} aria-describedby={nameId} disabled={busy || loading} onClick={() => archive(profile)}>{profile.archived ? 'Restore' : 'Archive'}</Button>
     </div>;
     const managementTrigger = <CollapsibleTrigger render={<Button variant="ghost" className="text-button" />} type="button" data-profile-action="options" aria-describedby={nameId} disabled={busy || loading || current}>Manage profile</CollapsibleTrigger>;
-    return <Collapsible render={<li />} className="profile-row" data-profile-id={profile.id} key={profile.id} open={managed === profile.id || current} onOpenChange={open => setManaged(open ? profile.id : null)}>
-      <div className="profile-details"><bdi id={nameId} className="profile-label">{profile.label}</bdi><p className="profile-meta">{profile.environment === 'native' ? 'On this device' : 'WSL profile'}</p></div>
+    return <Collapsible render={<li />} className="profile-row" data-profile-id={profile.id} key={profile.id} open={!!readings[profile.id]} onOpenChange={open => setReadings(previous => ({ ...previous, [profile.id]: open }))}>
+      <div className="profile-row-summary">
+        <div className="profile-details"><bdi id={nameId} className="profile-label">{profile.label}</bdi><p className="profile-meta">{profile.environment === 'native' ? 'On this device' : 'WSL profile'}</p></div>
+        <span className="profile-connection-state">{profile.archived ? 'Archived' : connection}</span>
+        <CollapsibleTrigger render={<Button variant="ghost" className="text-button" />} type="button" data-profile-action="readings" aria-describedby={nameId}>{readings[profile.id] ? 'Hide readings' : 'View readings'}</CollapsibleTrigger>
+      </div>
+      <CollapsiblePanel keepMounted className="profile-reading-panel">
+      <Collapsible className="profile-management-root" open={managed === profile.id || current} onOpenChange={open => setManaged(open ? profile.id : null)}>
       <ProfileActivity profileId={profile.id} profileLabel={profile.label}>{(onActivitySaved, onActivityFailed) => <SavedProfileQuota profileId={profile.id} profileLabel={profile.label}>{(onQuotaSaved, onQuotaFailed) => profile.archived ? managementActions : providerApproval
-        ? <ProfileProviderCheck key={`${profile.id}:${providerApproval.approvalId}`} profileId={profile.id} profileLabel={profile.label} approval={providerApproval} busy={busy || loading || current} managementActions={managementActions} managementTrigger={managementTrigger} onActivitySaved={async value => { await Promise.all([onActivitySaved(value), onQuotaFailed()]); }} onActivityFailed={onActivityFailed} onQuotaSaved={async value => { await Promise.all([onQuotaSaved(value), onActivityFailed()]); }} onQuotaFailed={onQuotaFailed} />
+        ? <ProfileProviderCheck key={`${profile.id}:${providerApproval.approvalId}`} profileId={profile.id} profileLabel={profile.label} approval={providerApproval} busy={busy || loading || current} managementActions={managementActions} managementTrigger={managementTrigger} onActivitySaved={async value => { await Promise.all([onActivitySaved(value), onQuotaFailed()]); reportReading.current?.(); }} onActivityFailed={async () => { await onActivityFailed(); reportReading.current?.(); }} onQuotaSaved={async value => { await Promise.all([onQuotaSaved(value), onActivityFailed()]); reportReading.current?.(); }} onQuotaFailed={async () => { await onQuotaFailed(); reportReading.current?.(); }} />
         : <>{managementTrigger}<CollapsiblePanel keepMounted className="profile-management">{managementActions}</CollapsiblePanel></>}</SavedProfileQuota>}</ProfileActivity>
       {rowError && !current && error()}
+      </Collapsible>
+      </CollapsiblePanel>
     </Collapsible>;
   }
 
   const active = view?.profiles.filter(profile => !profile.archived) ?? [];
   const archived = view?.profiles.filter(profile => profile.archived) ?? [];
   return <section ref={section} className="accounts-section" aria-labelledby="accounts-heading" aria-busy={busy || loading}>
-    <div className="section-heading"><div><h2 id="accounts-heading">Accounts</h2><p>Each profile uses a separate Codex environment.</p></div><span className="muted-tag">{view ? `${view.activeProfiles} of 10 active` : loading ? 'Loading profiles…' : 'Profiles unavailable'}</span></div>
+    <div className="section-heading"><div><h2 id="accounts-heading">Accounts</h2><p>Each profile uses a separate Codex environment.</p></div><div className="profile-heading-actions"><span className="muted-tag">{view ? `${view.activeProfiles} of 10 active` : loading ? 'Loading profiles…' : 'Profiles unavailable'}</span><Button ref={createToggle} type="button" variant="outline" className="secondary-button" data-profile-add aria-expanded={createOpen} aria-controls="profile-add-panel" disabled={busy || loading || !view} onClick={() => { setCreateOpen(open => !open); if (!createOpen) setFocusTarget('create'); }}>Add account</Button></div></div>
     <p id="profile-capacity" className="profile-capacity">Up to 10 profiles can be active. Archiving frees a slot and keeps local data.</p>
     <p className="profile-status" role="status">{loading ? 'Loading profiles…' : saving ? 'Saving profile changes…' : status}</p>
     {failure?.target === 'load' && error()}
     {failure && !failure.invalidLabel && <Button className="text-button" variant="ghost" type="button" disabled={busy || loading} onClick={() => { setEditing(null); setAttempt(value => value + 1); }}>Reload profiles</Button>}
     {view && <>
+      <Collapsible open={createOpen} onOpenChange={setCreateOpen} className="profile-add-disclosure">
+      <CollapsiblePanel keepMounted id="profile-add-panel">
       <Field className="profile-create-form" render={<form onSubmit={event => { event.preventDefault(); create(); }} />}>
         <FieldLabel htmlFor="profile-label">Profile label</FieldLabel>
         <Input ref={createInput} id="profile-label" name="profile-label" autoComplete="off" maxLength={1024} disabled={busy || loading} value={label} aria-invalid={failure?.target === 'create' && failure.invalidLabel} aria-describedby={`profile-capacity${failure?.target === 'create' ? ' profiles-error' : ''}`} onChange={event => { setLabel(event.target.value); setFailure(null); }} />
         <Button className="primary-button" type="submit" disabled={busy || loading}>Create profile</Button>
+        <Button type="button" variant="ghost" className="text-button" disabled={busy || loading} onClick={() => { setCreateOpen(false); createToggle.current?.focus(); }}>Cancel add account</Button>
         {failure?.target === 'create' && error()}
       </Field>
-      {active.length ? <ul className="profile-list" aria-label="Active profiles">{active.map(row)}</ul> : <p className="profile-empty">No active profiles. Create a profile or restore an archived one.</p>}
+      </CollapsiblePanel>
+      </Collapsible>
+      {active.length ? <><div className="profile-table-heading" aria-hidden="true"><span>Account</span><span>Connection</span><span>Readings</span></div><ul className="profile-list" aria-label="Active profiles">{active.map(row)}</ul></> : <p className="profile-empty">No active profiles. Add an account or restore an archived one.</p>}
       {archived.length > 0 && <details className="archived-profiles"><summary>Archived profiles ({archived.length})</summary><p>Archived profiles keep their local data.</p><ul className="profile-list" aria-label="Archived profiles">{archived.map(row)}</ul></details>}
       <p className="profile-meta">{providerApproval ? 'Sign in to a profile, then read and save its quotas. Scheduled collection is not available yet.' : 'Review Codex in Codex connection to enable sign-in and quota reads.'}</p>
     </>}

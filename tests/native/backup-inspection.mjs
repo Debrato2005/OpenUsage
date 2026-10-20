@@ -129,6 +129,7 @@ async function focusOwnedWindow() {
 }
 
 async function setTheme(theme, mode = 'pointer') {
+  await driver.navigate('settings');
   if ((await driver.execute('return document.querySelector("#theme").textContent.trim();')) === { system: 'System', light: 'Light', dark: 'Dark' }[theme]) return;
   await focusOwnedWindow();
   const currentLabel = await driver.execute('return document.querySelector("#theme").textContent.trim();');
@@ -241,6 +242,7 @@ try {
   evidence.steps.push({ lockedAndMalformedCommandsRejected: true, missingCatalogDoesNotCreateDirectory: true, singleCharacterPasswordReachesMissingFileCheck: true });
 
   for (const [index, label] of ['Content synthetic active one', 'Content synthetic active two', 'Content synthetic archived'].entries()) {
+    await driver.openProfileCreate();
     await driver.type('#profile-label', label);
     await driver.click('.profile-create-form button[type="submit"]');
     await waitFor(async () => (await driver.invoke('list_profiles')).value?.profiles.length === index + 1, 'GUI-created backup fixture profile');
@@ -258,14 +260,14 @@ try {
   evidence.steps.push({ contentFixtureProfilesCreatedThroughGui: 3, archivedThroughGui: 1, noProviderLogin: true });
 
   await setTheme('dark');
-  await clickButton('Inspect a backup');
+  await driver.navigate('settings'); await clickButton('Inspect a backup');
   await waitFor(async () => Boolean(await driver.execute('return document.querySelector(".backup-inspection-empty");')), 'native empty backup catalog');
   assert.equal(await driver.execute('return Boolean(document.querySelector(".backup-inspection-form"));'), false);
   assert.deepEqual(await readdir(fixture.dirs.downloads), []);
   await driver.execute('document.querySelector(".backup-inspection-empty").scrollIntoView({block:"center"});return true;');
   await driver.screenshot(join(output, 'inspection-empty-catalog-dark.png'));
   evidence.screenshots.push('inspection-empty-catalog-dark.png');
-  await clickButton('Create a backup');
+  await driver.navigate('settings'); await clickButton('Create a backup');
   await waitFor(async () => (await driver.execute('return !document.querySelector(".backup-inspection-empty")&&Boolean(document.querySelector(".backup-form"));')) === true, 'exclusive backup creation form');
   await driver.type('#backup-password', password);
   await driver.type('#backup-confirmation', password);
@@ -283,7 +285,7 @@ try {
   const before = await workspaceHashes();
   await rejected('inspect_backup', { fileName, password: 'x' }, 'backup_authentication_failed');
 
-  await clickButton('Inspect a backup');
+  await driver.navigate('settings'); await clickButton('Inspect a backup');
   await waitFor(async () => Boolean(await driver.execute('const trigger=document.querySelector("#backup-file");return trigger?.getAttribute("role")==="combobox"&&!trigger.disabled;', [fileName])), 'enabled backup selector before choosing the exported file');
   await driver.selectVisibleOption('#backup-file', fileName);
   await driver.type('#backup-inspection-password', 'x');
@@ -339,10 +341,10 @@ try {
   await driver.screenshot(join(output, 'inspection-authenticated-dark.png'));
   evidence.screenshots.push('inspection-authenticated-dark.png');
   await driver.type('#backup-inspection-password', 'Synthetic disclosure switch only');
-  await clickButton('Create a backup');
+  await driver.navigate('settings'); await clickButton('Create a backup');
   await waitFor(async () => (await driver.execute('return !document.querySelector("#backup-inspection-password")&&Boolean(document.querySelector(".backup-form"));')) === true, 'inspection password removed when switching backup action');
   assert.deepEqual(await driver.execute('return [...document.querySelectorAll(".backup-form input[type=password]")].map(node=>node.value);'), ['', '']);
-  await clickButton('Inspect a backup');
+  await driver.navigate('settings'); await clickButton('Inspect a backup');
   await waitFor(async () => Boolean(await driver.execute('return document.querySelector("#backup-inspection-password");')), 'inspection form after disclosure switch');
   assert.equal(await driver.execute('return document.querySelector("#backup-inspection-password").value;'), '');
   evidence.steps.push({ backupDisclosureSwitchClearsPassword: true, inspectionOffersNoApplyAction: true });

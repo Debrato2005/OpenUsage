@@ -132,7 +132,7 @@ async function storageHashes() {
   return value;
 }
 
-async function create(label, unicode = false) {
+async function create(label, unicode = false) { await driver.openProfileCreate();
   const before = await list();
   if (unicode) {
     assert.ok(Number(await driver.execute('return document.querySelector("#profile-label").maxLength;')) >= label.length);
@@ -161,7 +161,7 @@ async function unlock() {
 }
 
 async function screenshot(name, narrow = false, theme = 'dark') {
-  await driver.selectVisibleOption('#theme', { system: 'System', light: 'Light', dark: 'Dark' }[theme]);
+  await driver.setAppearance(theme);
   await waitFor(async () => (await driver.execute('return document.documentElement.dataset.theme;')) === theme, `${theme} appearance`);
   const target = narrow ? { width: 360, height: 800 } : { width: 1280, height: 850 };
   for (let attempt = 0; attempt < 3; attempt++) {

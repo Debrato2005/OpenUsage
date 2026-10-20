@@ -68,7 +68,7 @@ async function chooseDiscovered(path) {
   await driver.request('POST', `/session/${driver.session}/element/${matches[0]['element-6066-11e4-a52e-4f735466cecf']}/click`, {});
   await waitFor(async () => await driver.execute('const checked=[...document.querySelectorAll("[role=radiogroup] button[role=radio][aria-checked=true]")];return checked.length===1&&checked[0].closest(".provider-discovery-choice").querySelector("bdi").textContent===arguments[0];', [path]), 'chosen discovered executable');
 }
-async function theme(value) { await driver.selectVisibleOption('#theme', { system: 'System', light: 'Light', dark: 'Dark' }[value]); await waitFor(async () => await driver.execute('return document.documentElement.dataset.theme===arguments[0]&&!document.querySelector("#theme").disabled;', [value]), `${value} appearance`); }
+async function theme(value) { await driver.setAppearance(value); await waitFor(async () => await driver.execute('return document.documentElement.dataset.theme===arguments[0]&&!document.querySelector("#theme").disabled;', [value]), `${value} appearance`); }
 
 await mkdir(output, { recursive: true, mode: 0o700 });
 process.once('exit', () => { driver?.kill('SIGKILL'); stopGroup(fixture?.bus, 'SIGKILL'); });
@@ -94,6 +94,7 @@ try {
   await waitFor(async () => await driver.execute('return Boolean(document.querySelector("#workspace-passphrase")&&!document.querySelector("#workspace-passphrase").disabled);'), 'fresh workspace form');
   const password = 'OpenUsage synthetic discovery workspace 2026'; await driver.type('#workspace-passphrase', password); await driver.type('#workspace-confirmation', password); await driver.click('.unlock-form button[type=submit]');
   await waitFor(async () => (await driver.invoke('bootstrap')).value?.storage === 'ready', 'encrypted discovery workspace');
+  await driver.navigate('settings');
   await waitFor(async () => await driver.execute('return Boolean(document.querySelector("[data-provider-settings]"));'), 'provider settings'); await driver.click('[data-provider-settings]');
   for (const args of [{ unexpected: true }, { candidates: [] }]) { const result = await driver.invoke('discover_provider_executables', args); assert.equal(result.ok, false); assert.equal(result.error, 'invalid_arguments'); }
   await discover([]); await find(); assert.equal(await driver.execute('return document.querySelector("[data-provider-manual]").closest("details").open && document.activeElement?.id==="provider-executable";'), true);

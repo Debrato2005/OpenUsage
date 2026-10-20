@@ -76,14 +76,16 @@ async function heading(text) {
 async function ready(theme, protection) {
   await heading('Workspace ready');
   await state({ storage: 'ready', theme, keyProtection: protection, schemaVersion: 4, activeProfiles: 0, storageIssue: null });
-  await waitFor(async () => driver.execute('const count=document.querySelector(".accounts-section > .section-heading .muted-tag");return Boolean(count&&count.textContent.trim()==="0 of 10 active"&&count.getBoundingClientRect().width>0&&count.getBoundingClientRect().height>0);'), 'visible Accounts active count');
-  const summary = await driver.execute('const root=document.querySelector(".workspace-summary"),visible=node=>Boolean(node&&node.getBoundingClientRect().width>0&&node.getBoundingClientRect().height>0&&getComputedStyle(node).visibility!=="hidden");return {metrics:[...root.querySelectorAll(".metric")].map(node=>({label:node.querySelector(".metric-label").textContent.trim(),value:node.querySelector(".metric-value").textContent.trim(),visible:visible(node.querySelector(".metric-label"))&&visible(node.querySelector(".metric-value"))})),reason:root.querySelector(".workspace-summary-note").textContent.trim(),reasonVisible:visible(root.querySelector(".workspace-summary-note")),activeCount:document.querySelector(".accounts-section > .section-heading .muted-tag").textContent.trim()};');
-  assert.deepEqual(summary, { metrics: [{ label: 'Quota remaining', value: 'Not available', visible: true }, { label: 'Token activity', value: 'Not available', visible: true }], reason: 'Combined totals are not available. Open a profile to view its activity.', reasonVisible: true, activeCount: '0 of 10 active' });
+  await driver.navigate('accounts');
+  await waitFor(async () => driver.execute('const count=document.querySelector(".accounts-section .muted-tag");return Boolean(count&&count.textContent.trim()==="0 of 10 active"&&count.getClientRects().length);'), 'visible Accounts active count');
+  await driver.navigate('overview');
+  const summary = await driver.execute('const root=document.querySelector("[data-overview]");return {lifetime:root.querySelector("[data-overview-lifetime]").textContent.trim(),quota:root.querySelector("[data-overview-quota] .overview-unavailable").textContent.trim(),meterCount:root.querySelectorAll("[role=meter]").length,reason:root.querySelector(".overview-note").textContent.trim(),profileCount:root.querySelectorAll("[data-overview-account]").length};');
+  assert.deepEqual(summary, { lifetime: 'Not available', quota: 'Not available', meterCount: 0, reason: 'Combined totals are not available. Profile readings are shown separately.', profileCount: 0 });
   evidence.steps.push({ readyWorkspaceSummary: summary });
 }
 
 async function darkTheme() {
-  await driver.selectVisibleOption('#theme', 'Dark');
+  await driver.setAppearance('dark');
   await waitFor(async () => (await driver.execute('return document.documentElement.dataset.theme;')) === 'dark', 'persisted dark appearance');
 }
 

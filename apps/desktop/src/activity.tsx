@@ -39,9 +39,9 @@ function ActivityValues({ value }: { value: SavedProfileActivity }) {
 }
 
 // Cache reads do not require an approved executable or execute the provider.
-export function ProfileActivity({ profileId, profileLabel, children }: { profileId: string; profileLabel: string; children: (onSaved: (receipt: ProfileActivitySavedRead) => Promise<void>, onFailed: () => Promise<void>) => ReactNode }) {
+export function ProfileActivity({ profileId, profileLabel, children, emptyContent }: { profileId: string; profileLabel: string; emptyContent?: ReactNode; children: (onSaved: (receipt: ProfileActivitySavedRead) => Promise<void>, onFailed: () => Promise<void>) => ReactNode }) {
   const [value, setValue] = useState<SavedProfileActivity | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [focus, setFocus] = useState(false);
   const result = useRef<HTMLDivElement>(null);
@@ -75,6 +75,7 @@ export function ProfileActivity({ profileId, profileLabel, children }: { profile
   }
   return <>
     {children(receipt => load(receipt, true), () => load())}
+    {emptyContent && !value && !error && (loading ? <p className="provider-help">Loading saved activity…</p> : emptyContent)}
     {(value || error) && <div ref={result} className="activity-saved" data-activity-saved={profileId} tabIndex={-1} role="region" aria-label={`Saved activity for ${profileLabel}`}>
       <h3>Saved activity</h3>
       {error && <div><p role="alert" data-activity-cache-error>{error}</p><Button type="button" variant="outline" disabled={loading} onClick={() => { void load(undefined, true); }}>Reload saved activity</Button></div>}

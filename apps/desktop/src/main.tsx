@@ -5,18 +5,26 @@ import { Field, FieldLabel } from './components/ui/field';
 import { Select, SelectTrigger, SelectValue, SelectPopup, SelectItem } from './components/ui/select';
 import { StrictMode, useCallback, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { DesktopUnavailable, invoke, type BackupReceipt, type Bootstrap, type Theme, type ProviderExecutableApproval } from './contracts';
+import { DesktopUnavailable, invoke, type BackupReceipt, type Bootstrap, type Theme, type ProviderExecutableApproval, type ProfileRecord } from './contracts';
 import { ProfileManager } from './profiles';
 import { BackupInspection } from './backup-inspection';
 import { CheckpointRecovery } from './checkpoint-recovery';
 import { ProviderSettings } from './provider';
+import { Overview } from './overview';
+import { Usage } from './usage';
 import './styles.css';
+import './workspace-layout.css';
 
 type Startup = { kind: 'loading' } | { kind: 'desktop'; data: Bootstrap }
   | { kind: 'unavailable' } | { kind: 'failed' };
 
 function App() {
   const [startup, setStartup] = useState<Startup>({ kind: 'loading' });
+  const [view, setView] = useState<WorkspaceView>('overview');
+  const [profiles, setProfiles] = useState<ProfileRecord[]>([]);
+  const [readingRevision, setReadingRevision] = useState(0);
+  const updateProfiles = useCallback((value: ProfileRecord[]) => setProfiles(value), []);
+  const readingsChanged = useCallback(() => setReadingRevision(n => n + 1), []);
   const [theme, setTheme] = useState<Theme>('system');
   const [attempt, setAttempt] = useState(0);
   const [privacy, setPrivacy] = useState(false);
@@ -46,6 +54,8 @@ function App() {
     setStartup({ kind: 'desktop', data: updated });
     setTheme(updated.theme);
     setProfileRevision(value => value + 1);
+    setProfiles([]);
+    setReadingRevision(value => value + 1);
   }, []);
 
   useEffect(() => {
@@ -177,19 +187,31 @@ function App() {
     ? 'The protected key exists, but its database is missing. Keep your database and key files. Recover your original encrypted database before you try again.'
     : 'OpenUsage cannot open the existing database. Keep your database and key files. Recover the original database and its protected key before you try again.';
 
+  const appearance = <div className="theme-control"><label id="theme-label" htmlFor="theme">Appearance</label><Select modal={false} value={theme} disabled={busy} items={{ system: 'System', light: 'Light', dark: 'Dark' }} onValueChange={next => { if (next === 'system' || next === 'light' || next === 'dark') changeTheme(next); }}><SelectTrigger ref={themeControl} id="theme" aria-labelledby="theme-label"><SelectValue /></SelectTrigger><SelectPopup alignItemWithTrigger={false}><SelectItem value="system">System</SelectItem><SelectItem value="light">Light</SelectItem><SelectItem value="dark">Dark</SelectItem></SelectPopup></Select></div>;
+  function navigate(next: WorkspaceView) {
+    setView(next);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }
+  const titles = { overview: 'Overview', accounts: 'Accounts', usage: 'Usage', settings: 'Settings' };
+  const descriptions = {
+    overview: 'Saved usage and limits across your account profiles.',
+    accounts: 'Manage profiles and collect new readings.',
+    usage: 'Token activity saved on this device.',
+    settings: 'Appearance, Codex connection, and encrypted backups.',
+  };
   return <div className="app-shell">
     <a className="skip-link" href="#main">Skip to dashboard</a>
     <aside className="sidebar" aria-label="Workspace">
-      <a className="brand" href="#main" aria-label="OpenUsage dashboard"><span className="brand-mark" aria-hidden="true">ou</span><span>OpenUsage</span></a>
-      <nav aria-label="Main"><a className="nav-active" href="#main" aria-current="page">Overview</a></nav>
+      <a className="brand" href="#main" onClick={() => navigate('overview')} aria-label="OpenUsage dashboard"><span className="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M10 3a9 9 0 0 0 0 18v-5a4 4 0 0 1 0-8V3Zm4 0v5a4 4 0 0 1 0 8v5a9 9 0 0 0 0-18Z" fill="currentColor"/></svg></span><span>OpenUsage</span></a>
+      <nav aria-label="Main">{(Object.keys(titles) as WorkspaceView[]).map(name => <a key={name} href={`#${name}`} data-workspace-nav={name} className={view === name ? 'nav-active' : undefined} aria-current={view === name ? 'page' : undefined} onClick={event => { event.preventDefault(); navigate(name); }}><NavIcon view={name} /><span>{titles[name]}</span></a>)}</nav>
       <div className="sidebar-note"><Button variant="ghost" className="text-button" onClick={() => setPrivacy(!privacy)} aria-expanded={privacy} aria-controls="privacy-details">{privacy ? 'Hide privacy details' : 'About your privacy'}</Button></div>
-      <div className="sidebar-footer"><span>OpenUsage</span><span>0.1.0 · In development</span></div>
+      <div className="sidebar-footer"><span>Local workspace</span><span>0.1.0 · In development</span></div>
     </aside>
     <div className="workspace">
-      <header className="topbar"><span>Workspace <span className="breadcrumb" aria-hidden="true">/</span> <strong>Overview</strong></span><div className="theme-control"><label id="theme-label" htmlFor="theme">Appearance</label><Select modal={false} value={theme} disabled={busy} items={{ system: 'System', light: 'Light', dark: 'Dark' }} onValueChange={next => { if (next === 'system' || next === 'light' || next === 'dark') changeTheme(next); }}><SelectTrigger ref={themeControl} id="theme" aria-labelledby="theme-label"><SelectValue /></SelectTrigger><SelectPopup alignItemWithTrigger={false}><SelectItem value="system">System</SelectItem><SelectItem value="light">Light</SelectItem><SelectItem value="dark">Dark</SelectItem></SelectPopup></Select></div></header>
+      {!ready && <header className="topbar"><span>Workspace</span>{appearance}</header>}
       <main id="main" tabIndex={-1}>
-        <div className="page-heading"><div><h1>Overview</h1><p className="subtitle">Account usage and activity on this device.</p></div><span className="status-pill"><span className="status-dot" aria-hidden="true" />Monitoring stopped</span></div>
-        <section className="startup-panel" data-storage={data?.storage ?? startup.kind} aria-labelledby="startup-heading" aria-busy={startup.kind === 'loading' || busy}>
+        <div className="page-heading"><div><h1>{titles[view]}</h1><p className="subtitle">{descriptions[view]}</p></div><span className="status-pill"><span className="status-dot" aria-hidden="true" />Monitoring stopped</span></div>
+        <section hidden={ready && view !== 'settings'} inert={ready && view !== 'settings'} className="startup-panel" data-storage={data?.storage ?? startup.kind} aria-labelledby="startup-heading" aria-busy={startup.kind === 'loading' || busy}>
           <div className="startup-content"><h2 id="startup-heading" role="status">{message}</h2>
             {!ready && <p>{startup.kind === 'unavailable' ? 'This browser view cannot access encrypted storage or connect an account. Open the desktop application to continue.'
               : startup.kind === 'failed' ? 'Restart the desktop application, then try again. Your existing database stays unchanged.'
@@ -224,20 +246,21 @@ function App() {
           </div>
         </section>
         {privacy && <section className="privacy-details" id="privacy-details" aria-labelledby="privacy-heading"><h2 id="privacy-heading">Privacy and local storage</h2><p>OpenUsage has no hosted account or telemetry. Account connections require your approval. Provider credentials stay with Codex.</p><p>Encrypted storage protects application records. It does not encrypt provider credential files or operating-system swap.</p><p>Codex handles approved sign-in requests, connection checks, and quota previews. Scheduled collection remains stopped.</p></section>}
-        <section className={ready ? 'workspace-summary' : 'metric-grid'} aria-label="Workspace summary">
-          {ready ? <><dl className="workspace-metrics">
-            <div className="metric"><dt className="metric-label">Quota remaining</dt><dd className="metric-value">Not available</dd></div>
-            <div className="metric"><dt className="metric-label">Token activity</dt><dd className="metric-value">Not available</dd></div>
-          </dl><p className="workspace-summary-note">Combined totals are not available. Open a profile to view its activity.</p></> : <>
-            <Metric label="Active profiles" value="Locked" detail="Unlock to view your profiles" />
-            <Metric label="Quota remaining" value="Not available" detail="Unlock to view saved readings." />
-            <Metric label="Token activity" value="Not available" detail="Unlock to view saved readings." />
-          </>}
-        </section>
-        {ready ? <ProfileManager key={profileRevision} busy={busy} setBusy={setBusy} onCount={updateProfileCount} providerApproval={providerApproval} />
+        {ready && <section data-workspace-view="overview" hidden={view !== 'overview'} inert={view !== 'overview'} aria-label="Overview"><Overview active={view === 'overview'} profiles={profiles} revision={readingRevision} onAccounts={() => navigate('accounts')} /></section>}
+        {!ready && <section className="metric-grid" aria-label="Workspace summary">
+          <Metric label="Active profiles" value="Locked" detail="Unlock to view your profiles" />
+          <Metric label="Quota remaining" value="Not available" detail="Unlock to view saved readings." />
+          <Metric label="Token activity" value="Not available" detail="Unlock to view saved readings." />
+        </section>}
+        <section data-workspace-view="accounts" hidden={ready && view !== 'accounts'} inert={ready && view !== 'accounts'} aria-label="Account profiles">
+        {ready ? <ProfileManager key={profileRevision} busy={busy} setBusy={setBusy} onCount={updateProfileCount} providerApproval={providerApproval} onProfilesChange={updateProfiles} onReadingsChanged={readingsChanged} />
           : <section className="accounts-section" aria-labelledby="accounts-heading"><div className="section-heading"><div><h2 id="accounts-heading">Accounts</h2><p>Each profile uses a separate Codex environment.</p></div><span className="muted-tag">Workspace locked</span></div>
             <div className="empty-state"><h3>Unlock to view your accounts</h3><p>Open your local workspace to manage account profiles and view saved activity.</p></div>
           </section>}
+        </section>
+        {ready && <section data-workspace-view="usage" hidden={view !== 'usage'} inert={view !== 'usage'} aria-label="Saved usage"><Usage active={view === 'usage'} profiles={profiles} revision={readingRevision} onAccounts={() => navigate('accounts')} /></section>}
+        <section data-workspace-view="settings" hidden={!ready || view !== 'settings'} inert={!ready || view !== 'settings'} aria-label="Workspace settings">
+        {ready && <section className="appearance-settings" aria-label="Appearance"><div><h2>Appearance</h2><p>Choose a theme or follow your system.</p></div>{appearance}</section>}
         {ready && <ProviderSettings busy={busy} setBusy={setBusy} approval={providerApproval} onApproved={setProviderApproval} />}
         {ready && <section className="backup-panel" aria-labelledby="backup-heading">
           <div className="section-heading"><div><h2 id="backup-heading">Encrypted backups</h2><p>Save a password-protected copy of your application records.</p></div><div className="backup-actions"><Button ref={backupToggle} variant="outline" className="secondary-button" disabled={busy} onClick={() => toggleBackup('create')} aria-expanded={backupOpen} aria-controls="backup-form">{backupOpen ? 'Hide backup form' : 'Create a backup'}</Button><Button variant="outline" className="secondary-button" disabled={busy} onClick={() => toggleBackup('inspect')} aria-expanded={backupAction === 'inspect'} aria-controls="backup-inspection">{backupAction === 'inspect' ? 'Hide backup inspection' : 'Inspect a backup'}</Button><Button variant="outline" className="secondary-button" disabled={busy} onClick={() => toggleBackup('recover')} aria-expanded={backupAction === 'recover'} aria-controls="checkpoint-recovery">{backupAction === 'recover' ? 'Hide saved copies' : 'Undo a restore'}</Button></div></div>
@@ -258,9 +281,21 @@ function App() {
             ? 'Undoing a restore requires a preview and your confirmation.'
             : 'Inspect a backup before you prepare a restore. Replacing records requires confirmation.'}</p>
         </section>}
+        </section>
       </main>
     </div>
   </div>;
+}
+
+type WorkspaceView = 'overview' | 'accounts' | 'usage' | 'settings';
+function NavIcon({ view }: { view: WorkspaceView }) {
+  const paths = {
+    overview: <><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z" /></>,
+    accounts: <><ellipse cx="12" cy="5" rx="8" ry="3" /><path d="M4 5v7c0 4 16 4 16 0V5M4 12v7c0 4 16 4 16 0v-7" /></>,
+    usage: <path d="M4 20v-6m5 6V9m6 11V4m5 16V11" />,
+    settings: <><path d="m9 3-1 3-3 1-2 4 2 2v4l4 3 3-1 3 1 4-3v-4l2-2-2-4-3-1-1-3Z" /><circle cx="12" cy="12" r="3" /></>,
+  };
+  return <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[view]}</svg>;
 }
 
 function Metric({ label, value, detail }: { label: string; value: string; detail: string }) {

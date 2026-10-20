@@ -90,6 +90,37 @@ export class NativeDriver {
     }, 'real per-profile refresh eligibility', timeout);
   }
 
+  async navigate(view) {
+    assert.ok(['overview', 'accounts', 'usage', 'settings'].includes(view));
+    const selector = `nav[aria-label="Main"] [data-workspace-nav="${view}"]`;
+    await waitFor(async () => this.execute('const link=document.querySelector(arguments[0]);return Boolean(link&&link.getClientRects().length&&!link.disabled);', [selector]), `available ${view} navigation link`);
+    if (!await this.execute('return document.querySelector(arguments[0])?.getAttribute("aria-current")==="page";', [selector])) await this.click(selector);
+    await waitFor(async () => this.execute('const link=document.querySelector(arguments[0]),panel=document.querySelector(`[data-workspace-view="${arguments[1]}"]`);return link?.getAttribute("aria-current")==="page"&&Boolean(panel&&!panel.hidden&&panel.getClientRects().length)&&[...document.querySelectorAll("[data-workspace-view]")].every(node=>node===panel||node.hidden);', [selector, view]), `visible ${view} navigation destination`);
+  }
+
+  async setAppearance(theme) {
+    assert.ok(['system', 'light', 'dark'].includes(theme));
+    const previous = await this.execute('return document.querySelector(".startup-panel[data-storage=ready]") ? document.querySelector("nav[aria-label=Main] [aria-current=page]")?.getAttribute("data-workspace-nav") : null;');
+    if (previous) await this.navigate('settings');
+    await this.selectVisibleOption('#theme', { system: 'System', light: 'Light', dark: 'Dark' }[theme]);
+    await waitFor(async () => this.execute('return document.documentElement.dataset.theme===arguments[0]&&!document.querySelector("#theme").disabled;', [theme]), 'saved appearance');
+    if (previous) await this.navigate(previous);
+  }
+
+  async openProfileCreate() {
+    await this.navigate('accounts');
+    if (!await this.execute('return document.querySelector("[data-profile-add]")?.getAttribute("aria-expanded")==="true";')) await this.click('[data-profile-add]');
+    await waitFor(async () => this.execute('const field=document.querySelector("#profile-label");return Boolean(field&&!field.disabled&&field.getClientRects().length);'), 'visible Add account form');
+  }
+
+  async openProfileReadings(profileId) {
+    assert.match(profileId, /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i);
+    await this.navigate('accounts');
+    const selector = `[data-profile-id="${profileId}"] [data-profile-action="readings"]`;
+    if (!await this.execute('return document.querySelector(arguments[0])?.getAttribute("aria-expanded")==="true";', [selector])) await this.click(selector);
+    await waitFor(async () => this.execute('const trigger=document.querySelector(arguments[0]),panel=document.getElementById(trigger?.getAttribute("aria-controls"));return trigger?.getAttribute("aria-expanded")==="true"&&Boolean(panel&&panel.getClientRects().length);', [selector]), 'visible profile readings');
+  }
+
   async element(selector) {
     const element = await this.request('POST', `/session/${this.session}/element`, { using: 'css selector', value: selector });
     return element['element-6066-11e4-a52e-4f735466cecf'];
@@ -101,6 +132,7 @@ export class NativeDriver {
   }
 
   async openProfileOptions(profileId) {
+    await this.openProfileReadings(profileId);
     if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(profileId)) throw new Error('A profile options action requires a UUID.');
     const selector = `[data-profile-id="${profileId}"] [data-profile-action="options"]`;
     await waitFor(async () => this.execute('const trigger=document.querySelector(arguments[0]);if(!trigger||trigger.disabled)return false;const rect=trigger.getBoundingClientRect();return trigger.tagName==="BUTTON"&&["true","false"].includes(trigger.getAttribute("aria-expanded"))&&rect.width>0&&rect.height>0&&getComputedStyle(trigger).visibility!=="hidden";', [selector]), `enabled Manage profile action for ${profileId}`);

@@ -115,7 +115,7 @@ async function textScale(enabled, multiplier = 1.5) {
 }
 
 async function theme(value) {
-  await driver.selectVisibleOption('#theme', { system: 'System', light: 'Light', dark: 'Dark' }[value]);
+  await driver.setAppearance(value);
   await waitFor(async () => (await driver.execute('return document.documentElement.dataset.theme;')) === value, `native ${value} appearance`);
   await waitFor(async () => (await driver.execute('return document.querySelector("#theme").disabled;')) === false, 'appearance save');
 }
@@ -259,9 +259,10 @@ try {
   await driver.click('.startup-content .primary-button');
   await heading('Workspace ready');
   await bootstrap('ready', 'os_store');
+  await driver.navigate('settings');
   await captureState('ready-os', '.startup-panel', true);
   await keyboardFocus();
-  await clickButton('Create a backup');
+  await driver.navigate('settings'); await clickButton('Create a backup');
   await captureState('backup-form', '.backup-form', true);
   await driver.type('#backup-password', 'OpenUsage synthetic backup password 2026');
   await driver.type('#backup-confirmation', 'A different synthetic backup password');
@@ -318,6 +319,7 @@ try {
   await driver.type('#workspace-passphrase', passphrase);
   await driver.click('.unlock-form button[type="submit"]');
   await heading('Workspace ready');
+  await driver.navigate('settings');
   await captureState('ready-fallback', '.startup-panel');
   await disposeFixture();
   assert.deepEqual(evidence.violations, [], 'Native visual checks found layout or font failures.');

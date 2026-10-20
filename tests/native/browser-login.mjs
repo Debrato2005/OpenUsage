@@ -26,7 +26,7 @@ async function hashes() {
   for (const path of [fixture.database, `${fixture.database}-wal`, join(workspace, 'database-key.v1')]) try { result[path] = await hash(path); } catch (error) { if (error.code !== 'ENOENT') throw error; }
   return result;
 }
-async function create(label) {
+async function create(label) { await driver.openProfileCreate();
   await driver.type('#profile-label', label); await driver.click('.profile-create-form button[type=submit]');
   await waitFor(async () => driver.execute('const n=document.getElementById("profile-label");return Boolean(n&&!n.disabled&&!n.value);'), 'profile creation settled');
   const value = await driver.invoke('list_profiles'); assert.equal(value.ok, true); return value.value.profiles.find(profile => profile.label === label);
@@ -95,12 +95,14 @@ try {
   // Observe only public attempt/approval UUIDs; all actions still use real IPC.
   evidence.apiObserver = await driver.execute('const original=window.__TAURI__.core,invokeDescriptor=Object.getOwnPropertyDescriptor(original,"invoke"),parentDescriptor=Object.getOwnPropertyDescriptor(window.__TAURI__,"core");window.__browserOriginalCore=original;window.__browserObservedAttempt=null;window.__browserObservedApproval=null;window.__browserInvokeObserver=function(...args){const pending=Reflect.apply(original.invoke,original,args);if(args[0]==="begin_profile_login")pending.then(value=>{window.__browserObservedAttempt={profileId:value.profileId,attemptId:value.attemptId};},()=>{});if(args[0]==="approve_provider_executable")pending.then(value=>{window.__browserObservedApproval=value.approvalId;},()=>{});return pending;};const forwarding={...original,invoke:window.__browserInvokeObserver};window.__TAURI__.core=forwarding;return {originalCoreFrozen:Object.isFrozen(original),invokeWritable:invokeDescriptor.writable,parentWritable:parentDescriptor.writable,namespaceReplaced:window.__TAURI__.core===forwarding&&window.__TAURI__.core!==original,observerInstalled:window.__TAURI__.core.invoke===window.__browserInvokeObserver,otherExportsPreserved:Object.keys(original).every(key=>key==="invoke"||forwarding[key]===original[key])};');
   assert.equal(evidence.apiObserver.originalCoreFrozen, true); assert.equal(evidence.apiObserver.invokeWritable, false); assert.equal(evidence.apiObserver.parentWritable, true); assert.equal(evidence.apiObserver.namespaceReplaced, true); assert.equal(evidence.apiObserver.observerInstalled, true); assert.equal(evidence.apiObserver.otherExportsPreserved, true);
+  await driver.navigate('settings');
   for(const selector of ['[data-provider-settings]','[data-provider-manual]'])if(await driver.execute('return !document.querySelector(arguments[0]).closest("details").open;',[selector]))await driver.click(selector);
   await driver.type('#provider-executable', executable);await driver.click('.provider-inspection-form button[type=submit]');
   await waitFor(async()=>driver.execute('const n=document.getElementById("provider-executable-approved");return Boolean(n&&!n.disabled&&n.getAttribute("role")==="checkbox"&&n.getAttribute("aria-checked")==="false"&&n.getClientRects().length);'),'reviewed synthetic source consent');
   await driver.click('#provider-executable-approved');await driver.click('.provider-approval-form button[type=submit]');
   await waitFor(async()=>driver.execute('return Boolean(window.__browserObservedApproval&&document.querySelector(arguments[0]));',[`[data-login-start="${selected.id}"]`]),'approved synthetic source and sign-in action');
   const approvalId=await driver.execute('return window.__browserObservedApproval;');
+  await driver.openProfileReadings(selected.id);
   const before = await hashes(); const otherFiles = await readdir(join(workspace, 'profiles', other.id));
   assert.deepEqual(await records(browserLog), []);
   for (const args of [[], {}, { profileId: selected.id, attemptId: randomUUID(), url: expectedUrl }, { profileId: selected.id, attemptId: randomUUID(), program: 'browser' }]) await rejected(args, 'invalid_arguments');

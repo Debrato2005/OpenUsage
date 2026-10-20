@@ -1,0 +1,30 @@
+.accounts-section .section-heading { align-items: flex-start; }
+.profile-heading-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--space-3); }
+.accounts-section .profile-capacity { font-size: var(--text-xs); }
+.accounts-section .profile-status { margin-block: var(--space-2); font-size: var(--text-xs); }
+.accounts-section .profile-status:empty { display: none; }
+.profile-table-heading, .profile-row-summary { display: grid; grid-template-columns: minmax(0, 1fr) minmax(9rem, .45fr) 9rem; align-items: center; gap: var(--space-4); padding: var(--space-3) var(--space-4); }
+.profile-table-heading { padding-block: var(--space-2); margin-top: var(--space-4); color: var(--muted); font-size: var(--text-xs); }
+.profile-table-heading > :last-child { text-align: right; }
+.accounts-section .profile-list { margin-top: 0; }
+.accounts-section .profile-row { display: block; padding: 0; }
+.accounts-section .profile-details { min-width: 0; }
+.profile-row-summary > [data-profile-action='readings'] { justify-self: end; }
+.profile-connection-state { color: var(--muted); font-size: var(--text-sm); overflow-wrap: anywhere; }
+.profile-reading-panel { min-width: 0; padding: var(--space-4); border-top: 1px solid var(--line); background: var(--bg); }
+.profile-reading-panel[data-closed] { display: none; }
+.profile-management-root { display: flex; flex-wrap: wrap; min-width: 0; gap: var(--space-3); }
+.profile-add-disclosure .profile-create-form { grid-template-columns: minmax(0, 360px) auto auto; align-items: end; padding: var(--space-4); margin-block: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--surface); }
+.accounts-section .profile-label { font-size: var(--text-body); }
+.accounts-section .archived-profiles > .profile-list { margin-top: var(--space-2); }
+@media (max-width: 760px) {
+  .accounts-section .section-heading { flex-wrap: wrap; }
+  .profile-heading-actions { justify-content: flex-start; }
+  .profile-table-heading { display: none; }
+  .accounts-section .profile-list { margin-top: var(--space-3); }
+  .profile-row-summary { grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-2) var(--space-3); }
+  .profile-row-summary > .profile-details { grid-column: 1 / -1; }
+  .profile-add-disclosure .profile-create-form { grid-template-columns: minmax(0, 1fr); align-items: start; }
+  .profile-add-disclosure .profile-create-form > button { justify-self: start; }
+  .profile-reading-panel { padding: var(--space-3); }
+}

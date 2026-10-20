@@ -44,14 +44,14 @@ async function config(profile, mode) {
   value.modesByHome[join(workspace, 'profiles', profile.id)] = mode;
   await writeFile(`${path}.next`, `${JSON.stringify(value)}\n`, { mode: 0o600 }); await rename(`${path}.next`, path);
 }
-async function create(label) {
+async function create(label) { await driver.openProfileCreate();
   await waitFor(async () => driver.execute('return Boolean(document.querySelector("#profile-label")&&!document.querySelector("#profile-label").disabled);'), 'enabled profile form');
   await driver.type('#profile-label', label); await driver.click('.profile-create-form button[type=submit]');
   await waitFor(async () => driver.execute('const node=document.querySelector("#profile-label");return !node.disabled&&node.value==="";'), 'created synthetic profile');
   const result = await driver.invoke('list_profiles'); assert.equal(result.ok, true);
   const profile = result.value.profiles.find(value => value.label === label); assert.ok(profile); return profile;
 }
-async function approve(profile) {
+async function approve(profile) { await driver.navigate('settings');
   if (await driver.execute('return !document.querySelector("[data-provider-settings]").closest("details").open;')) await driver.click('[data-provider-settings]');
   if (await driver.execute('const node=document.querySelector("[data-provider-manual]");return Boolean(node&&!node.closest("details").open);')) await driver.click('[data-provider-manual]');
   await driver.type('#provider-executable', executable); await driver.click('.provider-inspection-form button[type=submit]');
@@ -61,7 +61,7 @@ async function approve(profile) {
   await driver.click('.provider-approval-form button[type=submit]');
   await waitFor(async () => driver.execute('return document.activeElement?.matches(".provider-approval-result");'), 'source approval result');
   const result = await driver.invoke('check_profile_connection', { profileId: profile.id });
-  assert.equal(result.ok, true); assert.equal(result.value.sourceKind, 'test_fixture'); approvalId = result.value.approvalId;
+  assert.equal(result.ok, true); assert.equal(result.value.sourceKind, 'test_fixture'); approvalId = result.value.approvalId; await driver.openProfileReadings(profile.id);
 }
 async function status(profile, label) {
   const result = await driver.invoke('load_profile_refresh_status', { profileId: profile.id }); assert.equal(result.ok, true);
@@ -95,6 +95,7 @@ async function stage(profile, kind, offset) {
   return found;
 }
 async function guiRead(profile) {
+  await driver.openProfileReadings(profile.id);
   await config(profile, 'multi'); const before = await saved(profile), offset = (await observations()).length;
   await waitFor(async () => driver.execute('const node=document.querySelector(arguments[0]);return Boolean(node&&!node.disabled);', [readSelector(profile.id)]), 'enabled Read quotas action');
   await driver.click(readSelector(profile.id));
@@ -105,6 +106,7 @@ async function guiRead(profile) {
   evidence.steps.push({ successfulGuiRead: profile.id, collectionRunId: value.collectionRunId, ownedProcessReaped: true }); return value;
 }
 async function fail(profile, label, minimum, maximum) {
+  await driver.openProfileReadings(profile.id);
   await config(profile, 'pending'); const before = await liveHashes(), previous = await saved(profile), view = await quotaView(profile), offset = (await observations()).length;
   assert.equal(await status(profile, `${label}: eligible before failure`), 0);
   await waitFor(async () => driver.execute('const node=document.querySelector(arguments[0]);return Boolean(node&&!node.disabled);', [readSelector(profile.id)]), 'eligible GUI read before controlled provider exit');
@@ -165,7 +167,7 @@ try {
   await driver.type('#workspace-passphrase', password); await driver.type('#workspace-confirmation', password); await driver.click('.unlock-form button[type=submit]');
   await waitFor(async () => (await driver.invoke('bootstrap')).value?.storage === 'ready', 'private encrypted workspace');
   const first = await create('Provider backoff fixture'), other = await create('Independent backoff fixture');
-  await approve(first); await driver.selectVisibleOption('#theme', 'Light');
+  await approve(first); await driver.setAppearance('light');
   await waitFor(async () => driver.execute('return document.documentElement.dataset.theme==="light"&&!document.querySelector("#theme").disabled;'), 'light appearance');
   const protectedKey = await hash(join(workspace, 'database-key.v1')), initial = await guiRead(first), initialView = await quotaView(first);
   assert.deepEqual(initialView.meters.slice(0, 2), [{ value: '75', label: 'Five-hour: 75% remaining (derived)' }, { value: '0', label: 'Seven-day: 0% remaining (derived)' }]);

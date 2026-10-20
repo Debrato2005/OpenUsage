@@ -1,3 +1,4 @@
+import { navigate, openReadings } from './navigation';
 import { expect, test, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import type { ProfileQuotaSavedRead, SavedProfileQuota } from '../../apps/desktop/src/contracts';
@@ -54,14 +55,18 @@ async function openProfile(page: Page, options: { approve?: boolean; cached?: Sa
     } } };
   }, { profileId, approvalId, requestIds, reviewId, observedAtUtc, options });
   await page.goto('/');
+  await navigate(page, 'accounts');
   if (options.archived) await page.getByText('Archived profiles (1)', { exact: true }).click();
+  await openReadings(page, profileId);
   if (options.approve === false) return;
+  await navigate(page, 'settings');
   await page.getByRole('heading', { name: 'Codex connection', exact: true }).click();
   await page.locator('[data-provider-manual]').click();
   await page.getByLabel('Codex executable', { exact: true }).fill('/synthetic/reviewed-codex');
   await page.getByRole('button', { name: 'Inspect executable', exact: true }).click();
   await page.getByLabel('I trust this executable for account checks and previews.').check();
   await page.getByRole('button', { name: 'Approve executable', exact: true }).click();
+  await navigate(page, 'accounts');
 
 }
 async function begin(page: Page, index: number) {
@@ -77,6 +82,25 @@ const remaining = (page: Page) => region(page).getByRole('meter', { name: 'Five-
 async function fail(page: Page, index = 0, error = 'provider_quota_failed') {
   await page.evaluate(({ id, error }) => { (window as unknown as FixtureWindow).quotaFixture.completions[id]!.reject(error); }, { id: requestIds[index]!, error });
 }
+
+test('renderer navigation retains a pending read and publishes its result without another provider request', async ({ page }) => {
+  await openProfile(page);
+  await begin(page, 0);
+  for (const view of ['overview', 'usage', 'settings'] as const) {
+    await navigate(page, view);
+    await expect(page.locator(`[data-quota-cancel="${profileId}"]`)).toBeHidden();
+  }
+  await publish(page);
+  await expect(region(page)).toBeHidden();
+  await navigate(page, 'accounts');
+  await expect(region(page)).toBeVisible();
+  await expect(remaining(page)).toBeVisible();
+  await expect(page.locator(`[data-profile-id="${profileId}"] [data-profile-action="readings"]`)).toHaveAttribute('aria-expanded', 'true');
+  const calls = await page.evaluate(() => (window as unknown as FixtureWindow).quotaFixture.requestCalls);
+  expect(calls.filter(call => call.command === 'begin_profile_quota_read')).toHaveLength(1);
+  expect(calls.filter(call => call.command === 'complete_profile_quota_read')).toHaveLength(1);
+  expect(calls.filter(call => call.command === 'cancel_profile_quota_read')).toHaveLength(0);
+});
 
 for (const archived of [false, true]) test(`renderer loads ${archived ? 'archived' : 'active'} saved quotas without executable approval or focus changes`, async ({ page }) => {
   await openProfile(page, { approve: false, archived, cached: saved() });

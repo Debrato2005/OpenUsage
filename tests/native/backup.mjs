@@ -91,13 +91,13 @@ try {
   await driver.click('.unlock-form button[type="submit"]');
   await heading('Workspace ready');
   assert.equal((await driver.invoke('bootstrap')).value.schemaVersion, expectedSchemaVersion);
-  await driver.selectVisibleOption('#theme', 'Dark');
+  await driver.setAppearance('dark');
   await waitFor(async () => driver.execute('return document.documentElement.dataset.theme==="dark"&&!document.querySelector("#theme").disabled;'), 'saved dark appearance and enabled controls');
   await invokeError('create_backup', { password: 'short' }, 'passphrase_too_short');
   await invokeError('create_backup', { password: 'é'.repeat(600) }, 'passphrase_too_long');
   assert.deepEqual(await readdir(fixture.dirs.downloads), []);
 
-  await clickButton('Create a backup');
+  await driver.navigate('settings'); await clickButton('Create a backup');
   await waitFor(async () => Boolean(await driver.execute('return document.querySelector(".backup-form");')), 'backup disclosure and consent form');
   await waitFor(async () => driver.execute('const node=document.querySelector("#backup-records");return Boolean(node&&node.tagName==="BUTTON"&&node.getAttribute("role")==="checkbox"&&!node.disabled&&node.getAttribute("aria-disabled")!=="true"&&node.getClientRects().length);'), 'visible enabled records consent checkbox');
   assert.equal(await driver.execute('return document.querySelector("#backup-records").getAttribute("aria-checked");'), 'false');

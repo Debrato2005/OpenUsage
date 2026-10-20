@@ -49,7 +49,7 @@ async function files(home) {
   await visit(home, ''); return result;
 }
 async function profiles() { const value = await driver.invoke('list_profiles'); assert.equal(value.ok, true); return value.value.profiles; }
-async function create(label) {
+async function create(label) { await driver.openProfileCreate();
   await waitFor(async () => driver.execute('return Boolean(document.querySelector("#profile-label")&&!document.querySelector("#profile-label").disabled);'), 'enabled profile form');
   await driver.type('#profile-label', label); await driver.click('.profile-create-form button[type=submit]');
   await waitFor(async () => driver.execute('const field=document.querySelector("#profile-label");return !field.disabled&&field.value==="";'), 'created profile');
@@ -63,7 +63,7 @@ async function stage(kind, home, offset) {
 async function reaped(row) {
   await waitFor(() => { for (const pid of [row.pid, -row.processGroup]) try { process.kill(pid, 0); return false; } catch (error) { if (error.code !== 'ESRCH') throw error; } return true; }, 'owned login PID and group reaped');
 }
-async function approveGui() {
+async function approveGui() { await driver.navigate('settings');
   if (await driver.execute('return !document.querySelector("[data-provider-settings]").closest("details").open;')) await driver.click('[data-provider-settings]');
   if (await driver.execute('const node=document.querySelector("[data-provider-manual]");return Boolean(node&&!node.closest("details").open);')) await driver.click('[data-provider-manual]');
   await driver.type('#provider-executable', executable); await driver.click('.provider-inspection-form button[type=submit]');
@@ -77,6 +77,7 @@ async function approveGui() {
   assert.deepEqual(await observations(), [], 'Approval must not execute the fixture.');
 }
 async function consentGui() {
+  await driver.openProfileReadings(first.id);
   await waitFor(async () => driver.execute('const node=document.querySelector(arguments[0]);return Boolean(node&&!node.disabled);', [startSelector(first.id)]), 'enabled Sign in');
   const before = (await observations()).length; await driver.click(startSelector(first.id));
   await waitFor(async () => driver.execute('const form=document.querySelector(arguments[0]);return Boolean(form&&document.activeElement===form.querySelector("button[type=submit]"));', [consentSelector(first.id)]), 'focused explicit consent');

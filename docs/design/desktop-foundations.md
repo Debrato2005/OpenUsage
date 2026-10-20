@@ -85,3 +85,18 @@ Backup and checkpoint choices now use coss Select. Password inputs each have the
 The shared picker uses supported fixed positioning for body portals and bounds its popup to the available width. Native investigation reproduced stale document extent with absolute positioning even without scroll locking. Both file pickers now pass desktop-to-narrow open-menu resizing. The full appearance regression also passed. No global overflow clipping conceals content.
 
 At enlarged text size, comparison row labels use the full row width. Labeled values stack when two columns would crowd their text. Whole-word and overflow checks remain strict. Five final-artifact and three retained native journeys map to 46 captures. Their tested/current source scopes remain explicit. Strict profile reverse traversal and full accessibility acceptance remain open. See [the review](../reviews/2026-10-18-coss-backup-controls.md).
+
+
+## Reference workspace layout — October 20, 2026
+
+The reference layout now uses four views: Overview, Accounts, Usage, and Settings. The overview contains two panels, a compact activity strip, and an account table. Connection approval, appearance, and encrypted backups belong in Settings. Account creation and detailed readings use disclosures.
+
+JetBrains Mono remains the bundled typeface. Shared coss controls retain their keyboard behavior and focus states. Light and dark themes use the existing tokens. The sidebar becomes a compact navigation grid in narrow windows. Tables can scroll horizontally without hiding columns.
+
+The overview shows one selected profile and one quota bucket at a time. Rust supplies quota percentages, reset state, freshness, and exact count strings. Unknown totals stay unavailable. Identity uncertainty and synthetic data labels remain visible. No combined donut or date filter appears without supported data.
+
+Provider operations stay mounted under Accounts when navigation or disclosures change. Hidden views are inert. The read-only Usage view loads only when visible. The overview refreshes saved data while visible, without executing a provider.
+
+The first native reference journey passed 21 reviewed captures. It checked real navigation, three GUI-created profiles, saved quota/activity, and completion of a background read after panel closure and navigation. Native backup-content passed eleven captures. Production checkpoint recovery passed seven captures; production fixture refusal also passed. These Linux checks used synthetic provider data. Native visual review found repeated Accounts headings and notices; the next refinement removes them. Secondary-page enlarged captures show their initial viewport, not every control below the fold.
+
+The workspace passed 190 Rust checks, strict Clippy, 34 contracts, and 116 renderer checks in Chromium and WebKit. Two parallel native startups timed out before creating sessions. An isolated retry opened the app, then exposed a quoting fault in the test theme helper. The corrected helper and unchanged application passed. Startup contention remains a hypothesis. Failed runs remain retained. See `../evidence/native-reference-workspace/`.
