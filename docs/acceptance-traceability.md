@@ -78,3 +78,5 @@ Updated: October 20, 2026. Native startup, encrypted persistence, backups, resto
 Synthetic protocol checks, codec checks, renderer fixtures, and OS resource checks do not establish full native acceptance. The named native journeys above have executed Linux evidence.
 
 See [the checkpoint](implementation-status.md) and [the archived rejected amendment](proposals/sqlite-wal-amendment.md).
+
+| OU-MON-005, OU-MON-007–009: typed transport backoff | Shared quota/activity delays follow the bounded SRS sequence with twenty-percent jitter. Native controlled exits prove base/doubled waits, reload/reapproval retention, profile isolation, and post-COMMIT reset. Backup, production fixture refusal, and checkpoint recovery pass on the bound artifacts. See `evidence/native-transport-backoff/`. Generic retry classification, provider retry hints, auth pause, offline detection, scheduled monitoring, and alerts remain incomplete. | partial native Linux slice passed |

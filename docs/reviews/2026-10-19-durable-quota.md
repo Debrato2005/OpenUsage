@@ -71,3 +71,16 @@ All 186 Rust checks, strict Clippy, formatting, 34 contracts, and 102 renderer c
 Two earlier renderer failures received Vite full-page reloads during executable approval. The preserved traces prove the reloads but do not identify the changed file. The unchanged-source rerun passed. An initial build used the primary checkout and failed because its frontend output was absent. The canonical builds succeeded. This slice completes only the cooldown portion of OU-MON-005. Provider backoff and scheduled monitoring remain incomplete.
 
 See the [native cooldown receipt](../evidence/native-refresh-cooldown/refresh/result.json), source `f877816`. The elapsed-time guard uses Rust [Instant](https://doc.rust-lang.org/std/time/struct.Instant.html).
+
+
+## Typed transient retry delay — October 20, 2026
+
+Rust now delays quota and activity retries after typed timeout, transport failure, or unexpected process exit. Both read kinds share the profile's failure streak. Delays use the SRS sequence with random variation within twenty percent. The later of that delay and the manual cooldown controls the next read. The same UI notice shows the remaining time.
+
+Cancellation, generic RPC errors, authentication, malformed responses, local validation, cleanup, and storage failures do not increase the streak. Failure updates require the current request, approval, and coordinator generation. A stale completion cannot delay a successor. Successful persistence clears the streak only after COMMIT. Renderer reload, executable reapproval, and restore quiescence retain it. A genuine app restart creates new process state.
+
+The native journey used controlled exits of verified synthetic provider processes. It checked base and doubled waits with real elapsed time, cross-kind refusal, profile isolation, reload and reapproval, retained encrypted data, and a successful read resetting the streak. No fixture digest changed. This covers typed transport backoff. Generic provider errors lack enough structured evidence for retry classification. Provider retry hints, persistent-auth pause, offline detection, scheduled collection, and OS alerts remain incomplete.
+
+Workspace tests passed 190 checks, with the intentional crash child exercised by its parent. Strict Clippy and formatting passed. Frontend checks passed 34 contracts and 108 renderer checks. Five native journeys passed: backoff, manual cooldown, backup contents, production fixture refusal, and checkpoint recovery. All 23 captures were reviewed. The native waits observed 34 seconds, 59 seconds, then 34 seconds after successful recovery. These are synthetic provider exits, not live-provider reliability results. The current build did not rerun OS credential-store persistence.
+
+Evidence: `../evidence/native-transport-backoff/`. Raw logs use lossless gzip; the binding receipt records raw and compressed hashes. The initial primary-checkout build failed for missing built assets; the canonical build passed. The focused renderer RED includes one detached-element setup failure; only its other four failures establish missing behavior.
