@@ -8,6 +8,7 @@ import { createRoot } from 'react-dom/client';
 import { DesktopUnavailable, invoke, type BackupReceipt, type Bootstrap, type Theme, type ProviderExecutableApproval, type ProfileRecord } from './contracts';
 import { ProfileManager } from './profiles';
 import { BackupInspection } from './backup-inspection';
+import { DataExport } from './data-export';
 import { CheckpointRecovery } from './checkpoint-recovery';
 import { ProviderSettings } from './provider';
 import { Overview } from './overview';
@@ -283,6 +284,7 @@ function App() {
             ? 'Undoing a restore requires a preview and your confirmation.'
             : 'Inspect a backup before you prepare a restore. Replacing records requires confirmation.'}</p>
         </section>}
+        {ready && <DataExport key={profileRevision} profiles={profiles} busy={busy} setBusy={setBusy} />}
         </section>
       </main>
     </div>

@@ -21,6 +21,8 @@ mod collection;
 pub use collection::CollectionCommit;
 mod activity;
 pub use activity::*;
+mod readings_export;
+pub use readings_export::{ExportError, ReadingsExport};
 mod restore_apply;
 pub use restore_apply::{
     CheckpointRestoreMetadata, RestoreError, RestoreHomeMapping, RestoreInputMetadata,

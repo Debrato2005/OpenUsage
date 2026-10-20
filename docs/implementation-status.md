@@ -10,7 +10,9 @@ The rebuilt default application passed backup-content, checkpoint recovery, and 
 
 The preview wording now correctly states that restoring stops monitoring. The updated build, 37 contracts, 176 renderer cases, and focused native restore/Undo journey passed. Five native captures show explicit consent while monitoring is running. See [the copy correction](evidence/native-restore-preview-copy/) and [the restore-token evidence](evidence/native-monitoring-restore/).
 
-Next unblocked feature: selected-data CSV/JSON export under OU-UI-011 and OU-CRYPT-014, with explicit save/privacy consent, Rust-controlled consistent snapshots, exact values, and provenance. Alerts remain incomplete.
+CSV/JSON export now works from Settings with selected active profiles, privacy defaults, explicit unencrypted-file consent, and exact saved values with provenance. The native journey saved three files and verified read-only behavior, refusal cleanup, and restart. Integration checks passed 244 Rust tests, strict Clippy, 38 contracts, and 188 renderer cases. See [the export evidence](evidence/native-saved-readings-export/). This exports current readings, not complete history or all application records.
+
+Next: make the installed official Codex executable discoverable without scanning credential homes, then verify sign-in and collection with a user-authorized account. Official 0.163.0 schemas expose usage and quota methods. Actual account data remains unverified. Backend identity evidence is not yet sufficient for verified aggregation.
 
 ## Implemented and executed
 

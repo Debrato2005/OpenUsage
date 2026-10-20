@@ -64,6 +64,34 @@ test('accepts bounded backup locations and rejects incompatible native receipts'
   }
 });
 
+test('saved-readings export accepts only bounded exact receipts with matching format and valid UTC time', async () => {
+  const receipt = { fileName: 'openusage-readings-0123456789abcdef.csv', directory: '/synthetic/Downloads/OpenUsage', format: 'csv', profileCount: 2, rowCount: 0, identifiersIncluded: false, exportedAt: '2026-10-20T00:00:00.000Z' };
+  const args = { profileIds: ['00000001-0000-4000-8000-000000000000'], format: 'csv', includeIdentifiers: false, confirmed: true };
+  for (const format of ['csv', 'json']) {
+    const valid = { ...receipt, format, fileName: `openusage-readings-0123456789abcdef.${format}`, profileCount: 10, rowCount: 50000 };
+    desktopResponse(valid);
+    assert.deepEqual(await invoke('export_saved_readings', { ...args, format }), valid);
+  }
+  for (const changes of [
+    { fileName: '../openusage-readings-0123456789abcdef.csv' },
+    { fileName: 'openusage-readings-short.csv' }, { fileName: 'openusage-readings-0123456789abcdef.json' },
+    { fileName: 'openusage-readings-0123456789abcdef.csv\n' },
+    { fileName: `openusage-readings-${'a'.repeat(65)}.csv` }, { format: 'xml' }, { format: ['csv'] },
+    { directory: '' }, { directory: '/invalid\0path' }, { directory: '/invalid\npath' },
+    { profileCount: 0 }, { profileCount: 11 }, { profileCount: '2' }, { profileCount: 1.5 },
+    { rowCount: -1 }, { rowCount: 50001 }, { rowCount: '0' }, { rowCount: 0.5 },
+    { identifiersIncluded: 'false' }, { exportedAt: '2026-02-30T00:00:00.000Z' },
+    { exportedAt: '2026-10-20' }, { exportedAt: 'not-a-time' }, { payload: 'private readings' },
+  ]) {
+    desktopResponse({ ...receipt, ...changes });
+    await assert.rejects(invoke('export_saved_readings', args), /desktop response is incompatible/);
+  }
+  for (const key of Object.keys(receipt)) {
+    const missing = { ...receipt }; delete missing[key]; desktopResponse(missing);
+    await assert.rejects(invoke('export_saved_readings', args), /desktop response is incompatible/);
+  }
+});
+
 test('accepts profile records with Unicode labels and counts only active profiles', async () => {
   const profile = {
     id: '00000001-0000-4000-8000-000000000000', label: '😀'.repeat(100),

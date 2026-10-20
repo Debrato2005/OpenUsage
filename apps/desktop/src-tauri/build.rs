@@ -9,6 +9,7 @@ fn main() {
             "unlock_workspace",
             "set_theme",
             "create_backup",
+            "export_saved_readings",
             "list_profiles",
             "create_profile",
             "rename_profile",

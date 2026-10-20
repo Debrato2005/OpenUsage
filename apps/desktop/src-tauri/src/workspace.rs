@@ -67,6 +67,10 @@ pub enum CommandError {
     OsStoreRequired,
     WorkspaceLocked,
     BackupUnavailable,
+    ExportUnavailable,
+    ExportTooLarge,
+    ExportUnsafeText,
+    InvalidExportSelection,
     BackupNotFound,
     InvalidBackup,
     BackupAuthenticationFailed,
@@ -444,6 +448,24 @@ impl Workspace {
             .ok_or(CommandError::WorkspaceLocked)?
             .backup_snapshot()
             .map_err(|_| CommandError::BackupUnavailable)
+    }
+
+    pub fn readings_export(
+        &mut self,
+        profile_ids: &[String],
+        include_identifiers: bool,
+    ) -> Result<openusage_storage::ReadingsExport, CommandError> {
+        self.storage
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .readings_export(profile_ids, include_identifiers)
+            .map_err(|error| match error {
+                openusage_storage::ExportError::InvalidSelection => {
+                    CommandError::InvalidExportSelection
+                }
+                openusage_storage::ExportError::TooLarge => CommandError::ExportTooLarge,
+                openusage_storage::ExportError::ReadFailed => CommandError::ExportUnavailable,
+            })
     }
 
     pub fn list_profiles(&self) -> Result<ProfileView, CommandError> {

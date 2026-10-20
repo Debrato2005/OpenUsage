@@ -5,6 +5,7 @@ mod backup_inspection;
 mod keyvault;
 mod monitoring;
 mod provider;
+mod readings_export;
 mod restore;
 mod workspace;
 
@@ -69,6 +70,15 @@ struct UnlockArgs {
 #[serde(deny_unknown_fields)]
 struct BackupArgs {
     password: Passphrase,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ExportReadingsArgs {
+    profile_ids: Vec<String>,
+    format: readings_export::ExportFormat,
+    include_identifiers: bool,
+    confirmed: bool,
 }
 
 #[derive(Deserialize)]
@@ -449,6 +459,46 @@ async fn set_theme(
         ThemeChoice::Dark => Theme::Dark,
     };
     run_workspace(app, Arc::clone(&service.0), Operation::SetTheme(theme)).await
+}
+
+#[tauri::command]
+async fn export_saved_readings(
+    request: tauri::ipc::Request<'_>,
+    app: AppHandle,
+    service: State<'_, WorkspaceService>,
+) -> Result<readings_export::ExportReceipt, CommandError> {
+    let args: ExportReadingsArgs = arguments(&request)?;
+    if !args.confirmed {
+        return Err(CommandError::InvalidArguments);
+    }
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let (snapshot, when) = {
+            let mut state = service
+                .lock()
+                .map_err(|_| CommandError::ExportUnavailable)?;
+            let workspace = state.as_mut().ok_or(CommandError::WorkspaceLocked)?;
+            let snapshot =
+                workspace.readings_export(&args.profile_ids, args.include_identifiers)?;
+            let when = restore::timestamp(std::time::SystemTime::now())
+                .ok_or(CommandError::ExportUnavailable)?;
+            (snapshot, when)
+        };
+        let directory = app
+            .path()
+            .download_dir()
+            .map_err(|_| CommandError::ExportUnavailable)?
+            .join("OpenUsage");
+        readings_export::create(
+            &directory,
+            snapshot,
+            args.format,
+            args.include_identifiers,
+            when,
+        )
+    })
+    .await
+    .map_err(|_| CommandError::ExportUnavailable)?
 }
 
 #[tauri::command]
@@ -1429,6 +1479,7 @@ fn main() {
             unlock_workspace,
             set_theme,
             create_backup,
+            export_saved_readings,
             list_profiles,
             create_profile,
             rename_profile,

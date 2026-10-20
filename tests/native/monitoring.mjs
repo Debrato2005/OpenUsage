@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import { chmod, copyFile, mkdir, readFile, readdir, readlink, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { chmod, copyFile, lstat, mkdir, readFile, readdir, readlink, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
@@ -20,9 +20,11 @@ const passphrase = 'OpenUsage synthetic native monitoring workspace 2026';
 const hash = async path => createHash('sha256').update(await readFile(path)).digest('hex');
 const diagnostic = process.env.OPENUSAGE_MONITORING_STATUS_DIAGNOSTIC === '1';
 const restoreRace = process.env.OPENUSAGE_MONITORING_RESTORE_RACE === '1';
+const readingsExport = process.env.OPENUSAGE_NATIVE_READINGS_EXPORT === '1';
+const exportScope = 'Actual native CSV/JSON export of selected latest saved synthetic readings. GUI privacy consent, profile selection, identifier opt-in, exact numeric strings, null values, provenance, CSV quoting and refusal of a known formula prefix, private files, strict IPC refusal, sixteen-table and database/WAL/key preservation, and genuine restart. Daily/credit history is not populated; no universal spreadsheet safety, live provider, all-history export, aggregation, encryption, or platform qualification.';
 const evidence = {
-  requirement: 'NATIVE-RUNTIME-MONITORING-001', result: 'failed', startedAt: new Date().toISOString(),
-  scope: 'Actual native synthetic login and explicit Start/Pause; a real 300-second scheduled interval, one accepted scheduled pair, an independent manual pair, and one pending scheduled pair cancelled before COMMIT. Independent encrypted-copy checks cover every column in sixteen schema-4 tables. Runtime eligibility is not inferred from saved connection status, a provider-owned synthetic marker, or metric bindings. No live authentication, real credentials, verified identity, populated daily or credit history, sleep injection, crash durability, OS scaling, or release-platform qualification.',
+  requirement: readingsExport ? 'NATIVE-SAVED-READINGS-EXPORT-001' : 'NATIVE-RUNTIME-MONITORING-001', result: 'failed', startedAt: new Date().toISOString(),
+  scope: readingsExport ? exportScope : 'Actual native synthetic login and explicit Start/Pause; a real 300-second scheduled interval, one accepted scheduled pair, an independent manual pair, and one pending scheduled pair cancelled before COMMIT. Independent encrypted-copy checks cover every column in sixteen schema-4 tables. Runtime eligibility is not inferred from saved connection status, a provider-owned synthetic marker, or metric bindings. No live authentication, real credentials, verified identity, populated daily or credit history, sleep injection, crash durability, OS scaling, or release-platform qualification.',
   steps: [], screenshots: [], oracles: [], closes: [],
 };
 let fixture, driver, workspace, executable, approvalId, sequence = 0;
@@ -96,6 +98,151 @@ async function login(profile) {
 async function manual(profile) { const before = await saved(profile); await driver.openProfileReadings(profile.id); await waitFor(async () => driver.execute('const button=document.querySelector(arguments[0]);return Boolean(button&&!button.disabled);', [`[data-collection-read="${profile.id}"]`]), 'available manual refresh'); await driver.click(`[data-collection-read="${profile.id}"]`); await waitFor(async () => { const value = await saved(profile); return value.quota && value.activity && value.quota.collectionRunId !== before.quota?.collectionRunId && value.activity.collectionRunId !== before.activity?.collectionRunId; }, 'manual paired COMMIT'); await waitFor(async () => driver.execute('return document.activeElement===document.querySelector(arguments[0])&&!document.querySelector(arguments[1]);', [collectionResult(profile), `[data-collection-cancel="${profile.id}"]`]), 'manual result focus'); const value = await saved(profile); pair(value, profile); return value; }
 async function start(profile) { await driver.openProfileOptions(profile.id); await waitFor(async () => driver.execute('const button=document.querySelector(arguments[0]);return Boolean(button&&!button.disabled&&button.getClientRects().length);', [startButton(profile)]), 'eligible Start monitoring'); await driver.click(startButton(profile)); await waitFor(async () => (await status(profile)).state === 'running', 'explicit monitoring start'); }
 async function capture(name, selector, width = 1280, scale = 1) { for (let count = 0; count < 3; count++) { const viewport = await driver.execute('return {width:innerWidth,height:innerHeight};'); if (viewport.width === width && viewport.height === 850) break; const rect = await driver.request('GET', `/session/${driver.session}/window/rect`); await driver.request('POST', `/session/${driver.session}/window/rect`, { width: rect.width + width - viewport.width, height: rect.height + 850 - viewport.height }); } await driver.execute('document.documentElement.style.fontSize=arguments[0]===1?"":`${16*arguments[0]}px`;document.querySelector(arguments[1])?.scrollIntoView({block:"center"});return true;', [scale, selector]); await driver.screenshot(join(output, name)); evidence.screenshots.push(name); }
+function csvRecords(text, columns) {
+  const rows = []; let row = [], field = '', quoted = false;
+  for (let index = 0; index < text.length; index++) {
+    const character = text[index];
+    if (quoted) {
+      if (character === '"' && text[index + 1] === '"') { field += '"'; index++; }
+      else if (character === '"') quoted = false;
+      else field += character;
+    } else if (character === '"') { assert.equal(field, ''); quoted = true; }
+    else if (character === ',') { row.push(field); field = ''; }
+    else if (character === '\n' || character === '\r') {
+      if (character === '\r' && text[index + 1] === '\n') index++;
+      row.push(field); rows.push(row); row = []; field = '';
+    } else field += character;
+  }
+  assert.equal(quoted, false, 'The CSV must close every quoted field.');
+  if (field || row.length) { row.push(field); rows.push(row); }
+  assert.deepEqual(rows.shift(), columns);
+  return rows.map(values => { assert.equal(values.length, columns.length); return Object.fromEntries(columns.map((column, index) => [column, values[index] === '' ? null : values[index]])); });
+}
+
+async function exportSavedReadings(first, other, initialKeyHash, initialSentinelHash) {
+  evidence.requirement = 'NATIVE-SAVED-READINGS-EXPORT-001';
+  evidence.scope = exportScope;
+  const columns = ['profile', 'profile_id', 'profile_label', 'email', 'record_kind', 'metric', 'value', 'unit', 'provider_date', 'observed_at_utc', 'source_method', 'source_kind', 'provider_version', 'source_scope', 'raw_scope', 'identity_confidence', 'coverage', 'status', 'inclusion_rule', 'limit_id', 'window_role'];
+  const directory = join(fixture.dirs.downloads, 'OpenUsage'), maliciousLabel = '=SUM(1,2) "Synthetic"', normalLabel = 'Synthetic, "quoted" profile';
+  const files = async () => { try { return (await readdir(directory)).sort(); } catch (error) { if (error.code === 'ENOENT') return []; throw error; } };
+  async function homes() {
+    const snapshot = {};
+    async function visit(path, key) {
+      const metadata = await lstat(path); assert.equal(metadata.isSymbolicLink(), false);
+      if (metadata.isDirectory()) { snapshot[key] = { directory: true, mode: metadata.mode & 0o777, inode: metadata.ino }; for (const name of (await readdir(path)).sort()) await visit(join(path, name), `${key}/${name}`); }
+      else { assert.equal(metadata.isFile(), true); snapshot[key] = { sha256: await hash(path), mode: metadata.mode & 0o777 }; }
+    }
+    for (const profile of [first, other]) await visit(home(profile), profile.id);
+    await visit(fixture.dirs.codex, 'synthetic-outer-codex');
+    return snapshot;
+  }
+  async function options() {
+    await driver.navigate('settings');
+    if (await driver.execute('return document.querySelector("[data-export-toggle]")?.getAttribute("aria-expanded")!=="true";')) await driver.click('[data-export-toggle]');
+    await waitFor(async () => driver.execute('const node=document.querySelector("#reading-export-format");return Boolean(node&&!node.disabled&&node.getClientRects().length);'), 'visible saved-reading export controls');
+  }
+  async function unchecked() {
+    assert.deepEqual(await driver.execute('return {consent:document.querySelector("#reading-export-consent").getAttribute("aria-checked"),disabled:document.querySelector("[data-export-save]").disabled};'), { consent: 'false', disabled: true });
+  }
+  function records(values, identifiers, alias, count) {
+    assert.ok(values.length > 0);
+    for (const row of values) {
+      assert.deepEqual(Object.keys(row), columns); for (const value of Object.values(row)) assert.ok(value === null || typeof value === 'string');
+      assert.equal(row.inclusion_rule, 'separate_profile_no_aggregation');
+      assert.equal(row.status, row.value === null ? 'unavailable' : 'available');
+      assert.equal(row.provider_date, null, 'This fixture has no accepted daily bucket.');
+      assert.equal(row.raw_scope, null);
+      if (row.profile === alias) {
+        assert.equal(row.source_kind, 'test_fixture'); assert.equal(row.provider_version, '0.163.0'); assert.equal(row.identity_confidence, 'provisional'); assert.equal(row.coverage, 'unknown');
+        assert.ok(Number.isFinite(Date.parse(row.observed_at_utc)));
+        const activity = row.record_kind.startsWith('activity');
+        assert.equal(row.observed_at_utc, activity ? reading.activity.observedAtUtc : reading.quota.observedAtUtc);
+        assert.equal(row.source_method, activity ? 'account/usage/read' : 'account/rateLimits/read');
+        assert.equal(row.source_scope, activity ? 'account_activity_with_unknown_application_scope' : 'account_quota_with_unknown_application_scope');
+      } else {
+        assert.equal(count, 2); assert.equal(row.value, null); assert.equal(row.status, 'unavailable');
+        for (const field of ['source_method', 'source_kind', 'provider_version', 'source_scope', 'identity_confidence', 'coverage', 'observed_at_utc']) assert.equal(row[field], null, 'An unread profile must not acquire fabricated provenance.');
+      }
+      if (!identifiers) for (const field of ['profile_id', 'profile_label', 'email']) assert.equal(row[field], null);
+    }
+    const selected = values.filter(row => row.profile === alias);
+    for (const [metric, value, unit] of [['lifetime_tokens', '9007199254740993', 'tokens'], ['peak_daily_tokens', '9223372036854775807', 'tokens'], ['current_streak_days', '0', 'days']]) {
+      const row = selected.find(row => row.record_kind === 'activity_summary' && row.metric === metric); assert.ok(row); assert.equal(row.value, value); assert.equal(row.unit, unit); assert.equal(row.status, 'available');
+    }
+    const missing = selected.find(row => row.metric === 'longest_running_turn_sec'); assert.ok(missing); assert.equal(missing.value, null); assert.equal(missing.status, 'unavailable'); assert.equal(missing.unit, 'seconds');
+    const quota = selected.find(row => row.metric === 'used_percent' && row.window_role === 'primary'); assert.ok(quota); assert.equal(quota.value, '25'); assert.equal(quota.unit, 'percent'); assert.equal(quota.limit_id, 'codex');
+    const secondary = selected.find(row => row.metric === 'used_percent' && row.window_role === 'secondary'); assert.ok(secondary); assert.equal(secondary.value, null); assert.equal(secondary.status, 'unavailable');
+    if (count === 1) assert.deepEqual([...new Set(values.map(row => row.profile))], ['profile-1']);
+    return selected;
+  }
+  async function renameFirst(label) {
+    await driver.openProfileOptions(first.id); await driver.click(`[data-profile-id="${first.id}"] [data-profile-action="rename"]`);
+    await driver.replaceText(`#profile-label-${first.id}`, label); await driver.click(`[data-profile-id="${first.id}"] .profile-rename-form button[type=submit]`);
+    await waitFor(async () => (await call('list_profiles')).profiles.find(row => row.id === first.id)?.label === label, 'GUI export test label saved'); first.label = label;
+  }
+  const reading = await saved(first); pair(reading, first);
+  await renameFirst(maliciousLabel);
+  await options();
+  const order = await driver.execute('return [...document.querySelectorAll("[data-export-profile]")].map(node=>({id:node.getAttribute("data-export-profile"),checked:node.getAttribute("aria-checked")}));');
+  assert.equal(order.length, 2); assert.ok(order.every(row => row.checked === 'true')); assert.equal(await driver.execute('return document.querySelector("#reading-export-format").textContent.trim();'), 'CSV'); assert.equal(await driver.execute('return document.querySelector("#reading-export-identifiers").getAttribute("aria-checked");'), 'false'); await unchecked(); assert.deepEqual(await files(), []);
+  await capture('readings-export-unchecked-consent.png', '[data-reading-export]');
+  const before = await oracle('before read-only CSV and JSON export'), bytesBefore = await liveHashes(), homesBefore = await homes(), startsBefore = [await appStarts(first), await appStarts(other)];
+  const forbidden = [reading.quota.bindingId, reading.quota.collectionRunId, reading.activity.collectionRunId, passphrase, fixture.root, home(first), home(other), 'database-key.v1', 'CODEX_HOME', 'synthetic-monitored-login-completed', 'SYNTH-1234', 'synthetic-monitored-attempt'];
+  evidence.exports = [];
+  async function save(format, count, identifiers, label) {
+    await unchecked(); const previous = await files();
+    await driver.click('#reading-export-consent'); await waitFor(async () => driver.execute('return !document.querySelector("[data-export-save]").disabled;'), 'explicit unencrypted-file consent'); await driver.click('[data-export-save]');
+    await waitFor(async () => driver.execute('return document.activeElement===document.querySelector("[data-export-result]")&&!document.querySelector("[data-export-save]").textContent.includes("Saving");'), 'focused completed saved-reading export');
+    const shown = await driver.execute('const node=document.querySelector("[data-export-result]"),paragraphs=[...node.querySelectorAll("p")];return {fileName:node.querySelector("strong").textContent,directory:node.querySelector("br").nextSibling.textContent,summary:paragraphs[2].textContent,privacy:paragraphs[3].textContent,exportedAt:node.querySelector("time").dateTime};');
+    assert.equal(shown.directory, directory); assert.match(shown.fileName, new RegExp(`^openusage-readings-[A-Za-z0-9_-]{16,64}\\.${format}$`)); assert.match(shown.exportedAt, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/); assert.ok(Number.isFinite(Date.parse(shown.exportedAt))); assert.equal(shown.privacy, identifiers ? 'Profile names and email addresses included.' : 'Profile names and email addresses omitted.');
+    const summary = /^(CSV|JSON) · (\d+) profiles · (\d+) rows$/.exec(shown.summary); assert.ok(summary); assert.equal(summary[1].toLowerCase(), format); assert.equal(Number(summary[2]), count);
+    const path = join(directory, shown.fileName), metadata = await lstat(path), folder = await lstat(directory); assert.equal(metadata.isFile(), true); assert.equal(metadata.isSymbolicLink(), false); assert.equal(metadata.mode & 0o777, 0o600); assert.equal(metadata.nlink, 1); assert.equal(folder.isDirectory(), true); assert.equal(folder.isSymbolicLink(), false); assert.equal(folder.mode & 0o777, 0o700);
+    const text = await readFile(path, 'utf8'); for (const secret of forbidden) assert.equal(text.includes(secret), false, 'Exports must omit private paths, credentials and internal reading identifiers.');
+    let rows;
+    if (format === 'json') { const value = JSON.parse(text); assert.deepEqual(Object.keys(value).sort(), ['exportedAt', 'records', 'schemaVersion', 'selection']); assert.equal(value.schemaVersion, 1); assert.equal(value.exportedAt, shown.exportedAt); assert.deepEqual(value.selection, { profileCount: count, identifiersIncluded: identifiers }); rows = value.records; }
+    else rows = csvRecords(text, columns);
+    assert.equal(rows.length, Number(summary[3])); const selected = records(rows, identifiers, count === 1 ? 'profile-1' : `profile-${order.findIndex(row => row.id === first.id) + 1}`, count);
+    if (!identifiers) for (const secret of [first.id, other.id, first.label, other.label, 'synthetic-collection@example.invalid']) assert.equal(text.includes(secret), false);
+    else for (const row of selected) { assert.equal(row.profile_id, first.id); assert.equal(row.email, 'synthetic-collection@example.invalid'); assert.equal(row.profile_label, first.label); }
+    if (format === 'csv' && identifiers) assert.ok(text.includes('"Synthetic, ""quoted"" profile"'), 'CSV quoting must preserve commas and double quotes without changing the source value.');
+    assert.deepEqual(await files(), [...previous, shown.fileName].sort(), 'A save publishes exactly one complete file, without pending temporaries.'); await unchecked();
+    await copyFile(path, join(output, `${label}.${format}`)); await chmod(join(output, `${label}.${format}`), 0o600);
+    evidence.exports.push({ fileName: shown.fileName, directory: shown.directory, format, profileCount: count, rowCount: rows.length, identifiersIncluded: identifiers, exportedAt: shown.exportedAt, sha256: await hash(path), retainedSyntheticFile: `${label}.${format}` });
+    await capture(`${label}.png`, '[data-export-result]');
+  }
+  await save('csv', 2, false, 'readings-default');
+  await driver.click(`[data-export-profile="${other.id}"]`); await unchecked(); await driver.selectVisibleOption('#reading-export-format', 'JSON'); await unchecked(); await driver.click('#reading-export-identifiers'); await unchecked();
+  await save('json', 1, true, 'readings-selected-identifiers');
+  await driver.selectVisibleOption('#reading-export-format', 'CSV'); await unchecked(); const beforeUnsafe = await files();
+  await driver.click('#reading-export-consent'); await waitFor(async () => driver.execute('return !document.querySelector("[data-export-save]").disabled;'), 'explicit consent for unsafe CSV refusal case'); await driver.click('[data-export-save]');
+  await waitFor(async () => driver.execute('return document.activeElement===document.querySelector("[data-export-error]");'), 'unsafe formula-like CSV text refused with actionable GUI error');
+  assert.match(await driver.execute('return document.querySelector("[data-export-error]").textContent;'), /JSON/); assert.deepEqual(await files(), beforeUnsafe, 'A refused CSV must leave no published or temporary file.'); await unchecked(); await capture('readings-unsafe-csv-refused.png', '[data-export-error]');
+  assert.deepEqual(await driver.invoke('export_saved_readings', { profileIds: [first.id], format: 'csv', includeIdentifiers: true, confirmed: true }), { ok: false, error: 'export_unsafe_text' }); assert.deepEqual(await files(), beforeUnsafe);
+  assert.deepEqual(await liveHashes(), bytesBefore); assert.deepEqual(await oracle('sixteen tables unchanged by default CSV, identifier JSON and unsafe CSV refusal'), before); assert.deepEqual(await homes(), homesBefore); assert.deepEqual([await appStarts(first), await appStarts(other)], startsBefore);
+  await renameFirst(normalLabel); const quotedBefore = await oracle('after explicit quoted-label rename before CSV export'), quotedBytes = await liveHashes(); await options(); await unchecked();
+  await save('csv', 1, true, 'readings-csv-quoted-text');
+  assert.deepEqual(await liveHashes(), quotedBytes); assert.deepEqual(await oracle('all sixteen tables unchanged by quoted CSV export'), quotedBefore);
+  const valid = { profileIds: [first.id], format: 'csv', includeIdentifiers: false, confirmed: true }, completedFiles = await files();
+  for (const [args, error] of [
+    [{ ...valid, destination: directory }, 'invalid_arguments'], [{ ...valid, confirmed: false }, 'invalid_arguments'], [{ ...valid, format: 'xml' }, 'invalid_arguments'],
+    [{ ...valid, profileIds: [] }, 'invalid_export_selection'], [{ ...valid, profileIds: [first.id, first.id] }, 'invalid_export_selection'],
+    [{ ...valid, profileIds: [randomUUID()] }, 'invalid_export_selection'], [{ ...valid, profileIds: ['not-a-profile-uuid'] }, 'invalid_export_selection'],
+    [{ ...valid, profileIds: Array.from({ length: 11 }, () => randomUUID()) }, 'invalid_export_selection'],
+  ]) {
+    assert.deepEqual(await driver.invoke('export_saved_readings', args), { ok: false, error }); assert.deepEqual(await files(), completedFiles);
+  }
+  assert.deepEqual(await liveHashes(), quotedBytes); assert.deepEqual(await homes(), homesBefore);
+  await driver.openProfileOptions(other.id); await driver.click(`[data-profile-id="${other.id}"] [data-profile-action="archive"]`); await waitFor(async () => (await call('list_profiles')).profiles.find(row => row.id === other.id)?.archived, 'GUI archive of unread profile');
+  const archived = await oracle('after explicit unread-profile archive'), archivedBytes = await liveHashes();
+  assert.deepEqual(await driver.invoke('export_saved_readings', { ...valid, profileIds: [other.id] }), { ok: false, error: 'invalid_export_selection' }); assert.deepEqual(await files(), completedFiles); assert.deepEqual(await liveHashes(), archivedBytes);
+  await closeNormally(); await open(); pair(await saved(first), first); assert.deepEqual(await oracle('genuine restart retains every saved column after export'), archived); assert.deepEqual(await homes(), homesBefore);
+  await options(); await unchecked(); assert.equal(await driver.execute('return document.querySelector("#reading-export-identifiers").getAttribute("aria-checked");'), 'false'); assert.deepEqual(await files(), completedFiles); for (const item of evidence.exports) assert.equal(await hash(join(directory, item.fileName)), item.sha256);
+  assert.deepEqual(await readdir(fixture.dirs.codex), ['synthetic-fixture.txt']); assert.equal(await hash(join(fixture.dirs.codex, 'synthetic-fixture.txt')), initialSentinelHash); assert.equal(await hash(join(workspace, 'database-key.v1')), initialKeyHash); assert.equal(await hash(application), evidence.application.sha256); assert.equal(await hash(executable), providerSha);
+  await capture('readings-export-restart-private-defaults.png', '[data-reading-export]');
+  evidence.steps.push({ actualGuiFiles: 3, defaultCsvOmitsIdentifiers: true, selectedJsonPreservesExactNumericStringsAndNulls: true, knownFormulaPrefixCsvRefusedWithoutOutput: true, csvQuotingPreservesSourceText: true, explicitUncheckedConsentRequired: true, invalidSelectionsCreateNoFiles: true, latestReadingsOnlyNoAggregation: true, allSixteenTablesAndLiveDatabaseWalKeyUnchangedByEachExportGroup: true, explicitGuiRenamesComparedSeparately: true, genuineRestartWithoutProviderApproval: true, privateSyntheticHomesUnchanged: true });
+  await closeNormally();
+}
+
 async function restoreWhilePending(profile) {
   evidence.requirement = 'NATIVE-MONITORING-RESTORE-001';
   evidence.scope = 'Actual native synthetic login, pending paired reads, rejected cancelled/missing tokens, confirmed GUI archive restore and GUI Undo. Every column in sixteen SQLCipher tables is compared, allowing only documented restored connection state, stopped monitoring, one bounded restore timestamp, and fresh private home mappings for archive restore. Undo retains the exact saved mappings. Daily and credit-history tables are empty. No live credentials, crash durability, or release-platform qualification.';
@@ -240,7 +387,9 @@ try {
   assert.equal((await status(first)).eligible, false); const seedStarts = (await appStarts(first)).length;
   assert.deepEqual(await driver.invoke('start_profile_monitoring', { profileId: first.id, approvalId }), { ok: false, error: 'monitoring_not_eligible' }); assert.equal((await appStarts(first)).length, seedStarts);
   await login(first);
-  if (diagnostic) {
+  if (readingsExport) {
+    await exportSavedReadings(first, other, protectedKeyHash, sentinel); evidence.result = 'passed';
+  } else if (diagnostic) {
     evidence.requirement = 'NATIVE-MONITORING-STATUS-DIAGNOSTIC-001';
     evidence.scope = 'Bounded investigation of one post-login status command and the WebDriver async callback boundary. Not scheduled-monitoring acceptance.';
     const started = performance.now();

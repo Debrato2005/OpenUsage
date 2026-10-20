@@ -15,6 +15,7 @@
     "allow-unlock-workspace",
     "allow-set-theme",
     "allow-create-backup",
+    "allow-export-saved-readings",
     "allow-list-profiles",
     "allow-create-profile",
     "allow-rename-profile",

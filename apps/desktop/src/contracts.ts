@@ -28,6 +28,17 @@ export interface BackupReceipt {
   directory: string;
 }
 
+export type ReadingExportFormat = 'csv' | 'json';
+export interface ReadingExportReceipt {
+  fileName: string;
+  directory: string;
+  format: ReadingExportFormat;
+  profileCount: number;
+  rowCount: number;
+  identifiersIncluded: boolean;
+  exportedAt: string;
+}
+
 export interface ProfileRecord {
   id: string;
   label: string;
@@ -277,6 +288,7 @@ interface Commands {
   unlock_workspace: { args: { passphrase: string }; result: Bootstrap };
   set_theme: { args: { theme: Theme }; result: Bootstrap };
   create_backup: { args: { password: string }; result: BackupReceipt };
+  export_saved_readings: { args: { profileIds: string[]; format: ReadingExportFormat; includeIdentifiers: boolean; confirmed: true }; result: ReadingExportReceipt };
 }
 
 declare global {
@@ -330,6 +342,7 @@ export async function invoke<K extends keyof Commands>(
     : command === 'list_backups' ? isBackupList(response)
     : command === 'inspect_backup' ? isBackupInspection(response)
     : command === 'create_backup' ? isBackupReceipt(response)
+    : command === 'export_saved_readings' ? isReadingExportReceipt(response)
     : ['list_profiles', 'create_profile', 'rename_profile', 'set_profile_archived'].includes(command)
     ? isProfileView(response) : isBootstrap(response);
   if (!valid) {
@@ -682,6 +695,20 @@ function isPreviewCancellation(value: unknown): value is { cancelled: boolean } 
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   const v = value as Record<string, unknown>;
   return Object.keys(v).length === 1 && typeof v.cancelled === 'boolean';
+}
+
+function isReadingExportReceipt(value: unknown): value is ReadingExportReceipt {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  return Object.keys(v).length === 7
+    && Object.keys(v).every(key => ['fileName', 'directory', 'format', 'profileCount', 'rowCount', 'identifiersIncluded', 'exportedAt'].includes(key))
+    && (v.format === 'csv' || v.format === 'json')
+    && typeof v.fileName === 'string' && !/[\u0000-\u001f\u007f]/.test(v.fileName)
+    && new RegExp(`^openusage-readings-[A-Za-z0-9_-]{16,64}\\.${v.format}$`).test(v.fileName)
+    && typeof v.directory === 'string' && v.directory.length > 0 && v.directory.length <= 32768 && !/[\u0000-\u001f\u007f]/.test(v.directory)
+    && Number.isInteger(v.profileCount) && Number(v.profileCount) >= 1 && Number(v.profileCount) <= 10
+    && Number.isInteger(v.rowCount) && Number(v.rowCount) >= 0 && Number(v.rowCount) <= 50000
+    && typeof v.identifiersIncluded === 'boolean' && isUtcTimestamp(v.exportedAt);
 }
 
 function isBackupReceipt(value: unknown): value is BackupReceipt {
