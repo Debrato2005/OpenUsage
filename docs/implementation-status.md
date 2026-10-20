@@ -8,7 +8,9 @@ Restore validation now precedes cancellation. A native test reproduced the origi
 
 The rebuilt default application passed backup-content, checkpoint recovery, and production source-gate regressions. Source and cleanup checks passed within explicit deadlines. SQLCipher 4 with WAL and the normative SRS remain unchanged. Renderer source did not change. Prior renderer results retain their original scope. Daily and credit-history rows were empty. Live authentication, crash durability, alerts, and full platform acceptance remain incomplete.
 
-Next: correct the preview wording for monitoring that is currently running. See [the restore-token evidence](evidence/native-monitoring-restore/).
+The preview wording now correctly states that restoring stops monitoring. The updated build, 37 contracts, 176 renderer cases, and focused native restore/Undo journey passed. Five native captures show explicit consent while monitoring is running. See [the copy correction](evidence/native-restore-preview-copy/) and [the restore-token evidence](evidence/native-monitoring-restore/).
+
+Next unblocked feature: selected-data CSV/JSON export under OU-UI-011 and OU-CRYPT-014, with explicit save/privacy consent, Rust-controlled consistent snapshots, exact values, and provenance. Alerts remain incomplete.
 
 ## Implemented and executed
 

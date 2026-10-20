@@ -124,6 +124,8 @@ async function restoreWhilePending(profile) {
   async function confirm(expected, child, label, archive = false) {
     const existingHomes = new Set(await readdir(join(workspace, 'profiles')));
     assert.deepEqual(await driver.execute('return {checked:document.querySelector("#restore-confirmed").getAttribute("aria-checked"),disabled:document.querySelector(".restore-confirmation-form button[type=submit]").disabled};'), { checked: 'false', disabled: true });
+    assert.match(await driver.execute('return document.querySelector("#restore-replacement-help").textContent;'), /Restoring will stop monitoring[.]/);
+    const pendingAtConsent = await status(profile); assert.equal(pendingAtConsent.state, 'running'); assert.equal(pendingAtConsent.readingActive, true);
     await capture(`${label}-preview.png`, '.restore-preview');
     const before = Date.now();
     await driver.click('#restore-confirmed');

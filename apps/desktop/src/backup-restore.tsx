@@ -212,7 +212,7 @@ function RestoreRecordsPreview({ source, busy, setBusy, onRestored }: Omit<Props
         ].map(([label, current, incoming]) => <tr key={label} role="row"><th scope="row" role="rowheader">{label}</th><td role="cell"><span className="comparison-label" aria-hidden="true">Current</span><span data-restore-count>{current}</span></td><td role="cell"><span className="comparison-label" aria-hidden="true">{source.kind === 'archive' ? 'Backup' : 'Saved copy'}</span><span data-restore-count>{incoming}</span></td></tr>)}
       </tbody></table>
       <p>An encrypted copy of your previous records is saved on this device with your workspace key.</p>
-      <p id="restore-replacement-help" className="restore-help">Restoring replaces your current application records and saved appearance. Monitoring will stay stopped. Restored profiles will need sign-in. OpenUsage will keep existing profile homes.</p>
+      <p id="restore-replacement-help" className="restore-help">Restoring replaces your current application records and saved appearance. Restoring will stop monitoring. Restored profiles will need sign-in. OpenUsage will keep existing profile homes.</p>
       <form className="restore-confirmation-form" onSubmit={event => { event.preventDefault(); void apply(); }}>
         <Field disabled={busy}>
           <FieldLabel className="backup-selection"><Checkbox id="restore-confirmed" name="restore-confirmed" nativeButton render={<button type="button" />} required checked={confirmed} disabled={busy} aria-describedby="restore-replacement-help" onCheckedChange={next => setConfirmed(next)} />I approve replacing my current application records.</FieldLabel>
