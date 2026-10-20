@@ -71,6 +71,7 @@ test('renderer Overview keeps missing values unavailable and navigates through r
   await open(page, { empty: true });
   await expect(dashboard(page).locator('[data-overview-lifetime]')).toHaveText('Not available');
   await expect(dashboard(page).getByRole('meter')).toHaveCount(0);
+  await expect(dashboard(page).locator('[data-overview-quota-chart]')).toHaveCount(0);
   await dashboard(page).getByRole('button', { name: 'View accounts', exact: true }).click();
   await expect(page.locator('[data-workspace-view="accounts"]')).toBeVisible();
   await expect(page.locator('#profile-label')).toBeHidden();
@@ -84,6 +85,8 @@ test('renderer Overview keeps missing values unavailable and navigates through r
 
 test('renderer Overview preserves exact zero and large values and rejects stale or mismatched profile readings', async ({ page }) => {
   await open(page);
+  await expect(dashboard(page).getByRole('figure', { name: 'Five-hour: 0% remaining, derived from 100% used', exact: true })).toBeVisible();
+  await expect(dashboard(page).locator('.overview-quota-ring-value')).toHaveAttribute('stroke-dasharray', '0 100');
   await expect(dashboard(page).locator('[data-overview-lifetime]')).toHaveText('0');
   await expect(dashboard(page).getByRole('meter')).toHaveAttribute('aria-valuenow', '0');
   await choose(page, 'Large fixture');

@@ -34,6 +34,14 @@
 .overview-summary dd { margin: .5rem 0 0; font-size: 1rem; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 .overview-summary dd > span { font-size: var(--text-xs); color: var(--muted); }
 .overview-error { color: var(--error); font-size: var(--text-sm); line-height: 1.55; }
+.overview-quota-chart { display: flex; align-items: center; flex-wrap: wrap; gap: 1rem; margin: 0 0 1rem; }
+.overview-quota-chart svg { width: 9rem; height: 9rem; flex: 0 0 auto; }
+.overview-quota-ring-track { stroke: var(--line); }
+.overview-quota-ring-value { stroke: var(--accent); }
+.overview-quota-ring-count { fill: var(--text); font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.overview-quota-ring-caption { fill: var(--muted); font-size: 13px; }
+.overview-quota-chart figcaption { display: grid; gap: .375rem; color: var(--muted); font-size: var(--text-xs); }
+.overview-quota-chart figcaption strong { color: var(--text); font-size: var(--text-sm); font-weight: 500; }
 .overview-provenance { margin: 0 0 .75rem; }
 .overview-accounts { margin-top: 1rem; padding: 1.25rem; border: 1px solid var(--line); border-radius: .75rem; background: var(--surface); min-width: 0; }
 .overview-accounts-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem; margin-bottom: .875rem; }

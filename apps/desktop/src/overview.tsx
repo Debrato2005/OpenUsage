@@ -61,6 +61,18 @@ function QuotaWindow({ value, role }: { value: SavedQuotaWindow | null; role: st
   </div>;
 }
 
+function QuotaChart({ value }: { value: SavedQuotaWindow }) {
+  return <figure className="overview-quota-chart" data-overview-quota-chart aria-label={`${value.label}: ${value.derivedRemainingPercent}% remaining, derived from ${value.usedPercent}% used`}>
+    <svg viewBox="0 0 144 144" aria-hidden="true" focusable="false">
+      <circle className="overview-quota-ring-track" cx="72" cy="72" r="58" fill="none" strokeWidth="15" />
+      <circle className="overview-quota-ring-value" cx="72" cy="72" r="58" fill="none" strokeWidth="15" pathLength="100" strokeDasharray={`${value.derivedRemainingPercent} 100`} transform="rotate(-90 72 72)" />
+      <text x="72" y="71" textAnchor="middle" className="overview-quota-ring-count">{value.derivedRemainingPercent}%</text>
+      <text x="72" y="91" textAnchor="middle" className="overview-quota-ring-caption">left</text>
+    </svg>
+    <figcaption><strong>{value.label}</strong><span>{value.usedPercent}% used</span><span>Remaining is derived</span></figcaption>
+  </figure>;
+}
+
 export function Overview({ profiles, revision, onAccounts, active = true }: Props) {
   const activeProfiles = profiles.filter(profile => !profile.archived);
   const [selection, setSelection] = useState<string | null>(null);
@@ -136,6 +148,7 @@ export function Overview({ profiles, revision, onAccounts, active = true }: Prop
         </Select>
       </div>
 </div>
+        {firstWindow && <QuotaChart value={firstWindow} />}
         {limit ? <div className="overview-limits"><div className="overview-limit" key={`${profileId}:${limit.limitId}`}>
           {quota && quota.limits.length > 1 ? <div className="overview-limit-picker"><label id="overview-limit-label" htmlFor="overview-limit">Quota limit</label>
             <Select modal={false} value={limit.limitId} items={Object.fromEntries(quota.limits.map(limit => [limit.limitId, limit.limitName ?? limit.limitId]))} onValueChange={value => { if (value && quota.limits.some(limit => limit.limitId === value)) setLimitSelection(`${profileId}:${value}`); }}>
