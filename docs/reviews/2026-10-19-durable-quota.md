@@ -59,3 +59,15 @@ The global control color rule overrode coss foreground utilities. Enabled confir
 The rebuilt native application passed quota persistence, keyboard consent, encrypted restore and undo. Native backup-content checks and default fixture refusal also passed. All eighteen screenshots were reviewed. The consent button now uses its coss foreground color. This is a focused contrast correction, not full accessibility qualification. SQLCipher 4 with WAL and the normative SRS remain unchanged.
 
 See the [native confirmation receipt](../evidence/native-button-foreground/quota/result.json) and [enabled confirmation capture](../evidence/native-button-foreground/quota/quota-association-consent-enabled-light-desktop.png). Source: `d92e88e`.
+
+## Manual refresh cooldown
+
+Manual quota and activity reads now share a thirty-second limit per profile. Rust checks elapsed monotonic time before starting Codex. A started read consumes the wait even if it fails or is cancelled. Rejected starts consume no wait. Reload, executable reapproval, quiescence, and restore retain it within the running process. A genuine application restart starts a new process with no retained cooldown. No database or backup format changed.
+
+The existing controls show one wait notice. Sign-in and connection checks stay available. Rust returns only the selected profile ID and bounded remaining seconds. The renderer uses a local timer without idle IPC polling. It never authorizes a provider start.
+
+All 186 Rust checks, strict Clippy, formatting, 34 contracts, and 102 renderer checks passed. Existing parser and persistence tests advance only test timestamps. Native acceptance uses a real thirty-second wait. The native journey checked repeated and cross-kind refusal, reload/reapproval retention, profile isolation, unchanged encrypted records, and a permitted later read. Backup-content and default fixture refusal passed separately. Thirteen screenshots were reviewed.
+
+Two earlier renderer failures received Vite full-page reloads during executable approval. The preserved traces prove the reloads but do not identify the changed file. The unchanged-source rerun passed. An initial build used the primary checkout and failed because its frontend output was absent. The canonical builds succeeded. This slice completes only the cooldown portion of OU-MON-005. Provider backoff and scheduled monitoring remain incomplete.
+
+See the [native cooldown receipt](../evidence/native-refresh-cooldown/refresh/result.json), source `f877816`. The elapsed-time guard uses Rust [Instant](https://doc.rust-lang.org/std/time/struct.Instant.html).

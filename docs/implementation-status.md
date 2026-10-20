@@ -1,6 +1,6 @@
 # Implementation status
 
-Updated: October 20, 2026. The mission remains ongoing. Current milestone: coss confirmation text is readable, with native keyboard consent, encrypted restore, undo, and backup controls verified. SQLCipher 4 with WAL remains mandatory. Next: enforce the per-profile manual refresh cooldown, then continue monitoring and alerts.
+Updated: October 20, 2026. The mission remains ongoing. Current milestone: the shared per-profile manual refresh cooldown passed native verification with a real thirty-second wait. SQLCipher 4 with WAL remains mandatory. Next: update the historical checkpoint verifier for current-schema acceptance, then continue monitoring and provider backoff.
 
 ## Implemented and executed
 
