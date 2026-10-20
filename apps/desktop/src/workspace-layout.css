@@ -57,3 +57,24 @@
   .sidebar nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .sidebar nav a { overflow-wrap: anywhere; }
 }
+
+/* Setup has one task. The account workspace appears after unlock. */
+.onboarding-shell { display: block; }
+.onboarding-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; padding: 24px 32px; }
+.onboarding-header .brand { padding: 0; }
+.onboarding-header .theme-control { flex-wrap: wrap; gap: 8px; }
+.onboarding-shell .workspace > main { width: 100%; max-width: 544px; padding: 0 32px 32px; margin: clamp(40px, 12vh, 120px) auto 0; }
+.onboarding-shell .startup-panel { padding: 32px; box-shadow: none; }
+.onboarding-shell #startup-heading { font-size: 1.75rem; font-weight: 600; letter-spacing: -.025em; line-height: 1.2; }
+.onboarding-shell .startup-content > p { margin-top: 12px; }
+.onboarding-shell .unlock-form { margin-top: 24px; }
+.onboarding-shell .unlock-form > p { margin: 0; font-size: var(--text-sm); }
+.onboarding-shell .startup-content .primary-button { width: 100%; align-self: stretch; }
+.onboarding-shell .onboarding-privacy { display: block; margin: 16px auto 0; color: var(--muted); font-size: var(--text-xs); }
+.onboarding-shell .privacy-details { padding: 24px; }
+@media (max-width: 540px) {
+  .onboarding-header { padding: 20px; }
+  .onboarding-header .theme-control > label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .onboarding-shell .workspace > main { padding: 0 20px 24px; margin-top: 32px; }
+  .onboarding-shell .startup-panel { padding: 24px; }
+}

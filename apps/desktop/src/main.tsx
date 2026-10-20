@@ -111,10 +111,10 @@ function App() {
       setTheme(updated.theme);
     } catch (error: unknown) {
       const messages: Record<string, string> = {
-        invalid_passphrase: 'The passphrase could not unlock this workspace. Try again. Your database stays unchanged.',
-        passphrase_too_short: 'Use a passphrase with at least 12 characters.',
-        passphrase_too_long: 'Use a shorter passphrase.',
-        passphrase_required: 'Set a passphrase to protect your workspace.',
+        invalid_passphrase: 'That app password did not unlock your data. Try again.',
+        passphrase_too_short: 'Use an app password with at least 12 characters.',
+        passphrase_too_long: 'Use a shorter app password.',
+        passphrase_required: 'Set an app password to protect your saved account data.',
         workspace_in_use: 'OpenUsage already uses this workspace in another window. Close that window, then try again.',
         workspace_locked: 'Unlock your workspace before you save changes.',
         already_initialized: 'This workspace already exists. Check its current state before you continue.',
@@ -183,7 +183,7 @@ function App() {
     : startup.kind === 'unavailable' ? 'OpenUsage needs its desktop application'
     : startup.kind === 'failed' ? 'OpenUsage could not read its local state'
     : recovery ? 'Your local data needs recovery'
-    : ready ? 'Workspace ready' : data?.storage === 'locked' ? 'Unlock your local workspace' : 'Set up your private workspace';
+    : ready ? 'Workspace ready' : data?.storage === 'locked' ? 'Welcome back' : 'Welcome to OpenUsage';
   const recoveryMessage = data?.storageIssue === 'workspace_in_use'
     ? 'Another OpenUsage window uses this workspace. Close that window, then check the workspace again.'
     : data?.storageIssue === 'missing_database'
@@ -202,30 +202,32 @@ function App() {
     usage: 'Token activity saved on this device.',
     settings: 'Appearance, Codex connection, and encrypted backups.',
   };
-  return <div className="app-shell">
+  return <div className={`app-shell${ready ? '' : ' onboarding-shell'}`}>
     <a className="skip-link" href="#main">Skip to dashboard</a>
-    <aside className="sidebar" aria-label="Workspace">
+    <aside className="sidebar" aria-label="Workspace" hidden={!ready}>
       <a className="brand" href="#main" onClick={() => navigate('overview')} aria-label="OpenUsage dashboard"><span className="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M10 3a9 9 0 0 0 0 18v-5a4 4 0 0 1 0-8V3Zm4 0v5a4 4 0 0 1 0 8v5a9 9 0 0 0 0-18Z" fill="currentColor"/></svg></span><span>OpenUsage</span></a>
       <nav aria-label="Main">{(Object.keys(titles) as WorkspaceView[]).map(name => <a key={name} href={`#${name}`} data-workspace-nav={name} className={view === name ? 'nav-active' : undefined} aria-current={view === name ? 'page' : undefined} onClick={event => { event.preventDefault(); navigate(name); }}><NavIcon view={name} /><span>{titles[name]}</span></a>)}</nav>
       <div className="sidebar-note"><Button variant="ghost" className="text-button" onClick={() => setPrivacy(!privacy)} aria-expanded={privacy} aria-controls="privacy-details">{privacy ? 'Hide privacy details' : 'About your privacy'}</Button></div>
       <div className="sidebar-footer"><span>Local workspace</span><span>0.1.0 · In development</span></div>
     </aside>
     <div className="workspace">
-      {!ready && <header className="topbar"><span>Workspace</span>{appearance}</header>}
+      {!ready && <header className="onboarding-header"><a className="brand" href="#main" aria-label="OpenUsage"><span className="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M10 3a9 9 0 0 0 0 18v-5a4 4 0 0 1 0-8V3Zm4 0v5a4 4 0 0 1 0 8v5a9 9 0 0 0 0-18Z" fill="currentColor" /></svg></span><span>OpenUsage</span></a>{appearance}</header>}
       <main id="main" tabIndex={-1}>
-        <div className="page-heading"><div><h1>{titles[view]}</h1><p className="subtitle">{descriptions[view]}</p></div><span className="status-pill" data-global-monitoring={ready && !monitoring.unavailable ? monitoring.status?.state : undefined}><span className="status-dot" aria-hidden="true" />{!ready ? 'Monitoring stopped' : monitoring.unavailable ? 'Monitoring status unavailable' : monitoring.status ? `Monitoring ${monitoring.status.state}` : 'Loading monitoring status…'}</span></div>
+        {ready && <div className="page-heading"><div><h1>{titles[view]}</h1><p className="subtitle">{descriptions[view]}</p></div><span className="status-pill" data-global-monitoring={ready && !monitoring.unavailable ? monitoring.status?.state : undefined}><span className="status-dot" aria-hidden="true" />{!ready ? 'Monitoring stopped' : monitoring.unavailable ? 'Monitoring status unavailable' : monitoring.status ? `Monitoring ${monitoring.status.state}` : 'Loading monitoring status…'}</span></div>}
         <section hidden={ready && view !== 'settings'} inert={ready && view !== 'settings'} className="startup-panel" data-storage={data?.storage ?? startup.kind} aria-labelledby="startup-heading" aria-busy={startup.kind === 'loading' || busy}>
-          <div className="startup-content"><h2 id="startup-heading" role="status">{message}</h2>
+          <div className="startup-content">{ready ? <h2 id="startup-heading" role="status">{message}</h2> : <h1 id="startup-heading" role="status">{message}</h1>}
             {!ready && <p>{startup.kind === 'unavailable' ? 'This browser view cannot access encrypted storage or connect an account. Open the desktop application to continue.'
               : startup.kind === 'failed' ? 'Restart the desktop application, then try again. Your existing database stays unchanged.'
               : recovery ? recoveryMessage
-              : 'Create or unlock encrypted local storage to manage your accounts.'}</p>}
+              : needsPassphrase && data?.storage === 'setup_required' ? 'Your desktop key store is unavailable. An app password protects saved account data.'
+              : data?.storage === 'locked' ? 'Unlock to return to your saved accounts and readings.'
+              : 'Keep your accounts and usage together, on this device.'}</p>}
             {(startup.kind === 'failed' || startup.kind === 'unavailable') && <Button className="primary-button" onClick={() => { setStartup({ kind: 'loading' }); setAttempt(n => n + 1); }}>Check desktop connection</Button>}
             {startup.kind === 'desktop' && data?.storage === 'setup_required' && !needsPassphrase && <Button className="primary-button" disabled={busy} onClick={() => { void updateWorkspace(() => invoke('setup_workspace', { passphrase: null })); }}>{busy ? 'Creating workspace…' : 'Create private workspace'}</Button>}
             {startup.kind === 'desktop' && !recovery && needsPassphrase && <form className="unlock-form" onSubmit={event => {
               event.preventDefault();
               if (data?.storage === 'setup_required' && passphrase !== confirmation) {
-                setOperationError('The passphrases do not match.');
+                setOperationError('The passwords do not match.');
                 setWorkspaceErrorField('workspace-confirmation');
                 return;
               }
@@ -234,33 +236,26 @@ function App() {
                 : invoke('setup_workspace', { passphrase }));
             }}>
               <p id="passphrase-help">{data?.storage === 'locked'
-                ? 'Enter your workspace passphrase. It stays on this device.'
-                : 'Your system key store is unavailable. Choose a passphrase with at least 12 characters. You will need it each time you open OpenUsage.'}</p>
-              <Field><FieldLabel htmlFor="workspace-passphrase">Workspace passphrase</FieldLabel>
+                ? 'Enter the app password you chose for this device.'
+                : 'Use at least 12 characters. You will need this password when you reopen OpenUsage.'}</p>
+              <Field><FieldLabel htmlFor="workspace-passphrase">App password</FieldLabel>
               <Input nativeInput id="workspace-passphrase" name="workspace-passphrase" type="password" autoComplete={data?.storage === 'locked' ? 'current-password' : 'new-password'} required maxLength={1024} aria-invalid={!!operationError && workspaceErrorField === 'workspace-passphrase'} aria-describedby={`passphrase-help${operationError && workspaceErrorField === 'workspace-passphrase' ? ' workspace-error' : ''}`} disabled={busy} value={passphrase} onChange={event => { setPassphrase(event.target.value); setOperationError(null); }} /></Field>
-              {data?.storage === 'setup_required' && <Field><FieldLabel htmlFor="workspace-confirmation">Confirm passphrase</FieldLabel><Input nativeInput id="workspace-confirmation" name="workspace-confirmation" type="password" autoComplete="new-password" required maxLength={1024} aria-invalid={!!operationError && workspaceErrorField === 'workspace-confirmation'} aria-describedby={operationError && workspaceErrorField === 'workspace-confirmation' ? 'workspace-error' : undefined} disabled={busy} value={confirmation} onChange={event => { setConfirmation(event.target.value); setOperationError(null); }} /></Field>}
+              {data?.storage === 'setup_required' && <Field><FieldLabel htmlFor="workspace-confirmation">Confirm app password</FieldLabel><Input nativeInput id="workspace-confirmation" name="workspace-confirmation" type="password" autoComplete="new-password" required maxLength={1024} aria-invalid={!!operationError && workspaceErrorField === 'workspace-confirmation'} aria-describedby={operationError && workspaceErrorField === 'workspace-confirmation' ? 'workspace-error' : undefined} disabled={busy} value={confirmation} onChange={event => { setConfirmation(event.target.value); setOperationError(null); }} /></Field>}
               <Button className="primary-button" type="submit" disabled={busy}>{busy ? 'Opening workspace…' : data?.storage === 'locked' ? 'Unlock workspace' : 'Create private workspace'}</Button>
             </form>}
             {data?.storage === 'locked' && !needsPassphrase && <p className="development-note">Unlock your system key store, then check the workspace again.</p>}
             {(recovery || (data?.storage === 'locked' && !needsPassphrase)) && <Button className="primary-button" disabled={busy} onClick={() => { setOperationError(null); setStartup({ kind: 'loading' }); setAttempt(n => n + 1); }}>Check workspace</Button>}
             {ready && data?.keyProtection === 'os_store' && <p className="protection-note">Encrypted storage · Key protected by your system key store</p>}
-            {ready && data?.keyProtection === 'passphrase' && <p className="protection-note">Encrypted storage · Key protected by your workspace passphrase</p>}
+            {ready && data?.keyProtection === 'passphrase' && <p className="protection-note">Encrypted storage · Key protected by your app password</p>}
             {operationError && <p id="workspace-error" className="operation-error" role="alert">{operationError}</p>}
           </div>
         </section>
+        {!ready && <Button variant="ghost" className="text-button onboarding-privacy" onClick={() => setPrivacy(!privacy)} aria-expanded={privacy} aria-controls="privacy-details">{privacy ? 'Hide privacy details' : 'About your privacy'}</Button>}
         {privacy && <section className="privacy-details" id="privacy-details" aria-labelledby="privacy-heading"><h2 id="privacy-heading">Privacy and local storage</h2><p>OpenUsage has no hosted account or telemetry. Account connections require your approval. Provider credentials stay with Codex.</p><p>Encrypted storage protects application records. It does not encrypt provider credential files or operating-system swap.</p><p>Codex handles approved sign-in requests, connection checks, and readings. Monitoring runs only while OpenUsage is open and your workspace is unlocked.</p></section>}
         {ready && <section data-workspace-view="overview" hidden={view !== 'overview'} inert={view !== 'overview'} aria-label="Overview"><Overview active={view === 'overview'} profiles={profiles} revision={readingRevision} onAccounts={() => navigate('accounts')} /></section>}
-        {!ready && <section className="metric-grid" aria-label="Workspace summary">
-          <Metric label="Active profiles" value="Locked" detail="Unlock to view your profiles" />
-          <Metric label="Quota remaining" value="Not available" detail="Unlock to view saved readings." />
-          <Metric label="Token activity" value="Not available" detail="Unlock to view saved readings." />
+        {ready && <section data-workspace-view="accounts" hidden={view !== 'accounts'} inert={view !== 'accounts'} aria-label="Account profiles">
+          <ProfileManager key={profileRevision} busy={busy} setBusy={setBusy} onCount={updateProfileCount} providerApproval={providerApproval} onProfilesChange={updateProfiles} onReadingsChanged={readingsChanged} monitoring={monitoring.status} monitoringUnavailable={monitoring.unavailable} onMonitoringAction={monitoring.action} />
         </section>}
-        <section data-workspace-view="accounts" hidden={ready && view !== 'accounts'} inert={ready && view !== 'accounts'} aria-label="Account profiles">
-        {ready ? <ProfileManager key={profileRevision} busy={busy} setBusy={setBusy} onCount={updateProfileCount} providerApproval={providerApproval} onProfilesChange={updateProfiles} onReadingsChanged={readingsChanged} monitoring={monitoring.status} monitoringUnavailable={monitoring.unavailable} onMonitoringAction={monitoring.action} />
-          : <section className="accounts-section" aria-labelledby="accounts-heading"><div className="section-heading"><div><h2 id="accounts-heading">Accounts</h2><p>Each profile uses a separate Codex environment.</p></div><span className="muted-tag">Workspace locked</span></div>
-            <div className="empty-state"><h3>Unlock to view your accounts</h3><p>Open your local workspace to manage account profiles and view saved activity.</p></div>
-          </section>}
-        </section>
         {ready && <section data-workspace-view="usage" hidden={view !== 'usage'} inert={view !== 'usage'} aria-label="Saved usage"><Usage active={view === 'usage'} profiles={profiles} revision={readingRevision} onAccounts={() => navigate('accounts')} /></section>}
         <section data-workspace-view="settings" hidden={!ready || view !== 'settings'} inert={!ready || view !== 'settings'} aria-label="Workspace settings">
         {ready && <section className="appearance-settings" aria-label="Appearance"><div><h2>Appearance</h2><p>Choose a theme or follow your system.</p></div>{appearance}</section>}
@@ -300,10 +295,6 @@ function NavIcon({ view }: { view: WorkspaceView }) {
     settings: <><path d="m9 3-1 3-3 1-2 4 2 2v4l4 3 3-1 3 1 4-3v-4l2-2-2-4-3-1-1-3Z" /><circle cx="12" cy="12" r="3" /></>,
   };
   return <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[view]}</svg>;
-}
-
-function Metric({ label, value, detail }: { label: string; value: string; detail: string }) {
-  return <article className="metric"><div className="metric-label">{label}</div><p className="metric-value">{value}</p><p className="metric-detail">{detail}</p></article>;
 }
 
 createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>);

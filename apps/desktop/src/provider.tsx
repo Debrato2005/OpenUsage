@@ -141,11 +141,13 @@ export function ProviderSettings({ busy, setBusy, approval, onApproved }: Settin
         </Field>
       </details>
       {candidate && <div ref={reviewPanel} className="backup-receipt provider-executable-review" tabIndex={-1} role="region" aria-labelledby="provider-review-heading">
-        <h3 id="provider-review-heading">Review executable</h3>
-        <dl className="backup-inspection-metadata"><dt>File</dt><dd className="provider-path"><bdi>{candidate.path}</bdi></dd><dt>Source</dt><dd>{candidate.sourceKind === 'official_artifact' ? 'Reviewed official artifact' : candidate.sourceKind === 'test_fixture' ? 'Reviewed synthetic provider fixture' : 'Not verified'}</dd>{candidate.sourceUrl && <><dt>Source reference</dt><dd><bdi>{candidate.sourceUrl}</bdi></dd></>}<dt>Supported Codex version</dt><dd>{candidate.testedVersion}</dd></dl>
-        <details className="provider-advanced"><summary>Executable details</summary><dl className="backup-inspection-metadata"><dt>Size</dt><dd>{candidate.fileBytes} bytes</dd><dt>SHA-256</dt><dd className="provider-checksum">{candidate.sha256}</dd></dl></details>
+        <h3 id="provider-review-heading">Connect with Codex</h3>
+        <dl className="backup-inspection-metadata"><dt>Codex version</dt><dd>{candidate.testedVersion}</dd><dt>Source</dt><dd>{candidate.sourceKind === 'official_artifact' ? 'Reviewed official artifact' : candidate.sourceKind === 'test_fixture' ? 'Reviewed synthetic provider fixture' : 'Not verified'}</dd></dl>
+        <details className="provider-advanced"><summary>Executable details</summary><dl className="backup-inspection-metadata"><dt>File</dt><dd className="provider-path"><bdi>{candidate.path}</bdi></dd>{candidate.sourceUrl && <><dt>Source reference</dt><dd><bdi>{candidate.sourceUrl}</bdi></dd></>}<dt>Size</dt><dd>{candidate.fileBytes} bytes</dd><dt>SHA-256</dt><dd className="provider-checksum">{candidate.sha256}</dd></dl></details>
         <p id="provider-trust-help" className="provider-help">{candidate.sourceVerified
-          ? 'The checksum matches a reviewed source. Approve this file only if you trust it. Each profile uses its own Codex home.'
+          ? candidate.sourceKind === 'test_fixture'
+            ? 'OpenUsage will use this synthetic provider to test account sign-in and usage reads.'
+            : 'OpenUsage will use this reviewed Codex installation to sign in and read usage for the accounts you add.'
           : 'This file does not match a supported verified source. OpenUsage cannot approve it for execution.'}</p>
         <form className="provider-approval-form" onSubmit={event => { event.preventDefault(); void approve(); }}>
           <Field disabled={busy || !candidate.sourceVerified}><FieldLabel className="backup-selection"><Checkbox nativeButton render={<button type="button" />} id="provider-executable-approved" required disabled={busy || !candidate.sourceVerified} checked={confirmed} aria-describedby="provider-trust-help" onCheckedChange={checked => setConfirmed(checked === true)} />I trust this executable for account checks and previews.</FieldLabel></Field>

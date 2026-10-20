@@ -301,6 +301,7 @@ pub(crate) fn discover(managed_profiles: &Path) -> Result<ExecutableDiscovery, C
         // Without HOME the default credential boundary cannot be established here.
         return Err(CommandError::ProviderDiscoveryUnavailable);
     }
+    let mut protected = vec![managed_profiles.to_owned()];
     let mut excluded = vec![managed_profiles.to_owned()];
     if let Some(home) = &home {
         excluded.push(home.join(".codex"));
@@ -311,8 +312,10 @@ pub(crate) fn discover(managed_profiles: &Path) -> Result<ExecutableDiscovery, C
             // Do not guess a credential root when inherited configuration is relative or malformed.
             return Err(CommandError::ProviderDiscoveryUnavailable);
         }
+        protected.push(path.clone());
         excluded.push(path);
     }
+    let protected = BoundaryScope::prepare(protected)?;
     let boundary = BoundaryScope::prepare(excluded)?;
     let (mut locations, truncated) = std::env::var_os("PATH")
         .map(|path| path_locations(&path))
@@ -329,13 +332,87 @@ pub(crate) fn discover(managed_profiles: &Path) -> Result<ExecutableDiscovery, C
             DiscoveryLocation::Standard,
         ));
     }
-    if let Some(home) = home {
+    if let Some(home) = &home {
         locations.push((home.join(".local/bin/codex"), DiscoveryLocation::Standard));
     }
     boundary.recheck()?;
-    let result = find(&boundary.scope, locations, truncated);
+    let result = find_with_standalone(
+        &boundary.scope,
+        locations,
+        truncated,
+        home.as_deref()
+            .map(|home| (home, protected.scope.excluded.as_slice())),
+    );
     boundary.recheck()?;
     Ok(result)
+}
+
+// Inspect only an explicit external alias and fixed package entries, never credential contents.
+fn standalone_alias_with(
+    scope: &Scope,
+    alias: &Path,
+    home: &Path,
+    protected: &[PathBuf],
+    metadata: &mut impl FnMut(&Path) -> std::io::Result<fs::Metadata>,
+) -> Option<PathBuf> {
+    if !cfg!(all(target_os = "linux", target_arch = "x86_64"))
+        || !clean_absolute(home)
+        || !clean_absolute(alias)
+        || scope.excludes(alias)
+        || alias.file_name()? != "codex"
+    {
+        return None;
+    }
+    let package = home.join(".codex/packages/standalone");
+    let release = package.join(format!(
+        "releases/{TESTED_PROVIDER_VERSION}-x86_64-unknown-linux-musl"
+    ));
+    let binary = release.join("bin/codex");
+    let current = package.join("current");
+    if protected
+        .iter()
+        .any(|root| binary.starts_with(root) || current.starts_with(root))
+    {
+        return None;
+    }
+    // Resolve the visible ancestors with the ordinary exclusion and ownership checks.
+    if scope.resolve_with(home, metadata)? != home {
+        return None;
+    }
+    scope.resolve_with(alias.parent()?, metadata)?;
+    let entry = metadata(alias).ok()?;
+    if !entry.file_type().is_symlink() || !traversable(&entry) {
+        return None;
+    }
+    let target = fs::read_link(alias).ok()?;
+    if target != binary && target != current.join("bin/codex") {
+        return None;
+    }
+    // No package ancestor may redirect this fixed path into a credential directory.
+    for directory in binary
+        .parent()?
+        .ancestors()
+        .take_while(|path| *path != home)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+    {
+        let entry = metadata(directory).ok()?;
+        if !entry.is_dir() || entry.file_type().is_symlink() || !traversable(&entry) {
+            return None;
+        }
+    }
+    if target != binary {
+        let entry = metadata(&current).ok()?;
+        if !entry.file_type().is_symlink()
+            || !traversable(&entry)
+            || fs::read_link(current).ok()? != release
+        {
+            return None;
+        }
+    }
+    let entry = metadata(&binary).ok()?;
+    (entry.is_file() && !entry.file_type().is_symlink() && traversable(&entry)).then_some(binary)
 }
 
 fn path_locations(path: &OsStr) -> (Vec<(PathBuf, DiscoveryLocation)>, bool) {
@@ -351,14 +428,53 @@ fn path_locations(path: &OsStr) -> (Vec<(PathBuf, DiscoveryLocation)>, bool) {
     (locations, false)
 }
 
+#[cfg(test)]
 fn find(
     scope: &Scope,
     locations: Vec<(PathBuf, DiscoveryLocation)>,
+    truncated: bool,
+) -> ExecutableDiscovery {
+    find_with_standalone(scope, locations, truncated, None)
+}
+
+fn find_with_standalone(
+    scope: &Scope,
+    locations: Vec<(PathBuf, DiscoveryLocation)>,
     mut truncated: bool,
+    standalone: Option<(&Path, &[PathBuf])>,
 ) -> ExecutableDiscovery {
     let mut candidates = vec![];
     let mut seen = HashSet::new();
     for (path, location) in locations {
+        let standalone = if location == DiscoveryLocation::Path {
+            standalone
+                .and_then(|(home, protected)| {
+                    standalone_alias_with(scope, &path, home, protected, &mut |path| {
+                        fs::symlink_metadata(path)
+                    })
+                })
+                .filter(|path| !seen.contains(path))
+                .filter(|path| safe_executable(path))
+                .filter(|path| {
+                    HeldExecutable::open(path.to_str().unwrap_or("")).is_ok_and(|held| {
+                        reviewed_source(&held.digest).kind == ExecutableSourceKind::OfficialArtifact
+                    })
+                })
+        } else {
+            None
+        };
+        if let Some(path) = standalone {
+            if candidates.len() == MAX_CANDIDATES {
+                truncated = true;
+                break;
+            }
+            seen.insert(path.clone());
+            candidates.push(DiscoveredExecutable {
+                path: path.to_string_lossy().into_owned(),
+                location,
+            });
+            continue;
+        }
         let Some(path) = scope.resolve(&path) else {
             continue;
         };
@@ -468,6 +584,118 @@ mod tests {
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         fs::write(path, b"#!/usr/bin/python3\nfrom pathlib import Path\nPath(__file__).parent.joinpath('unexpected-execution').write_text('executed')\n").unwrap();
         fs::set_permissions(path, fs::Permissions::from_mode(0o700)).unwrap();
+    }
+
+    #[test]
+    fn explicit_path_alias_resolves_only_the_fixed_standalone_release_without_credential_lookup() {
+        let temporary = tempfile::tempdir().unwrap();
+        let home = temporary.path().join("home");
+        let package = home.join(".codex/packages/standalone");
+        let release = package.join(format!(
+            "releases/{TESTED_PROVIDER_VERSION}-x86_64-unknown-linux-musl"
+        ));
+        let binary = release.join("bin/codex");
+        executable(&binary);
+        let alias = home.join(".local/bin/codex");
+        fs::create_dir_all(alias.parent().unwrap()).unwrap();
+        symlink(package.join("current/bin/codex"), &alias).unwrap();
+        symlink(&release, package.join("current")).unwrap();
+        let scope = Scope {
+            excluded: vec![home.join(".codex")],
+        };
+        let mut visited = vec![];
+        let resolved = standalone_alias_with(&scope, &alias, &home, &[], &mut |path| {
+            assert!(!path.ends_with("auth.json") && !path.ends_with("config.toml"));
+            if path.starts_with(home.join(".codex")) {
+                assert!(binary.starts_with(path) || path == package.join("current"));
+            }
+            visited.push(path.to_owned());
+            fs::symlink_metadata(path)
+        });
+        assert_eq!(resolved, Some(binary.clone()));
+        assert!(visited.contains(&binary));
+        // Resolving metadata does not approve arbitrary bytes or execute them.
+        let held = HeldExecutable::open(binary.to_str().unwrap()).unwrap();
+        assert_eq!(
+            reviewed_source(&held.digest).kind,
+            ExecutableSourceKind::Unverified
+        );
+        assert!(
+            find_with_standalone(
+                &scope,
+                vec![(alias, DiscoveryLocation::Path)],
+                false,
+                Some((&home, &[]))
+            )
+            .candidates
+            .is_empty()
+        );
+        assert!(
+            !binary
+                .parent()
+                .unwrap()
+                .join("unexpected-execution")
+                .exists()
+        );
+    }
+
+    #[test]
+    fn standalone_alias_refuses_protected_targets_wrong_releases_and_escaping_links_before_lookup()
+    {
+        let temporary = tempfile::tempdir().unwrap();
+        let home = temporary.path().join("home");
+        let package = home.join(".codex/packages/standalone");
+        let release = package.join(format!(
+            "releases/{TESTED_PROVIDER_VERSION}-x86_64-unknown-linux-musl"
+        ));
+        let binary = release.join("bin/codex");
+        executable(&binary);
+        let alias = home.join(".local/bin/codex");
+        fs::create_dir_all(alias.parent().unwrap()).unwrap();
+        symlink(&binary, &alias).unwrap();
+        let scope = Scope {
+            excluded: vec![home.join(".codex")],
+        };
+        for protected in [home.join(".codex"), release.clone(), home.clone()] {
+            assert_eq!(
+                standalone_alias_with(&scope, &alias, &home, &[protected], &mut |path| {
+                    assert!(
+                        !path.starts_with(home.join(".codex")),
+                        "Protected package metadata must not be touched."
+                    );
+                    fs::symlink_metadata(path)
+                }),
+                None
+            );
+        }
+        fs::remove_file(&alias).unwrap();
+        symlink(package.join("releases/0.0.0/bin/codex"), &alias).unwrap();
+        assert_eq!(
+            standalone_alias_with(&scope, &alias, &home, &[], &mut |path| {
+                assert!(
+                    !path.starts_with(home.join(".codex")),
+                    "Wrong release must be refused before lookup."
+                );
+                fs::symlink_metadata(path)
+            }),
+            None
+        );
+        fs::remove_file(&alias).unwrap();
+        symlink(&binary, &alias).unwrap();
+        let external = temporary.path().join("external");
+        fs::create_dir(&external).unwrap();
+        fs::rename(release.join("bin"), external.join("retained")).unwrap();
+        symlink(&external, release.join("bin")).unwrap();
+        assert_eq!(
+            standalone_alias_with(&scope, &alias, &home, &[], &mut |path| {
+                assert!(
+                    !path.starts_with(&external),
+                    "Package symlink must never be followed."
+                );
+                fs::symlink_metadata(path)
+            }),
+            None
+        );
     }
 
     #[test]

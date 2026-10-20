@@ -17,8 +17,8 @@ const locked = {
 test('browser mode explains that native access is unavailable', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('status')).toHaveText('OpenUsage needs its desktop application');
-  const summary = page.getByRole('region', { name: 'Workspace summary' });
-  await expect(summary.getByText('Not available', { exact: true })).toHaveCount(2);
+  await expect(page.getByRole('navigation', { name: 'Main', exact: true })).toBeHidden();
+  await expect(page.getByRole('region', { name: 'Workspace summary' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Check desktop connection' }).click();
   await expect(page.getByRole('status')).toHaveText('OpenUsage needs its desktop application');
 });
@@ -26,12 +26,58 @@ test('browser mode explains that native access is unavailable', async ({ page })
 test('locked storage never invents a profile count or provider reading', async ({ page }) => {
   await bootstrap(page, locked);
   await page.goto('/');
-  await expect(page.getByRole('status')).toHaveText('Unlock your local workspace');
-  await expect(page.getByText(/Monitoring stopped/)).toBeVisible();
-  const summary = page.getByRole('region', { name: 'Workspace summary' });
-  await expect(summary.getByText('Locked', { exact: true })).toBeVisible();
-  await expect(summary.getByText('Not available', { exact: true })).toHaveCount(2);
-  await expect(summary.getByText('Unlock to view saved readings.', { exact: true })).toHaveCount(2);
+  await expect(page.getByRole('status')).toHaveText('Welcome back');
+  await expect(page.getByRole('navigation', { name: 'Main', exact: true })).toBeHidden();
+  await expect(page.getByRole('region', { name: 'Workspace summary' })).toHaveCount(0);
+  await expect(page.locator('[data-global-monitoring]')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Check workspace', exact: true })).toBeVisible();
+  await expect(page.locator('#workspace-passphrase')).toHaveCount(0);
+});
+
+test('app password setup keeps consent local, rejects mismatched confirmation, and opens the real workspace after setup', async ({ page }) => {
+  await page.addInitScript(() => {
+    const calls: { command: string; args: Record<string, unknown> }[] = [];
+    Object.assign(window, { startupCalls: calls });
+    window.__TAURI__ = { core: { invoke: async <T>(command: string, args: Record<string, unknown> = {}) => {
+      calls.push({ command, args });
+      const state = { theme: 'light', monitoring: 'stopped', provider: 'not_configured', storageIssue: null };
+      let value: unknown;
+      if (command === 'bootstrap') value = { ...state, storage: 'setup_required', schemaVersion: null, activeProfiles: null, keyProtection: 'passphrase_required' };
+      else if (command === 'setup_workspace') value = { ...state, storage: 'ready', schemaVersion: 4, activeProfiles: 0, keyProtection: 'passphrase' };
+      else if (command === 'list_profiles') value = { profiles: [], activeProfiles: 0 };
+      else if (command === 'load_monitoring') value = { state: 'stopped', readingRevision: '11111111-1111-4111-8111-111111111111', profiles: [] };
+      else throw new Error(`Unexpected startup command ${command}`);
+      return value as T;
+    } } };
+  });
+  await page.goto('/');
+  await expect(page.getByRole('status')).toHaveText('Welcome to OpenUsage');
+  await expect(page.getByText('Your desktop key store is unavailable. An app password protects saved account data.', { exact: true })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Main', exact: true })).toBeHidden();
+  await page.getByLabel('App password', { exact: true }).fill('synthetic app password');
+  await page.getByLabel('Confirm app password', { exact: true }).fill('different app password');
+  await page.getByRole('button', { name: 'Create private workspace', exact: true }).click();
+  await expect(page.getByRole('alert')).toHaveText('The passwords do not match.');
+  await expect(page.locator('#workspace-confirmation')).toBeFocused();
+  expect(await page.evaluate(() => (window as unknown as { startupCalls: { command: string }[] }).startupCalls.filter(call => call.command === 'setup_workspace'))).toEqual([]);
+  await page.getByLabel('Confirm app password', { exact: true }).fill('synthetic app password');
+  await page.getByRole('button', { name: 'Create private workspace', exact: true }).click();
+  await expect(page.getByRole('navigation', { name: 'Main', exact: true })).toBeVisible();
+  await expect(page.locator('.onboarding-shell')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible();
+  expect(await page.evaluate(() => (window as unknown as { startupCalls: { command: string; args: unknown }[] }).startupCalls.filter(call => call.command === 'setup_workspace'))).toEqual([{ command: 'setup_workspace', args: { passphrase: 'synthetic app password' } }]);
+});
+
+test('desktop key-store setup offers one primary action without an app password form', async ({ page }) => {
+  await bootstrap(page, { ...locked, storage: 'setup_required', keyProtection: 'os_store' });
+  await page.goto('/');
+  await expect(page.getByRole('status')).toHaveText('Welcome to OpenUsage');
+  await expect(page.getByRole('button', { name: 'Create private workspace', exact: true })).toBeVisible();
+  await expect(page.locator('.unlock-form')).toHaveCount(0);
+  await expect(page.locator('[data-global-monitoring]')).toHaveCount(0);
+  await page.getByRole('button', { name: 'About your privacy', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Privacy and local storage', exact: true })).toBeVisible();
 });
 
 test('malformed bootstrap data shows a recoverable connection error', async ({ page }) => {

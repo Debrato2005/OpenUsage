@@ -12,7 +12,9 @@ The preview wording now correctly states that restoring stops monitoring. The up
 
 CSV/JSON export now works from Settings with selected active profiles, privacy defaults, explicit unencrypted-file consent, and exact saved values with provenance. The native journey saved three files and verified read-only behavior, refusal cleanup, and restart. Integration checks passed 244 Rust tests, strict Clippy, 38 contracts, and 188 renderer cases. See [the export evidence](evidence/native-saved-readings-export/). This exports current readings, not complete history or all application records.
 
-Next: make the installed official Codex executable discoverable without scanning credential homes, then verify sign-in and collection with a user-authorized account. Official 0.163.0 schemas expose usage and quota methods. Actual account data remains unverified. Backend identity evidence is not yet sufficient for verified aggregation.
+The installed official Codex package is now discoverable through its exact reviewed installer alias, without reading credential files. The production native journey passed focused setup, explicit source approval, and an actual signed-out connection. Setup hides unavailable dashboard controls. Renderer checks passed 38 contracts and 192 cases; seven focused Rust discovery tests and strict desktop Clippy passed. See [the focused native evidence](evidence/native-focused-onboarding/). Live authentication and account readings remain unverified.
+
+Next: simplify connection consent and add a selected-profile daily chart from saved readings. Keep technical details expandable. Official 0.163.0 schemas expose usage and quota methods. Backend identity evidence is not yet sufficient for verified aggregation.
 
 ## Implemented and executed
 
