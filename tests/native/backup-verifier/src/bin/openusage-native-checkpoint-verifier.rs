@@ -26,6 +26,11 @@ fn main() {
         .read_to_end(&mut input)
         .expect("Cannot read the synthetic request.");
     let mut request: Value = serde_json::from_slice(&input).expect("Invalid synthetic request.");
+    let expected_schema_version = request
+        .get("expectedSchemaVersion")
+        .and_then(Value::as_u64)
+        .and_then(|version| u32::try_from(version).ok())
+        .expect("Missing or invalid expected schema version.");
     let passphrase = match request
         .get_mut("passphrase")
         .expect("Missing synthetic passphrase.")
@@ -63,7 +68,10 @@ fn main() {
     let version: u32 = database
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .expect("Missing schema version.");
-    assert_eq!(version, 1);
+    assert_eq!(
+        version, expected_schema_version,
+        "Unexpected schema version."
+    );
     let integrity: String = database
         .query_row("PRAGMA integrity_check", [], |row| row.get(0))
         .expect("Checkpoint integrity failed.");
@@ -114,6 +122,6 @@ fn main() {
     }
     println!(
         "{}",
-        json!({"verified":true,"readOnly":true,"schemaVersion":1,"exactStateMatched":true,"selectedSemanticFieldsMatched":true,"stateMatchScope":"Theme, account count, profile IDs, labels, archival flags, environment, and connection state. Not every column or timestamp.","originalProtectedKeyUsed":true,"plaintextDiskStaging":false,"encryptedPagesAuthenticated":true})
+        json!({"verified":true,"readOnly":true,"schemaVersion":version,"exactStateMatched":true,"selectedSemanticFieldsMatched":true,"stateMatchScope":"Theme, account count, profile IDs, labels, archival flags, environment, and connection state. Not every column or timestamp.","originalProtectedKeyUsed":true,"plaintextDiskStaging":false,"encryptedPagesAuthenticated":true})
     );
 }
