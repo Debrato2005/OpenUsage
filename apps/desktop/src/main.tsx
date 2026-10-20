@@ -12,6 +12,7 @@ import { CheckpointRecovery } from './checkpoint-recovery';
 import { ProviderSettings } from './provider';
 import { Overview } from './overview';
 import { Usage } from './usage';
+import { useMonitoring } from './monitoring';
 import './styles.css';
 import './workspace-layout.css';
 
@@ -94,6 +95,7 @@ function App() {
   const data = startup.kind === 'desktop' ? startup.data : null;
   const backupOpen = backupAction === 'create';
   const ready = data?.storage === 'ready';
+  const monitoring = useMonitoring(ready, profileRevision, readingsChanged);
   const recovery = data?.storage === 'recovery_required';
   const needsPassphrase = data?.keyProtection === 'passphrase_required'
     || (data?.storage === 'locked' && data.keyProtection === 'passphrase');
@@ -210,7 +212,7 @@ function App() {
     <div className="workspace">
       {!ready && <header className="topbar"><span>Workspace</span>{appearance}</header>}
       <main id="main" tabIndex={-1}>
-        <div className="page-heading"><div><h1>{titles[view]}</h1><p className="subtitle">{descriptions[view]}</p></div><span className="status-pill"><span className="status-dot" aria-hidden="true" />Monitoring stopped</span></div>
+        <div className="page-heading"><div><h1>{titles[view]}</h1><p className="subtitle">{descriptions[view]}</p></div><span className="status-pill" data-global-monitoring={ready && !monitoring.unavailable ? monitoring.status?.state : undefined}><span className="status-dot" aria-hidden="true" />{!ready ? 'Monitoring stopped' : monitoring.unavailable ? 'Monitoring status unavailable' : monitoring.status ? `Monitoring ${monitoring.status.state}` : 'Loading monitoring status…'}</span></div>
         <section hidden={ready && view !== 'settings'} inert={ready && view !== 'settings'} className="startup-panel" data-storage={data?.storage ?? startup.kind} aria-labelledby="startup-heading" aria-busy={startup.kind === 'loading' || busy}>
           <div className="startup-content"><h2 id="startup-heading" role="status">{message}</h2>
             {!ready && <p>{startup.kind === 'unavailable' ? 'This browser view cannot access encrypted storage or connect an account. Open the desktop application to continue.'
@@ -245,7 +247,7 @@ function App() {
             {operationError && <p id="workspace-error" className="operation-error" role="alert">{operationError}</p>}
           </div>
         </section>
-        {privacy && <section className="privacy-details" id="privacy-details" aria-labelledby="privacy-heading"><h2 id="privacy-heading">Privacy and local storage</h2><p>OpenUsage has no hosted account or telemetry. Account connections require your approval. Provider credentials stay with Codex.</p><p>Encrypted storage protects application records. It does not encrypt provider credential files or operating-system swap.</p><p>Codex handles approved sign-in requests, connection checks, and quota previews. Scheduled collection remains stopped.</p></section>}
+        {privacy && <section className="privacy-details" id="privacy-details" aria-labelledby="privacy-heading"><h2 id="privacy-heading">Privacy and local storage</h2><p>OpenUsage has no hosted account or telemetry. Account connections require your approval. Provider credentials stay with Codex.</p><p>Encrypted storage protects application records. It does not encrypt provider credential files or operating-system swap.</p><p>Codex handles approved sign-in requests, connection checks, and readings. Monitoring runs only while OpenUsage is open and your workspace is unlocked.</p></section>}
         {ready && <section data-workspace-view="overview" hidden={view !== 'overview'} inert={view !== 'overview'} aria-label="Overview"><Overview active={view === 'overview'} profiles={profiles} revision={readingRevision} onAccounts={() => navigate('accounts')} /></section>}
         {!ready && <section className="metric-grid" aria-label="Workspace summary">
           <Metric label="Active profiles" value="Locked" detail="Unlock to view your profiles" />
@@ -253,7 +255,7 @@ function App() {
           <Metric label="Token activity" value="Not available" detail="Unlock to view saved readings." />
         </section>}
         <section data-workspace-view="accounts" hidden={ready && view !== 'accounts'} inert={ready && view !== 'accounts'} aria-label="Account profiles">
-        {ready ? <ProfileManager key={profileRevision} busy={busy} setBusy={setBusy} onCount={updateProfileCount} providerApproval={providerApproval} onProfilesChange={updateProfiles} onReadingsChanged={readingsChanged} />
+        {ready ? <ProfileManager key={profileRevision} busy={busy} setBusy={setBusy} onCount={updateProfileCount} providerApproval={providerApproval} onProfilesChange={updateProfiles} onReadingsChanged={readingsChanged} monitoring={monitoring.status} monitoringUnavailable={monitoring.unavailable} onMonitoringAction={monitoring.action} />
           : <section className="accounts-section" aria-labelledby="accounts-heading"><div className="section-heading"><div><h2 id="accounts-heading">Accounts</h2><p>Each profile uses a separate Codex environment.</p></div><span className="muted-tag">Workspace locked</span></div>
             <div className="empty-state"><h3>Unlock to view your accounts</h3><p>Open your local workspace to manage account profiles and view saved activity.</p></div>
           </section>}

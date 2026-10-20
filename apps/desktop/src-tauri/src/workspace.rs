@@ -14,8 +14,12 @@ use zeroize::Zeroizing;
 
 mod activity_storage;
 mod collection_storage;
+mod monitoring;
 mod quota_storage;
 pub(crate) use activity_storage::{ReadAssociationReview, SavedProfileActivity};
+#[cfg(test)]
+use monitoring::MonitoringState;
+pub(crate) use monitoring::{MonitoringIssue, MonitoringStatus};
 pub(crate) use quota_storage::SavedProfileQuota;
 
 const DATABASE_FILE: &str = "openusage.db";
@@ -85,6 +89,7 @@ pub enum CommandError {
     StaleProviderApproval,
     ProviderUnavailable,
     ProviderUnsupported,
+    ProviderAuthenticationRequired,
     ProviderCheckInProgress,
     ProviderCapacityReached,
     ProviderRefreshCooldown,
@@ -131,6 +136,7 @@ pub enum CommandError {
     ProviderAccountChanged,
     ProviderAccountIdentityUnavailable,
     ProviderIncompatibleQuotaScope,
+    MonitoringNotEligible,
 }
 
 #[derive(Debug, Eq, PartialEq, Serialize)]
@@ -207,6 +213,7 @@ pub struct Workspace {
     quota_requests: std::collections::BTreeMap<String, String>,
     activity_requests: std::collections::BTreeMap<String, String>,
     activity_reviews: std::collections::BTreeMap<String, activity_storage::CachedAssociationReview>,
+    monitoring: monitoring::RuntimeMonitoring,
 }
 
 impl Workspace {
@@ -240,6 +247,7 @@ impl Workspace {
             _lock: lock,
             storage: None,
             protection: KeyProtection::Unavailable,
+            monitoring: monitoring::RuntimeMonitoring::new()?,
             restore_preview,
             provider,
             activity_sessions: Default::default(),
@@ -475,10 +483,9 @@ impl Workspace {
     }
 
     pub fn create_profile(&mut self, label: &str) -> Result<ProfileView, CommandError> {
-        let storage = self.storage.as_mut().ok_or(CommandError::WorkspaceLocked)?;
+        self.storage.as_ref().ok_or(CommandError::WorkspaceLocked)?;
         validate_profile_label(label)?;
-        self.provider.quiesce()?;
-        self.activity_reviews.clear();
+        let storage = self.storage.as_mut().ok_or(CommandError::WorkspaceLocked)?;
         let mut random = [0u8; 16];
         getrandom::fill(&mut random).map_err(|_| CommandError::ProfileUnavailable)?;
         let id = uuid::Builder::from_random_bytes(random)
@@ -522,8 +529,6 @@ impl Workspace {
         validate_profile_id(id)?;
         validate_profile_label(label)?;
         self.storage.as_ref().ok_or(CommandError::WorkspaceLocked)?;
-        self.provider.quiesce()?;
-        self.activity_reviews.clear();
         self.storage
             .as_mut()
             .ok_or(CommandError::WorkspaceLocked)?
@@ -540,13 +545,21 @@ impl Workspace {
     ) -> Result<ProfileView, CommandError> {
         validate_profile_id(id)?;
         self.storage.as_ref().ok_or(CommandError::WorkspaceLocked)?;
-        self.provider.quiesce()?;
-        self.activity_reviews.clear();
         self.storage
             .as_mut()
             .ok_or(CommandError::WorkspaceLocked)?
             .set_profile_archived(id, archived)
             .map_err(profile_error)?;
+        if archived {
+            self.revoke_monitoring_profile(id, MonitoringIssue::ProfileUnavailable);
+            self.activity_reviews.remove(id);
+            self.quota_requests.remove(id);
+            self.activity_requests.remove(id);
+            // Keep archive and ticket invalidation serialized. These bounded joins wait only
+            // for core provider workers, which never acquire the Workspace lock.
+            self.provider.cancel_profile_operations(id)?;
+            self.monitoring_profile_cancelled(id);
+        }
         self.restore_preview.clear();
         self.list_profiles()
     }
@@ -605,12 +618,16 @@ impl Workspace {
         if !confirmed {
             return Err(CommandError::InvalidArguments);
         }
-        let storage = self.storage.as_mut().ok_or(CommandError::WorkspaceLocked)?;
+        self.storage.as_ref().ok_or(CommandError::WorkspaceLocked)?;
         let prepared = self.restore_preview.take(id)?;
         // Owned children must finish cleanup before records can point at different managed homes.
+        self.revoke_all_monitoring(MonitoringIssue::SourceChanged);
         self.provider.quiesce()?;
         self.activity_reviews.clear();
+        let storage = self.storage.as_mut().ok_or(CommandError::WorkspaceLocked)?;
         let applied = restore::apply(storage, &self.directory, prepared)?;
+        // Restored descriptive connection states never restore runtime monitoring permission.
+        self.monitoring.reset_after_restore();
         self.activity_sessions.clear();
         self.quota_sessions.clear();
         self.quota_requests.clear();
@@ -705,9 +722,13 @@ impl Workspace {
             return Err(CommandError::InvalidArguments);
         }
         restore::validate_preview_id(approval_id)?;
+        self.revoke_monitoring_profile(id, MonitoringIssue::SignInRequired);
         let (home, revision, path) = self.selected_provider_home(id)?;
-        self.provider
-            .begin_login(id, approval_id, &home, revision, &path)
+        let mut receipt = self
+            .provider
+            .begin_login(id, approval_id, &home, revision, &path)?;
+        receipt.monitoring = self.monitoring_state().as_str();
+        Ok(receipt)
     }
 
     pub fn await_profile_login_prompt(
@@ -759,9 +780,10 @@ impl Workspace {
             completed.abort();
             return Err(error);
         }
+        let eligibility = completed.binding.clone();
         let storage = self.storage.as_mut().ok_or(CommandError::WorkspaceLocked)?;
         let mut changed = false;
-        let outcome = completed.publish(|binding, diagnostic| {
+        let mut outcome = completed.publish(|binding, diagnostic| {
             let previous = storage
                 .list_profiles()
                 .map_err(profile_error)?
@@ -786,6 +808,15 @@ impl Workspace {
         if changed {
             self.restore_preview.clear();
         }
+        if outcome.diagnostic.identity_confidence == provider::DiagnosticIdentity::Provisional {
+            self.monitoring_login_committed(eligibility, outcome.attempt_id.clone());
+        } else {
+            self.revoke_monitoring_profile(
+                &eligibility.profile_id,
+                MonitoringIssue::SignInRequired,
+            );
+        }
+        outcome.diagnostic.monitoring = self.monitoring_state().as_str();
         Ok(outcome)
     }
 
@@ -840,13 +871,23 @@ impl Workspace {
         &mut self,
         check: provider::JoinedCheck,
     ) -> Result<provider::ConnectionDiagnostic, CommandError> {
-        self.require_provider_binding(
+        if let Err(error) = self.require_provider_binding(
             &check.profile_id,
             &check.home_reference,
             &check.revision,
             CommandError::ProviderCheckCancelled,
-        )?;
-        check.finish()
+        ) {
+            check.abort();
+            return Err(error);
+        }
+        let mut diagnostic = check.finish()?;
+        if diagnostic.authentication != provider::DiagnosticAuthentication::Chatgpt
+            || diagnostic.identity_confidence != provider::DiagnosticIdentity::Provisional
+        {
+            self.revoke_monitoring_profile(&diagnostic.profile_id, MonitoringIssue::SignInRequired);
+        }
+        diagnostic.monitoring = self.monitoring_state().as_str();
+        Ok(diagnostic)
     }
 
     pub fn load_profile_refresh_status(
@@ -926,7 +967,7 @@ impl Workspace {
         {
             return Err(CommandError::ProviderCollectionReviewUnavailable);
         }
-        let receipt = self.provider.begin_collection(
+        let mut receipt = self.provider.begin_collection(
             id,
             approval_id,
             &home,
@@ -941,6 +982,8 @@ impl Workspace {
             .insert(id.into(), receipt.request_id.clone());
         self.activity_requests
             .insert(id.into(), receipt.request_id.clone());
+        self.record_monitoring_read(id, &receipt.request_id);
+        receipt.monitoring = self.monitoring_state().as_str();
         Ok(receipt)
     }
 
@@ -1013,7 +1056,7 @@ impl Workspace {
         {
             return Err(CommandError::ProviderQuotaReviewUnavailable);
         }
-        let receipt = self.provider.begin_quota(
+        let mut receipt = self.provider.begin_quota(
             id,
             approval_id,
             &home,
@@ -1026,6 +1069,8 @@ impl Workspace {
         )?;
         self.quota_requests
             .insert(id.into(), receipt.request_id.clone());
+        self.record_monitoring_read(id, &receipt.request_id);
+        receipt.monitoring = self.monitoring_state().as_str();
         Ok(receipt)
     }
 
@@ -1089,7 +1134,7 @@ impl Workspace {
         }) {
             return Err(CommandError::ProviderActivityReviewUnavailable);
         }
-        let receipt = self.provider.begin_activity(
+        let mut receipt = self.provider.begin_activity(
             id,
             approval_id,
             &home,
@@ -1102,6 +1147,8 @@ impl Workspace {
         )?;
         self.activity_requests
             .insert(id.into(), receipt.request_id.clone());
+        self.record_monitoring_read(id, &receipt.request_id);
+        receipt.monitoring = self.monitoring_state().as_str();
         Ok(receipt)
     }
 
@@ -1126,7 +1173,7 @@ impl Workspace {
                     theme: metadata.theme.as_str(),
                     schema_version: Some(metadata.schema_version),
                     active_profiles: Some(metadata.profile_count),
-                    monitoring: "stopped",
+                    monitoring: self.monitoring_state().as_str(),
                     provider: "not_configured",
                     key_protection: self.protection,
                     storage_issue: None,
@@ -2035,3 +2082,6 @@ mod activity_tests;
 
 #[cfg(all(test, unix))]
 mod collection_tests;
+
+#[cfg(all(test, unix))]
+mod monitoring_tests;

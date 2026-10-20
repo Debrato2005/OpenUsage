@@ -127,3 +127,7 @@ The primary account action is Refresh readings. Manage profile discloses individ
 The current pairing retains Geist for interface text and JetBrains Mono for exact values. Normal body text uses 14 pixels with 1.5 line height. Supporting text uses 13 pixels. Page headings use 28 pixels at weight 500. These sizes use relative units. No new font, decorative motion, or component dependency was added.
 
 Native review exposed the original Cancel document-order fault and competing saved-cache focus. Both renderer browsers reproduced these failures before the corrections. The rebuilt native app passes physical reverse Tab to Cancel and keeps combined completion focused. Its visual journey passed 24 reviewed captures with loaded-font assertions, both themes, narrow windows, and enlarged text. The strict disclosure journey adds eight reviewed captures. These remain synthetic Linux checks with test-side text scaling. See `../evidence/native-combined-collection/`.
+
+## Monitoring controls
+
+Start and Pause stay under Manage profile. One workspace status poll updates all controls. A committed reading revision refreshes saved values without moving focus. Pause remains available during a scheduled read or a status-load failure. Restart shows saved readings with disabled Start and sign-in guidance. Eight reviewed native captures cover normal and enlarged text, both themes, keyboard Pause, and retained focus. See `../evidence/native-runtime-monitoring/`.

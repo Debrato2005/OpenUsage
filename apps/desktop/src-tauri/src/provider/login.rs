@@ -131,6 +131,8 @@ impl ProviderCoordinator {
             .lock()
             .map_err(|_| CommandError::ProviderUnavailable)?;
         require_open(&state)?;
+        // Explicit sign-in supersedes an unpublished diagnostic for this profile.
+        state.checks.remove(profile_id);
         require_profile_available(&state, profile_id)?;
         if state.active_count() >= 2 {
             return Err(CommandError::ProviderCapacityReached);

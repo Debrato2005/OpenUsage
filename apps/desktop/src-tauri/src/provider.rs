@@ -84,7 +84,7 @@ fn reviewed_source(digest: &[u8; 32]) -> SourceProof {
             | "25476e3759cbdc1cc74bcd9e46f4a01d1d85ea8ccc34425ddb45a38df27b9859"
             | "ffceb4436e3ddbaf93548e36aa057232fc62bbda7138e00f90f250480d17e25c"
             | "91e780f49518a25ffa75963b2856f5951c5fe6f4d1e1c9040b41a4231d0750ae"
-            | "64522f0b887ae47b1a1e3043e66ac98741d499be2957d06c8e904185a62b08bb"
+            | "afaeb19874b3b08b6439a9d5d82a6d2f873517697598bf695a2f92254a7f6bba"
     ) {
         return SourceProof {
             kind: ExecutableSourceKind::TestFixture,
@@ -188,6 +188,7 @@ struct ProviderState {
     candidate: Option<Candidate>,
     approved: Option<Approved>,
     supervisor: Arc<Supervisor>,
+    checks: std::collections::HashMap<String, String>,
     logins: std::collections::HashMap<String, login::Entry>,
     quotas: std::collections::HashMap<String, quota::Entry>,
     activities: std::collections::HashMap<String, activity::Entry>,
@@ -208,6 +209,7 @@ impl Default for ProviderState {
             candidate: None,
             approved: None,
             supervisor: Arc::new(Supervisor::new()),
+            checks: std::collections::HashMap::new(),
             logins: std::collections::HashMap::new(),
             quotas: std::collections::HashMap::new(),
             activities: std::collections::HashMap::new(),
@@ -245,7 +247,10 @@ fn refresh_wait(state: &ProviderState, profile_id: &str, now: Instant) -> u16 {
         .map_or(Duration::ZERO, |retry| {
             retry.not_before.saturating_duration_since(now)
         });
-    let remaining = manual.max(backoff);
+    remaining_seconds(manual.max(backoff))
+}
+
+fn remaining_seconds(remaining: Duration) -> u16 {
     (remaining.as_secs() + u64::from(remaining.subsec_nanos() > 0)).min(4320) as u16
 }
 
@@ -307,20 +312,64 @@ fn require_refresh_ready(state: &mut ProviderState, profile_id: &str) -> Result<
     state
         .refresh_starts
         .retain(|_, started| now.saturating_duration_since(*started) < MANUAL_REFRESH_INTERVAL);
-    if state
-        .refresh_backoff
-        .get(profile_id)
-        .is_some_and(|retry| retry.not_before > now)
-    {
-        return Err(CommandError::ProviderRefreshBackoff);
-    }
+    require_backoff_ready(state, profile_id, now)?;
     if refresh_wait(state, profile_id, now) != 0 {
         return Err(CommandError::ProviderRefreshCooldown);
     }
     Ok(())
 }
 
+fn require_backoff_ready(
+    state: &ProviderState,
+    profile_id: &str,
+    now: Instant,
+) -> Result<(), CommandError> {
+    if state
+        .refresh_backoff
+        .get(profile_id)
+        .is_some_and(|retry| retry.not_before > now)
+    {
+        Err(CommandError::ProviderRefreshBackoff)
+    } else {
+        Ok(())
+    }
+}
+
+fn binding_current(state: &ProviderState, binding: &ProfileBinding) -> bool {
+    !state.closed
+        && state.generation == binding.generation
+        && binding.held_home.require_identity().is_ok()
+        && state.approved.as_ref().is_some_and(|approved| {
+            approved.metadata.approval_id == binding.approval_id
+                && approved.held.require_identity().is_ok()
+        })
+}
+
 impl ProviderCoordinator {
+    /// Runtime login grants remain valid only for the same approval, generation and physical home.
+    pub fn binding_is_current(&self, binding: &ProfileBinding) -> bool {
+        let Ok(state) = self.0.lock() else {
+            return false;
+        };
+        binding_current(&state, binding)
+    }
+
+    /// Scheduler status excludes the independent manual-refresh interval.
+    pub fn scheduled_retry_after_seconds(&self, profile_id: &str) -> Result<u16, CommandError> {
+        let state = self
+            .0
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?;
+        require_open(&state)?;
+        let remaining = state
+            .refresh_backoff
+            .get(profile_id)
+            .map_or(Duration::ZERO, |retry| {
+                retry.not_before.saturating_duration_since(Instant::now())
+            });
+        Ok(remaining_seconds(remaining))
+    }
+
     pub fn refresh_status(&self, profile_id: &str) -> Result<ProfileRefreshStatus, CommandError> {
         let state = self
             .0
@@ -447,11 +496,18 @@ impl ProviderCoordinator {
         let executable = approved.executable.clone();
         let approval_id = approved.metadata.approval_id.clone();
         let source_kind = approved.metadata.source_kind;
+        let request_id = new_id()?;
         let handle = state
             .supervisor
             .start_check(&executable, &home)
             .map_err(provider_error)?;
+        state.checks.insert(profile_id.into(), request_id.clone());
         Ok(PendingCheck {
+            ownership: CheckOwnership {
+                coordinator: self.clone(),
+                profile_id: profile_id.into(),
+                request_id,
+            },
             coordinator: self.clone(),
             profile_id: profile_id.into(),
             home_reference: home_reference.into(),
@@ -466,14 +522,64 @@ impl ProviderCoordinator {
 
     pub fn cancel(&self, profile_id: &str) -> Result<Cancelled, CommandError> {
         let profile = ProfileId::parse(profile_id).map_err(|_| CommandError::InvalidProfileId)?;
-        let state = self
+        let mut state = self
             .0
             .lock()
             .map_err(|_| CommandError::ProviderUnavailable)?;
         // This command authorizes check cancellation only. Login needs its exact attempt token.
-        require_profile_available(&state, profile_id)?;
-        let cancelled = state.supervisor.cancel(&profile).map_err(provider_error)?;
-        Ok(Cancelled { cancelled })
+        if !state.checks.contains_key(profile_id) {
+            require_profile_available(&state, profile_id)?;
+        }
+        let result = state.supervisor.cancel(&profile).map_err(provider_error);
+        let owned = state.checks.remove(profile_id).is_some();
+        result.map(|cancelled| Cancelled {
+            cancelled: cancelled || owned,
+        })
+    }
+
+    /// Invalidate and join only this profile, including already completed unpublished replies.
+    pub fn cancel_profile_operations(&self, profile_id: &str) -> Result<Cancelled, CommandError> {
+        let profile = ProfileId::parse(profile_id).map_err(|_| CommandError::InvalidProfileId)?;
+        let mut state = self
+            .0
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?;
+        require_open(&state)?;
+        let owned = state.checks.contains_key(profile_id)
+            || state
+                .logins
+                .values()
+                .any(|e| e.binding.profile_id == profile_id)
+            || state
+                .quotas
+                .values()
+                .any(|e| e.binding.profile_id == profile_id)
+            || state
+                .activities
+                .values()
+                .any(|e| e.binding.profile_id == profile_id)
+            || state
+                .collections
+                .values()
+                .any(|e| e.binding.profile_id == profile_id);
+        // Core workers do not acquire Workspace; callers keep Workspace -> Provider lock order.
+        let result = state.supervisor.cancel(&profile).map_err(provider_error);
+        state.checks.remove(profile_id);
+        state
+            .logins
+            .retain(|_, e| e.binding.profile_id != profile_id);
+        state
+            .quotas
+            .retain(|_, e| e.binding.profile_id != profile_id);
+        state
+            .activities
+            .retain(|_, e| e.binding.profile_id != profile_id);
+        state
+            .collections
+            .retain(|_, e| e.binding.profile_id != profile_id);
+        result.map(|cancelled| Cancelled {
+            cancelled: cancelled || owned,
+        })
     }
 
     /// Join owned workers before a restore or a managed-home remap. Approval remains bound to its original bytes.
@@ -505,6 +611,9 @@ impl ProviderCoordinator {
 
 /// Do not let a profile-only check or another operation consume a preview's token.
 fn require_profile_available(state: &ProviderState, profile_id: &str) -> Result<(), CommandError> {
+    if state.checks.contains_key(profile_id) {
+        return Err(CommandError::ProviderCheckInProgress);
+    }
     if state
         .collections
         .values()
@@ -538,6 +647,7 @@ fn require_profile_available(state: &ProviderState, profile_id: &str) -> Result<
 
 fn reset(state: &mut ProviderState) -> Result<(), CommandError> {
     state.supervisor.shutdown().map_err(provider_error)?;
+    state.checks.clear();
     state.logins.clear();
     state.quotas.clear();
     state.activities.clear();
@@ -557,7 +667,22 @@ fn require_open(state: &ProviderState) -> Result<(), CommandError> {
     }
 }
 
+struct CheckOwnership {
+    coordinator: ProviderCoordinator,
+    profile_id: String,
+    request_id: String,
+}
+impl Drop for CheckOwnership {
+    fn drop(&mut self) {
+        let mut state = self.coordinator.0.lock().unwrap_or_else(|p| p.into_inner());
+        if state.checks.get(&self.profile_id) == Some(&self.request_id) {
+            state.checks.remove(&self.profile_id);
+        }
+    }
+}
+
 pub(crate) struct PendingCheck {
+    ownership: CheckOwnership,
     coordinator: ProviderCoordinator,
     profile_id: String,
     home_reference: String,
@@ -570,6 +695,7 @@ pub(crate) struct PendingCheck {
 }
 
 pub(crate) struct JoinedCheck {
+    ownership: CheckOwnership,
     coordinator: ProviderCoordinator,
     pub profile_id: String,
     pub home_reference: String,
@@ -585,6 +711,7 @@ impl PendingCheck {
     pub fn wait(self) -> Result<JoinedCheck, CommandError> {
         let probe = self.handle.wait().map_err(provider_error)?;
         Ok(JoinedCheck {
+            ownership: self.ownership,
             coordinator: self.coordinator,
             profile_id: self.profile_id,
             home_reference: self.home_reference,
@@ -598,6 +725,8 @@ impl PendingCheck {
     }
 }
 impl JoinedCheck {
+    pub fn abort(self) {}
+
     /// Workspace checks its current binding before this final Provider lock.
     pub fn finish(self) -> Result<ConnectionDiagnostic, CommandError> {
         let state = self
@@ -607,7 +736,8 @@ impl JoinedCheck {
             .map_err(|_| CommandError::ProviderUnavailable)?;
         require_open(&state)?;
         self.held_home.require_identity()?;
-        if state.generation != self.generation
+        if state.checks.get(&self.profile_id) != Some(&self.ownership.request_id)
+            || state.generation != self.generation
             || !state
                 .approved
                 .as_ref()
@@ -804,6 +934,7 @@ impl HeldExecutable {
                 || held.ino() != original.ino()
                 || held.mode() != original.mode()
                 || held.uid() != original.uid()
+                || held.nlink() != original.nlink()
                 || held.len() != original.len()
                 || held.mtime() != original.mtime()
                 || held.mtime_nsec() != original.mtime_nsec()
@@ -1053,6 +1184,61 @@ pub(crate) mod tests {
                 &self.homes[index].1,
             )
         }
+        fn collection(
+            &mut self,
+            index: usize,
+            approval: &str,
+            scheduled: bool,
+        ) -> Result<CollectionReceipt, CommandError> {
+            let revision = self.storage.restore_state().unwrap().revision;
+            let (id, path) = &self.homes[index];
+            let association = ReadAssociation {
+                expected_binding: None,
+                review: None,
+            };
+            if scheduled {
+                self.provider.begin_scheduled_collection(
+                    id,
+                    approval,
+                    id,
+                    revision,
+                    path,
+                    association,
+                )
+            } else {
+                self.provider
+                    .begin_collection(id, approval, id, revision, path, association)
+            }
+        }
+
+        fn monitored_login(
+            &mut self,
+            index: usize,
+            approval: &str,
+        ) -> Result<(ProfileBinding, LoginOutcome), CommandError> {
+            let revision = self.storage.restore_state().unwrap().revision;
+            let (id, path) = &self.homes[index];
+            let receipt = self
+                .provider
+                .begin_login(id, approval, id, revision, path)?;
+            let prompt = self
+                .provider
+                .await_login_prompt(id, &receipt.attempt_id)?
+                .wait()?
+                .publish()?;
+            assert_eq!(prompt.user_code, "SYNTH-1234");
+            assert_eq!(
+                prompt.verification_url,
+                "https://auth.openai.com/codex/device"
+            );
+            let completed = self
+                .provider
+                .complete_login(id, &receipt.attempt_id)?
+                .wait()?;
+            let binding = completed.binding.clone();
+            Ok((binding, completed.publish(|_, _| Ok(()))?))
+        }
+
         fn child(&self, index: usize) -> libc::pid_t {
             let deadline = Instant::now() + Duration::from_secs(5);
             loop {
@@ -1077,6 +1263,542 @@ pub(crate) mod tests {
                 std::thread::sleep(Duration::from_millis(10));
             }
         }
+    }
+
+    fn monitored_fixture(mode: &str, require_login: bool) -> Fixture {
+        let fixture = Fixture::new(false);
+        fs::write(
+            &fixture.executable,
+            include_bytes!(
+                "../../../../crates/openusage-codex/tests/fixtures/synthetic-collection-provider.py"
+            ),
+        )
+        .unwrap();
+        for (_, path) in &fixture.homes {
+            fs::write(
+                path.join("synthetic-collection-config.json"),
+                serde_json::to_vec(
+                    &serde_json::json!({"mode": mode, "requireLogin": require_login}),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+        }
+        fixture
+    }
+
+    fn monitored_stage(fixture: &Fixture, index: usize, stage: &str) -> libc::pid_t {
+        let deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            if let Ok(records) = fs::read_to_string(
+                fixture.homes[index]
+                    .1
+                    .join("synthetic-collection-observations.jsonl"),
+            ) {
+                for row in records
+                    .lines()
+                    .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+                {
+                    if row["kind"] == stage {
+                        return row["pid"].as_i64().unwrap().try_into().unwrap();
+                    }
+                }
+            }
+            assert!(
+                Instant::now() < deadline,
+                "Synthetic monitored fixture did not reach {stage}."
+            );
+            std::thread::sleep(Duration::from_millis(5));
+        }
+    }
+
+    #[test]
+    fn scheduled_collection_ignores_and_does_not_consume_or_extend_manual_cooldown() {
+        let mut fixture = monitored_fixture("success", false);
+        let approval = fixture.approve().approval_id;
+        let id = fixture.homes[0].0.clone();
+        let receipt = fixture.collection(0, &approval, true).unwrap();
+        fixture
+            .provider
+            .complete_collection(&id, &receipt.request_id)
+            .unwrap()
+            .wait()
+            .unwrap()
+            .abort();
+        assert_eq!(
+            fixture
+                .provider
+                .refresh_status(&id)
+                .unwrap()
+                .retry_after_seconds,
+            0
+        );
+        let receipt = fixture.collection(0, &approval, false).unwrap();
+        fixture
+            .provider
+            .complete_collection(&id, &receipt.request_id)
+            .unwrap()
+            .wait()
+            .unwrap()
+            .abort();
+        let started = fixture.provider.0.lock().unwrap().refresh_starts[&id];
+        assert!(
+            fixture
+                .provider
+                .refresh_status(&id)
+                .unwrap()
+                .retry_after_seconds
+                > 0
+        );
+        assert_eq!(
+            fixture.provider.scheduled_retry_after_seconds(&id).unwrap(),
+            0
+        );
+        let receipt = fixture.collection(0, &approval, true).unwrap();
+        fixture
+            .provider
+            .complete_collection(&id, &receipt.request_id)
+            .unwrap()
+            .wait()
+            .unwrap()
+            .abort();
+        assert_eq!(
+            fixture.provider.0.lock().unwrap().refresh_starts[&id],
+            started
+        );
+        assert_eq!(
+            fixture.collection(0, &approval, false).err(),
+            Some(CommandError::ProviderRefreshCooldown)
+        );
+    }
+
+    #[test]
+    fn scheduled_collection_shares_process_slots_cancellation_and_transient_backoff() {
+        let mut fixture = monitored_fixture("activity_hang", false);
+        let approval = fixture.approve().approval_id;
+        let first_id = fixture.homes[0].0.clone();
+        let second_id = fixture.homes[1].0.clone();
+        let first = fixture.collection(0, &approval, true).unwrap();
+        let first_pid = monitored_stage(&fixture, 0, "activity-pending");
+        let second = fixture.collection(1, &approval, false).unwrap();
+        let second_pid = monitored_stage(&fixture, 1, "activity-pending");
+        assert_eq!(
+            fixture.collection(0, &approval, true).err(),
+            Some(CommandError::ProviderCollectionInProgress)
+        );
+        assert_eq!(
+            fixture.collection(2, &approval, true).err(),
+            Some(CommandError::ProviderCapacityReached)
+        );
+        let first_wait = fixture
+            .provider
+            .complete_collection(&first_id, &first.request_id)
+            .unwrap();
+        fixture
+            .provider
+            .cancel_collection(&first_id, &first.request_id)
+            .unwrap();
+        assert_eq!(
+            first_wait.wait().err(),
+            Some(CommandError::ProviderCollectionCancelled)
+        );
+        gone(first_pid);
+        assert_eq!(
+            fixture
+                .provider
+                .scheduled_retry_after_seconds(&first_id)
+                .unwrap(),
+            0
+        );
+        let second_wait = fixture
+            .provider
+            .complete_collection(&second_id, &second.request_id)
+            .unwrap();
+        let command = fs::read(format!("/proc/{second_pid}/cmdline")).unwrap();
+        assert!(
+            command
+                .split(|byte| *byte == 0)
+                .any(|part| part == fixture.executable.as_os_str().as_encoded_bytes())
+        );
+        assert_eq!(unsafe { libc::getpgid(second_pid) }, second_pid);
+        assert_eq!(unsafe { libc::killpg(second_pid, libc::SIGKILL) }, 0);
+        assert!(second_wait.wait().is_err());
+        gone(second_pid);
+        assert!(
+            (24..=36).contains(
+                &fixture
+                    .provider
+                    .scheduled_retry_after_seconds(&second_id)
+                    .unwrap()
+            )
+        );
+        assert_eq!(
+            fixture.collection(1, &approval, true).err(),
+            Some(CommandError::ProviderRefreshBackoff)
+        );
+        assert_eq!(
+            fixture.collection(1, &approval, false).err(),
+            Some(CommandError::ProviderRefreshBackoff)
+        );
+    }
+
+    #[test]
+    fn scheduled_collection_retains_typed_auth_identity_and_conflict_failures_without_backoff() {
+        for (mode, expected) in [
+            ("signed_out", CommandError::ProviderAuthenticationRequired),
+            ("unsupported_auth", CommandError::ProviderUnsupported),
+            ("no_auth_required", CommandError::ProviderUnsupported),
+            ("unknown", CommandError::ProviderAccountIdentityUnavailable),
+            ("changed_email", CommandError::ProviderAccountChanged),
+        ] {
+            let mut fixture = monitored_fixture(mode, false);
+            let approval = fixture.approve().approval_id;
+            let id = fixture.homes[0].0.clone();
+            let receipt = fixture.collection(0, &approval, true).unwrap();
+            assert_eq!(
+                fixture
+                    .provider
+                    .complete_collection(&id, &receipt.request_id)
+                    .unwrap()
+                    .wait()
+                    .err(),
+                Some(expected),
+                "{mode}"
+            );
+            assert_eq!(
+                fixture.provider.scheduled_retry_after_seconds(&id).unwrap(),
+                0
+            );
+            assert_eq!(
+                fixture
+                    .provider
+                    .refresh_status(&id)
+                    .unwrap()
+                    .retry_after_seconds,
+                0
+            );
+        }
+    }
+
+    #[test]
+    fn monitored_login_fixture_requires_matching_explicit_login_before_collection_and_redacts_logs()
+    {
+        let mut fixture = monitored_fixture("success", true);
+        let approval = fixture.approve().approval_id;
+        let id = fixture.homes[0].0.clone();
+        let diagnostic = fixture.start(0).unwrap().wait().unwrap().finish().unwrap();
+        assert_eq!(
+            diagnostic.authentication,
+            DiagnosticAuthentication::AuthenticationRequired
+        );
+        let receipt = fixture.collection(0, &approval, true).unwrap();
+        assert_eq!(
+            fixture
+                .provider
+                .complete_collection(&id, &receipt.request_id)
+                .unwrap()
+                .wait()
+                .err(),
+            Some(CommandError::ProviderAuthenticationRequired)
+        );
+        let (binding, outcome) = fixture.monitored_login(0, &approval).unwrap();
+        assert!(outcome.diagnostic.persisted);
+        assert_eq!(
+            outcome.diagnostic.identity_confidence,
+            DiagnosticIdentity::Provisional
+        );
+        assert!(fixture.provider.binding_is_current(&binding));
+        let receipt = fixture.collection(0, &approval, true).unwrap();
+        let completed = fixture
+            .provider
+            .complete_collection(&id, &receipt.request_id)
+            .unwrap()
+            .wait()
+            .unwrap();
+        assert!(completed.observation_anchors().0.is_some());
+        assert!(completed.observation_anchors().1.is_some());
+        completed.abort();
+        assert_eq!(
+            fs::read_to_string(
+                fixture.homes[0]
+                    .1
+                    .join("synthetic-monitored-login-completed")
+            )
+            .unwrap(),
+            "Synthetic matching login completion. No credentials.\n"
+        );
+        assert!(
+            !fixture.homes[1]
+                .1
+                .join("synthetic-monitored-login-completed")
+                .exists()
+        );
+        let records = fs::read_to_string(
+            fixture.homes[0]
+                .1
+                .join("synthetic-collection-observations.jsonl"),
+        )
+        .unwrap();
+        for forbidden in [
+            "SYNTH-1234",
+            "synthetic-monitored-attempt",
+            "https://auth.openai.com",
+        ] {
+            assert!(!records.contains(forbidden));
+        }
+        let times: Vec<u128> = records
+            .lines()
+            .map(|line| {
+                serde_json::from_str::<serde_json::Value>(line).unwrap()["monotonicNs"]
+                    .as_str()
+                    .unwrap()
+                    .parse()
+                    .unwrap()
+            })
+            .collect();
+        assert!(times.windows(2).all(|pair| pair[0] <= pair[1]));
+    }
+
+    #[test]
+    fn monitored_login_fixture_failed_or_cancelled_attempts_do_not_create_login_marker() {
+        let mut failed = monitored_fixture("login_failed", true);
+        let approval = failed.approve().approval_id;
+        assert_eq!(
+            failed.monitored_login(0, &approval).err(),
+            Some(CommandError::ProviderLoginFailed)
+        );
+        assert!(
+            !failed.homes[0]
+                .1
+                .join("synthetic-monitored-login-completed")
+                .exists()
+        );
+        let mut fixture = monitored_fixture("login_pending", true);
+        let approval = fixture.approve().approval_id;
+        let revision = fixture.storage.restore_state().unwrap().revision;
+        let (id, path) = &fixture.homes[0];
+        let receipt = fixture
+            .provider
+            .begin_login(id, &approval, id, revision, path)
+            .unwrap();
+        fixture
+            .provider
+            .await_login_prompt(id, &receipt.attempt_id)
+            .unwrap()
+            .wait()
+            .unwrap()
+            .publish()
+            .unwrap();
+        fixture
+            .provider
+            .cancel_login(id, &receipt.attempt_id)
+            .unwrap();
+        assert!(!path.join("synthetic-monitored-login-completed").exists());
+    }
+
+    #[test]
+    fn runtime_login_binding_check_refuses_reapproval_quiescence_replaced_home_source_and_close() {
+        for fault in [
+            "reapprove",
+            "quiesce",
+            "home",
+            "source",
+            "hardlink",
+            "close",
+        ] {
+            let mut fixture = monitored_fixture("success", true);
+            let approval = fixture.approve().approval_id;
+            let (binding, _) = fixture.monitored_login(0, &approval).unwrap();
+            assert!(fixture.provider.binding_is_current(&binding));
+            match fault {
+                "reapprove" => {
+                    fixture.approve();
+                }
+                "quiesce" => fixture.provider.quiesce().unwrap(),
+                "home" => {
+                    let path = &fixture.homes[0].1;
+                    fs::rename(path, path.with_extension("retained")).unwrap();
+                    crate::workspace::prepare_directory(path).unwrap();
+                }
+                "source" => fs::write(&fixture.executable, b"#!/bin/sh\nexit 1\n").unwrap(),
+                "hardlink" => fs::hard_link(
+                    &fixture.executable,
+                    fixture.executable.with_extension("linked"),
+                )
+                .unwrap(),
+                "close" => fixture.provider.close().unwrap(),
+                _ => unreachable!(),
+            }
+            assert!(!fixture.provider.binding_is_current(&binding), "{fault}");
+        }
+    }
+
+    #[test]
+    fn collection_publication_rechecks_source_before_persisting() {
+        let mut fixture = monitored_fixture("success", false);
+        let approval = fixture.approve().approval_id;
+        let id = fixture.homes[0].0.clone();
+        let receipt = fixture.collection(0, &approval, true).unwrap();
+        let completed = fixture
+            .provider
+            .complete_collection(&id, &receipt.request_id)
+            .unwrap()
+            .wait()
+            .unwrap();
+        fs::write(&fixture.executable, b"#!/bin/sh\nexit 1\n").unwrap();
+        assert_eq!(
+            completed
+                .publish(|_, _, _, _, _| panic!("Changed source must not reach storage."))
+                .err(),
+            Some(CommandError::StaleProviderApproval)
+        );
+        assert!(
+            !fixture
+                .provider
+                .0
+                .lock()
+                .unwrap()
+                .collections
+                .contains_key(&receipt.request_id)
+        );
+    }
+
+    #[test]
+    fn scoped_cancellation_rejects_old_diagnostics_and_preserves_other_profile_workers() {
+        let mut fixture = Fixture::new(false);
+        let approval = fixture.approve().approval_id;
+        let first = fixture.homes[0].0.clone();
+        let second = fixture.homes[1].0.clone();
+        fs::write(fixture._temporary.path().join("synthetic-provider-config.json"),
+            serde_json::to_vec(&serde_json::json!({"defaultMode":"provisional","modesByHome":{(fixture.homes[1].1.to_str().unwrap()):"hang"}})).unwrap()).unwrap();
+        let old = fixture.start(0).unwrap().wait().unwrap();
+        let other = fixture.start(1).unwrap();
+        let other_pid = fixture.child(1);
+        let generation = fixture.provider.0.lock().unwrap().generation;
+        assert!(
+            fixture
+                .provider
+                .cancel_profile_operations(&first)
+                .unwrap()
+                .cancelled
+        );
+        assert_eq!(fixture.provider.0.lock().unwrap().generation, generation);
+        assert_eq!(
+            fixture
+                .provider
+                .0
+                .lock()
+                .unwrap()
+                .approved
+                .as_ref()
+                .unwrap()
+                .metadata
+                .approval_id,
+            approval
+        );
+        assert_eq!(unsafe { libc::kill(other_pid, 0) }, 0);
+        let fresh = fixture.start(0).unwrap().wait().unwrap();
+        assert_eq!(
+            old.finish().err(),
+            Some(CommandError::ProviderCheckCancelled)
+        );
+        assert!(
+            fresh.finish().is_ok(),
+            "An old token must not remove its replacement."
+        );
+        drop(fixture.start(0).unwrap());
+        assert!(fixture.start(0).unwrap().wait().unwrap().finish().is_ok());
+        fixture.provider.cancel_profile_operations(&second).unwrap();
+        assert_eq!(
+            other.wait().err(),
+            Some(CommandError::ProviderCheckCancelled)
+        );
+        gone(other_pid);
+    }
+
+    #[test]
+    fn stale_completed_auth_error_cannot_survive_scoped_cancel_and_new_login() {
+        let mut fixture = monitored_fixture("signed_out", false);
+        let approval = fixture.approve().approval_id;
+        let id = fixture.homes[0].0.clone();
+        let receipt = fixture.collection(0, &approval, true).unwrap();
+        let pending = fixture
+            .provider
+            .complete_collection(&id, &receipt.request_id)
+            .unwrap();
+        let pid = monitored_stage(&fixture, 0, "request");
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while unsafe { libc::kill(pid, 0) } == 0 {
+            assert!(
+                Instant::now() < deadline,
+                "Old signed-out operation did not finish."
+            );
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        gone(pid);
+        fixture.provider.cancel_profile_operations(&id).unwrap();
+        fs::write(
+            fixture.homes[0].1.join("synthetic-collection-config.json"),
+            br#"{"mode":"success","requireLogin":true}"#,
+        )
+        .unwrap();
+        let (binding, _) = fixture.monitored_login(0, &approval).unwrap();
+        assert_eq!(
+            pending.wait().err(),
+            Some(CommandError::ProviderCollectionCancelled)
+        );
+        assert!(fixture.provider.binding_is_current(&binding));
+        assert_eq!(
+            fixture.provider.scheduled_retry_after_seconds(&id).unwrap(),
+            0
+        );
+    }
+
+    #[test]
+    fn scoped_cancellation_fences_completed_login_and_collection_publication() {
+        let mut fixture = monitored_fixture("success", true);
+        let approval = fixture.approve().approval_id;
+        let id = fixture.homes[0].0.clone();
+        let revision = fixture.storage.restore_state().unwrap().revision;
+        let receipt = fixture
+            .provider
+            .begin_login(&id, &approval, &id, revision, &fixture.homes[0].1)
+            .unwrap();
+        fixture
+            .provider
+            .await_login_prompt(&id, &receipt.attempt_id)
+            .unwrap()
+            .wait()
+            .unwrap()
+            .publish()
+            .unwrap();
+        let completed = fixture
+            .provider
+            .complete_login(&id, &receipt.attempt_id)
+            .unwrap()
+            .wait()
+            .unwrap();
+        fixture.provider.cancel_profile_operations(&id).unwrap();
+        assert_eq!(
+            completed
+                .publish(|_, _| panic!("Cancelled login must not reach storage."))
+                .err(),
+            Some(CommandError::ProviderLoginCancelled)
+        );
+        let receipt = fixture.collection(0, &approval, true).unwrap();
+        let completed = fixture
+            .provider
+            .complete_collection(&id, &receipt.request_id)
+            .unwrap()
+            .wait()
+            .unwrap();
+        fixture.provider.cancel_profile_operations(&id).unwrap();
+        assert_eq!(
+            completed
+                .publish(|_, _, _, _, _| panic!("Cancelled collection must not reach storage."))
+                .err(),
+            Some(CommandError::ProviderCollectionCancelled)
+        );
     }
 
     #[test]

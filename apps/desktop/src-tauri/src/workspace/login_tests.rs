@@ -376,6 +376,15 @@ fn exact_attempt_cancel_works_before_prompt_and_cannot_stop_newer_login_then_exi
         .workspace
         .rename_profile(&id, "Renamed synthetic profile")
         .unwrap();
+    assert_eq!(unsafe { libc::kill(second_pid, 0) }, 0);
+    assert!(
+        fixture
+            .workspace
+            .provider
+            .cancel_login(&id, &second.attempt_id)
+            .unwrap()
+            .cancelled
+    );
     assert_eq!(
         completing.wait().err(),
         Some(CommandError::ProviderLoginCancelled)
@@ -401,7 +410,7 @@ fn exact_attempt_cancel_works_before_prompt_and_cannot_stop_newer_login_then_exi
 }
 
 #[test]
-fn login_publications_refuse_reapproval_home_replacement_and_profile_mutation() {
+fn login_publications_preserve_rename_and_refuse_reapproval_or_home_replacement() {
     let mut fixture = Fixture::new("early");
     let id = fixture.profiles[0].clone();
     let approval = fixture.approve();
@@ -444,10 +453,19 @@ fn login_publications_refuse_reapproval_home_replacement_and_profile_mutation() 
         .workspace
         .rename_profile(&id, "Changed before publication")
         .unwrap();
-    assert_eq!(
-        fixture.workspace.finish_profile_login(completed).err(),
-        Some(CommandError::ProviderLoginCancelled)
-    );
+    let published = fixture.workspace.finish_profile_login(completed).unwrap();
+    assert_eq!(published.attempt_id, second.attempt_id);
+    assert!(published.diagnostic.persisted);
+    let profile = fixture
+        .workspace
+        .list_profiles()
+        .unwrap()
+        .profiles
+        .into_iter()
+        .find(|profile| profile.id == id)
+        .unwrap();
+    assert_eq!(profile.label, "Changed before publication");
+    assert_eq!(profile.connection_state, "connected");
     let third = fixture
         .workspace
         .begin_profile_login(&id, &next_approval, true)

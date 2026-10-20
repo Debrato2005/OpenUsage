@@ -1398,6 +1398,7 @@ IFS= read -r request
             "activity_rpc_error",
             "unknown",
             "signed_out",
+            "no_auth_required",
             "unsupported_auth",
             "changed_email",
             "changed_plan",
@@ -1416,7 +1417,8 @@ IFS= read -r request
                 "quota_rpc_error" | "activity_rpc_error" => ProtocolError::ProviderFailure,
                 "activity_invalid" => ProtocolError::InvalidMessage,
                 "unknown" => ProtocolError::AccountIdentityUnavailable,
-                "signed_out" | "unsupported_auth" => ProtocolError::UnsupportedAuthentication,
+                "signed_out" => ProtocolError::AuthenticationRequired,
+                "unsupported_auth" | "no_auth_required" => ProtocolError::UnsupportedAuthentication,
                 "changed_email" | "changed_plan" | "changed_auth" | "account_notice" => {
                     ProtocolError::AccountChanged
                 }
@@ -1430,7 +1432,10 @@ IFS= read -r request
             gone(fixture.child(0));
             fixture.runtime_removed(0);
             let rows = collection_rows(&fixture, 0);
-            if matches!(mode, "unknown" | "signed_out" | "unsupported_auth") {
+            if matches!(
+                mode,
+                "unknown" | "signed_out" | "unsupported_auth" | "no_auth_required"
+            ) {
                 assert!(!rows.iter().any(|row| row["request"]["id"] == 3));
             }
             if mode.starts_with("quota_") {
@@ -1749,7 +1754,7 @@ IFS= read -r request
         for (mode, error) in [
             ("unknown", ProtocolError::AccountIdentityUnavailable),
             ("unsupported", ProtocolError::UnsupportedAuthentication),
-            ("signed_out", ProtocolError::UnsupportedAuthentication),
+            ("signed_out", ProtocolError::AuthenticationRequired),
             ("changed_email", ProtocolError::AccountChanged),
             ("changed_plan", ProtocolError::AccountChanged),
             ("changed_auth", ProtocolError::AccountChanged),
@@ -2155,7 +2160,7 @@ IFS= read -r request
         for (mode, error) in [
             ("unknown", ProtocolError::AccountIdentityUnavailable),
             ("unsupported", ProtocolError::UnsupportedAuthentication),
-            ("signed_out", ProtocolError::UnsupportedAuthentication),
+            ("signed_out", ProtocolError::AuthenticationRequired),
             ("changed_email", ProtocolError::AccountChanged),
             ("changed_plan", ProtocolError::AccountChanged),
             ("changed_auth", ProtocolError::AccountChanged),

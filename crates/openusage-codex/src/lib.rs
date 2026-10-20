@@ -23,6 +23,7 @@ pub enum ProtocolError {
     ProviderFailure,
     InvalidField,
     UnexpectedHome,
+    AuthenticationRequired,
     UnsupportedAuthentication,
     UnapprovedLoginUrl,
     MismatchedLogin,
@@ -44,6 +45,7 @@ impl fmt::Display for ProtocolError {
             Self::ProviderFailure => "The provider account operation failed.",
             Self::InvalidField => "The provider response contains an invalid field.",
             Self::UnexpectedHome => "The provider reports a different profile home.",
+            Self::AuthenticationRequired => "Sign in to the selected account before reading it.",
             Self::UnsupportedAuthentication => {
                 "This authentication mode does not support ChatGPT account monitoring."
             }

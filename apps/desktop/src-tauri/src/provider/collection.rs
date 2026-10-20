@@ -31,7 +31,7 @@ pub(crate) struct CollectionOutcome {
     source_kind: ExecutableSourceKind,
     identity_confidence: &'static str,
     verified_identity_key: Option<String>,
-    monitoring: &'static str,
+    pub(crate) monitoring: &'static str,
     pub accepted: bool,
     /// None means this method explicitly returned UnsupportedMethod, never an empty reading.
     pub quota: Option<CollectionReading>,
@@ -73,6 +73,50 @@ impl ProviderCoordinator {
         path: &Path,
         association: ReadAssociation,
     ) -> Result<CollectionReceipt, CommandError> {
+        self.begin_collection_with_admission(
+            profile_id,
+            approval_id,
+            home_reference,
+            revision,
+            path,
+            association,
+            true,
+        )
+    }
+
+    /// Scheduled starts share backoff and process fences without using the manual cooldown.
+    pub fn begin_scheduled_collection(
+        &self,
+        profile_id: &str,
+        approval_id: &str,
+        home_reference: &str,
+        revision: openusage_storage::StorageRevision,
+        path: &Path,
+        association: ReadAssociation,
+    ) -> Result<CollectionReceipt, CommandError> {
+        self.begin_collection_with_admission(
+            profile_id,
+            approval_id,
+            home_reference,
+            revision,
+            path,
+            association,
+            false,
+        )
+    }
+
+    // Keep both admission paths under the same lock and publication fences.
+    #[allow(clippy::too_many_arguments)]
+    fn begin_collection_with_admission(
+        &self,
+        profile_id: &str,
+        approval_id: &str,
+        home_reference: &str,
+        revision: openusage_storage::StorageRevision,
+        path: &Path,
+        association: ReadAssociation,
+        manual_refresh: bool,
+    ) -> Result<CollectionReceipt, CommandError> {
         validate_ids(profile_id, approval_id)?;
         let held_home = Arc::new(HeldHome::open(path)?);
         let home = ManagedProfileHome::new(
@@ -110,15 +154,21 @@ impl ProviderCoordinator {
         approved.held.recheck()?;
         let executable = approved.executable.clone();
         let source_kind = approved.metadata.source_kind;
-        require_refresh_ready(&mut state, profile_id)?;
+        if manual_refresh {
+            require_refresh_ready(&mut state, profile_id)?;
+        } else {
+            require_backoff_ready(&state, profile_id, Instant::now())?;
+        }
         let request_id = new_id()?;
         let activity_run_id = new_id()?;
         let started = Instant::now();
         let handle = state
             .supervisor
             .start_collection_diagnostic(&executable, &home)
-            .map_err(provider_error)?;
-        state.refresh_starts.insert(profile_id.into(), started);
+            .map_err(collection_error)?;
+        if manual_refresh {
+            state.refresh_starts.insert(profile_id.into(), started);
+        }
         let binding = ProfileBinding {
             profile_id: profile_id.into(),
             home_reference: home_reference.into(),
@@ -238,12 +288,13 @@ impl CompletingCollection {
                             && entry.binding.approval_id == self.binding.approval_id
                             && entry.handle.is_none()
                     });
-                record_refresh_failure(&mut state, &self.binding, error, owned);
+                let current = owned && binding_current(&state, &self.binding);
+                record_refresh_failure(&mut state, &self.binding, error, current);
                 state.collections.remove(&self.request_id);
-                Err(if error == SupervisorError::Cancelled {
-                    CommandError::ProviderCollectionCancelled
+                Err(if current {
+                    collection_error(error)
                 } else {
-                    provider_error(error)
+                    CommandError::ProviderCollectionCancelled
                 })
             }
         }
@@ -290,6 +341,12 @@ impl CompletedCollection {
             return Err(CommandError::ProviderCollectionCancelled);
         }
         self.binding.held_home.require_identity()?;
+        state
+            .approved
+            .as_mut()
+            .ok_or(CommandError::StaleProviderApproval)?
+            .held
+            .recheck()?;
         if self.probe.version != TESTED_PROVIDER_VERSION {
             return Err(CommandError::ProviderUnsupported);
         }
@@ -333,5 +390,27 @@ impl CompletedCollection {
             quota,
             activity,
         })
+    }
+}
+
+fn collection_error(error: SupervisorError) -> CommandError {
+    use openusage_codex::ProtocolError as P;
+    match error {
+        SupervisorError::Cancelled | SupervisorError::Session(SessionError::Cancelled) => {
+            CommandError::ProviderCollectionCancelled
+        }
+        SupervisorError::Session(SessionError::Protocol(P::AuthenticationRequired)) => {
+            CommandError::ProviderAuthenticationRequired
+        }
+        SupervisorError::Session(SessionError::Protocol(P::UnsupportedAuthentication)) => {
+            CommandError::ProviderUnsupported
+        }
+        SupervisorError::Session(SessionError::Protocol(P::AccountIdentityUnavailable)) => {
+            CommandError::ProviderAccountIdentityUnavailable
+        }
+        SupervisorError::Session(SessionError::Protocol(P::AccountChanged)) => {
+            CommandError::ProviderAccountChanged
+        }
+        other => provider_error(other),
     }
 }

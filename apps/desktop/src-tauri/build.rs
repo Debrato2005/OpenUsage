@@ -2,6 +2,9 @@ fn main() {
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
         tauri_build::AppManifest::new().commands(&[
             "bootstrap",
+            "load_monitoring",
+            "start_profile_monitoring",
+            "pause_profile_monitoring",
             "setup_workspace",
             "unlock_workspace",
             "set_theme",

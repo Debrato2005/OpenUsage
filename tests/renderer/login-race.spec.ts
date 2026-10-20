@@ -38,6 +38,7 @@ async function openSyntheticProfile(page: Page) {
       fixture.requests.push({ command, args });
       let value: unknown;
       switch (command) {
+        case 'load_monitoring': value = { state: 'stopped', readingRevision: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', profiles: [] }; break;
         case 'bootstrap':
           value = { storage: 'ready', theme: 'light', schemaVersion: 1, activeProfiles: 1,
             monitoring: 'stopped', provider: 'not_configured', keyProtection: 'passphrase', storageIssue: null };
@@ -155,7 +156,7 @@ test('renderer fixture keeps the new sign-in intact after an old cancel rejects 
         monitoring: 'stopped', persisted: true, sourceKind: 'test_fixture' } });
   }, { attemptId: attempts[1]!, profileId, approvalId });
   await expect(page.getByRole('heading', { name: 'Sign-in completed', exact: true })).toBeVisible();
-  await expect(page.getByText('Codex confirmed a ChatGPT account for this profile. Identity has not been verified. Usage collection remains stopped.')).toBeVisible();
+  await expect(page.getByText('Codex confirmed a ChatGPT account for this profile. Identity has not been verified. Start monitoring from Manage profile when you are ready.')).toBeVisible();
   await expect(page.getByLabel('Your sign-in code', { exact: true })).toHaveCount(0);
 });
 

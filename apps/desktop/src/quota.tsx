@@ -69,12 +69,12 @@ function QuotaValues({ value }: { value: SavedQuota }) {
           {(limit.primary === null || limit.secondary === null) && (limit.primary || limit.secondary) && <p className="provider-help">{limit.primary === null ? 'Primary window' : 'Secondary window'}: Not available</p>}
           <QuotaDisclosure className="quota-source-details" label="Reading details"><dl className="backup-inspection-metadata"><dt>Provider limit ID</dt><dd><bdi>{limit.limitId}</bdi></dd><dt>Provider status</dt><dd><bdi>{limit.reachedType ?? 'Not supplied'}</bdi></dd><dt>Monthly credit limit</dt><dd className="quota-credit-count" data-monthly-credit-limit={limit.limitId} tabIndex={0} aria-label={`Monthly credit limit for ${limit.limitName ?? limit.limitId}`}><bdi className="whitespace-pre">{limit.monthlyCreditLimit ?? 'Not supplied'}</bdi></dd><dt>Spend control</dt><dd data-spend-control={limit.limitId}>{limit.spendControlReached === null ? 'Not supplied' : limit.spendControlReached ? 'Reached' : 'Not reached'}</dd></dl></QuotaDisclosure>
         </QuotaDisclosure>)}
-        <QuotaDisclosure className="quota-preview-notes" label="About these readings"><p>These readings are saved locally and excluded from combined totals. Monitoring is stopped.</p><p>Remaining quota is calculated from reported usage. Expected reset times do not confirm that a reset occurred.</p><dl className="backup-inspection-metadata"><dt>Earned reset credits</dt><dd className="quota-credit-count" data-earned-reset-credits tabIndex={0} aria-label="Earned reset credits"><bdi>{value.availableResetCredits ?? 'Not supplied'}</bdi></dd></dl><p>Earned reset credits are separate from subscription payments and OpenAI Platform API billing.</p><CreditDetails rows={value.resetCreditDetails} /><p>Account quota. Application scope and coverage are unknown.</p></QuotaDisclosure>
+        <QuotaDisclosure className="quota-preview-notes" label="About these readings"><p>These readings are saved locally and excluded from combined totals.</p><p>Remaining quota is calculated from reported usage. Expected reset times do not confirm that a reset occurred.</p><dl className="backup-inspection-metadata"><dt>Earned reset credits</dt><dd className="quota-credit-count" data-earned-reset-credits tabIndex={0} aria-label="Earned reset credits"><bdi>{value.availableResetCredits ?? 'Not supplied'}</bdi></dd></dl><p>Earned reset credits are separate from subscription payments and OpenAI Platform API billing.</p><CreditDetails rows={value.resetCreditDetails} /><p>Account quota. Application scope and coverage are unknown.</p></QuotaDisclosure>
   </>;
 }
 
 // Cache reads do not require executable approval or execute the provider.
-export function SavedProfileQuota({ profileId, profileLabel, children }: { profileId: string; profileLabel: string; children: (onSaved: (value: ProfileReadingReference, focusResult?: boolean) => Promise<void>, onFailed: () => Promise<void>) => ReactNode }) {
+export function SavedProfileQuota({ profileId, profileLabel, children, readingRevision }: { profileId: string; profileLabel: string; readingRevision?: string | undefined; children: (onSaved: (value: ProfileReadingReference, focusResult?: boolean) => Promise<void>, onFailed: () => Promise<void>) => ReactNode }) {
   const [value, setValue] = useState<SavedQuota | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -83,6 +83,12 @@ export function SavedProfileQuota({ profileId, profileLabel, children }: { profi
   const alive = useRef(true);
   const loadGeneration = useRef(0);
   const manualLoad = useRef(false);
+  const latestReadingRevision = useRef(readingRevision);
+  useEffect(() => {
+    const previous = latestReadingRevision.current;
+    latestReadingRevision.current = readingRevision;
+    if (previous && readingRevision && previous !== readingRevision) void load();
+  }, [readingRevision]);
   useEffect(() => {
     alive.current = true; void load();
     const interval = window.setInterval(() => { void load(); }, 60_000);

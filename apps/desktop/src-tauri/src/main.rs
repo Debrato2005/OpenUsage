@@ -3,6 +3,7 @@
 mod backup;
 mod backup_inspection;
 mod keyvault;
+mod monitoring;
 mod provider;
 mod restore;
 mod workspace;
@@ -17,12 +18,25 @@ use tauri::{
 use workspace::{Bootstrap, CommandError, ProfileView, Workspace};
 use zeroize::Zeroizing;
 
-#[derive(Default)]
 struct WorkspaceService(
     Arc<Mutex<Option<Workspace>>>,
     restore::RestoreCache,
     provider::ProviderCoordinator,
+    monitoring::MonitoringWorker,
 );
+impl Default for WorkspaceService {
+    fn default() -> Self {
+        let workspace = Arc::new(Mutex::new(None));
+        let provider = provider::ProviderCoordinator::default();
+        let worker = monitoring::MonitoringWorker::start(workspace.clone(), provider.clone());
+        Self(
+            workspace,
+            restore::RestoreCache::default(),
+            provider,
+            worker,
+        )
+    }
+}
 
 struct Passphrase(Zeroizing<String>);
 
@@ -208,6 +222,126 @@ fn arguments<'a, T: Deserialize<'a>>(
         }
         _ => Err(CommandError::InvalidArguments),
     }
+}
+
+fn cancel_revoked_scheduled(
+    service: &Arc<Mutex<Option<Workspace>>>,
+    provider: &provider::ProviderCoordinator,
+) -> Result<(), CommandError> {
+    let requests = service
+        .lock()
+        .map_err(|_| CommandError::ProviderUnavailable)?
+        .as_ref()
+        .map_or_else(Vec::new, Workspace::scheduled_cancellations);
+    for (id, request) in requests {
+        provider.cancel_collection(&id, &request)?;
+        if let Some(workspace) = service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?
+            .as_mut()
+        {
+            workspace.cancelled_scheduled_read(&id, &request);
+        }
+    }
+    Ok(())
+}
+fn revoke_scheduled(
+    service: &Arc<Mutex<Option<Workspace>>>,
+    provider: &provider::ProviderCoordinator,
+    id: Option<&str>,
+    issue: workspace::MonitoringIssue,
+) -> Result<(), CommandError> {
+    if let Some(workspace) = service
+        .lock()
+        .map_err(|_| CommandError::ProviderUnavailable)?
+        .as_mut()
+    {
+        if let Some(id) = id {
+            workspace.revoke_monitoring_profile(id, issue);
+        } else {
+            workspace.revoke_all_monitoring(issue);
+        }
+    }
+    cancel_revoked_scheduled(service, provider)
+}
+
+#[tauri::command]
+async fn load_monitoring(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<workspace::MonitoringStatus, CommandError> {
+    let _: ListProfilesArgs = arguments(&request)?;
+    let provider = service.2.clone();
+    let service = service.0.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .load_monitoring()?;
+        cancel_revoked_scheduled(&service, &provider)?;
+        service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .load_monitoring()
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+#[tauri::command]
+async fn start_profile_monitoring(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<workspace::MonitoringStatus, CommandError> {
+    let args: BeginReadArgs = arguments(&request)?;
+    let service = service.0.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .start_profile_monitoring(&args.profile_id, &args.approval_id)
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+#[tauri::command]
+async fn pause_profile_monitoring(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<workspace::MonitoringStatus, CommandError> {
+    let args: ProfileCheckArgs = arguments(&request)?;
+    let provider = service.2.clone();
+    let service = service.0.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let request = service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .pause_profile_monitoring(&args.profile_id)?;
+        if let Some(request) = request {
+            provider.cancel_collection(&args.profile_id, &request)?;
+            service
+                .lock()
+                .map_err(|_| CommandError::ProviderUnavailable)?
+                .as_mut()
+                .ok_or(CommandError::WorkspaceLocked)?
+                .cancelled_scheduled_read(&args.profile_id, &request);
+        }
+        service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .load_monitoring()
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
 }
 
 async fn run_workspace(
@@ -531,8 +665,15 @@ async fn apply_restore(
     if !args.confirmed {
         return Err(CommandError::InvalidArguments);
     }
+    let provider = service.2.clone();
     let service = Arc::clone(&service.0);
     tauri::async_runtime::spawn_blocking(move || {
+        revoke_scheduled(
+            &service,
+            &provider,
+            None,
+            workspace::MonitoringIssue::SignInRequired,
+        )?;
         let mut state = service.lock().map_err(|_| CommandError::RestoreFailed)?;
         state
             .as_mut()
@@ -614,8 +755,15 @@ async fn approve_provider_executable(
     if !args.confirmed {
         return Err(CommandError::InvalidArguments);
     }
+    let provider = service.2.clone();
     let service = Arc::clone(&service.0);
     tauri::async_runtime::spawn_blocking(move || {
+        revoke_scheduled(
+            &service,
+            &provider,
+            None,
+            workspace::MonitoringIssue::SourceChanged,
+        )?;
         let state = service
             .lock()
             .map_err(|_| CommandError::ProviderUnavailable)?;
@@ -707,8 +855,15 @@ async fn begin_profile_login(
     if !args.confirmed {
         return Err(CommandError::InvalidArguments);
     }
+    let provider = service.2.clone();
     let service = Arc::clone(&service.0);
     tauri::async_runtime::spawn_blocking(move || {
+        revoke_scheduled(
+            &service,
+            &provider,
+            Some(&args.profile_id),
+            workspace::MonitoringIssue::SignInRequired,
+        )?;
         let mut state = service
             .lock()
             .map_err(|_| CommandError::ProviderUnavailable)?;
@@ -886,6 +1041,7 @@ async fn complete_profile_collection_read(
                     && let Some(workspace) = state.as_mut()
                 {
                     workspace.note_collection_failure(&args.profile_id, &args.request_id);
+                    workspace.note_monitoring_read_error(&args.profile_id, &args.request_id, error);
                 }
                 return Err(error);
             }
@@ -1013,6 +1169,7 @@ async fn complete_profile_quota_read(
                     && let Some(workspace) = state.as_mut()
                 {
                     workspace.note_quota_failure(&args.profile_id, &args.request_id);
+                    workspace.note_monitoring_read_error(&args.profile_id, &args.request_id, error);
                 }
                 return Err(error);
             }
@@ -1231,6 +1388,7 @@ async fn complete_profile_activity_read(
                     && let Some(workspace) = state.as_mut()
                 {
                     workspace.note_activity_failure(&args.profile_id, &args.request_id);
+                    workspace.note_monitoring_read_error(&args.profile_id, &args.request_id, error);
                 }
                 return Err(error);
             }
@@ -1299,6 +1457,9 @@ fn main() {
             complete_profile_login,
             cancel_profile_login,
             discover_provider_executables,
+            load_monitoring,
+            start_profile_monitoring,
+            pause_profile_monitoring,
             load_profile_refresh_status,
             begin_profile_collection_read,
             complete_profile_collection_read,
@@ -1331,7 +1492,7 @@ fn main() {
         .run(|app, event| {
             if matches!(event, tauri::RunEvent::Exit) {
                 app.state::<WorkspaceService>().1.close();
-                if app.state::<WorkspaceService>().2.close().is_err() {
+                if app.state::<WorkspaceService>().3.close().is_err() {
                     // Typed cleanup failure only. Never log provider frames, credentials, or paths.
                     eprintln!("OpenUsage could not complete owned provider cleanup.");
                 }

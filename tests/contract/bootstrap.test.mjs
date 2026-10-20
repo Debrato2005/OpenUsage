@@ -420,7 +420,7 @@ test('accepts exact bounded activity previews without replacing null or reorderi
 test('rejects activity completeness claims, leaked fields, malformed counts and missing summary metrics', async () => {
   const summary = activityPreview.summary;
   for (const change of [
-    { accepted: false }, { monitoring: 'running' }, { coverage: 'complete' }, { scope: 'codex_only' }, { verifiedIdentityKey: 'account' },
+    { accepted: false }, { monitoring: 'active' }, { coverage: 'complete' }, { scope: 'codex_only' }, { verifiedIdentityKey: 'account' },
     { accountId: 'private' }, { observedAtUtc: '2026-02-30T00:00:00.000Z' }, { summary: null },
     ...[undefined, 0, -1, '01', '-1', '1.0', '9223372036854775808', ' 1', '1\n'].map(lifetimeTokens => ({ summary: { ...summary, lifetimeTokens } })),
     { summary: { ...summary, rawPayload: 'private' } }, { summary: { ...summary, currentStreakDays: undefined } },
@@ -558,4 +558,33 @@ test('combined collections accept only bound committed references and explicit u
   }
   desktopResponse({ cancelled: true }); assert.deepEqual(await invoke('cancel_profile_collection_read', { profileId, requestId }), { cancelled: true });
   desktopResponse({ cancelled: true, accepted: true }); await assert.rejects(invoke('cancel_profile_collection_read', { profileId, requestId }), /desktop response is incompatible/);
+});
+
+test('monitoring status is exact, bounded, unique and preserves native runtime eligibility', async () => {
+  const profile = { profileId: activityRequest.profileId, state: 'stopped', eligible: false, issue: 'sign_in_required', nextReadInSeconds: null, readingActive: false };
+  const value = { state: 'stopped', readingRevision: activityRequest.requestId, profiles: [profile] };
+  for (const state of ['stopped', 'running', 'paused']) {
+    const snapshot = { ...value, state, profiles: [{ ...profile, state, eligible: true, issue: null, nextReadInSeconds: 4320, readingActive: true }] };
+    for (const command of ['load_monitoring', 'start_profile_monitoring', 'pause_profile_monitoring']) {
+      desktopResponse(snapshot); assert.deepEqual(await invoke(command, { profileId: profile.profileId, approvalId: activityRequest.approvalId }), snapshot);
+    }
+  }
+  for (const change of [
+    { extra: true }, { state: 'active' }, { readingRevision: '0' }, { profiles: undefined }, { profiles: [profile, profile] },
+    { profiles: Array.from({ length: 11 }, (_, n) => ({ ...profile, profileId: `${String(n).padStart(8, '0')}-1111-4111-8111-111111111111` })) },
+    ...[{ extra: true }, { state: 'active' }, { eligible: 'true' }, { readingActive: 1 }, { issue: 'credentials' }, { issue: undefined }, { nextReadInSeconds: -1 }, { nextReadInSeconds: 4321 }, { nextReadInSeconds: 0.5 }, { nextReadInSeconds: '300' }].map(fields => ({ profiles: [{ ...profile, ...fields }] })),
+  ]) {
+    desktopResponse({ ...value, ...change }); await assert.rejects(invoke('load_monitoring'), /desktop response is incompatible/);
+  }
+});
+
+test('legacy provider and cache responses accept actual monitoring modes while restore still guarantees stopped', async () => {
+  for (const monitoring of ['stopped', 'running', 'paused']) {
+    desktopResponse({ ...ready, monitoring }); assert.equal((await invoke('bootstrap')).monitoring, monitoring);
+    desktopResponse({ ...activityRequest, monitoring }); assert.equal((await invoke('begin_profile_collection_read', { profileId: activityRequest.profileId, approvalId: activityRequest.approvalId })).monitoring, monitoring);
+    desktopResponse({ ...activityPreview, monitoring }); assert.equal((await invoke('complete_profile_activity_read', activityArgs)).monitoring, monitoring);
+    const { requestId: _request, approvalId: _approval, ...cached } = activityPreview;
+    desktopResponse({ ...cached, monitoring, freshness: 'fresh', dailyState: 'empty', dailyUsageBuckets: [], dailyTruncated: false });
+    assert.equal((await invoke('load_profile_activity', { profileId: activityRequest.profileId })).monitoring, monitoring);
+  }
 });

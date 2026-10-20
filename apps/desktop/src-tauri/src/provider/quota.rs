@@ -275,9 +275,14 @@ impl CompletingQuota {
                         && entry.binding.approval_id == self.binding.approval_id
                         && entry.handle.is_none()
                 });
-                record_refresh_failure(&mut state, &self.binding, error, owned);
+                let current = owned && binding_current(&state, &self.binding);
+                record_refresh_failure(&mut state, &self.binding, error, current);
                 state.quotas.remove(&self.request_id);
-                Err(quota_error(error))
+                Err(if current {
+                    quota_error(error)
+                } else {
+                    CommandError::ProviderQuotaCancelled
+                })
             }
         }
     }
@@ -381,6 +386,12 @@ fn quota_error(error: SupervisorError) -> CommandError {
         SupervisorError::Session(SessionError::TimedOut) => CommandError::ProviderQuotaTimedOut,
         SupervisorError::Session(SessionError::TransportFailed | SessionError::UnexpectedExit) => {
             CommandError::ProviderQuotaFailed
+        }
+        SupervisorError::Session(SessionError::Protocol(P::AuthenticationRequired)) => {
+            CommandError::ProviderAuthenticationRequired
+        }
+        SupervisorError::Session(SessionError::Protocol(P::UnsupportedAuthentication)) => {
+            CommandError::ProviderUnsupported
         }
         SupervisorError::Session(SessionError::Protocol(P::AccountChanged)) => {
             CommandError::ProviderAccountChanged

@@ -122,7 +122,7 @@ export function ProfileDeviceLogin({ profileId, profileLabel, approval, busy, on
           ? { kind: 'cancelled', message: 'Credentials already saved by Codex may remain in this profile.' }
           : completed.diagnostic.identityConfidence === 'unknown'
           ? { kind: 'incomplete', message: 'Codex completed sign-in, but account identity could not be confirmed. Check the connection or sign in again. Your saved readings are still available.' }
-          : { kind: 'success', message: 'Codex confirmed a ChatGPT account for this profile. Identity has not been verified. Usage collection remains stopped.' });
+          : { kind: 'success', message: 'Codex confirmed a ChatGPT account for this profile. Identity has not been verified. Start monitoring from Manage profile when you are ready.' });
         if (!cancelled.current && !cancellationFailure.current) {
           void refreshConnection(operation);
         }

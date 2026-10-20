@@ -109,7 +109,7 @@ impl Workspace {
             observed_at_utc: saved.commit.observed_at_utc,
             identity_confidence: "provisional",
             verified_identity_key: None,
-            monitoring: "stopped",
+            monitoring: self.monitoring_state().as_str(),
             accepted: true,
             coverage: "unknown",
             scope: openusage_storage::QUOTA_SOURCE_SCOPE,
@@ -135,6 +135,10 @@ impl Workspace {
     ) -> Result<provider::QuotaOutcome, CommandError> {
         let id = completed.binding.profile_id.clone();
         let request = completed.request_id.clone();
+        if self.quota_requests.get(&id) != Some(&request) {
+            completed.abort();
+            return Err(CommandError::ProviderQuotaCancelled);
+        }
         let binding = &completed.binding;
         if let Err(error) = self.require_provider_binding(
             &id,
@@ -147,9 +151,15 @@ impl Workspace {
             return Err(error);
         }
         let observed_monotonic = completed.observed_monotonic();
-        let result = completed.publish(|binding, probe, request, association| {
+        let mut result = completed.publish(|binding, probe, request, association| {
             self.persist_quota(binding, probe, request, association)
         });
+        if let Err(error) = &result {
+            self.note_monitoring_read_error(&id, &request, *error);
+        }
+        if let Ok(value) = &mut result {
+            value.monitoring = self.monitoring_state().as_str();
+        }
         match &result {
             Ok(value) => {
                 self.quota_sessions.insert(

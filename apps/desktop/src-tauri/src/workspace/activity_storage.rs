@@ -238,7 +238,7 @@ impl Workspace {
             observed_at_utc,
             identity_confidence: "provisional",
             verified_identity_key: None,
-            monitoring: "stopped",
+            monitoring: self.monitoring_state().as_str(),
             accepted: true,
             coverage: "unknown",
             scope: openusage_storage::ACTIVITY_SOURCE_SCOPE,
@@ -269,6 +269,10 @@ impl Workspace {
     ) -> Result<provider::ActivityOutcome, CommandError> {
         let id = completed.binding.profile_id.clone();
         let request_id = completed.request_id.clone();
+        if self.activity_requests.get(&id) != Some(&request_id) {
+            completed.abort();
+            return Err(CommandError::ProviderActivityCancelled);
+        }
         let binding = &completed.binding;
         if let Err(error) = self.require_provider_binding(
             &binding.profile_id,
@@ -281,9 +285,15 @@ impl Workspace {
             return Err(error);
         }
         let observed_monotonic = completed.observed_monotonic();
-        let outcome = completed.publish(|binding, probe, request, expected| {
+        let mut outcome = completed.publish(|binding, probe, request, expected| {
             self.persist_activity(binding, probe, request, expected)
         });
+        if let Err(error) = &outcome {
+            self.note_monitoring_read_error(&id, &request_id, *error);
+        }
+        if let Ok(value) = &mut outcome {
+            value.monitoring = self.monitoring_state().as_str();
+        }
         match &outcome {
             Ok(value) => {
                 self.activity_reviews.remove(&id);

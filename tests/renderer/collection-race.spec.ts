@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { navigate, openReadings } from './navigation';
-import type { ProfileCollectionOutcome, SavedProfileActivity, SavedProfileQuota } from '../../apps/desktop/src/contracts';
+import type { MonitoringStatus, ProfileCollectionOutcome, SavedProfileActivity, SavedProfileQuota } from '../../apps/desktop/src/contracts';
 
 // Synthetic renderer IPC only. Atomic storage and owned provider execution require native acceptance.
 const profileId = '11111111-1111-4111-8111-111111111111';
@@ -18,7 +18,7 @@ type Fixture = {
   calls: { command: string; args: Record<string, unknown> }[];
   completions: Record<string, Deferred>; cancellations: Record<string, Deferred>;
   quota: SavedProfileQuota; activity: SavedProfileActivity; failLoads: boolean;
-  approvalId: string; refreshSeconds: number;
+  approvalId: string; refreshSeconds: number; monitoring: MonitoringStatus; deferMonitoring: boolean; pendingMonitoring: Deferred[]; failMonitoring: boolean;
 };
 type FixtureWindow = Window & { collectionFixture: Fixture };
 function cachedQuota(): SavedProfileQuota {
@@ -34,12 +34,28 @@ function committed(index = 0): ProfileCollectionOutcome {
 }
 async function open(page: Page) {
   await page.addInitScript(({ profileId, approvalId, requests, reviewId, observedAtUtc, quota, activity }) => {
-    const fixture: Fixture = { calls: [], completions: {}, cancellations: {}, quota, activity, failLoads: false, approvalId, refreshSeconds: 0 };
+    const fixture: Fixture = { calls: [], completions: {}, cancellations: {}, quota, activity, failLoads: false, approvalId, refreshSeconds: 0, monitoring: { state: 'stopped', readingRevision: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', profiles: [{ profileId, state: 'stopped', eligible: false, issue: 'sign_in_required', nextReadInSeconds: null, readingActive: false }] }, deferMonitoring: false, pendingMonitoring: [], failMonitoring: false };
     Object.assign(window, { collectionFixture: fixture }); let started = 0;
     const metadata = { path: '/synthetic/reviewed-codex', fileBytes: '100', sha256: 'a'.repeat(64), testedVersion: '0.163.0', versionChecked: false, sourceVerified: true, sourceKind: 'test_fixture', sourceUrl: null };
     window.__TAURI__ = { core: { invoke: async <T>(command: string, args: Record<string, unknown> = {}) => {
       fixture.calls.push({ command, args: { ...args } }); let result: unknown;
       switch (command) {
+        case 'list_backups': result = { backups: [{ fileName: 'openusage-backup-synthetic0000000.oubackup', fileBytes: '100' }], truncated: false }; break;
+        case 'inspect_backup': result = { fileName: 'openusage-backup-synthetic0000000.oubackup', archiveVersion: 1, manifestSchemaVersion: 4, entryCount: 1, totalBytes: '100', entries: [{ name: 'records.sqlite', bytes: '100' }], databaseValidation: 'valid', contentSummary: { activeProfiles: 1, archivedProfiles: '0', accounts: '0' }, restoreAvailable: false }; break;
+        case 'prepare_restore_preview': result = { previewId: reviewId, fileName: 'openusage-backup-synthetic0000000.oubackup', current: { activeProfiles: 1, archivedProfiles: '0', accounts: '0' }, incoming: { activeProfiles: 1, archivedProfiles: '0', accounts: '0' }, checkpoint: { id: reviewId, fileBytes: '100' }, restoreAvailable: true }; break;
+        case 'apply_restore':
+          fixture.deferMonitoring = false; fixture.monitoring = { state: 'stopped', readingRevision: 'ffffffff-ffff-4fff-8fff-ffffffffffff', profiles: [{ profileId, state: 'stopped', eligible: false, issue: 'sign_in_required', nextReadInSeconds: null, readingActive: false }] };
+          result = { applied: true, restored: { activeProfiles: 1, archivedProfiles: '0', accounts: '0' }, checkpoint: { id: reviewId, fileBytes: '100' }, monitoring: 'stopped', authenticationRequired: true }; break;
+        case 'cancel_restore_preview': result = { cancelled: true }; break;
+        case 'load_monitoring':
+          if (fixture.failMonitoring) throw 'provider_unavailable';
+          result = fixture.deferMonitoring ? await new Promise((resolve, reject) => fixture.pendingMonitoring.push({ resolve, reject })) : structuredClone(fixture.monitoring); break;
+        case 'start_profile_monitoring':
+          if (!fixture.monitoring.profiles[0]!.eligible) throw 'monitoring_not_eligible';
+          fixture.monitoring.state = 'running'; Object.assign(fixture.monitoring.profiles[0]!, { state: 'running', nextReadInSeconds: 300 }); result = structuredClone(fixture.monitoring); break;
+        case 'pause_profile_monitoring':
+          Object.assign(fixture.monitoring.profiles[0]!, { state: 'paused', readingActive: false, nextReadInSeconds: null });
+          fixture.monitoring.state = fixture.monitoring.profiles.some(value => value.state === 'running') ? 'running' : 'paused'; result = structuredClone(fixture.monitoring); break;
         case 'bootstrap': result = { storage: 'ready', theme: 'light', schemaVersion: 4, activeProfiles: 1, monitoring: 'stopped', provider: 'not_configured', keyProtection: 'passphrase', storageIssue: null }; break;
         case 'list_profiles': result = { activeProfiles: 1, profiles: [{ id: profileId, label: 'Synthetic collection profile', environment: 'native', archived: false, connectionState: 'connected' }] }; break;
         case 'load_profile_refresh_status': result = { profileId, retryAfterSeconds: fixture.refreshSeconds }; break;
@@ -144,6 +160,14 @@ for (const missing of ['quota', 'activity', 'both'] as const) test(`unsupported 
   if (missing === 'both') await expect(status(page)).not.toContainText('saved.');
 });
 
+test('a signed-out provider response guides sign-in and retains both saved readings', async ({ page }) => {
+  await open(page); await begin(page); await reject(page, 'provider_authentication_required');
+  await expect(status(page)).toHaveAttribute('role', 'alert');
+  await expect(status(page)).toContainText('Sign in again before reading or starting monitoring.');
+  await expect(page.locator('[data-quota-saved] [role=meter]')).toHaveAttribute('aria-valuenow', '75');
+  await expect(page.locator('[data-activity-saved] [data-activity-metric="lifetimeTokens"]')).toHaveText('9007199254740993');
+});
+
 test('committed cache mismatches keep previous values with freshness unknown and explicit reload errors', async ({ page }) => {
   await open(page); await begin(page); await publish(page, committed(), false);
   await expect(status(page)).toContainText('Quota and activity readings saved.');
@@ -231,4 +255,108 @@ for (const kind of ['quota', 'activity'] as const) test(`individual ${kind} refr
     await page.evaluate(({ receipt, run }) => { const f = (window as unknown as FixtureWindow).collectionFixture; f.activity.collectionRunId = run; f.completions[receipt.requestId]!.resolve(receipt); }, { receipt, run: nextActivityRun });
   }
   await expect(page.locator(`[data-${kind}-saved="${profileId}"]`)).toBeFocused();
+});
+
+const monitoringPanel = (page: Page) => page.locator(`[data-monitoring-profile="${profileId}"]`);
+async function eligibleMonitoring(page: Page) {
+  await page.evaluate(() => { const f = (window as unknown as FixtureWindow).collectionFixture; Object.assign(f.monitoring.profiles[0]!, { eligible: true, issue: null }); });
+  await expect(page.locator(`[data-monitoring-start="${profileId}"]`)).toBeEnabled();
+}
+
+test('persisted Connected does not grant monitoring eligibility or cause automatic provider work', async ({ page }) => {
+  await open(page); await page.getByRole('button', { name: 'Manage profile', exact: true }).click();
+  await expect(page.locator('.profile-connection-state')).toHaveText('Connected');
+  await expect(page.locator(`[data-monitoring-start="${profileId}"]`)).toBeDisabled();
+  await expect(monitoringPanel(page)).toContainText('Sign in again');
+  await expect(page.locator('[data-global-monitoring]')).toHaveText('Monitoring stopped');
+  await eligibleMonitoring(page);
+  const before = await page.evaluate(() => (window as unknown as FixtureWindow).collectionFixture.calls.length);
+  await page.locator(`[data-monitoring-start="${profileId}"]`).click();
+  await expect(page.locator(`[data-monitoring-pause="${profileId}"]`)).toBeFocused();
+  await expect(page.locator('[data-global-monitoring]')).toHaveText('Monitoring running');
+  const calls = await page.evaluate(n => (window as unknown as FixtureWindow).collectionFixture.calls.slice(n), before);
+  expect(calls.filter(call => call.command === 'start_profile_monitoring')).toEqual([{ command: 'start_profile_monitoring', args: { profileId, approvalId } }]);
+  expect(calls.some(call => /^(begin_|complete_|check_profile|discover_|inspect_|approve_)/.test(call.command))).toBe(false);
+});
+
+test('one global status poll reloads caches only on changed reading revision and preserves Pause focus', async ({ page }) => {
+  await open(page); await page.getByRole('button', { name: 'Manage profile', exact: true }).click(); await eligibleMonitoring(page);
+  await page.locator(`[data-monitoring-start="${profileId}"]`).click();
+  const pause = page.locator(`[data-monitoring-pause="${profileId}"]`); await expect(pause).toBeFocused();
+  const baseline = await page.evaluate(() => {
+    const f = (window as unknown as FixtureWindow).collectionFixture;
+    return { polls: f.calls.filter(call => call.command === 'load_monitoring').length, loads: f.calls.filter(call => call.command === 'load_profile_quota' || call.command === 'load_profile_activity').length };
+  });
+  await expect.poll(() => page.evaluate(() => (window as unknown as FixtureWindow).collectionFixture.calls.filter(call => call.command === 'load_monitoring').length)).toBeGreaterThan(baseline.polls);
+  expect(await page.evaluate(() => (window as unknown as FixtureWindow).collectionFixture.calls.filter(call => call.command === 'load_profile_quota' || call.command === 'load_profile_activity').length)).toBe(baseline.loads);
+  await page.evaluate(({ quotaRun, activityRun }) => {
+    const f = (window as unknown as FixtureWindow).collectionFixture;
+    f.monitoring.readingRevision = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'; f.monitoring.profiles[0]!.readingActive = true;
+    f.quota.collectionRunId = quotaRun; f.quota.limits[0]!.primary!.derivedRemainingPercent = 50; f.quota.limits[0]!.primary!.usedPercent = 50;
+    f.activity.collectionRunId = activityRun; f.activity.summary.lifetimeTokens = '9223372036854775807';
+  }, { quotaRun: nextQuotaRun, activityRun: nextActivityRun });
+  await expect(page.locator('[data-quota-saved] [role=meter]')).toHaveAttribute('aria-valuenow', '50');
+  await expect(page.locator('[data-activity-saved] [data-activity-metric="lifetimeTokens"]')).toHaveText('9223372036854775807');
+  await expect(pause).toBeFocused(); await expect(pause).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Refresh readings', exact: true })).toBeDisabled();
+  await navigate(page, 'overview'); await expect(page.locator('[data-overview-lifetime]')).toHaveText('9223372036854775807');
+  const calls = await page.evaluate(() => (window as unknown as FixtureWindow).collectionFixture.calls.filter(call => call.command === 'load_monitoring'));
+  expect(calls.every(call => Object.keys(call.args).length === 0)).toBe(true);
+});
+
+test('a delayed running poll cannot overwrite a completed Pause or steal its focus', async ({ page }) => {
+  await open(page); await page.getByRole('button', { name: 'Manage profile', exact: true }).click(); await eligibleMonitoring(page);
+  await page.locator(`[data-monitoring-start="${profileId}"]`).click();
+  await page.evaluate(() => { (window as unknown as FixtureWindow).collectionFixture.deferMonitoring = true; });
+  await expect.poll(() => page.evaluate(() => (window as unknown as FixtureWindow).collectionFixture.pendingMonitoring.length)).toBe(1);
+  await page.locator(`[data-monitoring-pause="${profileId}"]`).click();
+  await expect(page.locator('[data-global-monitoring]')).toHaveText('Monitoring paused');
+  await page.evaluate(() => { const f = (window as unknown as FixtureWindow).collectionFixture; f.pendingMonitoring[0]!.resolve({ ...f.monitoring, state: 'running', profiles: f.monitoring.profiles.map(p => ({ ...p, state: 'running' })) }); });
+  await expect(page.locator('[data-global-monitoring]')).toHaveText('Monitoring paused');
+  await expect(page.locator(`[data-monitoring-start="${profileId}"]`)).toBeFocused();
+});
+
+test('one paused profile does not make the global status stopped while another profile runs', async ({ page }) => {
+  await open(page); await page.getByRole('button', { name: 'Manage profile', exact: true }).click(); await eligibleMonitoring(page);
+  await page.locator(`[data-monitoring-start="${profileId}"]`).click();
+  await page.evaluate(() => { const f = (window as unknown as FixtureWindow).collectionFixture; f.monitoring.profiles.push({ ...f.monitoring.profiles[0]!, profileId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee' }); });
+  await page.locator(`[data-monitoring-pause="${profileId}"]`).click();
+  await expect(monitoringPanel(page)).toHaveAttribute('data-monitoring-state', 'paused');
+  await expect(page.locator('[data-global-monitoring]')).toHaveText('Monitoring running');
+});
+
+test('status failure retains saved readings without claiming monitoring stopped', async ({ page }) => {
+  await open(page); await page.getByRole('button', { name: 'Manage profile', exact: true }).click(); await eligibleMonitoring(page);
+  await page.locator(`[data-monitoring-start="${profileId}"]`).click();
+  await page.evaluate(() => { (window as unknown as FixtureWindow).collectionFixture.failMonitoring = true; });
+  await expect(page.locator('.status-pill')).toHaveText('Monitoring status unavailable');
+  await expect(monitoringPanel(page)).toContainText('Monitoring status unavailable');
+  const pause = page.locator(`[data-monitoring-pause="${profileId}"]`);
+  await expect(pause).toBeEnabled(); await pause.click();
+  await expect(page.locator('[data-global-monitoring]')).toHaveText('Monitoring paused');
+  await expect(page.locator(`[data-monitoring-start="${profileId}"]`)).toBeFocused();
+  await expect(page.locator('[data-quota-saved] [role=meter]')).toHaveAttribute('aria-valuenow', '75');
+  await expect(page.locator('[data-activity-saved] [data-activity-metric="lifetimeTokens"]')).toHaveText('9007199254740993');
+});
+
+
+test('a pre-restore status reply cannot restart or repaint the new workspace monitoring epoch', async ({ page }) => {
+  await open(page); await page.getByRole('button', { name: 'Manage profile', exact: true }).click(); await eligibleMonitoring(page);
+  await page.locator(`[data-monitoring-start="${profileId}"]`).click();
+  await page.evaluate(() => { (window as unknown as FixtureWindow).collectionFixture.deferMonitoring = true; });
+  await expect.poll(() => page.evaluate(() => (window as unknown as FixtureWindow).collectionFixture.pendingMonitoring.length)).toBe(1);
+  await navigate(page, 'settings'); await page.getByRole('button', { name: 'Inspect a backup', exact: true }).click();
+  await page.getByLabel('Backup password', { exact: true }).fill('Synthetic backup password');
+  await page.getByRole('button', { name: 'Inspect backup', exact: true }).click();
+  await page.getByRole('button', { name: 'Preview restore', exact: true }).click();
+  await page.locator('#restore-preview-password').fill('Synthetic backup password');
+  await page.locator('.restore-preview-form button[type=submit]').click();
+  await page.getByLabel('I approve replacing my current application records.').check();
+  await page.getByRole('button', { name: 'Restore records', exact: true }).click();
+  await expect(page.locator('.restore-result')).toBeVisible();
+  await expect(page.locator('[data-global-monitoring]')).toHaveText('Monitoring stopped');
+  await page.evaluate(() => { const f = (window as unknown as FixtureWindow).collectionFixture; f.pendingMonitoring[0]!.resolve({ state: 'running', readingRevision: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', profiles: [{ ...f.monitoring.profiles[0]!, state: 'running', eligible: true, issue: null }] }); });
+  await expect(page.locator('[data-global-monitoring]')).toHaveText('Monitoring stopped');
+  await navigate(page, 'accounts'); await openReadings(page, profileId); await page.getByRole('button', { name: 'Manage profile', exact: true }).click();
+  await expect(page.locator(`[data-monitoring-start="${profileId}"]`)).toBeDisabled();
 });

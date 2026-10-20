@@ -39,7 +39,7 @@ function ActivityValues({ value }: { value: SavedProfileActivity }) {
 }
 
 // Cache reads do not require an approved executable or execute the provider.
-export function ProfileActivity({ profileId, profileLabel, children, emptyContent }: { profileId: string; profileLabel: string; emptyContent?: ReactNode; children: (onSaved: (receipt: ProfileReadingReference, focusResult?: boolean) => Promise<void>, onFailed: () => Promise<void>) => ReactNode }) {
+export function ProfileActivity({ profileId, profileLabel, children, emptyContent, readingRevision }: { profileId: string; profileLabel: string; readingRevision?: string | undefined; emptyContent?: ReactNode; children: (onSaved: (receipt: ProfileReadingReference, focusResult?: boolean) => Promise<void>, onFailed: () => Promise<void>) => ReactNode }) {
   const [value, setValue] = useState<SavedProfileActivity | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -48,6 +48,12 @@ export function ProfileActivity({ profileId, profileLabel, children, emptyConten
   const alive = useRef(true);
   const loadGeneration = useRef(0);
   const manualLoad = useRef(false);
+  const latestReadingRevision = useRef(readingRevision);
+  useEffect(() => {
+    const previous = latestReadingRevision.current;
+    latestReadingRevision.current = readingRevision;
+    if (previous && readingRevision && previous !== readingRevision) void load();
+  }, [readingRevision]);
   useEffect(() => {
     alive.current = true; void load();
     const interval = window.setInterval(() => { void load(); }, 60_000);
@@ -83,7 +89,7 @@ export function ProfileActivity({ profileId, profileLabel, children, emptyConten
         {value.sourceKind === 'test_fixture' && <p className="provider-fixture-note" data-provider-fixture>Synthetic test data</p>}
         <p className="provider-help">Unverified identity · Saved locally</p>
         <p className="provider-help"><span data-activity-freshness={value.freshness}>{freshnessLabels[value.freshness]}</span> · Last read <time dateTime={value.observedAtUtc}>{observed(value.observedAtUtc)}</time></p>
-        <p className="provider-help">Account activity; application scope and coverage are unknown. Monitoring is stopped.</p>
+        <p className="provider-help">Account activity; application scope and coverage are unknown.</p>
         <ActivityValues key={`${value.bindingId}:${value.collectionRunId}`} value={value} />
       </>}
     </div>}

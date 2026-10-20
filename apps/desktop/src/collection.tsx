@@ -87,7 +87,7 @@ export function ProfileCollectionRead({ profileId, approval, busy, retryAfterSec
         message: !value.accepted ? 'Codex does not support quota or activity readings. Your saved readings are still available.'
           : !value.quota ? 'Activity saved. Codex does not support quota readings. Previous quotas remain available unless the sign-in changed.'
           : !value.activity ? 'Quotas saved. Codex does not support activity readings. Previous activity remains available unless the sign-in changed.'
-          : 'Quota and activity readings saved. Identity has not been verified. Monitoring remains stopped.',
+          : 'Quota and activity readings saved. Identity has not been verified.',
       });
     } catch (failure) {
       if (current(operation)) {

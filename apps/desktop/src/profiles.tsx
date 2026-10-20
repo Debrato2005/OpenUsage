@@ -5,10 +5,11 @@ import { Field, FieldLabel } from './components/ui/field';
 import { Collapsible, CollapsibleTrigger, CollapsiblePanel } from './components/ui/collapsible';
 import './profile-actions.css';
 import './profile-layout.css';
-import { invoke, type ProfileRecord, type ProfileView, type ProviderExecutableApproval } from './contracts';
+import { invoke, type MonitoringStatus, type ProfileRecord, type ProfileView, type ProviderExecutableApproval } from './contracts';
 import { ProfileProviderCheck } from './provider';
 import { SavedProfileQuota } from './quota';
 import { ProfileActivity } from './activity';
+import { ProfileMonitoringControls, type MonitoringAction } from './monitoring';
 
 type Props = {
   busy: boolean;
@@ -17,6 +18,9 @@ type Props = {
   providerApproval: ProviderExecutableApproval | null;
   onProfilesChange?: (profiles: ProfileRecord[]) => void;
   onReadingsChanged?: () => void;
+  monitoring: MonitoringStatus | null;
+  monitoringUnavailable: boolean;
+  onMonitoringAction: MonitoringAction;
 };
 
 type Failure = {
@@ -49,7 +53,7 @@ function errorMessage(error: unknown): string {
     ? messages[error] : 'OpenUsage could not complete this profile request. Reload profiles and try again.';
 }
 
-export function ProfileManager({ busy, setBusy, onCount, providerApproval, onProfilesChange, onReadingsChanged }: Props) {
+export function ProfileManager({ busy, setBusy, onCount, providerApproval, onProfilesChange, onReadingsChanged, monitoring, monitoringUnavailable, onMonitoringAction }: Props) {
   const [view, setView] = useState<ProfileView | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -205,6 +209,7 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval, onPro
   }
 
   function row(profile: ProfileRecord) {
+    const monitoringStatus = monitoring?.profiles.find(value => value.profileId === profile.id) ?? null;
     const current = editing?.id === profile.id;
     const rowError = failure?.id === profile.id;
     const nameId = `profile-name-${profile.id}`;
@@ -230,12 +235,12 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval, onPro
       </div>
       <CollapsiblePanel keepMounted className="profile-reading-panel">
       <Collapsible className="profile-management-root" open={managed === profile.id || current} onOpenChange={open => setManaged(open ? profile.id : null)}>
-      <ProfileActivity profileId={profile.id} profileLabel={profile.label}>{(onActivitySaved, onActivityFailed) => <SavedProfileQuota profileId={profile.id} profileLabel={profile.label}>{(onQuotaSaved, onQuotaFailed) => profile.archived ? managementActions : providerApproval
-        ? <ProfileProviderCheck onConnectionChanged={() => refreshConnection(profile.id)} key={`${profile.id}:${providerApproval.approvalId}`} profileId={profile.id} profileLabel={profile.label} approval={providerApproval} busy={busy || loading || current} managementActions={managementActions} managementTrigger={managementTrigger} onActivitySaved={async value => { await Promise.all([onActivitySaved(value), onQuotaFailed()]); reportReading.current?.(); }} onActivityFailed={async () => { await onActivityFailed(); reportReading.current?.(); }} onQuotaSaved={async value => { await Promise.all([onQuotaSaved(value), onActivityFailed()]); reportReading.current?.(); }} onQuotaFailed={async () => { await onQuotaFailed(); reportReading.current?.(); }} onCollectionSaved={async value => {
+      <ProfileActivity profileId={profile.id} profileLabel={profile.label} readingRevision={monitoring?.readingRevision}>{(onActivitySaved, onActivityFailed) => <SavedProfileQuota profileId={profile.id} profileLabel={profile.label} readingRevision={monitoring?.readingRevision}>{(onQuotaSaved, onQuotaFailed) => profile.archived ? managementActions : providerApproval
+        ? <ProfileProviderCheck monitoring={monitoringStatus} monitoringUnavailable={monitoringUnavailable} onMonitoringAction={onMonitoringAction} onConnectionChanged={() => refreshConnection(profile.id)} key={`${profile.id}:${providerApproval.approvalId}`} profileId={profile.id} profileLabel={profile.label} approval={providerApproval} busy={busy || loading || current || !!monitoringStatus?.readingActive} managementActions={managementActions} managementTrigger={managementTrigger} onActivitySaved={async value => { await Promise.all([onActivitySaved(value), onQuotaFailed()]); reportReading.current?.(); }} onActivityFailed={async () => { await onActivityFailed(); reportReading.current?.(); }} onQuotaSaved={async value => { await Promise.all([onQuotaSaved(value), onActivityFailed()]); reportReading.current?.(); }} onQuotaFailed={async () => { await onQuotaFailed(); reportReading.current?.(); }} onCollectionSaved={async value => {
           await Promise.all([value.quota ? onQuotaSaved({ profileId: profile.id, ...value.quota }, false) : onQuotaFailed(), value.activity ? onActivitySaved({ profileId: profile.id, ...value.activity }, false) : onActivityFailed()]);
           reportReading.current?.();
         }} onCollectionFailed={async () => { await Promise.all([onQuotaFailed(), onActivityFailed()]); reportReading.current?.(); }} />
-        : <>{managementTrigger}<CollapsiblePanel keepMounted className="profile-management">{managementActions}</CollapsiblePanel></>}</SavedProfileQuota>}</ProfileActivity>
+        : <>{managementTrigger}<CollapsiblePanel keepMounted className="profile-management">{managementActions}<ProfileMonitoringControls profileId={profile.id} status={monitoringStatus} unavailable={monitoringUnavailable} approval={null} busy={busy || loading || current} onAction={onMonitoringAction} /></CollapsiblePanel></>}</SavedProfileQuota>}</ProfileActivity>
       {rowError && !current && error()}
       </Collapsible>
       </CollapsiblePanel>
@@ -264,7 +269,7 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval, onPro
       </Collapsible>
       {active.length ? <><div className="profile-table-heading" aria-hidden="true"><span>Account</span><span>Connection</span><span>Readings</span></div><ul className="profile-list" aria-label="Active profiles">{active.map(row)}</ul></> : <p className="profile-empty">No active profiles. Add an account or restore an archived one.</p>}
       {archived.length > 0 && <details className="archived-profiles"><summary>Archived profiles ({archived.length})</summary><p>Archived profiles keep their local data.</p><ul className="profile-list" aria-label="Archived profiles">{archived.map(row)}</ul></details>}
-      <p className="profile-meta">{providerApproval ? 'Sign in to a profile, then refresh its saved readings. Scheduled collection is not available yet.' : 'Open Settings to review Codex and enable sign-in and quota reads.'}</p>
+      <p className="profile-meta">{providerApproval ? 'Sign in to a profile, then refresh readings or start monitoring for this session.' : 'Open Settings to review Codex and enable sign-in and readings.'}</p>
     </>}
   </section>;
 }

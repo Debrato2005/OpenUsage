@@ -1,5 +1,7 @@
 export function providerFailure(error: unknown): string {
   const messages: Record<string, string> = {
+    provider_authentication_required: 'Codex reported that this profile is signed out. Sign in again before reading or starting monitoring.',
+    monitoring_not_eligible: 'Sign in again to enable monitoring for this session.',
     provider_collection_not_found: 'This reading has ended. Refresh readings to try again.',
     provider_collection_in_progress: 'Readings are already being refreshed for this profile. Finish or cancel them first.',
     provider_collection_cancelled: 'Reading refresh stopped.',

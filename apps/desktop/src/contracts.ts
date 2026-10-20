@@ -1,3 +1,13 @@
+export type MonitoringState = 'stopped' | 'running' | 'paused';
+export interface ProfileMonitoringStatus {
+  profileId: string; state: MonitoringState; eligible: boolean;
+  issue: null | 'sign_in_required' | 'account_changed' | 'source_changed' | 'profile_unavailable' | 'unsupported' | 'storage_unavailable' | 'provider_error';
+  nextReadInSeconds: number | null; readingActive: boolean;
+}
+export interface MonitoringStatus {
+  state: MonitoringState; readingRevision: string; profiles: ProfileMonitoringStatus[];
+}
+
 export type Theme = 'system' | 'light' | 'dark';
 export type StorageState = 'setup_required' | 'locked' | 'ready' | 'recovery_required';
 export type KeyProtection = 'os_store' | 'passphrase' | 'passphrase_required' | 'unavailable';
@@ -7,7 +17,7 @@ export interface Bootstrap {
   theme: Theme;
   schemaVersion: number | null;
   activeProfiles: number | null;
-  monitoring: 'stopped';
+  monitoring: MonitoringState;
   provider: 'not_configured';
   keyProtection: KeyProtection;
   storageIssue: StorageIssue | null;
@@ -101,7 +111,7 @@ export interface ProviderConnectionDiagnostic {
   identityConfidence: 'unknown' | 'provisional';
   requiresOpenaiAuth: boolean;
   checkedAt: string | null;
-  monitoring: 'stopped';
+  monitoring: MonitoringState;
   persisted: false;
   sourceKind: 'official_artifact' | 'test_fixture';
 }
@@ -111,7 +121,7 @@ export interface ProviderLoginAttempt {
   attemptId: string;
   approvalId: string;
   sourceKind: ProviderConnectionDiagnostic['sourceKind'];
-  monitoring: 'stopped';
+  monitoring: MonitoringState;
   applicationWaitLimitSeconds: 900;
 }
 
@@ -154,14 +164,14 @@ export interface ProfileCollectionOutcome {
   requestId: string; profileId: string; approvalId: string;
   providerVersion: string; sourceKind: ProviderConnectionDiagnostic['sourceKind'];
   identityConfidence: 'provisional'; verifiedIdentityKey: null;
-  monitoring: 'stopped'; accepted: boolean;
+  monitoring: MonitoringState; accepted: boolean;
   quota: CollectionReading | null; activity: CollectionReading | null;
 }
 
 export interface ProfileQuotaRequest {
   profileId: string; requestId: string; approvalId: string;
   sourceKind: ProviderConnectionDiagnostic['sourceKind'];
-  monitoring: 'stopped'; accepted: false;
+  monitoring: MonitoringState; accepted: false;
 }
 export interface QuotaWindow {
   usedPercent: number; derivedRemainingPercent: number;
@@ -190,7 +200,7 @@ export interface SavedProfileQuota extends Omit<ProfileQuotaSavedRead, 'requestI
 export interface ProfileActivityRequest {
   profileId: string; requestId: string; approvalId: string;
   sourceKind: ProviderConnectionDiagnostic['sourceKind'];
-  monitoring: 'stopped'; accepted: false;
+  monitoring: MonitoringState; accepted: false;
 }
 export interface ProfileActivitySavedRead extends Omit<ProfileActivityRequest, 'accepted'> {
   accepted: true; collectionRunId: string; bindingId: string;
@@ -212,7 +222,7 @@ export type ActivityFreshness = 'unknown' | 'fresh' | 'stale';
 export interface SavedProfileActivity {
   profileId: string; bindingId: string; collectionRunId: string;
   providerVersion: string; sourceKind: ProviderConnectionDiagnostic['sourceKind']; observedAtUtc: string;
-  identityConfidence: 'provisional'; verifiedIdentityKey: null; monitoring: 'stopped'; accepted: true;
+  identityConfidence: 'provisional'; verifiedIdentityKey: null; monitoring: MonitoringState; accepted: true;
   coverage: 'unknown'; scope: 'account_activity_with_unknown_application_scope'; freshness: ActivityFreshness;
   summary: ProfileActivitySavedRead['summary']; dailyState: 'unavailable' | 'empty' | 'returned';
   dailyUsageBuckets: { date: string; tokens: string; observedAtUtc: string; freshness: ActivityFreshness }[];
@@ -220,6 +230,9 @@ export interface SavedProfileActivity {
 }
 
 interface Commands {
+  load_monitoring: { args: undefined; result: MonitoringStatus };
+  start_profile_monitoring: { args: { profileId: string; approvalId: string }; result: MonitoringStatus };
+  pause_profile_monitoring: { args: { profileId: string }; result: MonitoringStatus };
   begin_profile_collection_read: { args: { profileId: string; approvalId: string }; result: ProfileQuotaRequest };
   complete_profile_collection_read: { args: { profileId: string; requestId: string }; result: ProfileCollectionOutcome };
   cancel_profile_collection_read: { args: { profileId: string; requestId: string }; result: { cancelled: boolean } };
@@ -283,7 +296,8 @@ export async function invoke<K extends keyof Commands>(
   const core = window.__TAURI__?.core;
   if (!core) throw new DesktopUnavailable('Open the installed OpenUsage desktop application.');
   const response = await core.invoke<unknown>(command, args[0]);
-  const valid = (command === 'begin_profile_collection_read' || command === 'begin_profile_collection_reassociation') ? isProfileQuotaRequest(response)
+  const valid = ['load_monitoring', 'start_profile_monitoring', 'pause_profile_monitoring'].includes(command) ? isMonitoringStatus(response)
+    : (command === 'begin_profile_collection_read' || command === 'begin_profile_collection_reassociation') ? isProfileQuotaRequest(response)
     : command === 'complete_profile_collection_read' ? isProfileCollectionOutcome(response)
     : command === 'cancel_profile_collection_read' ? isPreviewCancellation(response)
     : command === 'review_profile_collection_association' ? isActivityAssociationReview(response)
@@ -322,6 +336,25 @@ export async function invoke<K extends keyof Commands>(
     throw new Error('The desktop response is incompatible. Restart OpenUsage after updating the application.');
   }
   return response as Commands[K]['result'];
+}
+
+function isMonitoringState(value: unknown): value is MonitoringState {
+  return value === 'stopped' || value === 'running' || value === 'paused';
+}
+function isMonitoringStatus(value: unknown): value is MonitoringStatus {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  if (Object.keys(v).length !== 3 || !isMonitoringState(v.state) || !isUuid(v.readingRevision) || !Array.isArray(v.profiles) || v.profiles.length > 10) return false;
+  const ids = new Set<string>();
+  return v.profiles.every(value => {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+    const p = value as Record<string, unknown>;
+    if (Object.keys(p).length !== 6 || !isUuid(p.profileId) || ids.has(p.profileId) || !isMonitoringState(p.state)
+      || typeof p.eligible !== 'boolean' || typeof p.readingActive !== 'boolean'
+      || !(p.issue === null || ['sign_in_required', 'account_changed', 'source_changed', 'profile_unavailable', 'unsupported', 'storage_unavailable', 'provider_error'].includes(p.issue as string))
+      || !(p.nextReadInSeconds === null || (Number.isInteger(p.nextReadInSeconds) && Number(p.nextReadInSeconds) >= 0 && Number(p.nextReadInSeconds) <= 4320))) return false;
+    ids.add(p.profileId); return true;
+  });
 }
 
 function isUuid(value: unknown): value is string {
@@ -380,7 +413,7 @@ function isProfileQuotaRequest(value: unknown): value is ProfileQuotaRequest {
 function isQuotaBinding(v: Record<string, unknown>, accepted: false | true = false): boolean {
   return isUuid(v.profileId) && isUuid(v.requestId) && isUuid(v.approvalId)
     && (v.sourceKind === 'official_artifact' || v.sourceKind === 'test_fixture')
-    && v.monitoring === 'stopped' && v.accepted === accepted;
+    && isMonitoringState(v.monitoring) && v.accepted === accepted;
 }
 function quotaText(value: unknown, maximum: number): value is string {
   return typeof value === 'string' && value.length <= maximum && value.trim().length > 0 && !/\p{Cc}/u.test(value);
@@ -424,7 +457,7 @@ function isSavedProfileQuota(value: unknown): value is SavedProfileQuota | null 
   if (typeof value !== 'object' || Array.isArray(value)) return false;
   const v = value as Record<string, unknown>;
   return Object.keys(v).length === 16 && isUuid(v.profileId) && isUuid(v.bindingId) && isUuid(v.collectionRunId)
-    && (v.sourceKind === 'official_artifact' || v.sourceKind === 'test_fixture') && v.accepted === true && v.monitoring === 'stopped'
+    && (v.sourceKind === 'official_artifact' || v.sourceKind === 'test_fixture') && v.accepted === true && isMonitoringState(v.monitoring)
     && v.coverage === 'unknown' && v.scope === 'account_quota_with_unknown_application_scope' && isActivityFreshness(v.freshness) && isQuotaValues(v, true);
 }
 function isQuotaValues(v: Record<string, unknown>, saved = false): boolean {
@@ -481,7 +514,7 @@ function isSavedProfileActivity(value: unknown): value is SavedProfileActivity |
   if (typeof value !== 'object' || Array.isArray(value)) return false;
   const v = value as Record<string, unknown>;
   if (Object.keys(v).length !== 17 || !isUuid(v.profileId) || !isUuid(v.bindingId) || !isUuid(v.collectionRunId)
-    || !(v.sourceKind === 'official_artifact' || v.sourceKind === 'test_fixture') || v.monitoring !== 'stopped' || v.accepted !== true
+    || !(v.sourceKind === 'official_artifact' || v.sourceKind === 'test_fixture') || !isMonitoringState(v.monitoring) || v.accepted !== true
     || !isActivitySource(v) || !isActivityFreshness(v.freshness) || !(v.dailyState === 'unavailable' || v.dailyState === 'empty' || v.dailyState === 'returned')
     || typeof v.dailyTruncated !== 'boolean' || !Array.isArray(v.dailyUsageBuckets) || v.dailyUsageBuckets.length > 4096) return false;
   const dates = new Set<string>();
@@ -545,7 +578,7 @@ function isProviderConnectionDiagnostic(value: unknown): value is ProviderConnec
     && typeof v.authentication === 'string' && ['authentication_required', 'chatgpt', 'unsupported'].includes(v.authentication)
     && (v.identityConfidence === 'unknown' || (v.authentication === 'chatgpt' && v.identityConfidence === 'provisional'))
     && typeof v.requiresOpenaiAuth === 'boolean' && (v.checkedAt === null || isUtcTimestamp(v.checkedAt))
-    && v.monitoring === 'stopped' && v.persisted === false
+    && isMonitoringState(v.monitoring) && v.persisted === false
     && (v.sourceKind === 'official_artifact' || v.sourceKind === 'test_fixture');
 }
 
@@ -555,7 +588,7 @@ function isProviderLoginAttempt(value: unknown): value is ProviderLoginAttempt {
   return !Object.keys(v).some(key => !['profileId', 'attemptId', 'approvalId', 'sourceKind', 'monitoring', 'applicationWaitLimitSeconds'].includes(key))
     && isUuid(v.profileId) && isUuid(v.attemptId) && isUuid(v.approvalId)
     && (v.sourceKind === 'official_artifact' || v.sourceKind === 'test_fixture')
-    && v.monitoring === 'stopped' && v.applicationWaitLimitSeconds === 900;
+    && isMonitoringState(v.monitoring) && v.applicationWaitLimitSeconds === 900;
 }
 
 function isProviderLoginPrompt(value: unknown): value is ProviderLoginPrompt {
@@ -667,7 +700,7 @@ function isBootstrap(value: unknown): value is Bootstrap {
     && typeof v.theme === 'string' && ['system', 'light', 'dark'].includes(v.theme)
     && (v.schemaVersion === null || (Number.isSafeInteger(v.schemaVersion) && Number(v.schemaVersion) > 0))
     && (v.activeProfiles === null || (Number.isSafeInteger(v.activeProfiles) && Number(v.activeProfiles) >= 0 && Number(v.activeProfiles) <= 10))
-    && v.monitoring === 'stopped' && v.provider === 'not_configured'
+    && isMonitoringState(v.monitoring) && v.provider === 'not_configured'
     && typeof v.keyProtection === 'string'
     && ['os_store', 'passphrase', 'passphrase_required', 'unavailable'].includes(v.keyProtection)
     && (v.storageIssue === null || (typeof v.storageIssue === 'string'

@@ -31,6 +31,7 @@ async function openProfile(page: Page, options: { approve?: boolean; cached?: Sa
     window.__TAURI__ = { core: { invoke: async <T>(command: string, args: Record<string, unknown> = {}) => {
       fixture.requests.push(command); fixture.requestCalls.push({ command, args: { ...args } }); let value: unknown;
       switch (command) {
+        case 'load_monitoring': value = { state: 'stopped', readingRevision: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', profiles: [] }; break;
         case 'bootstrap': value = { storage: 'ready', theme: 'light', schemaVersion: 1, activeProfiles: options.archived ? 0 : 1, monitoring: 'stopped', provider: 'not_configured', keyProtection: 'passphrase', storageIssue: null }; break;
         case 'list_profiles': value = { activeProfiles: options.archived ? 0 : 1, profiles: [{ id: profileId, label: 'Synthetic quota profile', environment: 'native', archived: options.archived ?? false, connectionState: 'authentication_required' }] }; break;
         case 'load_profile_activity': value = null; break;

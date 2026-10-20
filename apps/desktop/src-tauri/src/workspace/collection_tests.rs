@@ -5,7 +5,7 @@ use sha2::{Digest, Sha256};
 use std::{cell::RefCell, collections::BTreeMap, os::unix::fs::PermissionsExt};
 
 #[derive(Default)]
-struct MemoryVault(RefCell<Option<DatabaseKey>>);
+pub(super) struct MemoryVault(RefCell<Option<DatabaseKey>>);
 impl KeyVault for MemoryVault {
     fn load(&self) -> Result<Option<DatabaseKey>, VaultError> {
         Ok(self.0.borrow().as_ref().map(|key| Zeroizing::new(**key)))
@@ -15,15 +15,15 @@ impl KeyVault for MemoryVault {
         Ok(())
     }
 }
-struct Fixture {
-    temporary: tempfile::TempDir,
-    workspace: Workspace,
-    executable: PathBuf,
-    profiles: Vec<String>,
-    vault: MemoryVault,
+pub(super) struct Fixture {
+    pub(super) temporary: tempfile::TempDir,
+    pub(super) workspace: Workspace,
+    pub(super) executable: PathBuf,
+    pub(super) profiles: Vec<String>,
+    pub(super) vault: MemoryVault,
 }
 impl Fixture {
-    fn new(mode: &str) -> Self {
+    pub(super) fn new(mode: &str) -> Self {
         let temporary = tempfile::tempdir().unwrap();
         let executable = temporary.path().join("synthetic-collection-provider.py");
         let bytes = include_bytes!(
@@ -31,7 +31,7 @@ impl Fixture {
         );
         assert_eq!(
             format!("{:x}", Sha256::digest(bytes)),
-            "64522f0b887ae47b1a1e3043e66ac98741d499be2957d06c8e904185a62b08bb"
+            "afaeb19874b3b08b6439a9d5d82a6d2f873517697598bf695a2f92254a7f6bba"
         );
         fs::write(&executable, bytes).unwrap();
         fs::set_permissions(&executable, fs::Permissions::from_mode(0o700)).unwrap();
@@ -63,10 +63,10 @@ impl Fixture {
         }
         fixture
     }
-    fn home(&self, id: &str) -> PathBuf {
+    pub(super) fn home(&self, id: &str) -> PathBuf {
         self.workspace.directory.join("profiles").join(id)
     }
-    fn mode(&self, mode: &str) {
+    pub(super) fn mode(&self, mode: &str) {
         for id in &self.profiles {
             provider::tests::elapse_refresh(&self.workspace.provider, id);
             fs::write(
@@ -76,7 +76,7 @@ impl Fixture {
             .unwrap();
         }
     }
-    fn approve(&self) -> String {
+    pub(super) fn approve(&self) -> String {
         let candidate = self
             .workspace
             .inspect_provider_executable(self.executable.to_str().unwrap())
@@ -90,7 +90,7 @@ impl Fixture {
             .unwrap()
             .approval_id
     }
-    fn completed(&mut self, id: &str, approval: &str) -> provider::CompletedCollection {
+    pub(super) fn completed(&mut self, id: &str, approval: &str) -> provider::CompletedCollection {
         provider::tests::elapse_refresh(&self.workspace.provider, id);
         let receipt = self
             .workspace
@@ -102,13 +102,13 @@ impl Fixture {
             .wait()
             .unwrap()
     }
-    fn save(&mut self, id: &str, approval: &str) -> provider::CollectionOutcome {
+    pub(super) fn save(&mut self, id: &str, approval: &str) -> provider::CollectionOutcome {
         let completed = self.completed(id, approval);
         self.workspace
             .finish_profile_collection_read(completed)
             .unwrap()
     }
-    fn preview(&mut self) -> String {
+    pub(super) fn preview(&mut self) -> String {
         let source = self.temporary.path().join("Downloads/OpenUsage");
         let archive = crate::backup::create(
             &source,
@@ -125,7 +125,7 @@ impl Fixture {
             .unwrap()
             .preview_id
     }
-    fn connection(&self) -> rusqlite::Connection {
+    pub(super) fn connection(&self) -> rusqlite::Connection {
         let connection =
             rusqlite::Connection::open(self.workspace.directory.join(DATABASE_FILE)).unwrap();
         let key = self.vault.load().unwrap().unwrap();

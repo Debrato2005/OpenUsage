@@ -1,10 +1,24 @@
 # Implementation status
 
-Updated: October 20, 2026. The mission remains ongoing. Refresh readings now collects supported quota and activity through one app-server session and one SQLCipher transaction. Geist serves interface text. JetBrains Mono serves exact values. SQLCipher 4 with WAL remains mandatory. Next: runtime-validated monitoring eligibility, scheduled collection, and alerts. Live-provider authentication and verified aggregation remain incomplete.
+Updated: October 20, 2026. The mission remains ongoing. Runtime-only Start/Pause monitoring passed its synthetic native Linux journey. DM Sans serves interface text and exact values. SQLCipher 4 with WAL remains mandatory. Alerts, live-provider authentication, verified aggregation, and full platform acceptance remain incomplete.
 
 ## Implemented and executed
 
-The latest slice passed 213 Rust tests, strict Clippy, formatting, 35 contracts, and 156 renderer checks. All 122 Rust source, fixture, and build paths match that qualification after the later frontend-only corrections. The native combined journey passed 26 independent checks across all sixteen tables. Monitoring eligibility, scheduled collection, and alerts remain incomplete. The version probe still uses a separate short-lived child. Only the app-server session combines both metric reads. Earlier failed logs and superseded artifacts remain retained.
+Current checks passed 233 Rust tests, strict Clippy, formatting, 37 contracts, and 176 renderer cases. All 128 Rust source and build paths still match that qualification. Both native configurations compiled. The latest native monitoring journey passed eight independent checks across all sixteen tables. Review covered all eight captures. The separate DM Sans commit retains 24 reviewed native views. Production refused all five synthetic providers before execution.
+
+Monitoring requires a matching completed login and a saved connection result in the current app session. Saved Connected status alone grants no eligibility. Restart requires sign-in again before Start becomes available. Rust owns the timer and publication. Scheduled starts stay at least 300 seconds apart for each profile, with a five-second stagger between profiles. Scheduled work shares provider backoff and worker limits. It does not consume the manual cooldown.
+
+Actual scheduled starts were 300.206396805 seconds apart. One scheduled pair reached COMMIT. Keyboard Pause cancelled the next pending pair before either half could publish. A separate manual pair passed within two seconds of the first scheduled start. Native checks also covered unrelated profile edits, selected authentication failure, keyboard Pause, restart, and normal exit with a pending read. Daily and credit-history rows remained empty in this native fixture. Rust storage tests separately cover populated rows.
+
+Review found two lifecycle faults. Unrelated profile edits revoked every monitoring grant. Old manual errors could revoke a newer sign-in. Creation and rename now preserve work. Successful archive cancels only the selected profile. Exact request and login-attempt fences reject old errors and completed replies. Restore still stops all provider work.
+
+One earlier post-login WebDriver request timed out after 30 seconds. Its cause remains unconfirmed. Bounded diagnostics returned status in five milliseconds, then in eight milliseconds after the exact 30-second idle. Four independent Rust calls and the later complete journey passed. The timeout prompted no product change or longer request limit. Earlier failed test and harness receipts remain retained.
+
+Execution now has explicit limits: four minutes for builds and Rust checks, five for renderer checks, and eight for native monitoring. Other native journeys have four minutes. Diagnostics have two. A real deadline probe stopped both its owned process and detached child. No current resource-exhaustion evidence was found. This slice reused prior backup and recovery receipts within their original scope.
+
+See [the runtime monitoring evidence](evidence/native-runtime-monitoring/) and [the DM Sans evidence](evidence/native-dm-sans/). SQLCipher storage and its schema remain unchanged. Sleep/wake, live authentication, verified aggregation, alerts, and release-platform qualification remain open.
+
+The preceding combined-read slice passed 213 Rust tests, strict Clippy, formatting, 35 contracts, and 156 renderer checks. All 122 Rust source, fixture, and build paths match that qualification after the later frontend-only corrections. The native combined journey passed 26 independent checks across all sixteen tables. At that milestone, monitoring eligibility, scheduled collection, and alerts remained incomplete. The version probe still uses a separate short-lived child. Only the app-server session combines both metric reads. Earlier failed logs and superseded artifacts remain retained.
 
 One admission applies the existing profile cooldown, provider backoff, and two-worker limit. Rust checks account evidence before and after both reads. Each supported response retains its own observation time and monotonic anchor. Only an explicit unsupported-method response omits a capability. Other protocol, account, transport, and cleanup failures reject the new collection.
 

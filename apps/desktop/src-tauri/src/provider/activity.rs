@@ -279,9 +279,14 @@ impl CompletingActivity {
                         && entry.binding.approval_id == self.binding.approval_id
                         && entry.handle.is_none()
                 });
-                record_refresh_failure(&mut state, &self.binding, error, owned);
+                let current = owned && binding_current(&state, &self.binding);
+                record_refresh_failure(&mut state, &self.binding, error, current);
                 state.activities.remove(&self.request_id);
-                Err(activity_error(error))
+                Err(if current {
+                    activity_error(error)
+                } else {
+                    CommandError::ProviderActivityCancelled
+                })
             }
         }
     }
@@ -366,6 +371,12 @@ fn activity_error(error: SupervisorError) -> CommandError {
         SupervisorError::Session(SessionError::TimedOut) => CommandError::ProviderActivityTimedOut,
         SupervisorError::Session(SessionError::TransportFailed | SessionError::UnexpectedExit) => {
             CommandError::ProviderActivityFailed
+        }
+        SupervisorError::Session(SessionError::Protocol(P::AuthenticationRequired)) => {
+            CommandError::ProviderAuthenticationRequired
+        }
+        SupervisorError::Session(SessionError::Protocol(P::UnsupportedAuthentication)) => {
+            CommandError::ProviderUnsupported
         }
         SupervisorError::Session(SessionError::Protocol(P::AccountChanged)) => {
             CommandError::ProviderAccountChanged

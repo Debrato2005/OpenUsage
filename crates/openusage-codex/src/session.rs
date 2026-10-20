@@ -810,6 +810,11 @@ pub(crate) mod unix {
                 )?,
                 2,
             )?;
+            if before.authentication == crate::AccountAuth::AuthenticationRequired
+                && before.requires_openai_auth
+            {
+                return Err(ProtocolError::AuthenticationRequired.into());
+            }
             if before.authentication != crate::AccountAuth::Chatgpt || !before.requires_openai_auth
             {
                 return Err(ProtocolError::UnsupportedAuthentication.into());
@@ -886,6 +891,11 @@ pub(crate) mod unix {
                 )?,
                 2,
             )?;
+            if before.authentication == crate::AccountAuth::AuthenticationRequired
+                && before.requires_openai_auth
+            {
+                return Err(ProtocolError::AuthenticationRequired.into());
+            }
             if before.authentication != crate::AccountAuth::Chatgpt || !before.requires_openai_auth
             {
                 return Err(ProtocolError::UnsupportedAuthentication.into());
@@ -976,6 +986,11 @@ pub(crate) mod unix {
                 )?,
                 2,
             )?;
+            if before.authentication == crate::AccountAuth::AuthenticationRequired
+                && before.requires_openai_auth
+            {
+                return Err(ProtocolError::AuthenticationRequired.into());
+            }
             if before.authentication != crate::AccountAuth::Chatgpt || !before.requires_openai_auth
             {
                 return Err(ProtocolError::UnsupportedAuthentication.into());

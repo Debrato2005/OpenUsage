@@ -8,9 +8,10 @@ import { CollapsiblePanel } from './components/ui/collapsible';
 import { providerFailure } from './provider-errors';
 import { ProfileQuotaRead } from './quota';
 import { ProfileCollectionRead } from './collection';
+import { ProfileMonitoringControls, type MonitoringAction } from './monitoring';
 import { useActivityPreview } from './activity';
 import { ProfileDeviceLogin } from './login';
-import { invoke, type ProfileCollectionOutcome, type ProfileReadingReference, type ProviderConnectionDiagnostic, type ProviderExecutableApproval, type ProviderExecutableCandidate, type ProviderExecutableDiscovery } from './contracts';
+import { invoke, type ProfileMonitoringStatus, type ProfileCollectionOutcome, type ProfileReadingReference, type ProviderConnectionDiagnostic, type ProviderExecutableApproval, type ProviderExecutableCandidate, type ProviderExecutableDiscovery } from './contracts';
 
 
 type SettingsProps = {
@@ -114,7 +115,7 @@ export function ProviderSettings({ busy, setBusy, approval, onApproved }: Settin
   return <section className="provider-panel" aria-labelledby="provider-heading">
     <details>
       <summary data-provider-settings><h2 id="provider-heading">Codex connection</h2></summary>
-      <p className="provider-help">Review Codex for this session, then sign in or save quota and activity readings for a profile. Scheduled collection is not available yet.</p>
+      <p className="provider-help">Review Codex for this session, then sign in to a profile. Refresh readings or start monitoring from Manage profile.</p>
       {approval && <div ref={approvalPanel} className="backup-receipt provider-approval-result" role="status" tabIndex={-1}>
         <h3>Executable approved for this session</h3><p className="provider-path"><bdi>{approval.path}</bdi></p>
         <p className="provider-help">OpenUsage checks compatibility before each connection check.</p>
@@ -156,7 +157,7 @@ export function ProviderSettings({ busy, setBusy, approval, onApproved }: Settin
   </section>;
 }
 
-export function ProfileProviderCheck({ profileId, profileLabel, approval, busy, managementActions, managementTrigger, onConnectionChanged, onActivitySaved, onActivityFailed, onQuotaSaved, onQuotaFailed, onCollectionSaved, onCollectionFailed }: { profileId: string; profileLabel: string; approval: ProviderExecutableApproval; busy: boolean; managementActions: ReactNode; managementTrigger: ReactNode; onConnectionChanged: () => Promise<void>; onActivitySaved: (value: ProfileReadingReference) => Promise<void>; onActivityFailed: () => Promise<void>; onQuotaSaved: (value: ProfileReadingReference) => Promise<void>; onQuotaFailed: () => Promise<void>; onCollectionSaved: (value: ProfileCollectionOutcome) => Promise<void>; onCollectionFailed: () => Promise<void> }) {
+export function ProfileProviderCheck({ profileId, profileLabel, approval, busy, managementActions, managementTrigger, onConnectionChanged, onActivitySaved, onActivityFailed, onQuotaSaved, onQuotaFailed, onCollectionSaved, onCollectionFailed, monitoring, monitoringUnavailable, onMonitoringAction }: { profileId: string; profileLabel: string; approval: ProviderExecutableApproval; busy: boolean; managementActions: ReactNode; managementTrigger: ReactNode; onConnectionChanged: () => Promise<void>; onActivitySaved: (value: ProfileReadingReference) => Promise<void>; onActivityFailed: () => Promise<void>; onQuotaSaved: (value: ProfileReadingReference) => Promise<void>; onQuotaFailed: () => Promise<void>; onCollectionSaved: (value: ProfileCollectionOutcome) => Promise<void>; onCollectionFailed: () => Promise<void>; monitoring: ProfileMonitoringStatus | null; monitoringUnavailable: boolean; onMonitoringAction: MonitoringAction }) {
   const [checking, setChecking] = useState(false);
   const [loggingIn, setLoggingIn] = useState(false);
   const [readingQuota, setReadingQuota] = useState(false);
@@ -236,6 +237,7 @@ export function ProfileProviderCheck({ profileId, profileLabel, approval, busy, 
         <div className="profile-actions">{collectionAction}{collectionCancel}{quotaCancel}{managementTrigger}</div>
         <CollapsiblePanel keepMounted className="profile-management">
           {managementActions}
+          <ProfileMonitoringControls profileId={profileId} status={monitoring} unavailable={monitoringUnavailable} approval={approval} busy={busy || checking || loggingIn || readingQuota || readingCollection || activity.working} onAction={onMonitoringAction} />
           {quotaAction}
           {activity.action}
           <Button className="text-button" variant="ghost" type="button" data-provider-check={profileId} aria-describedby={`profile-name-${profileId}`} disabled={busy || checking || loggingIn || readingQuota || readingCollection || activity.working} onClick={() => { void check(); }}>Check connection</Button>
@@ -248,7 +250,7 @@ export function ProfileProviderCheck({ profileId, profileLabel, approval, busy, 
       {error ? <p>{error}</p> : diagnostic && <>{diagnostic.sourceKind === 'test_fixture' && <p className="provider-fixture-note" data-provider-fixture>Synthetic provider fixture</p>}<p><strong>{title}</strong></p><p>{diagnostic.authentication === 'authentication_required'
         ? 'Codex reported no authorized account in this profile. Choose Sign in to connect this profile.'
         : diagnostic.authentication === 'chatgpt' ? 'Identity has not been verified. This check does not collect usage readings.'
-        : 'This check supports ChatGPT account connections.'}</p><p className="provider-help">Codex {diagnostic.providerVersion} · Monitoring stopped</p></>}
+        : 'This check supports ChatGPT account connections.'}</p><p className="provider-help">Codex {diagnostic.providerVersion}</p></>}
     </div>}
   </div>;
 }

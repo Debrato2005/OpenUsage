@@ -14,6 +14,12 @@ impl Workspace {
     ) -> Result<provider::CollectionOutcome, CommandError> {
         let id = completed.binding.profile_id.clone();
         let request = completed.request_id.clone();
+        if self.quota_requests.get(&id) != Some(&request)
+            || self.activity_requests.get(&id) != Some(&request)
+        {
+            completed.abort();
+            return Err(CommandError::ProviderCollectionCancelled);
+        }
         if let Err(error) = self.require_provider_binding(
             &id,
             &completed.binding.home_reference,
@@ -25,9 +31,16 @@ impl Workspace {
             return Err(error);
         }
         let (quota_anchor, activity_anchor) = completed.observation_anchors();
-        let result = completed.publish(|binding, probe, quota_run, activity_run, association| {
-            self.persist_collection(binding, probe, quota_run, activity_run, association)
-        });
+        let mut result =
+            completed.publish(|binding, probe, quota_run, activity_run, association| {
+                self.persist_collection(binding, probe, quota_run, activity_run, association)
+            });
+        if let Err(error) = &result {
+            self.note_monitoring_read_error(&id, &request, *error);
+        }
+        if let Ok(value) = &mut result {
+            value.monitoring = self.monitoring_state().as_str();
+        }
         match &result {
             Ok(value) => {
                 if let Some(quota) = &value.quota {
