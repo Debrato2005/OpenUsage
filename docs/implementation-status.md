@@ -1,6 +1,6 @@
 # Implementation status
 
-Updated: October 20, 2026. The mission remains ongoing. Current milestone: production-configuration preview, confirmed restore, and undo passed current schema 4 verification with genuine restarts. The manual refresh cooldown also passed native verification. SQLCipher 4 with WAL remains mandatory. Next: correct the separate backup-export verifier, then continue monitoring and provider backoff.
+Updated: October 20, 2026. The mission remains ongoing. Current milestone: production-configuration export, preview, confirmed restore, and undo passed current schema 4 verification. The manual refresh cooldown also passed native verification. SQLCipher 4 with WAL remains mandatory. Next: implement bounded backoff for typed transient provider failures, then continue scheduled monitoring and alerts.
 
 ## Implemented and executed
 

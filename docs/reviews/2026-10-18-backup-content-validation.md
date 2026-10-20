@@ -13,3 +13,11 @@ Current accepted settings are UTC and en-US. Other non-corrupt settings return u
 The native journey passed with valid profile records, authenticated invalid data, future versions, private staging, and preserved files. Its receipt and nine screenshots are in `../evidence/native-backup-content/`. Rust checks also rejected altered schema objects, unsafe home references, invalid dates, orphaned records, and eleven active profiles.
 
 The 5 GiB archive limit remains mandatory. Inspection currently needs two image-sized Rust buffers plus SQLite resources. Large-history memory use and elapsed-time behavior remain unqualified. This implementation does not complete restore workflow steps 6 through 8 or AT-32. SQLCipher 4 with WAL remains the live storage architecture.
+
+## Current schema export verification
+
+The export verifier now requires JSON with a password and expected schema version. It compares that version with both the authenticated manifest and the database in memory. Its report gives the actual version. The executable regression first failed, then passed schema 4 acceptance and mismatch refusal. Malformed requests also failed without changes to the synthetic files.
+
+The native export passed with explicit consent, matching passwords, private file modes, and authenticated contents. Wrong passwords and tampering failed. Staging stayed empty. The snapshot retained the saved dark theme. The screenshot was reviewed. Application, storage, provider, and embedded assets remain unchanged. Only the independent tool and its harness changed. This check covers appearance and profile count. It does not compare every database record. The earlier thirteen-table restore checks retain their separate scope.
+
+See the [current native export receipt](../evidence/native-current-backup-export/result.json). Test source: `289bd1a`. The standalone executable regression, strict Clippy, formatting, and script syntax checks passed.
