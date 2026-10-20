@@ -17,3 +17,13 @@ Seven captures cover desktop, narrow views, and enlarged text. Review confirmed 
 The final debug recovery-to-focus measurement was 126.5 ms, including driver and polling time. It does not qualify release performance. All recorded source, harness, executable, encrypted file, and image hashes passed the artifact audit. The earlier normal-size run remains preserved separately.
 
 The integrated checks passed: 81 Rust tests, strict Clippy, formatting, 15 IPC contract checks, and 12 renderer checks. The default production configuration also compiled and passed its native startup smoke. Both executables are debug builds. SQLCipher 4 with WAL and the unchanged SRS remain mandatory. Large-history memory use, process interruption, live providers, other platforms, and signed releases need separate qualification.
+
+## Current schema verification
+
+The checkpoint and live verification tools required schema 1 even when the application used schema 4. Their executable regression reproduced that failure. Both tools now require an explicit expected version, compare it with the encrypted database, and report the actual version. Mismatched and malformed requests fail. File-preservation checks retain the documented allowance for SQLite shared-memory coordination metadata.
+
+The production-configuration native app passed preview, confirmed restore, and undo with the updated tools. Eleven checkpoint checks reported schema 4. Four genuine closes, restart, private home mappings, original keys, stale previews, corrupt copies, and unsafe-home refusals passed. All sixteen screenshots were reviewed. The verifiers compare selected semantic fields. They do not establish equality across every column or qualify crash interruption or other platforms.
+
+Application, storage, provider, build inputs, and ten embedded assets match the previously tested application at f877816. Only five existing test paths and one new integration test changed. The frozen application was reused. The standalone executable test, full strict Clippy, formatting, and script syntax checks passed. The separate backup-export verifier still assumes schema 1 and is the next correction.
+
+See the [current native recovery receipt](../evidence/native-current-recovery/recovery/result.json), [confirmed restore](../evidence/native-current-recovery/apply/result.json), and [preview](../evidence/native-current-recovery/preview/result.json). Test source: `65aeb3c`.

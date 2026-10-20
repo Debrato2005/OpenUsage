@@ -1,6 +1,6 @@
 # Implementation status
 
-Updated: October 20, 2026. The mission remains ongoing. Current milestone: the shared per-profile manual refresh cooldown passed native verification with a real thirty-second wait. SQLCipher 4 with WAL remains mandatory. Next: update the historical checkpoint verifier for current-schema acceptance, then continue monitoring and provider backoff.
+Updated: October 20, 2026. The mission remains ongoing. Current milestone: production-configuration preview, confirmed restore, and undo passed current schema 4 verification with genuine restarts. The manual refresh cooldown also passed native verification. SQLCipher 4 with WAL remains mandatory. Next: correct the separate backup-export verifier, then continue monitoring and provider backoff.
 
 ## Implemented and executed
 
