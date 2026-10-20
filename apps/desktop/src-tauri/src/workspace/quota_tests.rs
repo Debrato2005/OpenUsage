@@ -163,6 +163,83 @@ fn gone(pid: libc::pid_t) {
 }
 
 #[test]
+fn quota_unexpected_exit_backs_off_both_kinds_until_a_committed_read() {
+    let mut fixture = Fixture::new("pending");
+    let id = fixture.profiles[0].clone();
+    let approval = fixture.approve();
+    let before = fixture.database_hashes();
+    let receipt = fixture
+        .workspace
+        .begin_profile_quota_read(&id, &approval)
+        .unwrap();
+    let pid = fixture.pending_pid(&id, None);
+    let pending = fixture
+        .workspace
+        .complete_profile_quota_read(&id, &receipt.request_id)
+        .unwrap();
+    assert_eq!(unsafe { libc::kill(pid, libc::SIGKILL) }, 0);
+    assert_eq!(
+        pending.wait().err(),
+        Some(CommandError::ProviderQuotaFailed)
+    );
+    gone(pid);
+    let status = fixture.workspace.load_profile_refresh_status(&id).unwrap();
+    assert!((24..=36).contains(&status.retry_after_seconds));
+    assert_eq!(
+        fixture
+            .workspace
+            .begin_profile_quota_read(&id, &approval)
+            .err(),
+        Some(CommandError::ProviderRefreshBackoff)
+    );
+    assert_eq!(
+        fixture
+            .workspace
+            .begin_profile_activity_read(&id, &approval)
+            .err(),
+        Some(CommandError::ProviderRefreshBackoff)
+    );
+    assert_eq!(fixture.database_hashes(), before);
+    fixture.workspace.provider.quiesce().unwrap();
+    let approval = fixture.approve();
+    assert_eq!(
+        fixture
+            .workspace
+            .begin_profile_quota_read(&id, &approval)
+            .err(),
+        Some(CommandError::ProviderRefreshBackoff)
+    );
+    fixture.mode("multi");
+    let completed = fixture.read(&id, &approval).unwrap();
+    assert_eq!(
+        completed
+            .publish(|_, _, _, _| Err(CommandError::ProviderQuotaSaveFailed))
+            .err(),
+        Some(CommandError::ProviderQuotaSaveFailed)
+    );
+    assert_eq!(
+        provider::tests::backoff_failures(&fixture.workspace.provider, &id),
+        1
+    );
+    let completed = fixture.read(&id, &approval).unwrap();
+    fixture
+        .workspace
+        .finish_profile_quota_read(completed)
+        .unwrap();
+    assert_eq!(
+        provider::tests::backoff_failures(&fixture.workspace.provider, &id),
+        0
+    );
+    assert_eq!(
+        fixture
+            .workspace
+            .begin_profile_activity_read(&id, &approval)
+            .err(),
+        Some(CommandError::ProviderRefreshCooldown)
+    );
+}
+
+#[test]
 fn quota_reset_due_requires_a_known_reached_deadline_and_a_supported_clock() {
     use super::quota_storage::reset_due;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -470,6 +547,10 @@ fn quota_exact_cancel_shared_slots_and_quiescence_own_the_actual_pending_process
     assert_eq!(
         pending.wait().err(),
         Some(CommandError::ProviderQuotaCancelled)
+    );
+    assert_eq!(
+        provider::tests::backoff_failures(&fixture.workspace.provider, &id),
+        0
     );
     gone(pid);
     assert_eq!(

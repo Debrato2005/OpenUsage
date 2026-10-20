@@ -272,6 +272,70 @@ fn activity_acceptance_keeps_exact_counts_unknown_scope_and_independent_cached_d
 }
 
 #[test]
+fn activity_unexpected_exit_backs_off_both_kinds_and_committed_success_clears_it() {
+    let mut fixture = Fixture::new("pending");
+    let id = fixture.profiles[0].clone();
+    let approval = fixture.approve();
+    let receipt = fixture
+        .workspace
+        .begin_profile_activity_read(&id, &approval)
+        .unwrap();
+    let pid = fixture.pending_pid(&id, None);
+    let pending = fixture
+        .workspace
+        .complete_profile_activity_read(&id, &receipt.request_id)
+        .unwrap();
+    assert_eq!(unsafe { libc::kill(pid, libc::SIGKILL) }, 0);
+    assert_eq!(
+        pending.wait().err(),
+        Some(CommandError::ProviderActivityFailed)
+    );
+    gone(pid);
+    assert_eq!(
+        fixture
+            .workspace
+            .begin_profile_activity_read(&id, &approval)
+            .err(),
+        Some(CommandError::ProviderRefreshBackoff)
+    );
+    assert_eq!(
+        fixture
+            .workspace
+            .begin_profile_quota_read(&id, &approval)
+            .err(),
+        Some(CommandError::ProviderRefreshBackoff)
+    );
+    fixture.mode("success");
+    let completed = fixture.read(&id, &approval).unwrap();
+    assert_eq!(
+        completed
+            .publish(|_, _, _, _| Err(CommandError::ProviderActivitySaveFailed))
+            .err(),
+        Some(CommandError::ProviderActivitySaveFailed)
+    );
+    assert_eq!(
+        provider::tests::backoff_failures(&fixture.workspace.provider, &id),
+        1
+    );
+    let completed = fixture.read(&id, &approval).unwrap();
+    fixture
+        .workspace
+        .finish_profile_activity_read(completed)
+        .unwrap();
+    assert_eq!(
+        provider::tests::backoff_failures(&fixture.workspace.provider, &id),
+        0
+    );
+    assert_eq!(
+        fixture
+            .workspace
+            .begin_profile_quota_read(&id, &approval)
+            .err(),
+        Some(CommandError::ProviderRefreshCooldown)
+    );
+}
+
+#[test]
 fn activity_exact_cancellation_blocks_other_operations_and_reaps_on_quiescence() {
     let mut fixture = Fixture::new("pending");
     let id = fixture.profiles[0].clone();
@@ -355,6 +419,10 @@ fn activity_exact_cancellation_blocks_other_operations_and_reaps_on_quiescence()
     assert_eq!(
         pending.wait().err(),
         Some(CommandError::ProviderActivityCancelled)
+    );
+    assert_eq!(
+        provider::tests::backoff_failures(&fixture.workspace.provider, &id),
+        0
     );
     gone(pid);
     assert_eq!(

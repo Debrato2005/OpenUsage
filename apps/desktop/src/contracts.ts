@@ -325,7 +325,7 @@ function isProfileRefreshStatus(value: unknown): value is ProfileRefreshStatus {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   const v = value as Record<string, unknown>;
   return Object.keys(v).length === 2 && isUuid(v.profileId)
-    && Number.isInteger(v.retryAfterSeconds) && Number(v.retryAfterSeconds) >= 0 && Number(v.retryAfterSeconds) <= 30;
+    && Number.isInteger(v.retryAfterSeconds) && Number(v.retryAfterSeconds) >= 0 && Number(v.retryAfterSeconds) <= 4320;
 }
 
 function isProfileQuotaRequest(value: unknown): value is ProfileQuotaRequest {

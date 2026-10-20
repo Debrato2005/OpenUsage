@@ -268,7 +268,19 @@ impl CompletingActivity {
                 association: self.association,
             }),
             Err(error) => {
-                self.coordinator.discard_activity(&self.request_id);
+                let mut state = self
+                    .coordinator
+                    .0
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                let owned = state.activities.get(&self.request_id).is_some_and(|entry| {
+                    entry.binding.profile_id == self.binding.profile_id
+                        && entry.binding.generation == self.binding.generation
+                        && entry.binding.approval_id == self.binding.approval_id
+                        && entry.handle.is_none()
+                });
+                record_refresh_failure(&mut state, &self.binding, error, owned);
+                state.activities.remove(&self.request_id);
                 Err(activity_error(error))
             }
         }
@@ -324,6 +336,7 @@ impl CompletedActivity {
             &self.request_id,
             &self.association,
         )?;
+        state.refresh_backoff.remove(&self.binding.profile_id);
         Ok(ActivityOutcome {
             request_id: self.request_id,
             profile_id: self.binding.profile_id,
@@ -351,6 +364,9 @@ fn activity_error(error: SupervisorError) -> CommandError {
             CommandError::ProviderActivityCancelled
         }
         SupervisorError::Session(SessionError::TimedOut) => CommandError::ProviderActivityTimedOut,
+        SupervisorError::Session(SessionError::TransportFailed | SessionError::UnexpectedExit) => {
+            CommandError::ProviderActivityFailed
+        }
         SupervisorError::Session(SessionError::Protocol(P::AccountChanged)) => {
             CommandError::ProviderAccountChanged
         }

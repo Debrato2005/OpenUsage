@@ -319,8 +319,8 @@ test('renderer validates the exact bounded refresh status contract', async ({ pa
     const modulePath = '/src/contracts.ts';
     const { invoke } = await import(modulePath);
     const values: unknown[] = [
-      { profileId, retryAfterSeconds: 0 }, { profileId, retryAfterSeconds: 30 },
-      { profileId, retryAfterSeconds: -1 }, { profileId, retryAfterSeconds: 31 },
+      { profileId, retryAfterSeconds: 0 }, { profileId, retryAfterSeconds: 30 }, { profileId, retryAfterSeconds: 4320 },
+      { profileId, retryAfterSeconds: -1 }, { profileId, retryAfterSeconds: 4321 },
       { profileId, retryAfterSeconds: 1.5 }, { profileId, retryAfterSeconds: '3' },
       { profileId, retryAfterSeconds: null }, { profileId },
       { profileId, retryAfterSeconds: 0, extra: true }, { profileId: 'email@example.invalid', retryAfterSeconds: 0 },
@@ -333,7 +333,7 @@ test('renderer validates the exact bounded refresh status contract', async ({ pa
     }
     return results;
   }, profileId);
-  expect(results).toEqual([true, true, false, false, false, false, false, false, false, false]);
+  expect(results).toEqual([true, true, true, false, false, false, false, false, false, false, false]);
 });
 
 
@@ -343,7 +343,7 @@ test('renderer refreshes the wait after a cancelled quota read and ignores older
   await begin(page, 0);
   await page.evaluate(profileId => {
     const fixture = (window as unknown as FixtureWindow).quotaFixture;
-    fixture.deferRefresh = false; fixture.refreshStatus = { profileId, retryAfterSeconds: 3 };
+    fixture.deferRefresh = false; fixture.refreshStatus = { profileId, retryAfterSeconds: 4320 };
   }, profileId);
   await page.getByRole('button', { name: 'Cancel read', exact: true }).click();
   await page.evaluate(id => {
@@ -352,11 +352,11 @@ test('renderer refreshes the wait after a cancelled quota read and ignores older
     fixture.completions[id]!.reject('provider_quota_cancelled');
   }, requestIds[0]!);
   const notice = page.locator(`[data-profile-refresh-status="${profileId}"]`);
-  await expect(notice).toHaveText('Next reading in 3s');
+  await expect(notice).toHaveText('Next reading in 72m 0s');
   await page.evaluate(profileId => {
     for (const pending of (window as unknown as FixtureWindow).quotaFixture.pendingRefresh) pending.resolve({ profileId, retryAfterSeconds: 0 });
   }, profileId);
-  await expect(notice).toHaveText('Next reading in 3s');
+  await expect(notice).toHaveText('Next reading in 72m 0s');
   await expect(page.getByText('Quota read stopped.', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Read quotas', exact: true })).toBeDisabled();
 });
@@ -371,5 +371,35 @@ test('renderer explains an authoritative cooldown refusal and loads the remainin
   await page.getByRole('button', { name: 'Read quotas', exact: true }).click();
   await expect(page.getByText('Wait a moment before reading this profile again. Your saved readings are still available.', { exact: true })).toBeVisible();
   await expect(page.locator(`[data-profile-refresh-status="${profileId}"]`)).toHaveText('Next reading in 3s');
+  expect(await page.evaluate(() => Object.keys((window as unknown as FixtureWindow).quotaFixture.completions))).toEqual([]);
+});
+
+
+for (const [seconds, initial, next] of [[60, '1m 0s', '59s'], [4320, '72m 0s', '71m 59s']] as const) test(`renderer formats a ${seconds}s transport wait without idle IPC or blocking sign-in`, async ({ page }) => {
+  await page.clock.install();
+  await openProfile(page, { refreshSeconds: seconds });
+  const notice = page.locator(`[data-profile-refresh-status="${profileId}"]`);
+  await expect(notice).toHaveText(`Next reading in ${initial}`);
+  const initialCalls = await page.evaluate(() => (window as unknown as FixtureWindow).quotaFixture.requests.filter(c => c === 'load_profile_refresh_status').length);
+  await expect(notice).not.toHaveAttribute('aria-live');
+  await expect(page.getByRole('button', { name: 'Read quotas', exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: 'Manage profile', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Read activity', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Check connection', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeEnabled();
+  await page.clock.fastForward(1000);
+  await expect(notice).toHaveText(`Next reading in ${next}`);
+  expect(await page.evaluate(() => (window as unknown as FixtureWindow).quotaFixture.requests.filter(c => c === 'load_profile_refresh_status').length)).toBe(initialCalls);
+});
+
+test('renderer explains an authoritative transport backoff refusal without guessing its cause', async ({ page }) => {
+  await page.clock.install(); await openProfile(page);
+  await page.evaluate(profileId => {
+    const fixture = (window as unknown as FixtureWindow).quotaFixture;
+    fixture.startError = 'provider_refresh_backoff'; fixture.refreshStatus = { profileId, retryAfterSeconds: 65 };
+  }, profileId);
+  await page.getByRole('button', { name: 'Read quotas', exact: true }).click();
+  await expect(page.getByText('Codex could not finish the connection. Wait before reading again.', { exact: true })).toBeVisible();
+  await expect(page.locator(`[data-profile-refresh-status="${profileId}"]`)).toHaveText('Next reading in 1m 5s');
   expect(await page.evaluate(() => Object.keys((window as unknown as FixtureWindow).quotaFixture.completions))).toEqual([]);
 });

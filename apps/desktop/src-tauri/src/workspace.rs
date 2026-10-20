@@ -87,6 +87,7 @@ pub enum CommandError {
     ProviderCheckInProgress,
     ProviderCapacityReached,
     ProviderRefreshCooldown,
+    ProviderRefreshBackoff,
     ProviderCheckCancelled,
     ProviderCheckTimedOut,
     ProviderProtocolFailed,

@@ -180,6 +180,7 @@ pub(crate) struct ProfileBinding {
 struct ProviderState {
     closed: bool,
     refresh_starts: std::collections::HashMap<String, Instant>,
+    refresh_backoff: std::collections::HashMap<String, RetryState>,
     generation: u64,
     candidate: Option<Candidate>,
     approved: Option<Approved>,
@@ -193,6 +194,7 @@ impl Default for ProviderState {
         Self {
             closed: false,
             refresh_starts: std::collections::HashMap::new(),
+            refresh_backoff: std::collections::HashMap::new(),
             generation: 0,
             candidate: None,
             approved: None,
@@ -208,19 +210,86 @@ impl Default for ProviderState {
 pub(crate) struct ProviderCoordinator(Arc<Mutex<ProviderState>>);
 const MANUAL_REFRESH_INTERVAL: Duration = Duration::from_secs(30);
 
+struct RetryState {
+    failures: u8,
+    not_before: Instant,
+}
+
 #[derive(Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ProfileRefreshStatus {
     pub profile_id: String,
-    pub retry_after_seconds: u8,
+    pub retry_after_seconds: u16,
 }
 
-fn refresh_wait(state: &ProviderState, profile_id: &str, now: Instant) -> u8 {
-    let Some(started) = state.refresh_starts.get(profile_id) else {
-        return 0;
+fn refresh_wait(state: &ProviderState, profile_id: &str, now: Instant) -> u16 {
+    let manual = state
+        .refresh_starts
+        .get(profile_id)
+        .map_or(Duration::ZERO, |started| {
+            MANUAL_REFRESH_INTERVAL.saturating_sub(now.saturating_duration_since(*started))
+        });
+    let backoff = state
+        .refresh_backoff
+        .get(profile_id)
+        .map_or(Duration::ZERO, |retry| {
+            retry.not_before.saturating_duration_since(now)
+        });
+    let remaining = manual.max(backoff);
+    (remaining.as_secs() + u64::from(remaining.subsec_nanos() > 0)).min(4320) as u16
+}
+
+fn backoff_base(failures: u8) -> u64 {
+    [30, 60, 120, 240, 480, 960, 1920, 3600][usize::from(failures.saturating_sub(1).min(7))]
+}
+
+fn jittered_backoff(base: u64, sample: u64) -> Duration {
+    let spread = base / 5;
+    Duration::from_secs(base - spread + sample % (spread * 2 + 1))
+}
+
+fn record_refresh_failure(
+    state: &mut ProviderState,
+    binding: &ProfileBinding,
+    error: SupervisorError,
+    owned: bool,
+) {
+    if !owned
+        || state.closed
+        || state.generation != binding.generation
+        || !state
+            .approved
+            .as_ref()
+            .is_some_and(|approved| approved.metadata.approval_id == binding.approval_id)
+        || !matches!(
+            error,
+            SupervisorError::Session(
+                SessionError::TimedOut
+                    | SessionError::TransportFailed
+                    | SessionError::UnexpectedExit
+            )
+        )
+    {
+        return;
+    }
+    let failures = state
+        .refresh_backoff
+        .get(&binding.profile_id)
+        .map_or(1, |retry| retry.failures.saturating_add(1).min(8));
+    let base = backoff_base(failures);
+    let mut bytes = [0; 8];
+    let delay = if getrandom::fill(&mut bytes).is_ok() {
+        jittered_backoff(base, u64::from_ne_bytes(bytes))
+    } else {
+        Duration::from_secs(base)
     };
-    let remaining = MANUAL_REFRESH_INTERVAL.saturating_sub(now.saturating_duration_since(*started));
-    (remaining.as_secs() + u64::from(remaining.subsec_nanos() > 0)) as u8
+    state.refresh_backoff.insert(
+        binding.profile_id.clone(),
+        RetryState {
+            failures,
+            not_before: Instant::now() + delay,
+        },
+    );
 }
 
 fn require_refresh_ready(state: &mut ProviderState, profile_id: &str) -> Result<(), CommandError> {
@@ -228,6 +297,13 @@ fn require_refresh_ready(state: &mut ProviderState, profile_id: &str) -> Result<
     state
         .refresh_starts
         .retain(|_, started| now.saturating_duration_since(*started) < MANUAL_REFRESH_INTERVAL);
+    if state
+        .refresh_backoff
+        .get(profile_id)
+        .is_some_and(|retry| retry.not_before > now)
+    {
+        return Err(CommandError::ProviderRefreshBackoff);
+    }
     if refresh_wait(state, profile_id, now) != 0 {
         return Err(CommandError::ProviderRefreshCooldown);
     }
@@ -789,15 +865,67 @@ pub(crate) mod tests {
 
     // Only Rust tests advance this timestamp. Native journeys use the real thirty-second wait.
     pub(crate) fn elapse_refresh(provider: &ProviderCoordinator, profile_id: &str) {
-        if let Some(started) = provider
+        let mut state = provider.0.lock().unwrap();
+        if let Some(started) = state.refresh_starts.get_mut(profile_id) {
+            *started = Instant::now().checked_sub(Duration::from_secs(30)).unwrap();
+        }
+        if let Some(retry) = state.refresh_backoff.get_mut(profile_id) {
+            retry.not_before = Instant::now();
+        }
+    }
+
+    pub(crate) fn backoff_failures(provider: &ProviderCoordinator, profile_id: &str) -> u8 {
+        provider
             .0
             .lock()
             .unwrap()
-            .refresh_starts
-            .get_mut(profile_id)
-        {
-            *started = Instant::now().checked_sub(Duration::from_secs(30)).unwrap();
+            .refresh_backoff
+            .get(profile_id)
+            .map_or(0, |retry| retry.failures)
+    }
+
+    #[test]
+    fn transient_backoff_sequence_jitter_and_later_deadline_are_bounded() {
+        let bases = [30, 60, 120, 240, 480, 960, 1920, 3600, 3600];
+        for (index, seconds) in bases.into_iter().enumerate() {
+            let base = backoff_base((index + 1) as u8);
+            assert_eq!(base, seconds);
+            let width = base / 5 * 2 + 1;
+            assert_eq!(
+                jittered_backoff(base, width),
+                Duration::from_secs(base - base / 5)
+            );
+            assert_eq!(
+                jittered_backoff(base, width * 2 - 1),
+                Duration::from_secs(base + base / 5)
+            );
+            assert!(jittered_backoff(base, u64::MAX) <= Duration::from_secs(base + base / 5));
         }
+        let now = Instant::now();
+        let mut state = ProviderState::default();
+        state.refresh_starts.insert("profile".into(), now);
+        state.refresh_backoff.insert(
+            "profile".into(),
+            RetryState {
+                failures: 8,
+                not_before: now + Duration::from_millis(4_319_001),
+            },
+        );
+        assert_eq!(refresh_wait(&state, "profile", now), 4320);
+        assert_eq!(refresh_wait(&state, "other", now), 0);
+        assert_eq!(
+            require_refresh_ready(&mut state, "profile"),
+            Err(CommandError::ProviderRefreshBackoff)
+        );
+        reset(&mut state).unwrap();
+        assert_eq!(refresh_wait(&state, "profile", now), 4320);
+        state.refresh_backoff.get_mut("profile").unwrap().not_before = now;
+        assert_eq!(refresh_wait(&state, "profile", now), 30);
+        assert_eq!(
+            require_refresh_ready(&mut state, "profile"),
+            Err(CommandError::ProviderRefreshCooldown)
+        );
+        assert_eq!(state.refresh_backoff["profile"].failures, 8);
     }
 
     #[test]
@@ -930,6 +1058,82 @@ pub(crate) mod tests {
                 std::thread::sleep(Duration::from_millis(10));
             }
         }
+    }
+
+    #[test]
+    fn transient_backoff_excludes_semantic_errors_and_stale_or_unowned_completions() {
+        let mut fixture = Fixture::new(false);
+        let approval = fixture.approve();
+        let binding = ProfileBinding {
+            profile_id: fixture.homes[0].0.clone(),
+            home_reference: fixture.homes[0].0.clone(),
+            revision: fixture.storage.restore_state().unwrap().revision,
+            held_home: Arc::new(HeldHome::open(&fixture.homes[0].1).unwrap()),
+            approval_id: approval.approval_id,
+            source_kind: approval.source_kind,
+            generation: fixture.provider.0.lock().unwrap().generation,
+        };
+        let mut state = fixture.provider.0.lock().unwrap();
+        for error in [
+            SupervisorError::Cancelled,
+            SupervisorError::CapacityReached,
+            SupervisorError::WorkerFailed,
+            SupervisorError::Session(SessionError::Cancelled),
+            SupervisorError::Session(SessionError::StartFailed),
+            SupervisorError::Session(SessionError::CleanupFailed),
+            SupervisorError::Session(SessionError::TerminationFailed),
+            SupervisorError::Session(SessionError::NotificationLimit),
+            SupervisorError::Session(SessionError::Protocol(
+                openusage_codex::ProtocolError::ProviderFailure,
+            )),
+            SupervisorError::Session(SessionError::Protocol(
+                openusage_codex::ProtocolError::UnsupportedAuthentication,
+            )),
+            SupervisorError::Session(SessionError::Protocol(
+                openusage_codex::ProtocolError::InvalidMessage,
+            )),
+            SupervisorError::Session(SessionError::Protocol(
+                openusage_codex::ProtocolError::AccountChanged,
+            )),
+        ] {
+            record_refresh_failure(&mut state, &binding, error, true);
+            assert!(state.refresh_backoff.is_empty(), "{error:?}");
+        }
+        let transient = SupervisorError::Session(SessionError::UnexpectedExit);
+        record_refresh_failure(&mut state, &binding, transient, false);
+        assert!(state.refresh_backoff.is_empty());
+        let mut stale = binding.clone();
+        stale.generation += 1;
+        record_refresh_failure(&mut state, &stale, transient, true);
+        stale.generation = binding.generation;
+        stale.approval_id = new_id().unwrap();
+        record_refresh_failure(&mut state, &stale, transient, true);
+        assert!(state.refresh_backoff.is_empty());
+        for (index, error) in [
+            SessionError::TimedOut,
+            SessionError::TransportFailed,
+            SessionError::UnexpectedExit,
+        ]
+        .into_iter()
+        .cycle()
+        .take(10)
+        .enumerate()
+        {
+            record_refresh_failure(&mut state, &binding, error.into(), true);
+            let retry = &state.refresh_backoff[&binding.profile_id];
+            assert_eq!(retry.failures, ((index + 1) as u8).min(8));
+            let base = backoff_base(retry.failures);
+            let wait = retry.not_before.saturating_duration_since(Instant::now());
+            assert!(wait <= Duration::from_secs(base + base / 5));
+            assert!(wait > Duration::from_secs(base - base / 5 - 1));
+        }
+        state.closed = true;
+        let deadline = state.refresh_backoff[&binding.profile_id].not_before;
+        record_refresh_failure(&mut state, &binding, transient, true);
+        assert_eq!(
+            state.refresh_backoff[&binding.profile_id].not_before,
+            deadline
+        );
     }
     fn gone(pid: libc::pid_t) {
         assert_eq!(unsafe { libc::kill(pid, 0) }, -1);

@@ -237,7 +237,7 @@ export function ProfileProviderCheck({ profileId, profileLabel, approval, busy, 
         <Button className="text-button" variant="ghost" type="button" data-provider-check={profileId} aria-describedby={`profile-name-${profileId}`} disabled={busy || checking || loggingIn || readingQuota || activity.working} onClick={() => { void check(); }}>Check connection</Button>
       </CollapsiblePanel>
     </>} />
-    {refreshWait > 0 && <p className="provider-help" data-profile-refresh-status={profileId}>Next reading in {refreshWait}s</p>}
+    {refreshWait > 0 && <p className="provider-help" data-profile-refresh-status={profileId}>Next reading in {refreshWait < 60 ? `${refreshWait}s` : `${Math.floor(refreshWait / 60)}m ${refreshWait % 60}s`}</p>}
     {activity.content}
     {(diagnostic || error) && <div ref={result} className="provider-diagnostic" data-provider-profile={profileId} tabIndex={-1} role={error ? 'alert' : 'status'}>
       {error ? <p>{error}</p> : diagnostic && <>{diagnostic.sourceKind === 'test_fixture' && <p className="provider-fixture-note" data-provider-fixture>Synthetic provider fixture</p>}<p><strong>{title}</strong></p><p>{diagnostic.authentication === 'authentication_required'

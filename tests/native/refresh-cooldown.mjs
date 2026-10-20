@@ -61,7 +61,7 @@ async function status(profile, label) {
   const result = await driver.invoke('load_profile_refresh_status', { profileId: profile.id }); assert.equal(result.ok, true);
   assert.deepEqual(Object.keys(result.value).sort(), ['profileId', 'retryAfterSeconds']);
   assert.equal(result.value.profileId, profile.id);
-  assert.ok(Number.isInteger(result.value.retryAfterSeconds) && result.value.retryAfterSeconds >= 0 && result.value.retryAfterSeconds <= 30);
+  assert.ok(Number.isInteger(result.value.retryAfterSeconds) && result.value.retryAfterSeconds >= 0 && result.value.retryAfterSeconds <= 4320);
   evidence.statuses.push({ label, ...result.value }); return result.value.retryAfterSeconds;
 }
 async function saved(profile) {
@@ -96,7 +96,8 @@ async function guiRead(profile) {
   return value;
 }
 async function blocked(profile, label) {
-  assert.ok(await status(profile, `${label}: before`) > 0, 'The measured cooldown must still be active.');
+  const remaining = await status(profile, `${label}: before`);
+  assert.ok(remaining > 0 && remaining <= 30, 'A successful refresh must keep only the thirty-second manual cooldown.');
   const before = await liveHashes(), rows = await observations(), value = await saved(profile);
   for (const command of ['begin_profile_quota_read', 'begin_profile_activity_read']) {
     assert.deepEqual(await driver.invoke(command, { profileId: profile.id, approvalId }), { ok: false, error: 'provider_refresh_cooldown' });

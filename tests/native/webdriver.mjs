@@ -75,18 +75,19 @@ export class NativeDriver {
     });
   }
 
-  async waitForProfileRefresh(profileId) {
+  async waitForProfileRefresh(profileId, timeout = 45000) {
+    const deadline = Date.now() + timeout;
     await waitFor(async () => {
       const response = await this.invoke('load_profile_refresh_status', { profileId });
       assert.equal(response.ok, true);
       assert.deepEqual(Object.keys(response.value).sort(), ['profileId', 'retryAfterSeconds']);
       assert.equal(response.value.profileId, profileId);
       const seconds = response.value.retryAfterSeconds;
-      assert.ok(Number.isInteger(seconds) && seconds >= 0 && seconds <= 30);
+      assert.ok(Number.isInteger(seconds) && seconds >= 0 && seconds <= 4320);
       if (seconds === 0) return true;
-      await delay(seconds * 1000);
+      await delay(Math.min(seconds * 1000, 30000, Math.max(0, deadline - Date.now())));
       return false;
-    }, 'real per-profile manual-refresh cooldown', 45000);
+    }, 'real per-profile refresh eligibility', timeout);
   }
 
   async element(selector) {

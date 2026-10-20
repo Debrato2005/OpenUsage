@@ -264,7 +264,19 @@ impl CompletingQuota {
                 association: self.association,
             }),
             Err(error) => {
-                self.coordinator.discard_quota(&self.request_id);
+                let mut state = self
+                    .coordinator
+                    .0
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                let owned = state.quotas.get(&self.request_id).is_some_and(|entry| {
+                    entry.binding.profile_id == self.binding.profile_id
+                        && entry.binding.generation == self.binding.generation
+                        && entry.binding.approval_id == self.binding.approval_id
+                        && entry.handle.is_none()
+                });
+                record_refresh_failure(&mut state, &self.binding, error, owned);
+                state.quotas.remove(&self.request_id);
                 Err(quota_error(error))
             }
         }
@@ -320,6 +332,7 @@ impl CompletedQuota {
             &self.request_id,
             &self.association,
         )?;
+        state.refresh_backoff.remove(&self.binding.profile_id);
         Ok(QuotaOutcome {
             binding_id: committed.binding_id,
             collection_run_id: committed.collection_run_id,
@@ -366,6 +379,9 @@ fn quota_error(error: SupervisorError) -> CommandError {
             CommandError::ProviderQuotaCancelled
         }
         SupervisorError::Session(SessionError::TimedOut) => CommandError::ProviderQuotaTimedOut,
+        SupervisorError::Session(SessionError::TransportFailed | SessionError::UnexpectedExit) => {
+            CommandError::ProviderQuotaFailed
+        }
         SupervisorError::Session(SessionError::Protocol(P::AccountChanged)) => {
             CommandError::ProviderAccountChanged
         }
