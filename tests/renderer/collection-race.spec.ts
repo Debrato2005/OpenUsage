@@ -1,0 +1,234 @@
+import { expect, test, type Page } from '@playwright/test';
+import { navigate, openReadings } from './navigation';
+import type { ProfileCollectionOutcome, SavedProfileActivity, SavedProfileQuota } from '../../apps/desktop/src/contracts';
+
+// Synthetic renderer IPC only. Atomic storage and owned provider execution require native acceptance.
+const profileId = '11111111-1111-4111-8111-111111111111';
+const approvalId = '22222222-2222-4222-8222-222222222222';
+const requests = ['33333333-3333-4333-8333-333333333333', '44444444-4444-4444-8444-444444444444'];
+const bindingId = '55555555-5555-4555-8555-555555555555';
+const quotaRun = '66666666-6666-4666-8666-666666666666';
+const activityRun = '77777777-7777-4777-8777-777777777777';
+const nextQuotaRun = '88888888-8888-4888-8888-888888888888';
+const nextActivityRun = '99999999-9999-4999-8999-999999999999';
+const reviewId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const observedAtUtc = '2026-10-20T00:00:00.000Z';
+type Deferred = { resolve: (value: unknown) => void; reject: (error: string) => void };
+type Fixture = {
+  calls: { command: string; args: Record<string, unknown> }[];
+  completions: Record<string, Deferred>; cancellations: Record<string, Deferred>;
+  quota: SavedProfileQuota; activity: SavedProfileActivity; failLoads: boolean;
+  approvalId: string; refreshSeconds: number;
+};
+type FixtureWindow = Window & { collectionFixture: Fixture };
+function cachedQuota(): SavedProfileQuota {
+  return { profileId, bindingId, collectionRunId: quotaRun, providerVersion: '0.163.0', sourceKind: 'test_fixture', observedAtUtc, identityConfidence: 'provisional', verifiedIdentityKey: null, monitoring: 'stopped', accepted: true, coverage: 'unknown', scope: 'account_quota_with_unknown_application_scope', freshness: 'fresh', availableResetCredits: null, resetCreditDetails: null,
+    limits: [{ limitId: 'codex', limitName: 'Synthetic quota', primary: { usedPercent: 25, derivedRemainingPercent: 75, windowDurationMins: 300, resetsAtUnix: null, label: 'Five-hour', resetState: 'unconfirmed' }, secondary: null, reachedType: null, monthlyCreditLimit: null, spendControlReached: null }] };
+}
+function cachedActivity(): SavedProfileActivity {
+  return { profileId, bindingId, collectionRunId: activityRun, providerVersion: '0.163.0', sourceKind: 'test_fixture', observedAtUtc, identityConfidence: 'provisional', verifiedIdentityKey: null, monitoring: 'stopped', accepted: true, coverage: 'unknown', scope: 'account_activity_with_unknown_application_scope', freshness: 'fresh', summary: { lifetimeTokens: '9007199254740993', peakDailyTokens: null, currentStreakDays: '0', longestStreakDays: null, longestRunningTurnSec: null }, dailyState: 'empty', dailyUsageBuckets: [], dailyTruncated: false };
+}
+function committed(index = 0): ProfileCollectionOutcome {
+  return { profileId, approvalId, requestId: requests[index]!, providerVersion: '0.163.0', sourceKind: 'test_fixture', identityConfidence: 'provisional', verifiedIdentityKey: null, monitoring: 'stopped', accepted: true,
+    quota: { bindingId, collectionRunId: nextQuotaRun, observedAtUtc }, activity: { bindingId, collectionRunId: nextActivityRun, observedAtUtc } };
+}
+async function open(page: Page) {
+  await page.addInitScript(({ profileId, approvalId, requests, reviewId, observedAtUtc, quota, activity }) => {
+    const fixture: Fixture = { calls: [], completions: {}, cancellations: {}, quota, activity, failLoads: false, approvalId, refreshSeconds: 0 };
+    Object.assign(window, { collectionFixture: fixture }); let started = 0;
+    const metadata = { path: '/synthetic/reviewed-codex', fileBytes: '100', sha256: 'a'.repeat(64), testedVersion: '0.163.0', versionChecked: false, sourceVerified: true, sourceKind: 'test_fixture', sourceUrl: null };
+    window.__TAURI__ = { core: { invoke: async <T>(command: string, args: Record<string, unknown> = {}) => {
+      fixture.calls.push({ command, args: { ...args } }); let result: unknown;
+      switch (command) {
+        case 'bootstrap': result = { storage: 'ready', theme: 'light', schemaVersion: 4, activeProfiles: 1, monitoring: 'stopped', provider: 'not_configured', keyProtection: 'passphrase', storageIssue: null }; break;
+        case 'list_profiles': result = { activeProfiles: 1, profiles: [{ id: profileId, label: 'Synthetic collection profile', environment: 'native', archived: false, connectionState: 'connected' }] }; break;
+        case 'load_profile_refresh_status': result = { profileId, retryAfterSeconds: fixture.refreshSeconds }; break;
+        case 'load_profile_quota': if (fixture.failLoads) throw 'provider_quota_load_failed'; result = structuredClone(fixture.quota); break;
+        case 'load_profile_activity': if (fixture.failLoads) throw 'provider_activity_load_failed'; result = structuredClone(fixture.activity); break;
+        case 'inspect_provider_executable': result = { ...metadata, candidateId: reviewId }; break;
+        case 'approve_provider_executable': result = { ...metadata, approvalId: fixture.approvalId }; break;
+        case 'begin_profile_activity_read':
+        case 'begin_profile_quota_read':
+        case 'begin_profile_collection_read':
+        case 'begin_profile_collection_reassociation': result = { profileId, approvalId: fixture.approvalId, requestId: requests[started++], sourceKind: 'test_fixture', monitoring: 'stopped', accepted: false }; break;
+        case 'complete_profile_activity_read':
+        case 'complete_profile_quota_read':
+        case 'complete_profile_collection_read': result = await new Promise((resolve, reject) => { fixture.completions[String(args.requestId)] = { resolve, reject }; }); break;
+        case 'cancel_profile_activity_read':
+        case 'cancel_profile_quota_read':
+        case 'cancel_profile_collection_read': result = await new Promise((resolve, reject) => { fixture.cancellations[String(args.requestId)] = { resolve, reject }; }); break;
+        case 'review_profile_collection_association': result = { reviewId, profileId, approvalId: fixture.approvalId, observedAtUtc, previous: { email: 'previous@synthetic.invalid', plan: null }, current: { email: 'current@synthetic.invalid', plan: 'plus' }, homeChanged: false, identityConfidence: 'provisional' }; break;
+        default: throw new Error(`Unexpected collection renderer command: ${command}`);
+      }
+      return result as T;
+    } } };
+  }, { profileId, approvalId, requests, reviewId, observedAtUtc, quota: cachedQuota(), activity: cachedActivity() });
+  await page.goto('/'); await navigate(page, 'accounts'); await openReadings(page, profileId); await approve(page); await navigate(page, 'accounts');
+}
+async function approve(page: Page) {
+  await navigate(page, 'settings');
+  const section = page.locator('[data-workspace-view="settings"]');
+  if (!(await section.locator('[data-provider-settings]').evaluate(node => node.closest('details')!.open))) await section.locator('[data-provider-settings]').click();
+  if (!(await section.locator('[data-provider-manual]').evaluate(node => node.closest('details')!.open))) await section.locator('[data-provider-manual]').click();
+  await page.getByLabel('Codex executable', { exact: true }).fill('/synthetic/reviewed-codex');
+  await page.getByRole('button', { name: 'Inspect executable', exact: true }).click();
+  await page.getByLabel('I trust this executable for account checks and previews.').check();
+  await page.getByRole('button', { name: 'Approve executable', exact: true }).click();
+}
+const status = (page: Page) => page.locator(`[data-collection-profile="${profileId}"]`);
+const cancel = (page: Page) => page.getByRole('button', { name: 'Cancel refresh', exact: true });
+async function begin(page: Page, index = 0) {
+  await page.getByRole('button', { name: 'Refresh readings', exact: true }).click();
+  await expect(cancel(page)).toBeFocused();
+  await expect.poll(() => page.evaluate(id => Boolean((window as unknown as FixtureWindow).collectionFixture.completions[id]), requests[index]!)).toBe(true);
+}
+async function publish(page: Page, value = committed(), updateCache = true) {
+  await page.evaluate(({ value, updateCache }) => {
+    const f = (window as unknown as FixtureWindow).collectionFixture;
+    if (updateCache) {
+      if (value.quota) { f.quota = { ...f.quota, ...value.quota }; f.quota.limits[0]!.primary!.usedPercent = 50; f.quota.limits[0]!.primary!.derivedRemainingPercent = 50; }
+      if (value.activity) f.activity = { ...f.activity, ...value.activity, summary: { ...f.activity.summary, lifetimeTokens: '9223372036854775807' } };
+    }
+    f.completions[value.requestId]!.resolve(value);
+  }, { value, updateCache });
+}
+async function reject(page: Page, error: string, index = 0) {
+  await page.evaluate(({ id, error }) => (window as unknown as FixtureWindow).collectionFixture.completions[id]!.reject(error), { id: requests[index]!, error });
+}
+
+test('combined primary action preserves pending work across Manage and navigation, then reloads both saved views', async ({ page }) => {
+  await open(page);
+  await expect(page.getByRole('button', { name: 'Read quotas', exact: true })).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Read activity', exact: true })).toBeHidden();
+  await begin(page);
+  await page.getByRole('button', { name: 'Manage profile', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Read quotas', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Read activity', exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: 'Manage profile', exact: true }).click();
+  await expect(cancel(page)).toBeVisible();
+  await navigate(page, 'usage'); await publish(page);
+  await expect(page.locator('[data-workspace-nav="usage"]')).toBeFocused();
+  await navigate(page, 'accounts');
+  await expect(status(page)).toContainText('Quota and activity readings saved.');
+  await expect(page.locator('[data-quota-saved] [role=meter]')).toHaveAttribute('aria-valuenow', '50');
+  await expect(page.locator('[data-activity-saved] [data-activity-metric="lifetimeTokens"]')).toHaveText('9223372036854775807');
+});
+
+test('successful cancellation fences a late completion from a newer refresh', async ({ page }) => {
+  await open(page); await begin(page); await cancel(page).click();
+  await expect.poll(() => page.evaluate(id => Boolean((window as unknown as FixtureWindow).collectionFixture.cancellations[id]), requests[0]!)).toBe(true);
+  await page.evaluate(id => (window as unknown as FixtureWindow).collectionFixture.cancellations[id]!.resolve({ cancelled: true }), requests[0]!);
+  await expect(status(page)).toContainText('Reading refresh stopped.'); await begin(page, 1);
+  await publish(page, committed(), false);
+  await expect(cancel(page)).toBeVisible(); await expect(status(page)).toHaveCount(0);
+  await publish(page, committed(1)); await expect(status(page)).toContainText('Quota and activity readings saved.');
+});
+
+test('unknown completion fields retain both cached measurements and reload both freshness states', async ({ page }) => {
+  await open(page); await begin(page);
+  await page.evaluate(({ id, value }) => { const f = (window as unknown as FixtureWindow).collectionFixture; f.quota.freshness = 'stale'; f.activity.freshness = 'stale'; f.completions[id]!.resolve({ ...value, unknownField: true }); }, { id: requests[0]!, value: committed() });
+  await expect(status(page)).toHaveAttribute('role', 'alert');
+  await expect(page.locator('[data-quota-saved] [role=meter]')).toHaveAttribute('aria-valuenow', '75');
+  await expect(page.locator('[data-activity-saved] [data-activity-metric="lifetimeTokens"]')).toHaveText('9007199254740993');
+  await expect(page.locator('[data-quota-freshness]')).toHaveAttribute('data-quota-freshness', 'stale');
+  await expect(page.locator('[data-activity-freshness]')).toHaveAttribute('data-activity-freshness', 'stale');
+});
+
+for (const missing of ['quota', 'activity', 'both'] as const) test(`unsupported ${missing} retains previous values and explains capability absence`, async ({ page }) => {
+  await open(page); await begin(page);
+  const value = committed(); if (missing !== 'activity') value.quota = null; if (missing !== 'quota') value.activity = null; value.accepted = missing !== 'both';
+  await publish(page, value);
+  await expect(status(page)).toContainText('does not support');
+  if (missing !== 'activity') await expect(page.locator('[data-quota-saved] [role=meter]')).toHaveAttribute('aria-valuenow', '75');
+  if (missing !== 'quota') await expect(page.locator('[data-activity-saved] [data-activity-metric="lifetimeTokens"]')).toHaveText('9007199254740993');
+  if (missing === 'both') await expect(status(page)).not.toContainText('saved.');
+});
+
+test('committed cache mismatches keep previous values with freshness unknown and explicit reload errors', async ({ page }) => {
+  await open(page); await begin(page); await publish(page, committed(), false);
+  await expect(status(page)).toContainText('Quota and activity readings saved.');
+  await expect(page.locator('[data-quota-cache-error]')).toBeVisible(); await expect(page.locator('[data-activity-cache-error]')).toBeVisible();
+  await expect(page.locator('[data-quota-freshness]')).toHaveAttribute('data-quota-freshness', 'unknown');
+  await expect(page.locator('[data-activity-freshness]')).toHaveAttribute('data-activity-freshness', 'unknown');
+  await expect(page.locator('[data-quota-saved] [role=meter]')).toHaveAttribute('aria-valuenow', '75');
+  await expect(page.locator('[data-activity-saved] [data-activity-metric="lifetimeTokens"]')).toHaveText('9007199254740993');
+});
+
+test('changed association requires visible review and explicit consent before another combined start', async ({ page }) => {
+  await open(page); await begin(page); await reject(page, 'provider_collection_association_changed');
+  await status(page).getByRole('button', { name: 'Use current sign-in', exact: true }).click();
+  await expect(status(page).locator('[data-collection-association="previous"]')).toContainText('previous@synthetic.invalid');
+  await expect(status(page).locator('[data-collection-association="current"]')).toContainText('current@synthetic.invalid');
+  await expect(status(page).getByRole('button', { name: 'Confirm and read', exact: true })).toBeDisabled();
+  await page.getByLabel('I approve using the current sign-in for this profile.').check();
+  await status(page).getByRole('button', { name: 'Confirm and read', exact: true }).click();
+  await expect.poll(() => page.evaluate(id => Boolean((window as unknown as FixtureWindow).collectionFixture.completions[id]), requests[1]!)).toBe(true);
+  const calls = await page.evaluate(() => (window as unknown as FixtureWindow).collectionFixture.calls);
+  expect(calls.filter(call => call.command === 'begin_profile_collection_reassociation')).toEqual([{ command: 'begin_profile_collection_reassociation', args: { profileId, approvalId, reviewId, confirmed: true } }]);
+  await publish(page, committed(1)); await expect(status(page)).toContainText('Quota and activity readings saved.');
+});
+
+test('approval replacement cancels the unmounted request and ignores its late outcome', async ({ page }) => {
+  await open(page); await begin(page);
+  await page.evaluate(() => { (window as unknown as FixtureWindow).collectionFixture.approvalId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'; });
+  await approve(page);
+  await expect.poll(() => page.evaluate(id => Boolean((window as unknown as FixtureWindow).collectionFixture.cancellations[id]), requests[0]!)).toBe(true);
+  await publish(page, committed(), false); await navigate(page, 'accounts');
+  await expect(status(page)).toHaveCount(0); await expect(page.getByRole('button', { name: 'Refresh readings', exact: true })).toBeEnabled();
+  await expect(page.locator('[data-quota-saved] [role=meter]')).toHaveAttribute('aria-valuenow', '75');
+});
+
+
+test('a delayed cancel failure cannot replace a completed committed outcome', async ({ page }) => {
+  await open(page); await begin(page); await cancel(page).click();
+  await expect.poll(() => page.evaluate(id => Boolean((window as unknown as FixtureWindow).collectionFixture.cancellations[id]), requests[0]!)).toBe(true);
+  await publish(page); await expect(status(page)).toContainText('Quota and activity readings saved.');
+  await page.evaluate(id => (window as unknown as FixtureWindow).collectionFixture.cancellations[id]!.reject('provider_cleanup_failed'), requests[0]!);
+  await expect(status(page)).toContainText('Quota and activity readings saved.');
+  await expect(status(page)).toHaveAttribute('role', 'status');
+});
+
+
+for (const kind of ['quota', 'collection'] as const) test(`closed Manage reverse Tab reaches active ${kind} Cancel through native DOM order`, async ({ page }) => {
+  await open(page);
+  const manage = page.getByRole('button', { name: 'Manage profile', exact: true });
+  if (kind === 'quota') {
+    await manage.click();
+    await page.getByRole('button', { name: 'Read quotas', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Cancel read', exact: true })).toBeFocused();
+    await manage.click();
+  } else {
+    await begin(page);
+    await manage.click();
+    await manage.click();
+  }
+  await expect(manage).toHaveAttribute('aria-expanded', 'false');
+  await expect(manage).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(page.getByRole('button', { name: kind === 'quota' ? 'Cancel read' : 'Cancel refresh', exact: true })).toBeFocused();
+});
+
+test('combined completion keeps focus on its result after both real saved-cache wrappers reload', async ({ page }) => {
+  await open(page); await begin(page); await publish(page);
+  await expect(status(page)).toContainText('Quota and activity readings saved.');
+  await expect(page.locator('[data-quota-saved] [role=meter]')).toHaveAttribute('aria-valuenow', '50');
+  await expect(page.locator('[data-activity-saved] [data-activity-metric="lifetimeTokens"]')).toHaveText('9223372036854775807');
+  await expect(status(page)).toBeFocused();
+});
+
+
+for (const kind of ['quota', 'activity'] as const) test(`individual ${kind} refresh still focuses its validated saved cache`, async ({ page }) => {
+  await open(page); await page.getByRole('button', { name: 'Manage profile', exact: true }).click();
+  await page.getByRole('button', { name: kind === 'quota' ? 'Read quotas' : 'Read activity', exact: true }).click();
+  await expect.poll(() => page.evaluate(id => Boolean((window as unknown as FixtureWindow).collectionFixture.completions[id]), requests[0]!)).toBe(true);
+  if (kind === 'quota') {
+    const { freshness: _freshness, coverage: _coverage, scope: _scope, ...value } = cachedQuota();
+    const receipt = { ...value, requestId: requests[0]!, approvalId, collectionRunId: nextQuotaRun, limits: value.limits.map(limit => ({ ...limit, primary: limit.primary && { usedPercent: 50, derivedRemainingPercent: 50, windowDurationMins: 300, resetsAtUnix: null, label: 'Five-hour' } })) };
+    await page.evaluate(({ receipt, run }) => { const f = (window as unknown as FixtureWindow).collectionFixture; f.quota.collectionRunId = run; f.quota.limits[0]!.primary!.usedPercent = 50; f.quota.limits[0]!.primary!.derivedRemainingPercent = 50; f.completions[receipt.requestId]!.resolve(receipt); }, { receipt, run: nextQuotaRun });
+  } else {
+    const { freshness: _freshness, dailyState: _dailyState, dailyTruncated: _dailyTruncated, ...value } = cachedActivity();
+    const receipt = { ...value, requestId: requests[0]!, approvalId, collectionRunId: nextActivityRun, dailyUsageBuckets: [] };
+    await page.evaluate(({ receipt, run }) => { const f = (window as unknown as FixtureWindow).collectionFixture; f.activity.collectionRunId = run; f.completions[receipt.requestId]!.resolve(receipt); }, { receipt, run: nextActivityRun });
+  }
+  await expect(page.locator(`[data-${kind}-saved="${profileId}"]`)).toBeFocused();
+});

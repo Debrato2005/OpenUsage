@@ -841,6 +841,133 @@ async fn load_profile_refresh_status(
 }
 
 #[tauri::command]
+async fn begin_profile_collection_read(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<provider::CollectionReceipt, CommandError> {
+    let args: BeginReadArgs = arguments(&request)?;
+    workspace::validate_profile_id(&args.profile_id)?;
+    restore::validate_preview_id(&args.approval_id)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut state = service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?;
+        state
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .begin_profile_collection_read(&args.profile_id, &args.approval_id)
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+#[tauri::command]
+async fn complete_profile_collection_read(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<provider::CollectionOutcome, CommandError> {
+    let args: ProfileReadArgs = arguments(&request)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let pending = {
+            let state = service
+                .lock()
+                .map_err(|_| CommandError::ProviderUnavailable)?;
+            state
+                .as_ref()
+                .ok_or(CommandError::WorkspaceLocked)?
+                .complete_profile_collection_read(&args.profile_id, &args.request_id)?
+        };
+        let completed = match pending.wait() {
+            Ok(completed) => completed,
+            Err(error) => {
+                if let Ok(mut state) = service.lock()
+                    && let Some(workspace) = state.as_mut()
+                {
+                    workspace.note_collection_failure(&args.profile_id, &args.request_id);
+                }
+                return Err(error);
+            }
+        };
+        let mut state = service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?;
+        state
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .finish_profile_collection_read(completed)
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+#[tauri::command]
+async fn cancel_profile_collection_read(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<provider::Cancelled, CommandError> {
+    let args: ProfileReadArgs = arguments(&request)?;
+    let provider = service.2.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        provider.cancel_collection(&args.profile_id, &args.request_id)
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+#[tauri::command]
+async fn review_profile_collection_association(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<workspace::ReadAssociationReview, CommandError> {
+    let args: BeginReadArgs = arguments(&request)?;
+    restore::validate_preview_id(&args.profile_id)?;
+    restore::validate_preview_id(&args.approval_id)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .review_profile_collection_association(&args.profile_id, &args.approval_id)
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+#[tauri::command]
+async fn begin_profile_collection_reassociation(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<provider::CollectionReceipt, CommandError> {
+    let args: ActivityReassociationArgs = arguments(&request)?;
+    restore::validate_preview_id(&args.profile_id)?;
+    restore::validate_preview_id(&args.approval_id)?;
+    restore::validate_preview_id(&args.review_id)?;
+    if !args.confirmed {
+        return Err(CommandError::InvalidArguments);
+    }
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .begin_profile_collection_reassociation(
+                &args.profile_id,
+                &args.approval_id,
+                &args.review_id,
+                args.confirmed,
+            )
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+#[tauri::command]
 async fn begin_profile_quota_read(
     request: tauri::ipc::Request<'_>,
     service: State<'_, WorkspaceService>,
@@ -1173,6 +1300,11 @@ fn main() {
             cancel_profile_login,
             discover_provider_executables,
             load_profile_refresh_status,
+            begin_profile_collection_read,
+            complete_profile_collection_read,
+            cancel_profile_collection_read,
+            review_profile_collection_association,
+            begin_profile_collection_reassociation,
             begin_profile_quota_read,
             complete_profile_quota_read,
             cancel_profile_quota_read,

@@ -2,11 +2,11 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Button } from './components/ui/button';
 import { AssociationReview } from './association-review';
 import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from './components/ui/collapsible';
-import { invoke, type ProfileActivityAssociationReview, type ActivityFreshness, type ProfileActivitySavedRead, type SavedProfileActivity, type ProviderExecutableApproval } from './contracts';
+import { invoke, type ProfileActivityAssociationReview, type ActivityFreshness, type ProfileReadingReference, type SavedProfileActivity, type ProviderExecutableApproval } from './contracts';
 import { providerFailure } from './provider-errors';
 import './activity.css';
 
-type Props = { profileId: string; profileLabel: string; approval: ProviderExecutableApproval; busy: boolean; onStarted: () => void; onSaved: (value: ProfileActivitySavedRead) => Promise<void>; onFailed: () => Promise<void> };
+type Props = { profileId: string; profileLabel: string; approval: ProviderExecutableApproval; busy: boolean; onStarted: () => void; onSaved: (value: ProfileReadingReference) => Promise<void>; onFailed: () => Promise<void> };
 type Outcome = { kind: 'error' | 'cancelled'; message: string; reassociationAvailable?: boolean };
 const labels = { lifetimeTokens: 'Lifetime tokens', peakDailyTokens: 'Peak daily tokens', currentStreakDays: 'Current streak (days)', longestStreakDays: 'Longest streak (days)', longestRunningTurnSec: 'Longest turn (seconds)' };
 const freshnessLabels = { unknown: 'Freshness unknown', fresh: 'Current', stale: 'Stale' };
@@ -39,7 +39,7 @@ function ActivityValues({ value }: { value: SavedProfileActivity }) {
 }
 
 // Cache reads do not require an approved executable or execute the provider.
-export function ProfileActivity({ profileId, profileLabel, children, emptyContent }: { profileId: string; profileLabel: string; emptyContent?: ReactNode; children: (onSaved: (receipt: ProfileActivitySavedRead) => Promise<void>, onFailed: () => Promise<void>) => ReactNode }) {
+export function ProfileActivity({ profileId, profileLabel, children, emptyContent }: { profileId: string; profileLabel: string; emptyContent?: ReactNode; children: (onSaved: (receipt: ProfileReadingReference, focusResult?: boolean) => Promise<void>, onFailed: () => Promise<void>) => ReactNode }) {
   const [value, setValue] = useState<SavedProfileActivity | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -53,8 +53,8 @@ export function ProfileActivity({ profileId, profileLabel, children, emptyConten
     const interval = window.setInterval(() => { void load(); }, 60_000);
     return () => { alive.current = false; loadGeneration.current += 1; window.clearInterval(interval); };
   }, [profileId]);
-  useEffect(() => { if (focus && result.current) { result.current.focus(); setFocus(false); } }, [focus, value, error]);
-  async function load(committed?: ProfileActivitySavedRead, focusResult = false) {
+  useEffect(() => { if (focus && result.current) { if (!result.current.closest('[hidden]') && result.current.getClientRects().length) result.current.focus(); setFocus(false); } }, [focus, value, error]);
+  async function load(committed?: ProfileReadingReference, focusResult = false) {
     if (!committed && !focusResult && manualLoad.current) return;
     if (committed) manualLoad.current = true;
     const operation = ++loadGeneration.current; setLoading(true);
@@ -70,11 +70,11 @@ export function ProfileActivity({ profileId, profileLabel, children, emptyConten
       }
     } finally {
       if (committed) manualLoad.current = false;
-      if (alive.current && operation === loadGeneration.current) { setLoading(false); if (focusResult || committed) setFocus(true); }
+      if (alive.current && operation === loadGeneration.current) { setLoading(false); if (focusResult) setFocus(true); }
     }
   }
   return <>
-    {children(receipt => load(receipt, true), () => load())}
+    {children((receipt, focusResult = true) => load(receipt, focusResult), () => load())}
     {emptyContent && !value && !error && (loading ? <p className="provider-help">Loading saved activity…</p> : emptyContent)}
     {(value || error) && <div ref={result} className="activity-saved" data-activity-saved={profileId} tabIndex={-1} role="region" aria-label={`Saved activity for ${profileLabel}`}>
       <h3>Saved activity</h3>
@@ -118,7 +118,7 @@ export function useActivityPreview({ profileId, approval, busy, onStarted, onSav
   }, [profileId]);
   useEffect(() => { if (working && requestId) cancelButton.current?.focus(); }, [working, requestId]);
   useEffect(() => { if (reassociationOpen && associationReview && !working) reassociationConsent.current?.focus(); }, [reassociationOpen, associationReview, working]);
-  useEffect(() => { if (focus && !working && result.current) { result.current.focus(); setFocus(false); } }, [focus, working, outcome]);
+  useEffect(() => { if (focus && !working && result.current) { if (!result.current.closest('[hidden]') && result.current.getClientRects().length) result.current.focus(); setFocus(false); } }, [focus, working, outcome]);
 
   function closeReview() {
     generation.current += 1; setReassociationOpen(false); setReassociationApproved(false);

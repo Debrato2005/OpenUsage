@@ -194,11 +194,11 @@ try {
     await driver.waitForProfileRefresh(profile.id);
     provider.executable = await approve(provider);
     const idle = await driver.execute('const row=document.querySelector(arguments[0]);return [...row.querySelectorAll("button")].filter(node=>node.getClientRects().length&&!node.disabled).map(node=>node.textContent.trim());', [row()]);
-    assert.deepEqual(idle, ['Hide readings', 'Sign in', 'Read quotas', 'Manage profile']);
+    assert.deepEqual(idle, ['Hide readings', 'Sign in', 'Refresh readings', 'Manage profile']);
     const state = await optionsState(); assert.equal(state.panelPresent, true); assert.equal(state.panelVisible, false); assert.ok(state.actions.length >= 3 && state.actions.every(value => !value.visible));
     const before = await liveHashes(), offset = (await observations(provider)).length;
     if (provider.name === 'check') { await manage(true); await driver.click(`${row()} [data-provider-check]`); }
-    if (provider.name === 'quota') await driver.click(`${row()} [data-quota-read]`);
+    if (provider.name === 'quota') { await manage(true); await driver.click(`${row()} [data-quota-read]`); }
     if (provider.name === 'login') {
       await driver.click(`${row()} [data-login-start]`);
       await waitFor(async () => visible(`${row()} [data-login-consent] button[type=submit]`), 'explicit profile consent');

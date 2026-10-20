@@ -131,119 +131,7 @@ impl Storage {
         if let Some(input) = &association {
             associate_in_transaction(&tx, input)?;
         }
-        let current:Option<(String,String,Option<String>,String)>=tx.query_row("SELECT b.binding_id,e.returned_email,e.returned_plan,e.home_reference FROM profile_bindings b JOIN profile_identity_events e ON e.id=b.binding_id AND e.profile_id=b.profile_id WHERE b.profile_id=?1",[&reading.binding.profile_id],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).optional().map_err(read_error)?;
-        let Some((binding, email, plan, home)) = current else {
-            return Err(ActivityError::BindingChanged);
-        };
-        if binding != reading.binding.binding_id || home != reading.binding.home_reference {
-            return Err(ActivityError::BindingChanged);
-        }
-        if email != reading.identity_evidence.email || plan != reading.identity_evidence.plan {
-            return Err(ActivityError::IdentityChanged);
-        }
-        let previous_run: Option<String> = tx
-            .query_row(
-                "SELECT collection_run_id FROM current_quota_readings WHERE profile_id=?1",
-                [&reading.binding.profile_id],
-                |row| row.get(0),
-            )
-            .optional()
-            .map_err(read_error)?;
-        let previous = previous_run
-            .as_ref()
-            .map(|run| load_snapshot(&tx, "main", run))
-            .transpose()?;
-        tx.execute("INSERT INTO collection_runs VALUES (?1,?2,?3,?4,?5,?6,'account/rateLimits/read',?7,?8,'account_quota_with_unknown_application_scope',NULL,'percent','unknown','provisional',NULL,'accepted')",params![reading.run_id,reading.binding.profile_id,reading.binding.binding_id,reading.started_at_utc,reading.completed_at_utc,reading.observed_at_utc,reading.provider_version,reading.source_kind.as_str()]).map_err(write_error)?;
-        let detail_state = match &reading.reset_credit_details {
-            None => "unavailable",
-            Some(v) if v.is_empty() => "empty",
-            Some(_) => "returned",
-        };
-        tx.execute(
-            "INSERT INTO quota_snapshots VALUES (?1,?2,?3,?4,?5,?6)",
-            params![
-                reading.run_id,
-                reading.binding.profile_id,
-                reading.binding.binding_id,
-                reading.available_reset_credits,
-                detail_state,
-                previous_run
-            ],
-        )
-        .map_err(write_error)?;
-        tx.execute(
-            "DELETE FROM current_quota WHERE profile_id=?1",
-            [&reading.binding.profile_id],
-        )
-        .map_err(write_error)?;
-        tx.execute("INSERT INTO current_quota_readings VALUES (?1,?2,?3,?4,?4) ON CONFLICT(profile_id) DO UPDATE SET binding_id=excluded.binding_id,collection_run_id=excluded.collection_run_id,updated_at_utc=excluded.updated_at_utc",params![reading.binding.profile_id,reading.binding.binding_id,reading.run_id,reading.completed_at_utc]).map_err(write_error)?;
-        for limit in &reading.limits {
-            let (p, pd, pr) = window_columns(&limit.primary);
-            let (s, sd, sr) = window_columns(&limit.secondary);
-            tx.execute(
-                "INSERT INTO quota_limits VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14)",
-                params![
-                    reading.run_id,
-                    reading.binding.profile_id,
-                    reading.binding.binding_id,
-                    limit.limit_id,
-                    limit.limit_name,
-                    limit.reached_type,
-                    limit.monthly_credit_limit,
-                    limit.spend_control_reached,
-                    p,
-                    pd,
-                    pr,
-                    s,
-                    sd,
-                    sr
-                ],
-            )
-            .map_err(write_error)?;
-            for (role, window) in [("primary", &limit.primary), ("secondary", &limit.secondary)] {
-                if let Some(w) = window {
-                    tx.execute(
-                        "INSERT INTO current_quota VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?9)",
-                        params![
-                            reading.binding.profile_id,
-                            limit.limit_id,
-                            role,
-                            reading.binding.binding_id,
-                            reading.run_id,
-                            w.used_percent,
-                            w.window_duration_mins.map(|v| v as i64),
-                            w.resets_at_unix.map(unix_to_utc),
-                            reading.completed_at_utc
-                        ],
-                    )
-                    .map_err(write_error)?;
-                }
-            }
-        }
-        for (index, detail) in reading.reset_credit_details.iter().flatten().enumerate() {
-            tx.execute(
-                "INSERT INTO credit_snapshots VALUES (?1,?2,?3,?4,?5,?6,?7,?8)",
-                params![
-                    reading.run_id,
-                    reading.binding.profile_id,
-                    reading.binding.binding_id,
-                    index as i64,
-                    detail.title,
-                    detail.status.as_str(),
-                    detail.granted_at_unix,
-                    detail.expires_at_unix
-                ],
-            )
-            .map_err(write_error)?;
-        }
-        let packet = load_snapshot_packet(&tx, "main", &reading.run_id)?;
-        crate::quota_resets::save(&tx, &packet, previous.as_ref())?;
-        let commit = QuotaCommit {
-            profile_id: reading.binding.profile_id,
-            binding_id: reading.binding.binding_id,
-            collection_run_id: reading.run_id,
-            observed_at_utc: reading.observed_at_utc,
-        };
+        let commit = accept_in_transaction(&tx, reading)?;
         tx.commit().map_err(write_error)?;
         Ok(commit)
     }
@@ -263,6 +151,129 @@ impl Storage {
             .transpose()
     }
 }
+pub(crate) fn accept_in_transaction(tx: &Connection, reading: QuotaReading) -> Result<QuotaCommit> {
+    require_profile(
+        tx,
+        &reading.binding.profile_id,
+        &reading.binding.home_reference,
+    )?;
+    require_new(tx, &reading)?;
+    let current:Option<(String,String,Option<String>,String)>=tx.query_row("SELECT b.binding_id,e.returned_email,e.returned_plan,e.home_reference FROM profile_bindings b JOIN profile_identity_events e ON e.id=b.binding_id AND e.profile_id=b.profile_id WHERE b.profile_id=?1",[&reading.binding.profile_id],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).optional().map_err(read_error)?;
+    let Some((binding, email, plan, home)) = current else {
+        return Err(ActivityError::BindingChanged);
+    };
+    if binding != reading.binding.binding_id || home != reading.binding.home_reference {
+        return Err(ActivityError::BindingChanged);
+    }
+    if email != reading.identity_evidence.email || plan != reading.identity_evidence.plan {
+        return Err(ActivityError::IdentityChanged);
+    }
+    let previous_run: Option<String> = tx
+        .query_row(
+            "SELECT collection_run_id FROM current_quota_readings WHERE profile_id=?1",
+            [&reading.binding.profile_id],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(read_error)?;
+    let previous = previous_run
+        .as_ref()
+        .map(|run| load_snapshot(tx, "main", run))
+        .transpose()?;
+    tx.execute("INSERT INTO collection_runs VALUES (?1,?2,?3,?4,?5,?6,'account/rateLimits/read',?7,?8,'account_quota_with_unknown_application_scope',NULL,'percent','unknown','provisional',NULL,'accepted')",params![reading.run_id,reading.binding.profile_id,reading.binding.binding_id,reading.started_at_utc,reading.completed_at_utc,reading.observed_at_utc,reading.provider_version,reading.source_kind.as_str()]).map_err(write_error)?;
+    let detail_state = match &reading.reset_credit_details {
+        None => "unavailable",
+        Some(v) if v.is_empty() => "empty",
+        Some(_) => "returned",
+    };
+    tx.execute(
+        "INSERT INTO quota_snapshots VALUES (?1,?2,?3,?4,?5,?6)",
+        params![
+            reading.run_id,
+            reading.binding.profile_id,
+            reading.binding.binding_id,
+            reading.available_reset_credits,
+            detail_state,
+            previous_run
+        ],
+    )
+    .map_err(write_error)?;
+    tx.execute(
+        "DELETE FROM current_quota WHERE profile_id=?1",
+        [&reading.binding.profile_id],
+    )
+    .map_err(write_error)?;
+    tx.execute("INSERT INTO current_quota_readings VALUES (?1,?2,?3,?4,?4) ON CONFLICT(profile_id) DO UPDATE SET binding_id=excluded.binding_id,collection_run_id=excluded.collection_run_id,updated_at_utc=excluded.updated_at_utc",params![reading.binding.profile_id,reading.binding.binding_id,reading.run_id,reading.completed_at_utc]).map_err(write_error)?;
+    for limit in &reading.limits {
+        let (p, pd, pr) = window_columns(&limit.primary);
+        let (s, sd, sr) = window_columns(&limit.secondary);
+        tx.execute(
+            "INSERT INTO quota_limits VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14)",
+            params![
+                reading.run_id,
+                reading.binding.profile_id,
+                reading.binding.binding_id,
+                limit.limit_id,
+                limit.limit_name,
+                limit.reached_type,
+                limit.monthly_credit_limit,
+                limit.spend_control_reached,
+                p,
+                pd,
+                pr,
+                s,
+                sd,
+                sr
+            ],
+        )
+        .map_err(write_error)?;
+        for (role, window) in [("primary", &limit.primary), ("secondary", &limit.secondary)] {
+            if let Some(w) = window {
+                tx.execute(
+                    "INSERT INTO current_quota VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?9)",
+                    params![
+                        reading.binding.profile_id,
+                        limit.limit_id,
+                        role,
+                        reading.binding.binding_id,
+                        reading.run_id,
+                        w.used_percent,
+                        w.window_duration_mins.map(|v| v as i64),
+                        w.resets_at_unix.map(unix_to_utc),
+                        reading.completed_at_utc
+                    ],
+                )
+                .map_err(write_error)?;
+            }
+        }
+    }
+    for (index, detail) in reading.reset_credit_details.iter().flatten().enumerate() {
+        tx.execute(
+            "INSERT INTO credit_snapshots VALUES (?1,?2,?3,?4,?5,?6,?7,?8)",
+            params![
+                reading.run_id,
+                reading.binding.profile_id,
+                reading.binding.binding_id,
+                index as i64,
+                detail.title,
+                detail.status.as_str(),
+                detail.granted_at_unix,
+                detail.expires_at_unix
+            ],
+        )
+        .map_err(write_error)?;
+    }
+    let packet = load_snapshot_packet(tx, "main", &reading.run_id)?;
+    crate::quota_resets::save(tx, &packet, previous.as_ref())?;
+    let commit = QuotaCommit {
+        profile_id: reading.binding.profile_id,
+        binding_id: reading.binding.binding_id,
+        collection_run_id: reading.run_id,
+        observed_at_utc: reading.observed_at_utc,
+    };
+    Ok(commit)
+}
+
 fn window_columns(w: &Option<QuotaWindow>) -> (Option<u8>, Option<i64>, Option<String>) {
     match w {
         Some(w) => (
@@ -273,7 +284,7 @@ fn window_columns(w: &Option<QuotaWindow>) -> (Option<u8>, Option<i64>, Option<S
         None => (None, None, None),
     }
 }
-fn require_new(tx: &Connection, r: &QuotaReading) -> Result<()> {
+pub(crate) fn require_new(tx: &Connection, r: &QuotaReading) -> Result<()> {
     let duplicate: bool = tx
         .query_row(
             "SELECT EXISTS(SELECT 1 FROM collection_runs WHERE id=?1)",
@@ -380,7 +391,7 @@ pub(crate) fn utc_to_unix(value: &str) -> Result<i64> {
     require(valid_unix(value))?;
     Ok(value)
 }
-fn validate_reading(r: &QuotaReading) -> Result<()> {
+pub(crate) fn validate_reading(r: &QuotaReading) -> Result<()> {
     for id in [
         &r.run_id,
         &r.binding.profile_id,

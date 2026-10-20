@@ -1,4 +1,4 @@
-import { navigate, openReadings } from './navigation';
+import { navigate, openReadings, openOptions } from './navigation';
 import { expect, test, type Page } from '@playwright/test';
 import type { ProfileActivitySavedRead, ProfileQuotaSavedRead, SavedProfileActivity } from '../../apps/desktop/src/contracts';
 
@@ -89,7 +89,7 @@ test('renderer saves activity outside Manage and pages exact cached rows after c
   await expect(page.getByRole('button', { name: 'Read activity', exact: true })).toBeHidden();
   await expect(page.getByRole('button', { name: 'Cancel activity read', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeDisabled();
-  await expect(page.getByRole('button', { name: 'Read quotas', exact: true })).toBeDisabled();
+  await expect(accounts(page).locator(`[data-quota-read="${profileId}"]`)).toBeDisabled();
   const rows = Array.from({ length: 51 }, (_, index) => ({ startDate: index === 0 ? '2024-02-29' : new Date(Date.UTC(2023, 0, index)).toISOString().slice(0, 10), tokens: index === 0 ? '9223372036854775807' : '0' }));
   await publish(page, 0, rows);
   await expect(metric(page, 'lifetimeTokens')).toHaveText('9223372036854775807');
@@ -140,6 +140,7 @@ test('renderer keeps a new quota read focused when an old activity cancellation 
   await page.getByRole('button', { name: 'Cancel activity read', exact: true }).click();
   await page.evaluate(id => { (window as unknown as FixtureWindow).activityFixture.completions[id]!.reject('provider_activity_cancelled'); }, requestIds[0]!);
   await expect(accounts(page).getByText('Activity read stopped.', { exact: true })).toBeVisible();
+  await openOptions(page, profileId);
   await page.getByRole('button', { name: 'Read quotas', exact: true }).click();
   const cancelQuota = accounts(page).locator(`[data-quota-cancel="${profileId}"]`); await expect(cancelQuota).toBeFocused();
   await page.evaluate(id => { (window as unknown as FixtureWindow).activityFixture.cancellations[id]!.reject('provider_cleanup_failed'); }, requestIds[0]!);
@@ -374,7 +375,7 @@ test('renderer applies the shared cooldown after an activity read completes', as
   await publish(page, 0, null);
   await expect(accounts(page).locator(`[data-profile-refresh-status="${profileId}"]`)).toHaveText('Next reading in 3s');
   await expect(page.getByRole('button', { name: 'Read activity', exact: true })).toBeDisabled();
-  await expect(page.getByRole('button', { name: 'Read quotas', exact: true })).toBeDisabled();
+  await expect(accounts(page).locator(`[data-quota-read="${profileId}"]`)).toBeDisabled();
   await expect(metric(page, 'lifetimeTokens')).toHaveText('9223372036854775807');
   await page.clock.fastForward(3000);
   await expect(page.getByRole('button', { name: 'Read activity', exact: true })).toBeEnabled();

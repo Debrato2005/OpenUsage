@@ -532,3 +532,30 @@ test('saved quota loads accept only exact bounded provisional cache values', asy
   }
   for (const key of Object.keys(value)) { const missing = { ...value }; delete missing[key]; desktopResponse(missing); await assert.rejects(invoke('load_profile_quota', args), /desktop response is incompatible/); }
 });
+
+test('combined collections accept only bound committed references and explicit unsupported capabilities', async () => {
+  const profileId = '11111111-1111-4111-8111-111111111111', approvalId = '22222222-2222-4222-8222-222222222222';
+  const requestId = '33333333-3333-4333-8333-333333333333';
+  const quota = { bindingId: '44444444-4444-4444-8444-444444444444', collectionRunId: '55555555-5555-4555-8555-555555555555', observedAtUtc: '2026-10-20T00:00:00.000Z' };
+  const activity = { ...quota, collectionRunId: '66666666-6666-4666-8666-666666666666', observedAtUtc: '2026-10-20T00:00:01.000Z' };
+  const receipt = { profileId, approvalId, requestId, sourceKind: 'test_fixture', monitoring: 'stopped', accepted: false };
+  for (const command of ['begin_profile_collection_read', 'begin_profile_collection_reassociation']) {
+    desktopResponse(receipt); assert.deepEqual(await invoke(command, { profileId, approvalId, reviewId: requestId, confirmed: true }), receipt);
+  }
+  const result = { ...receipt, providerVersion: '0.163.0', identityConfidence: 'provisional', verifiedIdentityKey: null, accepted: true, quota, activity };
+  for (const value of [result, { ...result, quota: null }, { ...result, activity: null }, { ...result, quota: null, activity: null, accepted: false }]) {
+    desktopResponse(value); assert.deepEqual(await invoke('complete_profile_collection_read', { profileId, requestId }), value);
+  }
+  for (const value of [
+    { ...result, extra: true }, { ...result, quota: undefined }, { ...result, activity: undefined },
+    { ...result, accepted: false }, { ...result, quota: null, activity: null },
+    { ...result, activity: quota }, { ...result, activity: { ...activity, bindingId: requestId } },
+    { ...result, quota: { ...quota, profileId } }, { ...result, quota: { ...quota, observedAtUtc: '2026-02-30T00:00:00.000Z' } },
+    { ...result, activity: [] }, { ...result, quota: false }, { ...result, verifiedIdentityKey: profileId },
+    { ...result, sourceKind: 'unverified' }, { ...result, monitoring: 'active' }, { ...result, identityConfidence: 'verified' },
+  ]) {
+    desktopResponse(value); await assert.rejects(invoke('complete_profile_collection_read', { profileId, requestId }), /desktop response is incompatible/);
+  }
+  desktopResponse({ cancelled: true }); assert.deepEqual(await invoke('cancel_profile_collection_read', { profileId, requestId }), { cancelled: true });
+  desktopResponse({ cancelled: true, accepted: true }); await assert.rejects(invoke('cancel_profile_collection_read', { profileId, requestId }), /desktop response is incompatible/);
+});

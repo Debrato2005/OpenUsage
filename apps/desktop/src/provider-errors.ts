@@ -1,5 +1,12 @@
 export function providerFailure(error: unknown): string {
   const messages: Record<string, string> = {
+    provider_collection_not_found: 'This reading has ended. Refresh readings to try again.',
+    provider_collection_in_progress: 'Readings are already being refreshed for this profile. Finish or cancel them first.',
+    provider_collection_cancelled: 'Reading refresh stopped.',
+    provider_collection_save_failed: 'The readings could not be saved. Your previous readings are still available.',
+    provider_collection_association_changed: "The current sign-in no longer matches this profile's saved readings. Review the current sign-in to continue.",
+    provider_collection_review_unavailable: 'Refresh readings again to review the current sign-in.',
+
     provider_refresh_backoff: 'Codex could not finish the connection. Wait before reading again.',
     provider_refresh_cooldown: 'Wait a moment before reading this profile again. Your saved readings are still available.',
     provider_activity_review_unavailable: 'Read activity again to review the current sign-in.',

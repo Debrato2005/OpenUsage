@@ -336,7 +336,7 @@ impl Workspace {
     }
 }
 
-fn stored_window(w: &openusage_codex::QuotaWindow) -> openusage_storage::QuotaWindow {
+pub(super) fn stored_window(w: &openusage_codex::QuotaWindow) -> openusage_storage::QuotaWindow {
     openusage_storage::QuotaWindow {
         used_percent: w.used_percent,
         window_duration_mins: w.window_duration_mins,

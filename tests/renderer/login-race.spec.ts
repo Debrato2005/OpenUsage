@@ -1,4 +1,4 @@
-import { navigate, openReadings } from './navigation';
+import { navigate, openReadings, openOptions } from './navigation';
 import { expect, test, type Page } from '@playwright/test';
 import type { ProfileQuotaSavedRead } from '../../apps/desktop/src/contracts';
 
@@ -174,7 +174,7 @@ test('renderer fixture retains a cleanup failure when requested cancellation als
 
 test('renderer fixture preserves the saved quotas after an old connection cancel rejects', async ({ page }) => {
   await openSyntheticProfile(page);
-  await page.getByRole('button', { name: 'Manage profile', exact: true }).click();
+  await openOptions(page, profileId);
   await page.getByRole('button', { name: 'Check connection', exact: true }).click();
   await page.getByRole('button', { name: 'Cancel check', exact: true }).click();
   await expect.poll(() => page.evaluate(profileId =>
@@ -188,6 +188,7 @@ test('renderer fixture preserves the saved quotas after an old connection cancel
     });
   }, { profileId, approvalId });
   await expect(page.getByText('Account response received', { exact: true })).toBeVisible();
+  await openOptions(page, profileId);
   await page.getByRole('button', { name: 'Read quotas', exact: true }).click();
   await expect.poll(() => page.evaluate(requestId =>
     Boolean((window as unknown as FixtureWindow).loginFixture.completions[`quota:${requestId}`]), attempts[0]!)).toBe(true);
@@ -218,6 +219,7 @@ test('renderer fixture preserves the saved quotas after an old connection cancel
 
 async function startQuota(page: Page) {
   await page.evaluate(requestId => { delete (window as unknown as FixtureWindow).loginFixture.completions[`quota:${requestId}`]; }, attempts[0]!);
+  await openOptions(page, profileId);
   await page.getByRole('button', { name: 'Read quotas', exact: true }).click();
   await expect(page.locator(`[data-quota-cancel="${profileId}"]`)).toBeFocused();
   await expect.poll(() => page.evaluate(requestId => Boolean((window as unknown as FixtureWindow).loginFixture.completions[`quota:${requestId}`]), attempts[0]!)).toBe(true);
@@ -267,7 +269,7 @@ test('renderer retains the previous saved quotas through pending, invalid respon
 test('renderer retains saved quotas when its provider operation component is replaced', async ({ page }) => {
   await openSyntheticProfile(page); await startQuota(page); await publishQuota(page, 75, '2026-10-18T00:00:00.000Z');
   await expect(page.getByText('75%', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Manage profile', exact: true }).click();
+  await openOptions(page, profileId);
   await page.getByRole('button', { name: 'Check connection', exact: true }).click();
   await expect(page.getByText('75%', { exact: true })).toBeVisible();
   await expect(page.locator(`[data-quota-profile="${profileId}"]`)).toHaveCount(0);

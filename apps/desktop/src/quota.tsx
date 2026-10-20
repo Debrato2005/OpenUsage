@@ -3,7 +3,7 @@ import { Collapsible, CollapsibleTrigger, CollapsiblePanel } from './components/
 import './quota-disclosure.css';
 import { Meter, MeterIndicator, MeterLabel, MeterTrack, MeterValue } from './components/ui/meter';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { invoke, type ProviderExecutableApproval, type ProfileQuotaSavedRead, type SavedProfileQuota as SavedQuota, type ProfileActivityAssociationReview, type SavedQuotaWindow } from './contracts';
+import { invoke, type ProviderExecutableApproval, type ProfileReadingReference, type SavedProfileQuota as SavedQuota, type ProfileActivityAssociationReview, type SavedQuotaWindow } from './contracts';
 import { AssociationReview } from './association-review';
 import { providerFailure } from './provider-errors';
 
@@ -15,8 +15,9 @@ type Props = {
   onActivity: (active: boolean) => void;
   onStarted: () => void;
   actionSiblings?: ReactNode;
+  renderActions?: (action: ReactNode, cancelAction: ReactNode) => ReactNode;
   retryAfterSeconds?: number;
-  onSaved: (value: ProfileQuotaSavedRead) => Promise<void>;
+  onSaved: (value: ProfileReadingReference) => Promise<void>;
   onFailed: () => Promise<void>;
 };
 type Outcome = { kind: 'error' | 'cancelled'; message: string; reassociationAvailable?: boolean };
@@ -73,7 +74,7 @@ function QuotaValues({ value }: { value: SavedQuota }) {
 }
 
 // Cache reads do not require executable approval or execute the provider.
-export function SavedProfileQuota({ profileId, profileLabel, children }: { profileId: string; profileLabel: string; children: (onSaved: (value: ProfileQuotaSavedRead) => Promise<void>, onFailed: () => Promise<void>) => ReactNode }) {
+export function SavedProfileQuota({ profileId, profileLabel, children }: { profileId: string; profileLabel: string; children: (onSaved: (value: ProfileReadingReference, focusResult?: boolean) => Promise<void>, onFailed: () => Promise<void>) => ReactNode }) {
   const [value, setValue] = useState<SavedQuota | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -87,8 +88,8 @@ export function SavedProfileQuota({ profileId, profileLabel, children }: { profi
     const interval = window.setInterval(() => { void load(); }, 60_000);
     return () => { alive.current = false; loadGeneration.current += 1; window.clearInterval(interval); };
   }, [profileId]);
-  useEffect(() => { if (focus && result.current) { result.current.focus(); setFocus(false); } }, [focus, value, error]);
-  async function load(committed?: ProfileQuotaSavedRead, focusResult = false) {
+  useEffect(() => { if (focus && result.current) { if (!result.current.closest('[hidden]') && result.current.getClientRects().length) result.current.focus(); setFocus(false); } }, [focus, value, error]);
+  async function load(committed?: ProfileReadingReference, focusResult = false) {
     if (!committed && !focusResult && manualLoad.current) return;
     if (committed) manualLoad.current = true;
     const operation = ++loadGeneration.current; setLoading(true);
@@ -104,12 +105,12 @@ export function SavedProfileQuota({ profileId, profileLabel, children }: { profi
       }
     } finally {
       if (committed) manualLoad.current = false;
-      if (alive.current && operation === loadGeneration.current) { setLoading(false); if (focusResult || committed) setFocus(true); }
+      if (alive.current && operation === loadGeneration.current) { setLoading(false); if (focusResult) setFocus(true); }
     }
   }
   const freshnessLabels = { unknown: 'Freshness unknown', fresh: 'Current', stale: 'Stale' };
   return <>
-    {children(receipt => load(receipt, true), () => load())}
+    {children((receipt, focusResult = true) => load(receipt, focusResult), () => load())}
     {(value || error) && <div ref={result} className="quota-result" data-quota-saved={profileId} role="region" aria-label={`Saved quotas for ${profileLabel}`} tabIndex={-1}>
       <div className="quota-preview-heading"><h3>Saved quotas</h3>{value?.sourceKind === 'test_fixture' && <span className="quota-fixture-label" data-provider-fixture>Synthetic test data</span>}</div>
       {error && <div><p role="alert" data-quota-cache-error>{error}</p><Button type="button" variant="outline" disabled={loading} onClick={() => { void load(undefined, true); }}>Reload saved quotas</Button></div>}
@@ -121,7 +122,7 @@ export function SavedProfileQuota({ profileId, profileLabel, children }: { profi
   </>;
 }
 
-export function ProfileQuotaRead({ profileId, approval, busy, onActivity, onStarted, actionSiblings, onSaved, onFailed, retryAfterSeconds = 0 }: Props) {
+export function ProfileQuotaRead({ profileId, approval, busy, onActivity, onStarted, actionSiblings, renderActions, onSaved, onFailed, retryAfterSeconds = 0 }: Props) {
   const [associationReview, setAssociationReview] = useState<ProfileActivityAssociationReview | null>(null);
   const [reassociationOpen, setReassociationOpen] = useState(false);
   const [reassociationApproved, setReassociationApproved] = useState(false);
@@ -152,7 +153,7 @@ export function ProfileQuotaRead({ profileId, approval, busy, onActivity, onStar
   }, [profileId]);
   useEffect(() => { if (working && requestId) cancelButton.current?.focus(); }, [working, requestId]);
   useEffect(() => { if (outcome && !working) setFocus(true); }, [outcome, working]);
-  useEffect(() => { if (focus && !working && result.current) { result.current.focus(); setFocus(false); } }, [focus, working, outcome]);
+  useEffect(() => { if (focus && !working && result.current) { if (!result.current.closest('[hidden]') && result.current.getClientRects().length) result.current.focus(); setFocus(false); } }, [focus, working, outcome]);
 
   useEffect(() => { if (reassociationOpen && associationReview && !working) reassociationConsent.current?.focus(); }, [reassociationOpen, associationReview, working]);
   function closeReview() {
@@ -212,9 +213,10 @@ export function ProfileQuotaRead({ profileId, approval, busy, onActivity, onStar
     } finally { if (alive.current && generation.current === operation) setStopping(false); }
   }
 
+  const action = <Button type="button" variant="outline" className="secondary-button" data-quota-read={profileId} aria-describedby={`profile-name-${profileId}`} disabled={busy || working || retryAfterSeconds > 0} onClick={() => { void read(); }}>{working ? 'Reading quotas…' : 'Read quotas'}</Button>;
+  const cancelAction = working && requestId ? <Button ref={cancelButton} type="button" variant="ghost" className="text-button" data-quota-cancel={profileId} aria-describedby={`profile-name-${profileId}`} disabled={stopping} onClick={() => { void cancel(); }}>{stopping ? 'Stopping read…' : 'Cancel read'}</Button> : null;
   return <div className="profile-quota-read">
-    <div className="profile-actions"><Button type="button" variant="outline" className="secondary-button" data-quota-read={profileId} aria-describedby={`profile-name-${profileId}`} disabled={busy || working || retryAfterSeconds > 0} onClick={() => { void read(); }}>{working ? 'Reading quotas…' : 'Read quotas'}</Button>{working && requestId && <Button ref={cancelButton} type="button" variant="ghost" className="text-button" data-quota-cancel={profileId} aria-describedby={`profile-name-${profileId}`} disabled={stopping} onClick={() => { void cancel(); }}>{stopping ? 'Stopping read…' : 'Cancel read'}</Button>}</div>
-    {actionSiblings}
+    {renderActions ? renderActions(action, cancelAction) : <div className="profile-actions">{action}{cancelAction}{actionSiblings}</div>}
     {outcome && <div ref={result} className="quota-result" data-quota-profile={profileId} role={outcome.kind === 'error' ? 'alert' : 'status'} tabIndex={-1}>
       {approval.sourceKind === 'test_fixture' && <p className="quota-fixture-label" data-provider-fixture>Synthetic test data</p>}
       <p>{outcome.message}</p>

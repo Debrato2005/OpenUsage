@@ -45,6 +45,11 @@
     "allow-begin-profile-quota-reassociation",
     "allow-begin-profile-quota-read",
     "allow-complete-profile-quota-read",
-    "allow-cancel-profile-quota-read"
+    "allow-cancel-profile-quota-read",
+    "allow-begin-profile-collection-read",
+    "allow-complete-profile-collection-read",
+    "allow-cancel-profile-collection-read",
+    "allow-review-profile-collection-association",
+    "allow-begin-profile-collection-reassociation"
   ]
 }

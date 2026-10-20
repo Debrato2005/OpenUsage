@@ -15,3 +15,11 @@ export async function openReadings(page: Page, profileId: string) {
   if (await trigger.getAttribute('aria-expanded') !== 'true') await trigger.click();
   await expect(trigger).toHaveAttribute('aria-expanded', 'true');
 }
+
+
+export async function openOptions(page: Page, profileId: string) {
+  await openReadings(page, profileId);
+  const trigger = page.locator(`[data-profile-id="${profileId}"] [data-profile-action="options"]`);
+  if (await trigger.getAttribute('aria-expanded') !== 'true') await trigger.click();
+  await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+}

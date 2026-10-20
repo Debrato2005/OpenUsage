@@ -98,7 +98,7 @@ async function guiRead(profile) {
   await driver.openProfileReadings(profile.id);
   await config(profile, 'multi'); const before = await saved(profile), offset = (await observations()).length;
   await waitFor(async () => driver.execute('const node=document.querySelector(arguments[0]);return Boolean(node&&!node.disabled);', [readSelector(profile.id)]), 'enabled Read quotas action');
-  await driver.click(readSelector(profile.id));
+  await driver.readProfileQuota(profile.id);
   await waitFor(async () => { const value = await saved(profile); return value && value.collectionRunId !== before?.collectionRunId; }, 'new saved quota reading');
   const child = await stage(profile, 'quota-read-pending', offset); await reaped(child);
   await waitFor(async () => driver.execute('return document.activeElement?.matches(arguments[0]);', [savedSelector(profile.id)]), 'focused saved quota reading');
@@ -110,7 +110,7 @@ async function fail(profile, label, minimum, maximum) {
   await config(profile, 'pending'); const before = await liveHashes(), previous = await saved(profile), view = await quotaView(profile), offset = (await observations()).length;
   assert.equal(await status(profile, `${label}: eligible before failure`), 0);
   await waitFor(async () => driver.execute('const node=document.querySelector(arguments[0]);return Boolean(node&&!node.disabled);', [readSelector(profile.id)]), 'eligible GUI read before controlled provider exit');
-  await driver.click(readSelector(profile.id));
+  await driver.readProfileQuota(profile.id);
   const child = await stage(profile, 'quota-read-pending', offset);
   assert.ok(Number.isSafeInteger(child.pid) && child.pid > 1 && child.pid !== process.pid);
   assert.equal(child.pid, child.processGroup, 'Only the owned fixture process-group leader can be killed.');

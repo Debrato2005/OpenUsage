@@ -39,12 +39,14 @@ impl From<&ProfileIdentityEvidence> for ReadAssociationHint {
 pub(super) enum ReadKind {
     Activity,
     Quota,
+    Collection,
 }
 impl ReadKind {
     pub fn unavailable(self) -> CommandError {
         match self {
             Self::Activity => CommandError::ProviderActivityReviewUnavailable,
             Self::Quota => CommandError::ProviderQuotaReviewUnavailable,
+            Self::Collection => CommandError::ProviderCollectionReviewUnavailable,
         }
     }
 }

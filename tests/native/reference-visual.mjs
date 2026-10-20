@@ -60,7 +60,7 @@ async function approve(kind) {
 }
 async function read(profile, kind) {
   await driver.openProfileReadings(profile.id);
-  if (kind === 'activity') await driver.openProfileOptions(profile.id);
+  await driver.openProfileOptions(profile.id);
   const before = await load(profile, kind);
   await waitFor(async () => driver.execute('const node=document.querySelector(arguments[0]);return Boolean(node&&!node.disabled&&node.getClientRects().length);', [readSelector(profile, kind)]), `visible enabled ${kind} read`);
   await driver.click(readSelector(profile, kind));
@@ -75,7 +75,7 @@ async function quotaConfig(profile, mode) {
   await rename(`${path}.next`, path);
 }
 async function backgroundReading(profile) {
-  await driver.openProfileReadings(profile.id); await quotaConfig(profile, 'pending');
+  await driver.openProfileOptions(profile.id); await quotaConfig(profile, 'pending');
   await driver.execute('window.__referenceProviderNode=document.querySelector(arguments[0]);return true;', [`[data-profile-id="${profile.id}"] .profile-provider-check`]);
   await driver.click(readSelector(profile, 'quota'));
   await waitFor(async () => driver.execute('return Boolean(document.querySelector(arguments[0])&&!document.querySelector(arguments[0]).disabled);', [`[data-quota-cancel="${profile.id}"]`]), 'pending native quota read');

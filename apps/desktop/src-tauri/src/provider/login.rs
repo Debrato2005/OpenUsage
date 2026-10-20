@@ -132,7 +132,7 @@ impl ProviderCoordinator {
             .map_err(|_| CommandError::ProviderUnavailable)?;
         require_open(&state)?;
         require_profile_available(&state, profile_id)?;
-        if state.logins.len() + state.quotas.len() + state.activities.len() >= 2 {
+        if state.active_count() >= 2 {
             return Err(CommandError::ProviderCapacityReached);
         }
         let approved = state

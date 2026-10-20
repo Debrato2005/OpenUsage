@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-review-profile-collection-association"
+description = "Enables the review_profile_collection_association command without any pre-configured scope."
+commands.allow = ["review_profile_collection_association"]
+
+[[permission]]
+identifier = "deny-review-profile-collection-association"
+description = "Denies the review_profile_collection_association command without any pre-configured scope."
+commands.deny = ["review_profile_collection_association"]

@@ -91,7 +91,7 @@ async function guiRead(profile) {
   await driver.openProfileReadings(profile.id);
   const before = await saved(profile), offset = (await observations()).length;
   await waitFor(async () => driver.execute('const node=document.querySelector(arguments[0]);return Boolean(node&&!node.disabled);', [readSelector(profile.id)]), 'enabled Read quotas action');
-  await driver.click(readSelector(profile.id));
+  await driver.readProfileQuota(profile.id);
   const value = await completedRead(profile, before, offset);
   await waitFor(async () => driver.execute('return document.activeElement?.matches(arguments[0]);', [savedSelector(profile.id)]), 'focused saved quota reading');
   return value;

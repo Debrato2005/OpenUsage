@@ -22,7 +22,7 @@ Geist Sans now serves interface text. JetBrains Mono remains for exact values, c
 | Supporting text | Geist Sans | 13 px | 400–500 | 1.5–1.55 |
 | Body and controls | Geist Sans | 14 px | 400–500 | 1.5 |
 | Section headings | Geist Sans | 17 px | 600 | 1.3 |
-| Page title | Geist Sans | 28 px | 600 | 1.3 |
+| Page title | Geist Sans | 28 px | 500 | 1.3 |
 | Exact overview total | JetBrains Mono | 32 px | 600 | 1.25 |
 
 Sizes use `rem` units. Numeric roles use tabular digits, no ligatures, and zero letter spacing. Dates use tabular digits in the interface face. Only Geist is preloaded. `font-display: swap` keeps text available during loading. Synthetic font weights remain disabled. Existing Regular, Medium, and SemiBold JetBrains files remain available for numeric and technical roles.
@@ -118,3 +118,11 @@ These are Linux journeys with clearly labeled synthetic data and test-side font 
 ### Native typography refinement
 
 The native visual journey passed 24 reviewed captures across four views, both themes, 360-pixel windows, and test-side 200 percent text. Runtime checks confirm loaded Geist interface text and JetBrains Mono values. Account status and actions retain whole words. Long exact usage values retain their existing local horizontal scroll. This does not qualify OS text scaling, screen readers, Windows, macOS, or live-provider data. See `../evidence/native-typography-login/`.
+
+### One refresh action
+
+The primary account action is Refresh readings. Manage profile discloses individual reads and less frequent actions. Active Cancel controls remain outside that disclosure and immediately precede its trigger. Combined completion reloads both saved panels without moving focus away from its result. Individual read completion retains its existing saved-panel focus. Receipt checks still require matching profile, binding, and run identifiers.
+
+The current pairing retains Geist for interface text and JetBrains Mono for exact values. Normal body text uses 14 pixels with 1.5 line height. Supporting text uses 13 pixels. Page headings use 28 pixels at weight 500. These sizes use relative units. No new font, decorative motion, or component dependency was added.
+
+Native review exposed the original Cancel document-order fault and competing saved-cache focus. Both renderer browsers reproduced these failures before the corrections. The rebuilt native app passes physical reverse Tab to Cancel and keeps combined completion focused. Its visual journey passed 24 reviewed captures with loaded-font assertions, both themes, narrow windows, and enlarged text. The strict disclosure journey adds eight reviewed captures. These remain synthetic Linux checks with test-side text scaling. See `../evidence/native-combined-collection/`.

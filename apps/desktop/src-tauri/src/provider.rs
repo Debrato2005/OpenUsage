@@ -20,6 +20,8 @@ use std::{
     time::{Duration, Instant},
 };
 
+mod collection;
+pub(crate) use collection::*;
 mod activity;
 pub(crate) use activity::*;
 mod quota;
@@ -82,6 +84,7 @@ fn reviewed_source(digest: &[u8; 32]) -> SourceProof {
             | "25476e3759cbdc1cc74bcd9e46f4a01d1d85ea8ccc34425ddb45a38df27b9859"
             | "ffceb4436e3ddbaf93548e36aa057232fc62bbda7138e00f90f250480d17e25c"
             | "91e780f49518a25ffa75963b2856f5951c5fe6f4d1e1c9040b41a4231d0750ae"
+            | "64522f0b887ae47b1a1e3043e66ac98741d499be2957d06c8e904185a62b08bb"
     ) {
         return SourceProof {
             kind: ExecutableSourceKind::TestFixture,
@@ -188,6 +191,12 @@ struct ProviderState {
     logins: std::collections::HashMap<String, login::Entry>,
     quotas: std::collections::HashMap<String, quota::Entry>,
     activities: std::collections::HashMap<String, activity::Entry>,
+    collections: std::collections::HashMap<String, collection::Entry>,
+}
+impl ProviderState {
+    fn active_count(&self) -> usize {
+        self.logins.len() + self.quotas.len() + self.activities.len() + self.collections.len()
+    }
 }
 impl Default for ProviderState {
     fn default() -> Self {
@@ -202,6 +211,7 @@ impl Default for ProviderState {
             logins: std::collections::HashMap::new(),
             quotas: std::collections::HashMap::new(),
             activities: std::collections::HashMap::new(),
+            collections: std::collections::HashMap::new(),
         }
     }
 }
@@ -488,12 +498,20 @@ impl ProviderCoordinator {
         state.logins.clear();
         state.quotas.clear();
         state.activities.clear();
+        state.collections.clear();
         Ok(())
     }
 }
 
 /// Do not let a profile-only check or another operation consume a preview's token.
 fn require_profile_available(state: &ProviderState, profile_id: &str) -> Result<(), CommandError> {
+    if state
+        .collections
+        .values()
+        .any(|entry| entry.binding.profile_id == profile_id)
+    {
+        return Err(CommandError::ProviderCollectionInProgress);
+    }
     if state
         .logins
         .values()
@@ -523,6 +541,7 @@ fn reset(state: &mut ProviderState) -> Result<(), CommandError> {
     state.logins.clear();
     state.quotas.clear();
     state.activities.clear();
+    state.collections.clear();
     state.generation = state
         .generation
         .checked_add(1)

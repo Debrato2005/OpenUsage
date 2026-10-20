@@ -17,6 +17,8 @@ mod quota_resets;
 mod quota_validation;
 pub use quota::*;
 pub use quota_resets::{QuotaResetAssessment, QuotaResetState, QuotaWindowRole};
+mod collection;
+pub use collection::CollectionCommit;
 mod activity;
 pub use activity::*;
 mod restore_apply;

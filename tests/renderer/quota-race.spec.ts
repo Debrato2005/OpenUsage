@@ -1,4 +1,4 @@
-import { navigate, openReadings } from './navigation';
+import { navigate, openReadings, openOptions } from './navigation';
 import { expect, test, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import type { ProfileQuotaSavedRead, SavedProfileQuota } from '../../apps/desktop/src/contracts';
@@ -67,9 +67,11 @@ async function openProfile(page: Page, options: { approve?: boolean; cached?: Sa
   await page.getByLabel('I trust this executable for account checks and previews.').check();
   await page.getByRole('button', { name: 'Approve executable', exact: true }).click();
   await navigate(page, 'accounts');
+  await openOptions(page, profileId);
 
 }
 async function begin(page: Page, index: number) {
+  await openOptions(page, profileId);
   await page.getByRole('button', { name: 'Read quotas', exact: true }).click();
   await expect(page.locator(`[data-quota-cancel="${profileId}"]`)).toBeFocused();
   await expect.poll(() => page.evaluate(id => Boolean((window as unknown as FixtureWindow).quotaFixture.completions[id]), requestIds[index]!)).toBe(true);
@@ -126,7 +128,9 @@ test('renderer loads null quota as absent and never invents zeros', async ({ pag
 });
 
 test('renderer focuses committed saved quotas outside closed Manage and survives provider component replacement', async ({ page }) => {
-  await openProfile(page); await begin(page, 0); await publish(page);
+  await openProfile(page); await begin(page, 0);
+  await page.getByRole('button', { name: 'Manage profile', exact: true }).click();
+  await publish(page);
   await expect(region(page)).toBeFocused(); await expect(remaining(page)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Read activity', exact: true })).toBeHidden();
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
@@ -304,7 +308,7 @@ test('renderer shows uncertain reset evidence until Rust accepts confirmation', 
 test('renderer shares the Rust cooldown across quota and activity without polling or blocking sign-in checks', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-10-20T00:00:00Z') });
   await openProfile(page, { refreshSeconds: 3, deferRefresh: true });
-  await page.getByRole('button', { name: 'Manage profile', exact: true }).click();
+  await openOptions(page, profileId);
   await page.clock.pauseAt(new Date('2026-10-20T01:00:00Z'));
   await page.evaluate(() => {
     const fixture = (window as unknown as FixtureWindow).quotaFixture;
@@ -398,6 +402,7 @@ test('renderer explains an authoritative cooldown refusal and loads the remainin
     const fixture = (window as unknown as FixtureWindow).quotaFixture;
     fixture.startError = 'provider_refresh_cooldown'; fixture.refreshStatus = { profileId, retryAfterSeconds: 3 };
   }, profileId);
+  await openOptions(page, profileId);
   await page.getByRole('button', { name: 'Read quotas', exact: true }).click();
   await expect(page.getByText('Wait a moment before reading this profile again. Your saved readings are still available.', { exact: true })).toBeVisible();
   await expect(page.locator(`[data-profile-refresh-status="${profileId}"]`)).toHaveText('Next reading in 3s');
@@ -413,7 +418,7 @@ for (const [seconds, initial, next] of [[60, '1m 0s', '59s'], [4320, '72m 0s', '
   const initialCalls = await page.evaluate(() => (window as unknown as FixtureWindow).quotaFixture.requests.filter(c => c === 'load_profile_refresh_status').length);
   await expect(notice).not.toHaveAttribute('aria-live');
   await expect(page.getByRole('button', { name: 'Read quotas', exact: true })).toBeDisabled();
-  await page.getByRole('button', { name: 'Manage profile', exact: true }).click();
+  await openOptions(page, profileId);
   await expect(page.getByRole('button', { name: 'Read activity', exact: true })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Check connection', exact: true })).toBeEnabled();
   await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeEnabled();
@@ -428,6 +433,7 @@ test('renderer explains an authoritative transport backoff refusal without guess
     const fixture = (window as unknown as FixtureWindow).quotaFixture;
     fixture.startError = 'provider_refresh_backoff'; fixture.refreshStatus = { profileId, retryAfterSeconds: 65 };
   }, profileId);
+  await openOptions(page, profileId);
   await page.getByRole('button', { name: 'Read quotas', exact: true }).click();
   await expect(page.getByText('Codex could not finish the connection. Wait before reading again.', { exact: true })).toBeVisible();
   await expect(page.locator(`[data-profile-refresh-status="${profileId}"]`)).toHaveText('Next reading in 1m 5s');

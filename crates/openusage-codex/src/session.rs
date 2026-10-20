@@ -66,6 +66,37 @@ pub struct ProviderProbe {
     pub process_id: u32,
 }
 
+/// A validated full capability response with its own local observation anchors.
+pub struct Observed<T> {
+    pub value: T,
+    pub observed_at: std::time::SystemTime,
+    pub observed_monotonic: std::time::Instant,
+}
+
+/// One account-bound collection. Missing capabilities mean explicit unsupported methods only.
+pub struct CollectionProbe {
+    pub account_evidence: AccountSnapshot,
+    pub started_at: std::time::SystemTime,
+    pub completed_at: std::time::SystemTime,
+    pub server: ServerInfo,
+    pub quota: Option<Observed<crate::QuotaSnapshot>>,
+    pub activity: Option<Observed<crate::ActivitySnapshot>>,
+    pub version: &'static str,
+    /// The owned child and temporary runtime are cleaned before this result returns.
+    pub process_id: u32,
+}
+
+impl fmt::Debug for CollectionProbe {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("CollectionProbe")
+            .field("version", &self.version)
+            .field("quota_supported", &self.quota.is_some())
+            .field("activity_supported", &self.activity.is_some())
+            .finish_non_exhaustive()
+    }
+}
+
 /// Provisional full account quota read; no account identity is published.
 pub struct QuotaProbe {
     /// Descriptive continuity evidence only, retained in Rust; never a verified identity key.
@@ -688,6 +719,26 @@ pub(crate) mod unix {
         })
     }
 
+    pub(crate) fn collection_managed(
+        executable: &Path,
+        home: &Path,
+        control: Arc<ProcessControl>,
+        timeouts: Timeouts,
+        before_start: impl Fn() -> Result<(), SessionError>,
+    ) -> Result<CollectionProbe, SessionError> {
+        control.check_cancelled()?;
+        let sandbox = Sandbox::with_home(home, Some(home))?;
+        let result = run_collection(executable, &sandbox, control, timeouts, before_start);
+        sandbox
+            .root
+            .close()
+            .map_err(|_| SessionError::CleanupFailed)?;
+        result.map(|mut probe| {
+            probe.completed_at = std::time::SystemTime::now();
+            probe
+        })
+    }
+
     pub(crate) fn login_managed(
         executable: &Path,
         home: &Path,
@@ -880,6 +931,103 @@ pub(crate) mod unix {
                 observed_at,
                 observed_monotonic,
                 server,
+                activity,
+                version: TESTED_PROVIDER_VERSION,
+                process_id,
+            })
+        })();
+        process.stop()?;
+        result
+    }
+
+    fn observed_capability<T>(
+        value: Result<T, ProtocolError>,
+    ) -> Result<Option<Observed<T>>, SessionError> {
+        match value {
+            Ok(value) => Ok(Some(Observed {
+                value,
+                observed_at: std::time::SystemTime::now(),
+                observed_monotonic: Instant::now(),
+            })),
+            Err(ProtocolError::UnsupportedMethod) => Ok(None),
+            Err(error) => Err(error.into()),
+        }
+    }
+
+    fn run_collection(
+        executable: &Path,
+        sandbox: &Sandbox,
+        control: Arc<ProcessControl>,
+        timeouts: Timeouts,
+        before_start: impl Fn() -> Result<(), SessionError>,
+    ) -> Result<CollectionProbe, SessionError> {
+        let started_at = std::time::SystemTime::now();
+        let (mut process, server) =
+            start_initialized(executable, sandbox, control, timeouts, before_start)?;
+        let process_id = process.id()?;
+        let result = (|| {
+            process.send(&Request::account_read(2).to_line()?)?;
+            let before = parse_account(
+                &process.response_routed(
+                    2,
+                    Instant::now() + timeouts.read,
+                    true,
+                    account_bound_notification,
+                )?,
+                2,
+            )?;
+            if before.authentication != crate::AccountAuth::Chatgpt || !before.requires_openai_auth
+            {
+                return Err(ProtocolError::UnsupportedAuthentication.into());
+            }
+            if before.identity != crate::IdentityConfidence::Provisional {
+                return Err(ProtocolError::AccountIdentityUnavailable.into());
+            }
+            process.send(&Request::rate_limits_read(3).to_line()?)?;
+            let quota = observed_capability(crate::parse_quota(
+                &process.response_routed(
+                    3,
+                    Instant::now() + timeouts.read,
+                    true,
+                    account_bound_notification,
+                )?,
+                3,
+            ))?;
+            process.send(&Request::account_usage_read(4).to_line()?)?;
+            let activity = observed_capability(crate::parse_account_usage(
+                &process.response_routed(
+                    4,
+                    Instant::now() + timeouts.read,
+                    true,
+                    account_bound_notification,
+                )?,
+                4,
+            ))?;
+            process.send(&Request::account_read(5).to_line()?)?;
+            let after = parse_account(
+                &process.response_routed(
+                    5,
+                    Instant::now() + timeouts.read,
+                    true,
+                    account_bound_notification,
+                )?,
+                5,
+            )?;
+            // Descriptive equality detects changes; it never establishes a stable identity key.
+            if before.authentication != after.authentication
+                || before.identity != after.identity
+                || before.requires_openai_auth != after.requires_openai_auth
+                || before.email != after.email
+                || before.plan != after.plan
+            {
+                return Err(ProtocolError::AccountChanged.into());
+            }
+            Ok(CollectionProbe {
+                account_evidence: before,
+                started_at,
+                completed_at: std::time::SystemTime::now(),
+                server,
+                quota,
                 activity,
                 version: TESTED_PROVIDER_VERSION,
                 process_id,

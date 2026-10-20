@@ -13,6 +13,7 @@ use std::{
 use zeroize::Zeroizing;
 
 mod activity_storage;
+mod collection_storage;
 mod quota_storage;
 pub(crate) use activity_storage::{ReadAssociationReview, SavedProfileActivity};
 pub(crate) use quota_storage::SavedProfileQuota;
@@ -121,6 +122,12 @@ pub enum CommandError {
     ProviderQuotaLoadFailed,
     ProviderQuotaAssociationChanged,
     ProviderQuotaReviewUnavailable,
+    ProviderCollectionNotFound,
+    ProviderCollectionInProgress,
+    ProviderCollectionCancelled,
+    ProviderCollectionSaveFailed,
+    ProviderCollectionAssociationChanged,
+    ProviderCollectionReviewUnavailable,
     ProviderAccountChanged,
     ProviderAccountIdentityUnavailable,
     ProviderIncompatibleQuotaScope,
@@ -857,6 +864,93 @@ impl Workspace {
             return Err(CommandError::ProfileNotFound);
         }
         self.provider.refresh_status(id)
+    }
+
+    pub fn begin_profile_collection_read(
+        &mut self,
+        id: &str,
+        approval_id: &str,
+    ) -> Result<provider::CollectionReceipt, CommandError> {
+        let receipt = self.begin_profile_collection(id, approval_id, None)?;
+        self.activity_reviews.remove(id);
+        Ok(receipt)
+    }
+
+    pub fn review_profile_collection_association(
+        &mut self,
+        id: &str,
+        approval_id: &str,
+    ) -> Result<ReadAssociationReview, CommandError> {
+        self.review_profile_association(id, approval_id, activity_storage::ReadKind::Collection)
+    }
+
+    pub fn begin_profile_collection_reassociation(
+        &mut self,
+        id: &str,
+        approval_id: &str,
+        review_id: &str,
+        confirmed: bool,
+    ) -> Result<provider::CollectionReceipt, CommandError> {
+        if !confirmed {
+            return Err(CommandError::InvalidArguments);
+        }
+        restore::validate_preview_id(review_id)?;
+        let review =
+            self.valid_profile_review(id, approval_id, activity_storage::ReadKind::Collection)?;
+        if review.review_id != review_id {
+            return Err(CommandError::ProviderCollectionReviewUnavailable);
+        }
+        let receipt = self.begin_profile_collection(id, approval_id, Some(review))?;
+        self.activity_reviews.remove(id);
+        Ok(receipt)
+    }
+
+    fn begin_profile_collection(
+        &mut self,
+        id: &str,
+        approval_id: &str,
+        review: Option<activity_storage::CachedAssociationReview>,
+    ) -> Result<provider::CollectionReceipt, CommandError> {
+        restore::validate_preview_id(approval_id)?;
+        let (home, revision, path) = self.selected_provider_home(id)?;
+        let expected_binding = self
+            .storage
+            .as_ref()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .profile_binding(id)
+            .map_err(|_| CommandError::ProviderCollectionSaveFailed)?
+            .map(|b| b.binding_id);
+        if review
+            .as_ref()
+            .is_some_and(|r| Some(&r.previous_binding.binding_id) != expected_binding.as_ref())
+        {
+            return Err(CommandError::ProviderCollectionReviewUnavailable);
+        }
+        let receipt = self.provider.begin_collection(
+            id,
+            approval_id,
+            &home,
+            revision,
+            &path,
+            provider::ReadAssociation {
+                expected_binding,
+                review: review.map(|r| r.fence),
+            },
+        )?;
+        self.quota_requests
+            .insert(id.into(), receipt.request_id.clone());
+        self.activity_requests
+            .insert(id.into(), receipt.request_id.clone());
+        Ok(receipt)
+    }
+
+    pub fn complete_profile_collection_read(
+        &self,
+        id: &str,
+        request_id: &str,
+    ) -> Result<provider::CompletingCollection, CommandError> {
+        self.storage.as_ref().ok_or(CommandError::WorkspaceLocked)?;
+        self.provider.complete_collection(id, request_id)
     }
 
     pub fn begin_profile_quota_read(
@@ -1938,3 +2032,6 @@ mod tests {
 
 #[cfg(all(test, unix))]
 mod activity_tests;
+
+#[cfg(all(test, unix))]
+mod collection_tests;

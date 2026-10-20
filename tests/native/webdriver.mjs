@@ -131,6 +131,11 @@ export class NativeDriver {
     await this.request('POST', `/session/${this.session}/element/${element}/click`, {});
   }
 
+  async readProfileQuota(profileId) {
+    await this.openProfileOptions(profileId);
+    await this.click(`[data-quota-read="${profileId}"]`);
+  }
+
   async openProfileOptions(profileId) {
     await this.openProfileReadings(profileId);
     if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(profileId)) throw new Error('A profile options action requires a UUID.');

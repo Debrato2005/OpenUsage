@@ -5,7 +5,7 @@
 //! <https://doc.rust-lang.org/std/os/unix/process/trait.CommandExt.html#tymethod.process_group>
 //! <https://doc.rust-lang.org/std/process/struct.Child.html#method.wait>
 
-use crate::session::{ActivityProbe, ProviderProbe, QuotaProbe, SessionError};
+use crate::session::{ActivityProbe, CollectionProbe, ProviderProbe, QuotaProbe, SessionError};
 use std::{fmt, path::Path};
 
 #[cfg(unix)]
@@ -499,6 +499,7 @@ enum Operation {
     Check,
     QuotaDiagnostic,
     ActivityDiagnostic,
+    CollectionDiagnostic,
     #[cfg(unix)]
     DeviceLogin(mpsc::SyncSender<Result<crate::DeviceLoginPrompt, SupervisorError>>),
 }
@@ -507,6 +508,7 @@ enum OperationResult {
     Check(ProviderProbe),
     Quota(QuotaProbe),
     Activity(ActivityProbe),
+    Collection(CollectionProbe),
 }
 
 pub struct Supervisor {
@@ -592,6 +594,20 @@ impl Supervisor {
         }
         self.start_operation(executable, home, Operation::ActivityDiagnostic)
             .map(|check| ActivityHandle { check })
+    }
+
+    /// Read both supported capabilities in one account-bound, read-only operation.
+    pub fn start_collection_diagnostic(
+        &self,
+        executable: &ApprovedExecutable,
+        home: &ManagedProfileHome,
+    ) -> Result<CollectionHandle, SupervisorError> {
+        #[cfg(unix)]
+        if executable.pinned.is_none() {
+            return Err(SupervisorError::InvalidApproval);
+        }
+        self.start_operation(executable, home, Operation::CollectionDiagnostic)
+            .map(|check| CollectionHandle { check })
     }
 
     fn start_operation(
@@ -704,6 +720,16 @@ impl Supervisor {
                                 before_start,
                             )
                             .map(OperationResult::Quota),
+                            Operation::CollectionDiagnostic => {
+                                crate::session::unix::collection_managed(
+                                    &executable.path,
+                                    &home.directory,
+                                    Arc::clone(&worker_job.control),
+                                    timeouts,
+                                    before_start,
+                                )
+                                .map(OperationResult::Collection)
+                            }
                             Operation::ActivityDiagnostic => {
                                 crate::session::unix::activity_managed(
                                     &executable.path,
@@ -944,9 +970,9 @@ impl CheckHandle {
     pub fn wait(self) -> Result<ProviderProbe, SupervisorError> {
         match self.wait_result()? {
             OperationResult::Check(probe) => Ok(probe),
-            OperationResult::Quota(_) | OperationResult::Activity(_) => {
-                Err(SupervisorError::WorkerFailed)
-            }
+            OperationResult::Quota(_)
+            | OperationResult::Activity(_)
+            | OperationResult::Collection(_) => Err(SupervisorError::WorkerFailed),
         }
     }
 
@@ -999,9 +1025,9 @@ impl QuotaHandle {
     pub fn wait(self) -> Result<QuotaProbe, SupervisorError> {
         match self.check.wait_result()? {
             OperationResult::Quota(probe) => Ok(probe),
-            OperationResult::Check(_) | OperationResult::Activity(_) => {
-                Err(SupervisorError::WorkerFailed)
-            }
+            OperationResult::Check(_)
+            | OperationResult::Activity(_)
+            | OperationResult::Collection(_) => Err(SupervisorError::WorkerFailed),
         }
     }
 
@@ -1019,9 +1045,29 @@ impl ActivityHandle {
     pub fn wait(self) -> Result<ActivityProbe, SupervisorError> {
         match self.check.wait_result()? {
             OperationResult::Activity(probe) => Ok(probe),
-            OperationResult::Check(_) | OperationResult::Quota(_) => {
-                Err(SupervisorError::WorkerFailed)
-            }
+            OperationResult::Check(_)
+            | OperationResult::Quota(_)
+            | OperationResult::Collection(_) => Err(SupervisorError::WorkerFailed),
+        }
+    }
+
+    pub fn cancel(&self) -> Result<(), SupervisorError> {
+        self.check.cancel()
+    }
+}
+
+/// Owns one combined collection. Drop cancels and joins its process.
+pub struct CollectionHandle {
+    check: CheckHandle,
+}
+
+impl CollectionHandle {
+    pub fn wait(self) -> Result<CollectionProbe, SupervisorError> {
+        match self.check.wait_result()? {
+            OperationResult::Collection(probe) => Ok(probe),
+            OperationResult::Check(_)
+            | OperationResult::Quota(_)
+            | OperationResult::Activity(_) => Err(SupervisorError::WorkerFailed),
         }
     }
 
@@ -1195,6 +1241,360 @@ IFS= read -r request
             include_str!("../tests/fixtures/synthetic-device-login.py"),
             "Owned synthetic device-code login fixture. No real authentication.",
         )
+    }
+
+    fn collection_fixture(mode: &str) -> Fixture {
+        let fixture = script_fixture(
+            "success",
+            include_str!("../tests/fixtures/synthetic-collection-provider.py"),
+            "Owned synthetic combined collection fixture. No real provider data.",
+        );
+        for home in &fixture.homes {
+            fs::write(
+                home.directory.join("synthetic-collection-config.json"),
+                serde_json::to_vec(&serde_json::json!({"mode": mode})).unwrap(),
+            )
+            .unwrap();
+        }
+        fixture
+    }
+
+    fn collection_rows(fixture: &Fixture, index: usize) -> Vec<serde_json::Value> {
+        fs::read_to_string(
+            fixture.homes[index]
+                .directory
+                .join("synthetic-collection-observations.jsonl"),
+        )
+        .unwrap()
+        .lines()
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect()
+    }
+
+    #[test]
+    fn synthetic_collection_reads_both_once_between_account_checks() {
+        let fixture = collection_fixture("success");
+        let supervisor = Supervisor::new();
+        let probe = supervisor
+            .start_collection_diagnostic(&fixture.executable, &fixture.homes[0])
+            .unwrap()
+            .wait()
+            .unwrap();
+        assert_eq!(
+            probe.quota.as_ref().unwrap().value.limits[0]
+                .primary
+                .as_ref()
+                .unwrap()
+                .used_percent,
+            25
+        );
+        assert_eq!(
+            probe
+                .activity
+                .as_ref()
+                .unwrap()
+                .value
+                .summary
+                .lifetime_tokens
+                .as_ref()
+                .unwrap()
+                .as_str(),
+            "9007199254740993"
+        );
+        assert_eq!(
+            probe.account_evidence.identity,
+            IdentityConfidence::Provisional
+        );
+        assert!(!format!("{probe:?}").contains("synthetic-collection@example.invalid"));
+        gone(probe.process_id as libc::pid_t);
+        fixture.runtime_removed(0);
+        let rows = collection_rows(&fixture, 0);
+        let methods: Vec<_> = rows
+            .iter()
+            .filter(|row| row["kind"] == "request")
+            .map(|row| row["request"]["method"].as_str().unwrap())
+            .collect();
+        assert_eq!(
+            methods,
+            [
+                "initialize",
+                "initialized",
+                "account/read",
+                "account/rateLimits/read",
+                "account/usage/read",
+                "account/read"
+            ]
+        );
+        assert_eq!(
+            rows.iter()
+                .filter(|row| row["kind"] == "start" && row["arguments"][0] == "app-server")
+                .count(),
+            1
+        );
+    }
+
+    fn collection_stage(fixture: &Fixture, index: usize, stage: &str) {
+        let deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            if collection_rows(fixture, index)
+                .iter()
+                .any(|row| row["kind"] == stage)
+            {
+                return;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "Synthetic collection did not reach {stage}."
+            );
+            std::thread::sleep(Duration::from_millis(5));
+        }
+    }
+
+    fn collection_mode(fixture: &Fixture, index: usize, mode: &str) {
+        let target = fixture.homes[index]
+            .directory
+            .join("synthetic-collection-config.json");
+        let pending = target.with_extension("pending");
+        fs::write(
+            &pending,
+            serde_json::to_vec(&serde_json::json!({"mode": mode})).unwrap(),
+        )
+        .unwrap();
+        fs::rename(pending, target).unwrap();
+    }
+
+    #[test]
+    fn synthetic_collection_unsupported_capabilities_are_isolated_and_still_account_checked() {
+        for (mode, quota, activity) in [
+            ("quota_unsupported", false, true),
+            ("activity_unsupported", true, false),
+            ("both_unsupported", false, false),
+        ] {
+            let fixture = collection_fixture(mode);
+            let supervisor = Supervisor::new();
+            let probe = supervisor
+                .start_collection_diagnostic(&fixture.executable, &fixture.homes[0])
+                .unwrap()
+                .wait()
+                .unwrap();
+            assert_eq!(probe.quota.is_some(), quota, "{mode}");
+            assert_eq!(probe.activity.is_some(), activity, "{mode}");
+            assert!(
+                collection_rows(&fixture, 0)
+                    .iter()
+                    .any(|row| row["request"]["id"] == 5)
+            );
+            gone(probe.process_id as libc::pid_t);
+            fixture.runtime_removed(0);
+        }
+    }
+
+    #[test]
+    fn synthetic_collection_rejects_malformed_rpc_identity_and_auth_failures_as_whole_result() {
+        for mode in [
+            "quota_invalid",
+            "activity_invalid",
+            "quota_rpc_error",
+            "activity_rpc_error",
+            "unknown",
+            "signed_out",
+            "unsupported_auth",
+            "changed_email",
+            "changed_plan",
+            "changed_auth",
+            "account_notice",
+        ] {
+            let fixture = collection_fixture(mode);
+            let supervisor = Supervisor::new();
+            let error = supervisor
+                .start_collection_diagnostic(&fixture.executable, &fixture.homes[0])
+                .unwrap()
+                .wait()
+                .err()
+                .unwrap();
+            let expected = match mode {
+                "quota_rpc_error" | "activity_rpc_error" => ProtocolError::ProviderFailure,
+                "activity_invalid" => ProtocolError::InvalidMessage,
+                "unknown" => ProtocolError::AccountIdentityUnavailable,
+                "signed_out" | "unsupported_auth" => ProtocolError::UnsupportedAuthentication,
+                "changed_email" | "changed_plan" | "changed_auth" | "account_notice" => {
+                    ProtocolError::AccountChanged
+                }
+                _ => ProtocolError::InvalidField,
+            };
+            assert_eq!(
+                error,
+                SupervisorError::Session(SessionError::Protocol(expected)),
+                "{mode}"
+            );
+            gone(fixture.child(0));
+            fixture.runtime_removed(0);
+            let rows = collection_rows(&fixture, 0);
+            if matches!(mode, "unknown" | "signed_out" | "unsupported_auth") {
+                assert!(!rows.iter().any(|row| row["request"]["id"] == 3));
+            }
+            if mode.starts_with("quota_") {
+                assert!(!rows.iter().any(|row| row["request"]["id"] == 4));
+            }
+        }
+    }
+
+    #[test]
+    fn synthetic_collection_preserves_separate_observation_anchors_before_final_check_and_cleanup()
+    {
+        let fixture = collection_fixture("activity_hang");
+        let supervisor = Supervisor::new();
+        let started = std::time::SystemTime::now();
+        let handle = supervisor
+            .start_collection_diagnostic(&fixture.executable, &fixture.homes[0])
+            .unwrap();
+        fixture.child(0);
+        collection_stage(&fixture, 0, "activity-pending");
+        let activity_pending = Instant::now();
+        collection_mode(&fixture, 0, "post_hold");
+        collection_stage(&fixture, 0, "post-read-pending");
+        let post_pending = Instant::now();
+        collection_mode(&fixture, 0, "success");
+        let probe = handle.wait().unwrap();
+        let quota = probe.quota.as_ref().unwrap();
+        let activity = probe.activity.as_ref().unwrap();
+        assert!(started <= probe.started_at && probe.started_at <= quota.observed_at);
+        assert!(
+            quota.observed_at <= activity.observed_at && activity.observed_at <= probe.completed_at
+        );
+        assert!(quota.observed_monotonic <= activity_pending);
+        assert!(
+            activity_pending <= activity.observed_monotonic
+                && activity.observed_monotonic <= post_pending
+        );
+        assert!(probe.completed_at <= std::time::SystemTime::now());
+        gone(probe.process_id as libc::pid_t);
+        fixture.runtime_removed(0);
+    }
+
+    #[test]
+    fn synthetic_collection_owns_one_shared_slot_and_cancellation_drop_and_shutdown() {
+        let fixture = collection_fixture("activity_hang");
+        let supervisor = Supervisor::new();
+        let first = supervisor
+            .start_collection_diagnostic(&fixture.executable, &fixture.homes[0])
+            .unwrap();
+        let first_pid = fixture.child(0);
+        collection_stage(&fixture, 0, "activity-pending");
+        collection_mode(&fixture, 1, "quota_hang");
+        let second = supervisor
+            .start_quota_diagnostic(&fixture.executable, &fixture.homes[1])
+            .unwrap();
+        let second_pid = fixture.child(1);
+        collection_stage(&fixture, 1, "quota-pending");
+        assert!(matches!(
+            supervisor.start_collection_diagnostic(&fixture.executable, &fixture.homes[0]),
+            Err(SupervisorError::DuplicateProfile)
+        ));
+        assert!(matches!(
+            supervisor.start_collection_diagnostic(&fixture.executable, &fixture.homes[2]),
+            Err(SupervisorError::CapacityReached)
+        ));
+        first.cancel().unwrap();
+        assert_eq!(first.wait().err(), Some(SupervisorError::Cancelled));
+        gone(first_pid);
+        fixture.runtime_removed(0);
+        drop(second);
+        gone(second_pid);
+        fixture.runtime_removed(1);
+        let third = supervisor
+            .start_collection_diagnostic(&fixture.executable, &fixture.homes[2])
+            .unwrap();
+        let third_pid = fixture.child(2);
+        collection_stage(&fixture, 2, "activity-pending");
+        supervisor.shutdown().unwrap();
+        assert_eq!(third.wait().err(), Some(SupervisorError::Cancelled));
+        gone(third_pid);
+        fixture.runtime_removed(2);
+    }
+
+    #[test]
+    fn synthetic_collection_timeouts_at_either_capability_and_cleanup_failure_return_no_probe() {
+        for mode in ["quota_hang", "activity_hang"] {
+            let fixture = collection_fixture(mode);
+            let supervisor = Supervisor {
+                registry: Arc::default(),
+                timeouts: Timeouts {
+                    ready: Duration::from_secs(2),
+                    read: Duration::from_millis(150),
+                    login: Duration::from_secs(2),
+                },
+            };
+            assert_eq!(
+                supervisor
+                    .start_collection_diagnostic(&fixture.executable, &fixture.homes[0])
+                    .unwrap()
+                    .wait()
+                    .err(),
+                Some(SupervisorError::Session(SessionError::TimedOut)),
+                "{mode}"
+            );
+            gone(fixture.child(0));
+            fixture.runtime_removed(0);
+        }
+        let fixture = collection_fixture("cleanup_fault");
+        let supervisor = Supervisor::new();
+        assert_eq!(
+            supervisor
+                .start_collection_diagnostic(&fixture.executable, &fixture.homes[0])
+                .unwrap()
+                .wait()
+                .err(),
+            Some(SupervisorError::Session(SessionError::CleanupFailed))
+        );
+        gone(fixture.child(0));
+        assert_eq!(
+            supervisor.shutdown(),
+            Err(SupervisorError::Session(SessionError::CleanupFailed))
+        );
+    }
+
+    #[test]
+    fn synthetic_collection_requires_pinned_source_and_unchanged_home_and_executable() {
+        let fixture = collection_fixture("success");
+        let supervisor = Supervisor::new();
+        let metadata = ApprovedExecutable::from_reviewed_source(
+            &fixture.executable.path,
+            "Synthetic metadata only.",
+        )
+        .unwrap();
+        assert!(matches!(
+            supervisor.start_collection_diagnostic(&metadata, &fixture.homes[0]),
+            Err(SupervisorError::InvalidApproval)
+        ));
+        let home = &fixture.homes[0].directory;
+        fs::rename(home, home.with_extension("retained")).unwrap();
+        fs::DirBuilder::new().mode(0o700).create(home).unwrap();
+        assert_eq!(
+            supervisor
+                .start_collection_diagnostic(&fixture.executable, &fixture.homes[0])
+                .unwrap()
+                .wait()
+                .err(),
+            Some(SupervisorError::Session(
+                SessionError::InvalidManagedDirectory
+            ))
+        );
+        fs::write(&fixture.executable.path, b"#!/bin/sh\nexit 42\n").unwrap();
+        assert_eq!(
+            supervisor
+                .start_collection_diagnostic(&fixture.executable, &fixture.homes[1])
+                .unwrap()
+                .wait()
+                .err(),
+            Some(SupervisorError::Session(SessionError::InvalidExecutable))
+        );
+        assert!(
+            !fixture.homes[1]
+                .directory
+                .join("synthetic-child-pid")
+                .exists()
+        );
     }
 
     fn quota_fixture(mode: &str) -> Fixture {

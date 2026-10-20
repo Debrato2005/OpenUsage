@@ -144,6 +144,20 @@ export interface ProfileRefreshStatus {
   profileId: string; retryAfterSeconds: number;
 }
 
+export interface ProfileReadingReference {
+  profileId: string; bindingId: string; collectionRunId: string;
+}
+export interface CollectionReading {
+  bindingId: string; collectionRunId: string; observedAtUtc: string;
+}
+export interface ProfileCollectionOutcome {
+  requestId: string; profileId: string; approvalId: string;
+  providerVersion: string; sourceKind: ProviderConnectionDiagnostic['sourceKind'];
+  identityConfidence: 'provisional'; verifiedIdentityKey: null;
+  monitoring: 'stopped'; accepted: boolean;
+  quota: CollectionReading | null; activity: CollectionReading | null;
+}
+
 export interface ProfileQuotaRequest {
   profileId: string; requestId: string; approvalId: string;
   sourceKind: ProviderConnectionDiagnostic['sourceKind'];
@@ -206,6 +220,11 @@ export interface SavedProfileActivity {
 }
 
 interface Commands {
+  begin_profile_collection_read: { args: { profileId: string; approvalId: string }; result: ProfileQuotaRequest };
+  complete_profile_collection_read: { args: { profileId: string; requestId: string }; result: ProfileCollectionOutcome };
+  cancel_profile_collection_read: { args: { profileId: string; requestId: string }; result: { cancelled: boolean } };
+  review_profile_collection_association: { args: { profileId: string; approvalId: string }; result: ProfileActivityAssociationReview };
+  begin_profile_collection_reassociation: { args: { profileId: string; approvalId: string; reviewId: string; confirmed: true }; result: ProfileQuotaRequest };
   load_profile_refresh_status: { args: { profileId: string }; result: ProfileRefreshStatus };
   load_profile_activity: { args: { profileId: string }; result: SavedProfileActivity | null };
   begin_profile_activity_read: { args: { profileId: string; approvalId: string }; result: ProfileActivityRequest };
@@ -264,7 +283,11 @@ export async function invoke<K extends keyof Commands>(
   const core = window.__TAURI__?.core;
   if (!core) throw new DesktopUnavailable('Open the installed OpenUsage desktop application.');
   const response = await core.invoke<unknown>(command, args[0]);
-  const valid = (command === 'begin_profile_activity_read' || command === 'begin_profile_activity_reassociation') ? isProfileQuotaRequest(response)
+  const valid = (command === 'begin_profile_collection_read' || command === 'begin_profile_collection_reassociation') ? isProfileQuotaRequest(response)
+    : command === 'complete_profile_collection_read' ? isProfileCollectionOutcome(response)
+    : command === 'cancel_profile_collection_read' ? isPreviewCancellation(response)
+    : command === 'review_profile_collection_association' ? isActivityAssociationReview(response)
+    : (command === 'begin_profile_activity_read' || command === 'begin_profile_activity_reassociation') ? isProfileQuotaRequest(response)
     : command === 'load_profile_refresh_status' ? isProfileRefreshStatus(response)
     : command === 'review_profile_activity_association' ? isActivityAssociationReview(response)
     : command === 'complete_profile_activity_read' ? isProfileActivitySavedRead(response)
@@ -332,6 +355,21 @@ function isProfileRefreshStatus(value: unknown): value is ProfileRefreshStatus {
   const v = value as Record<string, unknown>;
   return Object.keys(v).length === 2 && isUuid(v.profileId)
     && Number.isInteger(v.retryAfterSeconds) && Number(v.retryAfterSeconds) >= 0 && Number(v.retryAfterSeconds) <= 4320;
+}
+
+function isProfileCollectionOutcome(value: unknown): value is ProfileCollectionOutcome {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  const reading = (value: unknown): value is CollectionReading | null => {
+    if (value === null) return true;
+    if (typeof value !== 'object' || Array.isArray(value)) return false;
+    const r = value as Record<string, unknown>;
+    return Object.keys(r).length === 3 && isUuid(r.bindingId) && isUuid(r.collectionRunId) && isUtcTimestamp(r.observedAtUtc);
+  };
+  if (Object.keys(v).length !== 11 || !isQuotaBinding(v, v.accepted === true)
+    || !quotaText(v.providerVersion, 80) || v.identityConfidence !== 'provisional' || v.verifiedIdentityKey !== null
+    || !reading(v.quota) || !reading(v.activity) || v.accepted !== (v.quota !== null || v.activity !== null)) return false;
+  return !(v.quota && v.activity) || (v.quota.bindingId === v.activity.bindingId && v.quota.collectionRunId !== v.activity.collectionRunId);
 }
 
 function isProfileQuotaRequest(value: unknown): value is ProfileQuotaRequest {

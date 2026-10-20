@@ -133,7 +133,7 @@ impl ProviderCoordinator {
                 return Err(CommandError::ProviderQuotaReviewUnavailable);
             }
         }
-        if state.logins.len() + state.quotas.len() + state.activities.len() >= 2 {
+        if state.active_count() >= 2 {
             return Err(CommandError::ProviderCapacityReached);
         }
         let approved = state

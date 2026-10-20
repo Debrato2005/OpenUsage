@@ -374,7 +374,7 @@ pub(crate) fn associate_in_transaction(tx: &Connection, input: &ProfileBindingIn
     Ok(())
 }
 
-fn require_new_reading(tx: &Connection, reading: &ActivityReading) -> Result<()> {
+pub(crate) fn require_new_reading(tx: &Connection, reading: &ActivityReading) -> Result<()> {
     if tx
         .query_row(
             "SELECT EXISTS(SELECT 1 FROM collection_runs WHERE id=?1)",
@@ -392,7 +392,10 @@ fn require_new_reading(tx: &Connection, reading: &ActivityReading) -> Result<()>
     Ok(())
 }
 
-fn accept_in_transaction(tx: &Connection, reading: ActivityReading) -> Result<ActivityCommit> {
+pub(crate) fn accept_in_transaction(
+    tx: &Connection,
+    reading: ActivityReading,
+) -> Result<ActivityCommit> {
     require_profile(
         tx,
         &reading.binding.profile_id,
@@ -440,7 +443,7 @@ pub(crate) fn require_profile(connection: &Connection, id: &str, home: &str) -> 
         Err(ActivityError::ProfileUnavailable)
     }
 }
-fn validate_reading(r: &ActivityReading) -> Result<()> {
+pub(crate) fn validate_reading(r: &ActivityReading) -> Result<()> {
     for id in [
         &r.run_id,
         &r.binding.profile_id,
