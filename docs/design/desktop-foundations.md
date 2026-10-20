@@ -66,7 +66,7 @@ Native review found an internally clipped URL at enlarged text size. A wrapped r
 
 ## Executable selection
 
-Find Codex replaces manual path entry as the first setup action. A single result opens source review. Multiple results use native radio controls and require Review. No results open manual entry with path focus. A later successful search closes that fallback. The source review and initially unchecked approval remain mandatory.
+The primary Add action prepares the pinned official companion automatically. If it is absent, Rust checks supported installation locations. A present invalid companion fails closed. Account sign-in retains explicit consent. Find, manual paths, and technical source review remain in Settings for troubleshooting. See the [source review and decision](../reviews/2026-10-21-onboarding-sources.md).
 
 Long paths wrap in the choice list. Size and checksum remain under Executable details. Seven refined native captures cover the empty state, both themes, narrow review, keyboard selection, source refusal, and 200% text. The large-text list uses the page scroll area. See `../evidence/native-provider-discovery/`. The UI explains metadata checks without exposing provider or authentication internals.
 

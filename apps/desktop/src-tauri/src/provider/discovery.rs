@@ -26,13 +26,13 @@ pub(crate) enum DiscoveryLocation {
 
 #[derive(Debug, Eq, PartialEq, Serialize)]
 pub(crate) struct DiscoveredExecutable {
-    path: String,
+    pub(super) path: String,
     location: DiscoveryLocation,
 }
 
 #[derive(Debug, Eq, PartialEq, Serialize)]
 pub(crate) struct ExecutableDiscovery {
-    candidates: Vec<DiscoveredExecutable>,
+    pub(super) candidates: Vec<DiscoveredExecutable>,
     truncated: bool,
 }
 

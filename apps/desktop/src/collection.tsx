@@ -6,6 +6,7 @@ import { invoke, type ProfileActivityAssociationReview, type ProfileCollectionOu
 import { providerFailure } from './provider-errors';
 
 type Props = {
+  automaticRequest?: number | null;
   profileId: string; approval: ProviderExecutableApproval; busy: boolean; retryAfterSeconds: number;
   onActivity: (active: boolean) => void; onStarted: () => void;
   onSaved: (value: ProfileCollectionOutcome) => Promise<void>; onFailed: () => Promise<void>;
@@ -16,7 +17,7 @@ function focusVisible(element: HTMLElement | null) {
   if (element?.getClientRects().length && !element.closest('[hidden]')) element.focus();
 }
 
-export function ProfileCollectionRead({ profileId, approval, busy, retryAfterSeconds, onActivity, onStarted, onSaved, onFailed, children }: Props) {
+export function ProfileCollectionRead({ automaticRequest = null, profileId, approval, busy, retryAfterSeconds, onActivity, onStarted, onSaved, onFailed, children }: Props) {
   const [working, setWorking] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [requestId, setRequestId] = useState<string | null>(null);
@@ -33,6 +34,7 @@ export function ProfileCollectionRead({ profileId, approval, busy, retryAfterSec
   const reviewTrigger = useRef<HTMLButtonElement>(null);
   const alive = useRef(true);
   const pending = useRef(false);
+  const attemptedAutomaticRequest = useRef<number | null>(null);
   const activeRequest = useRef<string | null>(null);
   const generation = useRef(0);
   const cancellationFailure = useRef<unknown>(null);
@@ -99,6 +101,12 @@ export function ProfileCollectionRead({ profileId, approval, busy, retryAfterSec
       if (current(operation)) { pending.current = false; activeRequest.current = null; setWorking(false); setStopping(false); setRequestId(null); setFocus(true); onActivity(false); }
     }
   }
+  useEffect(() => {
+    if (automaticRequest === null || attemptedAutomaticRequest.current === automaticRequest || busy || retryAfterSeconds > 0 || working || pending.current || reviewing) return;
+    attemptedAutomaticRequest.current = automaticRequest;
+    void read();
+  }, [automaticRequest, busy, retryAfterSeconds, working, reviewing]);
+
   async function cancel() {
     if (!requestId || !pending.current || stopping) return;
     const operation = generation.current; setStopping(true);

@@ -22,6 +22,7 @@ fn main() {
             "list_restore_checkpoints",
             "prepare_checkpoint_restore_preview",
             "inspect_provider_executable",
+            "prepare_provider_connection",
             "approve_provider_executable",
             "check_profile_connection",
             "cancel_profile_check",

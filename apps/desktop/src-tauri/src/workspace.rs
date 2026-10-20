@@ -113,6 +113,7 @@ pub enum CommandError {
     ProviderLoginFailed,
     ProviderBrowserUnavailable,
     ProviderDiscoveryUnavailable,
+    ProviderSetupUnavailable,
     ProviderActivityNotFound,
     ProviderActivityInProgress,
     ProviderActivityCancelled,

@@ -14,6 +14,7 @@ import { ProviderSettings } from './provider';
 import { Overview } from './overview';
 import { Usage } from './usage';
 import { useMonitoring } from './monitoring';
+import { providerFailure } from './provider-errors';
 import './styles.css';
 import './workspace-layout.css';
 
@@ -48,11 +49,33 @@ function App() {
   const [profileRevision, setProfileRevision] = useState(0);
   const [providerApproval, setProviderApproval] = useState<ProviderExecutableApproval | null>(null);
   const [connectionRequest, setConnectionRequest] = useState(0);
+  const preparedRequest = useRef(0);
+  const connectionGeneration = useRef(0);
+  const [connectionPreparing, setConnectionPreparing] = useState(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+  useEffect(() => () => { connectionGeneration.current += 1; }, []);
+  useEffect(() => {
+    if (!connectionRequest || connectionRequest === preparedRequest.current || busy || providerApproval) return;
+    preparedRequest.current = connectionRequest;
+    const generation = connectionGeneration.current;
+    setBusy(true); setConnectionPreparing(true); setConnectionError(null);
+    void invoke('prepare_provider_connection').then(value => {
+      if (generation === connectionGeneration.current) setProviderApproval(value);
+    }).catch(error => {
+      if (generation === connectionGeneration.current) setConnectionError(error === 'provider_source_unverified' || error === 'stale_provider_approval'
+        ? 'OpenUsage could not verify its OpenAI companion. Check the application installation or open Connection details.'
+        : providerFailure(error));
+    }).finally(() => {
+      if (generation === connectionGeneration.current) { setConnectionPreparing(false); setBusy(false); }
+    });
+  }, [connectionRequest, busy, providerApproval]);
   const updateProfileCount = useCallback((count: number) => {
     setStartup(current => current.kind === 'desktop' && current.data.storage === 'ready'
       ? { ...current, data: { ...current.data, activeProfiles: count } } : current);
   }, []);
   const refreshRestoredWorkspace = useCallback(async () => {
+    connectionGeneration.current += 1;
+    setConnectionPreparing(false); setConnectionError(null);
     const updated = await invoke('bootstrap');
     setStartup({ kind: 'desktop', data: updated });
     setTheme(updated.theme);
@@ -254,8 +277,10 @@ function App() {
         {!ready && <Button variant="ghost" className="text-button onboarding-privacy" onClick={() => setPrivacy(!privacy)} aria-expanded={privacy} aria-controls="privacy-details">{privacy ? 'Hide privacy details' : 'About your privacy'}</Button>}
         {privacy && <section className="privacy-details" id="privacy-details" aria-labelledby="privacy-heading"><h2 id="privacy-heading">Privacy and local storage</h2><p>OpenUsage has no hosted account or telemetry. Account connections require your approval. Provider credentials stay with Codex.</p><p>Encrypted storage protects application records. It does not encrypt provider credential files or operating-system swap.</p><p>Codex handles approved sign-in requests, connection checks, and readings. Monitoring runs only while OpenUsage is open and your workspace is unlocked.</p></section>}
         {ready && <section data-workspace-view="overview" hidden={view !== 'overview'} inert={view !== 'overview'} aria-label="Overview"><Overview active={view === 'overview'} profiles={profiles} revision={readingRevision} onAccounts={() => navigate('accounts')} /></section>}
-        {ready && <div hidden={view !== 'settings' && !(view === 'accounts' && connectionRequest > 0 && !providerApproval)} inert={view !== 'settings' && !(view === 'accounts' && connectionRequest > 0 && !providerApproval)}><ProviderSettings busy={busy} setBusy={setBusy} approval={providerApproval} onApproved={setProviderApproval} connectionRequest={connectionRequest} /></div>}
+        {ready && <div hidden={view !== 'settings'} inert={view !== 'settings'}><ProviderSettings busy={busy} setBusy={setBusy} approval={providerApproval} onApproved={setProviderApproval} /></div>}
         {ready && <section data-workspace-view="accounts" hidden={view !== 'accounts'} inert={view !== 'accounts'} aria-label="Account profiles">
+          {connectionPreparing && <p role="status">Preparing OpenAI sign-in…</p>}
+          {connectionError && <div role="alert"><p>{connectionError}</p><Button type="button" variant="outline" disabled={busy} onClick={() => setConnectionRequest(value => value + 1)}>Retry connection</Button><Button type="button" variant="ghost" onClick={() => navigate('settings')}>Connection details</Button></div>}
           <ProfileManager key={profileRevision} busy={busy} setBusy={setBusy} onCount={updateProfileCount} providerApproval={providerApproval} onProfilesChange={updateProfiles} onReadingsChanged={readingsChanged} monitoring={monitoring.status} monitoringUnavailable={monitoring.unavailable} onMonitoringAction={monitoring.action} onConnectAccount={() => setConnectionRequest(value => value + 1)} />
         </section>}
         {ready && <section data-workspace-view="usage" hidden={view !== 'usage'} inert={view !== 'usage'} aria-label="Saved usage"><Usage active={view === 'usage'} profiles={profiles} revision={readingRevision} onAccounts={() => navigate('accounts')} /></section>}

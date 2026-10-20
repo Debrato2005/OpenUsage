@@ -1,6 +1,6 @@
 # Implementation status
 
-Updated: October 20, 2026. The mission remains ongoing. Runtime-only Start/Pause monitoring passed its synthetic native Linux journey. DM Sans serves interface text and exact values. SQLCipher 4 with WAL remains mandatory. Alerts, live-provider authentication, verified aggregation, and full platform acceptance remain incomplete.
+Updated: October 21, 2026. The mission remains ongoing. Runtime-only Start/Pause monitoring passed its synthetic native Linux journey. DM Sans serves interface text and exact values. SQLCipher 4 with WAL remains mandatory. Alerts, live-provider authentication, verified aggregation, and full platform acceptance remain incomplete.
 
 ## Latest restore correction
 
@@ -22,7 +22,11 @@ Add OpenAI Account now creates an isolated default-named account and discovers t
 
 The requested doughnut chart now shows the selected provider-reported quota window, with derived remaining capacity clearly labeled. It does not represent token quotas or combined accounts. Actual synthetic collection, both native themes, and unchanged encrypted database/WAL/key bytes passed. Both desktop configurations built. Renderer checks passed 202 cases and 39 contracts. See [the doughnut evidence](evidence/native-quota-doughnut/).
 
-Next: research the four user-named competitor repositories, decide how to provision the official companion, and remove remaining setup and first-read friction. Real user-authorized sign-in remains pending in the visible production window. Its preserved WSL workspace requires the existing fallback password because the host has no Secret Service. Never capture real sign-in codes. Alerts, full history, verified aggregation, and platform acceptance remain open. Official 0.163.0 schemas expose usage and quota methods; backend identity evidence is not yet sufficient for verified aggregation.
+The four-repository source review now supports a bundled, pinned official companion. Add creates an isolated default-named account and prepares the trusted source without Settings, a path, or a technical checkbox. The production native journey passed first and second account setup, an official signed-out check, and genuine restart. Corrupt companion and five-fixture refusal passed separately. Linux x86_64 is the only qualified bundle target. No installer is claimed.
+
+Two synthetic native logins each saved one initial quota/activity pair automatically. Exact values, account isolation, malformed-response retention, no automatic retry, and saved pairs after genuine restart passed. All 40 contracts passed. The full renderer run passed 214 cases with two timeouts under concurrent build load. Both cases passed in both engines after compilation stopped. Rust passed 251 workspace checks with one ignored helper and strict Clippy. Three final focused checks and formatting passed. Final rustfmt only wrapped the audit expression after native qualification. See [the native evidence](evidence/native-trusted-companion/) and [source review](reviews/2026-10-21-onboarding-sources.md).
+
+Next: show every account's saved quota in the Overview table, then continue authorized live sign-in and remaining product features. The previous visible window exited. Its workspace remains intact. This WSL host lacks Secret Service, so that existing workspace retains its fallback password. Real OAuth and authenticated provider collection remain unverified. Alerts, full history, verified aggregation, installer signing, and other platforms remain open.
 
 ## Implemented and executed
 

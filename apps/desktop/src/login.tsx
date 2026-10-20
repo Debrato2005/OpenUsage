@@ -14,6 +14,7 @@ type Props = {
   onActivity: (active: boolean) => void;
   onStarted: () => void;
   onConnectionChanged: () => Promise<void>;
+  onAuthenticated?: () => void;
 };
 
 type Outcome = { kind: 'success' | 'cancelled' | 'error' | 'incomplete'; message: string };
@@ -23,7 +24,7 @@ function selectField(field: HTMLInputElement | HTMLTextAreaElement) {
   requestAnimationFrame(() => { if (document.activeElement === field) field.select(); });
 }
 
-export function ProfileDeviceLogin({ profileId, profileLabel, approval, busy, onActivity, onStarted, onConnectionChanged }: Props) {
+export function ProfileDeviceLogin({ profileId, profileLabel, approval, busy, onActivity, onStarted, onConnectionChanged, onAuthenticated }: Props) {
   const [consent, setConsent] = useState(false);
   const [working, setWorking] = useState(false);
   const [cancelling, setCancelling] = useState(false);
@@ -44,6 +45,7 @@ export function ProfileDeviceLogin({ profileId, profileLabel, approval, busy, on
   const cancellationFailure = useRef<unknown>(null);
   const activeAttempt = useRef<string | null>(null);
   const generation = useRef(0);
+  const authenticatedOperation = useRef<number | null>(null);
   const alive = useRef(true);
   const browserRequest = useRef<string | null>(null);
   useEffect(() => {
@@ -63,6 +65,7 @@ export function ProfileDeviceLogin({ profileId, profileLabel, approval, busy, on
   function explain() {
     if (busy || pending.current) return;
     ++generation.current;
+    authenticatedOperation.current = null;
     setOutcome(null);
     setConnectionRefreshError(null);
     setRefreshingConnection(false);
@@ -77,7 +80,13 @@ export function ProfileDeviceLogin({ profileId, profileLabel, approval, busy, on
     setRefreshingConnection(true);
     try {
       await onConnectionChanged();
-      if (current()) setConnectionRefreshError(null);
+      if (current()) {
+        setConnectionRefreshError(null);
+        if (authenticatedOperation.current === operation) {
+          authenticatedOperation.current = null;
+          onAuthenticated?.();
+        }
+      }
     } catch {
       if (current()) setConnectionRefreshError('The sign-in result was saved, but the connection status could not be refreshed. Retry the status refresh to check it.');
     } finally {
@@ -88,6 +97,7 @@ export function ProfileDeviceLogin({ profileId, profileLabel, approval, busy, on
   async function start() {
     if (busy || pending.current || !consent) return;
     const operation = ++generation.current;
+    authenticatedOperation.current = null;
     pending.current = true;
     cancelled.current = false;
     cancellationFailure.current = null;
@@ -124,6 +134,7 @@ export function ProfileDeviceLogin({ profileId, profileLabel, approval, busy, on
           ? { kind: 'incomplete', message: 'Codex completed sign-in, but account identity could not be confirmed. Check the connection or sign in again. Your saved readings are still available.' }
           : { kind: 'success', message: 'Codex confirmed a ChatGPT account for this profile. Identity has not been verified. Start monitoring from Manage profile when you are ready.' });
         if (!cancelled.current && !cancellationFailure.current) {
+          if (completed.diagnostic.persisted && completed.diagnostic.authentication === 'chatgpt' && completed.diagnostic.identityConfidence === 'provisional') authenticatedOperation.current = operation;
           void refreshConnection(operation);
         }
       }

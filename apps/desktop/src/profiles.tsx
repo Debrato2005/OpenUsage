@@ -62,6 +62,7 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval, onPro
   const [label, setLabel] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const [readings, setReadings] = useState<Record<string, boolean>>({});
+  const [initialReadProfiles, setInitialReadProfiles] = useState<Record<string, boolean>>({});
   const [managed, setManaged] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ id: string; label: string } | null>(null);
   const [failure, setFailure] = useState<Failure | null>(null);
@@ -163,8 +164,8 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval, onPro
     if (pending.current) throw new Error('A profile change is still in progress.');
     const request = ++viewRequest.current;
     const next = await invoke('list_profiles');
-    if (!mounted.current || request !== viewRequest.current) return;
-    if (!next.profiles.some(profile => profile.id === profileId)) throw new Error('The selected profile is no longer available.');
+    if (!mounted.current || request !== viewRequest.current) throw new Error('The connection status request was replaced.');
+    if (!next.profiles.some(profile => profile.id === profileId && !profile.archived)) throw new Error('The selected profile is no longer available.');
     setView(next);
     reportCount.current(next.activeProfiles);
     reportProfiles.current?.(next.profiles);
@@ -196,6 +197,7 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval, onPro
       setCreateOpen(false);
       setStatus('Account added. Sign in to connect it.');
       if (added.length === 1) {
+        setInitialReadProfiles(current => ({ ...current, [added[0]!.id]: true }));
         setReadings(current => ({ ...current, [added[0]!.id]: true }));
         connectingProfile.current = added[0]!.id;
       }
@@ -265,7 +267,7 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval, onPro
       <CollapsiblePanel keepMounted className="profile-reading-panel">
       <Collapsible className="profile-management-root" open={managed === profile.id || current} onOpenChange={open => setManaged(open ? profile.id : null)}>
       <ProfileActivity profileId={profile.id} profileLabel={profile.label} readingRevision={monitoring?.readingRevision}>{(onActivitySaved, onActivityFailed) => <SavedProfileQuota profileId={profile.id} profileLabel={profile.label} readingRevision={monitoring?.readingRevision}>{(onQuotaSaved, onQuotaFailed) => profile.archived ? managementActions : providerApproval
-        ? <ProfileProviderCheck monitoring={monitoringStatus} monitoringUnavailable={monitoringUnavailable} onMonitoringAction={onMonitoringAction} onConnectionChanged={() => refreshConnection(profile.id)} key={`${profile.id}:${providerApproval.approvalId}`} profileId={profile.id} profileLabel={profile.label} approval={providerApproval} busy={busy || loading || current || !!monitoringStatus?.readingActive} managementActions={managementActions} managementTrigger={managementTrigger} onActivitySaved={async value => { await Promise.all([onActivitySaved(value), onQuotaFailed()]); reportReading.current?.(); }} onActivityFailed={async () => { await onActivityFailed(); reportReading.current?.(); }} onQuotaSaved={async value => { await Promise.all([onQuotaSaved(value), onActivityFailed()]); reportReading.current?.(); }} onQuotaFailed={async () => { await onQuotaFailed(); reportReading.current?.(); }} onCollectionSaved={async value => {
+        ? <ProfileProviderCheck autoInitialRead={!!initialReadProfiles[profile.id]} onInitialReadRequested={() => setInitialReadProfiles(current => ({ ...current, [profile.id]: false }))} monitoring={monitoringStatus} monitoringUnavailable={monitoringUnavailable} onMonitoringAction={onMonitoringAction} onConnectionChanged={() => refreshConnection(profile.id)} key={`${profile.id}:${providerApproval.approvalId}`} profileId={profile.id} profileLabel={profile.label} approval={providerApproval} busy={busy || loading || current || !!monitoringStatus?.readingActive} managementActions={managementActions} managementTrigger={managementTrigger} onActivitySaved={async value => { await Promise.all([onActivitySaved(value), onQuotaFailed()]); reportReading.current?.(); }} onActivityFailed={async () => { await onActivityFailed(); reportReading.current?.(); }} onQuotaSaved={async value => { await Promise.all([onQuotaSaved(value), onActivityFailed()]); reportReading.current?.(); }} onQuotaFailed={async () => { await onQuotaFailed(); reportReading.current?.(); }} onCollectionSaved={async value => {
           await Promise.all([value.quota ? onQuotaSaved({ profileId: profile.id, ...value.quota }, false) : onQuotaFailed(), value.activity ? onActivitySaved({ profileId: profile.id, ...value.activity }, false) : onActivityFailed()]);
           reportReading.current?.();
         }} onCollectionFailed={async () => { await Promise.all([onQuotaFailed(), onActivityFailed()]); reportReading.current?.(); }} />

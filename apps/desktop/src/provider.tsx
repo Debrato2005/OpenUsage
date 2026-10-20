@@ -19,12 +19,9 @@ type SettingsProps = {
   setBusy: (busy: boolean) => void;
   approval: ProviderExecutableApproval | null;
   onApproved: (approval: ProviderExecutableApproval) => void;
-  connectionRequest?: number;
 };
 
-export function ProviderSettings({ busy, setBusy, approval, onApproved, connectionRequest = 0 }: SettingsProps) {
-  const settingsPanel = useRef<HTMLDetailsElement>(null);
-  const handledConnection = useRef(0);
+export function ProviderSettings({ busy, setBusy, approval, onApproved }: SettingsProps) {
   const [path, setPath] = useState('');
   const [candidate, setCandidate] = useState<ProviderExecutableCandidate | null>(null);
   const [confirmed, setConfirmed] = useState(false);
@@ -48,12 +45,6 @@ export function ProviderSettings({ busy, setBusy, approval, onApproved, connecti
     if (target?.getClientRects().length && !target.closest('[hidden]')) target.focus();
     setFocus(null);
   }, [busy, focus, candidate, approval, discovery, manualOpen]);
-  useEffect(() => {
-    if (!connectionRequest || connectionRequest === handledConnection.current || busy || pending.current || approval) return;
-    handledConnection.current = connectionRequest;
-    if (settingsPanel.current) settingsPanel.current.open = true;
-    void find();
-  }, [connectionRequest, busy, approval]);
 
   async function find() {
     if (busy || pending.current) return;
@@ -136,7 +127,7 @@ export function ProviderSettings({ busy, setBusy, approval, onApproved, connecti
   </>;
 
   return <section className="provider-panel" aria-labelledby="provider-heading">
-    <details ref={settingsPanel}>
+    <details>
       <summary data-provider-settings><h2 id="provider-heading">Codex connection</h2></summary>
       {!candidate && !approval && searchControls}
       {approval && !candidate && <div ref={approvalPanel} className="provider-approval-result" role="status" tabIndex={-1}>
@@ -172,11 +163,13 @@ export function ProviderSettings({ busy, setBusy, approval, onApproved, connecti
   </section>;
 }
 
-export function ProfileProviderCheck({ profileId, profileLabel, approval, busy, managementActions, managementTrigger, onConnectionChanged, onActivitySaved, onActivityFailed, onQuotaSaved, onQuotaFailed, onCollectionSaved, onCollectionFailed, monitoring, monitoringUnavailable, onMonitoringAction }: { profileId: string; profileLabel: string; approval: ProviderExecutableApproval; busy: boolean; managementActions: ReactNode; managementTrigger: ReactNode; onConnectionChanged: () => Promise<void>; onActivitySaved: (value: ProfileReadingReference) => Promise<void>; onActivityFailed: () => Promise<void>; onQuotaSaved: (value: ProfileReadingReference) => Promise<void>; onQuotaFailed: () => Promise<void>; onCollectionSaved: (value: ProfileCollectionOutcome) => Promise<void>; onCollectionFailed: () => Promise<void>; monitoring: ProfileMonitoringStatus | null; monitoringUnavailable: boolean; onMonitoringAction: MonitoringAction }) {
+export function ProfileProviderCheck({ profileId, profileLabel, approval, busy, managementActions, managementTrigger, onConnectionChanged, autoInitialRead = false, onInitialReadRequested, onActivitySaved, onActivityFailed, onQuotaSaved, onQuotaFailed, onCollectionSaved, onCollectionFailed, monitoring, monitoringUnavailable, onMonitoringAction }: { profileId: string; profileLabel: string; approval: ProviderExecutableApproval; busy: boolean; managementActions: ReactNode; managementTrigger: ReactNode; onConnectionChanged: () => Promise<void>; autoInitialRead?: boolean; onInitialReadRequested?: () => void; onActivitySaved: (value: ProfileReadingReference) => Promise<void>; onActivityFailed: () => Promise<void>; onQuotaSaved: (value: ProfileReadingReference) => Promise<void>; onQuotaFailed: () => Promise<void>; onCollectionSaved: (value: ProfileCollectionOutcome) => Promise<void>; onCollectionFailed: () => Promise<void>; monitoring: ProfileMonitoringStatus | null; monitoringUnavailable: boolean; onMonitoringAction: MonitoringAction }) {
   const [checking, setChecking] = useState(false);
   const [loggingIn, setLoggingIn] = useState(false);
   const [readingQuota, setReadingQuota] = useState(false);
   const [readingCollection, setReadingCollection] = useState(false);
+  const [automaticRequest, setAutomaticRequest] = useState<number | null>(null);
+  const automaticSequence = useRef(0);
   const [refreshWait, setRefreshWait] = useState(0);
   const [quotaGeneration, setQuotaGeneration] = useState(0);
   const [loginGeneration, setLoginGeneration] = useState(0);
@@ -246,8 +239,12 @@ export function ProfileProviderCheck({ profileId, profileLabel, approval, busy, 
     : diagnostic?.authentication === 'chatgpt' ? 'Account response received' : 'Account type not supported';
   return <div className="profile-provider-check">
     {checking && <div className="profile-actions"><span role="status">Checking connection…</span><Button className="text-button" variant="ghost" type="button" data-provider-cancel={profileId} aria-describedby={`profile-name-${profileId}`} disabled={cancelling} onClick={() => { void cancel(); }}>{cancelling ? 'Cancelling…' : 'Cancel check'}</Button></div>}
-    <ProfileDeviceLogin onConnectionChanged={onConnectionChanged} key={`login:${loginGeneration}`} profileId={profileId} profileLabel={profileLabel} approval={approval} busy={busy || checking || readingQuota || readingCollection || activity.working} onActivity={setLoggingIn} onStarted={() => { activity.clear(); checkGeneration.current += 1; setDiagnostic(null); setError(null); setQuotaGeneration(value => value + 1); }} />
-    <ProfileCollectionRead profileId={profileId} approval={approval} busy={busy || checking || loggingIn || readingQuota || activity.working} retryAfterSeconds={refreshWait} onActivity={setReadingCollection} onSaved={onCollectionSaved} onFailed={onCollectionFailed} onStarted={() => { activity.clear(); checkGeneration.current += 1; setDiagnostic(null); setError(null); setQuotaGeneration(value => value + 1); setLoginGeneration(value => value + 1); }}>
+    <ProfileDeviceLogin onAuthenticated={() => {
+      if (!autoInitialRead) return;
+      setAutomaticRequest(++automaticSequence.current);
+      onInitialReadRequested?.();
+    }} onConnectionChanged={onConnectionChanged} key={`login:${loginGeneration}`} profileId={profileId} profileLabel={profileLabel} approval={approval} busy={busy || checking || readingQuota || readingCollection || activity.working} onActivity={setLoggingIn} onStarted={() => { setAutomaticRequest(null); activity.clear(); checkGeneration.current += 1; setDiagnostic(null); setError(null); setQuotaGeneration(value => value + 1); }} />
+    <ProfileCollectionRead automaticRequest={automaticRequest} profileId={profileId} approval={approval} busy={busy || checking || loggingIn || readingQuota || activity.working} retryAfterSeconds={refreshWait} onActivity={setReadingCollection} onSaved={onCollectionSaved} onFailed={onCollectionFailed} onStarted={() => { activity.clear(); checkGeneration.current += 1; setDiagnostic(null); setError(null); setQuotaGeneration(value => value + 1); setLoginGeneration(value => value + 1); }}>
       {(collectionAction, collectionCancel) => <ProfileQuotaRead retryAfterSeconds={refreshWait} onSaved={onQuotaSaved} onFailed={onQuotaFailed} key={`quota:${quotaGeneration}`} profileId={profileId} profileLabel={profileLabel} approval={approval} busy={busy || checking || loggingIn || readingCollection || activity.working} onActivity={setReadingQuota} onStarted={() => { activity.clear(); checkGeneration.current += 1; setDiagnostic(null); setError(null); setLoginGeneration(value => value + 1); }} renderActions={(quotaAction, quotaCancel) => <>
         <div className="profile-actions">{collectionAction}{collectionCancel}{quotaCancel}{managementTrigger}</div>
         <CollapsiblePanel keepMounted className="profile-management">

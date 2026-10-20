@@ -2,6 +2,7 @@ node_modules/
 dist/
 target/
 apps/desktop/src-tauri/gen/
+apps/desktop/src-tauri/binaries/
 .tools/
 .recovery/
 .npm-cache/

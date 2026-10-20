@@ -769,6 +769,37 @@ async fn prepare_checkpoint_restore_preview(
 }
 
 #[tauri::command]
+async fn prepare_provider_connection(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<provider::ExecutableApproval, CommandError> {
+    let _: ListProfilesArgs = arguments(&request)?;
+    let executable = std::env::current_exe().map_err(|_| CommandError::ProviderSetupUnavailable)?;
+    let companion = executable
+        .parent()
+        .ok_or(CommandError::ProviderSetupUnavailable)?
+        .join(if cfg!(windows) {
+            "openusage-codex.exe"
+        } else {
+            "openusage-codex"
+        });
+    let provider = service.2.clone();
+    let workspace = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = workspace
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?;
+        let profiles = state
+            .as_ref()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .provider_discovery_profiles()?;
+        provider.prepare_connection(&companion, &profiles)
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+#[tauri::command]
 async fn inspect_provider_executable(
     request: tauri::ipc::Request<'_>,
     service: State<'_, WorkspaceService>,
@@ -1491,6 +1522,7 @@ fn main() {
             apply_restore,
             list_restore_checkpoints,
             prepare_checkpoint_restore_preview,
+            prepare_provider_connection,
             inspect_provider_executable,
             approve_provider_executable,
             check_profile_connection,

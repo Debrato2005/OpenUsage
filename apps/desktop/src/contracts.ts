@@ -270,6 +270,7 @@ interface Commands {
   complete_profile_login: { args: { profileId: string; attemptId: string }; result: ProviderLoginCompletion };
   cancel_profile_login: { args: { profileId: string; attemptId: string }; result: { cancelled: boolean } };
   inspect_provider_executable: { args: { path: string }; result: ProviderExecutableCandidate };
+  prepare_provider_connection: { args: undefined; result: ProviderExecutableApproval };
   approve_provider_executable: { args: { candidateId: string; confirmed: true }; result: ProviderExecutableApproval };
   check_profile_connection: { args: { profileId: string }; result: ProviderConnectionDiagnostic };
   cancel_profile_check: { args: { profileId: string }; result: { cancelled: boolean } };
@@ -332,6 +333,7 @@ export async function invoke<K extends keyof Commands>(
     : command === 'complete_profile_login' ? isProviderLoginCompletion(response)
     : command === 'cancel_profile_login' ? isPreviewCancellation(response)
     : command === 'inspect_provider_executable' ? isProviderExecutableReview(response, 'candidateId')
+    : command === 'prepare_provider_connection' ? isProviderExecutableReview(response, 'approvalId') && (response as ProviderExecutableApproval).sourceKind === 'official_artifact'
     : command === 'approve_provider_executable' ? isProviderExecutableReview(response, 'approvalId')
     : command === 'check_profile_connection' ? isProviderConnectionDiagnostic(response)
     : command === 'cancel_profile_check' ? isPreviewCancellation(response)

@@ -28,6 +28,7 @@
     "allow-list-restore-checkpoints",
     "allow-prepare-checkpoint-restore-preview",
     "allow-inspect-provider-executable",
+    "allow-prepare-provider-connection",
     "allow-approve-provider-executable",
     "allow-check-profile-connection",
     "allow-cancel-profile-check",

@@ -307,6 +307,21 @@ test('approval receipts require a verified source and exclude private home paths
   }
 });
 
+test('normal connection preparation accepts only pinned official source receipts', async () => {
+  const approval = { approvalId: '00000002-0000-4000-8000-000000000000', path: '/synthetic/openusage-codex', fileBytes: '296865480', sha256: 'a'.repeat(64), testedVersion: '0.163.0', versionChecked: false, sourceVerified: true, sourceKind: 'official_artifact', sourceUrl: 'https://github.com/openai/codex/releases/download/rust-v0.163.0/codex-x86_64-unknown-linux-musl.tar.gz' };
+  desktopResponse(approval);
+  assert.deepEqual(await invoke('prepare_provider_connection'), approval);
+  for (const changes of [
+    { sourceVerified: false, sourceKind: 'unverified', sourceUrl: null },
+    { sourceKind: 'test_fixture', sourceUrl: null },
+    { sourceUrl: 'https://example.invalid/companion' },
+    { home: '/private/profile' }, { versionChecked: true },
+  ]) {
+    desktopResponse({ ...approval, ...changes });
+    await assert.rejects(invoke('prepare_provider_connection'), /desktop response is incompatible/);
+  }
+});
+
 test('provider diagnostics cannot claim verified identity, persisted readings, or active monitoring', async () => {
   const diagnostic = { profileId: '00000001-0000-4000-8000-000000000000', approvalId: '00000002-0000-4000-8000-000000000000', providerVersion: '0.163.0', authentication: 'authentication_required', identityConfidence: 'unknown', requiresOpenaiAuth: true, checkedAt: '2026-10-18T04:00:00.123Z', monitoring: 'stopped', persisted: false, sourceKind: 'test_fixture' };
   const args = { profileId: diagnostic.profileId };

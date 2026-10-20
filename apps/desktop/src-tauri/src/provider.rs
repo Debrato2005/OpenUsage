@@ -21,6 +21,7 @@ use std::{
 };
 
 mod collection;
+mod companion;
 pub(crate) use collection::*;
 mod activity;
 pub(crate) use activity::*;
@@ -442,7 +443,9 @@ impl ProviderCoordinator {
         // Source must match a reviewed build-time pin. Confirmation separately authorizes execution.
         let executable = ApprovedExecutable::from_reviewed_source_with_sha256(
             &candidate.held.path,
-            &format!("User confirmed native source review for candidate {candidate_id}"),
+            &format!(
+                "Reviewed native source approved for account operations: candidate {candidate_id}"
+            ),
             candidate.held.digest,
         )
         .map_err(provider_error)?;
