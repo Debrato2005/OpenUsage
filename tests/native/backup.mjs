@@ -13,6 +13,7 @@ const repository = resolve(process.env.OPENUSAGE_NATIVE_SOURCE_ROOT ?? join(dirn
 const application = resolve(process.env.OPENUSAGE_NATIVE_BINARY ?? join(repository, 'target/debug/openusage-desktop'));
 const verifier = process.env.OPENUSAGE_BACKUP_VERIFIER;
 const output = resolve(process.env.OPENUSAGE_NATIVE_EVIDENCE ?? join(tmpdir(), `openusage-backup-evidence-${randomUUID()}`));
+const expectedSchemaVersion = 4;
 const backupPassword = 'OpenUsage synthetic backup password 2026';
 const workspacePassphrase = 'OpenUsage synthetic workspace password 2026';
 const evidence = {
@@ -52,13 +53,13 @@ async function authenticate(archive, staging) {
     child.once('error', reject);
     child.once('exit', code => done(code));
   });
-  child.stdin.end(backupPassword);
+  child.stdin.end(JSON.stringify({ password: backupPassword, expectedSchemaVersion }));
   const timer = setTimeout(() => child.kill('SIGKILL'), 30000);
   let code;
   try { code = await exit; } finally { clearTimeout(timer); }
   assert.equal(code, 0, `Rust backup verification failed: ${Buffer.concat(stderr).toString()}`);
   const result = JSON.parse(Buffer.concat(stdout).toString());
-  assert.deepEqual(result, { authenticated: true, wrongPasswordRejected: true, tamperRejected: true, schemaVersion: 1, profiles: 0, plaintextDiskStaging: false });
+  assert.deepEqual(result, { authenticated: true, wrongPasswordRejected: true, tamperRejected: true, schemaVersion: expectedSchemaVersion, profiles: 0, plaintextDiskStaging: false });
   assert.deepEqual(await readdir(staging), []);
   return result;
 }
@@ -74,6 +75,8 @@ try {
   evidence.sourceDirtyPaths = execFileSync('git', ['status', '--porcelain'], { cwd: repository, encoding: 'utf8' }).trim().split('\n').filter(Boolean);
   evidence.sourceHashes = {};
   for (const path of ['Cargo.lock', 'apps/desktop/src-tauri/src/main.rs', 'apps/desktop/src-tauri/src/workspace.rs', 'apps/desktop/src-tauri/src/keyvault.rs', 'apps/desktop/src-tauri/src/backup.rs', 'apps/desktop/src/main.tsx', 'apps/desktop/src/contracts.ts', 'crates/openusage-storage/src/lib.rs', 'crates/openusage-import/src/lib.rs']) evidence.sourceHashes[path] = await hash(join(repository, path));
+  evidence.harnessHashes = {};
+  for (const path of ['tests/native/backup.mjs', 'tests/native/private-fixture.mjs', 'tests/native/webdriver.mjs', 'tests/native/backup-verifier/src/main.rs', 'tests/native/backup-verifier/Cargo.toml', 'tests/native/backup-verifier/Cargo.lock']) evidence.harnessHashes[path] = await hash(join(repository, path));
   fixture = await createFixture('backup');
   driver = new NativeDriver(application, fixture.environment, join(output, 'driver.log'));
   await driver.start();
@@ -87,8 +90,9 @@ try {
   await driver.type('#workspace-confirmation', workspacePassphrase);
   await driver.click('.unlock-form button[type="submit"]');
   await heading('Workspace ready');
+  assert.equal((await driver.invoke('bootstrap')).value.schemaVersion, expectedSchemaVersion);
   await driver.selectVisibleOption('#theme', 'Dark');
-  await waitFor(async () => (await driver.execute('return document.documentElement.dataset.theme;')) === 'dark', 'current dark appearance');
+  await waitFor(async () => driver.execute('return document.documentElement.dataset.theme==="dark"&&!document.querySelector("#theme").disabled;'), 'saved dark appearance and enabled controls');
   await invokeError('create_backup', { password: 'short' }, 'passphrase_too_short');
   await invokeError('create_backup', { password: 'é'.repeat(600) }, 'passphrase_too_long');
   assert.deepEqual(await readdir(fixture.dirs.downloads), []);
@@ -146,6 +150,9 @@ try {
   assert.deepEqual(await readdir(fixture.dirs.codex), ['synthetic-fixture.txt']);
   assert.ok((await readFile(join(fixture.dirs.codex, 'synthetic-fixture.txt'), 'utf8')) === CODEX_SENTINEL);
   evidence.steps.push({ syntheticCodexHomeUnchanged: true });
+  assert.equal(await hash(application), evidence.application.sha256);
+  assert.equal(await hash(verifier), evidence.verifier.sha256);
+  for (const [path, digest] of Object.entries({ ...evidence.sourceHashes, ...evidence.harnessHashes })) assert.equal(await hash(join(repository, path)), digest, `Source drift: ${path}`);
   evidence.result = 'passed';
 } catch (error) {
   evidence.error = error.message;

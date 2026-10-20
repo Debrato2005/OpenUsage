@@ -1,5 +1,6 @@
 use openusage_import::{BackupError, prepare_restore};
 use rusqlite::Connection;
+use serde_json::{Value, json};
 use std::{
     env,
     ffi::CString,
@@ -44,11 +45,26 @@ fn main() {
     let staging = Path::new(&args[2]);
     let expected_theme = args[3].to_str().expect("Invalid expected theme.");
     let available = free_bytes(staging);
-    let mut password = Zeroizing::new(Vec::new());
+    let mut input = Zeroizing::new(Vec::new());
     io::stdin()
-        .take(1025)
-        .read_to_end(&mut password)
-        .expect("Cannot read the synthetic password.");
+        .take(64 * 1024 + 1)
+        .read_to_end(&mut input)
+        .expect("Cannot read the synthetic request.");
+    assert!(input.len() <= 64 * 1024, "Synthetic request is too large.");
+    let mut request: Value = serde_json::from_slice(&input).expect("Invalid synthetic request.");
+    let expected_schema_version = request
+        .get("expectedSchemaVersion")
+        .and_then(Value::as_u64)
+        .and_then(|version| u32::try_from(version).ok())
+        .expect("Missing or invalid expected schema version.");
+    let password = match request
+        .get_mut("password")
+        .expect("Missing synthetic password.")
+        .take()
+    {
+        Value::String(value) => Zeroizing::new(value),
+        _ => panic!("Invalid synthetic password."),
+    };
     assert!(
         !password.is_empty() && password.len() <= 1024,
         "Invalid synthetic password size."
@@ -64,19 +80,23 @@ fn main() {
     *tampered.last_mut().expect("The archive is empty.") ^= 1;
     rejected(prepare_restore(
         &mut Cursor::new(tampered),
-        &password,
+        password.as_bytes(),
         staging,
         available,
     ));
 
     let mut verified = prepare_restore(
         &mut File::open(archive).expect("Cannot read the archive."),
-        &password,
+        password.as_bytes(),
         staging,
         available,
     )
     .expect("The exported archive did not authenticate.");
-    assert_eq!(verified.manifest().schema_version, 1);
+    assert_eq!(
+        verified.manifest().schema_version,
+        expected_schema_version,
+        "Unexpected manifest schema version."
+    );
     assert_eq!(verified.manifest().entries.len(), 1);
     assert_eq!(verified.manifest().entries[0].name, "records.sqlite");
     let expected_size = verified.manifest().entries[0].size;
@@ -111,12 +131,16 @@ fn main() {
     let profiles: u32 = database
         .query_row("SELECT count(*) FROM profiles", [], |row| row.get(0))
         .expect("Missing profile table.");
-    assert_eq!(version, 1);
+    assert_eq!(
+        version, expected_schema_version,
+        "Unexpected schema version."
+    );
     assert_eq!(theme, expected_theme);
     assert_eq!(profiles, 0);
     drop(database);
     drop(payload);
     println!(
-        "{{\"authenticated\":true,\"wrongPasswordRejected\":true,\"tamperRejected\":true,\"schemaVersion\":1,\"profiles\":0,\"plaintextDiskStaging\":false}}"
+        "{}",
+        json!({"authenticated":true,"wrongPasswordRejected":true,"tamperRejected":true,"schemaVersion":version,"profiles":0,"plaintextDiskStaging":false})
     );
 }
