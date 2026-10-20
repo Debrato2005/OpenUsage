@@ -226,8 +226,8 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval, onPro
   const active = view?.profiles.filter(profile => !profile.archived) ?? [];
   const archived = view?.profiles.filter(profile => profile.archived) ?? [];
   return <section ref={section} className="accounts-section" aria-labelledby="accounts-heading" aria-busy={busy || loading}>
-    <div className="section-heading"><div><h2 id="accounts-heading">Accounts</h2><p>Each profile uses a separate Codex environment.</p></div><div className="profile-heading-actions"><span className="muted-tag">{view ? `${view.activeProfiles} of 10 active` : loading ? 'Loading profiles…' : 'Profiles unavailable'}</span><Button ref={createToggle} type="button" variant="outline" className="secondary-button" data-profile-add aria-expanded={createOpen} aria-controls="profile-add-panel" disabled={busy || loading || !view} onClick={() => { setCreateOpen(open => !open); if (!createOpen) setFocusTarget('create'); }}>Add account</Button></div></div>
-    <p id="profile-capacity" className="profile-capacity">Up to 10 profiles can be active. Archiving frees a slot and keeps local data.</p>
+    <div className="section-heading"><div><h2 id="accounts-heading" className="sr-only">Accounts</h2><p>Each profile uses a separate Codex environment.</p></div><div className="profile-heading-actions"><span className="muted-tag">{view ? `${view.activeProfiles} of 10 active` : loading ? 'Loading profiles…' : 'Profiles unavailable'}</span><Button ref={createToggle} type="button" variant="outline" className="secondary-button" data-profile-add aria-expanded={createOpen} aria-controls="profile-add-panel" disabled={busy || loading || !view} onClick={() => { setCreateOpen(open => !open); if (!createOpen) setFocusTarget('create'); }}>Add account</Button></div></div>
+    <p id="profile-capacity" className={createOpen ? 'profile-capacity' : 'sr-only'}>Up to 10 profiles can be active. Archiving frees a slot and keeps local data.</p>
     <p className="profile-status" role="status">{loading ? 'Loading profiles…' : saving ? 'Saving profile changes…' : status}</p>
     {failure?.target === 'load' && error()}
     {failure && !failure.invalidLabel && <Button className="text-button" variant="ghost" type="button" disabled={busy || loading} onClick={() => { setEditing(null); setAttempt(value => value + 1); }}>Reload profiles</Button>}
@@ -245,7 +245,7 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval, onPro
       </Collapsible>
       {active.length ? <><div className="profile-table-heading" aria-hidden="true"><span>Account</span><span>Connection</span><span>Readings</span></div><ul className="profile-list" aria-label="Active profiles">{active.map(row)}</ul></> : <p className="profile-empty">No active profiles. Add an account or restore an archived one.</p>}
       {archived.length > 0 && <details className="archived-profiles"><summary>Archived profiles ({archived.length})</summary><p>Archived profiles keep their local data.</p><ul className="profile-list" aria-label="Archived profiles">{archived.map(row)}</ul></details>}
-      <p className="profile-meta">{providerApproval ? 'Sign in to a profile, then read and save its quotas. Scheduled collection is not available yet.' : 'Review Codex in Codex connection to enable sign-in and quota reads.'}</p>
+      <p className="profile-meta">{providerApproval ? 'Sign in to a profile, then read and save its quotas. Scheduled collection is not available yet.' : 'Open Settings to review Codex and enable sign-in and quota reads.'}</p>
     </>}
   </section>;
 }

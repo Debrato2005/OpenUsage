@@ -177,13 +177,22 @@ try {
     await capture(`accounts-compact-${theme}-desktop.png`, 'accounts', theme);
     await capture(`accounts-compact-${theme}-text200-360.png`, 'accounts', theme, 360, 2);
   }
+  await capture('accounts-rows-dark-text200-360.png', 'accounts', 'dark', 360, 2, '.profile-row-summary');
   await capture('settings-light-desktop.png', 'settings', 'light');
   await capture('settings-dark-text200-360.png', 'settings', 'dark', 360, 2);
+  await driver.navigate('settings');
+  if (await driver.execute('return !document.querySelector("[data-provider-settings]").closest("details").open;')) await driver.click('[data-provider-settings]');
+  if (await driver.execute('const node=document.querySelector("[data-provider-manual]");return Boolean(node&&!node.closest("details").open);')) await driver.click('[data-provider-manual]');
+  await driver.type('#provider-executable', fixtures.activity.path); await driver.click('.provider-inspection-form button[type=submit]');
+  await waitFor(async () => driver.execute('const node=document.querySelector("#provider-executable-approved");return Boolean(node&&!node.disabled&&node.getAttribute("aria-checked")==="false");'), 'visible unchecked executable consent after real source review');
+  assert.equal(await driver.execute('return document.querySelector(".provider-approval-form button[type=submit]").disabled;'), true);
+  await capture('settings-consent-dark-text200-360.png', 'settings', 'dark', 360, 2, '.provider-approval-form');
   await driver.navigate('usage');
   await driver.selectVisibleOption('[aria-label="Usage profile"]', activity.label);
   await waitFor(async () => driver.execute('const node=document.querySelector(".usage-content [data-activity-saved]");return Boolean(node&&node.getAttribute("data-activity-saved")===arguments[0]);', [activity.id]), 'selected saved usage profile');
   await capture('usage-light-desktop.png', 'usage', 'light');
   await capture('usage-dark-text200-360.png', 'usage', 'dark', 360, 2);
+  await capture('usage-values-dark-text200-360.png', 'usage', 'dark', 360, 2, '.usage-content .activity-summary');
   assert.equal(await readFile(join(fixture.dirs.codex, 'synthetic-fixture.txt'), 'utf8'), CODEX_SENTINEL); assert.deepEqual(await readdir(fixture.dirs.codex), ['synthetic-fixture.txt']);
   for (const value of Object.values(fixtures)) assert.equal(await hash(value.path), value.digest);
   assert.equal(await hash(application), evidence.application.sha256);

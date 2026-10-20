@@ -108,6 +108,28 @@ test('renderer Overview remains accessible in both themes at 360 pixels and enla
       await expect(dashboard(page).locator('[data-overview-lifetime]')).toHaveText('9223372036854775807');
       const audit = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
       expect(audit.violations, `${theme}, ${scale * 100}% test text`).toEqual([]);
+      if (scale === 2) {
+        await navigate(page, 'accounts');
+        const status = page.locator('[data-workspace-view="accounts"] .profile-connection-state').first();
+        await expect(status).toBeVisible();
+        await status.scrollIntoViewIfNeeded();
+        const word = await status.evaluate(node => {
+          const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+          while (walker.nextNode()) {
+            const text = walker.currentNode, index = text.textContent?.indexOf('Sign-in') ?? -1;
+            if (index < 0) continue;
+            const range = document.createRange();
+            range.setStart(text, index); range.setEnd(text, index + 'Sign-in'.length);
+            const rectangles = [...range.getClientRects()].filter(rect => rect.width > 0 && rect.height > 0);
+            return { text: range.toString(), rectangles: rectangles.length, lines: new Set(rectangles.map(rect => Math.round(rect.top))).size };
+          }
+          return null;
+        });
+        expect(word?.text).toBe('Sign-in');
+        expect(word?.rectangles).toBeGreaterThan(0);
+        expect(word?.lines, `${theme}: Sign-in must remain one rendered word at 360px and 200% text`).toBe(1);
+        await navigate(page, 'overview');
+      }
     }
   }
 });

@@ -100,3 +100,14 @@ Provider operations stay mounted under Accounts when navigation or disclosures c
 The first native reference journey passed 21 reviewed captures. It checked real navigation, three GUI-created profiles, saved quota/activity, and completion of a background read after panel closure and navigation. Native backup-content passed eleven captures. Production checkpoint recovery passed seven captures; production fixture refusal also passed. These Linux checks used synthetic provider data. Native visual review found repeated Accounts headings and notices; the next refinement removes them. Secondary-page enlarged captures show their initial viewport, not every control below the fold.
 
 The workspace passed 190 Rust checks, strict Clippy, 34 contracts, and 116 renderer checks in Chromium and WebKit. Two parallel native startups timed out before creating sessions. An isolated retry opened the app, then exposed a quoting fault in the test theme helper. The corrected helper and unchanged application passed. Startup contention remains a hypothesis. Failed runs remain retained. See `../evidence/native-reference-workspace/`.
+
+
+### Native refinement and text reflow
+
+The follow-up removes the repeated Accounts heading and exposes capacity guidance with the creation form. One provenance notice above the overview retains synthetic-source and unverified-identity labels. Missing activity values and their action stay together.
+
+Three scrolled enlarged-text captures exposed a real account-row fault. The automated journey returned success, but native review found a one-character-wide sign-in status. Both renderer browsers reproduced seven lines for the word Sign-in. Mobile rows now use a wrapping flex layout: status and action share space when they fit and use separate lines when they need more room. The same test then passed with one line. The earlier automated result is retained and explicitly fails visual qualification.
+
+The corrected native artifact passed 24 reviewed captures, eleven backup-content captures, and seven production recovery captures. Default production refused all four synthetic providers. The final full check passed 34 contracts and 116 renderer tests. Rust and dependencies remain identical to the baseline that passed 190 workspace tests and strict Clippy. Native source, assets, executable, tools, and fixture hashes remained unchanged during each journey.
+
+These are Linux journeys with clearly labeled synthetic data and test-side font scaling. They do not establish live-provider authentication, OS text scaling, release-platform performance, full accessibility acceptance, or Windows/macOS behavior. Existing inner scrolling keeps exact oversized usage values accessible. See `../evidence/native-reference-refinement/`.

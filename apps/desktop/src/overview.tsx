@@ -85,12 +85,12 @@ export function Overview({ profiles, revision, onAccounts, active = true }: Prop
   const connectionLabels = { connected: 'Connected', authentication_required: 'Authentication required', unauthorized: 'Unauthorized', offline: 'Offline', unsupported: 'Unsupported', error: 'Error' };
   return <section className="overview-dashboard" aria-label="Usage overview" data-overview data-overview-profile={profileId} aria-busy={pending}>
     {pending && <p className="overview-meta" role="status" data-overview-loading>Loading saved readings…</p>}
+    {(activity || quota) && <p className="overview-meta overview-provenance">{activity?.sourceKind === 'test_fixture' || quota?.sourceKind === 'test_fixture' ? 'Synthetic test data · ' : ''}Unverified identity · Saved locally</p>}
     <div className="overview-panels">
       <section className="overview-panel" aria-labelledby="overview-activity-heading" data-overview-activity>
         <div className="overview-panel-heading"><h2 id="overview-activity-heading">Token activity</h2><span className="overview-meta">{selected?.label ?? 'No profile selected'}</span></div>
         <div className="overview-total"><p className="overview-total-label">Lifetime tokens</p><p className={`overview-total-value${activity?.summary.lifetimeTokens == null ? ' overview-unavailable' : ''}`} data-overview-lifetime><bdi>{activity?.summary.lifetimeTokens ?? (pending ? 'Loading…' : 'Not available')}</bdi></p></div>
         {activity ? <><Observed value={activity} /><p className="overview-meta">Account activity · Scope and coverage unknown</p></> : <p className="overview-meta">{selected ? 'Read activity from Accounts to see saved values.' : 'Create a profile in Accounts to get started.'}</p>}
-        {activity && <p className="overview-meta">{activity.sourceKind === 'test_fixture' && <span data-provider-fixture>Synthetic test data · </span>}Unverified identity · Saved locally</p>}
         {!activity && <Button type="button" variant="ghost" className="overview-empty-action" onClick={onAccounts}>Open Accounts</Button>}
         {saved?.activityFailed && <p className="overview-error">Saved activity could not be loaded. Reload it from Accounts.</p>}
         <p className="overview-note">Combined totals are not available. Profile readings are shown separately.</p>
@@ -112,7 +112,6 @@ export function Overview({ profiles, revision, onAccounts, active = true }: Prop
           <QuotaWindow value={limit.primary} role="Primary window" /><QuotaWindow value={limit.secondary} role="Secondary window" />
         </div></div> : <div className="overview-quota-empty"><p className="overview-unavailable">{pending ? 'Loading…' : 'Not available'}</p><p className="overview-meta">{quota ? 'No quota windows were supplied.' : 'Read quotas from Accounts to see saved limits.'}</p></div>}
         {quota && <Observed value={quota} />}
-        {quota && <p className="overview-meta">{quota.sourceKind === 'test_fixture' && <span data-provider-fixture>Synthetic test data · </span>}Unverified identity · Saved locally</p>}
         {saved?.quotaFailed && <p className="overview-error">Saved quotas could not be loaded. Reload them from Accounts.</p>}
       </section>
     </div>
@@ -121,7 +120,6 @@ export function Overview({ profiles, revision, onAccounts, active = true }: Prop
       <div><dt>Current streak</dt><dd><bdi>{activity?.summary.currentStreakDays ?? 'Not available'}</bdi>{activity?.summary.currentStreakDays != null && <span> days</span>}</dd></div>
       <div><dt>Longest streak</dt><dd><bdi>{activity?.summary.longestStreakDays ?? 'Not available'}</bdi>{activity?.summary.longestStreakDays != null && <span> days</span>}</dd></div>
     </dl>
-    {(activity || quota) && <p className="overview-meta overview-provenance">{activity?.sourceKind === 'test_fixture' || quota?.sourceKind === 'test_fixture' ? 'Synthetic test data · ' : ''}Unverified identity · Saved locally · Monitoring stopped</p>}
     <section className="overview-accounts" aria-labelledby="overview-accounts-heading" data-overview-accounts-table>
       <div className="overview-accounts-heading"><h2 id="overview-accounts-heading">Accounts</h2><Button type="button" variant="outline" onClick={onAccounts} data-overview-accounts>View accounts</Button></div>
       {activeProfiles.length > 0 ? <div className="overview-table-scroll"><table><thead><tr><th scope="col">Profile</th><th scope="col">Connection</th><th scope="col">Quota</th><th scope="col">Last quota read</th></tr></thead>

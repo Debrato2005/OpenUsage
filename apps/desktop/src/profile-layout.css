@@ -22,8 +22,10 @@
   .profile-heading-actions { justify-content: flex-start; }
   .profile-table-heading { display: none; }
   .accounts-section .profile-list { margin-top: var(--space-3); }
-  .profile-row-summary { grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-2) var(--space-3); }
-  .profile-row-summary > .profile-details { grid-column: 1 / -1; }
+  .profile-row-summary { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-3); }
+  .profile-row-summary > .profile-details { flex-basis: 100%; }
+  .profile-connection-state { flex: 1 0 12ch; }
+  .profile-row-summary > [data-profile-action='readings'] { max-width: 100%; height: auto; white-space: normal; }
   .profile-add-disclosure .profile-create-form { grid-template-columns: minmax(0, 1fr); align-items: start; }
   .profile-add-disclosure .profile-create-form > button { justify-self: start; }
   .profile-reading-panel { padding: var(--space-3); }

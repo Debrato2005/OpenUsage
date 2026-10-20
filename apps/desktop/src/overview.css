@@ -8,11 +8,11 @@
 .overview-panel-heading h2 { margin: 0; font-size: 1rem; font-weight: 600; }
 .overview-panel-heading > span { overflow-wrap: anywhere; }
 .overview-meta { margin: .25rem 0; color: var(--muted); font-size: var(--text-xs); line-height: 1.6; overflow-wrap: anywhere; }
-.overview-total { display: flex; flex: 1; flex-direction: column; justify-content: center; min-height: 4rem; padding-block: .75rem; }
+.overview-total { display: flex; flex-direction: column; min-height: 4rem; padding-block: .75rem; }
 .overview-total-label { margin: 0 0 .5rem; color: var(--muted); font-size: var(--text-sm); }
 .overview-total-value { margin: 0; font-size: clamp(1.5rem, 2.8vw, 2.5rem); line-height: 1.35; font-weight: 600; letter-spacing: -.04em; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 .overview-unavailable { color: var(--muted); font-size: 1.25rem; font-weight: 500; letter-spacing: normal; }
-.overview-note { margin: 1rem 0 0; border-top: 1px solid var(--line); padding-top: .75rem; color: var(--muted); font-size: var(--text-xs); line-height: 1.6; }
+.overview-note { margin: auto 0 0; border-top: 1px solid var(--line); padding-top: .75rem; color: var(--muted); font-size: var(--text-xs); line-height: 1.6; }
 .overview-empty-action { align-self: flex-start; margin-top: .5rem; }
 .overview-quota-empty { display: flex; flex: 1; flex-direction: column; justify-content: center; min-height: 4rem; }
 .overview-quota-empty > p { margin: .25rem 0; }
@@ -34,7 +34,7 @@
 .overview-summary dd { margin: .5rem 0 0; font-size: 1rem; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 .overview-summary dd > span { font-size: var(--text-xs); color: var(--muted); }
 .overview-error { color: var(--error); font-size: var(--text-xs); line-height: 1.6; }
-.overview-provenance { margin-top: .75rem; }
+.overview-provenance { margin: 0 0 .75rem; }
 .overview-accounts { margin-top: 1rem; padding: 1.25rem; border: 1px solid var(--line); border-radius: .75rem; background: var(--surface); min-width: 0; }
 .overview-accounts-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem; margin-bottom: .875rem; }
 .overview-accounts-heading h2 { margin: 0; font-size: 1rem; font-weight: 600; }
