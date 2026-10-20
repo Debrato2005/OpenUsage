@@ -14,20 +14,20 @@ The layout uses one page scroll area, a 204-pixel sidebar, and a 1,400-pixel con
 
 ## Typography and tokens
 
-Geist Sans now serves interface text. JetBrains Mono remains for exact values, codes, addresses, and keyboard labels. This follows the latest request for typography based on the reference image and reviewed Taste guidance. It replaces the earlier all-monospace choice. Both families already existed locally. No font download or dependency was added. The app makes no font request to a remote server.
+DM Sans serves interface text and exact values, following the user's latest font choice. It replaces Geist Sans and JetBrains Mono. The supplied reference guides the sidebar, paired overview panels, summary strip, and account table. Missing readings remain explicit. The layout and text sizes stay unchanged.
 
 | Role | Family | Size | Weight | Line height |
 |---|---|---|---|---|
-| Metadata | Geist Sans | 12 px | 400 | 1.5 |
-| Supporting text | Geist Sans | 13 px | 400–500 | 1.5–1.55 |
-| Body and controls | Geist Sans | 14 px | 400–500 | 1.5 |
-| Section headings | Geist Sans | 17 px | 600 | 1.3 |
-| Page title | Geist Sans | 28 px | 500 | 1.3 |
-| Exact overview total | JetBrains Mono | 32 px | 600 | 1.25 |
+| Metadata | DM Sans | 12 px | 400 | 1.5 |
+| Supporting text | DM Sans | 13 px | 400–500 | 1.5–1.55 |
+| Body and controls | DM Sans | 14 px | 400–500 | 1.5 |
+| Section headings | DM Sans | 17 px | 600 | 1.3 |
+| Page title | DM Sans | 28 px | 500 | 1.3 |
+| Exact overview total | DM Sans | 32 px | 600 | 1.25 |
 
-Sizes use `rem` units. Numeric roles use tabular digits, no ligatures, and zero letter spacing. Dates use tabular digits in the interface face. Only Geist is preloaded. `font-display: swap` keeps text available during loading. Synthetic font weights remain disabled. Existing Regular, Medium, and SemiBold JetBrains files remain available for numeric and technical roles.
+Sizes use `rem` units. Numeric roles use tabular digits, no ligatures, and zero letter spacing. Dates also use tabular digits. OpenUsage bundles and preloads the variable font. `font-display: swap` keeps text available during loading. Synthetic font weights `rem`ain disabled. The app makes no font request to a `rem`ote server.
 
-[Vercel typography guidance](https://vercel.com/geist/typography) supports the 14-pixel interface and 13-pixel supporting-text roles. Its mono and tabular styles informed the pairing. Taste's geometric interface face and restrained weights fit the supplied desktop reference. Editorial serif headings, oversized marketing text, and decorative motion do not fit this account workspace.
+[Vercel typography guidance](https://vercel.com/geist/typography) informed the 14-pixel interface and 13-pixel supporting-text roles. Taste informed the restrained weights and spacing. The user's desktop requirements control the layout.
 
 CSS tokens define typography, spacing, surfaces, borders, radii, focus, errors, and interaction states. Spacing follows a 4-pixel base. Light and dark themes use neutral surfaces. Green identifies an open encrypted workspace. It does not decorate unrelated panels. Panels use borders without shadows.
 
@@ -47,14 +47,15 @@ The UI/UX search did not return an exact desktop account workflow. Its landing-p
 
 ## Font provenance
 
-Numeric font source: [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono), revision `19371302b95d218af43299bce79ddbddd0bc364d`. Exact byte counts and hashes are in [the source manifest](jetbrains-mono-source.json). The adjacent `JetBrainsMono-OFL.txt` retains the complete copyright and license. Native checks observed loaded Regular and Medium faces. SemiBold remains bundled and was unused in the captured quota view.
+The font comes from the [official DM Fonts repository](https://github.com/googlefonts/dm-fonts/tree/4412393b7d2de9fe7a92064c2dce9b5af5d7fd26/Sans), revision `4412393b7d2de9fe7a92064c2dce9b5af5d7fd26`. OpenUsage bundles the original variable TTF unchanged. It supports normal weights from 100 to 1000. The interface uses 400, 500, and 600. The adjacent `DM-Sans-OFL.txt` retains its full copyright and SIL Open Font License 1.1.
 
-Geist is active again under the latest typography request.
+This change adds no font dependency. Previous evidence retains the font choice tested at that time.
 
-Interface font source: [Vercel Geist](https://github.com/vercel/geist-font), revision `e1f671c727f6de7e97c1e1d26dbb44f349c19459`. Original path: `fonts/Geist/webfonts/Geist[wght].woff2`.
+Original path: `Sans/fonts/variable/DMSans[opsz,wght].ttf`. Bundled path: `apps/desktop/public/fonts/DMSans-Variable.ttf` (252,888 bytes). SHA-256: `a023f465d2f26d8f56c6e3cac6aece08b7a66eb75b4d75eeef9df838c53c81f6`.
 
-Bundled path: `apps/desktop/public/fonts/Geist-Variable.woff2`. SHA-256: `2ffebe993e969069a9789d15164b7715d42491b5835516c5e3b935d5f81b05f1`. The adjacent `OFL.txt` contains the full license and copyright notice.
+License path: `apps/desktop/public/fonts/DM-Sans-OFL.txt` (4,482 bytes). SHA-256: `9af36190332437f5ecd09974de43c1f7c77a310a996cdd8ceb25628b458840e1`.
 
+The rebuilt native app passed 24 reviewed visual captures with DM Sans. Visible exact totals stay on one scrollable line at narrow widths. The renderer also verifies keyboard scrolling at normal and doubled text size. Monitoring remains a separate acceptance boundary. See `../evidence/native-dm-sans/`.
 
 ## Managed sign-in
 

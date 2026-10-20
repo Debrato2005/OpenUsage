@@ -10,7 +10,7 @@
 .overview-meta { margin: .25rem 0; color: var(--muted); font-size: var(--text-sm); line-height: 1.55; overflow-wrap: anywhere; }
 .overview-total { display: flex; flex-direction: column; min-height: 4rem; padding-block: .75rem; }
 .overview-total-label { margin: 0 0 .5rem; color: var(--muted); font-size: var(--text-sm); }
-.overview-total-value { margin: 0; font-size: 2rem; line-height: 1.25; font-weight: 600; letter-spacing: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.overview-total-value { margin: 0; font-size: 2rem; line-height: 1.25; font-weight: 600; letter-spacing: 0; font-variant-numeric: tabular-nums; }
 .overview-unavailable { color: var(--muted); font-size: 1.25rem; font-weight: 500; letter-spacing: normal; }
 .overview-note { margin: auto 0 0; border-top: 1px solid var(--line); padding-top: .75rem; color: var(--muted); font-size: var(--text-sm); line-height: 1.55; }
 .overview-empty-action { align-self: flex-start; margin-top: .5rem; }

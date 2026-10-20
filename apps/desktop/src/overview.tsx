@@ -3,6 +3,7 @@ import { Button } from './components/ui/button';
 import { Meter, MeterIndicator, MeterLabel, MeterTrack } from './components/ui/meter';
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from './components/ui/select';
 import { invoke, type ProfileRecord, type SavedProfileActivity, type SavedProfileQuota, type SavedQuotaWindow } from './contracts';
+import './activity.css';
 import './overview.css';
 
 type Props = { profiles: ProfileRecord[]; revision: number; onAccounts: () => void; active?: boolean };
@@ -79,6 +80,7 @@ export function Overview({ profiles, revision, onAccounts, active = true }: Prop
   const saved = reading?.profileId === profileId ? reading : null;
   const pending = loading || (active && !!profileId && !saved);
   const activity = saved?.activity;
+  const lifetimeTokens = activity?.summary.lifetimeTokens ?? null;
   const quota = saved?.quota;
   const limit = quota?.limits.find(limit => `${profileId}:${limit.limitId}` === limitSelection) ?? quota?.limits[0];
   const firstWindow = limit?.primary ?? limit?.secondary;
@@ -89,7 +91,7 @@ export function Overview({ profiles, revision, onAccounts, active = true }: Prop
     <div className="overview-panels">
       <section className="overview-panel" aria-labelledby="overview-activity-heading" data-overview-activity>
         <div className="overview-panel-heading"><h2 id="overview-activity-heading">Token activity</h2><span className="overview-meta">{selected?.label ?? 'No profile selected'}</span></div>
-        <div className="overview-total"><p className="overview-total-label">Lifetime tokens</p><p className={`overview-total-value${activity?.summary.lifetimeTokens == null ? ' overview-unavailable' : ''}`} data-overview-lifetime><bdi>{activity?.summary.lifetimeTokens ?? (pending ? 'Loading…' : 'Not available')}</bdi></p></div>
+        <div className="overview-total"><p id="overview-lifetime-label" className="overview-total-label">Lifetime tokens</p><p className={`overview-total-value${lifetimeTokens === null ? ' overview-unavailable' : ' activity-count'}`} data-overview-lifetime tabIndex={lifetimeTokens === null ? undefined : 0} aria-describedby={lifetimeTokens === null ? undefined : 'overview-lifetime-label'}><bdi>{lifetimeTokens ?? (pending ? 'Loading…' : 'Not available')}</bdi></p></div>
         {activity ? <><Observed value={activity} /><p className="overview-meta">Account activity · Scope and coverage unknown</p></> : <p className="overview-meta">{selected ? 'Read activity from Accounts to see saved values.' : 'Create a profile in Accounts to get started.'}</p>}
         {!activity && <Button type="button" variant="ghost" className="overview-empty-action" onClick={onAccounts}>Open Accounts</Button>}
         {saved?.activityFailed && <p className="overview-error">Saved activity could not be loaded. Reload it from Accounts.</p>}

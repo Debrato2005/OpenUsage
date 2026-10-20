@@ -101,7 +101,7 @@ async function capture(name, selector) {
   await driver.execute('document.querySelector(arguments[0]).scrollIntoView({block:"center"});return true;', [selector]);
   await driver.request('POST', `/session/${driver.session}/execute/async`, { script: 'const done=arguments[arguments.length-1];document.fonts.ready.then(()=>requestAnimationFrame(()=>requestAnimationFrame(()=>done(true))));', args: [] });
   const value = await driver.execute('const root=document.querySelector(arguments[0]);return {width:innerWidth,scrollWidth:document.scrollingElement.scrollWidth,theme:document.documentElement.dataset.theme,font:getComputedStyle(root).fontFamily,overflow:[root,...root.querySelectorAll("*")].filter(node=>{const r=node.getBoundingClientRect();return r.width>1&&r.height>1&&(r.left< -1||r.right>innerWidth+1);}).map(node=>node.tagName)};', [selector]);
-  assert.ok(value.scrollWidth <= value.width + 1); assert.deepEqual(value.overflow, []); assert.match(value.font, /JetBrains Mono/);
+  assert.ok(value.scrollWidth <= value.width + 1); assert.deepEqual(value.overflow, []); assert.match(value.font, /DM Sans/);
   await driver.screenshot(join(output, name)); evidence.screenshots.push(name); evidence.views.push({ name, ...value });
 }
 async function closeNormally() {
@@ -118,7 +118,7 @@ try {
   evidence.sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repository, encoding: 'utf8' }).trim();
   evidence.sourceHashes = {};
   const sources = execFileSync('rg', ['--files', 'apps/desktop/src', 'apps/desktop/src-tauri/src', 'apps/desktop/src-tauri/permissions', 'crates/openusage-codex/src', 'crates/openusage-storage/src', 'crates/openusage-import/src'], { cwd: repository, encoding: 'utf8' }).trim().split('\n');
-  for (const path of [...sources, 'Cargo.toml', 'Cargo.lock', 'package.json', 'package-lock.json', 'crates/openusage-codex/Cargo.toml', 'crates/openusage-codex/provider-sources/codex-0.163.0-linux-x86_64.json', 'apps/desktop/src-tauri/Cargo.toml', 'apps/desktop/src-tauri/build.rs', 'apps/desktop/src-tauri/tauri.conf.json', 'apps/desktop/src-tauri/capabilities/main-window.json', ...['Regular', 'Medium', 'SemiBold'].map(weight => `apps/desktop/public/fonts/JetBrainsMono-${weight}.woff2`), 'apps/desktop/public/fonts/JetBrainsMono-OFL.txt']) evidence.sourceHashes[path] = await hash(join(repository, path));
+  for (const path of [...sources, 'Cargo.toml', 'Cargo.lock', 'package.json', 'package-lock.json', 'crates/openusage-codex/Cargo.toml', 'crates/openusage-codex/provider-sources/codex-0.163.0-linux-x86_64.json', 'apps/desktop/src-tauri/Cargo.toml', 'apps/desktop/src-tauri/build.rs', 'apps/desktop/src-tauri/tauri.conf.json', 'apps/desktop/src-tauri/capabilities/main-window.json', 'apps/desktop/public/fonts/DMSans-Variable.ttf', 'apps/desktop/public/fonts/DM-Sans-OFL.txt']) evidence.sourceHashes[path] = await hash(join(repository, path));
   assert.match(await readFile(join(repository, 'crates/openusage-codex/src/session.rs'), 'utf8'), /pub const DEVICE_LOGIN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs\(15 \* 60\);/);
   evidence.harnessHashes = {}; for (const path of ['device-login-timeout.mjs', 'fixtures/synthetic-login-provider.py', 'private-fixture.mjs', 'webdriver.mjs', 'x11-close.py']) evidence.harnessHashes[path] = await hash(join(harness, path));
   fixture = await createFixture('device-login-timeout'); fixture.environment.HOME = join(fixture.root, 'synthetic-user-home'); await mkdir(fixture.environment.HOME, { mode: 0o700 });

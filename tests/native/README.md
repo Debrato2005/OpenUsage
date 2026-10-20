@@ -100,7 +100,7 @@ This test does not establish restore acceptance, power-loss recovery, or live pr
 
 ## Native visual checks
 
-Set `OPENUSAGE_VISUAL_FONT=Geist`, then run `node tests/native/visual.mjs` with the same drivers and display.
+Set `OPENUSAGE_VISUAL_FONT="DM Sans"`, then run `node tests/native/visual.mjs` with the same drivers and display.
 The test also needs the private Secret Service tools from the persistence test.
 Use a `native-test` binary and set `OPENUSAGE_NATIVE_SOURCE_ROOT` when it comes from another checkout.
 

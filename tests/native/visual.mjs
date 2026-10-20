@@ -153,7 +153,7 @@ async function measure(state, themeName, variant, target) {
     || !data.fontFaces.some(face => face.family.replaceAll('"', '').replaceAll("'", '') === expectedFont && face.status === 'loaded')) fail('The required local font is not loaded.');
   for (const weight of [400, 500]) {
     if (!data.fontChecks.some(check => check.weight === weight && check.loaded)
-      || !data.fontFaces.some(face => face.family.replaceAll('"', '').replaceAll("'", '') === expectedFont && face.weight === String(weight) && face.status === 'loaded')) fail(`The required local font weight ${weight} is not loaded.`);
+      || !data.fontFaces.some(face => face.family.replaceAll('"', '').replaceAll("'", '') === expectedFont && face.status === 'loaded' && weight >= Number(face.weight.split(' ')[0]) && weight <= Number(face.weight.split(' ')[1] ?? face.weight.split(' ')[0]))) fail(`The required local font weight ${weight} is not loaded.`);
   }
   for (const label of ['Quota remaining', 'Token activity']) {
     const metric = data.metrics.find(item => item.label?.includes(label));
@@ -249,7 +249,7 @@ try {
   evidence.expectedFont = expectedFont;
   evidence.sourceDirtyPaths = execFileSync('git', ['status', '--porcelain'], { cwd: repository, encoding: 'utf8' }).trim().split('\n').filter(Boolean);
   evidence.sourceHashes = {};
-  for (const path of ['Cargo.lock', 'apps/desktop/src-tauri/tauri.conf.json', 'apps/desktop/src-tauri/src/main.rs', 'apps/desktop/src-tauri/src/workspace.rs', 'apps/desktop/src/main.tsx', 'apps/desktop/src/styles.css', 'apps/desktop/src/contracts.ts', ...['Regular', 'Medium', 'SemiBold'].map(weight => `apps/desktop/public/fonts/JetBrainsMono-${weight}.woff2`), 'apps/desktop/public/fonts/JetBrainsMono-OFL.txt']) evidence.sourceHashes[path] = await hash(join(repository, path));
+  for (const path of ['Cargo.lock', 'apps/desktop/src-tauri/tauri.conf.json', 'apps/desktop/src-tauri/src/main.rs', 'apps/desktop/src-tauri/src/workspace.rs', 'apps/desktop/src/main.tsx', 'apps/desktop/src/styles.css', 'apps/desktop/src/contracts.ts', 'apps/desktop/public/fonts/DMSans-Variable.ttf', 'apps/desktop/public/fonts/DM-Sans-OFL.txt']) evidence.sourceHashes[path] = await hash(join(repository, path));
 
   fixture = await createFixture('visual-os');
   await startSecretService(fixture);

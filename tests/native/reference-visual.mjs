@@ -124,11 +124,26 @@ async function capture(name, view, theme, width = 1280, text = 1, target) {
     const overflowing=[...document.querySelectorAll('body *')].filter(visible).filter(node=>!scrollAncestor(node)&&!node.closest('[aria-hidden=true],.skip-link')).filter(node=>{const rect=node.getBoundingClientRect();return rect.width>0&&(rect.left < -1||rect.right>innerWidth+1);}).slice(0,15).map(node=>({tag:node.tagName,id:node.id,className:typeof node.className==='string'?node.className:''}));
     const number = [...document.querySelectorAll('.overview-total-value:not(.overview-unavailable),.overview-meter-heading strong,.activity-count')].find(visible);
     const heading = document.querySelector('h1');
-    return {numberFont:number?getComputedStyle(number).fontFamily:null,numberFontLoaded:number?document.fonts.check(getComputedStyle(number).fontWeight+' '+getComputedStyle(number).fontSize+' "JetBrains Mono"'):null,uiFontLoaded:document.fonts.check('400 14px "Geist Sans"'),heading:heading?{font:getComputedStyle(heading).fontFamily,size:getComputedStyle(heading).fontSize,weight:getComputedStyle(heading).fontWeight,lineHeight:getComputedStyle(heading).lineHeight}:null,viewport:{width:innerWidth,height:innerHeight},pageWidth:document.scrollingElement.scrollWidth,bodyFont:getComputedStyle(document.body).fontFamily,fontStatus:document.fonts.status,fonts:[...document.fonts].filter(face=>face.status==='loaded').map(face=>({family:face.family,weight:face.weight})),currentView:document.querySelector('[data-workspace-nav][aria-current=page]')?.getAttribute('data-workspace-nav'),visibleViewCount:[...document.querySelectorAll('[data-workspace-view]')].filter(visible).length,overflowing,overviewLifetime:document.querySelector('[data-overview-lifetime]')?.textContent,overviewProfile:document.querySelector('[data-overview]')?.getAttribute('data-overview-profile')};
+    const lifetime = [...document.querySelectorAll('[data-overview-lifetime].activity-count')].find(visible);
+    let lifetimeLines = null;
+    if (lifetime) {
+      const range = document.createRange(); range.selectNodeContents(lifetime.querySelector('bdi'));
+      lifetimeLines = new Set([...range.getClientRects()].filter(rect=>rect.width>0).map(rect=>Math.round(rect.top))).size;
+    }
+    let numberDigitWidths = null;
+    if (number) {
+      const style = getComputedStyle(number), probe = document.createElement('span');
+      probe.style.cssText = 'position:absolute;visibility:hidden;font-family:'+style.fontFamily+';font-size:'+style.fontSize+';font-weight:'+style.fontWeight+';font-variant-numeric:tabular-nums;white-space:pre';
+      document.body.append(probe);
+      numberDigitWidths = ['0000000000','1111111111','9999999999'].map(text=>{probe.textContent=text;return probe.getBoundingClientRect().width;});
+      probe.remove();
+    }
+    return {lifetimeLines,lifetimeFocusable:lifetime?lifetime.tabIndex===0:null,numberDigitWidths,numberFont:number?getComputedStyle(number).fontFamily:null,numberVariant:number?getComputedStyle(number).fontVariantNumeric:null,numberFontLoaded:number?document.fonts.check(getComputedStyle(number).fontWeight+' '+getComputedStyle(number).fontSize+' "DM Sans"'):null,uiFontLoaded:document.fonts.check('400 14px "DM Sans"'),heading:heading?{font:getComputedStyle(heading).fontFamily,size:getComputedStyle(heading).fontSize,weight:getComputedStyle(heading).fontWeight,lineHeight:getComputedStyle(heading).lineHeight}:null,viewport:{width:innerWidth,height:innerHeight},pageWidth:document.scrollingElement.scrollWidth,bodyFont:getComputedStyle(document.body).fontFamily,fontStatus:document.fonts.status,fonts:[...document.fonts].filter(face=>face.status==='loaded').map(face=>({family:face.family,weight:face.weight})),currentView:document.querySelector('[data-workspace-nav][aria-current=page]')?.getAttribute('data-workspace-nav'),visibleViewCount:[...document.querySelectorAll('[data-workspace-view]')].filter(visible).length,overflowing,overviewLifetime:document.querySelector('[data-overview-lifetime]')?.textContent,overviewProfile:document.querySelector('[data-overview]')?.getAttribute('data-overview-profile')};
   `);
   await driver.screenshot(join(output, name)); evidence.screenshots.push(name); evidence.views.push({ screenshot: name, view, theme, textScale: text, ...data });
   if (data.pageWidth > width + 1 || data.overflowing.length) evidence.violations.push({ screenshot: name, pageWidth: data.pageWidth, viewportWidth: width, overflowing: data.overflowing });
-  assert.equal(data.currentView, view); assert.equal(data.visibleViewCount, 1); assert.equal(data.fontStatus, 'loaded'); assert.match(data.bodyFont, /Geist Sans/); assert.equal(data.uiFontLoaded, true); if (data.numberFont) { assert.match(data.numberFont, /JetBrains Mono/); assert.equal(data.numberFontLoaded, true); }
+  assert.equal(data.currentView, view); assert.equal(data.visibleViewCount, 1); assert.equal(data.fontStatus, 'loaded'); assert.match(data.bodyFont, /DM Sans/); assert.equal(data.uiFontLoaded, true); if (data.numberFont) { assert.match(data.numberFont, /DM Sans/); assert.match(data.numberVariant, /tabular-nums/); assert.equal(data.numberFontLoaded, true); assert.ok(data.numberDigitWidths[0] > 0); assert.ok(Math.max(...data.numberDigitWidths) - Math.min(...data.numberDigitWidths) < 0.1, 'Actual native DM Sans digits must have equal width.'); }
+  if (data.lifetimeLines !== null) { assert.equal(data.lifetimeLines, 1, 'Exact lifetime digits must remain on one scrollable line.'); assert.equal(data.lifetimeFocusable, true); }
   await scale(1);
 }
 async function overviewSet(profile) {

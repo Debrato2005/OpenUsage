@@ -33,6 +33,7 @@ async function open(page: Page, options: { empty?: boolean; deferFirst?: boolean
     const profiles = [first, second].map((id, index) => ({ id, label: index === 0 ? 'Zero fixture' : 'Large fixture', environment: 'native', archived: false, connectionState: 'authentication_required' }));
     window.__TAURI__ = { core: { invoke: async <T>(command: string, args: Record<string, unknown> = {}) => {
       fixture.calls.push(command);
+      if (command === 'load_monitoring') return { state: 'stopped', readingRevision: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', profiles: [] } as T;
       if (command === 'bootstrap') return { storage: 'ready', theme, schemaVersion: 4, activeProfiles: 2, monitoring: 'stopped', provider: 'not_configured', keyProtection: 'passphrase', storageIssue: null } as T;
       if (command === 'list_profiles') return { activeProfiles: 2, profiles } as T;
       if (command === 'set_theme') { theme = String(args.theme); return { theme } as T; }
@@ -91,6 +92,58 @@ test('renderer Overview preserves exact zero and large values and rejects stale 
   await expect(dashboard(page).getByText('Saved activity could not be loaded. Reload it from Accounts.', { exact: true })).toBeVisible();
   await expect(dashboard(page).locator('[data-overview-lifetime]')).toHaveText('Not available');
   await expect(dashboard(page).getByRole('meter')).toHaveCount(0);
+});
+
+test('bundled DM Sans serves interface and exact readings with tabular digits', async ({ page }) => {
+  const requestedFonts: string[] = [];
+  page.on('request', request => { if (request.resourceType() === 'font') requestedFonts.push(request.url()); });
+  await open(page); await choose(page, 'Large fixture');
+  const rendered = await page.evaluate(async () => {
+    const faces = await Promise.all([400, 500, 600].map(weight => document.fonts.load(`${weight} 14px "DM Sans"`)));
+    await document.fonts.ready;
+    const ui = getComputedStyle(document.body), reading = document.querySelector<HTMLElement>('[data-overview-lifetime]')!;
+    const numeric = getComputedStyle(reading);
+    const probe = document.createElement('span');
+    probe.style.cssText = `position:absolute;visibility:hidden;font-family:${numeric.fontFamily};font-size:${numeric.fontSize};font-weight:${numeric.fontWeight};font-variant-numeric:tabular-nums;white-space:pre`;
+    document.body.append(probe);
+    const widths = ['0000000000', '1111111111', '9999999999'].map(text => { probe.textContent = text; return probe.getBoundingClientRect().width; });
+    probe.remove();
+    return { faces: faces.map(loaded => loaded.map(face => ({ family: face.family.replace(/["']/g, ''), status: face.status }))), ui: ui.fontFamily.split(',')[0]!.replace(/["']/g, ''), reading: numeric.fontFamily.split(',')[0]!.replace(/["']/g, ''), digits: numeric.fontVariantNumeric, widths };
+  });
+  expect(rendered.faces).toEqual(['DM Sans', 'DM Sans', 'DM Sans'].map(family => [{ family, status: 'loaded' }]));
+  expect(rendered.ui).toBe('DM Sans'); expect(rendered.reading).toBe('DM Sans');
+  expect(rendered.digits).toContain('tabular-nums');
+  expect(rendered.widths[0]).toBeGreaterThan(0);
+  expect(Math.max(...rendered.widths) - Math.min(...rendered.widths)).toBeLessThan(0.1);
+  expect(requestedFonts.length).toBeGreaterThan(0);
+  expect(requestedFonts).toContain(new URL('/fonts/DMSans-Variable.ttf', page.url()).href);
+  expect(requestedFonts.every(url => url === new URL('/fonts/DMSans-Variable.ttf', page.url()).href)).toBe(true);
+  await expect(dashboard(page).locator('[data-overview-lifetime]')).toHaveText('9223372036854775807');
+});
+
+for (const scale of [1, 2]) test(`Overview exact total remains one keyboard-scrollable line at 360px and ${scale * 100}% text`, async ({ page }) => {
+  await open(page); await choose(page, 'Large fixture');
+  await page.setViewportSize({ width: 360, height: 800 });
+  if (scale === 2) await page.evaluate(() => {
+    const sizes = [...document.querySelectorAll<HTMLElement>('body *')].map(node => ({ node, size: getComputedStyle(node).fontSize }));
+    for (const { node, size } of sizes) node.style.fontSize = `${parseFloat(size) * 2}px`;
+  });
+  const total = dashboard(page).locator('[data-overview-lifetime]');
+  await expect(total).toHaveText('9223372036854775807');
+  const lines = await total.evaluate(node => {
+    const range = document.createRange(); range.selectNodeContents(node.querySelector('bdi')!);
+    return new Set([...range.getClientRects()].filter(rect => rect.width > 0 && rect.height > 0).map(rect => Math.round(rect.top))).size;
+  });
+  expect(lines, 'The exact integer must remain a single reading, without orphan digits.').toBe(1);
+  await page.keyboard.press('Shift+Tab');
+  await expect(total).toBeFocused();
+  expect(await total.evaluate(node => node.matches(':focus-visible') && getComputedStyle(node).outlineStyle !== 'none' && parseFloat(getComputedStyle(node).outlineWidth) > 0)).toBe(true);
+  await page.keyboard.press('ArrowRight');
+  await expect.poll(() => total.evaluate(node => node.scrollLeft)).toBeGreaterThan(0);
+  for (let step = 0; step < 24; step += 1) await page.keyboard.press('ArrowRight');
+  await expect.poll(() => total.evaluate(node => node.querySelector('bdi')!.getBoundingClientRect().right <= node.getBoundingClientRect().right + 1)).toBe(true);
+  await expect(total).toHaveText('9223372036854775807');
+  expect(await page.evaluate(() => document.scrollingElement!.scrollWidth <= innerWidth + 1)).toBe(true);
 });
 
 test('renderer Overview remains accessible in both themes at 360 pixels and enlarged text', async ({ page }) => {
