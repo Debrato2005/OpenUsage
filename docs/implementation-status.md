@@ -2,9 +2,17 @@
 
 Updated: October 20, 2026. The mission remains ongoing. Runtime-only Start/Pause monitoring passed its synthetic native Linux journey. DM Sans serves interface text and exact values. SQLCipher 4 with WAL remains mandatory. Alerts, live-provider authentication, verified aggregation, and full platform acceptance remain incomplete.
 
+## Latest restore correction
+
+Restore validation now precedes cancellation. A native test reproduced the original cancelled-token fault. The correction passed 234 Rust tests, strict Clippy, formatting, and both desktop builds. The focused native journey confirmed rejected-token preservation, archive restore, and Undo during pending reads. Seven encrypted-copy checks compare every column in sixteen tables. Archive homes must be fresh, empty, and private. Undo requires the saved mappings. Both operations reap owned processes, require sign-in, and keep monitoring stopped after restart.
+
+The rebuilt default application passed backup-content, checkpoint recovery, and production source-gate regressions. Source and cleanup checks passed within explicit deadlines. SQLCipher 4 with WAL and the normative SRS remain unchanged. Renderer source did not change. Prior renderer results retain their original scope. Daily and credit-history rows were empty. Live authentication, crash durability, alerts, and full platform acceptance remain incomplete.
+
+Next: correct the preview wording for monitoring that is currently running. See [the restore-token evidence](evidence/native-monitoring-restore/).
+
 ## Implemented and executed
 
-Current checks passed 233 Rust tests, strict Clippy, formatting, 37 contracts, and 176 renderer cases. All 128 Rust source and build paths still match that qualification. Both native configurations compiled. The latest native monitoring journey passed eight independent checks across all sixteen tables. Review covered all eight captures. The separate DM Sans commit retains 24 reviewed native views. Production refused all five synthetic providers before execution.
+The preceding monitoring checks passed 233 Rust tests, strict Clippy, formatting, 37 contracts, and 176 renderer cases. All 128 Rust source and build paths still match that qualification. Both native configurations compiled. The latest native monitoring journey passed eight independent checks across all sixteen tables. Review covered all eight captures. The separate DM Sans commit retains 24 reviewed native views. Production refused all five synthetic providers before execution.
 
 Monitoring requires a matching completed login and a saved connection result in the current app session. Saved Connected status alone grants no eligibility. Restart requires sign-in again before Start becomes available. Rust owns the timer and publication. Scheduled starts stay at least 300 seconds apart for each profile, with a five-second stagger between profiles. Scheduled work shares provider backoff and worker limits. It does not consume the manual cooldown.
 

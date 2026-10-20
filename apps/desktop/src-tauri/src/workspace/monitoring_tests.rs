@@ -802,3 +802,120 @@ fn monitoring_busy_due_profile_does_not_starve_another_eligible_profile() {
         .unwrap();
     assert!(pending.wait().is_err());
 }
+
+#[test]
+fn monitoring_cancelled_restore_preview_preserves_pending_read_and_valid_restore_reaps_it() {
+    let mut f = Fixture::new("success");
+    let id = f.profiles[0].clone();
+    let approval = f.approve();
+    login(&mut f, &id, &approval);
+    f.workspace
+        .start_profile_monitoring(&id, &approval)
+        .unwrap();
+    let seed = f.workspace.next_scheduled_collection().unwrap();
+    publish(&mut f.workspace, seed);
+    let quota = f
+        .workspace
+        .storage
+        .as_ref()
+        .unwrap()
+        .current_quota(&id)
+        .unwrap();
+    let activity = f
+        .workspace
+        .storage
+        .as_ref()
+        .unwrap()
+        .current_activity(&id)
+        .unwrap();
+    let revision = f.workspace.load_monitoring().unwrap().reading_revision;
+    let previous = fs::read_to_string(f.home(&id).join("synthetic-child-pid"))
+        .unwrap()
+        .parse()
+        .unwrap();
+    mode(&f, &id, "activity_hang");
+    let job = f
+        .workspace
+        .next_scheduled_collection_at(Instant::now() + Duration::from_secs(301))
+        .unwrap();
+    let pid = child(&f, &id, "activity-pending", Some(previous));
+    let cancelled = f.preview();
+    assert!(
+        f.workspace
+            .cancel_restore_preview(&cancelled)
+            .unwrap()
+            .cancelled
+    );
+    assert_eq!(
+        f.workspace.apply_restore(&cancelled, true).err(),
+        Some(CommandError::StaleRestorePreview)
+    );
+    let current = status(&mut f.workspace, &id);
+    assert_eq!(current["state"], "running");
+    assert_eq!(current["eligible"], true);
+    assert_eq!(current["readingActive"], true);
+    assert_eq!(unsafe { libc::kill(pid, 0) }, 0);
+    assert_eq!(
+        f.workspace
+            .storage
+            .as_ref()
+            .unwrap()
+            .current_quota(&id)
+            .unwrap(),
+        quota
+    );
+    assert_eq!(
+        f.workspace
+            .storage
+            .as_ref()
+            .unwrap()
+            .current_activity(&id)
+            .unwrap(),
+        activity
+    );
+    assert_eq!(
+        f.workspace.load_monitoring().unwrap().reading_revision,
+        revision
+    );
+
+    let preview = f.preview();
+    let restored = f.workspace.apply_restore(&preview, true).unwrap();
+    assert_eq!(restored.monitoring, "stopped");
+    assert!(restored.authentication_required);
+    assert_eq!(unsafe { libc::kill(pid, 0) }, -1);
+    assert_eq!(unsafe { libc::killpg(pid, 0) }, -1);
+    let result = job.pending.wait();
+    assert!(result.is_err());
+    f.workspace
+        .finish_scheduled_collection(&id, &job.request_id, job.revision, result);
+    let current = status(&mut f.workspace, &id);
+    assert_eq!(current["state"], "stopped");
+    assert_eq!(current["eligible"], false);
+    assert_eq!(current["readingActive"], false);
+    assert_eq!(
+        f.workspace
+            .storage
+            .as_ref()
+            .unwrap()
+            .current_quota(&id)
+            .unwrap(),
+        quota
+    );
+    assert_eq!(
+        f.workspace
+            .storage
+            .as_ref()
+            .unwrap()
+            .current_activity(&id)
+            .unwrap(),
+        activity
+    );
+    assert_eq!(
+        f.workspace.load_monitoring().unwrap().reading_revision,
+        revision
+    );
+    assert_eq!(
+        f.workspace.start_profile_monitoring(&id, &approval).err(),
+        Some(CommandError::MonitoringNotEligible)
+    );
+}

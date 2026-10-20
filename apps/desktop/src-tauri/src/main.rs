@@ -665,15 +665,8 @@ async fn apply_restore(
     if !args.confirmed {
         return Err(CommandError::InvalidArguments);
     }
-    let provider = service.2.clone();
     let service = Arc::clone(&service.0);
     tauri::async_runtime::spawn_blocking(move || {
-        revoke_scheduled(
-            &service,
-            &provider,
-            None,
-            workspace::MonitoringIssue::SignInRequired,
-        )?;
         let mut state = service.lock().map_err(|_| CommandError::RestoreFailed)?;
         state
             .as_mut()

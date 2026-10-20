@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import { chmod, copyFile, mkdir, readFile, readdir, readlink, rename, rm, writeFile } from 'node:fs/promises';
+import { chmod, copyFile, mkdir, readFile, readdir, readlink, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
@@ -19,13 +19,15 @@ const oracleSha = 'd4dcc3c1bce797976546b110a340f7a46aa922fded0fd2ba14459d1f54b3a
 const passphrase = 'OpenUsage synthetic native monitoring workspace 2026';
 const hash = async path => createHash('sha256').update(await readFile(path)).digest('hex');
 const diagnostic = process.env.OPENUSAGE_MONITORING_STATUS_DIAGNOSTIC === '1';
+const restoreRace = process.env.OPENUSAGE_MONITORING_RESTORE_RACE === '1';
 const evidence = {
   requirement: 'NATIVE-RUNTIME-MONITORING-001', result: 'failed', startedAt: new Date().toISOString(),
   scope: 'Actual native synthetic login and explicit Start/Pause; a real 300-second scheduled interval, one accepted scheduled pair, an independent manual pair, and one pending scheduled pair cancelled before COMMIT. Independent encrypted-copy checks cover every column in sixteen schema-4 tables. Runtime eligibility is not inferred from saved connection status, a provider-owned synthetic marker, or metric bindings. No live authentication, real credentials, verified identity, populated daily or credit history, sleep injection, crash durability, OS scaling, or release-platform qualification.',
   steps: [], screenshots: [], oracles: [], closes: [],
 };
 let fixture, driver, workspace, executable, approvalId, sequence = 0;
-const home = profile => join(workspace, 'profiles', profile.id);
+const homeReferences = new Map();
+const home = profile => join(workspace, 'profiles', homeReferences.get(profile.id) ?? profile.id);
 const startButton = profile => `[data-monitoring-start="${profile.id}"]`;
 const pauseButton = profile => `[data-monitoring-pause="${profile.id}"]`;
 const collectionResult = profile => `[data-collection-profile="${profile.id}"]`;
@@ -94,6 +96,114 @@ async function login(profile) {
 async function manual(profile) { const before = await saved(profile); await driver.openProfileReadings(profile.id); await waitFor(async () => driver.execute('const button=document.querySelector(arguments[0]);return Boolean(button&&!button.disabled);', [`[data-collection-read="${profile.id}"]`]), 'available manual refresh'); await driver.click(`[data-collection-read="${profile.id}"]`); await waitFor(async () => { const value = await saved(profile); return value.quota && value.activity && value.quota.collectionRunId !== before.quota?.collectionRunId && value.activity.collectionRunId !== before.activity?.collectionRunId; }, 'manual paired COMMIT'); await waitFor(async () => driver.execute('return document.activeElement===document.querySelector(arguments[0])&&!document.querySelector(arguments[1]);', [collectionResult(profile), `[data-collection-cancel="${profile.id}"]`]), 'manual result focus'); const value = await saved(profile); pair(value, profile); return value; }
 async function start(profile) { await driver.openProfileOptions(profile.id); await waitFor(async () => driver.execute('const button=document.querySelector(arguments[0]);return Boolean(button&&!button.disabled&&button.getClientRects().length);', [startButton(profile)]), 'eligible Start monitoring'); await driver.click(startButton(profile)); await waitFor(async () => (await status(profile)).state === 'running', 'explicit monitoring start'); }
 async function capture(name, selector, width = 1280, scale = 1) { for (let count = 0; count < 3; count++) { const viewport = await driver.execute('return {width:innerWidth,height:innerHeight};'); if (viewport.width === width && viewport.height === 850) break; const rect = await driver.request('GET', `/session/${driver.session}/window/rect`); await driver.request('POST', `/session/${driver.session}/window/rect`, { width: rect.width + width - viewport.width, height: rect.height + 850 - viewport.height }); } await driver.execute('document.documentElement.style.fontSize=arguments[0]===1?"":`${16*arguments[0]}px`;document.querySelector(arguments[1])?.scrollIntoView({block:"center"});return true;', [scale, selector]); await driver.screenshot(join(output, name)); evidence.screenshots.push(name); }
+async function restoreWhilePending(profile) {
+  evidence.requirement = 'NATIVE-MONITORING-RESTORE-001';
+  evidence.scope = 'Actual native synthetic login, pending paired reads, rejected cancelled/missing tokens, confirmed GUI archive restore and GUI Undo. Every column in sixteen SQLCipher tables is compared, allowing only documented restored connection state, stopped monitoring, one bounded restore timestamp, and fresh private home mappings for archive restore. Undo retains the exact saved mappings. Daily and credit-history tables are empty. No live credentials, crash durability, or release-platform qualification.';
+  const password = 'OpenUsage synthetic restore race archive 2026';
+  async function button(text) {
+    const node = await driver.execute('return [...document.querySelectorAll("button")].find(node=>node.textContent.trim()===arguments[0]&&node.getClientRects().length);', [text]);
+    assert.ok(node, `Missing visible button: ${text}`);
+    await driver.request('POST', `/session/${driver.session}/element/${node['element-6066-11e4-a52e-4f735466cecf']}/click`, {});
+  }
+  async function pending() {
+    await configure(profile, 'activity_hang');
+    const offset = (await observations(profile)).length;
+    await start(profile);
+    let child;
+    await waitFor(async () => { child = (await observations(profile)).slice(offset).find(row => row.kind === 'activity-pending'); return Boolean(child); }, 'pending scheduled activity after quota response', 45000);
+    return child;
+  }
+  function restoredRecords(expected, actual, before, after, archive) {
+    const when = actual.tables.settings[0].updated_at, millis = Date.parse(when);
+    assert.ok(Number.isFinite(millis) && millis >= before - 1000 && millis <= after + 1000, 'Restore timestamp must fall within this confirmed operation, allowing timestamp precision.');
+    const tables = structuredClone(expected.tables);
+    tables.settings[0].monitoring = 'stopped'; tables.settings[0].updated_at = when;
+    for (const row of tables.profiles) { row.connection_state = 'authentication_required'; row.updated_at = when; if (archive) row.approved_home_reference = actual.tables.profiles.find(item => item.id === row.id).approved_home_reference; }
+    assert.deepEqual(actual.tables, tables, 'Every restored column must match its source except the explicit restore transformations.');
+  }
+  async function confirm(expected, child, label, archive = false) {
+    const existingHomes = new Set(await readdir(join(workspace, 'profiles')));
+    assert.deepEqual(await driver.execute('return {checked:document.querySelector("#restore-confirmed").getAttribute("aria-checked"),disabled:document.querySelector(".restore-confirmation-form button[type=submit]").disabled};'), { checked: 'false', disabled: true });
+    await capture(`${label}-preview.png`, '.restore-preview');
+    const before = Date.now();
+    await driver.click('#restore-confirmed');
+    await waitFor(async () => driver.execute('return !document.querySelector(".restore-confirmation-form button[type=submit]").disabled;'), 'explicit replacement consent');
+    await driver.click('.restore-confirmation-form button[type=submit]');
+    await waitFor(async () => driver.execute('return document.activeElement?.matches(".restore-result");'), 'confirmed native restore result', 45000);
+    const after = Date.now(); await reaped(child);
+    const current = await status(profile);
+    assert.equal(current.state, 'stopped'); assert.equal(current.eligible, false); assert.equal(current.readingActive, false);
+    const actual = await oracle(`${label}: every restored column and no accepted pending half`);
+    if (archive) {
+      const references = actual.tables.profiles.map(row => row.approved_home_reference);
+      assert.equal(new Set(references).size, references.length);
+      for (const reference of references) {
+        assert.match(reference, /^[0-9a-f-]{36}$/); assert.equal(existingHomes.has(reference), false);
+        const directory = join(workspace, 'profiles', reference); assert.equal((await stat(directory)).mode & 0o777, 0o700);
+        assert.deepEqual(await readdir(directory), [], 'Archive restore must create empty private homes without copying credentials.');
+      }
+    }
+    restoredRecords(expected, actual, before, after, archive);
+    for (const row of actual.tables.profiles) homeReferences.set(row.id, row.approved_home_reference);
+    await capture(`${label}-result.png`, '.restore-result');
+    evidence.steps.push({ operation: label, exactOwnedChildAndGroupReaped: true, everyRestoredColumnMatched: true, onlyExplicitRestoreTransformations: true, requiresFreshSignIn: true });
+    return actual;
+  }
+  await driver.setAppearance('light'); await driver.navigate('settings'); await button('Create a backup');
+  await driver.type('#backup-password', password); await driver.type('#backup-confirmation', password); await driver.click('#backup-records'); await driver.click('.backup-form button[type=submit]');
+  await waitFor(async () => driver.execute('return Boolean(document.querySelector(".backup-panel > .backup-receipt strong"));'), 'authenticated GUI backup');
+  const fileName = await driver.execute('return document.querySelector(".backup-panel > .backup-receipt strong").textContent;');
+  const original = await oracle('archive source A after GUI authenticated export');
+  const originalHome = home(profile), homeBefore = await stat(originalHome), keyHash = await hash(join(workspace, 'database-key.v1'));
+  const markerHash = await hash(join(home(profile), 'synthetic-monitored-login-completed'));
+  const other = (await call('list_profiles')).profiles.find(item => item.id !== profile.id); assert.ok(other);
+  await call('rename_profile', { id: other.id, label: 'Synthetic records before restore' }); await driver.setAppearance('dark');
+  const preview = await call('prepare_restore_preview', { fileName, password });
+  assert.deepEqual(await call('cancel_restore_preview', { previewId: preview.previewId }), { cancelled: true });
+  const child = await pending(), before = await oracle('pending pair in state B before rejected tokens');
+  const previous = await status(profile); assert.equal(previous.state, 'running'); assert.equal(previous.eligible, true); assert.equal(previous.readingActive, true);
+  for (const previewId of [preview.previewId, randomUUID()]) {
+    assert.deepEqual(await driver.invoke('apply_restore', { previewId, confirmed: true }), { ok: false, error: 'stale_restore_preview' });
+    const after = await status(profile);
+    assert.equal(after.state, 'running', 'An unknown or cancelled preview must not stop monitoring.');
+    assert.equal(after.eligible, true, 'A rejected restore must not revoke the current login grant.');
+    assert.equal(after.readingActive, true); assert.equal(after.readingRevision, previous.readingRevision); process.kill(child.pid, 0);
+    assert.deepEqual(await oracle('rejected token preserves all sixteen tables'), before);
+  }
+  await capture('rejected-restore-retains-pending-read.png', pauseButton(profile));
+  await driver.navigate('settings'); await button('Inspect a backup');
+  await waitFor(async () => driver.execute('return Boolean(document.querySelector("#backup-file")&&!document.querySelector("#backup-file").disabled);'), 'backup catalog');
+  await driver.selectVisibleOption('#backup-file', fileName); await driver.type('#backup-inspection-password', password); await driver.click('.backup-inspection-form button[type=submit]');
+  await waitFor(async () => driver.execute('return Boolean(document.querySelector(".backup-inspection-receipt"));'), 'authenticated archive inspection');
+  await button('Preview restore'); await driver.type('#restore-preview-password', password); await driver.click('.restore-preview-form button[type=submit]');
+  await waitFor(async () => driver.execute('return document.activeElement?.matches(".restore-preview");'), 'archive restore preview', 30000);
+  const checkpointId = await driver.execute('return document.querySelector(".restore-preview").dataset.checkpointId;'); assert.match(checkpointId, /^[0-9a-f-]{36}$/);
+  const checkpoint = join(workspace, 'restore-checkpoints', `${checkpointId}.sqlite`), checkpointHash = await hash(checkpoint);
+  assert.equal((await stat(checkpoint)).mode & 0o777, 0o600);
+  assert.equal((await readFile(checkpoint)).subarray(0, 16).equals(Buffer.from('SQLite format 3\0')), false);
+  // Full checkpoint content is checked after actual Undo against all sixteen original state B tables.
+  const restored = await confirm(original, child, 'archive-restore', true);
+  assert.equal(await hash(checkpoint), checkpointHash);
+  await approve(profile); await login(profile); const undoChild = await pending();
+  await driver.navigate('settings'); await button('Undo a restore');
+  await waitFor(async () => driver.execute('return Boolean(document.querySelector("#restore-checkpoint")&&!document.querySelector("#restore-checkpoint").disabled);'), 'saved copy catalog');
+  const selected = (await call('list_restore_checkpoints')).checkpoints.find(item => item.id === checkpointId); assert.ok(selected);
+  const label = await driver.execute('return (arguments[0]===null?"Date unavailable":new Intl.DateTimeFormat("en-US",{dateStyle:"medium",timeStyle:"short",timeZone:"UTC"}).format(new Date(arguments[0]))+" UTC")+" · "+arguments[1];', [selected.modifiedAt, checkpointId]);
+  await driver.selectVisibleOption('#restore-checkpoint', label); await button('Preview saved copy');
+  await waitFor(async () => driver.execute('return document.activeElement?.matches(".restore-preview");'), 'checkpoint Undo preview', 30000);
+  assert.equal(await driver.execute('return document.querySelector(".restore-preview").dataset.sourceCheckpointId;'), checkpointId);
+  const undone = await confirm(before, undoChild, 'checkpoint-undo');
+  assert.equal(await hash(checkpoint), checkpointHash);
+  await closeNormally(); await open();
+  const restarted = await status(profile); assert.equal(restarted.state, 'stopped'); assert.equal(restarted.eligible, false); assert.equal(restarted.readingActive, false);
+  assert.deepEqual((await oracle('genuine restart preserves recovered state B and no pending half')).tables, undone.tables);
+  assert.equal(home(profile), originalHome); const homeAfter = await stat(originalHome); assert.equal(homeAfter.ino, homeBefore.ino); assert.equal(homeAfter.dev, homeBefore.dev);
+  assert.equal(await hash(join(workspace, 'database-key.v1')), keyHash); assert.equal(await hash(join(home(profile), 'synthetic-monitored-login-completed')), markerHash);
+  assert.equal(restored.tables.settings[0].theme, 'light'); assert.equal(undone.tables.settings[0].theme, 'dark');
+  evidence.steps.push({ cancelledAndMissingTokensPreserveGrantAndPendingRead: true, selectedCheckpointUnchanged: true, archiveCreatedFreshEmptyPrivateHomes: true, undoRestoredExactSavedHomeMappings: true, originalHomeInodeAndProtectedKeyAndSyntheticMarkerPreserved: true, genuineRestartDoesNotRestoreEligibility: true, nativeExportAndRestoreAndUndoWithExplicitConsent: true });
+  await closeNormally();
+}
+
 async function keyboardPause(profile) {
   await driver.openProfileOptions(profile.id); const manage = `[data-profile-id="${profile.id}"] [data-profile-action="options"]`; await driver.click(manage); await driver.click(manage);
   const focus = JSON.parse(execFileSync('/usr/bin/python3', [join(harness, 'x11-close.py'), String(await ownedPid()), 'focus'], { env: fixture.environment, encoding: 'utf8', timeout: 10000 }));
@@ -155,6 +265,8 @@ try {
     const replies = await driver.execute('return window.__monitorStatusProbe;');
     assert.ok(replies.every(reply => reply.ok)); evidence.steps.push({ independentPageSideReplies: replies });
     await closeNormally(); evidence.result = 'passed';
+  } else if (restoreRace) {
+    await restoreWhilePending(first); evidence.result = 'passed';
   } else {
   await driver.waitForProfileRefresh(first.id); const beforeScheduled = await saved(first), beforeScheduledOracle = await oracle('seed before explicit monitoring start'), initialRevision = (await status(first)).readingRevision, offset = (await appStarts(first)).length;
   await start(first);
