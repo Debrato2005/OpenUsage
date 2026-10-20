@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { Button } from './components/ui/button';
+import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from './components/ui/collapsible';
 import { Meter, MeterIndicator, MeterLabel, MeterTrack } from './components/ui/meter';
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from './components/ui/select';
 import { invoke, type ProfileRecord, type SavedProfileActivity, type SavedProfileQuota, type SavedQuotaWindow } from './contracts';
@@ -13,6 +14,36 @@ const freshness = { fresh: 'Fresh', stale: 'Stale', unknown: 'Freshness unknown'
 
 function Observed({ value }: { value: SavedProfileActivity | SavedProfileQuota }) {
   return <p className="overview-meta">{freshness[value.freshness]} · <time dateTime={value.observedAtUtc}>{dates.format(new Date(value.observedAtUtc))}</time></p>;
+}
+
+function DailyChart({ value }: { value: SavedProfileActivity }) {
+  const rows = value.dailyUsageBuckets.slice(-30);
+  const bars = value.dailyChart.bars.slice(-30);
+  if (rows.length === 0) return <p className="overview-chart-empty" data-overview-chart-empty>{value.dailyState === 'unavailable' ? 'Daily usage was not supplied.' : 'No saved daily usage.'}</p>;
+  return <div className="overview-daily" data-overview-daily-chart>
+    <figure aria-labelledby="overview-daily-heading" aria-describedby="overview-daily-scope">
+      <figcaption><h3 id="overview-daily-heading">Saved daily usage</h3><p id="overview-daily-scope">{rows.length} saved {rows.length === 1 ? 'date' : 'dates'}{value.dailyTruncated ? ' · Partial saved data' : ''} · Dates may have gaps</p></figcaption>
+      <div className="overview-daily-plot" role="img" aria-label="Daily token bars. Exact dates, counts and freshness are available in Daily values.">
+        {bars.map((bar, index) => <span key={bar.date} className="overview-daily-column" aria-hidden="true" data-overview-day={bar.date}>
+          <span className="overview-daily-bar" data-zero={rows[index]!.tokens === '0' ? 'true' : undefined} style={{ '--bar-height': bar.heightBasisPoints } as CSSProperties} title={`${bar.date}: ${rows[index]!.tokens} tokens · ${freshness[rows[index]!.freshness]}`} />
+        </span>)}
+      </div>
+      <div className="overview-daily-axis" aria-hidden="true"><span>{rows[0]!.date}</span>{rows.length > 1 && <span>{rows.at(-1)!.date}</span>}</div>
+    </figure>
+    {value.dailyState !== 'returned' && <p className="overview-meta">{value.dailyState === 'unavailable' ? 'The latest read did not supply daily usage.' : 'The latest read returned no daily rows.'}</p>}
+    <Collapsible className="overview-daily-details">
+      <CollapsibleTrigger render={<Button variant="ghost" className="text-button" />} type="button">Daily values</CollapsibleTrigger>
+      <CollapsiblePanel>
+        <p className="overview-meta">Bars use the same scale. A baseline mark means zero tokens. Scope and coverage are unknown.</p>
+        <p className="overview-meta">Scale maximum <span className="activity-count" tabIndex={0} aria-label="Daily chart scale maximum"><bdi>{value.dailyChart.maxTokens}</bdi></span></p>
+        <div className="overview-daily-table" tabIndex={0} role="region" aria-label="Saved daily usage values">
+          <table><thead><tr><th scope="col">Date</th><th scope="col">Tokens</th><th scope="col">Freshness</th><th scope="col">Last read</th></tr></thead>
+            <tbody>{rows.map(row => <tr key={row.date}><th scope="row"><time dateTime={row.date}>{row.date}</time></th><td><span className="activity-count" tabIndex={0} aria-label={`Tokens for ${row.date}`}><bdi>{row.tokens}</bdi></span></td><td>{freshness[row.freshness]}</td><td><time dateTime={row.observedAtUtc}>{dates.format(new Date(row.observedAtUtc))}</time></td></tr>)}</tbody>
+          </table>
+        </div>
+      </CollapsiblePanel>
+    </Collapsible>
+  </div>;
 }
 
 function QuotaWindow({ value, role }: { value: SavedQuotaWindow | null; role: string }) {
@@ -92,7 +123,7 @@ export function Overview({ profiles, revision, onAccounts, active = true }: Prop
       <section className="overview-panel" aria-labelledby="overview-activity-heading" data-overview-activity>
         <div className="overview-panel-heading"><h2 id="overview-activity-heading">Token activity</h2><span className="overview-meta">{selected?.label ?? 'No profile selected'}</span></div>
         <div className="overview-total"><p id="overview-lifetime-label" className="overview-total-label">Lifetime tokens</p><p className={`overview-total-value${lifetimeTokens === null ? ' overview-unavailable' : ' activity-count'}`} data-overview-lifetime tabIndex={lifetimeTokens === null ? undefined : 0} aria-describedby={lifetimeTokens === null ? undefined : 'overview-lifetime-label'}><bdi>{lifetimeTokens ?? (pending ? 'Loading…' : 'Not available')}</bdi></p></div>
-        {activity ? <><Observed value={activity} /><p className="overview-meta">Account activity · Scope and coverage unknown</p></> : <p className="overview-meta">{selected ? 'Read activity from Accounts to see saved values.' : 'Create a profile in Accounts to get started.'}</p>}
+        {activity ? <><DailyChart value={activity} /><Observed value={activity} /><p className="overview-meta">Account activity · Scope and coverage unknown</p></> : <p className="overview-meta">{selected ? 'Read activity from Accounts to see saved values.' : 'Create a profile in Accounts to get started.'}</p>}
         {!activity && <Button type="button" variant="ghost" className="overview-empty-action" onClick={onAccounts}>Open Accounts</Button>}
         {saved?.activityFailed && <p className="overview-error">Saved activity could not be loaded. Reload it from Accounts.</p>}
         <p className="overview-note">Combined totals are not available. Profile readings are shown separately.</p>

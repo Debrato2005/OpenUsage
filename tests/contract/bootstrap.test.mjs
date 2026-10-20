@@ -473,7 +473,7 @@ test('rejects oversized activity previews and invalid Gregorian days without tru
 
 const savedActivity = (() => {
   const { requestId, approvalId, dailyUsageBuckets, ...value } = activityPreview;
-  return { ...value, freshness: 'unknown', dailyState: 'returned', dailyTruncated: false, dailyUsageBuckets: dailyUsageBuckets.map(row => ({ date: row.startDate, tokens: row.tokens, observedAtUtc: value.observedAtUtc, freshness: 'stale' })) };
+  return { ...value, freshness: 'unknown', dailyState: 'returned', dailyTruncated: false, dailyChart: { maxTokens: '9223372036854775807', bars: [{ date: '2024-02-29', heightBasisPoints: 10000 }, { date: '0001-01-01', heightBasisPoints: 0 }] }, dailyUsageBuckets: dailyUsageBuckets.map(row => ({ date: row.startDate, tokens: row.tokens, observedAtUtc: value.observedAtUtc, freshness: 'stale' })) };
 })();
 
 test('accepts committed cached activity without approval fields and preserves daily cache independent of latest array state', async () => {
@@ -484,6 +484,35 @@ test('accepts committed cached activity without approval fields and preserves da
     desktopResponse(value);
     assert.deepEqual(await invoke('load_profile_activity', { profileId: activityRequest.profileId }), value);
   }
+});
+
+
+test('saved activity chart validates matching bounded geometry and preserves exact zero and maximum strings', async () => {
+  const empty = { ...savedActivity, dailyUsageBuckets: [], dailyChart: { maxTokens: null, bars: [] } };
+  const zero = { ...savedActivity, dailyUsageBuckets: [{ ...savedActivity.dailyUsageBuckets[0], tokens: '0' }], dailyChart: { maxTokens: '0', bars: [{ date: '2024-02-29', heightBasisPoints: 0 }] } };
+  for (const value of [savedActivity, empty, zero]) {
+    desktopResponse(value);
+    assert.deepEqual(await invoke('load_profile_activity', { profileId: activityRequest.profileId }), value);
+  }
+  const first = savedActivity.dailyChart.bars[0];
+  for (const dailyChart of [
+    undefined, null, [], {}, { ...savedActivity.dailyChart, extra: true },
+    { maxTokens: '9223372036854775808', bars: savedActivity.dailyChart.bars },
+    { ...savedActivity.dailyChart, maxTokens: 9223372036854775807 },
+    { ...savedActivity.dailyChart, maxTokens: null }, { ...savedActivity.dailyChart, maxTokens: '1' },
+    { ...savedActivity.dailyChart, bars: [] }, { ...savedActivity.dailyChart, bars: [...savedActivity.dailyChart.bars, first] },
+    { ...savedActivity.dailyChart, bars: [first, first] },
+    { ...savedActivity.dailyChart, bars: [...savedActivity.dailyChart.bars].reverse() },
+    ...[{ heightBasisPoints: -1 }, { heightBasisPoints: 10001 }, { heightBasisPoints: 0.5 }, { heightBasisPoints: '10000' },
+      { date: '2024-02-30' }, { date: '2024-03-01' }, { extra: true }, { heightBasisPoints: 9999 }]
+      .map(change => ({ ...savedActivity.dailyChart, bars: [{ ...first, ...change }, savedActivity.dailyChart.bars[1]] })),
+    { ...savedActivity.dailyChart, bars: [first, { ...savedActivity.dailyChart.bars[1], heightBasisPoints: 1 }] },
+  ]) {
+    desktopResponse({ ...savedActivity, dailyChart });
+    await assert.rejects(invoke('load_profile_activity', { profileId: activityRequest.profileId }), /desktop response is incompatible/);
+  }
+  desktopResponse({ ...zero, dailyChart: { maxTokens: '0', bars: [{ date: '2024-02-29', heightBasisPoints: 1 }] } });
+  await assert.rejects(invoke('load_profile_activity', { profileId: activityRequest.profileId }), /desktop response is incompatible/);
 });
 
 test('refuses malformed cached provenance, uncommitted results, guessed freshness and lossy cached totals', async () => {
@@ -612,7 +641,7 @@ test('legacy provider and cache responses accept actual monitoring modes while r
     desktopResponse({ ...activityRequest, monitoring }); assert.equal((await invoke('begin_profile_collection_read', { profileId: activityRequest.profileId, approvalId: activityRequest.approvalId })).monitoring, monitoring);
     desktopResponse({ ...activityPreview, monitoring }); assert.equal((await invoke('complete_profile_activity_read', activityArgs)).monitoring, monitoring);
     const { requestId: _request, approvalId: _approval, ...cached } = activityPreview;
-    desktopResponse({ ...cached, monitoring, freshness: 'fresh', dailyState: 'empty', dailyUsageBuckets: [], dailyTruncated: false });
+    desktopResponse({ ...cached, monitoring, freshness: 'fresh', dailyState: 'empty', dailyUsageBuckets: [], dailyTruncated: false, dailyChart: { maxTokens: null, bars: [] } });
     assert.equal((await invoke('load_profile_activity', { profileId: activityRequest.profileId })).monitoring, monitoring);
   }
 });

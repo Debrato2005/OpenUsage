@@ -12,7 +12,7 @@ function activity(profileId: string, lifetimeTokens: string): SavedProfileActivi
     providerVersion: '0.163.0', sourceKind: 'test_fixture', observedAtUtc, identityConfidence: 'provisional', verifiedIdentityKey: null,
     monitoring: 'stopped', accepted: true, coverage: 'unknown', scope: 'account_activity_with_unknown_application_scope', freshness: 'unknown',
     summary: { lifetimeTokens, peakDailyTokens: '9223372036854775807', currentStreakDays: '0', longestStreakDays: null, longestRunningTurnSec: null },
-    dailyState: 'unavailable', dailyUsageBuckets: [], dailyTruncated: false };
+    dailyState: 'unavailable', dailyUsageBuckets: [], dailyTruncated: false, dailyChart: { maxTokens: null, bars: [] } };
 }
 function quota(profileId: string): SavedProfileQuota {
   return { profileId, bindingId: '33333333-3333-4333-8333-333333333333', collectionRunId: '55555555-5555-4555-8555-555555555555',
@@ -25,7 +25,16 @@ type Pending = { profileId: string; kind: string; resolve: (value: unknown) => v
 type Fixture = { calls: string[]; deferFirst: boolean; mismatchFirst: boolean; pending: Pending[] };
 type FixtureWindow = Window & { overviewFixture: Fixture };
 
-async function open(page: Page, options: { empty?: boolean; deferFirst?: boolean } = {}) {
+async function open(page: Page, options: { empty?: boolean; deferFirst?: boolean; chart?: boolean } = {}) {
+  const chartActivity = activity(first, '0');
+  if (options.chart) {
+    chartActivity.dailyState = 'returned';
+    chartActivity.dailyUsageBuckets = [
+      { date: '2026-10-01', tokens: '0', observedAtUtc, freshness: 'stale' },
+      { date: '2026-10-03', tokens: '9007199254740993', observedAtUtc, freshness: 'fresh' },
+    ];
+    chartActivity.dailyChart = { maxTokens: '9007199254740993', bars: [{ date: '2026-10-01', heightBasisPoints: 0 }, { date: '2026-10-03', heightBasisPoints: 10000 }] };
+  }
   await page.addInitScript(({ first, second, readings, quotas, options }) => {
     const fixture: Fixture = { calls: [], deferFirst: options.deferFirst ?? false, mismatchFirst: false, pending: [] };
     Object.assign(window, { overviewFixture: fixture });
@@ -48,7 +57,7 @@ async function open(page: Page, options: { empty?: boolean; deferFirst?: boolean
       }
       throw new Error(`Unexpected overview fixture command: ${command}`);
     } } };
-  }, { first, second, readings: { [first]: activity(first, '0'), [second]: activity(second, '9223372036854775807') }, quotas: { [first]: quota(first), [second]: quota(second) }, options });
+  }, { first, second, readings: { [first]: chartActivity, [second]: activity(second, '9223372036854775807') }, quotas: { [first]: quota(first), [second]: quota(second) }, options });
   await page.goto('/');
   await expect(page.getByRole('region', { name: 'Usage overview', exact: true })).toBeVisible();
 }
@@ -185,4 +194,43 @@ test('renderer Overview remains accessible in both themes at 360 pixels and enla
       }
     }
   }
+});
+
+
+test('Overview renders Rust-prepared daily geometry with exact accessible values and no invented gap date', async ({ page }) => {
+  await open(page, { chart: true });
+  const chart = dashboard(page).locator('[data-overview-daily-chart]');
+  await expect(chart).toContainText('2 saved dates');
+  await expect(chart.locator('[data-overview-day]')).toHaveCount(2);
+  await expect(chart.locator('[data-overview-day="2026-10-02"]')).toHaveCount(0);
+  const zero = chart.locator('[data-overview-day="2026-10-01"] .overview-daily-bar');
+  const maximum = chart.locator('[data-overview-day="2026-10-03"] .overview-daily-bar');
+  await expect(zero).toHaveAttribute('data-zero', 'true');
+  expect(await maximum.evaluate(node => node.getBoundingClientRect().height)).toBeGreaterThan(await zero.evaluate(node => node.getBoundingClientRect().height));
+  await chart.getByRole('button', { name: 'Daily values', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  const zeroRow = chart.getByRole('row').filter({ has: page.getByRole('rowheader', { name: '2026-10-01', exact: true }) });
+  const largeRow = chart.getByRole('row').filter({ has: page.getByRole('rowheader', { name: '2026-10-03', exact: true }) });
+  await expect(zeroRow.getByRole('cell', { name: 'Tokens for 2026-10-01', exact: true })).toHaveText('0');
+  await expect(zeroRow.getByRole('cell', { name: 'Stale', exact: true })).toBeVisible();
+  await expect(largeRow.getByRole('cell', { name: 'Tokens for 2026-10-03', exact: true })).toHaveText('9007199254740993');
+  await expect(largeRow.getByRole('cell', { name: 'Fresh', exact: true })).toBeVisible();
+  await choose(page, 'Large fixture');
+  await expect(dashboard(page).locator('[data-overview-daily-chart]')).toHaveCount(0);
+  await expect(dashboard(page).locator('[data-overview-chart-empty]')).toHaveText('Daily usage was not supplied.');
+});
+
+for (const scale of [1, 2]) test(`Daily chart values stay exact and locally scrollable at 360px and ${scale * 100}% text`, async ({ page }) => {
+  await open(page, { chart: true });
+  await page.setViewportSize({ width: 360, height: 800 });
+  await dashboard(page).getByRole('button', { name: 'Daily values', exact: true }).click();
+  if (scale === 2) await page.evaluate(() => {
+    const sizes = [...document.querySelectorAll<HTMLElement>('body *')].map(node => ({ node, size: getComputedStyle(node).fontSize }));
+    for (const { node, size } of sizes) node.style.fontSize = `${parseFloat(size) * 2}px`;
+  });
+  const table = dashboard(page).getByRole('region', { name: 'Saved daily usage values', exact: true });
+  await expect(table).toContainText('9007199254740993');
+  await table.focus(); await page.keyboard.press('ArrowRight');
+  await expect.poll(() => table.evaluate(node => node.scrollLeft)).toBeGreaterThan(0);
+  expect(await page.evaluate(() => document.scrollingElement!.scrollWidth <= innerWidth + 1)).toBe(true);
 });

@@ -26,7 +26,7 @@ function cachedQuota(): SavedProfileQuota {
     limits: [{ limitId: 'codex', limitName: 'Synthetic quota', primary: { usedPercent: 25, derivedRemainingPercent: 75, windowDurationMins: 300, resetsAtUnix: null, label: 'Five-hour', resetState: 'unconfirmed' }, secondary: null, reachedType: null, monthlyCreditLimit: null, spendControlReached: null }] };
 }
 function cachedActivity(): SavedProfileActivity {
-  return { profileId, bindingId, collectionRunId: activityRun, providerVersion: '0.163.0', sourceKind: 'test_fixture', observedAtUtc, identityConfidence: 'provisional', verifiedIdentityKey: null, monitoring: 'stopped', accepted: true, coverage: 'unknown', scope: 'account_activity_with_unknown_application_scope', freshness: 'fresh', summary: { lifetimeTokens: '9007199254740993', peakDailyTokens: null, currentStreakDays: '0', longestStreakDays: null, longestRunningTurnSec: null }, dailyState: 'empty', dailyUsageBuckets: [], dailyTruncated: false };
+  return { profileId, bindingId, collectionRunId: activityRun, providerVersion: '0.163.0', sourceKind: 'test_fixture', observedAtUtc, identityConfidence: 'provisional', verifiedIdentityKey: null, monitoring: 'stopped', accepted: true, coverage: 'unknown', scope: 'account_activity_with_unknown_application_scope', freshness: 'fresh', summary: { lifetimeTokens: '9007199254740993', peakDailyTokens: null, currentStreakDays: '0', longestStreakDays: null, longestRunningTurnSec: null }, dailyState: 'empty', dailyUsageBuckets: [], dailyTruncated: false, dailyChart: { maxTokens: null, bars: [] } };
 }
 function committed(index = 0): ProfileCollectionOutcome {
   return { profileId, approvalId, requestId: requests[index]!, providerVersion: '0.163.0', sourceKind: 'test_fixture', identityConfidence: 'provisional', verifiedIdentityKey: null, monitoring: 'stopped', accepted: true,
@@ -88,8 +88,8 @@ async function approve(page: Page) {
   if (!(await section.locator('[data-provider-manual]').evaluate(node => node.closest('details')!.open))) await section.locator('[data-provider-manual]').click();
   await page.getByLabel('Codex executable', { exact: true }).fill('/synthetic/reviewed-codex');
   await page.getByRole('button', { name: 'Inspect executable', exact: true }).click();
-  await page.getByLabel('I trust this executable for account checks and previews.').check();
-  await page.getByRole('button', { name: 'Approve executable', exact: true }).click();
+  await page.getByLabel('Allow Codex to sign in and read usage.').check();
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
 }
 const status = (page: Page) => page.locator(`[data-collection-profile="${profileId}"]`);
 const cancel = (page: Page) => page.getByRole('button', { name: 'Cancel refresh', exact: true });
@@ -250,7 +250,7 @@ for (const kind of ['quota', 'activity'] as const) test(`individual ${kind} refr
     const receipt = { ...value, requestId: requests[0]!, approvalId, collectionRunId: nextQuotaRun, limits: value.limits.map(limit => ({ ...limit, primary: limit.primary && { usedPercent: 50, derivedRemainingPercent: 50, windowDurationMins: 300, resetsAtUnix: null, label: 'Five-hour' } })) };
     await page.evaluate(({ receipt, run }) => { const f = (window as unknown as FixtureWindow).collectionFixture; f.quota.collectionRunId = run; f.quota.limits[0]!.primary!.usedPercent = 50; f.quota.limits[0]!.primary!.derivedRemainingPercent = 50; f.completions[receipt.requestId]!.resolve(receipt); }, { receipt, run: nextQuotaRun });
   } else {
-    const { freshness: _freshness, dailyState: _dailyState, dailyTruncated: _dailyTruncated, ...value } = cachedActivity();
+    const { freshness: _freshness, dailyState: _dailyState, dailyTruncated: _dailyTruncated, dailyChart: _dailyChart, ...value } = cachedActivity();
     const receipt = { ...value, requestId: requests[0]!, approvalId, collectionRunId: nextActivityRun, dailyUsageBuckets: [] };
     await page.evaluate(({ receipt, run }) => { const f = (window as unknown as FixtureWindow).collectionFixture; f.activity.collectionRunId = run; f.completions[receipt.requestId]!.resolve(receipt); }, { receipt, run: nextActivityRun });
   }

@@ -20,7 +20,9 @@ function committed(index: number, rows: { startDate: string; tokens: string }[] 
 }
 function saved(index = 0, rows: { startDate: string; tokens: string }[] | null = null): SavedProfileActivity {
   const { requestId: _requestId, approvalId: _approvalId, dailyUsageBuckets, ...value } = committed(index, rows);
-  return { ...value, freshness: 'unknown', dailyState: rows === null ? 'unavailable' : rows.length === 0 ? 'empty' : 'returned', dailyTruncated: false,
+  // These synthetic buckets contain zero or one shared nonzero token count.
+  const maximum = (dailyUsageBuckets ?? []).find(row => row.tokens !== '0')?.tokens ?? dailyUsageBuckets?.[0]?.tokens ?? null;
+  return { ...value, dailyChart: { maxTokens: maximum, bars: (dailyUsageBuckets ?? []).map(row => ({ date: row.startDate, heightBasisPoints: row.tokens === '0' ? 0 : 10000 })) }, freshness: 'unknown', dailyState: rows === null ? 'unavailable' : rows.length === 0 ? 'empty' : 'returned', dailyTruncated: false,
     dailyUsageBuckets: (dailyUsageBuckets ?? []).map(row => ({ date: row.startDate, tokens: row.tokens, observedAtUtc, freshness: 'unknown' })) };
 }
 async function openProfile(page: Page, options: { approve?: boolean; cached?: SavedProfileActivity | null; archived?: boolean } = {}) {
@@ -66,8 +68,8 @@ async function openProfile(page: Page, options: { approve?: boolean; cached?: Sa
   await page.locator('[data-workspace-view="settings"] [data-provider-manual]').click();
   await page.getByLabel('Codex executable', { exact: true }).fill('/synthetic/reviewed-codex');
   await page.getByRole('button', { name: 'Inspect executable', exact: true }).click();
-  await page.getByLabel('I trust this executable for account checks and previews.').check();
-  await page.getByRole('button', { name: 'Approve executable', exact: true }).click();
+  await page.getByLabel('Allow Codex to sign in and read usage.').check();
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
   await navigate(page, 'accounts');
   await expect(page.getByRole('button', { name: 'Read activity', exact: true })).toBeHidden();
   await page.getByRole('button', { name: 'Manage profile', exact: true }).click();
@@ -177,7 +179,7 @@ test('renderer preserves saved daily rows and their ages when a saved replacemen
   await expect(accounts(page).getByText('The reading could not be saved. Your previous activity is still available.')).toBeVisible();
   await expect(metric(page, 'lifetimeTokens')).toHaveText('9223372036854775807');
   await begin(page, 1);
-  const next = saved(1); next.summary = { lifetimeTokens: null, peakDailyTokens: null, longestRunningTurnSec: null, currentStreakDays: null, longestStreakDays: null }; next.freshness = 'fresh'; next.dailyUsageBuckets = cached.dailyUsageBuckets.map(row => ({ ...row, freshness: 'stale' }));
+  const next = saved(1); next.summary = { lifetimeTokens: null, peakDailyTokens: null, longestRunningTurnSec: null, currentStreakDays: null, longestStreakDays: null }; next.freshness = 'fresh'; next.dailyUsageBuckets = cached.dailyUsageBuckets.map(row => ({ ...row, freshness: 'stale' })); next.dailyChart = cached.dailyChart;
   await publish(page, 1, null, next);
   await expect(metric(page, 'lifetimeTokens')).toHaveText('Not available');
   await expect(accounts(page).getByText('The reading could not be saved. Your previous activity is still available.')).toHaveCount(0);

@@ -38,8 +38,9 @@ async function discover(expected) {
   assert.deepEqual(result.value.candidates.map(item => item.path).sort(), [...expected].sort()); evidence.discoveries.push(result.value); assert.deepEqual(await databaseHashes(), before, 'Discovery must preserve encrypted database, WAL and wrapped key bytes.'); await unchanged(); return result.value;
 }
 async function find() {
+  if (await driver.execute('return !document.querySelector("[data-provider-find]").getClientRects().length;')) await driver.click('[data-provider-advanced]');
   await driver.click('[data-provider-find]');
-  await waitFor(async () => await driver.execute('return !document.querySelector("[data-provider-find]").disabled && Boolean(document.querySelector(".provider-discovery"));'), 'discovery results');
+  await waitFor(async () => await driver.execute('return !document.querySelector("[data-provider-find]").disabled && Boolean(document.querySelector(".provider-discovery,.provider-executable-review"));'), 'discovery results');
   await waitFor(async () => await driver.execute('return document.activeElement?.matches(".provider-discovery,.provider-executable-review,#provider-executable");'), 'discovery next-action focus');
 }
 async function focusOwnedWindow() {

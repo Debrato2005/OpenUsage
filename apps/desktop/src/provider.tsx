@@ -112,48 +112,51 @@ export function ProviderSettings({ busy, setBusy, approval, onApproved }: Settin
     } finally { pending.current = false; setOperation(null); setBusy(false); }
   }
 
-  return <section className="provider-panel" aria-labelledby="provider-heading">
-    <details>
-      <summary data-provider-settings><h2 id="provider-heading">Codex connection</h2></summary>
-      <p className="provider-help">Review Codex for this session, then sign in to a profile. Refresh readings or start monitoring from Manage profile.</p>
-      {approval && <div ref={approvalPanel} className="backup-receipt provider-approval-result" role="status" tabIndex={-1}>
-        <h3>Executable approved for this session</h3><p className="provider-path"><bdi>{approval.path}</bdi></p>
-        <p className="provider-help">OpenUsage checks compatibility before each connection check.</p>
-        {approval.sourceKind === 'test_fixture' && <p className="provider-fixture-note" data-provider-fixture>Synthetic provider fixture. Replies use controlled test data.</p>}
-      </div>}
-      <p className="provider-help" id="provider-find-help">OpenUsage checks known installation locations and folder metadata. It does not open sign-in files or run Codex.</p>
+  const searchControls = <>
+      <p className="provider-help" id="provider-find-help">Find your installed Codex to sign in and read usage.</p>
       <Button className="secondary-button" variant="outline" type="button" data-provider-find disabled={busy} aria-describedby="provider-find-help" onClick={() => { void find(); }}>{operation === 'find' ? 'Finding Codex…' : 'Find Codex'}</Button>
-      {discovery && <div ref={foundPanel} className="provider-discovery" tabIndex={-1} role="region" aria-label="Codex search results">
-        <p role="status">{discovery.candidates.length === 0 ? 'No executable was found in the checked locations. Enter a path to review Codex.' : discovery.candidates.length === 1 ? 'One executable found. Review its source below before you approve it.' : `${discovery.candidates.length} executables found. Choose one to review.`}</p>
-        {discovery.truncated && <p className="provider-help">The search reached its limit. You can enter a different path below.</p>}
+      {discovery && !candidate && <div ref={foundPanel} className="provider-discovery" tabIndex={-1} role="region" aria-label="Codex search results">
+        <p role="status">{discovery.candidates.length === 0 ? 'Codex was not found. Enter its path under Advanced.' : discovery.candidates.length === 1 ? 'Codex found.' : `${discovery.candidates.length} installations found. Choose one.`}</p>
+        {discovery.truncated && <p className="provider-help">More installations may be available under Advanced.</p>}
         {discovery.candidates.length > 1 && <form className="provider-discovery-form" onSubmit={event => { event.preventDefault(); void inspect(); }}>
           <Field disabled={busy} render={<fieldset disabled={busy} />}><legend id="discovered-codex-label">Codex executable</legend><RadioGroup name="discovered-codex" value={path} disabled={busy} aria-labelledby="discovered-codex-label" onValueChange={value => { if (typeof value === 'string' && discovery.candidates.some(found => found.path === value)) choose(value); }}>{discovery.candidates.map((found, index) => <FieldItem key={found.path}><FieldLabel className="backup-selection provider-discovery-choice"><Radio nativeButton render={<button type="button" />} id={`discovered-codex-${index}`} value={found.path} disabled={busy} /><span className="provider-path"><bdi>{found.path}</bdi></span></FieldLabel></FieldItem>)}</RadioGroup></Field>
           <Button className="secondary-button" variant="outline" type="submit" disabled={busy || !path}>{operation === 'inspect' ? 'Inspecting executable…' : 'Review selected executable'}</Button>
         </form>}
       </div>}
-      <details className="provider-manual" open={manualOpen} onToggle={event => setManualOpen(event.currentTarget.open)}>
-        <summary data-provider-manual>Enter executable path</summary>
-        <Field className="unlock-form provider-inspection-form" render={<form noValidate onSubmit={event => { event.preventDefault(); void inspect(); }} />}>
-          <FieldLabel htmlFor="provider-executable">Codex executable</FieldLabel>
-          <Input ref={pathField} id="provider-executable" type="text" autoComplete="off" spellCheck={false} maxLength={4096} value={path} disabled={busy} aria-invalid={!!error && pathError} aria-describedby={`provider-executable-help${error && pathError ? ' provider-executable-error' : ''}`} onChange={event => choose(event.target.value)} />
-          <FieldDescription id="provider-executable-help" render={<p />}>Enter an absolute file path. Inspection checks the source before you approve execution.</FieldDescription>
-          <Button className="secondary-button" variant="outline" type="submit" disabled={busy}>{operation === 'inspect' ? 'Inspecting executable…' : 'Inspect executable'}</Button>
-        </Field>
-      </details>
-      {candidate && <div ref={reviewPanel} className="backup-receipt provider-executable-review" tabIndex={-1} role="region" aria-labelledby="provider-review-heading">
-        <h3 id="provider-review-heading">Connect with Codex</h3>
-        <dl className="backup-inspection-metadata"><dt>Codex version</dt><dd>{candidate.testedVersion}</dd><dt>Source</dt><dd>{candidate.sourceKind === 'official_artifact' ? 'Reviewed official artifact' : candidate.sourceKind === 'test_fixture' ? 'Reviewed synthetic provider fixture' : 'Not verified'}</dd></dl>
-        <details className="provider-advanced"><summary>Executable details</summary><dl className="backup-inspection-metadata"><dt>File</dt><dd className="provider-path"><bdi>{candidate.path}</bdi></dd>{candidate.sourceUrl && <><dt>Source reference</dt><dd><bdi>{candidate.sourceUrl}</bdi></dd></>}<dt>Size</dt><dd>{candidate.fileBytes} bytes</dd><dt>SHA-256</dt><dd className="provider-checksum">{candidate.sha256}</dd></dl></details>
-        <p id="provider-trust-help" className="provider-help">{candidate.sourceVerified
-          ? candidate.sourceKind === 'test_fixture'
-            ? 'OpenUsage will use this synthetic provider to test account sign-in and usage reads.'
-            : 'OpenUsage will use this reviewed Codex installation to sign in and read usage for the accounts you add.'
-          : 'This file does not match a supported verified source. OpenUsage cannot approve it for execution.'}</p>
-        <form className="provider-approval-form" onSubmit={event => { event.preventDefault(); void approve(); }}>
-          <Field disabled={busy || !candidate.sourceVerified}><FieldLabel className="backup-selection"><Checkbox nativeButton render={<button type="button" />} id="provider-executable-approved" required disabled={busy || !candidate.sourceVerified} checked={confirmed} aria-describedby="provider-trust-help" onCheckedChange={checked => setConfirmed(checked === true)} />I trust this executable for account checks and previews.</FieldLabel></Field>
-          <Button className="primary-button" type="submit" disabled={busy || !confirmed || !candidate.sourceVerified}>{operation === 'approve' ? 'Approving executable…' : 'Approve executable'}</Button>
-        </form>
+  </>;
+
+  return <section className="provider-panel" aria-labelledby="provider-heading">
+    <details>
+      <summary data-provider-settings><h2 id="provider-heading">Codex connection</h2></summary>
+      {!candidate && !approval && searchControls}
+      {approval && !candidate && <div ref={approvalPanel} className="provider-approval-result" role="status" tabIndex={-1}>
+        <h3>Ready to sign in</h3>
+        <p className="provider-help">Open Accounts and sign in to a profile.</p>
+        {approval.sourceKind === 'test_fixture' && <p className="provider-fixture-note" data-provider-fixture>Synthetic test data</p>}
+        <details className="provider-advanced"><summary>Codex details</summary><p className="provider-path"><bdi>{approval.path}</bdi></p></details>
       </div>}
+      {candidate && <div ref={reviewPanel} className="provider-executable-review" tabIndex={-1} role="region" aria-labelledby="provider-review-heading">
+        <h3 id="provider-review-heading">Codex found</h3>
+        {candidate.sourceKind === 'test_fixture' && <p className="provider-fixture-note" data-provider-fixture>Synthetic test data</p>}
+        <p id="provider-trust-help" className="provider-help">{candidate.sourceVerified
+          ? 'Sign in to your accounts after this step.'
+          : 'This Codex installation could not be verified. Choose a supported installation under Advanced.'}</p>
+        <form className="provider-approval-form" onSubmit={event => { event.preventDefault(); void approve(); }}>
+          <Field disabled={busy || !candidate.sourceVerified}><FieldLabel className="backup-selection"><Checkbox nativeButton render={<button type="button" />} id="provider-executable-approved" required disabled={busy || !candidate.sourceVerified} checked={confirmed} aria-describedby="provider-trust-help" onCheckedChange={checked => setConfirmed(checked === true)} />Allow Codex to sign in and read usage.</FieldLabel></Field>
+          <Button className="primary-button" type="submit" disabled={busy || !confirmed || !candidate.sourceVerified}>{operation === 'approve' ? 'Checking Codex…' : 'Continue'}</Button>
+        </form>
+        <details className="provider-advanced"><summary>Codex details</summary><dl className="backup-inspection-metadata"><dt>Version</dt><dd>{candidate.testedVersion}</dd><dt>Source</dt><dd>{candidate.sourceKind === 'official_artifact' ? 'Reviewed official artifact' : candidate.sourceKind === 'test_fixture' ? 'Reviewed synthetic provider fixture' : 'Not verified'}</dd><dt>File</dt><dd className="provider-path"><bdi>{candidate.path}</bdi></dd>{candidate.sourceUrl && <><dt>Source reference</dt><dd><bdi>{candidate.sourceUrl}</bdi></dd></>}<dt>Size</dt><dd>{candidate.fileBytes} bytes</dd><dt>SHA-256</dt><dd className="provider-checksum">{candidate.sha256}</dd></dl></details>
+      </div>}
+      <details className="provider-manual provider-connection-advanced" open={manualOpen} onToggle={event => setManualOpen(event.currentTarget.open)}>
+          <summary data-provider-manual data-provider-advanced>Advanced</summary>
+          {(candidate || approval) && searchControls}
+          <Field className="unlock-form provider-inspection-form" render={<form noValidate onSubmit={event => { event.preventDefault(); void inspect(); }} />}>
+            <FieldLabel htmlFor="provider-executable">Codex executable</FieldLabel>
+            <Input ref={pathField} id="provider-executable" type="text" autoComplete="off" spellCheck={false} maxLength={4096} value={path} disabled={busy} aria-invalid={!!error && pathError} aria-describedby={`provider-executable-help${error && pathError ? ' provider-executable-error' : ''}`} onChange={event => choose(event.target.value)} />
+            <FieldDescription id="provider-executable-help" render={<p />}>Enter an absolute file path. Inspection checks the source before you approve execution.</FieldDescription>
+            <Button className="secondary-button" variant="outline" type="submit" disabled={busy}>{operation === 'inspect' ? 'Inspecting executable…' : 'Inspect executable'}</Button>
+          </Field>
+      </details>
       {error && <p ref={errorPanel} id="provider-executable-error" className="operation-error" role="alert" tabIndex={-1}>{error}</p>}
     </details>
   </section>;

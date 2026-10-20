@@ -65,8 +65,8 @@ async function openProfile(page: Page, options: { approve?: boolean; cached?: Sa
   await page.locator('[data-provider-manual]').click();
   await page.getByLabel('Codex executable', { exact: true }).fill('/synthetic/reviewed-codex');
   await page.getByRole('button', { name: 'Inspect executable', exact: true }).click();
-  await page.getByLabel('I trust this executable for account checks and previews.').check();
-  await page.getByRole('button', { name: 'Approve executable', exact: true }).click();
+  await page.getByLabel('Allow Codex to sign in and read usage.').check();
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
   await navigate(page, 'accounts');
   await openOptions(page, profileId);
 

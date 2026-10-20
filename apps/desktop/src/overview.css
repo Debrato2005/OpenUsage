@@ -59,3 +59,23 @@
   .overview-toolbar > button { align-self: flex-start; }
   .overview-panel { padding: 1rem; }
 }
+
+.overview-daily { min-width: 0; margin-block: .75rem 1rem; }
+.overview-daily figure { margin: 0; }
+.overview-daily h3 { margin: 0; font-size: var(--text-sm); font-weight: 500; }
+.overview-daily figcaption p { margin: .25rem 0 .75rem; color: var(--muted); font-size: var(--text-xs); }
+.overview-daily-plot { display: flex; align-items: stretch; justify-content: space-between; gap: 3px; height: 8rem; border-bottom: 1px solid var(--line); }
+.overview-daily-column { flex: 1; min-width: 0; max-width: 2rem; display: flex; align-items: flex-end; }
+.overview-daily-bar { display: block; width: 100%; height: max(1px, calc(var(--bar-height) * .01%)); background: var(--accent); border-radius: 2px 2px 0 0; }
+.overview-daily-bar[data-zero='true'] { height: 0; border-top: 2px solid var(--muted); background: none; }
+.overview-daily-axis { display: flex; justify-content: space-between; flex-wrap: wrap; gap: .25rem 1rem; margin-top: .375rem; color: var(--muted); font-size: var(--text-xs); }
+.overview-daily-details { margin-top: .375rem; }
+.overview-daily-details .text-button { padding-inline: 0; }
+.overview-daily-table { overflow-x: auto; max-width: 100%; margin-top: .5rem; }
+.overview-daily-table:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+.overview-daily-table table { width: 100%; min-width: 28rem; border-collapse: collapse; text-align: left; font-size: var(--text-xs); }
+.overview-daily-table th, .overview-daily-table td { padding: .5rem; border-bottom: 1px solid var(--line); font-weight: 400; vertical-align: top; }
+.overview-daily-table thead { color: var(--muted); }
+.overview-daily-table .activity-count { max-width: 12rem; }
+.overview-chart-empty { margin: 1rem 0; padding-block: 1rem; border-block: 1px solid var(--line); color: var(--muted); font-size: var(--text-sm); }
+@media (forced-colors: active) { .overview-daily-bar { background: Highlight; } .overview-daily-bar[data-zero='true'] { border-color: CanvasText; } }

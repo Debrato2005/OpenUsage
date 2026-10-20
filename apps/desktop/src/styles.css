@@ -267,6 +267,10 @@ main { max-width: 1280px; padding: var(--space-6); margin: 0 auto; }
 .provider-checksum { font-family: inherit; font-size: var(--text-xs); overflow-wrap: anywhere; }
 .provider-fixture-note { margin-block: var(--space-2); color: var(--accent); font-weight: var(--weight-medium); }
 .provider-approval-form { display: grid; justify-items: start; gap: var(--space-3); margin-top: var(--space-3); }
+.provider-executable-review, .provider-approval-result { margin-top: var(--space-3); }
+.provider-executable-review h3, .provider-approval-result h3 { font-size: var(--text-body); font-weight: var(--weight-medium); }
+.provider-connection-advanced { margin-top: var(--space-3); }
+.provider-connection-advanced .provider-help { max-width: 60ch; }
 .profile-provider-check { display: flex; flex: 1 1 100%; flex-wrap: wrap; align-items: flex-start; gap: var(--space-3); min-width: 0; max-width: 100%; }
 .provider-diagnostic { flex: 1 0 100%; margin-top: 0; max-width: 100%; font-size: var(--text-sm); overflow-wrap: anywhere; }
 .backup-inspection-error:focus, .backup-inspection-receipt:focus { outline: 2px solid var(--focus); outline-offset: 3px; }

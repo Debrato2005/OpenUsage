@@ -80,6 +80,7 @@ pub(crate) struct SavedProfileActivity {
     summary: SavedActivitySummary,
     daily_state: &'static str,
     daily_usage_buckets: Vec<SavedActivityDay>,
+    daily_chart: SavedActivityChart,
     daily_truncated: bool,
 }
 #[derive(Serialize)]
@@ -110,6 +111,48 @@ struct SavedActivityDay {
     observed_at_utc: String,
     freshness: ActivityFreshness,
 }
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SavedActivityChart {
+    max_tokens: Option<String>,
+    bars: Vec<SavedActivityBar>,
+}
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SavedActivityBar {
+    date: String,
+    height_basis_points: u16,
+}
+
+fn daily_chart(days: &[SavedActivityDay]) -> Result<SavedActivityChart, CommandError> {
+    let counts = days
+        .iter()
+        .map(|day| {
+            day.tokens
+                .parse::<i64>()
+                .ok()
+                .filter(|value| *value >= 0 && value.to_string() == day.tokens)
+                .map(|value| value as u128)
+                .ok_or(CommandError::ProviderActivityLoadFailed)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let maximum = counts.iter().copied().max();
+    Ok(SavedActivityChart {
+        max_tokens: maximum.map(|value| value.to_string()),
+        bars: days
+            .iter()
+            .zip(counts)
+            .map(|(day, value)| SavedActivityBar {
+                date: day.date.clone(),
+                height_basis_points: match maximum {
+                    Some(maximum) if maximum > 0 => (value * 10_000 / maximum) as u16,
+                    _ => 0,
+                },
+            })
+            .collect(),
+    })
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub(super) enum ActivityFreshness {
@@ -229,6 +272,17 @@ impl Workspace {
         let now = SystemTime::now();
         let observed_at_utc = current.commit.observed_at_utc;
         let summary_freshness = freshness(session, &observed_at_utc, now);
+        let daily_usage_buckets: Vec<_> = days
+            .rows
+            .into_iter()
+            .map(|day| SavedActivityDay {
+                date: day.value.provider_date,
+                tokens: day.value.tokens,
+                freshness: freshness(session, &day.observed_at_utc, now),
+                observed_at_utc: day.observed_at_utc,
+            })
+            .collect();
+        let daily_chart = daily_chart(&daily_usage_buckets)?;
         Ok(Some(SavedProfileActivity {
             profile_id: id.into(),
             binding_id: current.binding.binding_id,
@@ -249,16 +303,8 @@ impl Workspace {
                 ActivityDailyState::Empty => "empty",
                 ActivityDailyState::Returned => "returned",
             },
-            daily_usage_buckets: days
-                .rows
-                .into_iter()
-                .map(|day| SavedActivityDay {
-                    date: day.value.provider_date,
-                    tokens: day.value.tokens,
-                    freshness: freshness(session, &day.observed_at_utc, now),
-                    observed_at_utc: day.observed_at_utc,
-                })
-                .collect(),
+            daily_usage_buckets,
+            daily_chart,
             daily_truncated: days.truncated,
         }))
     }
@@ -558,6 +604,64 @@ mod tests {
                 freshness_for(Some(&expired), &observed_now, now, fresh_for),
                 ActivityFreshness::Stale
             );
+        }
+    }
+
+    fn saved_day(date: &str, tokens: &str) -> SavedActivityDay {
+        SavedActivityDay {
+            date: date.into(),
+            tokens: tokens.into(),
+            observed_at_utc: "2026-10-21T00:00:00Z".into(),
+            freshness: ActivityFreshness::Unknown,
+        }
+    }
+
+    #[test]
+    fn daily_chart_scales_exact_large_counts_without_changing_saved_rows_or_filling_gaps() {
+        let days = vec![
+            saved_day("2026-10-01", "9223372036854775807"),
+            saved_day("2026-10-04", "4611686018427387903"),
+            saved_day("2026-10-10", "9007199254740993"),
+            saved_day("2026-10-21", "0"),
+        ];
+        let original = serde_json::to_value(&days).unwrap();
+        let chart = daily_chart(&days).unwrap();
+        assert_eq!(chart.max_tokens.as_deref(), Some("9223372036854775807"));
+        assert_eq!(
+            chart
+                .bars
+                .iter()
+                .map(|bar| (bar.date.as_str(), bar.height_basis_points))
+                .collect::<Vec<_>>(),
+            vec![
+                ("2026-10-01", 10_000),
+                ("2026-10-04", 4_999),
+                ("2026-10-10", 9),
+                ("2026-10-21", 0)
+            ]
+        );
+        assert_eq!(serde_json::to_value(&days).unwrap(), original);
+    }
+
+    #[test]
+    fn daily_chart_keeps_empty_and_observed_zero_distinct() {
+        let empty = daily_chart(&[]).unwrap();
+        assert!(empty.max_tokens.is_none());
+        assert!(empty.bars.is_empty());
+        let zero = daily_chart(&[saved_day("2026-10-21", "0")]).unwrap();
+        assert_eq!(zero.max_tokens.as_deref(), Some("0"));
+        assert_eq!(zero.bars.len(), 1);
+        assert_eq!(zero.bars[0].date, "2026-10-21");
+        assert_eq!(zero.bars[0].height_basis_points, 0);
+    }
+
+    #[test]
+    fn daily_chart_refuses_invalid_saved_counts_instead_of_drawing_them_as_zero() {
+        for tokens in ["", "-1", "01", "+1", "1.5", "9223372036854775808"] {
+            assert!(matches!(
+                daily_chart(&[saved_day("2026-10-21", tokens)]),
+                Err(CommandError::ProviderActivityLoadFailed)
+            ));
         }
     }
 }

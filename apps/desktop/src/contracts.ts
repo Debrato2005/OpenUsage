@@ -238,6 +238,7 @@ export interface SavedProfileActivity {
   summary: ProfileActivitySavedRead['summary']; dailyState: 'unavailable' | 'empty' | 'returned';
   dailyUsageBuckets: { date: string; tokens: string; observedAtUtc: string; freshness: ActivityFreshness }[];
   dailyTruncated: boolean;
+  dailyChart: { maxTokens: string | null; bars: { date: string; heightBasisPoints: number }[] };
 }
 
 interface Commands {
@@ -526,17 +527,34 @@ function isSavedProfileActivity(value: unknown): value is SavedProfileActivity |
   if (value === null) return true;
   if (typeof value !== 'object' || Array.isArray(value)) return false;
   const v = value as Record<string, unknown>;
-  if (Object.keys(v).length !== 17 || !isUuid(v.profileId) || !isUuid(v.bindingId) || !isUuid(v.collectionRunId)
+  if (Object.keys(v).length !== 18 || !isUuid(v.profileId) || !isUuid(v.bindingId) || !isUuid(v.collectionRunId)
     || !(v.sourceKind === 'official_artifact' || v.sourceKind === 'test_fixture') || !isMonitoringState(v.monitoring) || v.accepted !== true
     || !isActivitySource(v) || !isActivityFreshness(v.freshness) || !(v.dailyState === 'unavailable' || v.dailyState === 'empty' || v.dailyState === 'returned')
     || typeof v.dailyTruncated !== 'boolean' || !Array.isArray(v.dailyUsageBuckets) || v.dailyUsageBuckets.length > 4096) return false;
   const dates = new Set<string>();
-  return v.dailyUsageBuckets.every(row => {
+  if (!v.dailyUsageBuckets.every(row => {
     if (typeof row !== 'object' || row === null || Array.isArray(row)) return false;
     const bucket = row as Record<string, unknown>;
     if (Object.keys(bucket).length !== 4 || !isProviderDate(bucket.date) || dates.has(bucket.date) || !isResetCreditCount(bucket.tokens)
       || bucket.tokens === null || !isUtcTimestamp(bucket.observedAtUtc) || !isActivityFreshness(bucket.freshness)) return false;
     dates.add(bucket.date); return true;
+  })) return false;
+  if (typeof v.dailyChart !== 'object' || v.dailyChart === null || Array.isArray(v.dailyChart)) return false;
+  const chart = v.dailyChart as Record<string, unknown>;
+  if (Object.keys(chart).length !== 2 || !isResetCreditCount(chart.maxTokens) || !Array.isArray(chart.bars)
+    || chart.bars.length !== v.dailyUsageBuckets.length) return false;
+  const buckets = v.dailyUsageBuckets as SavedProfileActivity['dailyUsageBuckets'];
+  const maximum = chart.maxTokens;
+  if (buckets.length === 0) return maximum === null;
+  if (maximum === null || !buckets.some(bucket => bucket.tokens === maximum)) return false;
+  return chart.bars.every((value, index) => {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+    const bar = value as Record<string, unknown>, bucket = buckets[index]!;
+    if (Object.keys(bar).length !== 2 || !isProviderDate(bar.date) || bar.date !== bucket.date
+      || !Number.isInteger(bar.heightBasisPoints) || Number(bar.heightBasisPoints) < 0 || Number(bar.heightBasisPoints) > 10000
+      || bucket.tokens.length > maximum.length || (bucket.tokens.length === maximum.length && bucket.tokens > maximum)) return false;
+    if (bucket.tokens === '0') return bar.heightBasisPoints === 0;
+    return bucket.tokens !== maximum || bar.heightBasisPoints === 10000;
   });
 }
 

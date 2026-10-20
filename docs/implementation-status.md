@@ -14,7 +14,11 @@ CSV/JSON export now works from Settings with selected active profiles, privacy d
 
 The installed official Codex package is now discoverable through its exact reviewed installer alias, without reading credential files. The production native journey passed focused setup, explicit source approval, and an actual signed-out connection. Setup hides unavailable dashboard controls. Renderer checks passed 38 contracts and 192 cases; seven focused Rust discovery tests and strict desktop Clippy passed. See [the focused native evidence](evidence/native-focused-onboarding/). Live authentication and account readings remain unverified.
 
-Next: simplify connection consent and add a selected-profile daily chart from saved readings. Keep technical details expandable. Official 0.163.0 schemas expose usage and quota methods. Backend identity evidence is not yet sufficient for verified aggregation.
+Saved daily usage now has a selected-profile chart. Rust prepares bounded heights from exact counts. Zero remains distinct from missing dates. The native journey collected synthetic activity, checked exact values and keyboard access, and reopened the chart after a genuine restart without provider approval. Read-only navigation preserved encrypted database, WAL, and key bytes. Connection consent now hides executable metadata under details. The production official signed-out journey passed again. See [the chart evidence](evidence/native-saved-daily-chart/).
+
+This slice passed 249 Rust tests, strict Clippy, formatting, and 39 contracts. The full renderer run passed 196 cases and found two copies of one faulty accessible-row assertion. The corrected Overview checks passed all 18 cases across both engines. Product source did not change after that full run. Real authenticated collection, alerts, and full historical browsing remain open.
+
+Next: move connection discovery and sign-in into Add OpenAI Account, then verify an authorized account. Official 0.163.0 schemas expose usage and quota methods. Backend identity evidence is not yet sufficient for verified aggregation.
 
 ## Implemented and executed
 
