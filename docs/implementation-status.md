@@ -18,7 +18,9 @@ Saved daily usage now has a selected-profile chart. Rust prepares bounded height
 
 This slice passed 249 Rust tests, strict Clippy, formatting, and 39 contracts. The full renderer run passed 196 cases and found two copies of one faulty accessible-row assertion. The corrected Overview checks passed all 18 cases across both engines. Product source did not change after that full run. Real authenticated collection, alerts, and full historical browsing remain open.
 
-Next: move connection discovery and sign-in into Add OpenAI Account, then verify an authorized account. Official 0.163.0 schemas expose usage and quota methods. Backend identity evidence is not yet sufficient for verified aggregation.
+Add OpenAI Account now creates an isolated default-named account and discovers the supported installation inline. Explicit approval leads directly to the selected account's Sign in action. Completed setup disappears from Accounts. Custom names and manual inspection remain secondary controls. The production native journey passed without a Settings detour, including named sign-in consent and an actual signed-out connection. The full renderer run passed 202 cases and 39 contracts. Four focused checks passed after the final visibility and focus refinement. See [the inline account evidence](evidence/native-inline-openai-account/).
+
+Next: finish real user-authorized sign-in and collection in the visible production window. Its preserved WSL workspace requires the existing fallback password because the host has no Secret Service. Never capture real sign-in codes. Alerts, full history, verified aggregation, and platform acceptance remain open. The requested doughnut chart remains queued behind functional verification, with truthful supported data only. Official 0.163.0 schemas expose usage and quota methods; backend identity evidence is not yet sufficient for verified aggregation.
 
 ## Implemented and executed
 

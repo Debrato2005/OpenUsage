@@ -21,6 +21,7 @@ type Props = {
   monitoring: MonitoringStatus | null;
   monitoringUnavailable: boolean;
   onMonitoringAction: MonitoringAction;
+  onConnectAccount?: () => void;
 };
 
 type Failure = {
@@ -53,7 +54,7 @@ function errorMessage(error: unknown): string {
     ? messages[error] : 'OpenUsage could not complete this profile request. Reload profiles and try again.';
 }
 
-export function ProfileManager({ busy, setBusy, onCount, providerApproval, onProfilesChange, onReadingsChanged, monitoring, monitoringUnavailable, onMonitoringAction }: Props) {
+export function ProfileManager({ busy, setBusy, onCount, providerApproval, onProfilesChange, onReadingsChanged, monitoring, monitoringUnavailable, onMonitoringAction, onConnectAccount }: Props) {
   const [view, setView] = useState<ProfileView | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -73,6 +74,7 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval, onPro
   const pending = useRef(false);
   const viewRequest = useRef(0);
   const mounted = useRef(true);
+  const connectingProfile = useRef<string | null>(null);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; viewRequest.current += 1; }; }, []);
   const reportCount = useRef(onCount);
   const reportProfiles = useRef(onProfilesChange);
@@ -81,6 +83,14 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval, onPro
   useEffect(() => { reportCount.current = onCount; }, [onCount]);
   useEffect(() => { reportProfiles.current = onProfilesChange; }, [onProfilesChange]);
   useEffect(() => { reportReading.current = onReadingsChanged; }, [onReadingsChanged]);
+  useEffect(() => {
+    if (!providerApproval || busy || !connectingProfile.current) return;
+    const button = section.current?.querySelector<HTMLButtonElement>(`[data-login-start="${CSS.escape(connectingProfile.current)}"]`);
+    if (button?.getClientRects().length && !button.closest('[hidden]')) {
+      button.focus();
+      connectingProfile.current = null;
+    }
+  }, [providerApproval, busy]);
 
   useEffect(() => {
     let cancelled = false;
@@ -131,11 +141,13 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval, onPro
     setStatus(null);
     try {
       const next = await operation();
+      if (!mounted.current) return;
       setView(next);
       reportCount.current(next.activeProfiles);
       reportProfiles.current?.(next.profiles);
       done(next);
     } catch (error: unknown) {
+      if (!mounted.current) return;
       const fieldError = error === 'invalid_profile_label';
       setFailure({ ...context, message: errorMessage(error), invalidLabel: fieldError });
       setFocusTarget(fieldError && context.target === 'create' ? 'create'
@@ -171,6 +183,23 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval, onPro
       setLabel('');
       setStatus(`Profile created. ${next.activeProfiles} of 10 active.`);
       setFocusTarget('create');
+    });
+  }
+
+  function addAccount() {
+    if (!view) return;
+    const previousIds = new Set(view.profiles.map(profile => profile.id));
+    const names = new Set(view.profiles.map(profile => profile.label));
+    const name = Array.from('ABCDEFGHIJ', suffix => `Account ${suffix}`).find(value => !names.has(value)) ?? `Account ${view.profiles.length + 1}`;
+    void change(() => invoke('create_profile', { label: name }), { target: 'create', id: null }, next => {
+      const added = next.profiles.filter(profile => !previousIds.has(profile.id));
+      setCreateOpen(false);
+      setStatus('Account added. Sign in to connect it.');
+      if (added.length === 1) {
+        setReadings(current => ({ ...current, [added[0]!.id]: true }));
+        connectingProfile.current = added[0]!.id;
+      }
+      if (!providerApproval) onConnectAccount?.();
     });
   }
 
@@ -250,10 +279,11 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval, onPro
   const active = view?.profiles.filter(profile => !profile.archived) ?? [];
   const archived = view?.profiles.filter(profile => profile.archived) ?? [];
   return <section ref={section} className="accounts-section" aria-labelledby="accounts-heading" aria-busy={busy || loading}>
-    <div className="section-heading"><div><h2 id="accounts-heading" className="sr-only">Accounts</h2><p>Each profile uses a separate Codex environment.</p></div><div className="profile-heading-actions"><span className="muted-tag">{view ? `${view.activeProfiles} of 10 active` : loading ? 'Loading profiles…' : 'Profiles unavailable'}</span><Button ref={createToggle} type="button" variant="outline" className="secondary-button" data-profile-add aria-expanded={createOpen} aria-controls="profile-add-panel" disabled={busy || loading || !view} onClick={() => { setCreateOpen(open => !open); if (!createOpen) setFocusTarget('create'); }}>Add account</Button></div></div>
+    <div className="section-heading"><div><h2 id="accounts-heading" className="sr-only">Accounts</h2><p>Connect your authorized OpenAI accounts.</p></div><div className="profile-heading-actions"><span className="muted-tag">{view ? `${view.activeProfiles} of 10 active` : loading ? 'Loading profiles…' : 'Profiles unavailable'}</span><Button type="button" className="primary-button" data-account-connect disabled={busy || loading || !view || view.activeProfiles >= 10} onClick={addAccount}>Add OpenAI account</Button><Button ref={createToggle} type="button" variant="ghost" className="text-button" data-profile-add aria-expanded={createOpen} aria-controls="profile-add-panel" disabled={busy || loading || !view} onClick={() => { setCreateOpen(open => !open); if (!createOpen) setFocusTarget('create'); }}>Choose a name</Button></div></div>
     <p id="profile-capacity" className={createOpen ? 'profile-capacity' : 'sr-only'}>Up to 10 profiles can be active. Archiving frees a slot and keeps local data.</p>
     <p className="profile-status" role="status">{loading ? 'Loading profiles…' : saving ? 'Saving profile changes…' : status}</p>
     {failure?.target === 'load' && error()}
+    {failure?.target === 'create' && !createOpen && error()}
     {failure && !failure.invalidLabel && <Button className="text-button" variant="ghost" type="button" disabled={busy || loading} onClick={() => { setEditing(null); setAttempt(value => value + 1); }}>Reload profiles</Button>}
     {view && <>
       <Collapsible open={createOpen} onOpenChange={setCreateOpen} className="profile-add-disclosure">
@@ -269,7 +299,7 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval, onPro
       </Collapsible>
       {active.length ? <><div className="profile-table-heading" aria-hidden="true"><span>Account</span><span>Connection</span><span>Readings</span></div><ul className="profile-list" aria-label="Active profiles">{active.map(row)}</ul></> : <p className="profile-empty">No active profiles. Add an account or restore an archived one.</p>}
       {archived.length > 0 && <details className="archived-profiles"><summary>Archived profiles ({archived.length})</summary><p>Archived profiles keep their local data.</p><ul className="profile-list" aria-label="Archived profiles">{archived.map(row)}</ul></details>}
-      <p className="profile-meta">{providerApproval ? 'Sign in to a profile, then refresh readings or start monitoring for this session.' : 'Open Settings to review Codex and enable sign-in and readings.'}</p>
+      {!providerApproval && <Button type="button" variant="ghost" className="text-button" disabled={busy || loading} onClick={onConnectAccount}>Connect an existing account</Button>}
     </>}
   </section>;
 }

@@ -65,7 +65,7 @@ async function openProfile(page: Page, options: { approve?: boolean; cached?: Sa
   if (options.approve === false) return;
   await navigate(page, 'settings');
   await page.getByRole('heading', { name: 'Codex connection', exact: true }).click();
-  await page.locator('[data-workspace-view="settings"] [data-provider-manual]').click();
+  await page.locator('.provider-panel [data-provider-manual]').click();
   await page.getByLabel('Codex executable', { exact: true }).fill('/synthetic/reviewed-codex');
   await page.getByRole('button', { name: 'Inspect executable', exact: true }).click();
   await page.getByLabel('Allow Codex to sign in and read usage.').check();

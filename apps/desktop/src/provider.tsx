@@ -19,9 +19,12 @@ type SettingsProps = {
   setBusy: (busy: boolean) => void;
   approval: ProviderExecutableApproval | null;
   onApproved: (approval: ProviderExecutableApproval) => void;
+  connectionRequest?: number;
 };
 
-export function ProviderSettings({ busy, setBusy, approval, onApproved }: SettingsProps) {
+export function ProviderSettings({ busy, setBusy, approval, onApproved, connectionRequest = 0 }: SettingsProps) {
+  const settingsPanel = useRef<HTMLDetailsElement>(null);
+  const handledConnection = useRef(0);
   const [path, setPath] = useState('');
   const [candidate, setCandidate] = useState<ProviderExecutableCandidate | null>(null);
   const [confirmed, setConfirmed] = useState(false);
@@ -41,9 +44,16 @@ export function ProviderSettings({ busy, setBusy, approval, onApproved }: Settin
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   useEffect(() => {
     if (busy || !focus) return;
-    (focus === 'review' ? reviewPanel.current : focus === 'approval' ? approvalPanel.current : focus === 'found' ? foundPanel.current : focus === 'path' ? pathField.current : errorPanel.current)?.focus();
+    const target = focus === 'review' ? reviewPanel.current : focus === 'approval' ? approvalPanel.current : focus === 'found' ? foundPanel.current : focus === 'path' ? pathField.current : errorPanel.current;
+    if (target?.getClientRects().length && !target.closest('[hidden]')) target.focus();
     setFocus(null);
   }, [busy, focus, candidate, approval, discovery, manualOpen]);
+  useEffect(() => {
+    if (!connectionRequest || connectionRequest === handledConnection.current || busy || pending.current || approval) return;
+    handledConnection.current = connectionRequest;
+    if (settingsPanel.current) settingsPanel.current.open = true;
+    void find();
+  }, [connectionRequest, busy, approval]);
 
   async function find() {
     if (busy || pending.current) return;
@@ -126,7 +136,7 @@ export function ProviderSettings({ busy, setBusy, approval, onApproved }: Settin
   </>;
 
   return <section className="provider-panel" aria-labelledby="provider-heading">
-    <details>
+    <details ref={settingsPanel}>
       <summary data-provider-settings><h2 id="provider-heading">Codex connection</h2></summary>
       {!candidate && !approval && searchControls}
       {approval && !candidate && <div ref={approvalPanel} className="provider-approval-result" role="status" tabIndex={-1}>

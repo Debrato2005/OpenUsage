@@ -74,7 +74,7 @@ test('renderer Overview keeps missing values unavailable and navigates through r
   await dashboard(page).getByRole('button', { name: 'View accounts', exact: true }).click();
   await expect(page.locator('[data-workspace-view="accounts"]')).toBeVisible();
   await expect(page.locator('#profile-label')).toBeHidden();
-  await page.getByRole('button', { name: 'Add account', exact: true }).click();
+  await page.getByRole('button', { name: 'Choose a name', exact: true }).click();
   await expect(page.getByLabel('Profile label', { exact: true })).toBeVisible();
   await navigate(page, 'usage');
   await navigate(page, 'overview');

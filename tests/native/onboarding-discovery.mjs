@@ -9,6 +9,7 @@ const output=resolve(process.env.OPENUSAGE_NATIVE_EVIDENCE),application=resolve(
 const official='/example/home/.codex/packages/standalone/releases/0.163.0-x86_64-unknown-linux-musl/bin/codex';
 const expected='399ff69c431c066e40de318fba45c2b07f45a76b19939d247ee4828fc70c4215';
 const password='OpenUsage synthetic onboarding check 2026';
+const inlineAccount=process.env.OPENUSAGE_NATIVE_INLINE_ACCOUNT==='1';
 const evidence={requirement:'NATIVE-ONBOARDING-DISCOVERY-001',result:'failed',scope:'Production native GUI, fresh synthetic workspace, explicit installed executable metadata, approved official source and fresh signed-out connection. No real credentials, device authorization request, authenticated collection, or OS key-store availability claim.',screenshots:[],startedAt:new Date().toISOString()};
 let fixture,driver;
 const hash=async p=>createHash('sha256').update(await readFile(p)).digest('hex');
@@ -27,17 +28,20 @@ try{
  await driver.type('#workspace-passphrase',password);await driver.type('#workspace-confirmation',password);await driver.click('.unlock-form button[type=submit]');
  await waitFor(async()=>(await driver.invoke('bootstrap')).value?.storage==='ready','private SQLCipher workspace');
  assert.equal((await call('bootstrap')).schemaVersion,4);
- await driver.openProfileCreate();await driver.type('#profile-label','Synthetic official provider check');await driver.click('.profile-create-form button[type=submit]');
+ if(inlineAccount){await driver.navigate('accounts');await driver.click('[data-account-connect]');}
+ else{await driver.openProfileCreate();await driver.type('#profile-label','Synthetic official provider check');await driver.click('.profile-create-form button[type=submit]');}
  let profile;await waitFor(async()=>{profile=(await call('list_profiles')).profiles[0];return Boolean(profile);},'fresh profile');
- await driver.navigate('settings');if(await driver.execute('return !document.querySelector("[data-provider-settings]").closest("details").open;'))await driver.click('[data-provider-settings]');
- await driver.click('[data-provider-find]');await waitFor(()=>driver.execute('return Boolean(document.querySelector(".provider-executable-review"))&&!document.querySelector("[data-provider-find]").disabled;'),'official installed source discovered',30000);
+ if(!inlineAccount){await driver.navigate('settings');if(await driver.execute('return !document.querySelector("[data-provider-settings]").closest("details").open;'))await driver.click('[data-provider-settings]');await driver.click('[data-provider-find]');}
+ await waitFor(()=>driver.execute('return Boolean(document.querySelector(".provider-executable-review"))&&!document.querySelector("[data-provider-find]").disabled;'),'official installed source discovered',30000);
+ if(inlineAccount){assert.equal(profile.label,'Account A');assert.equal(await driver.execute('return document.querySelector("[data-workspace-nav=accounts]").getAttribute("aria-current");'),'page');}
  const review=await driver.execute('return document.querySelector(".provider-executable-review").textContent;');assert.ok(review.includes(official));assert.ok(review.includes('Reviewed official artifact'));
  assert.equal(await driver.execute('return document.querySelector("#provider-executable-approved").getAttribute("aria-checked");'),'false');
  assert.equal(await driver.execute('return document.querySelector(".provider-approval-form button[type=submit]").disabled;'),true);
  await capture('official-codex-review.png');
  await driver.click('#provider-executable-approved');const approvalStarted=Date.now();await driver.click('.provider-approval-form button[type=submit]');
- await waitFor(()=>driver.execute('return document.activeElement?.matches(".provider-approval-result");'),'explicit source approval',60000);
+ await waitFor(()=>driver.execute(inlineAccount ? 'return document.activeElement?.matches("[data-login-start]");' : 'return document.activeElement?.matches(".provider-approval-result");'),'explicit source approval',60000);
  evidence.sourceApprovalDurationMs=Date.now()-approvalStarted;
+ if(inlineAccount){await driver.click(`[data-login-start="${profile.id}"]`);await waitFor(()=>driver.execute('return Boolean(document.querySelector("[data-login-consent]"));'),'named-account sign-in consent');await capture('inline-account-sign-in.png');await driver.click('[data-login-consent] button[type=button]');evidence.inlineAccount={automaticIsolatedProfile:true,defaultLabel:profile.label,automaticDiscovery:true,noSettingsDetour:true,namedSignInConsent:true,noDeviceAuthorizationStarted:true};}
  await driver.openProfileOptions(profile.id);await driver.click(`[data-provider-check="${profile.id}"]`);
  await waitFor(()=>driver.execute('return document.activeElement?.matches(".provider-diagnostic");'),'actual official signed-out response',45000);
  const text=await driver.execute('return document.querySelector(".provider-diagnostic").textContent;');assert.match(text,/sign in|sign-in|authentication/i);

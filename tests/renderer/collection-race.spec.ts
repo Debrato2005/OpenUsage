@@ -83,7 +83,7 @@ async function open(page: Page) {
 }
 async function approve(page: Page) {
   await navigate(page, 'settings');
-  const section = page.locator('[data-workspace-view="settings"]');
+  const section = page.locator('.provider-panel');
   if (!(await section.locator('[data-provider-settings]').evaluate(node => node.closest('details')!.open))) await section.locator('[data-provider-settings]').click();
   if (!(await section.locator('[data-provider-manual]').evaluate(node => node.closest('details')!.open))) await section.locator('[data-provider-manual]').click();
   await page.getByLabel('Codex executable', { exact: true }).fill('/synthetic/reviewed-codex');
