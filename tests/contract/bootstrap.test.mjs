@@ -316,11 +316,13 @@ test('device challenges allow only the reviewed page and bounded visible code wi
 });
 
 test('sign-in completion requires a fresh ChatGPT diagnostic while verified identity remains unavailable', async () => {
-  const diagnostic = { profileId: '00000001-0000-4000-8000-000000000000', approvalId: '00000002-0000-4000-8000-000000000000', providerVersion: '0.163.0', authentication: 'chatgpt', identityConfidence: 'provisional', requiresOpenaiAuth: true, checkedAt: '2026-10-18T04:00:00.123Z', monitoring: 'stopped', persisted: false, sourceKind: 'test_fixture' };
+  const diagnostic = { profileId: '00000001-0000-4000-8000-000000000000', approvalId: '00000002-0000-4000-8000-000000000000', providerVersion: '0.163.0', authentication: 'chatgpt', identityConfidence: 'provisional', requiresOpenaiAuth: true, checkedAt: '2026-10-18T04:00:00.123Z', monitoring: 'stopped', persisted: true, sourceKind: 'test_fixture' };
   const value = { attemptId: '00000003-0000-4000-8000-000000000000', diagnostic };
   const args = { profileId: diagnostic.profileId, attemptId: value.attemptId };
   desktopResponse(value); assert.deepEqual(await invoke('complete_profile_login', args), value);
-  for (const changes of [{ diagnostic: { ...diagnostic, authentication: 'authentication_required' } }, { diagnostic: { ...diagnostic, identityConfidence: 'verified' } }, { diagnostic: { ...diagnostic, persisted: true } }, { diagnostic: { ...diagnostic, rawAccount: {} } }, { providerLoginId: 'private' }]) {
+  desktopResponse({ ...value, diagnostic: { ...diagnostic, identityConfidence: 'unknown' } });
+  assert.equal((await invoke('complete_profile_login', args)).diagnostic.identityConfidence, 'unknown');
+  for (const changes of [{ diagnostic: { ...diagnostic, authentication: 'authentication_required' } }, { diagnostic: { ...diagnostic, identityConfidence: 'verified' } }, { diagnostic: { ...diagnostic, persisted: false } }, { diagnostic: { ...diagnostic, checkedAt: null } }, { diagnostic: { ...diagnostic, checkedAt: '2026-10-18T04:00:00Z' } }, { diagnostic: { ...diagnostic, rawAccount: {} } }, { providerLoginId: 'private' }]) {
     desktopResponse({ ...value, ...changes });
     await assert.rejects(invoke('complete_profile_login', args), /desktop response is incompatible/);
   }

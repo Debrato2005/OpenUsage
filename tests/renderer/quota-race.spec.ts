@@ -302,15 +302,21 @@ test('renderer shows uncertain reset evidence until Rust accepts confirmation', 
 
 // Synthetic renderer clock only; native cooldown acceptance uses real elapsed time.
 test('renderer shares the Rust cooldown across quota and activity without polling or blocking sign-in checks', async ({ page }) => {
-  await page.clock.install();
-  await openProfile(page, { refreshSeconds: 3 });
+  await page.clock.install({ time: new Date('2026-10-20T00:00:00Z') });
+  await openProfile(page, { refreshSeconds: 3, deferRefresh: true });
+  await page.getByRole('button', { name: 'Manage profile', exact: true }).click();
+  await page.clock.pauseAt(new Date('2026-10-20T01:00:00Z'));
+  await page.evaluate(() => {
+    const fixture = (window as unknown as FixtureWindow).quotaFixture;
+    fixture.deferRefresh = false;
+    for (const pending of fixture.pendingRefresh.splice(0)) pending.resolve(structuredClone(fixture.refreshStatus));
+  });
   const notice = page.locator(`[data-profile-refresh-status="${profileId}"]`);
   await expect(notice).toHaveText('Next reading in 3s');
   const initialStatusCalls = await page.evaluate(() => (window as unknown as FixtureWindow).quotaFixture.requests.filter(c => c === 'load_profile_refresh_status').length);
   await expect(notice).not.toHaveAttribute('role', 'status');
   await expect(notice).not.toHaveAttribute('aria-live');
   await expect(page.getByRole('button', { name: 'Read quotas', exact: true })).toBeDisabled();
-  await page.getByRole('button', { name: 'Manage profile', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Read activity', exact: true })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Check connection', exact: true })).toBeEnabled();
   await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeEnabled();

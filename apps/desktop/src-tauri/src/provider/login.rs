@@ -403,24 +403,38 @@ impl CompletedLogin {
         self.coordinator.discard_login(&self.attempt_id);
     }
 
-    pub fn publish(self) -> Result<LoginOutcome, CommandError> {
+    /// Keep the exact attempt and Provider lock through the profile-state COMMIT.
+    pub fn publish(
+        self,
+        persist: impl FnOnce(&LoginBinding, &ConnectionDiagnostic) -> Result<(), CommandError>,
+    ) -> Result<LoginOutcome, CommandError> {
         let mut state = self
             .coordinator
             .0
             .lock()
             .map_err(|_| CommandError::ProviderUnavailable)?;
-        let valid = require_binding(&state, &self.attempt_id, &self.binding, Phase::Waiting);
-        state.logins.remove(&self.attempt_id);
-        valid?;
-        Ok(LoginOutcome {
-            attempt_id: self.attempt_id,
-            diagnostic: diagnostic(
-                self.binding.profile_id,
-                self.binding.approval_id,
+        let result = (|| {
+            require_binding(&state, &self.attempt_id, &self.binding, Phase::Waiting)?;
+            let mut diagnostic = diagnostic(
+                self.binding.profile_id.clone(),
+                self.binding.approval_id.clone(),
                 self.binding.source_kind,
                 self.probe,
-            )?,
-        })
+            )?;
+            if diagnostic.authentication != DiagnosticAuthentication::Chatgpt
+                || diagnostic.checked_at.is_none()
+            {
+                return Err(CommandError::ProviderLoginFailed);
+            }
+            persist(&self.binding, &diagnostic)?;
+            diagnostic.persisted = true;
+            Ok(LoginOutcome {
+                attempt_id: self.attempt_id.clone(),
+                diagnostic,
+            })
+        })();
+        state.logins.remove(&self.attempt_id);
+        result
     }
 }
 

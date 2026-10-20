@@ -33,3 +33,18 @@ The integrated workspace passed 95 Rust tests, strict Clippy, and formatting. On
 See `../evidence/native-device-login/`, `../evidence/native-device-login-source-gate/`, `../evidence/native-device-login-official-check/`, and `../evidence/native-device-login-verification/` for receipts, hashes, and logs.
 
 The user approved SC-003 on October 18, 2026. It permits transient challenge display under its narrow controls. The normative SRS remains unchanged. Real sign-in qualification remains unexecuted. Browser opening, authenticated provider credential persistence, the full native 15-minute timeout, Windows/macOS, release performance, monitoring, quotas, and verified identity remain open. Core tests qualify bounded timeout behavior with synthetic deadlines. No existing Codex credential home was inspected.
+
+
+## Saved connection state — October 20, 2026
+
+Successful sign-in now saves the selected profile's connection state after a fresh ChatGPT account response. Provisional identity produces Connected. Unknown identity produces Connection error. Rust retains the exact attempt, approval, home, and storage binding through the SQLCipher transaction. A failed write or COMMIT publishes no success. A changed saved state invalidates an older restore preview. Repeated identical evidence preserves it.
+
+The renderer reloads the saved profile list after completion without restarting sign-in. A failed list read retains the saved result and offers Retry status refresh. Generation checks exclude cancelled or replaced attempts. Connection status does not grant monitoring eligibility, verify identity, create an account association, or attribute readings.
+
+The native login journey passed 18 fixture cases and eight independent checks across sixteen named SQLCipher tables. Only the selected connection state and update time changed. Genuine restart retained the state. Unknown identity, stale attempts, cancellation, restore remapping, and owned-process cleanup passed. All eleven captures were reviewed. Metric tables were empty in this journey. Populated-reading retention is not a claim of this test.
+
+Rust tests also cover an existing account association, failed UPDATE and COMMIT rollback, stale homes, archival, and unchanged restore previews after identical evidence. The full workspace passed 197 tests, strict Clippy, and formatting. The frontend passed 34 contracts and 126 renderer tests in Chromium and WebKit. The independent verifier passed two integration tests and strict Clippy. Its sixteen-table option remains test-only and read-only. SQLCipher 4 with WAL remains mandatory.
+
+The first native login run failed because its selector expected a data cell where the account name uses a row header. Only the test selector changed. The unchanged application then passed. The first full renderer run exposed a test-clock race during font loading. The corrected test pauses time after page loading and releases the deferred cooldown response. Product timing did not change. Both failed receipts remain retained. The earlier Rust fault test also created its preview after an injected trigger. Correcting that setup preserved the product's integrity refusal. The final formatting checks pass after formatting the storage change.
+
+See `../evidence/native-typography-login/` for exact artifact hashes, receipts, captures, and raw compressed logs. These synthetic Linux checks do not establish live OAuth, verified identity, scheduled monitoring, the 900-second timeout on this artifact, OS scaling, or other platforms. Earlier browser and timeout receipts retain their original scopes.

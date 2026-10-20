@@ -23,6 +23,7 @@ struct Fixture {
     workspace: Workspace,
     executable: PathBuf,
     profiles: Vec<String>,
+    vault: MemoryVault,
 }
 
 impl Fixture {
@@ -36,7 +37,8 @@ impl Fixture {
         .unwrap();
         fs::set_permissions(&executable, fs::Permissions::from_mode(0o700)).unwrap();
         let mut workspace = Workspace::new(temporary.path().join("workspace")).unwrap();
-        workspace.setup(Ok(&MemoryVault::default()), None).unwrap();
+        let vault = MemoryVault::default();
+        workspace.setup(Ok(&vault), None).unwrap();
         workspace.create_profile("First synthetic profile").unwrap();
         let profiles = workspace
             .create_profile("Second synthetic profile")
@@ -50,6 +52,7 @@ impl Fixture {
             workspace,
             executable,
             profiles,
+            vault,
         };
         fixture.mode(mode);
         for id in &fixture.profiles {
@@ -78,6 +81,26 @@ impl Fixture {
             .approve_provider_executable(&candidate.candidate_id, true)
             .unwrap()
             .approval_id
+    }
+    fn completed(&mut self, id: &str, approval: &str) -> (String, provider::CompletedLogin) {
+        let receipt = self
+            .workspace
+            .begin_profile_login(id, approval, true)
+            .unwrap();
+        let ready = self
+            .workspace
+            .await_profile_login_prompt(id, &receipt.attempt_id)
+            .unwrap()
+            .wait()
+            .unwrap();
+        self.workspace.finish_profile_login_prompt(ready).unwrap();
+        let completed = self
+            .workspace
+            .complete_profile_login(id, &receipt.attempt_id)
+            .unwrap()
+            .wait()
+            .unwrap();
+        (receipt.attempt_id, completed)
     }
     fn observed_pid(&self, kind: &str, id: &str) -> libc::pid_t {
         let deadline = Instant::now() + Duration::from_secs(5);
@@ -211,7 +234,24 @@ fn selected_login_requires_consent_and_current_source_and_publishes_only_redacte
         provider::DiagnosticIdentity::Provisional
     );
     assert_eq!(outcome.diagnostic.monitoring, "stopped");
-    assert!(!outcome.diagnostic.persisted);
+    assert!(outcome.diagnostic.persisted);
+    let profiles = fixture.workspace.list_profiles().unwrap().profiles;
+    assert_eq!(
+        profiles
+            .iter()
+            .find(|p| p.id == id)
+            .unwrap()
+            .connection_state,
+        "connected"
+    );
+    assert_eq!(
+        profiles
+            .iter()
+            .find(|p| p.id != id)
+            .unwrap()
+            .connection_state,
+        "authentication_required"
+    );
     let json = serde_json::to_string(&outcome).unwrap();
     for forbidden in [
         "SYNTH-1234",
@@ -223,7 +263,7 @@ fn selected_login_requires_consent_and_current_source_and_publishes_only_redacte
     ] {
         assert!(!json.contains(forbidden));
     }
-    assert_eq!(
+    assert_ne!(
         fixture
             .workspace
             .storage
@@ -628,4 +668,245 @@ fn browser_handoff_refuses_changed_profile_home_and_source_bindings() {
         }
         gone(pid);
     }
+}
+
+#[test]
+fn validated_login_connection_state_survives_reopen_and_unknown_identity_is_not_connected() {
+    for (mode, expected) in [("early", "connected"), ("no_email", "error")] {
+        let mut fixture = Fixture::new(mode);
+        let id = fixture.profiles[0].clone();
+        let approval = fixture.approve();
+        let (_, completed) = fixture.completed(&id, &approval);
+        let outcome = fixture.workspace.finish_profile_login(completed).unwrap();
+        assert!(outcome.diagnostic.persisted);
+        assert_eq!(outcome.diagnostic.monitoring, "stopped");
+        let directory = fixture.workspace.directory.clone();
+        drop(fixture.workspace);
+        let mut workspace = Workspace::new(directory).unwrap();
+        assert_eq!(
+            workspace.bootstrap(Ok(&fixture.vault)).storage,
+            StorageState::Ready
+        );
+        let profiles = workspace.list_profiles().unwrap().profiles;
+        assert_eq!(
+            profiles
+                .iter()
+                .find(|p| p.id == id)
+                .unwrap()
+                .connection_state,
+            expected
+        );
+        assert_eq!(
+            profiles
+                .iter()
+                .find(|p| p.id != id)
+                .unwrap()
+                .connection_state,
+            "authentication_required"
+        );
+        assert!(
+            workspace
+                .storage
+                .as_ref()
+                .unwrap()
+                .profile_binding(&id)
+                .unwrap()
+                .is_none()
+        );
+        assert!(workspace.load_profile_activity(&id).unwrap().is_none());
+        assert!(workspace.load_profile_quota(&id).unwrap().is_none());
+    }
+}
+
+#[test]
+fn completed_login_cannot_persist_after_cancel_reapproval_or_archive() {
+    for fault in ["cancel", "reapprove", "archive"] {
+        let mut fixture = Fixture::new("early");
+        let id = fixture.profiles[0].clone();
+        let approval = fixture.approve();
+        let (attempt, completed) = fixture.completed(&id, &approval);
+        match fault {
+            "cancel" => {
+                assert!(
+                    fixture
+                        .workspace
+                        .provider
+                        .cancel_login(&id, &attempt)
+                        .unwrap()
+                        .cancelled
+                );
+            }
+            "reapprove" => {
+                fixture.approve();
+            }
+            "archive" => {
+                fixture.workspace.set_profile_archived(&id, true).unwrap();
+            }
+            _ => unreachable!(),
+        }
+        let before = fixture
+            .workspace
+            .storage
+            .as_mut()
+            .unwrap()
+            .restore_state()
+            .unwrap()
+            .revision;
+        assert_eq!(
+            fixture.workspace.finish_profile_login(completed).err(),
+            Some(CommandError::ProviderLoginCancelled),
+            "{fault}"
+        );
+        assert_eq!(
+            fixture
+                .workspace
+                .storage
+                .as_mut()
+                .unwrap()
+                .restore_state()
+                .unwrap()
+                .revision,
+            before
+        );
+        assert_eq!(
+            fixture
+                .workspace
+                .list_profiles()
+                .unwrap()
+                .profiles
+                .iter()
+                .find(|p| p.id == id)
+                .unwrap()
+                .connection_state,
+            "authentication_required"
+        );
+    }
+}
+
+#[test]
+fn login_storage_failure_consumes_attempt_without_publishing_or_clearing_restore_preview() {
+    let mut fixture = Fixture::new("early");
+    let id = fixture.profiles[0].clone();
+    let approval = fixture.approve();
+    let (attempt, completed) = fixture.completed(&id, &approval);
+    let preview = prepare_preview(&mut fixture);
+    let connection =
+        rusqlite::Connection::open(fixture.workspace.directory.join(DATABASE_FILE)).unwrap();
+    let key = fixture.vault.load().unwrap().unwrap();
+    let encoded = Zeroizing::new(
+        key.iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>(),
+    );
+    connection
+        .pragma_update(None, "key", format!("x'{}'", encoded.as_str()))
+        .unwrap();
+    connection.execute_batch("CREATE TRIGGER refuse_login_state BEFORE UPDATE OF connection_state ON profiles BEGIN SELECT RAISE(ABORT, 'synthetic connection write failure'); END;").unwrap();
+    let before = fixture.workspace.list_profiles().unwrap().profiles;
+    assert_eq!(
+        fixture.workspace.finish_profile_login(completed).err(),
+        Some(CommandError::ProfileUnavailable)
+    );
+    assert_eq!(fixture.workspace.list_profiles().unwrap().profiles, before);
+    assert_eq!(
+        fixture
+            .workspace
+            .complete_profile_login(&id, &attempt)
+            .err(),
+        Some(CommandError::ProviderLoginNotFound)
+    );
+    assert!(
+        fixture
+            .workspace
+            .cancel_restore_preview(&preview)
+            .unwrap()
+            .cancelled
+    );
+    connection
+        .execute_batch("DROP TRIGGER refuse_login_state;")
+        .unwrap();
+    let (_, completed) = fixture.completed(&id, &approval);
+    assert!(
+        fixture
+            .workspace
+            .finish_profile_login(completed)
+            .unwrap()
+            .diagnostic
+            .persisted
+    );
+    assert!(
+        fixture
+            .workspace
+            .storage
+            .as_ref()
+            .unwrap()
+            .profile_binding(&id)
+            .unwrap()
+            .is_none()
+    );
+}
+
+fn prepare_preview(fixture: &mut Fixture) -> String {
+    let source = fixture.temporary.path().join("Downloads/OpenUsage");
+    let archive = crate::backup::create(
+        &source,
+        fixture.workspace.backup_snapshot().unwrap(),
+        Zeroizing::new("synthetic restore password".into()),
+    )
+    .unwrap();
+    fixture
+        .workspace
+        .prepare_restore_preview(
+            &source,
+            &archive.file_name,
+            Zeroizing::new("synthetic restore password".into()),
+        )
+        .unwrap()
+        .preview_id
+}
+
+#[test]
+fn login_only_invalidates_restore_preview_after_changed_connection_commit() {
+    let mut fixture = Fixture::new("early");
+    let id = fixture.profiles[0].clone();
+    let approval = fixture.approve();
+    let (_, completed) = fixture.completed(&id, &approval);
+    let preview = prepare_preview(&mut fixture);
+    fixture.workspace.finish_profile_login(completed).unwrap();
+    assert!(
+        !fixture
+            .workspace
+            .cancel_restore_preview(&preview)
+            .unwrap()
+            .cancelled
+    );
+    let (_, completed) = fixture.completed(&id, &approval);
+    let preview = prepare_preview(&mut fixture);
+    let revision = fixture
+        .workspace
+        .storage
+        .as_mut()
+        .unwrap()
+        .restore_state()
+        .unwrap()
+        .revision;
+    fixture.workspace.finish_profile_login(completed).unwrap();
+    assert_eq!(
+        fixture
+            .workspace
+            .storage
+            .as_mut()
+            .unwrap()
+            .restore_state()
+            .unwrap()
+            .revision,
+        revision
+    );
+    assert!(
+        fixture
+            .workspace
+            .cancel_restore_preview(&preview)
+            .unwrap()
+            .cancelled
+    );
 }

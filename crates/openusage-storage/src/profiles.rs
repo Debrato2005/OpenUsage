@@ -37,6 +37,7 @@ pub enum ProfileError {
     HomeInUse,
     CapacityReached,
     NotFound,
+    StaleConnectionTarget,
     ReadFailed,
     WriteFailed,
 }
@@ -57,6 +58,9 @@ impl fmt::Display for ProfileError {
                 "Archive an active profile before adding another. The active limit is 10."
             }
             Self::NotFound => "The profile does not exist.",
+            Self::StaleConnectionTarget => {
+                "The profile or its managed home changed. Check the profile again."
+            }
             Self::ReadFailed => "The profile records could not be read.",
             Self::WriteFailed => "The profile change could not be saved.",
         })
@@ -151,6 +155,54 @@ impl Storage {
             return Err(ProfileError::NotFound);
         }
         let profile = profile_by_id(&transaction, id)?;
+        transaction
+            .commit()
+            .map_err(|_| ProfileError::WriteFailed)?;
+        Ok(profile)
+    }
+
+    /// Record validated native connection evidence without changing account attribution or readings.
+    pub fn record_profile_connection(
+        &mut self,
+        id: &str,
+        expected_home_reference: &str,
+        state: ProfileConnectionState,
+    ) -> Result<ProfileSummary, ProfileError> {
+        validate_uuid(id).map_err(|()| ProfileError::InvalidId)?;
+        validate_uuid(expected_home_reference).map_err(|()| ProfileError::InvalidHomeReference)?;
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|_| ProfileError::WriteFailed)?;
+        let mut profile = profile_by_id(&transaction, id)?;
+        let home: String = transaction
+            .query_row(
+                "SELECT approved_home_reference FROM profiles WHERE id = ?1",
+                [id],
+                |row| row.get(0),
+            )
+            .map_err(|_| ProfileError::ReadFailed)?;
+        if home != expected_home_reference
+            || profile.archived
+            || profile.environment != ProfileEnvironment::Native
+        {
+            return Err(ProfileError::StaleConnectionTarget);
+        }
+        if profile.connection_state != state {
+            let state_name = match state {
+                ProfileConnectionState::Connected => "connected",
+                ProfileConnectionState::AuthenticationRequired => "authentication_required",
+                ProfileConnectionState::Unauthorized => "unauthorized",
+                ProfileConnectionState::Offline => "offline",
+                ProfileConnectionState::Unsupported => "unsupported",
+                ProfileConnectionState::Error => "error",
+            };
+            transaction.execute(
+                "UPDATE profiles SET connection_state = ?1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?2",
+                params![state_name, id],
+            ).map_err(|_| ProfileError::WriteFailed)?;
+            profile.connection_state = state;
+        }
         transaction
             .commit()
             .map_err(|_| ProfileError::WriteFailed)?;
@@ -264,6 +316,173 @@ mod tests {
 
     fn id(number: u32) -> String {
         format!("{number:08x}-0000-4000-8000-000000000000")
+    }
+
+    fn records(
+        storage: &Storage,
+    ) -> std::collections::BTreeMap<String, Vec<Vec<rusqlite::types::Value>>> {
+        let names = storage.connection.prepare("SELECT name FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").unwrap()
+            .query_map([], |row| row.get::<_, String>(0)).unwrap().collect::<Result<Vec<_>, _>>().unwrap();
+        names
+            .into_iter()
+            .map(|name| {
+                let mut statement = storage
+                    .connection
+                    .prepare(&format!(
+                        "SELECT * FROM \"{}\" ORDER BY rowid",
+                        name.replace('"', "\"\"")
+                    ))
+                    .unwrap();
+                let columns = statement.column_count();
+                let rows = statement
+                    .query_map([], |row| {
+                        (0..columns)
+                            .map(|index| row.get(index))
+                            .collect::<rusqlite::Result<Vec<_>>>()
+                    })
+                    .unwrap()
+                    .collect::<Result<Vec<_>, _>>()
+                    .unwrap();
+                (name, rows)
+            })
+            .collect()
+    }
+
+    #[test]
+    fn validated_connection_survives_encrypted_reopen_without_changing_other_records() {
+        let directory = crate::tests::private_directory();
+        let path = directory.path().join("connection.db");
+        let mut storage = Storage::create(&path, &KEY).unwrap();
+        storage
+            .create_profile(&id(1), "Validated synthetic profile", &id(10))
+            .unwrap();
+        storage
+            .create_profile(&id(2), "Unchanged synthetic profile", &id(20))
+            .unwrap();
+        storage.connection.execute("INSERT INTO accounts VALUES (?1,NULL,'unknown','synthetic@example.invalid',NULL,'2026-10-18T00:00:00Z','2026-10-18T00:00:00Z')", [&id(30)]).unwrap();
+        storage
+            .connection
+            .execute(
+                "UPDATE profiles SET account_id=?1,updated_at='2000-01-01T00:00:00Z' WHERE id=?2",
+                params![id(30), id(1)],
+            )
+            .unwrap();
+        let mut expected = records(&storage);
+        let updated = storage
+            .record_profile_connection(&id(1), &id(10), ProfileConnectionState::Connected)
+            .unwrap();
+        assert_eq!(updated.connection_state, ProfileConnectionState::Connected);
+        let after = records(&storage);
+        let actual_row = after["profiles"]
+            .iter()
+            .find(|row| row[0] == rusqlite::types::Value::Text(id(1)))
+            .unwrap();
+        let expected_row = expected
+            .get_mut("profiles")
+            .unwrap()
+            .iter_mut()
+            .find(|row| row[0] == rusqlite::types::Value::Text(id(1)))
+            .unwrap();
+        expected_row[5] = rusqlite::types::Value::Text("connected".into());
+        assert_ne!(actual_row[8], expected_row[8]);
+        expected_row[8] = actual_row[8].clone();
+        assert_eq!(
+            after, expected,
+            "Only the selected profile connection state and update time may change."
+        );
+        storage
+            .record_profile_connection(&id(1), &id(10), ProfileConnectionState::Connected)
+            .unwrap();
+        assert_eq!(
+            records(&storage),
+            after,
+            "Repeated evidence must not change the update time."
+        );
+        drop(storage);
+        assert_eq!(records(&Storage::open(&path, &KEY).unwrap()), expected);
+        assert!(Storage::open(&path, &[0x72; 32]).is_err());
+    }
+
+    #[test]
+    fn connection_evidence_rejects_changed_homes_archival_and_non_native_targets() {
+        let directory = crate::tests::private_directory();
+        let path = directory.path().join("connection.db");
+        let mut storage = Storage::create(&path, &KEY).unwrap();
+        storage
+            .create_profile(&id(1), "Synthetic profile", &id(10))
+            .unwrap();
+        let before = records(&storage);
+        assert_eq!(
+            storage.record_profile_connection(&id(1), &id(11), ProfileConnectionState::Connected),
+            Err(ProfileError::StaleConnectionTarget)
+        );
+        assert_eq!(
+            storage.record_profile_connection(&id(99), &id(10), ProfileConnectionState::Connected),
+            Err(ProfileError::NotFound)
+        );
+        assert_eq!(records(&storage), before);
+        storage.set_profile_archived(&id(1), true).unwrap();
+        let archived = records(&storage);
+        assert_eq!(
+            storage.record_profile_connection(&id(1), &id(10), ProfileConnectionState::Connected),
+            Err(ProfileError::StaleConnectionTarget)
+        );
+        assert_eq!(records(&storage), archived);
+        storage.set_profile_archived(&id(1), false).unwrap();
+        storage
+            .connection
+            .execute(
+                "UPDATE profiles SET environment='wsl' WHERE id=?1",
+                [&id(1)],
+            )
+            .unwrap();
+        let wsl = records(&storage);
+        assert_eq!(
+            storage.record_profile_connection(&id(1), &id(10), ProfileConnectionState::Connected),
+            Err(ProfileError::StaleConnectionTarget)
+        );
+        assert_eq!(records(&storage), wsl);
+    }
+
+    #[test]
+    fn connection_write_and_commit_failures_preserve_all_saved_records() {
+        let directory = crate::tests::private_directory();
+        let path = directory.path().join("connection.db");
+        let mut storage = Storage::create(&path, &KEY).unwrap();
+        storage
+            .create_profile(&id(1), "Synthetic profile", &id(10))
+            .unwrap();
+        let before = records(&storage);
+        storage.connection.execute_batch("CREATE TRIGGER connection_fault BEFORE UPDATE OF connection_state ON profiles BEGIN SELECT RAISE(ABORT,'synthetic connection write failure'); END;").unwrap();
+        assert_eq!(
+            storage.record_profile_connection(&id(1), &id(10), ProfileConnectionState::Connected),
+            Err(ProfileError::WriteFailed)
+        );
+        assert_eq!(records(&storage), before);
+        storage
+            .connection
+            .execute_batch("DROP TRIGGER connection_fault")
+            .unwrap();
+        storage.connection.commit_hook(Some(|| true)).unwrap();
+        assert_eq!(
+            storage.record_profile_connection(&id(1), &id(10), ProfileConnectionState::Connected),
+            Err(ProfileError::WriteFailed)
+        );
+        storage
+            .connection
+            .commit_hook(None::<fn() -> bool>)
+            .unwrap();
+        assert_eq!(records(&storage), before);
+        drop(storage);
+        let mut reopened = Storage::open(&path, &KEY).unwrap();
+        assert_eq!(records(&reopened), before);
+        assert_eq!(
+            reopened
+                .record_profile_connection(&id(1), &id(10), ProfileConnectionState::Connected)
+                .unwrap()
+                .connection_state,
+            ProfileConnectionState::Connected
+        );
     }
 
     #[test]

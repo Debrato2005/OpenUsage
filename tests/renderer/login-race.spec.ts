@@ -8,6 +8,8 @@ type LoginFixture = {
   completions: Record<string, Deferred>;
   cancellations: Record<string, Deferred>;
   savedQuota: unknown;
+  connectionState: 'authentication_required' | 'connected' | 'error';
+  failProfiles: boolean; deferProfiles: boolean; profileLoads: Deferred[];
   requests: { command: string; args: Record<string, unknown> }[];
 };
 type FixtureWindow = Window & { loginFixture: LoginFixture };
@@ -21,7 +23,7 @@ const attempts = [
 
 async function openSyntheticProfile(page: Page) {
   await page.addInitScript(({ profileId, approvalId, attempts }) => {
-    const fixture: LoginFixture = { completions: {}, cancellations: {}, requests: [], savedQuota: null };
+    const fixture: LoginFixture = { completions: {}, cancellations: {}, requests: [], savedQuota: null, connectionState: 'authentication_required', failProfiles: false, deferProfiles: false, profileLoads: [] };
     Object.assign(window, { loginFixture: fixture });
     let started = 0;
     const deferred = (target: Record<string, Deferred>, id: string) => new Promise((resolve, reject) => {
@@ -44,8 +46,10 @@ async function openSyntheticProfile(page: Page) {
         case 'load_profile_refresh_status': value = { profileId, retryAfterSeconds: 0 }; break;
         case 'load_profile_quota': value = structuredClone(fixture.savedQuota); break;
         case 'list_profiles':
+          if (fixture.failProfiles) throw 'profile_unavailable';
+          if (fixture.deferProfiles) { value = await new Promise((resolve, reject) => { fixture.profileLoads.push({ resolve, reject }); }); break; }
           value = { activeProfiles: 1, profiles: [{ id: profileId, label: 'Synthetic login profile',
-            environment: 'native', archived: false, connectionState: 'authentication_required' }] };
+            environment: 'native', archived: false, connectionState: fixture.connectionState }] };
           break;
         case 'inspect_provider_executable':
           value = { ...metadata, candidateId: '55555555-5555-4555-8555-555555555555' };
@@ -64,6 +68,10 @@ async function openSyntheticProfile(page: Page) {
           break;
         case 'complete_profile_login':
           value = await deferred(fixture.completions, String(args.attemptId));
+          if (typeof value === 'object' && value !== null && 'diagnostic' in value) {
+            const diagnostic = (value as { diagnostic: { persisted?: boolean; identityConfidence?: string; authentication?: string } }).diagnostic;
+            if (diagnostic.persisted && diagnostic.authentication === 'chatgpt') fixture.connectionState = diagnostic.identityConfidence === 'provisional' ? 'connected' : 'error';
+          }
           break;
         case 'cancel_profile_login':
           value = await deferred(fixture.cancellations, String(args.attemptId));
@@ -143,8 +151,8 @@ test('renderer fixture keeps the new sign-in intact after an old cancel rejects 
   await page.evaluate(({ attemptId, profileId, approvalId }) => {
     (window as unknown as FixtureWindow).loginFixture.completions[attemptId]!.resolve({ attemptId,
       diagnostic: { profileId, approvalId, providerVersion: '0.163.0', authentication: 'chatgpt',
-        identityConfidence: 'provisional', requiresOpenaiAuth: true, checkedAt: null,
-        monitoring: 'stopped', persisted: false, sourceKind: 'test_fixture' } });
+        identityConfidence: 'provisional', requiresOpenaiAuth: true, checkedAt: '2026-10-18T04:00:00.123Z',
+        monitoring: 'stopped', persisted: true, sourceKind: 'test_fixture' } });
   }, { attemptId: attempts[1]!, profileId, approvalId });
   await expect(page.getByRole('heading', { name: 'Sign-in completed', exact: true })).toBeVisible();
   await expect(page.getByText('Codex confirmed a ChatGPT account for this profile. Identity has not been verified. Usage collection remains stopped.')).toBeVisible();
@@ -263,4 +271,79 @@ test('renderer retains saved quotas when its provider operation component is rep
   await page.getByRole('button', { name: 'Check connection', exact: true }).click();
   await expect(page.getByText('75%', { exact: true })).toBeVisible();
   await expect(page.locator(`[data-quota-profile="${profileId}"]`)).toHaveCount(0);
+});
+
+
+async function finishLogin(page: Page, index = 0, identity: 'provisional' | 'unknown' = 'provisional') {
+  const attemptId = attempts[index]!;
+  await expect.poll(() => page.evaluate(attemptId => Boolean((window as unknown as FixtureWindow).loginFixture.completions[attemptId]), attemptId)).toBe(true);
+  await page.evaluate(({ attemptId, profileId, approvalId, identity }) => {
+    (window as unknown as FixtureWindow).loginFixture.completions[attemptId]!.resolve({ attemptId,
+      diagnostic: { profileId, approvalId, providerVersion: '0.163.0', authentication: 'chatgpt',
+        identityConfidence: identity, requiresOpenaiAuth: true, checkedAt: '2026-10-18T04:00:00.123Z',
+        monitoring: 'stopped', persisted: true, sourceKind: 'test_fixture' } });
+  }, { attemptId, profileId, approvalId, identity });
+}
+const connectionRow = (page: Page) => page.locator(`[data-profile-id="${profileId}"] .profile-connection-state`);
+const profileLoadCount = (page: Page) => page.evaluate(() => (window as unknown as FixtureWindow).loginFixture.requests.filter(request => request.command === 'list_profiles').length);
+
+test('renderer refreshes the saved Connected row after validated login without remounting or stealing result focus', async ({ page }) => {
+  await openSyntheticProfile(page);
+  const loads = await profileLoadCount(page);
+  await begin(page, 'SYNTH-OLD');
+  await expect(connectionRow(page)).toHaveText('Sign-in required');
+  await finishLogin(page);
+  await expect(connectionRow(page)).toHaveText('Connected');
+  await expect(page.locator('.login-result')).toBeFocused();
+  expect(await profileLoadCount(page)).toBe(loads + 1);
+  expect(await page.evaluate(() => (window as unknown as FixtureWindow).loginFixture.requests.filter(request => request.command === 'cancel_profile_login'))).toEqual([]);
+  await navigate(page, 'overview');
+  await expect(page.locator(`[data-overview-account="${profileId}"]`)).toContainText('Connected');
+});
+
+test('renderer shows durable Error for a completed login with unknown identity', async ({ page }) => {
+  await openSyntheticProfile(page); await begin(page, 'SYNTH-OLD'); await finishLogin(page, 0, 'unknown');
+  await expect(connectionRow(page)).toHaveText('Connection error');
+  await expect(page.getByRole('heading', { name: 'Connection needs attention', exact: true })).toBeVisible();
+  await expect(page.getByText('Codex completed sign-in, but account identity could not be confirmed. Check the connection or sign in again. Your saved readings are still available.', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Sign-in completed', exact: true })).toHaveCount(0);
+});
+
+test('renderer does not refresh Connected after a completion received during requested cancellation', async ({ page }) => {
+  await openSyntheticProfile(page); const loads = await profileLoadCount(page); await begin(page, 'SYNTH-OLD');
+  await page.getByRole('button', { name: 'Cancel sign-in', exact: true }).click();
+  await finishLogin(page);
+  await expect(page.getByRole('heading', { name: 'Sign-in stopped', exact: true })).toBeVisible();
+  await expect(connectionRow(page)).toHaveText('Sign-in required');
+  expect(await profileLoadCount(page)).toBe(loads);
+});
+
+test('renderer preserves saved sign-in success and retries only the connection status after a reload failure', async ({ page }) => {
+  await openSyntheticProfile(page); await begin(page, 'SYNTH-OLD');
+  await page.evaluate(() => { (window as unknown as FixtureWindow).loginFixture.failProfiles = true; });
+  await finishLogin(page);
+  await expect(page.getByRole('heading', { name: 'Sign-in completed', exact: true })).toBeVisible();
+  await expect(page.locator('[data-login-connection-refresh-error]')).toHaveText('The sign-in result was saved, but the connection status could not be refreshed. Retry the status refresh to check it.');
+  await expect(connectionRow(page)).toHaveText('Sign-in required');
+  await expect(page.getByRole('heading', { name: 'Sign-in could not finish', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Retry status refresh', exact: true }).click();
+  await expect(page.locator('[data-login-connection-refresh-error]')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Sign-in completed', exact: true })).toBeVisible();
+  await page.evaluate(() => { (window as unknown as FixtureWindow).loginFixture.failProfiles = false; });
+  await page.getByRole('button', { name: 'Retry status refresh', exact: true }).click();
+  await expect(connectionRow(page)).toHaveText('Connected');
+  await expect(page.locator('[data-login-connection-refresh-error]')).toHaveCount(0);
+  expect(await page.evaluate(() => (window as unknown as FixtureWindow).loginFixture.requests.filter(request => request.command === 'begin_profile_login').length)).toBe(1);
+});
+
+test('renderer ignores an old connection-refresh failure while the next sign-in is active', async ({ page }) => {
+  await openSyntheticProfile(page); await begin(page, 'SYNTH-OLD');
+  await page.evaluate(() => { (window as unknown as FixtureWindow).loginFixture.deferProfiles = true; });
+  await finishLogin(page);
+  await expect(page.getByRole('heading', { name: 'Sign-in completed', exact: true })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => (window as unknown as FixtureWindow).loginFixture.profileLoads.length)).toBe(1);
+  await begin(page, 'SYNTH-NEW');
+  await page.evaluate(() => { (window as unknown as FixtureWindow).loginFixture.profileLoads[0]!.reject('profile_unavailable'); });
+  await expect(page.getByLabel('Your sign-in code', { exact: true })).toHaveValue('SYNTH-NEW');
+  await expect(page.locator('[data-login-connection-refresh-error]')).toHaveCount(0);
 });

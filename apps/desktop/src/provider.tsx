@@ -155,7 +155,7 @@ export function ProviderSettings({ busy, setBusy, approval, onApproved }: Settin
   </section>;
 }
 
-export function ProfileProviderCheck({ profileId, profileLabel, approval, busy, managementActions, managementTrigger, onActivitySaved, onActivityFailed, onQuotaSaved, onQuotaFailed }: { profileId: string; profileLabel: string; approval: ProviderExecutableApproval; busy: boolean; managementActions: ReactNode; managementTrigger: ReactNode; onActivitySaved: (value: ProfileActivitySavedRead) => Promise<void>; onActivityFailed: () => Promise<void>; onQuotaSaved: (value: ProfileQuotaSavedRead) => Promise<void>; onQuotaFailed: () => Promise<void> }) {
+export function ProfileProviderCheck({ profileId, profileLabel, approval, busy, managementActions, managementTrigger, onConnectionChanged, onActivitySaved, onActivityFailed, onQuotaSaved, onQuotaFailed }: { profileId: string; profileLabel: string; approval: ProviderExecutableApproval; busy: boolean; managementActions: ReactNode; managementTrigger: ReactNode; onConnectionChanged: () => Promise<void>; onActivitySaved: (value: ProfileActivitySavedRead) => Promise<void>; onActivityFailed: () => Promise<void>; onQuotaSaved: (value: ProfileQuotaSavedRead) => Promise<void>; onQuotaFailed: () => Promise<void> }) {
   const [checking, setChecking] = useState(false);
   const [loggingIn, setLoggingIn] = useState(false);
   const [readingQuota, setReadingQuota] = useState(false);
@@ -228,7 +228,7 @@ export function ProfileProviderCheck({ profileId, profileLabel, approval, busy, 
     : diagnostic?.authentication === 'chatgpt' ? 'Account response received' : 'Account type not supported';
   return <div className="profile-provider-check">
     {checking && <div className="profile-actions"><span role="status">Checking connection…</span><Button className="text-button" variant="ghost" type="button" data-provider-cancel={profileId} aria-describedby={`profile-name-${profileId}`} disabled={cancelling} onClick={() => { void cancel(); }}>{cancelling ? 'Cancelling…' : 'Cancel check'}</Button></div>}
-    <ProfileDeviceLogin key={`login:${loginGeneration}`} profileId={profileId} profileLabel={profileLabel} approval={approval} busy={busy || checking || readingQuota || activity.working} onActivity={setLoggingIn} onStarted={() => { activity.clear(); checkGeneration.current += 1; setDiagnostic(null); setError(null); setQuotaGeneration(value => value + 1); }} />
+    <ProfileDeviceLogin onConnectionChanged={onConnectionChanged} key={`login:${loginGeneration}`} profileId={profileId} profileLabel={profileLabel} approval={approval} busy={busy || checking || readingQuota || activity.working} onActivity={setLoggingIn} onStarted={() => { activity.clear(); checkGeneration.current += 1; setDiagnostic(null); setError(null); setQuotaGeneration(value => value + 1); }} />
     <ProfileQuotaRead retryAfterSeconds={refreshWait} onSaved={onQuotaSaved} onFailed={onQuotaFailed} key={`quota:${quotaGeneration}`} profileId={profileId} profileLabel={profileLabel} approval={approval} busy={busy || checking || loggingIn || activity.working} onActivity={setReadingQuota} onStarted={() => { activity.clear(); checkGeneration.current += 1; setDiagnostic(null); setError(null); setLoginGeneration(value => value + 1); }} actionSiblings={<>
       {managementTrigger}
       <CollapsiblePanel keepMounted className="profile-management">

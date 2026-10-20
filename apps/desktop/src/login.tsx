@@ -13,16 +13,17 @@ type Props = {
   busy: boolean;
   onActivity: (active: boolean) => void;
   onStarted: () => void;
+  onConnectionChanged: () => Promise<void>;
 };
 
-type Outcome = { kind: 'success' | 'cancelled' | 'error'; message: string };
+type Outcome = { kind: 'success' | 'cancelled' | 'error' | 'incomplete'; message: string };
 
 function selectField(field: HTMLInputElement | HTMLTextAreaElement) {
   field.select();
   requestAnimationFrame(() => { if (document.activeElement === field) field.select(); });
 }
 
-export function ProfileDeviceLogin({ profileId, profileLabel, approval, busy, onActivity, onStarted }: Props) {
+export function ProfileDeviceLogin({ profileId, profileLabel, approval, busy, onActivity, onStarted, onConnectionChanged }: Props) {
   const [consent, setConsent] = useState(false);
   const [working, setWorking] = useState(false);
   const [cancelling, setCancelling] = useState(false);
@@ -31,6 +32,8 @@ export function ProfileDeviceLogin({ profileId, profileLabel, approval, busy, on
   const [attempt, setAttempt] = useState<ProviderLoginAttempt | null>(null);
   const [prompt, setPrompt] = useState<ProviderLoginPrompt | null>(null);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
+  const [connectionRefreshError, setConnectionRefreshError] = useState<string | null>(null);
+  const [refreshingConnection, setRefreshingConnection] = useState(false);
   const [focus, setFocus] = useState<'consent' | 'prompt' | 'result' | 'launch' | null>(null);
   const launch = useRef<HTMLButtonElement>(null);
   const submit = useRef<HTMLButtonElement>(null);
@@ -59,21 +62,40 @@ export function ProfileDeviceLogin({ profileId, profileLabel, approval, busy, on
 
   function explain() {
     if (busy || pending.current) return;
+    ++generation.current;
     setOutcome(null);
+    setConnectionRefreshError(null);
+    setRefreshingConnection(false);
     setBrowserError(null);
     setConsent(true);
     setFocus('consent');
   }
 
+  async function refreshConnection(operation: number) {
+    const current = () => alive.current && generation.current === operation && !cancelled.current && !cancellationFailure.current;
+    if (!current()) return;
+    setRefreshingConnection(true);
+    try {
+      await onConnectionChanged();
+      if (current()) setConnectionRefreshError(null);
+    } catch {
+      if (current()) setConnectionRefreshError('The sign-in result was saved, but the connection status could not be refreshed. Retry the status refresh to check it.');
+    } finally {
+      if (current()) setRefreshingConnection(false);
+    }
+  }
+
   async function start() {
     if (busy || pending.current || !consent) return;
-    generation.current += 1;
+    const operation = ++generation.current;
     pending.current = true;
     cancelled.current = false;
     cancellationFailure.current = null;
     setConsent(false);
     setWorking(true);
     setOutcome(null);
+    setConnectionRefreshError(null);
+    setRefreshingConnection(false);
     setPrompt(null);
     browserRequest.current = null;
     setOpeningBrowser(false);
@@ -98,7 +120,12 @@ export function ProfileDeviceLogin({ profileId, profileLabel, approval, busy, on
           ? { kind: 'error', message: providerFailure(cancellationFailure.current) }
           : cancelled.current
           ? { kind: 'cancelled', message: 'Credentials already saved by Codex may remain in this profile.' }
+          : completed.diagnostic.identityConfidence === 'unknown'
+          ? { kind: 'incomplete', message: 'Codex completed sign-in, but account identity could not be confirmed. Check the connection or sign in again. Your saved readings are still available.' }
           : { kind: 'success', message: 'Codex confirmed a ChatGPT account for this profile. Identity has not been verified. Usage collection remains stopped.' });
+        if (!cancelled.current && !cancellationFailure.current) {
+          void refreshConnection(operation);
+        }
       }
     } catch (failure) {
       const problem = cancellationFailure.current ?? failure;
@@ -184,10 +211,14 @@ export function ProfileDeviceLogin({ profileId, profileLabel, approval, busy, on
       </div> : <p role="status">{cancelling || cancelled.current ? 'Stopping sign-in…' : 'Preparing your sign-in code…'}</p>}
       {attempt && <Button className="secondary-button" variant="outline" type="button" data-login-cancel={profileId} aria-describedby={`profile-name-${profileId}`} disabled={cancelling} onClick={() => { void cancel(); }}>{cancelling ? 'Stopping sign-in…' : 'Cancel sign-in'}</Button>}
     </div>}
-    {outcome && <div ref={result} className="login-panel login-result" data-login-profile={profileId} role={outcome.kind === 'error' ? 'alert' : 'status'} tabIndex={-1}>
+    {outcome && <div ref={result} className="login-panel login-result" data-login-profile={profileId} role={outcome.kind === 'error' || outcome.kind === 'incomplete' ? 'alert' : 'status'} tabIndex={-1}>
       {approval.sourceKind === 'test_fixture' && <p className="provider-fixture-note" data-provider-fixture>Synthetic provider fixture</p>}
-      <h3>{outcome.kind === 'success' ? 'Sign-in completed' : outcome.kind === 'cancelled' ? 'Sign-in stopped' : 'Sign-in could not finish'}</h3>
+      <h3>{outcome.kind === 'success' ? 'Sign-in completed' : outcome.kind === 'cancelled' ? 'Sign-in stopped' : outcome.kind === 'incomplete' ? 'Connection needs attention' : 'Sign-in could not finish'}</h3>
       <p>{outcome.message}</p>
+      {connectionRefreshError && <div>
+        <p className="operation-error" role="alert" data-login-connection-refresh-error>{connectionRefreshError}</p>
+        <Button variant="outline" type="button" disabled={busy || working || refreshingConnection} onClick={() => { void refreshConnection(generation.current); }}>Retry status refresh</Button>
+      </div>}
     </div>}
   </div>;
 }

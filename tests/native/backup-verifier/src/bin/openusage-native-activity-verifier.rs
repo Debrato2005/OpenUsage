@@ -83,7 +83,7 @@ fn schema_version(connection: &Connection) -> u32 {
         .pragma_query_value(None, "user_version", |r| r.get(0))
         .unwrap()
 }
-fn state(connection: &Connection) -> Value {
+fn state(connection: &Connection, include_profile_state: bool) -> Value {
     let mut tables = Map::new();
     let mut selected = vec![
         ("profile_identity_events", "id"),
@@ -111,6 +111,9 @@ fn state(connection: &Connection) -> Value {
             "quota_reset_assessments",
             "collection_run_id,limit_id,window_role",
         ));
+    }
+    if include_profile_state {
+        selected.extend([("profiles", "id"), ("settings", "id"), ("accounts", "id")]);
     }
     for (table, order) in selected {
         // Both identifiers and ordering expressions are fixed trusted test source, never request data.
@@ -170,13 +173,20 @@ fn state(connection: &Connection) -> Value {
 }
 fn main() {
     let args = env::args_os().collect::<Vec<_>>();
-    assert_eq!(
-        args.len(),
-        4,
-        "Supply database|checkpoint|backup, synthetic input, and protected-key path."
+    assert!(
+        args.len() == 4 || args.len() == 5,
+        "Supply database|checkpoint|backup, synthetic input, protected-key path, and optional --profile-state."
     );
+    let include_profile_state = args.len() == 5;
+    if include_profile_state {
+        assert_eq!(args[4], "--profile-state", "Unknown synthetic oracle flag.");
+    }
     let mode = args[1].to_str().unwrap();
     assert!(["database", "checkpoint", "backup"].contains(&mode));
+    assert!(
+        !include_profile_state || mode == "database",
+        "Profile-state verification requires database mode."
+    );
     let input_path = Path::new(&args[2]);
     let envelope_path = Path::new(&args[3]);
     let original = private_bytes(input_path);
@@ -272,7 +282,13 @@ fn main() {
         );
     }
     let schema_version = schema_version(&connection);
-    let actual = state(&connection);
+    if include_profile_state {
+        assert_eq!(
+            schema_version, 4,
+            "Profile-state verification requires schema 4."
+        );
+    }
+    let actual = state(&connection, include_profile_state);
     if let Some(expected) = request.get("expectedTables") {
         assert_eq!(
             &actual["tables"], expected,
@@ -282,8 +298,14 @@ fn main() {
     drop(connection);
     drop(payload);
     drop(key);
-    assert_eq!(private_bytes(input_path), original);
-    assert_eq!(private_bytes(envelope_path), envelope);
+    assert!(
+        private_bytes(input_path) == original,
+        "The oracle changed encrypted input bytes."
+    );
+    assert!(
+        private_bytes(envelope_path) == envelope,
+        "The oracle changed protected-key bytes."
+    );
     let wal_after = optional_bytes(&sidecar(input_path, "-wal"));
     let empty_wal_created = wal_before.is_none() && wal_after.as_ref().is_some_and(Vec::is_empty);
     assert!(

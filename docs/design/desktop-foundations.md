@@ -1,6 +1,6 @@
 # Desktop design foundations
 
-Updated: October 18, 2026. These foundations cover the native workspace, account overview, backup controls, and provisional quota preview. The user selected coss/ui for all components. The [adoption record](coss-ui-adoption.md) controls the incremental migration. Charts and accepted history need further native qualification.
+Updated: October 20, 2026. These foundations cover the native workspace, account overview, backup controls, and provisional quota preview. The user selected coss/ui for all components. The [adoption record](coss-ui-adoption.md) controls the incremental migration. Charts and accepted history need further native qualification.
 
 ## Structure and interaction
 
@@ -10,22 +10,24 @@ Privacy stays accessible in narrow windows. Native controls retain keyboard beha
 
 Restore preview compares the current checkpoint with incoming backup counts. The first native capture showed broken column headings at 200% text size. An em-based container query now presents each record category with two labeled values when space is limited. Explicit table roles retain the comparison structure. Five native captures cover desktop, both narrow themes, errors, and enlarged text. Native DOM and keyboard checks passed; screen-reader acceptance remains open. See `../evidence/native-restore-preview/`.
 
-The layout uses one page scroll area, a 208-pixel sidebar, and a 1,280-pixel content limit. At smaller widths, navigation becomes a compact header and summary cells stack. Content wraps instead of concealing overflow. The controls have a minimum height of 44 CSS pixels.
+The layout uses one page scroll area, a 204-pixel sidebar, and a 1,400-pixel content limit. At smaller widths, navigation becomes a compact header and summary cells stack. Content wraps instead of concealing overflow. The controls have a minimum height of 44 CSS pixels.
 
 ## Typography and tokens
 
-JetBrains Mono is the active UI family, as the user requested. Unmodified Regular, Medium, and SemiBold WOFF2 files are bundled locally with the complete SIL Open Font License. The app makes no font request to a remote server. Only Regular is preloaded. `font-display: swap` keeps text available during font loading. Ligatures and synthetic weights are disabled.
+Geist Sans now serves interface text. JetBrains Mono remains for exact values, codes, addresses, and keyboard labels. This follows the latest request for typography based on the reference image and reviewed Taste guidance. It replaces the earlier all-monospace choice. Both families already existed locally. No font download or dependency was added. The app makes no font request to a remote server.
 
-| Role | Size | Weight | Line height |
-|---|---|---|---|
-| Metadata | 12 px | 400 | 1.5 |
-| Secondary labels | 13 px | 400–500 | 1.5 |
-| Body and controls | 14 px | 400–500 | 1.5 |
-| Section headings | 16 px | 500 | 1.3 |
-| Summary values | 20 px | 500 | 1.3 |
-| Page title | 20 px | 500 | 1.3 |
+| Role | Family | Size | Weight | Line height |
+|---|---|---|---|---|
+| Metadata | Geist Sans | 12 px | 400 | 1.5 |
+| Supporting text | Geist Sans | 13 px | 400–500 | 1.5–1.55 |
+| Body and controls | Geist Sans | 14 px | 400–500 | 1.5 |
+| Section headings | Geist Sans | 17 px | 600 | 1.3 |
+| Page title | Geist Sans | 28 px | 600 | 1.3 |
+| Exact overview total | JetBrains Mono | 32 px | 600 | 1.25 |
 
-Sizes use `rem` units. The 14-pixel body serves the desktop information density. Enlarged text and narrow windows need native checks for clipping and control access. Numeric roles use tabular numerals. Future quota, token, time, and money columns must use that same numeric role.
+Sizes use `rem` units. Numeric roles use tabular digits, no ligatures, and zero letter spacing. Dates use tabular digits in the interface face. Only Geist is preloaded. `font-display: swap` keeps text available during loading. Synthetic font weights remain disabled. Existing Regular, Medium, and SemiBold JetBrains files remain available for numeric and technical roles.
+
+[Vercel typography guidance](https://vercel.com/geist/typography) supports the 14-pixel interface and 13-pixel supporting-text roles. Its mono and tabular styles informed the pairing. Taste's geometric interface face and restrained weights fit the supplied desktop reference. Editorial serif headings, oversized marketing text, and decorative motion do not fit this account workspace.
 
 CSS tokens define typography, spacing, surfaces, borders, radii, focus, errors, and interaction states. Spacing follows a 4-pixel base. Light and dark themes use neutral surfaces. Green identifies an open encrypted workspace. It does not decorate unrelated panels. Panels use borders without shadows.
 
@@ -45,11 +47,11 @@ The UI/UX search did not return an exact desktop account workflow. Its landing-p
 
 ## Font provenance
 
-Current source: [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono), revision `19371302b95d218af43299bce79ddbddd0bc364d`. Exact byte counts and hashes are in [the source manifest](jetbrains-mono-source.json). The adjacent `JetBrainsMono-OFL.txt` retains the complete copyright and license. Native checks observed loaded Regular and Medium faces. SemiBold remains bundled and was unused in the captured quota view.
+Numeric font source: [JetBrains Mono](https://github.com/JetBrains/JetBrainsMono), revision `19371302b95d218af43299bce79ddbddd0bc364d`. Exact byte counts and hashes are in [the source manifest](jetbrains-mono-source.json). The adjacent `JetBrainsMono-OFL.txt` retains the complete copyright and license. Native checks observed loaded Regular and Medium faces. SemiBold remains bundled and was unused in the captured quota view.
 
-The following Geist record describes the earlier foundation milestone. Its assets remain for that historical evidence and are no longer active.
+Geist is active again under the latest typography request.
 
-Historical source: [Vercel Geist](https://github.com/vercel/geist-font), revision `e1f671c727f6de7e97c1e1d26dbb44f349c19459`. Original path: `fonts/Geist/webfonts/Geist[wght].woff2`.
+Interface font source: [Vercel Geist](https://github.com/vercel/geist-font), revision `e1f671c727f6de7e97c1e1d26dbb44f349c19459`. Original path: `fonts/Geist/webfonts/Geist[wght].woff2`.
 
 Bundled path: `apps/desktop/public/fonts/Geist-Variable.woff2`. SHA-256: `2ffebe993e969069a9789d15164b7715d42491b5835516c5e3b935d5f81b05f1`. The adjacent `OFL.txt` contains the full license and copyright notice.
 
@@ -91,7 +93,7 @@ At enlarged text size, comparison row labels use the full row width. Labeled val
 
 The reference layout now uses four views: Overview, Accounts, Usage, and Settings. The overview contains two panels, a compact activity strip, and an account table. Connection approval, appearance, and encrypted backups belong in Settings. Account creation and detailed readings use disclosures.
 
-JetBrains Mono remains the bundled typeface. Shared coss controls retain their keyboard behavior and focus states. Light and dark themes use the existing tokens. The sidebar becomes a compact navigation grid in narrow windows. Tables can scroll horizontally without hiding columns.
+At that milestone, JetBrains Mono served all interface roles. The later typography refinement below replaces this choice. Shared coss controls retain their keyboard behavior and focus states. Light and dark themes use the existing tokens. The sidebar becomes a compact navigation grid in narrow windows. Tables can scroll horizontally without hiding columns.
 
 The overview shows one selected profile and one quota bucket at a time. Rust supplies quota percentages, reset state, freshness, and exact count strings. Unknown totals stay unavailable. Identity uncertainty and synthetic data labels remain visible. No combined donut or date filter appears without supported data.
 
@@ -111,3 +113,8 @@ Three scrolled enlarged-text captures exposed a real account-row fault. The auto
 The corrected native artifact passed 24 reviewed captures, eleven backup-content captures, and seven production recovery captures. Default production refused all four synthetic providers. The final full check passed 34 contracts and 116 renderer tests. Rust and dependencies remain identical to the baseline that passed 190 workspace tests and strict Clippy. Native source, assets, executable, tools, and fixture hashes remained unchanged during each journey.
 
 These are Linux journeys with clearly labeled synthetic data and test-side font scaling. They do not establish live-provider authentication, OS text scaling, release-platform performance, full accessibility acceptance, or Windows/macOS behavior. Existing inner scrolling keeps exact oversized usage values accessible. See `../evidence/native-reference-refinement/`.
+
+
+### Native typography refinement
+
+The native visual journey passed 24 reviewed captures across four views, both themes, 360-pixel windows, and test-side 200 percent text. Runtime checks confirm loaded Geist interface text and JetBrains Mono values. Account status and actions retain whole words. Long exact usage values retain their existing local horizontal scroll. This does not qualify OS text scaling, screen readers, Windows, macOS, or live-provider data. See `../evidence/native-typography-login/`.

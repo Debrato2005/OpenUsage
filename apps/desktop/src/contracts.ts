@@ -124,9 +124,15 @@ export interface ProviderLoginPrompt {
   applicationWaitLimitSeconds: 900;
 }
 
+export interface ProviderLoginDiagnostic extends Omit<ProviderConnectionDiagnostic, 'persisted' | 'authentication' | 'checkedAt'> {
+  persisted: true;
+  authentication: 'chatgpt';
+  checkedAt: string;
+}
+
 export interface ProviderLoginCompletion {
   attemptId: string;
-  diagnostic: ProviderConnectionDiagnostic;
+  diagnostic: ProviderLoginDiagnostic;
 }
 
 export interface ProviderExecutableDiscovery {
@@ -526,11 +532,18 @@ function isProviderLoginPrompt(value: unknown): value is ProviderLoginPrompt {
     && v.applicationWaitLimitSeconds === 900;
 }
 
+function isProviderLoginDiagnostic(value: unknown): value is ProviderLoginDiagnostic {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  return isProviderConnectionDiagnostic({ ...v, persisted: false }) && v.persisted === true
+    && v.authentication === 'chatgpt' && isUtcTimestamp(v.checkedAt);
+}
+
 function isProviderLoginCompletion(value: unknown): value is ProviderLoginCompletion {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   const v = value as Record<string, unknown>;
   return Object.keys(v).length === 2 && isUuid(v.attemptId)
-    && isProviderConnectionDiagnostic(v.diagnostic) && v.diagnostic.authentication === 'chatgpt';
+    && isProviderLoginDiagnostic(v.diagnostic);
 }
 
 function isRestoreCheckpointList(value: unknown): value is RestoreCheckpointList {

@@ -752,7 +752,34 @@ impl Workspace {
             completed.abort();
             return Err(error);
         }
-        completed.publish()
+        let storage = self.storage.as_mut().ok_or(CommandError::WorkspaceLocked)?;
+        let mut changed = false;
+        let outcome = completed.publish(|binding, diagnostic| {
+            let previous = storage
+                .list_profiles()
+                .map_err(profile_error)?
+                .into_iter()
+                .find(|profile| profile.id == binding.profile_id)
+                .ok_or(CommandError::ProviderLoginCancelled)?;
+            let connection = match diagnostic.identity_confidence {
+                provider::DiagnosticIdentity::Provisional => ProfileConnectionState::Connected,
+                provider::DiagnosticIdentity::Unknown => ProfileConnectionState::Error,
+            };
+            let committed = storage
+                .record_profile_connection(&binding.profile_id, &binding.home_reference, connection)
+                .map_err(|error| match error {
+                    ProfileError::NotFound | ProfileError::StaleConnectionTarget => {
+                        CommandError::ProviderLoginCancelled
+                    }
+                    other => profile_error(other),
+                })?;
+            changed = committed.connection_state != previous.connection_state;
+            Ok(())
+        })?;
+        if changed {
+            self.restore_preview.clear();
+        }
+        Ok(outcome)
     }
 
     fn require_login_binding(

@@ -230,4 +230,89 @@ fn current_schema_is_explicit_and_mismatch_refusal_preserves_the_synthetic_works
             );
         }
     }
+    let activity_binary = env!("CARGO_BIN_EXE_openusage-native-activity-verifier");
+    let mut default_tables = None;
+    for flag in [None, Some("--profile-state"), Some("--unknown-state")] {
+        let before = snapshot(&root.0);
+        let mut command = Command::new(activity_binary);
+        command.arg("database").arg(&live).arg(&envelope);
+        if let Some(flag) = flag {
+            command.arg(flag);
+        }
+        let mut child = command
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        child
+            .stdin
+            .take()
+            .unwrap()
+            .write_all(&serde_json::to_vec(&request).unwrap())
+            .unwrap();
+        let output = child.wait_with_output().unwrap();
+        if flag == Some("--unknown-state") {
+            assert!(
+                !output.status.success(),
+                "Unknown oracle flags must be refused."
+            );
+            assert!(output.stdout.is_empty());
+        } else {
+            assert!(
+                output.status.success(),
+                "Profile-state oracle failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+            assert_eq!(report["schemaVersion"], 4);
+            for field in [
+                "verified",
+                "readOnly",
+                "originalProtectedKeyUsed",
+                "encryptedPagesAuthenticated",
+                "inputUnchanged",
+                "keyEnvelopeUnchanged",
+                "walRecordsUnchanged",
+            ] {
+                assert_eq!(report[field], true, "{field}");
+            }
+            assert_eq!(report["plaintextDiskStaging"], false);
+            let mut tables = report["state"]["tables"].as_object().unwrap().clone();
+            if flag.is_none() {
+                assert_eq!(tables.len(), 13);
+                assert!(!tables.contains_key("profiles"));
+                default_tables = Some(tables);
+            } else {
+                assert_eq!(tables.len(), 16);
+                let profiles = tables.remove("profiles").unwrap();
+                assert_eq!(profiles.as_array().unwrap().len(), 1);
+                let profile = &profiles[0];
+                assert_eq!(profile.as_object().unwrap().len(), 9);
+                assert_eq!(profile["id"], id);
+                assert_eq!(profile["name"], "Synthetic current-schema profile");
+                assert_eq!(profile["account_id"], Value::Null);
+                assert_eq!(profile["environment"], "native");
+                assert_eq!(profile["approved_home_reference"], id);
+                assert_eq!(profile["connection_state"], "authentication_required");
+                assert_eq!(profile["archived"], 0);
+                for field in ["created_at", "updated_at"] {
+                    assert!(!profile[field].as_str().unwrap().is_empty());
+                }
+                let settings = tables.remove("settings").unwrap();
+                assert_eq!(settings.as_array().unwrap().len(), 1);
+                assert_eq!(settings[0].as_object().unwrap().len(), 8);
+                assert_eq!(settings[0]["theme"], "dark");
+                assert_eq!(settings[0]["monitoring"], "stopped");
+                assert_eq!(tables.remove("accounts").unwrap(), json!([]));
+                assert_eq!(Some(tables), default_tables);
+            }
+        }
+        assert_unchanged(
+            &before,
+            &snapshot(&root.0),
+            flag != Some("--unknown-state"),
+            "Profile-state oracle changed synthetic files",
+        );
+    }
 }

@@ -67,6 +67,9 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval, onPro
   const createToggle = useRef<HTMLButtonElement>(null);
   const renameInput = useRef<HTMLInputElement>(null);
   const pending = useRef(false);
+  const viewRequest = useRef(0);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; viewRequest.current += 1; }; }, []);
   const reportCount = useRef(onCount);
   const reportProfiles = useRef(onProfilesChange);
   const reportReading = useRef(onReadingsChanged);
@@ -77,11 +80,12 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval, onPro
 
   useEffect(() => {
     let cancelled = false;
+    const request = ++viewRequest.current;
     setLoading(true);
     setFailure(null);
     setStatus(null);
     void invoke('list_profiles').then(next => {
-      if (!cancelled) {
+      if (!cancelled && request === viewRequest.current) {
         setView(next);
         reportCount.current(next.activeProfiles);
         reportProfiles.current?.(next.profiles);
@@ -89,11 +93,11 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval, onPro
         if (attempt > 0) setFocusTarget('create');
       }
     }).catch((error: unknown) => {
-      if (!cancelled) {
+      if (!cancelled && request === viewRequest.current) {
         setFailure({ message: errorMessage(error), target: 'load', id: null, invalidLabel: false });
         if (attempt > 0) setFocusTarget('error');
       }
-    }).finally(() => { if (!cancelled) setLoading(false); });
+    }).finally(() => { if (!cancelled && request === viewRequest.current) setLoading(false); });
     return () => { cancelled = true; };
   }, [attempt]);
 
@@ -116,6 +120,7 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval, onPro
   ) {
     if (busy || loading || pending.current) return;
     pending.current = true;
+    viewRequest.current += 1;
     setSaving(true);
     setBusy(true);
     setFailure(null);
@@ -136,6 +141,17 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval, onPro
       setSaving(false);
       setBusy(false);
     }
+  }
+
+  async function refreshConnection(profileId: string) {
+    if (pending.current) throw new Error('A profile change is still in progress.');
+    const request = ++viewRequest.current;
+    const next = await invoke('list_profiles');
+    if (!mounted.current || request !== viewRequest.current) return;
+    if (!next.profiles.some(profile => profile.id === profileId)) throw new Error('The selected profile is no longer available.');
+    setView(next);
+    reportCount.current(next.activeProfiles);
+    reportProfiles.current?.(next.profiles);
   }
 
   function checkLabel(value: string, target: 'create' | 'rename', id: string | null): boolean {
@@ -215,7 +231,7 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval, onPro
       <CollapsiblePanel keepMounted className="profile-reading-panel">
       <Collapsible className="profile-management-root" open={managed === profile.id || current} onOpenChange={open => setManaged(open ? profile.id : null)}>
       <ProfileActivity profileId={profile.id} profileLabel={profile.label}>{(onActivitySaved, onActivityFailed) => <SavedProfileQuota profileId={profile.id} profileLabel={profile.label}>{(onQuotaSaved, onQuotaFailed) => profile.archived ? managementActions : providerApproval
-        ? <ProfileProviderCheck key={`${profile.id}:${providerApproval.approvalId}`} profileId={profile.id} profileLabel={profile.label} approval={providerApproval} busy={busy || loading || current} managementActions={managementActions} managementTrigger={managementTrigger} onActivitySaved={async value => { await Promise.all([onActivitySaved(value), onQuotaFailed()]); reportReading.current?.(); }} onActivityFailed={async () => { await onActivityFailed(); reportReading.current?.(); }} onQuotaSaved={async value => { await Promise.all([onQuotaSaved(value), onActivityFailed()]); reportReading.current?.(); }} onQuotaFailed={async () => { await onQuotaFailed(); reportReading.current?.(); }} />
+        ? <ProfileProviderCheck onConnectionChanged={() => refreshConnection(profile.id)} key={`${profile.id}:${providerApproval.approvalId}`} profileId={profile.id} profileLabel={profile.label} approval={providerApproval} busy={busy || loading || current} managementActions={managementActions} managementTrigger={managementTrigger} onActivitySaved={async value => { await Promise.all([onActivitySaved(value), onQuotaFailed()]); reportReading.current?.(); }} onActivityFailed={async () => { await onActivityFailed(); reportReading.current?.(); }} onQuotaSaved={async value => { await Promise.all([onQuotaSaved(value), onActivityFailed()]); reportReading.current?.(); }} onQuotaFailed={async () => { await onQuotaFailed(); reportReading.current?.(); }} />
         : <>{managementTrigger}<CollapsiblePanel keepMounted className="profile-management">{managementActions}</CollapsiblePanel></>}</SavedProfileQuota>}</ProfileActivity>
       {rowError && !current && error()}
       </Collapsible>

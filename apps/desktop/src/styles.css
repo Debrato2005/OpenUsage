@@ -28,6 +28,13 @@
 }
 
 @font-face {
+  font-family: 'Geist Sans';
+  src: url('/fonts/Geist-Variable.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
   font-family: 'JetBrains Mono';
   src: url('/fonts/JetBrainsMono-Regular.woff2') format('woff2');
   font-style: normal;
@@ -50,16 +57,18 @@
 }
 
 :root {
-  font-family: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Consolas, monospace;
-  font-variant-ligatures: none;
+  --font-ui: 'Geist Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-numeric: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Consolas, monospace;
+  font-family: var(--font-ui);
+  font-variant-ligatures: common-ligatures;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   --text-xs: .75rem;
   --text-sm: .8125rem;
   --text-body: .875rem;
-  --text-section: 1rem;
-  --text-title: 1.25rem;
+  --text-section: 1.0625rem;
+  --text-title: 1.75rem;
   --weight-normal: 400;
   --weight-medium: 500;
   --weight-semibold: 600;
@@ -127,7 +136,7 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
 p, h1, h2, h3 { margin: 0; }
 h1, h2, h3 { font-weight: var(--weight-medium); line-height: var(--leading-heading); text-wrap: balance; }
 h1 { font-size: var(--text-title); letter-spacing: -.025em; }
-h2 { font-size: var(--text-section); letter-spacing: -.01em; }
+h2 { font-size: var(--text-section); font-weight: var(--weight-semibold); letter-spacing: -.015em; }
 h3 { font-size: var(--text-body); }
 .app-shell { display: grid; grid-template-columns: 208px minmax(0, 1fr); min-height: 100dvh; }
 .sidebar { display: flex; flex-direction: column; padding: var(--space-5) var(--space-3); background: var(--sidebar); border-right: 1px solid var(--line); }
@@ -377,3 +386,15 @@ main { max-width: 1280px; padding: var(--space-6); margin: 0 auto; }
 .quota-preview-notes summary { display: list-item; min-height: 44px; width: fit-content; padding-block: var(--space-3); cursor: pointer; }
 .quota-preview-notes p { max-width: 70ch; margin-bottom: var(--space-2); }
 .quota-preview-notes summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+
+/* Exact values use a fixed-width face; interface copy uses the proportional UI face. */
+.activity-count, .overview-total-value:not(.overview-unavailable),
+.overview-summary dd bdi, .overview-meter-heading strong,
+.quota-values > div:first-child dd, .quota-credit-count, [data-slot='meter-value'], code, kbd,
+input[readonly], textarea[readonly] {
+  font-family: var(--font-numeric);
+  font-variant-ligatures: none;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+time[datetime] { font-variant-numeric: tabular-nums; }
