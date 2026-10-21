@@ -64,4 +64,3 @@ export function providerFailure(error: unknown): string {
   return typeof error === 'string' && messages[error]
     ? messages[error] : 'OpenUsage could not complete this request. Review the executable and try again.';
 }
-

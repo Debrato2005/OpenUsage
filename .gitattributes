@@ -1,0 +1,8 @@
+* text=auto eol=lf
+
+# Keep upstream notices and normative requirements byte-for-byte, including whitespace.
+LICENSE -text whitespace=-blank-at-eol,-blank-at-eof,cr-at-eol
+docs/SRS.md -text whitespace=-blank-at-eol,-blank-at-eof,cr-at-eol
+apps/desktop/public/fonts/** -text whitespace=-blank-at-eol,-blank-at-eof,cr-at-eol
+apps/desktop/public/licenses/** -text whitespace=-blank-at-eol,-blank-at-eof,cr-at-eol
+apps/desktop/src-tauri/companion/licenses/** -text whitespace=-blank-at-eol,-blank-at-eof,cr-at-eol
