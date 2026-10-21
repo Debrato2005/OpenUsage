@@ -54,6 +54,17 @@ class StorageTests(unittest.TestCase):
         self.assertFalse(old.exists())
         self.assertTrue(new.exists())
 
+    @unittest.skipUnless(hasattr(os, 'mkfifo'), 'FIFO creation is unavailable')
+    def test_special_files_can_be_measured_but_are_never_cleaned(self):
+        directory = self.run_directory('runtime')
+        pipe = directory / 'runtime.pipe'
+        os.mkfifo(pipe)
+        self.assertGreaterEqual(storage.scan(self.root)[1], 0)
+        result = storage.clean(self.root, apply=True, count=0, days=0, max_bytes=0)
+        self.assertEqual(result['selected'], [])
+        self.assertEqual(len(result['preserved']), 1)
+        self.assertTrue(pipe.exists())
+
     def test_age_and_allocated_size_limits(self):
         old = self.run_directory('old', 100)
         new = self.run_directory('new', 200)

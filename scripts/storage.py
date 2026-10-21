@@ -85,7 +85,7 @@ def scan(path, protected=False, seen=None):
                 raise ValueError('Protected content is preserved')
             if current.name == MARKER and relative != Path(MARKER):
                 raise ValueError('Nested ownership markers are preserved')
-        if not stat.S_ISREG(info.st_mode) and not stat.S_ISDIR(info.st_mode):
+        if protected and not stat.S_ISREG(info.st_mode) and not stat.S_ISDIR(info.st_mode):
             raise ValueError('Special files are preserved')
         if protected and stat.S_ISREG(info.st_mode) and info.st_nlink != 1:
             raise ValueError('Hard-linked content is preserved')
