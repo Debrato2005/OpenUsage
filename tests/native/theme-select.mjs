@@ -72,12 +72,12 @@ async function delayedSaveKeepsNewFocus() {
     await waitFor(async () => await driver.execute('return window.__themeHold.nativeResolved;'), 'actual Rust theme response held at the renderer boundary');
     assert.equal((await driver.invoke('bootstrap')).value.theme, 'light');
     assert.equal(await driver.execute('return document.querySelector("#theme").disabled;'), true);
-    await driver.click('.sidebar-note button');
-    assert.equal(await driver.execute('return document.hasFocus()&&document.activeElement===document.querySelector(".sidebar-note button")&&!document.activeElement.disabled;'), true);
+    await driver.click('.settings-privacy');
+    assert.equal(await driver.execute('return document.hasFocus()&&document.activeElement===document.querySelector(".settings-privacy")&&!document.activeElement.disabled;'), true);
     await driver.execute('window.__themeHold.release();return true;');
     await waitFor(async () => await driver.execute('return !document.querySelector("#theme").disabled&&document.querySelector("#theme").textContent.trim()==="Light"&&document.documentElement.dataset.theme==="light";'), 'delayed native response rendered and appearance enabled');
     await settledFrames();
-    evidence.delayedResponseFocus = await driver.execute('return {testSideResponseDelay:true,actualRustPersistedBeforeRelease:window.__themeHold.nativeResolved,responseTheme:window.__themeHold.response.theme,documentFocused:document.hasFocus(),focusStayedOnPrivacy:document.activeElement===document.querySelector(".sidebar-note button"),triggerEnabled:!document.querySelector("#theme").disabled,elapsedMs:performance.now()-window.__themeHold.started};');
+    evidence.delayedResponseFocus = await driver.execute('return {testSideResponseDelay:true,actualRustPersistedBeforeRelease:window.__themeHold.nativeResolved,responseTheme:window.__themeHold.response.theme,documentFocused:document.hasFocus(),focusStayedOnPrivacy:document.activeElement===document.querySelector(".settings-privacy"),triggerEnabled:!document.querySelector("#theme").disabled,elapsedMs:performance.now()-window.__themeHold.started};');
     assert.equal(evidence.delayedResponseFocus.responseTheme, 'light'); assert.equal(evidence.delayedResponseFocus.documentFocused, true); assert.equal(evidence.delayedResponseFocus.focusStayedOnPrivacy, true); assert.equal(evidence.delayedResponseFocus.triggerEnabled, true);
   } finally { await driver.execute('window.__TAURI__.core=window.__themeOriginalCore;delete window.__themeOriginalCore;delete window.__themeHold;return true;'); }
 }

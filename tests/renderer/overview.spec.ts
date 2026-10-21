@@ -192,7 +192,7 @@ test('renderer Overview remains accessible in both themes at 360 pixels and enla
     await page.getByRole('combobox', { name: 'Appearance', exact: true }).click();
     await page.getByRole('option', { name: theme === 'light' ? 'Light' : 'Dark', exact: true }).click();
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
-    if (theme === 'dark') expect(await page.evaluate(() => ({ background: getComputedStyle(document.documentElement).backgroundColor, sidebar: getComputedStyle(document.querySelector('.sidebar')!).backgroundColor }))).toEqual({ background: 'rgb(0, 0, 0)', sidebar: 'rgb(0, 0, 0)' });
+    if (theme === 'dark') expect(await page.evaluate(() => ({ background: getComputedStyle(document.documentElement).backgroundColor, header: getComputedStyle(document.querySelector('.workspace-header')!).backgroundColor }))).toEqual({ background: 'rgb(0, 0, 0)', header: 'rgb(0, 0, 0)' });
     await navigate(page, 'overview');
     for (const scale of [1, 2]) {
       await page.evaluate(scale => { for (const node of document.querySelectorAll<HTMLElement>('body *')) { const baseline = node.dataset.testFontSize ?? getComputedStyle(node).fontSize; node.dataset.testFontSize = baseline; node.style.fontSize = `${parseFloat(baseline) * scale}px`; } }, scale);
@@ -386,4 +386,46 @@ test('View usage returns to its account after choosing another account in Usage'
   await expect(picker).toContainText('Large fixture');
   await navigate(page, 'overview'); await view.click();
   await expect(picker).toContainText('Zero fixture');
+});
+
+
+test('top navigation keeps all three pages reachable without reserving a sidebar', async ({ page }) => {
+  await open(page);
+  const navigation = page.getByRole('navigation', { name: 'Main', exact: true });
+  await expect(navigation.getByRole('link')).toHaveText(['Overview', 'Usage', 'Settings']);
+  for (const width of [1440, 1024, 768, 360]) {
+    await page.setViewportSize({ width, height: 900 });
+    const layout = await page.evaluate(() => {
+      const header = document.querySelector('.workspace-header')!.getBoundingClientRect();
+      const main = document.querySelector('main')!.getBoundingClientRect();
+      const links = [...document.querySelectorAll('[data-workspace-nav]')].map(node => node.getBoundingClientRect());
+      return { headerBottom: header.bottom, mainTop: main.top, mainLeft: main.left, mainWidth: main.width, viewport: innerWidth,
+        navTops: links.map(rect => Math.round(rect.top)), targets: links.map(rect => ({ width: rect.width, height: rect.height })),
+        overflow: document.scrollingElement!.scrollWidth > innerWidth + 1 };
+    });
+    expect(layout.mainTop).toBeGreaterThanOrEqual(layout.headerBottom);
+    expect(layout.mainLeft).toBe(0);
+    expect(layout.mainWidth).toBe(layout.viewport);
+    expect(new Set(layout.navTops).size).toBe(1);
+    expect(layout.targets.every(rect => rect.width >= 44 && rect.height >= 44)).toBe(true);
+    expect(layout.overflow).toBe(false);
+    await navigation.getByRole('link', { name: 'Settings', exact: true }).focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('[data-workspace-view="settings"]')).toBeVisible();
+    await expect(navigation.getByRole('link', { name: 'Settings', exact: true })).toHaveAttribute('aria-current', 'page');
+    const privacy = page.getByRole('button', { name: /^(About your privacy|Hide privacy details)$/ });
+    await expect(privacy).toBeVisible();
+    await privacy.click();
+    await expect(page.getByRole('heading', { name: 'Privacy and local storage' })).toBeVisible();
+    await navigation.getByRole('link', { name: 'Usage', exact: true }).click();
+    await expect(page.locator('[data-workspace-view="usage"]')).toBeVisible();
+    await expect(privacy).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Privacy and local storage' })).toHaveCount(0);
+    await navigation.getByRole('link', { name: 'Overview', exact: true }).click();
+    await expect(dashboard(page)).toBeVisible();
+    // Close the remembered disclosure on the next Settings visit.
+    await navigate(page, 'settings');
+    await page.getByRole('button', { name: 'Hide privacy details', exact: true }).click();
+    await navigate(page, 'overview');
+  }
 });

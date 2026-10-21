@@ -65,7 +65,6 @@
   --elevation-panel: none;
   --bg: #f8f9fa;
   --surface: #ffffff;
-  --sidebar: #f0f2f3;
   --text: #202529;
   --muted: #5a636d;
   --line: #d8dde2;
@@ -84,7 +83,7 @@
   color-scheme: light;
 }
 :root[data-theme='dark'] {
-  --bg: #111315; --surface: #181c20; --sidebar: #14171a;
+  --bg: #111315; --surface: #181c20;
   --text: #e7ebef; --muted: #a2abb5; --line: #343b43;
   --control-border: #6a737c; --hover: #262d34; --selected: #2c343c;
   --button: #e7ebef; --button-hover: #cbd3da; --on-button: #181c20;
@@ -93,7 +92,7 @@
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']):not([data-theme='dark']) {
-    --bg: #111315; --surface: #181c20; --sidebar: #14171a;
+    --bg: #111315; --surface: #181c20;
     --text: #e7ebef; --muted: #a2abb5; --line: #343b43;
     --control-border: #6a737c; --hover: #262d34; --selected: #2c343c;
     --button: #e7ebef; --button-hover: #cbd3da; --on-button: #181c20;
@@ -117,16 +116,8 @@ h1, h2, h3 { font-weight: var(--weight-medium); line-height: var(--leading-headi
 h1 { font-size: var(--text-title); letter-spacing: -.025em; }
 h2 { font-size: var(--text-section); font-weight: var(--weight-semibold); letter-spacing: -.015em; }
 h3 { font-size: var(--text-body); }
-.app-shell { display: grid; grid-template-columns: 208px minmax(0, 1fr); min-height: 100dvh; }
-.sidebar { display: flex; flex-direction: column; padding: var(--space-5) var(--space-3); background: var(--sidebar); border-right: 1px solid var(--line); }
 .brand { display: flex; align-items: center; gap: var(--space-2); min-height: 44px; padding: 0 var(--space-2); font-size: var(--text-section); font-weight: var(--weight-medium); letter-spacing: -.025em; }
 .brand-mark { display: inline-flex; width: 28px; height: 28px; align-items: center; justify-content: center; border: 1px solid var(--control-border); border-radius: var(--radius-control); font-size: var(--text-sm); letter-spacing: -.05em; }
-nav { margin-top: var(--space-6); }
-nav a { display: flex; align-items: center; min-height: 44px; padding: var(--space-3); border-radius: var(--radius-control); font-weight: var(--weight-medium); }
-.nav-active { background: var(--selected); }
-.sidebar-note { margin-top: auto; padding-top: var(--space-7); }
-.sidebar-note .text-button { text-align: left; padding-inline: var(--space-3); }
-.sidebar-footer { display: grid; gap: var(--space-1); padding: var(--space-4) var(--space-3) 0; font-size: var(--text-xs); color: var(--muted); }
 .workspace { min-width: 0; }
 .topbar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); padding: var(--space-2) var(--space-6); min-height: 60px; border-bottom: 1px solid var(--line); font-size: var(--text-sm); color: var(--muted); }
 .topbar strong { font-weight: var(--weight-medium); color: var(--text); }
@@ -191,20 +182,14 @@ main { max-width: 1280px; padding: var(--space-6); margin: 0 auto; }
 .skip-link { position: absolute; left: var(--space-3); top: -100px; background: var(--surface); border: 1px solid var(--focus); z-index: 10; padding: var(--space-3); border-radius: var(--radius-control); }
 .skip-link:focus { top: var(--space-3); }
 @media (max-width: 1000px) {
-  .app-shell { grid-template-columns: 184px minmax(0, 1fr); }
   main { padding: var(--space-5); }
   .topbar { padding-inline: var(--space-5); }
   .page-heading { align-items: flex-start; flex-wrap: wrap; }
   .metric { padding: var(--space-4); }
 }
 @media (max-width: 760px) {
-  .app-shell { display: block; }
-  .sidebar { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-2) var(--space-4); border-right: 0; border-bottom: 1px solid var(--line); }
   .brand { padding: 0; }
   nav { margin: 0; }
-  .sidebar-note { margin: 0; padding: 0; }
-  .sidebar-footer { display: none; }
-  .sidebar-note .text-button { padding-inline: var(--space-2); font-size: var(--text-xs); }
   .topbar { padding-inline: var(--space-4); }
   main { padding: var(--space-5) var(--space-4); }
   .theme-control label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
@@ -216,7 +201,6 @@ main { max-width: 1280px; padding: var(--space-6); margin: 0 auto; }
   .startup-panel:not([data-storage='ready']), .privacy-details { padding: var(--space-4); }
 }
 @media (max-width: 480px) {
-  .sidebar nav { display: none; }
   .topbar > span { font-size: var(--text-xs); }
   .empty-state { padding: var(--space-4); }
   .workspace-metrics { display: grid; }

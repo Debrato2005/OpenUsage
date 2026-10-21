@@ -250,8 +250,8 @@ try {
 
   await driver.navigate('overview');
   await driver.setAppearance('dark'); await resize(1280); await capture('overview-laptop-dark.png');
-  evidence.darkTheme = await driver.execute('return { background:getComputedStyle(document.documentElement).backgroundColor,sidebar:getComputedStyle(document.querySelector(".sidebar")).backgroundColor,foreground:getComputedStyle(document.body).color };');
-  assert.deepEqual(evidence.darkTheme, { background: 'rgb(0, 0, 0)', sidebar: 'rgb(0, 0, 0)', foreground: 'rgb(204, 204, 204)' });
+  evidence.darkTheme = await driver.execute('return { background:getComputedStyle(document.documentElement).backgroundColor,header:getComputedStyle(document.querySelector(".workspace-header")).backgroundColor,foreground:getComputedStyle(document.body).color };');
+  assert.deepEqual(evidence.darkTheme, { background: 'rgb(0, 0, 0)', header: 'rgb(0, 0, 0)', foreground: 'rgb(204, 204, 204)' });
   const beforeZoom = await driver.execute('return {width:innerWidth,dpr:devicePixelRatio};');
   await driver.selectVisibleOption('#display-scale', '125%');
   await waitFor(async () => (await driver.execute('return innerWidth;')) < beforeZoom.width, 'native zoom changes CSS viewport');

@@ -114,8 +114,9 @@ async function viewport(width) {
   assert.deepEqual(await driver.execute('return {width:innerWidth,height:innerHeight};'), { width, height: 850 });
 }
 async function ordinaryButton() {
+  await driver.navigate('settings');
   await viewport(1280);
-  const selector = '.sidebar-note button[aria-controls="privacy-details"]', overview = 'nav[aria-label="Main"] [data-workspace-nav="settings"]';
+  const selector = '.settings-privacy[aria-controls="privacy-details"]', previousControl = '#display-scale';
   const before = await liveHashes();
   assert.equal(await driver.execute('return document.querySelector(arguments[0]).getAttribute("aria-expanded");', [selector]), 'false');
   await driver.execute('window.__privacyClickCount=0;window.__privacyClickListener=()=>window.__privacyClickCount++;document.querySelector(arguments[0]).addEventListener("click",window.__privacyClickListener,true);return true;', [selector]);
@@ -125,9 +126,9 @@ async function ordinaryButton() {
     const activation = await driver.execute('const n=document.querySelector(arguments[0]);return {clicks:window.__privacyClickCount,active:document.activeElement===n,tag:n.tagName,name:n.textContent.trim(),ariaLabel:n.getAttribute("aria-label")};', [selector]);
     assert.equal(activation.clicks, 1); assert.equal(activation.active, true); assert.equal(activation.tag, 'BUTTON'); assert.equal(activation.name, 'Hide privacy details'); assert.equal(activation.ariaLabel, null);
     const nativeReverseTab = JSON.parse(execFileSync('/usr/bin/python3', [join(harness, 'x11-reverse-tab.py'), String(evidence.nativeWindowFocus.windowId)], { env: fixture.environment, encoding: 'utf8', timeout: 10000 }));
-    await waitFor(async () => driver.execute('return document.activeElement===document.querySelector(arguments[0]);', [overview]), 'ordinary button reverse Tab reaches exact Settings link', 1000);
-    const destination = await driver.execute('const n=document.activeElement,s=getComputedStyle(n);return {documentFocused:document.hasFocus(),tag:n.tagName,name:n.textContent.trim(),exactSettings:n===document.querySelector(arguments[0]),focusVisible:n.matches(":focus-visible"),outlineWidth:s.outlineWidth,outlineStyle:s.outlineStyle,outlineColor:s.outlineColor,clicks:window.__privacyClickCount,privacyExpanded:document.querySelector(arguments[1]).getAttribute("aria-expanded")};', [overview, selector]);
-    assert.equal(destination.documentFocused, true); assert.equal(destination.tag, 'A'); assert.equal(destination.name, 'Settings'); assert.equal(destination.exactSettings, true); assert.equal(destination.focusVisible, true); assert.ok(parseFloat(destination.outlineWidth) >= 2); assert.equal(destination.outlineStyle, 'solid'); assert.notEqual(destination.outlineColor, 'rgba(0, 0, 0, 0)'); assert.equal(destination.clicks, 1); assert.equal(destination.privacyExpanded, 'true');
+    await waitFor(async () => driver.execute('return document.activeElement===document.querySelector(arguments[0]);', [previousControl]), 'ordinary button reverse Tab reaches Display scale', 1000);
+    const destination = await driver.execute('const n=document.activeElement,s=getComputedStyle(n);return {documentFocused:document.hasFocus(),tag:n.tagName,name:n.textContent.trim(),exactScale:n===document.querySelector(arguments[0]),focusVisible:n.matches(":focus-visible"),outlineWidth:s.outlineWidth,outlineStyle:s.outlineStyle,outlineColor:s.outlineColor,clicks:window.__privacyClickCount,privacyExpanded:document.querySelector(arguments[1]).getAttribute("aria-expanded")};', [previousControl, selector]);
+    assert.equal(destination.documentFocused, true); assert.equal(destination.tag, 'BUTTON'); assert.equal(destination.name, '100%'); assert.equal(destination.exactScale, true); assert.equal(destination.focusVisible, true); assert.ok(parseFloat(destination.outlineWidth) >= 2); assert.equal(destination.outlineStyle, 'solid'); assert.notEqual(destination.outlineColor, 'rgba(0, 0, 0, 0)'); assert.equal(destination.clicks, 1); assert.equal(destination.privacyExpanded, 'true');
     assert.deepEqual(await liveHashes(), before, 'Privacy expansion and reverse Tab must preserve database, WAL, and key bytes.');
     await driver.screenshot(join(output, 'ordinary-button-privacy-reverse-light-desktop.png')); evidence.screenshots.push('ordinary-button-privacy-reverse-light-desktop.png');
     evidence.ordinaryButton = { activation, nativeReverseTab, destination, storageHashesPreserved: true };
