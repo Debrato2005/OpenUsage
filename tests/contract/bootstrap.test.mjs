@@ -676,3 +676,22 @@ test('device scale and saved plan IPC refuse extra fields, invalid scales, and i
     desktopResponse({ ...args, plan: 'plus', ...fields }); await assert.rejects(invoke('load_profile_plan', args), /desktop response is incompatible/);
   }
 });
+
+test('history IPC keeps profiles, ordering, cursor bounds and missing windows exact', async () => {
+  const profileId = '11111111-1111-4111-8111-111111111111';
+  const entry = { profileId, bindingId: '22222222-2222-4222-8222-222222222222', collectionRunId: '33333333-3333-4333-8333-333333333333', observedAtUtc: '2026-10-21T00:00:00.000Z', sourceKind: 'test_fixture', providerVersion: '0.163.0', limits: [{ limitId: 'codex', limitName: null, primary: { usedPercent: 0, derivedRemainingPercent: 100, windowDurationMins: 300, resetsAtUnix: null, label: 'Five-hour' }, secondary: null }] };
+  const page = { profileId, entries: [entry], nextBeforeRunId: null };
+  const args = { profileId, beforeRunId: null };
+  for (const value of [page, { ...page, entries: [] }, { ...page, entries: [{ ...entry, limits: [] }] }, { ...page, entries: [{ ...entry, limits: [{ ...entry.limits[0], primary: null }] }] }]) {
+    desktopResponse(value); assert.deepEqual(await invoke('load_profile_quota_history', args), value);
+  }
+  for (const value of [
+    { ...page, extra: true }, { ...page, nextBeforeRunId: entry.collectionRunId }, { ...page, entries: Array(21).fill(entry) },
+    { ...page, entries: [entry, entry] }, { ...page, entries: [{ ...entry, profileId: entry.bindingId }] },
+    ...[{ token: 'synthetic-secret' }, { sourceKind: ['test_fixture'] }, { observedAtUtc: '2026-02-30T00:00:00.000Z' }, { bindingId: 'bad' }, { providerVersion: '' }, { freshness: 'fresh' }, { verifiedIdentityKey: profileId }].map(fields => ({ ...page, entries: [{ ...entry, ...fields }] })),
+    { ...page, entries: [{ ...entry, limits: [{ ...entry.limits[0], primary: { ...entry.limits[0].primary, resetState: 'confirmed' } }] }] },
+    { ...page, entries: [entry, { ...entry, collectionRunId: '44444444-4444-4444-8444-444444444444' }] },
+  ]) {
+    desktopResponse(value); await assert.rejects(invoke('load_profile_quota_history', args), /desktop response is incompatible/);
+  }
+});

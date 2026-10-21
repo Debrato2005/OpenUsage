@@ -1,0 +1,25 @@
+.quota-history { margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--line); min-width: 0; }
+.quota-history-heading { margin-block: 1.5rem 1rem; }
+.quota-history-heading h3 { font-size: var(--text-section); font-weight: 600; margin: 0 0 .5rem; }
+.quota-history-heading p, .quota-history-meta { color: var(--muted); font-size: var(--text-sm); line-height: 1.6; margin-block: .5rem; }
+.quota-history-entry { border-bottom: 1px solid var(--line); min-width: 0; }
+.quota-history-entry-trigger { display: flex; justify-content: space-between; gap: 1rem; width: 100%; height: auto; min-height: 3.5rem; padding: .875rem .25rem; text-align: left; font-size: var(--text-sm); white-space: normal; }
+.quota-history-entry-trigger > span:first-of-type { color: var(--muted); margin-left: auto; }
+.quota-history-entry-trigger > span:last-child { flex-shrink: 0; }
+.quota-history-table { position: relative; overflow: auto; max-width: 100%; margin-block: .5rem 1rem; }
+.quota-history-table table { width: 100%; min-width: 42rem; border-collapse: collapse; text-align: left; font-size: var(--text-sm); }
+.quota-history-table th, .quota-history-table td { padding: .75rem; border-bottom: 1px solid var(--line); font-weight: 400; vertical-align: top; }
+.quota-history-table thead, .quota-history-table small { color: var(--muted); }
+.quota-history-table small { display: block; margin-top: .25rem; }
+.quota-history-source > button { min-height: 2rem; padding-inline: 0; font-size: var(--text-sm); }
+.quota-history-source dl { display: grid; gap: .5rem 1rem; grid-template-columns: auto minmax(0, 1fr); font-size: var(--text-sm); }
+.quota-history-source dt { color: var(--muted); }
+.quota-history-source dd { margin: 0; overflow-wrap: anywhere; }
+.quota-history-navigation { display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap; padding-top: 1rem; }
+.quota-history-navigation > span { color: var(--muted); font-size: var(--text-sm); }
+.quota-history-error { color: var(--error); font-size: var(--text-sm); }
+@media (max-width: 760px) {
+  .quota-history-entry-trigger { flex-wrap: wrap; }
+  .quota-history-entry-trigger > span:first-of-type { margin-left: 0; }
+  .quota-history-source dl { grid-template-columns: minmax(0, 1fr); }
+}

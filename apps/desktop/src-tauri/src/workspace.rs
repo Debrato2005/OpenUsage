@@ -16,12 +16,14 @@ mod activity_storage;
 mod collection_storage;
 mod monitoring;
 mod profile_plan;
+mod quota_history;
 mod quota_storage;
 pub(crate) use activity_storage::{ReadAssociationReview, SavedProfileActivity};
 #[cfg(test)]
 use monitoring::MonitoringState;
 pub(crate) use monitoring::{MonitoringIssue, MonitoringStatus};
 pub(crate) use profile_plan::SavedProfilePlan;
+pub(crate) use quota_history::ProfileQuotaHistory;
 pub(crate) use quota_storage::SavedProfileQuota;
 
 const DATABASE_FILE: &str = "openusage.db";

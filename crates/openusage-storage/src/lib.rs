@@ -13,6 +13,8 @@ pub use checkpoint::{CheckpointError, CheckpointMetadata, CheckpointVerification
 mod profiles;
 pub use profiles::{ProfileConnectionState, ProfileEnvironment, ProfileError, ProfileSummary};
 mod quota;
+mod quota_history;
+pub use quota_history::QuotaHistoryPage;
 mod quota_resets;
 mod quota_validation;
 pub use quota::*;

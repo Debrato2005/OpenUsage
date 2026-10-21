@@ -48,6 +48,7 @@
     "allow-complete-profile-activity-read",
     "allow-cancel-profile-activity-read",
     "allow-load-profile-quota",
+    "allow-load-profile-quota-history",
     "allow-load-profile-refresh-status",
     "allow-review-profile-quota-association",
     "allow-begin-profile-quota-reassociation",

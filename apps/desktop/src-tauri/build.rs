@@ -42,6 +42,7 @@ fn main() {
             "complete_profile_activity_read",
             "cancel_profile_activity_read",
             "load_profile_quota",
+            "load_profile_quota_history",
             "load_profile_refresh_status",
             "review_profile_quota_association",
             "begin_profile_quota_reassociation",

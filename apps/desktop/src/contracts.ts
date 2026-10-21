@@ -188,6 +188,12 @@ export interface QuotaWindow {
   usedPercent: number; derivedRemainingPercent: number;
   windowDurationMins: number | null; resetsAtUnix: number | null; label: string;
 }
+export interface QuotaHistoryEntry {
+  profileId: string; bindingId: string; collectionRunId: string; observedAtUtc: string;
+  sourceKind: 'official_artifact' | 'test_fixture'; providerVersion: string;
+  limits: { limitId: string; limitName: string | null; primary: QuotaWindow | null; secondary: QuotaWindow | null }[];
+}
+export interface QuotaHistoryPage { profileId: string; entries: QuotaHistoryEntry[]; nextBeforeRunId: string | null }
 export interface SavedQuotaWindow extends QuotaWindow { resetState: 'expected' | 'due' | 'unconfirmed' | 'confirmed' }
 export interface ResetCreditDetail {
   title: string | null; status: 'available' | 'redeeming' | 'redeemed' | 'unknown';
@@ -242,6 +248,7 @@ export interface SavedProfileActivity {
 }
 
 interface Commands {
+  load_profile_quota_history: { args: { profileId: string; beforeRunId: string | null }; result: QuotaHistoryPage };
   get_display_scale: { args: undefined; result: { percent: number } };
   set_display_scale: { args: { percent: number }; result: { percent: number } };
   load_profile_plan: { args: { profileId: string; bindingId: string }; result: { profileId: string; bindingId: string; plan: string | null } };
@@ -313,7 +320,8 @@ export async function invoke<K extends keyof Commands>(
   const core = window.__TAURI__?.core;
   if (!core) throw new DesktopUnavailable('Open the installed OpenUsage desktop application.');
   const response = await core.invoke<unknown>(command, args[0]);
-  const valid = (command === 'get_display_scale' || command === 'set_display_scale') ? isDisplayScale(response)
+  const valid = command === 'load_profile_quota_history' ? isQuotaHistoryPage(response)
+    : (command === 'get_display_scale' || command === 'set_display_scale') ? isDisplayScale(response)
     : command === 'load_profile_plan' ? isProfilePlan(response)
     : ['load_monitoring', 'start_profile_monitoring', 'pause_profile_monitoring'].includes(command) ? isMonitoringStatus(response)
     : (command === 'begin_profile_collection_read' || command === 'begin_profile_collection_reassociation') ? isProfileQuotaRequest(response)
@@ -357,6 +365,34 @@ export async function invoke<K extends keyof Commands>(
     throw new Error('The desktop response is incompatible. Restart OpenUsage after updating the application.');
   }
   return response as Commands[K]['result'];
+}
+
+function isQuotaHistoryPage(value: unknown): value is QuotaHistoryPage {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const page = value as Record<string, unknown>;
+  if (Object.keys(page).length !== 3 || !isUuid(page.profileId) || !Array.isArray(page.entries) || page.entries.length > 20
+    || !(page.nextBeforeRunId === null || isUuid(page.nextBeforeRunId))) return false;
+  const ids = new Set<string>();
+  let previous: { observedAtUtc: string; collectionRunId: string } | null = null;
+  for (const entry of page.entries) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return false;
+    const row = entry as Record<string, unknown>;
+    if (Object.keys(row).length !== 7 || row.profileId !== page.profileId || !isUuid(row.bindingId) || !isUuid(row.collectionRunId)
+      || ids.has(row.collectionRunId) || !isUtcTimestamp(row.observedAtUtc) || !quotaText(row.providerVersion, 80)
+      || (row.sourceKind !== 'official_artifact' && row.sourceKind !== 'test_fixture') || !Array.isArray(row.limits) || row.limits.length > 64) return false;
+    if (previous && (row.observedAtUtc > previous.observedAtUtc || (row.observedAtUtc === previous.observedAtUtc && row.collectionRunId >= previous.collectionRunId))) return false;
+    previous = { observedAtUtc: row.observedAtUtc, collectionRunId: row.collectionRunId };
+    ids.add(row.collectionRunId);
+    const limits = new Set<string>();
+    for (const limit of row.limits) {
+      if (!limit || typeof limit !== 'object' || Array.isArray(limit)) return false;
+      const item = limit as Record<string, unknown>;
+      if (Object.keys(item).length !== 4 || !quotaText(item.limitId, 128) || limits.has(item.limitId)
+        || !(item.limitName === null || quotaText(item.limitName, 256)) || !isQuotaWindow(item.primary) || !isQuotaWindow(item.secondary)) return false;
+      limits.add(item.limitId);
+    }
+  }
+  return page.nextBeforeRunId === null || (page.entries.length === 20 && page.nextBeforeRunId === page.entries.at(-1)?.collectionRunId);
 }
 
 function isDisplayScale(value: unknown): boolean {
