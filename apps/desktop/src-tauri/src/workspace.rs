@@ -750,6 +750,9 @@ impl Workspace {
         let mut receipt = self
             .provider
             .begin_login(id, approval_id, &home, revision, &path)?;
+        // A newly accepted sign-in supersedes replies waiting for the Workspace lock.
+        self.quota_requests.remove(id);
+        self.activity_requests.remove(id);
         receipt.monitoring = self.monitoring_state().as_str();
         Ok(receipt)
     }

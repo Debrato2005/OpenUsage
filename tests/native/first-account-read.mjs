@@ -102,7 +102,7 @@ async function closeNormally() {
   driver.session = undefined;
   await driver.stop(); driver = undefined;
 }
-async function approveFixture() {
+async function approveFixture(expectedProfiles = []) {
   await driver.navigate('settings');
   if (await driver.execute('return !document.querySelector("[data-provider-settings]").closest("details").open;')) await driver.click('[data-provider-settings]');
   if (await driver.execute('return !document.querySelector("[data-provider-manual]").closest("details").open;')) await driver.click('[data-provider-manual]');
@@ -114,7 +114,7 @@ async function approveFixture() {
   await waitFor(() => driver.execute('return !document.querySelector(".provider-approval-form button[type=submit]").disabled;'), 'fixture consent enables approval');
   await driver.click('.provider-approval-form button[type=submit]');
   await waitFor(() => driver.execute('return Boolean(document.querySelector(".provider-approval-result"))&&!document.querySelector("#provider-executable-approved");'), 'fixture approved before adding accounts');
-  assert.deepEqual((await call('list_profiles')).profiles, []);
+  assert.deepEqual((await call('list_profiles')).profiles.map(profile => profile.id).sort(), expectedProfiles.map(profile => profile.id).sort(), 'Explicit test fixture approval must not create or replace accounts.');
 }
 async function addAccount(label) {
   await driver.navigate('accounts');
@@ -240,8 +240,57 @@ try {
   assert.deepEqual(await liveHashes(), themedHashes, 'Saved-cache navigation after the explicit theme change preserves encrypted database/WAL/key bytes.');
   assert.equal(await readFile(join(fixture.dirs.codex, 'synthetic-fixture.txt'), 'utf8'), CODEX_SENTINEL);
   assert.deepEqual(await readdir(fixture.dirs.codex), ['synthetic-fixture.txt']);
+  const profilesBeforeReconnect = (await call('list_profiles')).profiles;
+  const firstBeforeReconnect = await cached(first.profile);
+  const firstLogBeforeReconnect = await observations(first.profile);
+  const secondBeforeReconnect = await cached(second.profile);
+  const secondLogBeforeReconnect = await observations(second.profile);
+  await approveFixture(profilesBeforeReconnect); // Explicit synthetic test provisioning, not a production setup step.
+  await writeFile(join(home(second.profile), 'synthetic-collection-config.json'), JSON.stringify({ mode: 'success', requireLogin: true }) + '\n', { mode: 0o600 });
+  await driver.navigate('accounts');
+  await waitFor(() => driver.execute('const button=document.querySelector(arguments[0]);return Boolean(button&&!button.disabled&&button.getClientRects().length);', [`[data-profile-connect="${second.profile.id}"]`]), 'selected account row Refresh after test fixture reapproval');
+  await driver.click(`[data-profile-connect="${second.profile.id}"]`);
+  await waitFor(async () => { const value = await cached(second.profile); return Boolean(value.quota&&value.activity&&value.quota.collectionRunId!==secondBeforeReconnect.quota.collectionRunId&&value.activity.collectionRunId!==secondBeforeReconnect.activity.collectionRunId); }, 'explicit row Refresh saves a new pair using the existing synthetic login marker', 45000);
+  await waitFor(() => driver.execute('const result=document.querySelector(arguments[0]);return Boolean(result&&result.getAttribute("role")==="status"&&result.textContent.includes("Quota and activity readings saved.")&&!document.querySelector(arguments[1]));', [`[data-collection-profile="${second.profile.id}"]`, `[data-collection-cancel="${second.profile.id}"]`]), 'reconnect reaches the saved result without a new login');
+  const reconnected = await cached(second.profile); validatePair(reconnected, second.profile);
+  assert.equal(reconnected.quota.bindingId, secondBeforeReconnect.quota.bindingId, 'Same managed home and account evidence retain the original binding.');
+  assert.deepEqual(await cached(first.profile), firstBeforeReconnect);
+  assert.deepEqual(await observations(first.profile), firstLogBeforeReconnect);
+  assert.deepEqual((await call('list_profiles')).profiles, profilesBeforeReconnect, 'Refresh reuses the same profiles.');
+  let additional = (await observations(second.profile)).slice(secondLogBeforeReconnect.length);
+  const reconnectStarts = additional.filter(row => row.kind === 'start' && row.arguments[0] === 'app-server');
+  assert.equal(reconnectStarts.length, 1);
+  assert.deepEqual(additional.filter(row => row.kind === 'request').map(row => row.request.method), ['initialize', 'initialized', 'account/read', 'account/rateLimits/read', 'account/usage/read', 'account/read']);
+  assert.equal(additional.some(row => row.kind.startsWith('login-')), false, 'Existing authorized managed home must not start a new login.');
+  await reaped(reconnectStarts[0]);
+  let afterReconnectMonitoring = await call('load_monitoring');
+  assert.equal(afterReconnectMonitoring.state, 'stopped'); assert.ok(afterReconnectMonitoring.profiles.every(profile => !profile.eligible&&!profile.readingActive));
+  await driver.openProfileOptions(second.profile.id);
+  assert.equal(await driver.execute('return document.querySelector(arguments[0])?.disabled;', [`[data-monitoring-start="${second.profile.id}"]`]), true);
+  await writeFile(join(home(second.profile), 'synthetic-collection-config.json'), JSON.stringify({ mode: 'signed_out', requireLogin: true }) + '\n', { mode: 0o600 });
+  await driver.waitForProfileRefresh(second.profile.id);
+  await waitFor(() => driver.execute('return !document.querySelector(arguments[0]).disabled;', [`[data-collection-read="${second.profile.id}"]`]), 'normal thirty-second manual cooldown after reconnect');
+  await driver.click(`[data-profile-connect="${second.profile.id}"]`);
+  await waitFor(() => driver.execute('const result=document.querySelector(arguments[0]);return Boolean(result&&result.getAttribute("role")==="alert"&&result.textContent.includes("signed out")&&!document.querySelector(arguments[1]));', [`[data-collection-profile="${second.profile.id}"]`, `[data-collection-cancel="${second.profile.id}"]`]), 'signed-out reconnect returns an actionable failure');
+  await waitFor(() => driver.execute('const button=document.querySelector(arguments[0]);return Boolean(button&&!button.disabled&&button.getClientRects().length);', [`[data-login-start="${second.profile.id}"]`]), 'Sign in remains available for failed authorization');
+  assert.deepEqual(withoutFreshness(await cached(second.profile)), withoutFreshness(reconnected), 'Signed-out reconnect retains both latest accepted readings.');
+  assert.deepEqual(await cached(first.profile), firstBeforeReconnect);
+  assert.deepEqual(await observations(first.profile), firstLogBeforeReconnect);
+  additional = (await observations(second.profile)).slice(secondLogBeforeReconnect.length);
+  const allReconnectStarts = additional.filter(row => row.kind === 'start' && row.arguments[0] === 'app-server');
+  assert.equal(allReconnectStarts.length, 2, 'One explicit successful Refresh and one explicit signed-out Refresh, with no retry loop.');
+  const failedStart = allReconnectStarts[1];
+  assert.deepEqual(additional.filter(row => row.pid===failedStart.pid&&row.kind==='request').map(row => row.request.method), ['initialize', 'initialized', 'account/read']);
+  assert.equal(additional.some(row => row.kind.startsWith('login-')), false);
+  await reaped(failedStart);
+  afterReconnectMonitoring = await call('load_monitoring');
+  assert.equal(afterReconnectMonitoring.state, 'stopped'); assert.ok(afterReconnectMonitoring.profiles.every(profile => !profile.eligible&&!profile.readingActive));
+  assert.equal(await hash(join(workspace, 'database-key.v1')), keySha);
+  assert.equal((await call('list_profiles')).profiles.find(profile => profile.id === second.profile.id).connectionState, 'authentication_required');
+  await waitFor(() => driver.execute('return document.querySelector(arguments[0])?.textContent.trim()==="Sign-in required";', [`[data-profile-id="${second.profile.id}"] .profile-connection-state`]), 'signed-out failure updates the durable and visible account status');
+  evidence.reconnect = { explicitTestFixtureReapproval: true, selectedProfile: second.profile.id, sameProfilesAndBinding: true, successfulCombinedSessions: 1, signedOutSessions: 1, newLoginSessions: 0, previousReadingsRetainedOnFailure: true, otherAccountUnchanged: true, noMonitoringGrant: true, reportedConnectionAfterAuthFailure: 'authentication_required' };
   evidence.observations = Object.fromEntries(await Promise.all(profiles.map(async profile => [profile.id, await observations(profile)])));
-  evidence.restart = { genuineWindowClose: true, bothSavedPairsPreserved: true, noProviderExecution: true, noAutomaticRead: true, bothOverviewRowsVisible: true, theme: 'dark', unchangedDatabaseWalKeyAfterThemeSave: themedHashes, runtimeMonitoringGrantsAbsent: true };
+  evidence.restart = { genuineWindowClose: true, bothSavedPairsPreserved: true, savedNavigationWithoutProviderExecution: true, noAutomaticRead: true, bothOverviewRowsVisible: true, theme: 'dark', unchangedDatabaseWalKeyBeforeExplicitReconnect: themedHashes, runtimeMonitoringGrantsAbsent: true };
   assert.equal(await hash(application), evidence.application.sha256);
   assert.equal(await hash(executable), providerSha);
   for (const [path, digest] of Object.entries(evidence.harnessHashes)) assert.equal(await hash(join(harness, path)), digest, `Harness drift: ${path}`);

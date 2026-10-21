@@ -79,6 +79,43 @@ impl Workspace {
         self.note_activity_failure(id, request);
     }
 
+    /// Record a current signed-out response without changing saved measurements or eligibility.
+    pub fn note_collection_read_error(
+        &mut self,
+        binding: &provider::ProfileBinding,
+        request: &str,
+        error: CommandError,
+    ) -> Result<(), CommandError> {
+        let id = &binding.profile_id;
+        if error != CommandError::ProviderAuthenticationRequired
+            || self.quota_requests.get(id).map(String::as_str) != Some(request)
+            || self.activity_requests.get(id).map(String::as_str) != Some(request)
+            || !self.provider.binding_is_current(binding)
+        {
+            return Ok(());
+        }
+        match self.require_provider_binding(
+            id,
+            &binding.home_reference,
+            &binding.revision,
+            CommandError::ProviderCollectionCancelled,
+        ) {
+            Err(CommandError::ProviderCollectionCancelled) => return Ok(()),
+            result => result?,
+        }
+        self.storage
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .record_profile_connection(
+                id,
+                &binding.home_reference,
+                ProfileConnectionState::AuthenticationRequired,
+            )
+            .map_err(profile_error)?;
+        self.restore_preview.clear();
+        Ok(())
+    }
+
     fn persist_collection(
         &mut self,
         binding: &provider::ProfileBinding,

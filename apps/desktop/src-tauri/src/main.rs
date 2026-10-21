@@ -1108,6 +1108,7 @@ async fn complete_profile_collection_read(
                 .ok_or(CommandError::WorkspaceLocked)?
                 .complete_profile_collection_read(&args.profile_id, &args.request_id)?
         };
+        let binding = pending.binding().clone();
         let completed = match pending.wait() {
             Ok(completed) => completed,
             Err(error) => {
@@ -1116,6 +1117,7 @@ async fn complete_profile_collection_read(
                 {
                     workspace.note_collection_failure(&args.profile_id, &args.request_id);
                     workspace.note_monitoring_read_error(&args.profile_id, &args.request_id, error);
+                    workspace.note_collection_read_error(&binding, &args.request_id, error)?;
                 }
                 return Err(error);
             }

@@ -214,6 +214,151 @@ fn history_retained(before: &Records, after: &Records) {
     }
 }
 
+fn failed_auth_read(
+    f: &mut Fixture,
+    id: &str,
+    approval: &str,
+) -> (String, provider::ProfileBinding, CommandError) {
+    f.mode("signed_out");
+    let receipt = f
+        .workspace
+        .begin_profile_collection_read(id, approval)
+        .unwrap();
+    let pending = f
+        .workspace
+        .complete_profile_collection_read(id, &receipt.request_id)
+        .unwrap();
+    let binding = pending.binding().clone();
+    let error = pending.wait().err().unwrap();
+    assert_eq!(error, CommandError::ProviderAuthenticationRequired);
+    (receipt.request_id, binding, error)
+}
+
+#[test]
+fn collection_auth_failure_after_reopen_updates_only_selected_connection_and_keeps_readings() {
+    let mut f = Fixture::new("success");
+    let id = f.profiles[0].clone();
+    let other = f.profiles[1].clone();
+    let approval = f.approve();
+    f.save(&id, &approval);
+    f.save(&other, &approval);
+    for profile in [&id, &other] {
+        f.workspace
+            .storage
+            .as_mut()
+            .unwrap()
+            .record_profile_connection(profile, profile, ProfileConnectionState::Connected)
+            .unwrap();
+    }
+    let saved = cached(&f.workspace, &id);
+    let other_saved = cached(&f.workspace, &other);
+    let before = records(&mut f.workspace);
+    let directory = f.workspace.directory.clone();
+    drop(f.workspace);
+    f.workspace = Workspace::new(directory).unwrap();
+    assert_eq!(
+        f.workspace.bootstrap(Ok(&f.vault)).storage,
+        StorageState::Ready
+    );
+    assert!(
+        serde_json::to_value(f.workspace.load_monitoring().unwrap()).unwrap()["profiles"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|profile| profile["eligible"] == false)
+    );
+    let approval = f.approve();
+    let (request, binding, error) = failed_auth_read(&mut f, &id, &approval);
+    f.workspace
+        .note_collection_read_error(&binding, &request, error)
+        .unwrap();
+    let profiles = f.workspace.list_profiles().unwrap().profiles;
+    assert_eq!(
+        profiles
+            .iter()
+            .find(|p| p.id == id)
+            .unwrap()
+            .connection_state,
+        "authentication_required"
+    );
+    assert_eq!(
+        profiles
+            .iter()
+            .find(|p| p.id == other)
+            .unwrap()
+            .connection_state,
+        "connected"
+    );
+    assert_eq!(cached(&f.workspace, &id), saved);
+    assert_eq!(cached(&f.workspace, &other), other_saved);
+    assert_eq!(records(&mut f.workspace), before);
+    assert!(
+        serde_json::to_value(f.workspace.load_monitoring().unwrap()).unwrap()["profiles"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|profile| profile["eligible"] == false)
+    );
+}
+
+#[test]
+fn collection_auth_failure_waiting_for_workspace_cannot_overwrite_a_new_login() {
+    let mut f = Fixture::new("success");
+    let id = f.profiles[0].clone();
+    let approval = f.approve();
+    f.save(&id, &approval);
+    let saved = cached(&f.workspace, &id);
+    let before = records(&mut f.workspace);
+    let (request, binding, error) = failed_auth_read(&mut f, &id, &approval);
+    f.mode("success");
+    fs::write(
+        f.home(&id).join("synthetic-collection-config.json"),
+        br#"{"mode":"success","requireLogin":true}"#,
+    )
+    .unwrap();
+    let login = f
+        .workspace
+        .begin_profile_login(&id, &approval, true)
+        .unwrap();
+    assert!(!f.workspace.quota_requests.contains_key(&id));
+    assert!(!f.workspace.activity_requests.contains_key(&id));
+    let prompt = f
+        .workspace
+        .await_profile_login_prompt(&id, &login.attempt_id)
+        .unwrap()
+        .wait()
+        .unwrap();
+    f.workspace.finish_profile_login_prompt(prompt).unwrap();
+    let completed = f
+        .workspace
+        .complete_profile_login(&id, &login.attempt_id)
+        .unwrap()
+        .wait()
+        .unwrap();
+    f.workspace.finish_profile_login(completed).unwrap();
+    let monitoring = serde_json::to_value(f.workspace.load_monitoring().unwrap()).unwrap();
+    f.workspace
+        .note_collection_read_error(&binding, &request, error)
+        .unwrap();
+    assert_eq!(
+        f.workspace
+            .list_profiles()
+            .unwrap()
+            .profiles
+            .iter()
+            .find(|p| p.id == id)
+            .unwrap()
+            .connection_state,
+        "connected"
+    );
+    assert_eq!(
+        serde_json::to_value(f.workspace.load_monitoring().unwrap()).unwrap(),
+        monitoring
+    );
+    assert_eq!(cached(&f.workspace, &id), saved);
+    assert_eq!(records(&mut f.workspace), before);
+}
+
 #[test]
 fn collection_workspace_saves_exact_both_capabilities_retains_observation_anchors_and_reopens() {
     let mut f = Fixture::new("success");

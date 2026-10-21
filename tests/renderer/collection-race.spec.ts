@@ -19,6 +19,7 @@ type Fixture = {
   completions: Record<string, Deferred>; cancellations: Record<string, Deferred>;
   quota: SavedProfileQuota; activity: SavedProfileActivity; failLoads: boolean;
   approvalId: string; refreshSeconds: number; monitoring: MonitoringStatus; deferMonitoring: boolean; pendingMonitoring: Deferred[]; failMonitoring: boolean;
+  connectionState?: 'connected' | 'authentication_required';
 };
 type FixtureWindow = Window & { collectionFixture: Fixture };
 function cachedQuota(): SavedProfileQuota {
@@ -32,11 +33,11 @@ function committed(index = 0): ProfileCollectionOutcome {
   return { profileId, approvalId, requestId: requests[index]!, providerVersion: '0.163.0', sourceKind: 'test_fixture', identityConfidence: 'provisional', verifiedIdentityKey: null, monitoring: 'stopped', accepted: true,
     quota: { bindingId, collectionRunId: nextQuotaRun, observedAtUtc }, activity: { bindingId, collectionRunId: nextActivityRun, observedAtUtc } };
 }
-async function open(page: Page) {
-  await page.addInitScript(({ profileId, approvalId, requests, reviewId, observedAtUtc, quota, activity }) => {
+async function open(page: Page, reconnect = false) {
+  await page.addInitScript(({ profileId, approvalId, requests, reviewId, observedAtUtc, quota, activity, reconnect }) => {
     const fixture: Fixture = { calls: [], completions: {}, cancellations: {}, quota, activity, failLoads: false, approvalId, refreshSeconds: 0, monitoring: { state: 'stopped', readingRevision: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', profiles: [{ profileId, state: 'stopped', eligible: false, issue: 'sign_in_required', nextReadInSeconds: null, readingActive: false }] }, deferMonitoring: false, pendingMonitoring: [], failMonitoring: false };
     Object.assign(window, { collectionFixture: fixture }); let started = 0;
-    const metadata = { path: '/synthetic/reviewed-codex', fileBytes: '100', sha256: 'a'.repeat(64), testedVersion: '0.163.0', versionChecked: false, sourceVerified: true, sourceKind: 'test_fixture', sourceUrl: null };
+    const metadata = { path: '/synthetic/reviewed-codex', fileBytes: '100', sha256: 'a'.repeat(64), testedVersion: '0.163.0', versionChecked: false, sourceVerified: true, sourceKind: reconnect ? 'official_artifact' : 'test_fixture', sourceUrl: reconnect ? 'https://github.com/openai/codex/releases/tag/rust-v0.163.0' : null };
     window.__TAURI__ = { core: { invoke: async <T>(command: string, args: Record<string, unknown> = {}) => {
       fixture.calls.push({ command, args: { ...args } }); let result: unknown;
       switch (command) {
@@ -57,16 +58,17 @@ async function open(page: Page) {
           Object.assign(fixture.monitoring.profiles[0]!, { state: 'paused', readingActive: false, nextReadInSeconds: null });
           fixture.monitoring.state = fixture.monitoring.profiles.some(value => value.state === 'running') ? 'running' : 'paused'; result = structuredClone(fixture.monitoring); break;
         case 'bootstrap': result = { storage: 'ready', theme: 'light', schemaVersion: 4, activeProfiles: 1, monitoring: 'stopped', provider: 'not_configured', keyProtection: 'passphrase', storageIssue: null }; break;
-        case 'list_profiles': result = { activeProfiles: 1, profiles: [{ id: profileId, label: 'Synthetic collection profile', environment: 'native', archived: false, connectionState: 'connected' }] }; break;
+        case 'list_profiles': result = { activeProfiles: 1, profiles: [{ id: profileId, label: 'Synthetic collection profile', environment: 'native', archived: false, connectionState: fixture.connectionState ?? 'connected' }] }; break;
         case 'load_profile_refresh_status': result = { profileId, retryAfterSeconds: fixture.refreshSeconds }; break;
         case 'load_profile_quota': if (fixture.failLoads) throw 'provider_quota_load_failed'; result = structuredClone(fixture.quota); break;
         case 'load_profile_activity': if (fixture.failLoads) throw 'provider_activity_load_failed'; result = structuredClone(fixture.activity); break;
+        case 'prepare_provider_connection': result = { ...metadata, approvalId: fixture.approvalId }; break;
         case 'inspect_provider_executable': result = { ...metadata, candidateId: reviewId }; break;
         case 'approve_provider_executable': result = { ...metadata, approvalId: fixture.approvalId }; break;
         case 'begin_profile_activity_read':
         case 'begin_profile_quota_read':
         case 'begin_profile_collection_read':
-        case 'begin_profile_collection_reassociation': result = { profileId, approvalId: fixture.approvalId, requestId: requests[started++], sourceKind: 'test_fixture', monitoring: 'stopped', accepted: false }; break;
+        case 'begin_profile_collection_reassociation': result = { profileId, approvalId: fixture.approvalId, requestId: requests[started++], sourceKind: metadata.sourceKind, monitoring: 'stopped', accepted: false }; break;
         case 'complete_profile_activity_read':
         case 'complete_profile_quota_read':
         case 'complete_profile_collection_read': result = await new Promise((resolve, reject) => { fixture.completions[String(args.requestId)] = { resolve, reject }; }); break;
@@ -78,8 +80,8 @@ async function open(page: Page) {
       }
       return result as T;
     } } };
-  }, { profileId, approvalId, requests, reviewId, observedAtUtc, quota: cachedQuota(), activity: cachedActivity() });
-  await page.goto('/'); await navigate(page, 'accounts'); await openReadings(page, profileId); await approve(page); await navigate(page, 'accounts');
+  }, { profileId, approvalId, requests, reviewId, observedAtUtc, quota: { ...cachedQuota(), ...(reconnect ? { sourceKind: 'official_artifact' as const } : {}) }, activity: { ...cachedActivity(), ...(reconnect ? { sourceKind: 'official_artifact' as const } : {}) }, reconnect });
+  await page.goto('/'); await navigate(page, 'accounts'); await openReadings(page, profileId); if (!reconnect) await approve(page); await navigate(page, 'accounts');
 }
 async function approve(page: Page) {
   await navigate(page, 'settings');
@@ -374,4 +376,62 @@ test('a pre-restore status reply cannot restart or repaint the new workspace mon
   await expect(account.locator('[data-overview-account-observed] time')).toHaveCount(0);
   await expect(page.locator('[data-overview-lifetime]')).toHaveText('Not available');
   await expect(page.locator('[data-global-monitoring]')).toHaveText('Monitoring stopped');
+});
+
+
+// Renderer-only restart state: no runtime provider approval or monitoring grant survives.
+test('existing account Connect prepares its official source and reads the same profile once without login', async ({ page }) => {
+  await open(page, true);
+  await page.locator(`[data-profile-connect="${profileId}"]`).click();
+  await expect.poll(() => page.evaluate(id => Boolean((window as unknown as FixtureWindow).collectionFixture.completions[id]), requests[0]!)).toBe(true);
+  await expect(cancel(page)).toBeVisible();
+  await publish(page, { ...committed(), sourceKind: 'official_artifact' });
+  await expect(status(page)).toContainText('Quota and activity readings saved.');
+  await expect(page.locator(`[data-activity-saved="${profileId}"] [data-activity-metric=lifetimeTokens]`)).toHaveText('9223372036854775807');
+  await expect(page.locator(`[data-quota-saved="${profileId}"] [role=meter]`)).toHaveAttribute('aria-valuenow', '50');
+  const calls = await page.evaluate(() => (window as unknown as FixtureWindow).collectionFixture.calls);
+  expect(calls.filter(call => call.command === 'prepare_provider_connection')).toHaveLength(1);
+  expect(calls.filter(call => call.command === 'begin_profile_collection_read').map(call => call.args)).toEqual([{ profileId, approvalId }]);
+  expect(calls.some(call => call.command === 'create_profile' || call.command === 'begin_profile_login' || call.command === 'start_profile_monitoring')).toBe(false);
+  await page.getByRole('button', { name: 'Manage profile', exact: true }).click();
+  await expect(page.locator(`[data-monitoring-start="${profileId}"]`)).toBeDisabled();
+});
+
+test('reconnect authentication failure preserves saved readings and exposes sign-in without granting monitoring', async ({ page }) => {
+  await open(page, true);
+  await page.locator(`[data-profile-connect="${profileId}"]`).click();
+  await expect.poll(() => page.evaluate(id => Boolean((window as unknown as FixtureWindow).collectionFixture.completions[id]), requests[0]!)).toBe(true);
+  await page.evaluate(() => { (window as unknown as FixtureWindow).collectionFixture.connectionState = 'authentication_required'; });
+  await reject(page, 'provider_authentication_required');
+  await expect(status(page)).toContainText('Sign in again before reading or starting monitoring.');
+  await expect(page.locator(`[data-login-start="${profileId}"]`)).toBeVisible();
+  await expect(page.locator(`[data-profile-id="${profileId}"] .profile-connection-state`)).toHaveText('Sign-in required');
+  await expect(page.locator(`[data-activity-saved="${profileId}"] [data-activity-metric=lifetimeTokens]`)).toHaveText('9007199254740993');
+  await expect(page.locator(`[data-quota-saved="${profileId}"] [role=meter]`)).toHaveAttribute('aria-valuenow', '75');
+  await page.getByRole('button', { name: 'Manage profile', exact: true }).click();
+  await expect(page.locator(`[data-monitoring-start="${profileId}"]`)).toBeDisabled();
+  const calls = await page.evaluate(() => (window as unknown as FixtureWindow).collectionFixture.calls);
+  expect(calls.filter(call => call.command === 'begin_profile_collection_read')).toHaveLength(1);
+  expect(calls.some(call => call.command === 'begin_profile_login' || call.command === 'start_profile_monitoring')).toBe(false);
+});
+
+
+test('row Refresh during cooldown cannot queue a provider read after the wait expires', async ({ page }) => {
+  await page.clock.install();
+  await open(page, true);
+  await page.locator(`[data-profile-connect="${profileId}"]`).click();
+  await expect.poll(() => page.evaluate(id => Boolean((window as unknown as FixtureWindow).collectionFixture.completions[id]), requests[0]!)).toBe(true);
+  await page.evaluate(() => { (window as unknown as FixtureWindow).collectionFixture.refreshSeconds = 30; });
+  await publish(page, { ...committed(), sourceKind: 'official_artifact' });
+  await expect(status(page)).toContainText('Quota and activity readings saved.');
+  await expect(page.locator(`[data-collection-read="${profileId}"]`)).toBeDisabled();
+  await expect(page.locator(`[data-profile-refresh-status="${profileId}"]`)).toContainText('Next reading in');
+  await page.locator(`[data-profile-connect="${profileId}"]`).click();
+  await page.evaluate(() => { (window as unknown as FixtureWindow).collectionFixture.refreshSeconds = 0; });
+  await page.clock.runFor(31_000);
+  await expect(page.locator(`[data-collection-read="${profileId}"]`)).toBeEnabled();
+  const calls = await page.evaluate(() => (window as unknown as FixtureWindow).collectionFixture.calls);
+  expect(calls.filter(call => call.command === 'begin_profile_collection_read')).toHaveLength(1);
+  expect(calls.some(call => call.command === 'begin_profile_login' || call.command === 'start_profile_monitoring')).toBe(false);
+  await expect(page.locator(`[data-activity-saved="${profileId}"] [data-activity-metric=lifetimeTokens]`)).toHaveText('9223372036854775807');
 });

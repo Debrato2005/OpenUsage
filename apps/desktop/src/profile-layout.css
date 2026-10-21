@@ -9,7 +9,7 @@
 .accounts-section .profile-list { margin-top: 0; }
 .accounts-section .profile-row { display: block; padding: 0; }
 .accounts-section .profile-details { min-width: 0; }
-.profile-row-summary > [data-profile-action='readings'] { justify-self: end; }
+.profile-row-actions { justify-content: flex-end; }
 .profile-connection-state { color: var(--muted); font-size: var(--text-sm); overflow-wrap: anywhere; }
 .profile-reading-panel { min-width: 0; padding: var(--space-4); border-top: 1px solid var(--line); background: var(--bg); }
 .profile-reading-panel[data-closed] { display: none; }

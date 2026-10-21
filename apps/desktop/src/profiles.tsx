@@ -63,6 +63,7 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval, onPro
   const [createOpen, setCreateOpen] = useState(false);
   const [readings, setReadings] = useState<Record<string, boolean>>({});
   const [initialReadProfiles, setInitialReadProfiles] = useState<Record<string, boolean>>({});
+  const [reconnectProfile, setReconnectProfile] = useState<string | null>(null);
   const [managed, setManaged] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ id: string; label: string } | null>(null);
   const [failure, setFailure] = useState<Failure | null>(null);
@@ -135,6 +136,7 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval, onPro
   ) {
     if (busy || loading || pending.current) return;
     pending.current = true;
+    setReconnectProfile(null);
     viewRequest.current += 1;
     setSaving(true);
     setBusy(true);
@@ -205,6 +207,13 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval, onPro
     });
   }
 
+  function reconnect(profile: ProfileRecord) {
+    if (busy || loading || profile.archived) return;
+    setReadings(current => ({ ...current, [profile.id]: true }));
+    setReconnectProfile(profile.id);
+    if (!providerApproval) onConnectAccount?.();
+  }
+
   function rename() {
     if (!editing || !checkLabel(editing.label, 'rename', editing.id)) return;
     const current = editing;
@@ -262,12 +271,15 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval, onPro
       <div className="profile-row-summary">
         <div className="profile-details"><bdi id={nameId} className="profile-label">{profile.label}</bdi><p className="profile-meta">{profile.environment === 'native' ? 'On this device' : 'WSL profile'}</p></div>
         <span className="profile-connection-state">{profile.archived ? 'Archived' : connection}</span>
+        <div className="profile-row-actions profile-actions">
+          {!profile.archived && <Button type="button" variant="ghost" className="text-button" data-profile-connect={profile.id} aria-describedby={nameId} disabled={busy || loading || !!monitoringStatus?.readingActive} onClick={() => reconnect(profile)}>{providerApproval ? 'Refresh' : 'Connect'}</Button>}
         <CollapsibleTrigger render={<Button variant="ghost" className="text-button" />} type="button" data-profile-action="readings" aria-describedby={nameId}>{readings[profile.id] ? 'Hide readings' : 'View readings'}</CollapsibleTrigger>
+        </div>
       </div>
       <CollapsiblePanel keepMounted className="profile-reading-panel">
       <Collapsible className="profile-management-root" open={managed === profile.id || current} onOpenChange={open => setManaged(open ? profile.id : null)}>
       <ProfileActivity profileId={profile.id} profileLabel={profile.label} readingRevision={monitoring?.readingRevision}>{(onActivitySaved, onActivityFailed) => <SavedProfileQuota profileId={profile.id} profileLabel={profile.label} readingRevision={monitoring?.readingRevision}>{(onQuotaSaved, onQuotaFailed) => profile.archived ? managementActions : providerApproval
-        ? <ProfileProviderCheck autoInitialRead={!!initialReadProfiles[profile.id]} onInitialReadRequested={() => setInitialReadProfiles(current => ({ ...current, [profile.id]: false }))} monitoring={monitoringStatus} monitoringUnavailable={monitoringUnavailable} onMonitoringAction={onMonitoringAction} onConnectionChanged={() => refreshConnection(profile.id)} key={`${profile.id}:${providerApproval.approvalId}`} profileId={profile.id} profileLabel={profile.label} approval={providerApproval} busy={busy || loading || current || !!monitoringStatus?.readingActive} managementActions={managementActions} managementTrigger={managementTrigger} onActivitySaved={async value => { await Promise.all([onActivitySaved(value), onQuotaFailed()]); reportReading.current?.(); }} onActivityFailed={async () => { await onActivityFailed(); reportReading.current?.(); }} onQuotaSaved={async value => { await Promise.all([onQuotaSaved(value), onActivityFailed()]); reportReading.current?.(); }} onQuotaFailed={async () => { await onQuotaFailed(); reportReading.current?.(); }} onCollectionSaved={async value => {
+        ? <ProfileProviderCheck reconnectRequested={reconnectProfile === profile.id} onReconnectRequested={() => setReconnectProfile(null)} autoInitialRead={!!initialReadProfiles[profile.id]} onInitialReadRequested={() => setInitialReadProfiles(current => ({ ...current, [profile.id]: false }))} monitoring={monitoringStatus} monitoringUnavailable={monitoringUnavailable} onMonitoringAction={onMonitoringAction} onConnectionChanged={() => refreshConnection(profile.id)} key={`${profile.id}:${providerApproval.approvalId}`} profileId={profile.id} profileLabel={profile.label} approval={providerApproval} busy={busy || loading || current || !!monitoringStatus?.readingActive} managementActions={managementActions} managementTrigger={managementTrigger} onActivitySaved={async value => { await Promise.all([onActivitySaved(value), onQuotaFailed()]); reportReading.current?.(); }} onActivityFailed={async () => { await onActivityFailed(); reportReading.current?.(); }} onQuotaSaved={async value => { await Promise.all([onQuotaSaved(value), onActivityFailed()]); reportReading.current?.(); }} onQuotaFailed={async () => { await onQuotaFailed(); reportReading.current?.(); }} onCollectionSaved={async value => {
           await Promise.all([value.quota ? onQuotaSaved({ profileId: profile.id, ...value.quota }, false) : onQuotaFailed(), value.activity ? onActivitySaved({ profileId: profile.id, ...value.activity }, false) : onActivityFailed()]);
           reportReading.current?.();
         }} onCollectionFailed={async () => { await Promise.all([onQuotaFailed(), onActivityFailed()]); reportReading.current?.(); }} />
@@ -301,7 +313,6 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval, onPro
       </Collapsible>
       {active.length ? <><div className="profile-table-heading" aria-hidden="true"><span>Account</span><span>Connection</span><span>Readings</span></div><ul className="profile-list" aria-label="Active profiles">{active.map(row)}</ul></> : <p className="profile-empty">No active profiles. Add an account or restore an archived one.</p>}
       {archived.length > 0 && <details className="archived-profiles"><summary>Archived profiles ({archived.length})</summary><p>Archived profiles keep their local data.</p><ul className="profile-list" aria-label="Archived profiles">{archived.map(row)}</ul></details>}
-      {!providerApproval && <Button type="button" variant="ghost" className="text-button" disabled={busy || loading} onClick={onConnectAccount}>Connect an existing account</Button>}
     </>}
   </section>;
 }

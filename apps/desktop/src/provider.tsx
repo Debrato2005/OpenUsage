@@ -163,7 +163,7 @@ export function ProviderSettings({ busy, setBusy, approval, onApproved }: Settin
   </section>;
 }
 
-export function ProfileProviderCheck({ profileId, profileLabel, approval, busy, managementActions, managementTrigger, onConnectionChanged, autoInitialRead = false, onInitialReadRequested, onActivitySaved, onActivityFailed, onQuotaSaved, onQuotaFailed, onCollectionSaved, onCollectionFailed, monitoring, monitoringUnavailable, onMonitoringAction }: { profileId: string; profileLabel: string; approval: ProviderExecutableApproval; busy: boolean; managementActions: ReactNode; managementTrigger: ReactNode; onConnectionChanged: () => Promise<void>; autoInitialRead?: boolean; onInitialReadRequested?: () => void; onActivitySaved: (value: ProfileReadingReference) => Promise<void>; onActivityFailed: () => Promise<void>; onQuotaSaved: (value: ProfileReadingReference) => Promise<void>; onQuotaFailed: () => Promise<void>; onCollectionSaved: (value: ProfileCollectionOutcome) => Promise<void>; onCollectionFailed: () => Promise<void>; monitoring: ProfileMonitoringStatus | null; monitoringUnavailable: boolean; onMonitoringAction: MonitoringAction }) {
+export function ProfileProviderCheck({ profileId, profileLabel, approval, busy, managementActions, managementTrigger, onConnectionChanged, reconnectRequested = false, onReconnectRequested, autoInitialRead = false, onInitialReadRequested, onActivitySaved, onActivityFailed, onQuotaSaved, onQuotaFailed, onCollectionSaved, onCollectionFailed, monitoring, monitoringUnavailable, onMonitoringAction }: { profileId: string; profileLabel: string; approval: ProviderExecutableApproval; busy: boolean; managementActions: ReactNode; managementTrigger: ReactNode; onConnectionChanged: () => Promise<void>; reconnectRequested?: boolean; onReconnectRequested?: () => void; autoInitialRead?: boolean; onInitialReadRequested?: () => void; onActivitySaved: (value: ProfileReadingReference) => Promise<void>; onActivityFailed: () => Promise<void>; onQuotaSaved: (value: ProfileReadingReference) => Promise<void>; onQuotaFailed: () => Promise<void>; onCollectionSaved: (value: ProfileCollectionOutcome) => Promise<void>; onCollectionFailed: () => Promise<void>; monitoring: ProfileMonitoringStatus | null; monitoringUnavailable: boolean; onMonitoringAction: MonitoringAction }) {
   const [checking, setChecking] = useState(false);
   const [loggingIn, setLoggingIn] = useState(false);
   const [readingQuota, setReadingQuota] = useState(false);
@@ -189,6 +189,22 @@ export function ProfileProviderCheck({ profileId, profileLabel, approval, busy, 
   const activity = useActivityPreview({ profileId, profileLabel, approval, busy: busy || checking || loggingIn || readingQuota || readingCollection || refreshWait > 0, onSaved: onActivitySaved, onFailed: onActivityFailed, onStarted: () => {
     checkGeneration.current += 1; setDiagnostic(null); setError(null); setQuotaGeneration(value => value + 1); setLoginGeneration(value => value + 1);
   } });
+
+  const reconnectConsumed = useRef(false);
+  useEffect(() => {
+    if (!reconnectRequested) { reconnectConsumed.current = false; return; }
+    if (busy || reconnectConsumed.current) return;
+    if (refreshWait > 0 || checking || loggingIn || readingQuota || readingCollection || activity.working) { onReconnectRequested?.(); return; }
+    reconnectConsumed.current = true;
+    // The paired read checks the selected managed account before and after both capabilities.
+    setAutomaticRequest(++automaticSequence.current);
+    onReconnectRequested?.();
+  }, [reconnectRequested, busy, refreshWait, checking, loggingIn, readingQuota, readingCollection, activity.working, onReconnectRequested]);
+
+  async function refreshReadingConnection() {
+    try { await onConnectionChanged(); }
+    catch { setError('Account status could not be refreshed. Reload accounts to check it.'); }
+  }
 
   useEffect(() => {
     if (readingQuota || activity.working || readingCollection) return;
@@ -244,7 +260,7 @@ export function ProfileProviderCheck({ profileId, profileLabel, approval, busy, 
       setAutomaticRequest(++automaticSequence.current);
       onInitialReadRequested?.();
     }} onConnectionChanged={onConnectionChanged} key={`login:${loginGeneration}`} profileId={profileId} profileLabel={profileLabel} approval={approval} busy={busy || checking || readingQuota || readingCollection || activity.working} onActivity={setLoggingIn} onStarted={() => { setAutomaticRequest(null); activity.clear(); checkGeneration.current += 1; setDiagnostic(null); setError(null); setQuotaGeneration(value => value + 1); }} />
-    <ProfileCollectionRead automaticRequest={automaticRequest} profileId={profileId} approval={approval} busy={busy || checking || loggingIn || readingQuota || activity.working} retryAfterSeconds={refreshWait} onActivity={setReadingCollection} onSaved={onCollectionSaved} onFailed={onCollectionFailed} onStarted={() => { activity.clear(); checkGeneration.current += 1; setDiagnostic(null); setError(null); setQuotaGeneration(value => value + 1); setLoginGeneration(value => value + 1); }}>
+    <ProfileCollectionRead automaticRequest={automaticRequest} profileId={profileId} approval={approval} busy={busy || checking || loggingIn || readingQuota || activity.working} retryAfterSeconds={refreshWait} onActivity={setReadingCollection} onSaved={async value => { await onCollectionSaved(value); await refreshReadingConnection(); }} onFailed={async () => { await onCollectionFailed(); await refreshReadingConnection(); }} onStarted={() => { activity.clear(); checkGeneration.current += 1; setDiagnostic(null); setError(null); setQuotaGeneration(value => value + 1); setLoginGeneration(value => value + 1); }}>
       {(collectionAction, collectionCancel) => <ProfileQuotaRead retryAfterSeconds={refreshWait} onSaved={onQuotaSaved} onFailed={onQuotaFailed} key={`quota:${quotaGeneration}`} profileId={profileId} profileLabel={profileLabel} approval={approval} busy={busy || checking || loggingIn || readingCollection || activity.working} onActivity={setReadingQuota} onStarted={() => { activity.clear(); checkGeneration.current += 1; setDiagnostic(null); setError(null); setLoginGeneration(value => value + 1); }} renderActions={(quotaAction, quotaCancel) => <>
         <div className="profile-actions">{collectionAction}{collectionCancel}{quotaCancel}{managementTrigger}</div>
         <CollapsiblePanel keepMounted className="profile-management">

@@ -186,6 +186,12 @@ try {
     await noMetrics(first); await noMetrics(second);
     const monitoring = await call('load_monitoring'); assert.equal(monitoring.state, 'stopped');
     await driver.navigate('accounts');
+    await driver.click(`[data-profile-connect="${second.id}"]`);
+    await waitFor(() => driver.execute('const result=document.querySelector(arguments[0]);return Boolean(result?.getAttribute("role")==="alert"&&/Sign in again/.test(result.textContent)&&!document.querySelector(arguments[1]));', [`[data-collection-profile="${second.id}"]`, `[data-collection-cancel="${second.id}"]`]), 'selected Connect prepares the official companion and reports an actual signed-out account', 60000);
+    await noMetrics(first); await noMetrics(second);
+    assert.deepEqual(await homeFiles(firstHome), homes[originals.findIndex(row => row.id === first.id)]);
+    await waitFor(() => driver.execute('return document.querySelector(arguments[0])?.textContent.trim()==="Sign-in required";', [`[data-profile-id="${second.id}"] .profile-connection-state`]), 'official authentication failure reloads the selected account row');
+    evidence.steps.push({ selectedReconnectAfterRestart: true, officialSignedOutRecovery: true, noDeviceAuthorizationRequested: true, firstAccountHomePreserved: true });
     await capture('companion-restart-two-signed-out-accounts.png');
     evidence.steps.push({ genuineRestart: true, retainedProfiles: originals, keyAndHomesPreserved: true, noRuntimeApprovalOrAuthenticationCarriedAcrossRestart: true, monitoring: monitoring.state });
   }

@@ -267,6 +267,10 @@ fn validate_ids(profile: &str, request: &str) -> Result<(), CommandError> {
     crate::restore::validate_preview_id(request)
 }
 impl CompletingCollection {
+    pub fn binding(&self) -> &ProfileBinding {
+        &self.binding
+    }
+
     pub fn wait(self) -> Result<CompletedCollection, CommandError> {
         match self.handle.wait() {
             Ok(probe) => Ok(CompletedCollection {
