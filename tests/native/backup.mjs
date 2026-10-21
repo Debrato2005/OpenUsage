@@ -28,8 +28,8 @@ let driver;
 
 const hash = async path => createHash('sha256').update(await readFile(path)).digest('hex');
 
-async function heading(text) {
-  await waitFor(async () => (await driver.execute('return document.querySelector("#startup-heading")?.textContent;')) === text, text);
+async function storageState(expected) {
+  await waitFor(async () => (await driver.invoke('bootstrap')).value?.storage === expected, `workspace storage: ${expected}`);
 }
 
 async function invokeError(command, args, error) {
@@ -70,7 +70,8 @@ try {
   assert.equal(platform(), 'linux');
   assert.ok(verifier, 'Set OPENUSAGE_BACKUP_VERIFIER to the test-side Rust verifier.');
   await access(verifier, constants.X_OK);
-  evidence.application = { path: application, sha256: await hash(application), commit: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repository, encoding: 'utf8' }).trim() };
+  evidence.application = { path: application, sha256: await hash(application) };
+  evidence.sourceCommitAtRun = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repository, encoding: 'utf8' }).trim();
   evidence.verifier = { path: verifier, sha256: await hash(verifier) };
   evidence.sourceDirtyPaths = execFileSync('git', ['status', '--porcelain'], { cwd: repository, encoding: 'utf8' }).trim().split('\n').filter(Boolean);
   evidence.sourceHashes = {};
@@ -80,7 +81,8 @@ try {
   fixture = await createFixture('backup');
   driver = new NativeDriver(application, fixture.environment, join(output, 'driver.log'));
   await driver.start();
-  await heading('Set up your private workspace');
+  await storageState('setup_required');
+  await waitFor(async () => driver.execute('const field=document.querySelector("#workspace-passphrase");return Boolean(field&&!field.disabled&&field.getClientRects().length&&document.querySelector("#workspace-confirmation"));'), 'visible workspace setup form');
   await invokeError('create_backup', { password: backupPassword }, 'workspace_locked');
   for (const args of [{ password: backupPassword, path: '../unapproved' }, { password: [] }, {}]) await invokeError('create_backup', args, 'invalid_arguments');
   assert.deepEqual(await readdir(fixture.dirs.downloads), []);
@@ -89,7 +91,7 @@ try {
   await driver.type('#workspace-passphrase', workspacePassphrase);
   await driver.type('#workspace-confirmation', workspacePassphrase);
   await driver.click('.unlock-form button[type="submit"]');
-  await heading('Workspace ready');
+  await storageState('ready');
   assert.equal((await driver.invoke('bootstrap')).value.schemaVersion, expectedSchemaVersion);
   await driver.setAppearance('dark');
   await waitFor(async () => driver.execute('return document.documentElement.dataset.theme==="dark"&&!document.querySelector("#theme").disabled;'), 'saved dark appearance and enabled controls');
