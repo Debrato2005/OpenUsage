@@ -8,3 +8,5 @@ Missing metrics are not zero. Email is not a verified identity. Time alone does 
 Use native Tauri end-to-end tests for acceptance. Label renderer tests and synthetic fixtures clearly.
 Do not claim a native build, provider capability, or platform passed without executed evidence.
 Run npm run check for renderer changes. Run cargo test --workspace and cargo clippy --workspace --all-targets when Rust is available.
+
+Use Git commits and concise receipts as development history. Follow docs/artifact-retention.md. Normal freeze calls record metadata only; executable retention is explicit and capped. Remove integrated clean agent worktrees after preserving unique work and required evidence.
