@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import type { AccountActionRequest } from './account-actions';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
 import { Field, FieldLabel } from './components/ui/field';
@@ -22,6 +23,8 @@ type Props = {
   monitoringUnavailable: boolean;
   onMonitoringAction: MonitoringAction;
   onConnectAccount?: () => void;
+  requestedAction?: AccountActionRequest | null;
+  onActionHandled?: (sequence: number) => void;
 };
 
 type Failure = {
@@ -54,7 +57,7 @@ function errorMessage(error: unknown): string {
     ? messages[error] : 'OpenUsage could not complete this profile request. Reload profiles and try again.';
 }
 
-export function ProfileManager({ busy, setBusy, onCount, providerApproval, onProfilesChange, onReadingsChanged, monitoring, monitoringUnavailable, onMonitoringAction, onConnectAccount }: Props) {
+export function ProfileManager({ busy, setBusy, onCount, providerApproval, onProfilesChange, onReadingsChanged, monitoring, monitoringUnavailable, onMonitoringAction, onConnectAccount, requestedAction, onActionHandled }: Props) {
   const [view, setView] = useState<ProfileView | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -75,6 +78,8 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval, onPro
   const pending = useRef(false);
   const viewRequest = useRef(0);
   const mounted = useRef(true);
+  const handledAction = useRef(0);
+  const [focusIntent, setFocusIntent] = useState(0);
   const connectingProfile = useRef<string | null>(null);
   const startRequestedProfile = useRef<string | null>(null);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; viewRequest.current += 1; }; }, []);
@@ -104,7 +109,7 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval, onPro
     // The row slot mounts separately from its provider controls.
     frame = requestAnimationFrame(focusReady);
     return () => cancelAnimationFrame(frame);
-  }, [providerApproval, busy, view]);
+  }, [providerApproval, busy, view, focusIntent]);
 
   useEffect(() => {
     let cancelled = false;
@@ -223,6 +228,26 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval, onPro
     setReconnectProfile(profile.id);
     if (!providerApproval) onConnectAccount?.();
   }
+
+  useEffect(() => {
+    if (!requestedAction || handledAction.current === requestedAction.sequence || busy || loading || !view) return;
+    handledAction.current = requestedAction.sequence;
+    onActionHandled?.(requestedAction.sequence);
+    if (requestedAction.kind === 'add') { addAccount(); return; }
+    const profile = view.profiles.find(item => item.id === requestedAction.profileId && !item.archived);
+    if (!profile) return;
+    if (requestedAction.kind === 'signin') {
+      connectingProfile.current = profile.id;
+      startRequestedProfile.current = profile.id;
+      setFocusIntent(value => value + 1);
+      if (!providerApproval) onConnectAccount?.();
+    } else if (requestedAction.kind === 'refresh') reconnect(profile);
+    else {
+      setReadings(current => ({ ...current, [profile.id]: true }));
+      if (requestedAction.kind === 'manage') setManaged(profile.id);
+      setFocusTarget({ id: profile.id, action: 'options' });
+    }
+  }, [requestedAction, busy, loading, view, providerApproval, onActionHandled]);
 
   function rename() {
     if (!editing || !checkLabel(editing.label, 'rename', editing.id)) return;

@@ -145,7 +145,7 @@ try {
   const firstRows = (await rows(first)).slice(offset), methods = firstRows.filter(row => row.kind === 'request').map(row => row.request.method);
   assert.deepEqual(methods, ['initialize', 'initialized', 'account/read', 'account/rateLimits/read', 'account/usage/read', 'account/read']); assert.equal(firstRows.filter(row => row.kind === 'start' && row.arguments[0] === 'app-server').length, 1);
   await driver.navigate('overview'); await driver.selectVisibleOption('#overview-profile', first.label);
-  await waitFor(async () => driver.execute('return document.querySelector("[data-overview-lifetime]")?.textContent.trim()==="9007199254740993";'), 'GUI Overview loads exact accepted activity');
+  await waitFor(async () => driver.execute('return document.querySelector("[data-overview-lifetime]")?.getAttribute("data-exact-value")==="9007199254740993";'), 'GUI Overview loads exact accepted activity');
   await capture('collection-both-saved-light.png', '[data-overview]');
   await driver.setAppearance('dark'); await capture('collection-both-saved-dark-360.png', '[data-overview]', 360);
   const beforeCooldown = await oracle('both capabilities committed by primary GUI action');

@@ -2,6 +2,9 @@ fn main() {
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
         tauri_build::AppManifest::new().commands(&[
             "bootstrap",
+            "get_display_scale",
+            "set_display_scale",
+            "load_profile_plan",
             "load_monitoring",
             "start_profile_monitoring",
             "pause_profile_monitoring",

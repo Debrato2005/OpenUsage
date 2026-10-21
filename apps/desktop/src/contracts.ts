@@ -242,6 +242,9 @@ export interface SavedProfileActivity {
 }
 
 interface Commands {
+  get_display_scale: { args: undefined; result: { percent: number } };
+  set_display_scale: { args: { percent: number }; result: { percent: number } };
+  load_profile_plan: { args: { profileId: string; bindingId: string }; result: { profileId: string; bindingId: string; plan: string | null } };
   load_monitoring: { args: undefined; result: MonitoringStatus };
   start_profile_monitoring: { args: { profileId: string; approvalId: string }; result: MonitoringStatus };
   pause_profile_monitoring: { args: { profileId: string }; result: MonitoringStatus };
@@ -310,7 +313,9 @@ export async function invoke<K extends keyof Commands>(
   const core = window.__TAURI__?.core;
   if (!core) throw new DesktopUnavailable('Open the installed OpenUsage desktop application.');
   const response = await core.invoke<unknown>(command, args[0]);
-  const valid = ['load_monitoring', 'start_profile_monitoring', 'pause_profile_monitoring'].includes(command) ? isMonitoringStatus(response)
+  const valid = (command === 'get_display_scale' || command === 'set_display_scale') ? isDisplayScale(response)
+    : command === 'load_profile_plan' ? isProfilePlan(response)
+    : ['load_monitoring', 'start_profile_monitoring', 'pause_profile_monitoring'].includes(command) ? isMonitoringStatus(response)
     : (command === 'begin_profile_collection_read' || command === 'begin_profile_collection_reassociation') ? isProfileQuotaRequest(response)
     : command === 'complete_profile_collection_read' ? isProfileCollectionOutcome(response)
     : command === 'cancel_profile_collection_read' ? isPreviewCancellation(response)
@@ -352,6 +357,18 @@ export async function invoke<K extends keyof Commands>(
     throw new Error('The desktop response is incompatible. Restart OpenUsage after updating the application.');
   }
   return response as Commands[K]['result'];
+}
+
+function isDisplayScale(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false;
+  const record = value as Record<string, unknown>;
+  return Object.keys(record).length === 1 && [90, 100, 110, 125, 150, 175, 200].includes(record.percent as number);
+}
+function isProfilePlan(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false;
+  const record = value as Record<string, unknown>;
+  return Object.keys(record).length === 3 && isUuid(record.profileId) && isUuid(record.bindingId)
+    && (record.plan === null || (typeof record.plan === 'string' && record.plan.length > 0 && record.plan.length <= 64 && !/\p{Cc}/u.test(record.plan)));
 }
 
 function isMonitoringState(value: unknown): value is MonitoringState {

@@ -13,6 +13,7 @@ import { DataExport } from './data-export';
 import { CheckpointRecovery } from './checkpoint-recovery';
 import { ProviderSettings } from './provider';
 import { Overview } from './overview';
+import type { AccountAction, AccountActionRequest } from './account-actions';
 import { Usage } from './usage';
 import { useMonitoring } from './monitoring';
 import { providerFailure } from './provider-errors';
@@ -24,6 +25,13 @@ type Startup = { kind: 'loading' } | { kind: 'desktop'; data: Bootstrap }
 
 function App() {
   const [startup, setStartup] = useState<Startup>({ kind: 'loading' });
+  const actionSequence = useRef(0);
+  const [accountAction, setAccountAction] = useState<AccountActionRequest | null>(null);
+  const handledAccountAction = useCallback((sequence: number) => setAccountAction(current => current?.sequence === sequence ? null : current), []);
+  const [displayScale, setDisplayScale] = useState(100);
+  const [scaleBusy, setScaleBusy] = useState(false);
+  const [scaleError, setScaleError] = useState(false);
+  useEffect(() => { let current = true; void invoke('get_display_scale').then(value => { if (current) setDisplayScale(value.percent); }).catch(() => {}); return () => { current = false; }; }, []);
   const [view, setView] = useState<WorkspaceView>('overview');
   const [profiles, setProfiles] = useState<ProfileRecord[]>([]);
   const [readingRevision, setReadingRevision] = useState(0);
@@ -82,6 +90,7 @@ function App() {
     setTheme(updated.theme);
     setProfileRevision(value => value + 1);
     setProfiles([]);
+    setAccountAction(null);
     setReadingRevision(value => value + 1);
   }, []);
 
@@ -220,9 +229,21 @@ function App() {
     setView(next);
     window.scrollTo({ top: 0, behavior: 'instant' });
   }
+  function requestAccountAction(action: AccountAction) {
+    setAccountAction({ ...action, sequence: ++actionSequence.current });
+    navigate('accounts');
+  }
+  async function changeScale(percent: number) {
+    if (scaleBusy) return;
+    setScaleBusy(true); setScaleError(false);
+    try { setDisplayScale((await invoke('set_display_scale', { percent })).percent); }
+    catch { setScaleError(true); }
+    finally { setScaleBusy(false); }
+  }
+  const scaleControl = <div className="display-scale-control"><label htmlFor="display-scale" className="sr-only">Display scale</label><Select modal={false} value={displayScale} disabled={scaleBusy} items={Object.fromEntries([90, 100, 110, 125, 150, 175, 200].map(value => [value, `${value}%`]))} onValueChange={value => { if (value !== null) void changeScale(value); }}><SelectTrigger id="display-scale" aria-label="Display scale"><SelectValue /></SelectTrigger><SelectPopup alignItemWithTrigger={false}>{[90, 100, 110, 125, 150, 175, 200].map(value => <SelectItem key={value} value={value}>{value}%</SelectItem>)}</SelectPopup></Select></div>;
   const titles = { overview: 'Overview', accounts: 'Accounts', usage: 'Usage', settings: 'Settings' };
   const descriptions = {
-    overview: 'Saved usage and limits across your account profiles.',
+    overview: 'Your accounts and usage, at a glance.',
     accounts: 'Manage profiles and collect new readings.',
     usage: 'Token activity saved on this device.',
     settings: 'Appearance, Codex connection, and encrypted backups.',
@@ -238,7 +259,8 @@ function App() {
     <div className="workspace">
       {!ready && <header className="onboarding-header"><a className="brand" href="#main" aria-label="OpenUsage"><span className="brand-wordmark"><img src={openusageLogo} alt="OpenUsage" /></span></a>{appearance}</header>}
       <main id="main" tabIndex={-1}>
-        {ready && <div className="page-heading"><div><h1>{titles[view]}</h1><p className="subtitle">{descriptions[view]}</p></div><span className="status-pill" data-global-monitoring={ready && !monitoring.unavailable ? monitoring.status?.state : undefined}><span className="status-dot" aria-hidden="true" />{!ready ? 'Monitoring stopped' : monitoring.unavailable ? 'Monitoring status unavailable' : monitoring.status ? `Monitoring ${monitoring.status.state}` : 'Loading monitoring status…'}</span></div>}
+        {ready && <div className="page-heading"><div><h1>{titles[view]}</h1><p className="subtitle">{descriptions[view]}</p></div><div className="page-controls"><span className="status-pill" data-global-monitoring={ready && !monitoring.unavailable ? monitoring.status?.state : undefined}><span className="status-dot" aria-hidden="true" />{!ready ? 'Monitoring stopped' : monitoring.unavailable ? 'Monitoring status unavailable' : monitoring.status ? `Monitoring ${monitoring.status.state}` : 'Loading monitoring status…'}</span><div className="header-appearance">{appearance}</div>{scaleControl}</div></div>}
+        {scaleError && <p role="alert" className="operation-error">Display size could not be saved. Try again.</p>}
         <section hidden={ready && view !== 'settings'} inert={ready && view !== 'settings'} className="startup-panel" data-storage={data?.storage ?? startup.kind} aria-labelledby="startup-heading" aria-busy={startup.kind === 'loading' || busy}>
           <div className="startup-content">{ready ? <h2 id="startup-heading" role="status">{message}</h2> : <h1 id="startup-heading" role="status">{message}</h1>}
             {!ready && <p>{startup.kind === 'unavailable' ? 'This browser view cannot access encrypted storage or connect an account. Open the desktop application to continue.'
@@ -277,16 +299,16 @@ function App() {
         </section>
         {!ready && <Button variant="ghost" className="text-button onboarding-privacy" onClick={() => setPrivacy(!privacy)} aria-expanded={privacy} aria-controls="privacy-details">{privacy ? 'Hide privacy details' : 'About your privacy'}</Button>}
         {privacy && <section className="privacy-details" id="privacy-details" aria-labelledby="privacy-heading"><h2 id="privacy-heading">Privacy and local storage</h2><p>OpenUsage has no hosted account or telemetry. Account connections require your approval. Provider credentials stay with Codex.</p><p>Encrypted storage protects application records. It does not encrypt provider credential files or operating-system swap.</p><p>Codex handles approved sign-in requests, connection checks, and readings. Monitoring runs only while OpenUsage is open and your workspace is unlocked.</p></section>}
-        {ready && <section data-workspace-view="overview" hidden={view !== 'overview'} inert={view !== 'overview'} aria-label="Overview"><Overview key={profileRevision} active={view === 'overview'} profiles={profiles} revision={readingRevision} onAccounts={() => navigate('accounts')} /></section>}
+        {ready && <section data-workspace-view="overview" hidden={view !== 'overview'} inert={view !== 'overview'} aria-label="Overview"><Overview key={profileRevision} active={view === 'overview'} profiles={profiles} revision={readingRevision} onAccounts={() => navigate('accounts')} onAccountAction={requestAccountAction} busy={busy} /></section>}
         {ready && <div hidden={view !== 'settings'} inert={view !== 'settings'}><ProviderSettings busy={busy} setBusy={setBusy} approval={providerApproval} onApproved={setProviderApproval} /></div>}
         {ready && <section data-workspace-view="accounts" hidden={view !== 'accounts'} inert={view !== 'accounts'} aria-label="Account profiles">
           {connectionPreparing && <p role="status">Preparing OpenAI sign-in…</p>}
           {connectionError && <div role="alert"><p>{connectionError}</p><Button type="button" variant="outline" disabled={busy} onClick={() => setConnectionRequest(value => value + 1)}>Retry connection</Button><Button type="button" variant="ghost" onClick={() => navigate('settings')}>Connection details</Button></div>}
-          <ProfileManager key={profileRevision} busy={busy} setBusy={setBusy} onCount={updateProfileCount} providerApproval={providerApproval} onProfilesChange={updateProfiles} onReadingsChanged={readingsChanged} monitoring={monitoring.status} monitoringUnavailable={monitoring.unavailable} onMonitoringAction={monitoring.action} onConnectAccount={() => setConnectionRequest(value => value + 1)} />
+          <ProfileManager key={profileRevision} busy={busy} setBusy={setBusy} onCount={updateProfileCount} requestedAction={accountAction} onActionHandled={handledAccountAction} providerApproval={providerApproval} onProfilesChange={updateProfiles} onReadingsChanged={readingsChanged} monitoring={monitoring.status} monitoringUnavailable={monitoring.unavailable} onMonitoringAction={monitoring.action} onConnectAccount={() => setConnectionRequest(value => value + 1)} />
         </section>}
         {ready && <section data-workspace-view="usage" hidden={view !== 'usage'} inert={view !== 'usage'} aria-label="Saved usage"><Usage active={view === 'usage'} profiles={profiles} revision={readingRevision} onAccounts={() => navigate('accounts')} /></section>}
         <section data-workspace-view="settings" hidden={!ready || view !== 'settings'} inert={!ready || view !== 'settings'} aria-label="Workspace settings">
-        {ready && <section className="appearance-settings" aria-label="Appearance"><div><h2>Appearance</h2><p>Choose a theme or follow your system.</p></div>{appearance}</section>}
+
         {ready && <section className="backup-panel" aria-labelledby="backup-heading">
           <div className="section-heading"><div><h2 id="backup-heading">Encrypted backups</h2><p>Save a password-protected copy of your application records.</p></div><div className="backup-actions"><Button ref={backupToggle} variant="outline" className="secondary-button" disabled={busy} onClick={() => toggleBackup('create')} aria-expanded={backupOpen} aria-controls="backup-form">{backupOpen ? 'Hide backup form' : 'Create a backup'}</Button><Button variant="outline" className="secondary-button" disabled={busy} onClick={() => toggleBackup('inspect')} aria-expanded={backupAction === 'inspect'} aria-controls="backup-inspection">{backupAction === 'inspect' ? 'Hide backup inspection' : 'Inspect a backup'}</Button><Button variant="outline" className="secondary-button" disabled={busy} onClick={() => toggleBackup('recover')} aria-expanded={backupAction === 'recover'} aria-controls="checkpoint-recovery">{backupAction === 'recover' ? 'Hide saved copies' : 'Undo a restore'}</Button></div></div>
           {backupOpen && <form id="backup-form" className="unlock-form backup-form" onSubmit={event => { event.preventDefault(); void saveBackup(); }}>

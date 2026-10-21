@@ -301,7 +301,7 @@ test('one global status poll reloads caches only on changed reading revision and
   await expect(page.locator('[data-activity-saved] [data-activity-metric="lifetimeTokens"]')).toHaveText('9223372036854775807');
   await expect(pause).toBeFocused(); await expect(pause).toBeEnabled();
   await expect(page.getByRole('button', { name: 'Refresh readings', exact: true })).toBeDisabled();
-  await navigate(page, 'overview'); await expect(page.locator('[data-overview-lifetime]')).toHaveText('9223372036854775807');
+  await navigate(page, 'overview'); await expect(page.locator('[data-overview-lifetime] bdi')).toHaveAttribute('title', '9223372036854775807');
   const calls = await page.evaluate(() => (window as unknown as FixtureWindow).collectionFixture.calls.filter(call => call.command === 'load_monitoring'));
   expect(calls.every(call => Object.keys(call.args).length === 0)).toBe(true);
 });
@@ -346,9 +346,9 @@ test('a pre-restore status reply cannot restart or repaint the new workspace mon
   await open(page);
   await navigate(page, 'overview');
   const account = page.locator(`[data-overview-account="${profileId}"]`);
-  await expect(account.locator('[data-overview-account-quota]')).toContainText('75% left (derived)');
+  await expect(account.locator('[data-overview-account-quota]')).toContainText('75% left');
   await expect(account.locator('[data-overview-account-observed] time')).toHaveAttribute('datetime', observedAtUtc);
-  await expect(page.locator('[data-overview-lifetime]')).toHaveText('9007199254740993');
+  await expect(page.locator('[data-overview-lifetime] bdi')).toHaveAttribute('title', '9007199254740993');
   await navigate(page, 'accounts');
   await page.getByRole('button', { name: 'Manage profile', exact: true }).click(); await eligibleMonitoring(page);
   await page.locator(`[data-monitoring-start="${profileId}"]`).click();
@@ -372,7 +372,7 @@ test('a pre-restore status reply cannot restart or repaint the new workspace mon
   await navigate(page, 'overview');
   await expect(page.locator('[data-overview-quota] .overview-error')).toContainText('Saved quotas could not be loaded.');
   await expect(account.locator('[data-overview-account-quota]')).toHaveText('Not available');
-  await expect(account.locator('[data-overview-account-observed]')).toContainText('Not available');
+  await expect(account.locator('[data-overview-account-observed]')).toContainText('—');
   await expect(account.locator('[data-overview-account-observed] time')).toHaveCount(0);
   await expect(page.locator('[data-overview-lifetime]')).toHaveText('Not available');
   await expect(page.locator('[data-global-monitoring]')).toHaveText('Monitoring stopped');

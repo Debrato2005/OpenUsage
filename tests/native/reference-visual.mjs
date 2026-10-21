@@ -122,14 +122,11 @@ async function capture(name, view, theme, width = 1280, text = 1, target) {
     const visible=node=>Boolean(node.getClientRects().length&&getComputedStyle(node).visibility!=='hidden');
     const scrollAncestor=node=>{for(let parent=node.parentElement;parent&&parent!==document.body;parent=parent.parentElement)if(['auto','scroll'].includes(getComputedStyle(parent).overflowX)&&parent.scrollWidth>parent.clientWidth+1)return true;return false;};
     const overflowing=[...document.querySelectorAll('body *')].filter(visible).filter(node=>!scrollAncestor(node)&&!node.closest('[aria-hidden=true],.skip-link')).filter(node=>{const rect=node.getBoundingClientRect();return rect.width>0&&(rect.left < -1||rect.right>innerWidth+1);}).slice(0,15).map(node=>({tag:node.tagName,id:node.id,className:typeof node.className==='string'?node.className:''}));
-    const number = [...document.querySelectorAll('.overview-total-value:not(.overview-unavailable),.overview-meter-heading strong,.activity-count')].find(visible);
+    const number = [...document.querySelectorAll('[data-overview-lifetime] bdi,.overview-meter-heading strong,.activity-count')].find(visible);
     const heading = document.querySelector('h1');
-    const lifetime = [...document.querySelectorAll('[data-overview-lifetime].activity-count')].find(visible);
-    let lifetimeLines = null;
-    if (lifetime) {
-      const range = document.createRange(); range.selectNodeContents(lifetime.querySelector('bdi'));
-      lifetimeLines = new Set([...range.getClientRects()].filter(rect=>rect.width>0).map(rect=>Math.round(rect.top))).size;
-    }
+    const lifetime = [...document.querySelectorAll('[data-overview-lifetime]')].find(visible);
+    const lifetimeExact = lifetime?.getAttribute('data-exact-value') ?? null;
+    const lifetimeTitle = lifetime?.querySelector('bdi')?.getAttribute('title') ?? null;
     let numberDigitWidths = null;
     if (number) {
       const style = getComputedStyle(number), probe = document.createElement('span');
@@ -138,12 +135,12 @@ async function capture(name, view, theme, width = 1280, text = 1, target) {
       numberDigitWidths = ['0000000000','1111111111','9999999999'].map(text=>{probe.textContent=text;return probe.getBoundingClientRect().width;});
       probe.remove();
     }
-    return {lifetimeLines,lifetimeFocusable:lifetime?lifetime.tabIndex===0:null,numberDigitWidths,numberFont:number?getComputedStyle(number).fontFamily:null,numberVariant:number?getComputedStyle(number).fontVariantNumeric:null,numberFontLoaded:number?document.fonts.check(getComputedStyle(number).fontWeight+' '+getComputedStyle(number).fontSize+' "DM Sans"'):null,uiFontLoaded:document.fonts.check('400 14px "DM Sans"'),heading:heading?{font:getComputedStyle(heading).fontFamily,size:getComputedStyle(heading).fontSize,weight:getComputedStyle(heading).fontWeight,lineHeight:getComputedStyle(heading).lineHeight}:null,viewport:{width:innerWidth,height:innerHeight},pageWidth:document.scrollingElement.scrollWidth,bodyFont:getComputedStyle(document.body).fontFamily,fontStatus:document.fonts.status,fonts:[...document.fonts].filter(face=>face.status==='loaded').map(face=>({family:face.family,weight:face.weight})),currentView:document.querySelector('[data-workspace-nav][aria-current=page]')?.getAttribute('data-workspace-nav'),visibleViewCount:[...document.querySelectorAll('[data-workspace-view]')].filter(visible).length,overflowing,overviewLifetime:document.querySelector('[data-overview-lifetime]')?.textContent,overviewProfile:document.querySelector('[data-overview]')?.getAttribute('data-overview-profile')};
+    return {lifetimeExact,lifetimeTitle,numberDigitWidths,numberFont:number?getComputedStyle(number).fontFamily:null,numberVariant:number?getComputedStyle(number).fontVariantNumeric:null,numberFontLoaded:number?document.fonts.check(getComputedStyle(number).fontWeight+' '+getComputedStyle(number).fontSize+' "DM Sans"'):null,uiFontLoaded:document.fonts.check('400 14px "DM Sans"'),heading:heading?{font:getComputedStyle(heading).fontFamily,size:getComputedStyle(heading).fontSize,weight:getComputedStyle(heading).fontWeight,lineHeight:getComputedStyle(heading).lineHeight}:null,viewport:{width:innerWidth,height:innerHeight},pageWidth:document.scrollingElement.scrollWidth,bodyFont:getComputedStyle(document.body).fontFamily,fontStatus:document.fonts.status,fonts:[...document.fonts].filter(face=>face.status==='loaded').map(face=>({family:face.family,weight:face.weight})),currentView:document.querySelector('[data-workspace-nav][aria-current=page]')?.getAttribute('data-workspace-nav'),visibleViewCount:[...document.querySelectorAll('[data-workspace-view]')].filter(visible).length,overflowing,overviewLifetime:document.querySelector('[data-overview-lifetime]')?.textContent,overviewProfile:document.querySelector('[data-overview]')?.getAttribute('data-overview-profile')};
   `);
   await driver.screenshot(join(output, name)); evidence.screenshots.push(name); evidence.views.push({ screenshot: name, view, theme, textScale: text, ...data });
   if (data.pageWidth > width + 1 || data.overflowing.length) evidence.violations.push({ screenshot: name, pageWidth: data.pageWidth, viewportWidth: width, overflowing: data.overflowing });
   assert.equal(data.currentView, view); assert.equal(data.visibleViewCount, 1); assert.equal(data.fontStatus, 'loaded'); assert.match(data.bodyFont, /DM Sans/); assert.equal(data.uiFontLoaded, true); if (data.numberFont) { assert.match(data.numberFont, /DM Sans/); assert.match(data.numberVariant, /tabular-nums/); assert.equal(data.numberFontLoaded, true); assert.ok(data.numberDigitWidths[0] > 0); assert.ok(Math.max(...data.numberDigitWidths) - Math.min(...data.numberDigitWidths) < 0.1, 'Actual native DM Sans digits must have equal width.'); }
-  if (data.lifetimeLines !== null) { assert.equal(data.lifetimeLines, 1, 'Exact lifetime digits must remain on one scrollable line.'); assert.equal(data.lifetimeFocusable, true); }
+  if (data.lifetimeExact !== null) assert.equal(data.lifetimeTitle, data.lifetimeExact, 'Compact lifetime retains its exact integer title.');
   await scale(1);
 }
 async function overviewSet(profile) {
@@ -153,7 +150,19 @@ async function overviewSet(profile) {
 }
 async function overviewCaptures(profile, kind) {
   await overviewSet(profile);
-  if (kind === 'activity') assert.equal(await driver.execute('return document.querySelector("[data-overview-lifetime] bdi").textContent;'), '9007199254740993');
+  if (kind === 'activity') {
+    assert.equal(await driver.execute('return document.querySelector("[data-overview-lifetime]").getAttribute("data-exact-value");'), '9007199254740993');
+    await driver.execute('document.querySelector(".overview-account-footer button").focus();return true;');
+    for (const value of ['\uE004', '\uE007']) {
+      await driver.request('POST', `/session/${driver.session}/actions`, { actions: [{ type: 'key', id: 'reading-details', actions: [{ type: 'keyDown', value }, { type: 'keyUp', value }] }] });
+      if (value === '\uE004') assert.equal(await driver.execute('return document.activeElement===document.querySelector(".overview-source-details > button");'), true, 'Tab reaches Reading details from View usage.');
+    }
+    await waitFor(() => driver.execute('return document.querySelector(".overview-source-details > button").getAttribute("aria-expanded")==="true";'), 'keyboard expands exact reading details');
+    assert.equal(await driver.execute('return [...document.querySelectorAll(".overview-source-details bdi")].some(node=>node.textContent==="9007199254740993"&&node.getClientRects().length>0);'), true, 'Exact lifetime remains visible through the keyboard disclosure.');
+    assert.match(await driver.execute('return document.querySelector(".overview-source-details").textContent;'), /Unverified identity/);
+    await driver.request('POST', `/session/${driver.session}/actions`, { actions: [{ type: 'key', id: 'reading-details', actions: [{ type: 'keyDown', value: '\uE007' }, { type: 'keyUp', value: '\uE007' }] }] });
+    await waitFor(() => driver.execute('return document.querySelector(".overview-source-details > button").getAttribute("aria-expanded")==="false";'), 'keyboard closes reading details');
+  }
   else assert.deepEqual(await driver.execute('return [...document.querySelectorAll("[data-overview-quota] [role=meter]")].map(node=>node.getAttribute("aria-valuenow")).slice(0,2);'), ['75', '0']);
   for (const theme of ['light', 'dark']) {
     await capture(`overview-${kind}-${theme}-desktop.png`, 'overview', theme);

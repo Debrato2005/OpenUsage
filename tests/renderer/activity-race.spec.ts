@@ -99,7 +99,8 @@ test('renderer saves activity outside Manage and pages exact cached rows after c
   await expect(metric(page, 'currentStreakDays')).toHaveText('Not available');
   await expect(accounts(page).getByText('Unverified identity · Saved locally')).toBeVisible();
   await navigate(page, 'overview');
-  await expect(page.getByText('Combined totals are not available. Profile readings are shown separately.', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Reading details', exact: true }).click();
+  await expect(page.locator('.overview-source-details')).toContainText('Combined totals are not available.');
   await navigate(page, 'accounts');
   for (const misleading of ['No accepted provider reading', 'Saved readings: Not available', 'Last saved reading: Not available']) await expect(accounts(page).getByText(misleading, { exact: true })).toHaveCount(0);
   await expect(accounts(page).locator('[data-activity-day]')).toHaveCount(0);

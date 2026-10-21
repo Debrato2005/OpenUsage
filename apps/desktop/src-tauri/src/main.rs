@@ -2,6 +2,7 @@
 
 mod backup;
 mod backup_inspection;
+mod display_scale;
 mod keyvault;
 mod monitoring;
 mod provider;
@@ -124,6 +125,19 @@ struct ApproveProviderArgs {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ProfileCheckArgs {
     profile_id: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DisplayScaleArgs {
+    percent: u16,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ProfilePlanArgs {
+    profile_id: String,
+    binding_id: String,
 }
 
 #[derive(Deserialize)]
@@ -410,6 +424,48 @@ async fn bootstrap(
         _ => return Err(CommandError::InvalidArguments),
     }
     run_workspace(app, Arc::clone(&service.0), Operation::Bootstrap).await
+}
+
+#[tauri::command]
+async fn get_display_scale(
+    request: tauri::ipc::Request<'_>,
+    app: AppHandle,
+    service: State<'_, display_scale::DisplayScaleService>,
+) -> Result<display_scale::DisplayScale, CommandError> {
+    let _: ListProfilesArgs = arguments(&request)?;
+    display_scale::run(app, Arc::clone(&service.0), None).await
+}
+
+#[tauri::command]
+async fn set_display_scale(
+    request: tauri::ipc::Request<'_>,
+    app: AppHandle,
+    service: State<'_, display_scale::DisplayScaleService>,
+) -> Result<display_scale::DisplayScale, CommandError> {
+    let args: DisplayScaleArgs = arguments(&request)?;
+    display_scale::validate(args.percent)?;
+    display_scale::run(app, Arc::clone(&service.0), Some(args.percent)).await
+}
+
+#[tauri::command]
+async fn load_profile_plan(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<workspace::SavedProfilePlan, CommandError> {
+    let args: ProfilePlanArgs = arguments(&request)?;
+    workspace::validate_profile_id(&args.profile_id)?;
+    restore::validate_preview_id(&args.binding_id)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        service
+            .lock()
+            .map_err(|_| CommandError::StorageUnavailable)?
+            .as_ref()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .load_profile_plan(&args.profile_id, &args.binding_id)
+    })
+    .await
+    .map_err(|_| CommandError::StorageUnavailable)?
 }
 
 #[tauri::command]
@@ -1506,8 +1562,12 @@ fn is_bundled_url(url: &tauri::Url) -> bool {
 fn main() {
     tauri::Builder::default()
         .manage(WorkspaceService::default())
+        .manage(display_scale::DisplayScaleService::default())
         .invoke_handler(tauri::generate_handler![
             bootstrap,
+            get_display_scale,
+            set_display_scale,
+            load_profile_plan,
             setup_workspace,
             unlock_workspace,
             set_theme,
@@ -1583,10 +1643,31 @@ mod tests {
     use super::{
         ApplyRestoreArgs, ApproveProviderArgs, ArchiveProfileArgs, BackupArgs, BeginLoginArgs,
         BeginReadArgs, CancelRestorePreviewArgs, CheckpointPreviewArgs, CreateProfileArgs,
-        InspectBackupArgs, InspectProviderArgs, ListProfilesArgs, LoginAttemptArgs,
-        ProfileCheckArgs, ProfileReadArgs, RenameProfileArgs, SetupArgs, ThemeArgs, UnlockArgs,
-        is_bundled_url,
+        DisplayScaleArgs, InspectBackupArgs, InspectProviderArgs, ListProfilesArgs,
+        LoginAttemptArgs, ProfileCheckArgs, ProfilePlanArgs, ProfileReadArgs, RenameProfileArgs,
+        SetupArgs, ThemeArgs, UnlockArgs, is_bundled_url,
     };
+
+    #[test]
+    fn display_and_plan_commands_reject_paths_and_incorrect_types() {
+        for invalid in [
+            r#"{}"#,
+            r#"{"percent":"125"}"#,
+            r#"{"percent":125.5}"#,
+            r#"{"percent":-1}"#,
+            r#"{"percent":125,"path":"/external"}"#,
+        ] {
+            assert!(serde_json::from_str::<DisplayScaleArgs>(invalid).is_err());
+        }
+        for invalid in [
+            r#"{}"#,
+            r#"{"profileId":"synthetic"}"#,
+            r#"{"profileId":"synthetic","bindingId":null}"#,
+            r#"{"profileId":"synthetic","bindingId":"synthetic","email":"private"}"#,
+        ] {
+            assert!(serde_json::from_str::<ProfilePlanArgs>(invalid).is_err());
+        }
+    }
 
     #[test]
     fn storage_commands_reject_unexpected_fields_and_incorrect_value_types() {

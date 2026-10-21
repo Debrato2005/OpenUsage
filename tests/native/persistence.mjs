@@ -79,8 +79,8 @@ async function ready(theme, protection) {
   await driver.navigate('accounts');
   await waitFor(async () => driver.execute('const count=document.querySelector(".accounts-section .muted-tag");return Boolean(count&&count.textContent.trim()==="0 of 10 active"&&count.getClientRects().length);'), 'visible Accounts active count');
   await driver.navigate('overview');
-  const summary = await driver.execute('const root=document.querySelector("[data-overview]");return {lifetime:root.querySelector("[data-overview-lifetime]").textContent.trim(),quota:root.querySelector("[data-overview-quota] .overview-unavailable").textContent.trim(),meterCount:root.querySelectorAll("[role=meter]").length,reason:root.querySelector(".overview-note").textContent.trim(),profileCount:root.querySelectorAll("[data-overview-account]").length};');
-  assert.deepEqual(summary, { lifetime: 'Not available', quota: 'Not available', meterCount: 0, reason: 'Combined totals are not available. Profile readings are shown separately.', profileCount: 0 });
+  const summary = await driver.execute('const root=document.querySelector("[data-overview]");return {lifetime:root.querySelector("[data-overview-lifetime]").textContent.trim(),quotaHeading:root.querySelector(".overview-quota-empty h3").textContent.trim(),meterCount:root.querySelectorAll("[role=meter]").length,profileCount:root.querySelectorAll("[data-overview-account]").length};');
+  assert.deepEqual(summary, { lifetime: 'Not available', quotaHeading: 'Your accounts, in one place', meterCount: 0, profileCount: 0 });
   evidence.steps.push({ readyWorkspaceSummary: summary });
 }
 

@@ -660,3 +660,19 @@ test('legacy provider and cache responses accept actual monitoring modes while r
     assert.equal((await invoke('load_profile_activity', { profileId: activityRequest.profileId })).monitoring, monitoring);
   }
 });
+
+test('device scale and saved plan IPC refuse extra fields, invalid scales, and identity data', async () => {
+  for (const percent of [90, 100, 110, 125, 150, 175, 200]) {
+    desktopResponse({ percent }); assert.deepEqual(await invoke('get_display_scale'), { percent });
+  }
+  for (const value of [{ percent: '125' }, { percent: 0 }, { percent: 125.5 }, { percent: 125, path: '/tmp/arbitrary' }, null]) {
+    desktopResponse(value); await assert.rejects(invoke('set_display_scale', { percent: 125 }), /desktop response is incompatible/);
+  }
+  const args = { profileId: '11111111-1111-4111-8111-111111111111', bindingId: '22222222-2222-4222-8222-222222222222' };
+  for (const plan of [null, 'plus', 'future-plan']) {
+    const value = { ...args, plan }; desktopResponse(value); assert.deepEqual(await invoke('load_profile_plan', args), value);
+  }
+  for (const fields of [{ profileId: 'bad' }, { bindingId: 'bad' }, { plan: undefined }, { plan: '' }, { plan: 'a'.repeat(65) }, { plan: 'plus\n' }, { email: 'synthetic@example.invalid' }, { token: 'synthetic-never-a-real-token' }]) {
+    desktopResponse({ ...args, plan: 'plus', ...fields }); await assert.rejects(invoke('load_profile_plan', args), /desktop response is incompatible/);
+  }
+});

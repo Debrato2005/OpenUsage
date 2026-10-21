@@ -83,3 +83,42 @@
 .brand-wordmark img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: 50% 50%; mix-blend-mode: multiply; }
 :root[data-theme="dark"] .brand-wordmark img { filter: invert(1); mix-blend-mode: screen; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]):not([data-theme="dark"]) .brand-wordmark img { filter: invert(1); mix-blend-mode: screen; } }
+
+/* Reference composition: full-width desktop workspace and quiet, readable chrome. */
+.app-shell { grid-template-columns: 240px minmax(0, 1fr); }
+.sidebar { padding: 32px 20px 20px; }
+.sidebar nav { margin-top: 40px; gap: 10px; }
+.sidebar nav a { border-radius: .875rem; padding: 14px 16px; font-weight: 500; }
+.workspace > main { max-width: none; padding: 36px 36px 48px; }
+.page-heading { align-items: center; gap: 1.5rem; margin-bottom: 28px; }
+.page-heading h1 { font-size: 2.5rem; line-height: 1.2; letter-spacing: -.04em; }
+.page-heading .subtitle { font-size: .9375rem; margin-top: .625rem; }
+.page-controls { display: flex; align-items: center; justify-content: flex-end; gap: 1rem; flex-wrap: wrap; }
+.page-controls .status-pill { white-space: nowrap; font-size: .8125rem; }
+.header-appearance .theme-control > label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.header-appearance [data-slot='select-trigger'], .display-scale-control [data-slot='select-trigger'] { height: 2.5rem; min-width: 5rem; font-size: .8125rem; border-radius: .75rem; background: var(--surface); }
+@media (max-width: 1350px) {
+  .app-shell { grid-template-columns: 210px minmax(0, 1fr); }
+  .workspace > main { padding: 28px; }
+  .page-controls { gap: .75rem; }
+  .page-controls .status-pill { flex-basis: 100%; justify-content: flex-end; padding: 0; }
+}
+@media (max-width: 900px) {
+  .app-shell { grid-template-columns: 180px minmax(0, 1fr); }
+  .sidebar { padding-inline: 12px; }
+  .workspace > main { padding: 24px; }
+  .page-heading { align-items: flex-start; flex-wrap: wrap; }
+  .page-controls { justify-content: flex-start; }
+  .page-controls .status-pill { flex-basis: auto; }
+}
+@media (max-width: 760px) {
+  .app-shell { display: block; }
+  .sidebar { position: static; height: auto; padding: 16px; }
+  .sidebar nav { margin-top: 16px; gap: 4px; }
+  .sidebar nav a { padding: 10px 6px; }
+  .workspace > main { padding: 24px 16px; }
+  .page-heading h1 { font-size: 2rem; }
+  .page-controls { gap: .75rem; }
+  .sidebar-note { display: none; }
+}
+.onboarding-shell { display: block; }

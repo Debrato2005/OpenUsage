@@ -8,6 +8,9 @@
   "local": true,
   "permissions": [
     "allow-bootstrap",
+    "allow-get-display-scale",
+    "allow-set-display-scale",
+    "allow-load-profile-plan",
     "allow-load-monitoring",
     "allow-start-profile-monitoring",
     "allow-pause-profile-monitoring",

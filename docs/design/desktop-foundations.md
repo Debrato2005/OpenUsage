@@ -133,3 +133,15 @@ Native review exposed the original Cancel document-order fault and competing sav
 Start and Pause stay under Manage profile. One workspace status poll updates all controls. A committed reading revision refreshes saved values without moving focus. Pause remains available during a scheduled read or a status-load failure. Restart shows saved readings with disabled Start and sign-in guidance. Eight reviewed native captures cover normal and enlarged text, both themes, keyboard Pause, and retained focus. See `../evidence/native-runtime-monitoring/`.
 
 The October 21 native check measured 16-pixel body/button text, 48-pixel primary controls, 10-pixel control corners, and 16-pixel panel corners. The Accounts view reflowed at 360 pixels without page overflow. Both native themes were inspected. See [the startup and readability evidence](../evidence/native-startup-snapshot/). Overview simplification and full accessibility acceptance remain open.
+
+## Reference overview composition — October 21, 2026
+
+The supplied dashboard image sets the composition: sidebar, selected account, two chart areas, then an account table. Its cross-account shares, totals and comparison percentages are not supported product data. OpenUsage instead shows the selected account's provider quota and saved daily activity. Missing daily data has an empty state. Accounts retain separate local associations.
+
+The native audit found 16px body text already active. The larger problems were repeated provenance paragraphs, separate summary strips, a capped workspace, and account actions in another view. The new layout uses the available window width, DM Sans, tabular numbers, compact summaries and secondary exact-value details. It reflows at the dashboard container's width. Account actions reuse the existing selected-profile authentication and collection controls.
+
+The coss/Base UI controls retain keyboard behavior and focus states. Reference research included [coss components](https://coss.com/ui), [Linear's interface redesign](https://linear.app/now/how-we-redesigned-the-linear-ui), Raycast's keyboard-first interaction, and the pinned OpenQuota dashboard source listed in the onboarding review. No competitor authentication or credential parsing was adopted.
+
+Display scale uses Tauri's native webview zoom rather than CSS text enlargement. The seven allowed values persist in a Rust-owned private device configuration file, `display-scale.v1`. This nonsecret display calibration works before database unlock and stays outside portable account records/backups. SQLCipher schema and WAL handling are unchanged. Invalid values or unsafe files are refused; a failed save restores the prior zoom. Cross-platform release qualification remains separate.
+
+Plan labels come from saved provider evidence for the exact current profile/binding. They are descriptive evidence, not verified identity or a new live provider request. Large counts use presentation-only compact/scientific formatting on `BigInt`; exact decimal strings remain in titles and keyboard-accessible details. No totals or quota arithmetic were moved out of Rust.
