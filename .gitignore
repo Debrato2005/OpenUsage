@@ -41,3 +41,13 @@ database-key.v1
 # Python tooling caches.
 __pycache__/
 *.py[cod]
+
+# Private acceptance records stay local; signed public provenance is explicit.
+docs/evidence/
+design-qa.md
+docs/master-build-prompt.md
+tests/native/recovery-artifact-audit.json
+crates/openusage-codex/tests/evidence/*
+!crates/openusage-codex/tests/evidence/codex-0.163.0-linux-x86_64.sigstore.json
+!crates/openusage-codex/tests/evidence/official-codex-0.163.0-source.json
+!crates/openusage-codex/tests/evidence/verify-official-codex.cjs
