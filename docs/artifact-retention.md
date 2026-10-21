@@ -13,3 +13,11 @@ Git commits preserve source history. Small verification receipts record the prod
 These rules apply on Windows, macOS and Linux through Git and the platform's build tools. The current recovery freeze helper is for the Linux/WSL build workflow; it does not establish Windows/macOS build acceptance. No remote publication is permitted by this policy.
 
 The October 21 cleanup retired obsolete desktop binaries, duplicate installer/package staging, redundant Git bundles and 94 clean worktrees. Their commits remain in local Git; required database/backup evidence remains in the canonical checkout. Dirty worktrees and current/rollback binaries were preserved. Exact local measurements are in `.recovery/audit/p0-*.json`.
+
+## Disk checks and disposable diagnostics
+
+`python3 scripts/storage.py check --warn-gib 10` reports repository allocation and warns above the configurable threshold. `--strict` makes a warning fail a CI check. Filesystem free space is reported separately.
+
+`python3 scripts/storage.py clean` previews cleanup; add `--apply` to remove only eligible, completed diagnostic runs under `.recovery/diagnostics`. Defaults are seven days, ten runs and 512 MiB. Change them with `--days`, `--count` and `--max-mib`. Active runs, `.keep`, pinned markers, unsafe links, source, credentials, databases and backups are preserved even when limits are exceeded. This command does not delete Cargo targets, worktrees or acceptance evidence.
+
+Python diagnostic producers can use `scripts.storage.diagnostic_run(root, label)` as a context manager. It marks the run active, records completion in `finally`, then applies bounded retention after releasing the lifecycle lock. Forced process termination cannot run Python cleanup; unknown/active remnants require review. Native fixtures separately clean their own repository-private workspace on normal teardown and setup failure. Hosted CI has a finite job timeout and disposable runner storage.

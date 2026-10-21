@@ -1,0 +1,39 @@
+name: Storage policy
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/**'
+      - 'tests/tools/**'
+      - 'Cargo.toml'
+      - '.gitignore'
+      - '.github/workflows/storage-policy.yml'
+      - 'docs/artifact-retention.md'
+      - 'CONTRIBUTING.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  storage-policy:
+    name: Storage tooling (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6; official ref verified
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6; official ref verified
+        with:
+          python-version: '3.12'
+      - name: Test storage policy
+        run: python -m unittest discover -s tests/tools -p "test_storage.py"
+      - name: Check repository storage
+        run: python scripts/storage.py check --warn-gib 10

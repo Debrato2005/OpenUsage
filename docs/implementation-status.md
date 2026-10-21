@@ -10,6 +10,12 @@ Updated: October 21, 2026. OpenUsage remains in development. The normative [SRS]
 - Rust owns persistence, provider execution, authentication, scheduling, exact counts and IPC validation. SQLCipher 4/WAL protects application records. OS-backed database keys are used where available; the preserved WSL workspace uses its required fallback password because its session key store is unavailable. Provider keyring support remains incomplete.
 - Runtime monitoring, manual refresh cooldown, provider backoff, saved daily activity, current quota/reset assessments, current-reading CSV/JSON export, encrypted authenticated backups, confirmed restore and Undo are implemented within their recorded Linux scopes.
 
+## Development storage and publication checks
+
+The P0 cleanup reduced the measured workspace from 78.578 to 8.112 GiB while preserving Git history, dirty source, protected data and essential evidence. Obsolete executable copies, 94 clean worktrees, redundant bundles and verified staging/cache copies were retired. Their historical receipts do not qualify a newly rebuilt application. Source preservation refs retain uncommitted work without changing its real indexes.
+
+Normal freezing now records provenance only; retained binaries are explicit and capped. Repository-private native fixtures clean setup failures and normal teardown. The storage command checks allocation and safely previews/applies bounded, marker-owned diagnostic cleanup. Sixteen storage tests passed on Linux. Two consecutive renderer builds retained identical 2,457,600-byte outputs; three synthetic private D-Bus fixture cycles left no additional workspace. Cross-platform CI is defined but has not run. No Rust rebuild was performed to recreate deleted caches. See [contributor instructions](../CONTRIBUTING.md) and [retention policy](artifact-retention.md).
+
 ## Latest verified slice
 
 Overview, Usage and Settings are the only primary pages. Account actions use a contextual dialog. Overview shows both reported quota windows together and keeps Refresh on the same page, with selected-account progress, visible cooldown and actionable errors. Settings retains account renaming, archiving and recovery. Dark appearance uses VS Code-inspired true-black colors. No plan-derived windows or aggregate values are invented.
