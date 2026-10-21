@@ -342,8 +342,8 @@ main { max-width: 1280px; padding: var(--space-6); margin: 0 auto; }
 .quota-values dd { margin: var(--space-1) 0 0; }
 .quota-source-details { color: var(--muted); font-size: var(--text-sm); }
 
-[data-slot='button'] { min-width: 0; max-width: 100%; min-height: 48px; height: auto; font-size: var(--text-body); white-space: normal; box-shadow: none; transition: none; }
-[data-slot='button']::before { box-shadow: none; }
+.coss-button { min-width: 0; max-width: 100%; min-height: 48px; height: auto; font-size: var(--text-body); white-space: normal; box-shadow: none; transition: none; }
+.coss-button::before { box-shadow: none; }
 [data-slot='input-control'], [data-slot='textarea-control'] { min-width: 0; border-color: var(--control-border); border-radius: var(--radius-control); background: var(--surface); color: var(--text); font-size: var(--text-body); box-shadow: none; transition: none; }
 [data-slot='input-control']::before, [data-slot='textarea-control']::before { box-shadow: none; }
 [data-slot='input'], [data-slot='textarea'] { width: 100%; min-width: 0; min-height: 48px; padding: var(--space-2) var(--space-3); border: 0; font: inherit; line-height: var(--leading-body); }

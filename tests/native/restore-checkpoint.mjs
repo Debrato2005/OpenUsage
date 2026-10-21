@@ -83,12 +83,14 @@ async function capture(name,selector,width=1280,height=850) {
   await resize(width,height);
   await driver.execute('document.querySelector(arguments[0]).scrollIntoView({block:"center"});return true;',[selector]);
   const view=await driver.execute('const panel=document.querySelector(arguments[0]);return{width:innerWidth,height:innerHeight,scrollWidth:document.scrollingElement.scrollWidth,focus:document.activeElement?.className,text:panel.textContent,overflow:[panel,...panel.querySelectorAll("*")].filter(node=>{const header=node.closest("thead");if(header&&getComputedStyle(header).clipPath!=="none")return false;const r=node.getBoundingClientRect();return r.width>1&&r.height>1&&(r.left< -1||r.right>innerWidth+1)}).map(node=>node.tagName)}',[selector]);
+  if(view.scrollWidth>width+1)view.globalOverflow=await driver.execute('return [...document.querySelectorAll("body *")].filter(node=>{const style=getComputedStyle(node),r=node.getBoundingClientRect();return style.clipPath==="none"&&r.width>1&&r.height>1&&(r.left< -1||r.right>innerWidth+1)}).map(node=>{const r=node.getBoundingClientRect(),s=getComputedStyle(node);return{tag:node.tagName,id:node.id,class:typeof node.className==="string"?node.className:"",left:r.left,right:r.right,width:r.width,fontSize:s.fontSize,whiteSpace:s.whiteSpace,minWidth:s.minWidth}});');
+  evidence.views.push({name,...view});
+  await driver.screenshot(join(output,name));evidence.screenshots.push(name);
   assert.equal(view.width,width);assert.equal(view.height,height);assert.ok(view.scrollWidth<=width+1);assert.deepEqual(view.overflow,[]);
   const comparisonWords=await driver.execute('const words=[];for(const header of document.querySelectorAll(".restore-comparison th,.comparison-label")){const hiddenHeader=header.closest("thead");if(header.getBoundingClientRect().width<2||(hiddenHeader&&getComputedStyle(hiddenHeader).clipPath!=="none"))continue;const walker=document.createTreeWalker(header,NodeFilter.SHOW_TEXT);while(walker.nextNode()){const node=walker.currentNode;for(const match of node.textContent.matchAll(/[A-Za-z]+/g)){const range=document.createRange();range.setStart(node,match.index);range.setEnd(node,match.index+match[0].length);words.push({word:match[0],lines:[...new Set([...range.getClientRects()].filter(rect=>rect.width>0).map(rect=>Math.round(rect.top)))]});}}}return words;');
   (evidence.comparisonWordChecks??=[]).push({name,words:comparisonWords});
   assert.deepEqual(comparisonWords.filter(item=>item.lines.length>1),[],'Visible comparison words must remain whole at every captured viewport.');
   await fontDiagnostic(`capture:${name}`);
-  await driver.screenshot(join(output,name));evidence.screenshots.push(name);evidence.views.push({name,...view});
 }
 async function enlargedText() {
   await resize(360,800);

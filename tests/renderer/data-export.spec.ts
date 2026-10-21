@@ -49,6 +49,21 @@ async function publish(page: Page, value: unknown = receipt) {
   await page.evaluate(value => (window as unknown as FixtureWindow).exportFixture.resolve!(value), value);
 }
 
+test('export trigger wraps at 200% text in a narrow window and remains keyboard operable', async ({ page }) => {
+  await open(page);
+  const toggle = page.locator('[data-export-toggle]');
+  await toggle.click();
+  await page.setViewportSize({ width: 360, height: 800 });
+  await page.evaluate(() => {
+    const sizes = [...document.body.querySelectorAll<HTMLElement>('*')].map(element => [element, parseFloat(getComputedStyle(element).fontSize)] as const);
+    for (const [element, size] of sizes) element.style.fontSize = `${size * 2}px`;
+  });
+  expect(await page.evaluate(() => document.scrollingElement!.scrollWidth)).toBeLessThanOrEqual(361);
+  expect(await toggle.evaluate(element => element.getBoundingClientRect().right)).toBeLessThanOrEqual(361);
+  await toggle.focus(); await page.keyboard.press('Enter');
+  await expect(page.getByRole('form', { name: 'Saved readings export' })).toBeVisible();
+});
+
 test('keyboard consent gates one CSV save, defaults omit identifiers, and focused receipt reports zero rows honestly', async ({ page }) => {
   await open(page);
   await expect(page.locator('[data-export-profile]')).toHaveCount(2);
