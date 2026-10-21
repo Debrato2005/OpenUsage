@@ -1,7 +1,7 @@
 #![cfg(unix)]
 
 use openusage_import::{Entry, Manifest, encrypt};
-use openusage_storage::{Storage, Theme};
+use openusage_storage::{CURRENT_SCHEMA_VERSION, Storage, Theme};
 use rusqlite::Connection;
 use serde_json::{Value, json};
 use std::{
@@ -83,7 +83,7 @@ fn execute(path: &Path, staging: &Path, input: &[u8]) -> Output {
 }
 
 #[test]
-fn exported_schema_four_requires_matching_explicit_manifest_and_database_versions() {
+fn exported_current_schema_requires_matching_explicit_manifest_and_database_versions() {
     let root = Temporary(std::env::temp_dir().join(format!(
             "openusage-backup-schema-{}-{}",
             std::process::id(),
@@ -99,11 +99,16 @@ fn exported_schema_four_requires_matching_explicit_manifest_and_database_version
     let mut storage = Storage::create(&live, &[0x58; 32]).unwrap();
     storage.set_theme(Theme::Dark).unwrap();
     let snapshot_data = storage.backup_snapshot().unwrap();
-    assert_eq!(snapshot_data.schema_version, 4);
+    assert_eq!(snapshot_data.schema_version, CURRENT_SCHEMA_VERSION);
     assert!(!fs::read(&live).unwrap().starts_with(b"SQLite format 3\0"));
     let password = "OpenUsage synthetic backup schema password";
-    let valid = root.0.join("schema4.oubackup");
-    archive(&valid, 4, &snapshot_data.bytes, password.as_bytes());
+    let valid = root.0.join("current-schema.oubackup");
+    archive(
+        &valid,
+        CURRENT_SCHEMA_VERSION,
+        &snapshot_data.bytes,
+        password.as_bytes(),
+    );
     let wrong_manifest = root.0.join("manifest1.oubackup");
     archive(
         &wrong_manifest,
@@ -126,10 +131,15 @@ fn exported_schema_four_requires_matching_explicit_manifest_and_database_version
     database.pragma_update(None, "user_version", 1).unwrap();
     let old_schema = Zeroizing::new(database.serialize("main").unwrap().to_vec());
     let wrong_database = root.0.join("database1.oubackup");
-    archive(&wrong_database, 4, &old_schema, password.as_bytes());
+    archive(
+        &wrong_database,
+        CURRENT_SCHEMA_VERSION,
+        &old_schema,
+        password.as_bytes(),
+    );
     drop(database);
     let before = snapshot(&root.0);
-    let request = json!({"password":password, "expectedSchemaVersion":4});
+    let request = json!({"password":password, "expectedSchemaVersion":CURRENT_SCHEMA_VERSION});
     let accepted = execute(&valid, &staging, &serde_json::to_vec(&request).unwrap());
     assert!(
         accepted.status.success(),
@@ -139,7 +149,7 @@ fn exported_schema_four_requires_matching_explicit_manifest_and_database_version
     let report: Value = serde_json::from_slice(&accepted.stdout).unwrap();
     assert_eq!(
         report,
-        json!({"authenticated":true,"wrongPasswordRejected":true,"tamperRejected":true,"schemaVersion":4,"profiles":0,"plaintextDiskStaging":false})
+        json!({"authenticated":true,"wrongPasswordRejected":true,"tamperRejected":true,"schemaVersion":CURRENT_SCHEMA_VERSION,"profiles":0,"plaintextDiskStaging":false})
     );
     assert!(
         snapshot(&root.0) == before,

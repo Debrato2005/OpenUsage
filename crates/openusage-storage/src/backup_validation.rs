@@ -185,7 +185,7 @@ pub(crate) fn with_validated_snapshot<T, E: From<BackupValidationError>>(
 
 pub(crate) fn supported_schema_version(version: u32) -> bool {
     // A later migration must add explicit content/copy support before becoming restorable.
-    matches!(version, 1..=4) && version <= CURRENT_SCHEMA_VERSION
+    matches!(version, 1..=5) && version <= CURRENT_SCHEMA_VERSION
 }
 
 fn validate_size(size: u64) -> Result<()> {
@@ -330,6 +330,9 @@ pub(crate) fn validate_schema_connection(
             if manifest_version >= 4 {
                 crate::quota_resets::validate(connection, schema)
                     .map_err(|_| BackupValidationError::InvalidDatabase)?;
+            }
+            if manifest_version >= 5 {
+                crate::alerts::validate(connection, schema)?;
             }
         }
     }
@@ -553,6 +556,16 @@ pub(crate) fn copy_activity_records(
                 )
                 .map_err(sql_error)?;
         }
+    }
+    if version >= 5 {
+        copy_fields(
+            source,
+            target,
+            schema,
+            "alert_events",
+            crate::alerts::ALERT_COLUMNS,
+            crate::alerts::ALERT_COLUMNS,
+        )?;
     }
     Ok(())
 }
@@ -987,6 +1000,7 @@ pub(crate) fn activity_records(connection: &Connection) -> Vec<Vec<Vec<rusqlite:
         "current_quota_readings",
         "current_quota",
         "quota_reset_assessments",
+        "alert_events",
     ]
     .into_iter()
     .map(|table| {

@@ -15,8 +15,10 @@ pub use profiles::{ProfileConnectionState, ProfileEnvironment, ProfileError, Pro
 mod quota;
 mod quota_history;
 pub use quota_history::QuotaHistoryPage;
+mod alerts;
 mod quota_resets;
 mod quota_validation;
+pub use alerts::{AlertDeliveryState, AlertEvent, AlertHistory};
 pub use quota::*;
 pub use quota_resets::{QuotaResetAssessment, QuotaResetState, QuotaWindowRole};
 mod collection;
@@ -40,6 +42,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("schema_v2.sql"),
     include_str!("schema_v3.sql"),
     include_str!("schema_v4.sql"),
+    include_str!("schema_v5.sql"),
 ];
 pub const CURRENT_SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
 const MAX_BACKUP_SNAPSHOT_SIZE: u64 = 5 * 1024 * 1024 * 1024;

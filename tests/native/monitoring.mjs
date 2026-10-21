@@ -15,16 +15,16 @@ const application = resolve(process.env.OPENUSAGE_NATIVE_BINARY), verifier = res
 const output = resolve(process.env.OPENUSAGE_NATIVE_EVIDENCE ?? join('/tmp', `openusage-monitoring-${randomUUID()}`));
 const providerPath = 'crates/openusage-codex/tests/fixtures/synthetic-collection-provider.py';
 const providerSha = '53a853b737ceca311649e9f1d9ebd1341154a5f782efd8e915f7f834c819a6dc';
-const oracleSha = 'd4dcc3c1bce797976546b110a340f7a46aa922fded0fd2ba14459d1f54b3a1fb';
+const oracleSha = '50505102ebf5239bc5dd05182e7827dc5746c5c38611900729d4bd02f000079c';
 const passphrase = 'OpenUsage synthetic native monitoring workspace 2026';
 const hash = async path => createHash('sha256').update(await readFile(path)).digest('hex');
 const diagnostic = process.env.OPENUSAGE_MONITORING_STATUS_DIAGNOSTIC === '1';
 const restoreRace = process.env.OPENUSAGE_MONITORING_RESTORE_RACE === '1';
 const readingsExport = process.env.OPENUSAGE_NATIVE_READINGS_EXPORT === '1';
-const exportScope = 'Actual native CSV/JSON export of selected latest saved synthetic readings. GUI privacy consent, profile selection, identifier opt-in, exact numeric strings, null values, provenance, CSV quoting and refusal of a known formula prefix, private files, strict IPC refusal, sixteen-table and database/WAL/key preservation, and genuine restart. Daily/credit history is not populated; no universal spreadsheet safety, live provider, all-history export, aggregation, encryption, or platform qualification.';
+const exportScope = 'Actual native CSV/JSON export of selected latest saved synthetic readings. GUI privacy consent, profile selection, identifier opt-in, exact numeric strings, null values, provenance, CSV quoting and refusal of a known formula prefix, private files, strict IPC refusal, seventeen-table and database/WAL/key preservation, and genuine restart. Daily/credit history is not populated; no universal spreadsheet safety, live provider, all-history export, aggregation, encryption, or platform qualification.';
 const evidence = {
   requirement: readingsExport ? 'NATIVE-SAVED-READINGS-EXPORT-001' : 'NATIVE-RUNTIME-MONITORING-001', result: 'failed', startedAt: new Date().toISOString(),
-  scope: readingsExport ? exportScope : 'Actual native synthetic login and explicit Start/Pause; a real 300-second scheduled interval, one accepted scheduled pair, an independent manual pair, and one pending scheduled pair cancelled before COMMIT. Independent encrypted-copy checks cover every column in sixteen schema-4 tables. Runtime eligibility is not inferred from saved connection status, a provider-owned synthetic marker, or metric bindings. No live authentication, real credentials, verified identity, populated daily or credit history, sleep injection, crash durability, OS scaling, or release-platform qualification.',
+  scope: readingsExport ? exportScope : 'Actual native synthetic login and explicit Start/Pause; a real 300-second scheduled interval, one accepted scheduled pair, an independent manual pair, and one pending scheduled pair cancelled before COMMIT. Independent encrypted-copy checks cover every column in seventeen schema-5 tables. Runtime eligibility is not inferred from saved connection status, a provider-owned synthetic marker, or metric bindings. No live authentication, real credentials, verified identity, populated daily or credit history, sleep injection, crash durability, OS scaling, or release-platform qualification.',
   steps: [], screenshots: [], oracles: [], closes: [],
 };
 let fixture, driver, workspace, executable, approvalId, sequence = 0;
@@ -52,7 +52,7 @@ function corroboratePair(before, after, profile, reading) {
   const summary = after.tables.activity_summaries.find(row => row.id === reading.activity.collectionRunId); assert.ok(summary);
   assert.equal(summary.lifetime_tokens, reading.activity.summary.lifetimeTokens); assert.equal(summary.peak_daily_tokens, reading.activity.summary.peakDailyTokens);
   const quota = after.tables.quota_limits.find(row => row.collection_run_id === reading.quota.collectionRunId && row.limit_id === 'codex'); assert.ok(quota); assert.equal(String(quota.primary_used_percent), '25');
-  for (const name of ['collection_runs', 'activity_summaries', 'activity_day_history', 'quota_snapshots', 'quota_limits', 'credit_snapshots', 'quota_reset_assessments']) for (const row of before.tables[name]) assert.ok(after.tables[name].some(current => JSON.stringify(current) === JSON.stringify(row)), `Immutable ${name} history must remain unchanged.`);
+  for (const name of ['collection_runs', 'activity_summaries', 'activity_day_history', 'quota_snapshots', 'quota_limits', 'credit_snapshots', 'quota_reset_assessments', 'alert_events']) for (const row of before.tables[name]) assert.ok(after.tables[name].some(current => JSON.stringify(current) === JSON.stringify(row)), `Immutable ${name} history must remain unchanged.`);
 }
 async function liveHashes() { const result = {}; for (const path of [fixture.database, `${fixture.database}-wal`, join(workspace, 'database-key.v1')]) try { result[path] = await hash(path); } catch (error) { if (error.code !== 'ENOENT') throw error; } return result; }
 async function oracle(label) {
@@ -63,9 +63,9 @@ async function oracle(label) {
     try { await copyFile(`${fixture.database}-wal`, `${database}-wal`); await chmod(`${database}-wal`, 0o600); } catch (error) { if (error.code !== 'ENOENT') throw error; }
     const report = JSON.parse(execFileSync(verifier, ['database', database, join(workspace, 'database-key.v1'), '--profile-state'], { input: JSON.stringify({ passphrase }), env: fixture.environment, encoding: 'utf8', timeout: 60000, maxBuffer: 16 * 1024 * 1024 }));
     for (const key of ['verified', 'readOnly', 'encryptedPagesAuthenticated', 'originalProtectedKeyUsed', 'inputUnchanged', 'keyEnvelopeUnchanged', 'walRecordsUnchanged']) assert.equal(report[key], true, key);
-    assert.equal(report.schemaVersion, 4); assert.equal(report.plaintextDiskStaging, false); assert.equal(Object.keys(report.state.tables).length, 16);
+    assert.equal(report.schemaVersion, 5); assert.equal(report.plaintextDiskStaging, false); assert.equal(Object.keys(report.state.tables).length, 17);
     assert.deepEqual(await liveHashes(), original);
-    evidence.oracles.push({ label, actualSchemaVersion: 4, allSixteenTables: Object.fromEntries(Object.entries(report.state.tables).map(([name, rows]) => [name, { rows: rows.length, sha256: createHash('sha256').update(JSON.stringify(rows)).digest('hex') }])), derivedEncryptedCopy: true, persistentStateIsNotRuntimeMonitoringStatus: true, verification: { ...report, state: undefined } });
+    evidence.oracles.push({ label, actualSchemaVersion: 5, allSeventeenTables: Object.fromEntries(Object.entries(report.state.tables).map(([name, rows]) => [name, { rows: rows.length, sha256: createHash('sha256').update(JSON.stringify(rows)).digest('hex') }])), derivedEncryptedCopy: true, persistentStateIsNotRuntimeMonitoringStatus: true, verification: { ...report, state: undefined } });
     return report.state;
   } finally { await rm(copy, { recursive: true, force: true }); }
 }
@@ -73,7 +73,7 @@ async function open(setup = false) {
   driver = new NativeDriver(application, fixture.environment, join(output, `driver-${++sequence}.log`)); await driver.start();
   await waitFor(async () => driver.execute('const input=document.querySelector("#workspace-passphrase");return Boolean(input&&!input.disabled&&(!arguments[0]||document.querySelector("#workspace-confirmation")));', [setup]), 'native unlock fields');
   await driver.type('#workspace-passphrase', passphrase); if (setup) await driver.type('#workspace-confirmation', passphrase); await driver.click('.unlock-form button[type=submit]');
-  await waitFor(async () => (await driver.invoke('bootstrap')).value?.storage === 'ready', 'unlocked monitoring workspace'); assert.equal((await call('bootstrap')).schemaVersion, 4);
+  await waitFor(async () => (await driver.invoke('bootstrap')).value?.storage === 'ready', 'unlocked monitoring workspace'); assert.equal((await call('bootstrap')).schemaVersion, 5);
 }
 async function ownedPid() { const queue = [driver.child.pid]; for (let count = 0; queue.length && count < 64; count++) { const pid = queue.shift(); try { if (await readlink(`/proc/${pid}/exe`) === application) return pid; queue.push(...(await readFile(`/proc/${pid}/task/${pid}/children`, 'utf8')).trim().split(/\s+/).filter(Boolean).map(Number)); } catch (error) { if (error.code !== 'ENOENT') throw error; } } assert.fail('No owned frozen desktop process.'); }
 async function closeNormally() { const pid = await ownedPid(); evidence.closes.push(JSON.parse(execFileSync('/usr/bin/python3', [join(harness, 'x11-close.py'), String(pid)], { env: fixture.environment, encoding: 'utf8', timeout: 10000 }))); await waitFor(async () => { try { await readlink(`/proc/${pid}/exe`); return false; } catch (error) { if (error.code === 'ENOENT') return true; throw error; } }, 'normal native exit joins scheduler'); driver.session = undefined; await driver.stop(); driver = undefined; }
@@ -218,10 +218,10 @@ async function exportSavedReadings(first, other, initialKeyHash, initialSentinel
   await waitFor(async () => driver.execute('return document.activeElement===document.querySelector("[data-export-error]");'), 'unsafe formula-like CSV text refused with actionable GUI error');
   assert.match(await driver.execute('return document.querySelector("[data-export-error]").textContent;'), /JSON/); assert.deepEqual(await files(), beforeUnsafe, 'A refused CSV must leave no published or temporary file.'); await unchecked(); await capture('readings-unsafe-csv-refused.png', '[data-export-error]');
   assert.deepEqual(await driver.invoke('export_saved_readings', { profileIds: [first.id], format: 'csv', includeIdentifiers: true, confirmed: true }), { ok: false, error: 'export_unsafe_text' }); assert.deepEqual(await files(), beforeUnsafe);
-  assert.deepEqual(await liveHashes(), bytesBefore); assert.deepEqual(await oracle('sixteen tables unchanged by default CSV, identifier JSON and unsafe CSV refusal'), before); assert.deepEqual(await homes(), homesBefore); assert.deepEqual([await appStarts(first), await appStarts(other)], startsBefore);
+  assert.deepEqual(await liveHashes(), bytesBefore); assert.deepEqual(await oracle('seventeen tables unchanged by default CSV, identifier JSON and unsafe CSV refusal'), before); assert.deepEqual(await homes(), homesBefore); assert.deepEqual([await appStarts(first), await appStarts(other)], startsBefore);
   await renameFirst(normalLabel); const quotedBefore = await oracle('after explicit quoted-label rename before CSV export'), quotedBytes = await liveHashes(); await options(); await unchecked();
   await save('csv', 1, true, 'readings-csv-quoted-text');
-  assert.deepEqual(await liveHashes(), quotedBytes); assert.deepEqual(await oracle('all sixteen tables unchanged by quoted CSV export'), quotedBefore);
+  assert.deepEqual(await liveHashes(), quotedBytes); assert.deepEqual(await oracle('all seventeen tables unchanged by quoted CSV export'), quotedBefore);
   const valid = { profileIds: [first.id], format: 'csv', includeIdentifiers: false, confirmed: true }, completedFiles = await files();
   for (const [args, error] of [
     [{ ...valid, destination: directory }, 'invalid_arguments'], [{ ...valid, confirmed: false }, 'invalid_arguments'], [{ ...valid, format: 'xml' }, 'invalid_arguments'],
@@ -239,13 +239,13 @@ async function exportSavedReadings(first, other, initialKeyHash, initialSentinel
   await options(); await unchecked(); assert.equal(await driver.execute('return document.querySelector("#reading-export-identifiers").getAttribute("aria-checked");'), 'false'); assert.deepEqual(await files(), completedFiles); for (const item of evidence.exports) assert.equal(await hash(join(directory, item.fileName)), item.sha256);
   assert.deepEqual(await readdir(fixture.dirs.codex), ['synthetic-fixture.txt']); assert.equal(await hash(join(fixture.dirs.codex, 'synthetic-fixture.txt')), initialSentinelHash); assert.equal(await hash(join(workspace, 'database-key.v1')), initialKeyHash); assert.equal(await hash(application), evidence.application.sha256); assert.equal(await hash(executable), providerSha);
   await capture('readings-export-restart-private-defaults.png', '[data-reading-export]');
-  evidence.steps.push({ actualGuiFiles: 3, defaultCsvOmitsIdentifiers: true, selectedJsonPreservesExactNumericStringsAndNulls: true, knownFormulaPrefixCsvRefusedWithoutOutput: true, csvQuotingPreservesSourceText: true, explicitUncheckedConsentRequired: true, invalidSelectionsCreateNoFiles: true, latestReadingsOnlyNoAggregation: true, allSixteenTablesAndLiveDatabaseWalKeyUnchangedByEachExportGroup: true, explicitGuiRenamesComparedSeparately: true, genuineRestartWithoutProviderApproval: true, privateSyntheticHomesUnchanged: true });
+  evidence.steps.push({ actualGuiFiles: 3, defaultCsvOmitsIdentifiers: true, selectedJsonPreservesExactNumericStringsAndNulls: true, knownFormulaPrefixCsvRefusedWithoutOutput: true, csvQuotingPreservesSourceText: true, explicitUncheckedConsentRequired: true, invalidSelectionsCreateNoFiles: true, latestReadingsOnlyNoAggregation: true, allSeventeenTablesAndLiveDatabaseWalKeyUnchangedByEachExportGroup: true, explicitGuiRenamesComparedSeparately: true, genuineRestartWithoutProviderApproval: true, privateSyntheticHomesUnchanged: true });
   await closeNormally();
 }
 
 async function restoreWhilePending(profile) {
   evidence.requirement = 'NATIVE-MONITORING-RESTORE-001';
-  evidence.scope = 'Actual native synthetic login, pending paired reads, rejected cancelled/missing tokens, confirmed GUI archive restore and GUI Undo. Every column in sixteen SQLCipher tables is compared, allowing only documented restored connection state, stopped monitoring, one bounded restore timestamp, and fresh private home mappings for archive restore. Undo retains the exact saved mappings. Daily and credit-history tables are empty. No live credentials, crash durability, or release-platform qualification.';
+  evidence.scope = 'Actual native synthetic login, pending paired reads, rejected cancelled/missing tokens, confirmed GUI archive restore and GUI Undo. Every column in seventeen SQLCipher tables is compared, allowing only documented restored connection state, stopped monitoring, one bounded restore timestamp, and fresh private home mappings for archive restore. Undo retains the exact saved mappings. Daily and credit-history tables are empty. No live credentials, crash durability, or release-platform qualification.';
   const password = 'OpenUsage synthetic restore race archive 2026';
   async function button(text) {
     const node = await driver.execute('return [...document.querySelectorAll("button")].find(node=>node.textContent.trim()===arguments[0]&&node.getClientRects().length);', [text]);
@@ -317,7 +317,7 @@ async function restoreWhilePending(profile) {
     assert.equal(after.state, 'running', 'An unknown or cancelled preview must not stop monitoring.');
     assert.equal(after.eligible, true, 'A rejected restore must not revoke the current login grant.');
     assert.equal(after.readingActive, true); assert.equal(after.readingRevision, previous.readingRevision); process.kill(child.pid, 0);
-    assert.deepEqual(await oracle('rejected token preserves all sixteen tables'), before);
+    assert.deepEqual(await oracle('rejected token preserves all seventeen tables'), before);
   }
   await capture('rejected-restore-retains-pending-read.png', pauseButton(profile));
   await driver.navigate('settings'); await button('Inspect a backup');
@@ -330,7 +330,7 @@ async function restoreWhilePending(profile) {
   const checkpoint = join(workspace, 'restore-checkpoints', `${checkpointId}.sqlite`), checkpointHash = await hash(checkpoint);
   assert.equal((await stat(checkpoint)).mode & 0o777, 0o600);
   assert.equal((await readFile(checkpoint)).subarray(0, 16).equals(Buffer.from('SQLite format 3\0')), false);
-  // Full checkpoint content is checked after actual Undo against all sixteen original state B tables.
+  // Full checkpoint content is checked after actual Undo against all seventeen original state B tables.
   const restored = await confirm(original, child, 'archive-restore', true);
   assert.equal(await hash(checkpoint), checkpointHash);
   await approve(profile); await login(profile); const undoChild = await pending();

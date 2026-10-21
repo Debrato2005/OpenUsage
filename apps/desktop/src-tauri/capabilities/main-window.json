@@ -21,6 +21,7 @@
     "allow-export-saved-readings",
     "allow-export-quota-history",
     "allow-list-profiles",
+    "allow-load-alert-history",
     "allow-create-profile",
     "allow-rename-profile",
     "allow-set-profile-archived",

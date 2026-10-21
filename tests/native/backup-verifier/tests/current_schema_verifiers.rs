@@ -1,6 +1,6 @@
 #![cfg(unix)]
 
-use openusage_storage::{Storage, Theme, keywrap::wrap_key};
+use openusage_storage::{CURRENT_SCHEMA_VERSION, Storage, Theme, keywrap::wrap_key};
 use serde_json::{Value, json};
 use std::{
     collections::BTreeMap,
@@ -110,7 +110,10 @@ fn current_schema_is_explicit_and_mismatch_refusal_preserves_the_synthetic_works
         .create(&home)
         .unwrap();
     let mut storage = Storage::create(&live, &key).unwrap();
-    assert_eq!(storage.metadata().unwrap().schema_version, 4);
+    assert_eq!(
+        storage.metadata().unwrap().schema_version,
+        CURRENT_SCHEMA_VERSION
+    );
     storage.set_theme(Theme::Dark).unwrap();
     storage
         .create_profile(id, "Synthetic current-schema profile", id)
@@ -129,7 +132,7 @@ fn current_schema_is_explicit_and_mismatch_refusal_preserves_the_synthetic_works
     );
     let request = json!({
         "passphrase": passphrase,
-        "expectedSchemaVersion": 4,
+        "expectedSchemaVersion": CURRENT_SCHEMA_VERSION,
         "expected": {"theme":"dark", "accounts":"0", "profiles":[{
             "id":id, "label":"Synthetic current-schema profile", "archived":false,
             "environment":"native", "connectionState":"authentication_required"
@@ -153,7 +156,7 @@ fn current_schema_is_explicit_and_mismatch_refusal_preserves_the_synthetic_works
             String::from_utf8_lossy(&accepted.stderr)
         );
         let report: Value = serde_json::from_slice(&accepted.stdout).unwrap();
-        assert_eq!(report["schemaVersion"], 4);
+        assert_eq!(report["schemaVersion"], CURRENT_SCHEMA_VERSION);
         for field in [
             "verified",
             "readOnly",
@@ -184,7 +187,7 @@ fn current_schema_is_explicit_and_mismatch_refusal_preserves_the_synthetic_works
         let refused = execute(binary, path, &envelope, &mismatch);
         assert!(
             !refused.status.success(),
-            "A schema-4 database must refuse expected schema 1."
+            "A current-schema database must refuse expected schema 1."
         );
         assert!(String::from_utf8_lossy(&refused.stderr).contains("schema version"));
         assert!(refused.stdout.is_empty());
@@ -265,7 +268,7 @@ fn current_schema_is_explicit_and_mismatch_refusal_preserves_the_synthetic_works
                 String::from_utf8_lossy(&output.stderr)
             );
             let report: Value = serde_json::from_slice(&output.stdout).unwrap();
-            assert_eq!(report["schemaVersion"], 4);
+            assert_eq!(report["schemaVersion"], CURRENT_SCHEMA_VERSION);
             for field in [
                 "verified",
                 "readOnly",
@@ -280,11 +283,12 @@ fn current_schema_is_explicit_and_mismatch_refusal_preserves_the_synthetic_works
             assert_eq!(report["plaintextDiskStaging"], false);
             let mut tables = report["state"]["tables"].as_object().unwrap().clone();
             if flag.is_none() {
-                assert_eq!(tables.len(), 13);
+                assert_eq!(tables.len(), 14);
+                assert_eq!(tables.get("alert_events"), Some(&json!([])));
                 assert!(!tables.contains_key("profiles"));
                 default_tables = Some(tables);
             } else {
-                assert_eq!(tables.len(), 16);
+                assert_eq!(tables.len(), 17);
                 let profiles = tables.remove("profiles").unwrap();
                 assert_eq!(profiles.as_array().unwrap().len(), 1);
                 let profile = &profiles[0];

@@ -10,7 +10,7 @@ Updated: October 22, 2026. OpenUsage remains in development. The normative [SRS]
 - The overview follows the supplied reference: selected account with quota/statistic tiles, account-share availability, combined-usage availability with explicitly selected-account activity, and a compact account list. DM Sans, accessible coss controls, both themes and persistent native display scaling are implemented. Unsupported data stays unavailable; no account-share totals or token quotas are invented.
 - Add creates isolated default-named profiles, up to 10 active accounts. Prominent per-account Sign in, Cancel, Retry/Reconnect and automatic initial collection use the selected profile. Routine onboarding uses a bundled pinned official companion without a manual path. Credentials remain provider-managed in separate homes.
 - Rust owns persistence, provider execution, authentication, scheduling, exact counts and IPC validation. SQLCipher 4/WAL protects application records. OS-backed database keys are used where available; the preserved WSL workspace uses its required fallback password because its session key store is unavailable. Provider keyring support remains incomplete.
-- Runtime monitoring, manual refresh cooldown, provider backoff, saved daily activity, current quota/reset assessments, current-reading CSV/JSON export, encrypted authenticated backups, confirmed restore and Undo are implemented within their recorded Linux scopes.
+- Runtime monitoring, manual refresh cooldown, provider backoff, saved daily activity, current quota/reset assessments, saved reset-event history, current-reading CSV/JSON export, encrypted authenticated backups, confirmed restore and Undo are implemented within their recorded Linux scopes.
 
 ## Development storage and publication checks
 
@@ -29,6 +29,8 @@ A security policy records reporting boundaries, the glib advisory and release ga
 The native notice inventory now maps all 486 locked registry packages to 288 exact deduplicated texts. Original notices and explicitly paired standard bodies retain their source grants. Archive checksums, license expressions, text hashes and both source mirrors pass verification. This preparation does not qualify a linked binary or replace its platform/system-library and MPL compliance checks.
 
 ## Latest verified slice
+
+Confirmed resets now create durable local events in the same transaction as the accepted quota reading. Schema 5 records only new confirmed generations, without replaying existing history during migration. Settings provides a bounded, read-only Alert history with exact source details and navigation to the event's account. These records do not send desktop notifications. All 283 Rust tests passed across the recorded workspace/storage runs, with one intentional child-only test ignored. Strict workspace Clippy, build/type checks, 45 contracts, 266 renderer cases and two current-schema oracle tests passed. The current production-configuration Linux build passed native alert history, populated alert-ledger archive restore/Undo/restart, backup-content refusal and GUI checkpoint recovery. The populated-ledger facet used confirmed typed native IPC; the checkpoint journey exercised GUI consent. All twelve alert columns, event IDs, protected key and source archives/checkpoints were preserved. These were private synthetic journeys, not live-provider, desktop-delivery, crash-durability or cross-platform qualification. Standalone verifier profiles now match the root's reduced-debug profiles to avoid a duplicate full-debug cache.
 
 Composed controls now retain the shared Button wrapping and sizing rules when a primitive replaces its `data-slot`. A regression reproduced the export-trigger overflow at 360px and 200% text in both renderer engines before the fix. Build/type checks, 44 contracts and all 256 renderer cases passed afterward. A fresh default production-configuration Linux build passed native authenticated backup export and checkpoint restore/recovery across genuine window closes, including stale-preview refusal, corrupt-copy refusal, preserved profile homes and enlarged-text reflow. Source and executable integrity checks passed. These journeys used isolated synthetic records, not real provider sessions, and do not establish crash durability or other-platform acceptance. Verification used the shared build output directly and retained only a provenance receipt, not another executable copy.
 
@@ -52,7 +54,7 @@ Confirmed archive restore and checkpoint recovery are implemented. Earlier nativ
 
 ## Still incomplete
 
-- Durable alerts, notification delivery, per-profile preferences and quiet hours.
+- Usage thresholds, desktop notification delivery, per-type enablement, per-profile preferences and quiet hours. Confirmed reset events are recorded locally; delivery remains incomplete.
 - Full activity-summary/history browsing, full activity-history/application export, retention and complete local deletion.
 - Subscription, promotion, billing, deadline and verified account-comparison requirements.
 - Real credential renewal/revocation acceptance, provider OS credential storage, safe browser callback isolation, and SIWC compatibility with both official usage operations.

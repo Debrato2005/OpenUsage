@@ -131,7 +131,8 @@ pub(crate) fn save(
     packet: &StoredQuota,
     previous: Option<&StoredQuota>,
 ) -> Result<()> {
-    for assessment in derive(packet, previous)? {
+    let assessments = derive(packet, previous)?;
+    for assessment in &assessments {
         connection
             .execute(
                 "INSERT INTO quota_reset_assessments VALUES (?1,?2,?3,?4,?5,?6,?7,?8)",
@@ -148,6 +149,7 @@ pub(crate) fn save(
             )
             .map_err(write_error)?;
     }
+    crate::alerts::record(connection, packet, &assessments)?;
     Ok(())
 }
 

@@ -115,7 +115,8 @@ impl Workspace {
 }
 
 fn validate_selection(mode: &str, period_days: u16) -> Result<(), CommandError> {
-    if !matches!(mode, "daily" | "weekly" | "cumulative") || !matches!(period_days, 30 | 90 | 180 | 365)
+    if !matches!(mode, "daily" | "weekly" | "cumulative")
+        || !matches!(period_days, 30 | 90 | 180 | 365)
     {
         return Err(CommandError::InvalidArguments);
     }

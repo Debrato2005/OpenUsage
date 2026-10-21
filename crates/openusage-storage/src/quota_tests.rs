@@ -363,6 +363,9 @@ mod migration_tests;
 
 #[path = "quota_reset_tests.rs"]
 mod reset_tests;
+
+#[path = "alert_tests.rs"]
+mod alert_tests;
 #[test]
 fn quota_first_exact_nullable_packet_reopens_and_is_readable_when_archived() {
     let (dir, mut storage, r) = fixture();

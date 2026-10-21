@@ -13,6 +13,20 @@ function desktopResponse(value) {
   globalThis.window = { __TAURI__: { core: { invoke: async () => value } } };
 }
 
+test('alert history accepts saved reset evidence and refuses leaked fields or false delivery claims', async () => {
+  const event = { id: '11111111-1111-4111-8111-111111111111', profileId: '22222222-2222-4222-8222-222222222222', profileLabel: 'Account A', kind: 'quota_reset', limitId: 'codex', windowRole: 'primary', windowDurationMins: 300, evidenceAtUtc: '2026-10-22T08:00:00.000Z', sourceKind: 'official_artifact', deliveryState: 'recorded' };
+  const valid = { events: [event], truncated: false };
+  desktopResponse(valid); assert.deepEqual(await invoke('load_alert_history'), valid);
+  desktopResponse({ events: [], truncated: false }); assert.deepEqual(await invoke('load_alert_history'), { events: [], truncated: false });
+  for (const fields of [{ id: '../unsafe' }, { profileId: [] }, { profileLabel: '' }, { profileLabel: 'private\nlabel' }, { kind: 'usage_threshold' }, { limitId: '' }, { windowRole: ['primary'] }, { windowDurationMins: 0 }, { windowDurationMins: Number.MAX_SAFE_INTEGER + 1 }, { evidenceAtUtc: '2026-02-30T08:00:00.000Z' }, { sourceKind: 'unknown' }, { deliveryState: 'delivered' }, { eventKey: 'private identity' }]) {
+    desktopResponse({ events: [{ ...event, ...fields }], truncated: false });
+    await assert.rejects(invoke('load_alert_history'), /desktop response is incompatible/);
+  }
+  for (const value of [{ ...valid, credentials: 'must never reach the renderer' }, { ...valid, truncated: true }, { events: [event, event], truncated: false }, { events: Array.from({ length: 101 }, () => event), truncated: true }]) {
+    desktopResponse(value); await assert.rejects(invoke('load_alert_history'), /desktop response is incompatible/);
+  }
+});
+
 afterEach(() => { delete globalThis.window; });
 
 test('accepts valid native bootstrap states without changing missing values', async () => {

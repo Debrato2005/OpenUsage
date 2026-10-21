@@ -7,6 +7,14 @@ publish = false
 
 [workspace]
 
+[profile.dev]
+debug = 1
+incremental = false
+
+[profile.test]
+debug = 1
+incremental = false
+
 [dependencies]
 openusage-import = { path = "../../../crates/openusage-import" }
 openusage-storage = { path = "../../../crates/openusage-storage" }

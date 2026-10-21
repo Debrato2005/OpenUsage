@@ -63,7 +63,7 @@ fn constrain(connection: &Connection) {
         .query_row("PRAGMA cipher_version", [], |r| r.get(0))
         .unwrap();
     assert!(version.starts_with("4."));
-    assert!([2, 3, 4].contains(&schema_version(connection)));
+    assert!([2, 3, 4, 5].contains(&schema_version(connection)));
     assert_eq!(
         connection
             .query_row("PRAGMA integrity_check", [], |r| r.get::<_, String>(0))
@@ -106,11 +106,14 @@ fn state(connection: &Connection, include_profile_state: bool) -> Value {
             ("current_quota", "profile_id,limit_id,window_role"),
         ]);
     }
-    if schema_version(connection) == 4 {
+    if schema_version(connection) >= 4 {
         selected.push((
             "quota_reset_assessments",
             "collection_run_id,limit_id,window_role",
         ));
+    }
+    if schema_version(connection) >= 5 {
+        selected.push(("alert_events", "id"));
     }
     if include_profile_state {
         selected.extend([("profiles", "id"), ("settings", "id"), ("accounts", "id")]);
@@ -228,7 +231,7 @@ fn main() {
             free_bytes(stage),
         )
         .expect("Synthetic archive did not authenticate.");
-        assert!([2, 3, 4].contains(&verified.manifest().schema_version));
+        assert!([2, 3, 4, 5].contains(&verified.manifest().schema_version));
         assert_eq!(verified.manifest().entries.len(), 1);
         assert_eq!(verified.manifest().entries[0].name, "records.sqlite");
         verified.copy_payload(&mut *payload).unwrap();
@@ -283,9 +286,9 @@ fn main() {
     }
     let schema_version = schema_version(&connection);
     if include_profile_state {
-        assert_eq!(
-            schema_version, 4,
-            "Profile-state verification requires schema 4."
+        assert!(
+            [4, 5].contains(&schema_version),
+            "Profile-state verification requires schema 4 or 5."
         );
     }
     let actual = state(&connection, include_profile_state);

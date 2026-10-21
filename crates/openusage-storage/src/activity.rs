@@ -509,7 +509,7 @@ pub(crate) fn read_error(_: rusqlite::Error) -> ActivityError {
 pub(crate) fn write_error(_: rusqlite::Error) -> ActivityError {
     ActivityError::WriteFailed
 }
-fn new_uuid() -> Result<String> {
+pub(crate) fn new_uuid() -> Result<String> {
     let mut bytes = [0u8; 16];
     getrandom::fill(&mut bytes).map_err(|_| ActivityError::WriteFailed)?;
     bytes[6] = (bytes[6] & 0x0f) | 0x40;

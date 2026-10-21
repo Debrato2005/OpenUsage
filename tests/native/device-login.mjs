@@ -54,11 +54,11 @@ async function connectionOracle(label) {
     try { await copyFile(`${fixture.database}-wal`, `${target}-wal`); await chmod(`${target}-wal`, 0o600); } catch (error) { if (error.code !== 'ENOENT') throw error; }
     const report = JSON.parse(execFileSync(verifier, ['database', target, join(workspace, 'database-key.v1'), '--profile-state'], { input: JSON.stringify({ passphrase }), env: fixture.environment, encoding: 'utf8', timeout: 60000, maxBuffer: 16 * 1024 * 1024 }));
     for (const field of ['verified', 'readOnly', 'encryptedPagesAuthenticated', 'originalProtectedKeyUsed', 'inputUnchanged', 'keyEnvelopeUnchanged', 'walRecordsUnchanged']) assert.equal(report[field], true, field);
-    assert.equal(report.schemaVersion, 4); assert.equal(report.plaintextDiskStaging, false); assert.equal(report.state.monitoring, 'stopped');
-    assert.equal(Object.keys(report.state.tables).length, 16);
+    assert.equal(report.schemaVersion, 5); assert.equal(report.plaintextDiskStaging, false); assert.equal(report.state.monitoring, 'stopped');
+    assert.equal(Object.keys(report.state.tables).length, 17);
     for (const table of ['profiles', 'settings', 'accounts']) assert.ok(Array.isArray(report.state.tables[table]), `Missing independent ${table} records.`);
     assert.deepEqual(await liveHashes(), before);
-    evidence.oracles.push({ label, inputSha256: await hash(target), derivedEncryptedCopy: true, selectedSemanticFieldsMatched: 'All columns in the sixteen named tables, compared explicitly by this journey.', tableHashes: Object.fromEntries(Object.entries(report.state.tables).map(([name, rows]) => [name, { rows: rows.length, sha256: createHash('sha256').update(JSON.stringify(rows)).digest('hex') }])), verification: { ...report, state: undefined } });
+    evidence.oracles.push({ label, inputSha256: await hash(target), derivedEncryptedCopy: true, selectedSemanticFieldsMatched: 'All columns in the seventeen named tables, compared explicitly by this journey.', tableHashes: Object.fromEntries(Object.entries(report.state.tables).map(([name, rows]) => [name, { rows: rows.length, sha256: createHash('sha256').update(JSON.stringify(rows)).digest('hex') }])), verification: { ...report, state: undefined } });
     return report.state;
   } finally { await rm(copy, { recursive: true, force: true }); }
 }
@@ -199,7 +199,7 @@ try {
   await driver.click(`#login-code-${first.id}`);await key('\uE004');await waitFor(async()=>driver.execute('return document.activeElement?.matches(arguments[0]);',[`[data-login-browser="${first.id}"]`]),'real Tab reaches browser action');
   await capture('device-login-browser-actions-light-text200-360.png',`[data-login-browser="${first.id}"]`,360,800,2);
   const beforeSuccess = await connectionOracle('before successful GUI login'); await config(home, 'success'); await resultGui(first, /not (?:been )?verified|unverified|provisional/i); await reaped(pending); const connected = await connectionOracle('successful GUI login commits only selected connection status'); onlyConnectionChanged(beforeSuccess, connected, first, 'connected'); await connectionGui(first, 'connected'); await capture('device-login-connected-accounts-light-desktop.png', `[data-profile-id="${first.id}"] .profile-row-summary`, 1280, 850); await driver.openProfileReadings(first.id); assert.deepEqual(await files(otherHome), otherBefore); assert.deepEqual(await files(archivedHome), archivedBefore); assert.deepEqual(JSON.parse(await readFile(join(home, 'synthetic-selected-login.json'), 'utf8')), { synthetic: true, completed: true }); await capture('device-login-result-light-360.png', resultSelector(first.id));
-  evidence.steps.push({ sourceBoundExplicitConsent: true, consentDoesNotExecuteProvider: true, keyboardReachedNextAction: true, validatedPlainUrlAndSelectableCode: true, completionBeforeAccountValidationRequired: true, guiIdentityOnlyProvisional: true, onlySelectedConnectionStatusAndTimestampChanged: true, independentSixteenTableComparison: true, accountsAndOverviewUpdatedWithoutReload: true });
+  evidence.steps.push({ sourceBoundExplicitConsent: true, consentDoesNotExecuteProvider: true, keyboardReachedNextAction: true, validatedPlainUrlAndSelectableCode: true, completionBeforeAccountValidationRequired: true, guiIdentityOnlyProvisional: true, onlySelectedConnectionStatusAndTimestampChanged: true, independentSeventeenTableComparison: true, accountsAndOverviewUpdatedWithoutReload: true });
   await closeNormally(); await open(); await unlock();
   assert.deepEqual(await connectionOracle('connection status survives genuine restart'), connected);
   await connectionGui(first, 'connected');

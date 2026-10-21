@@ -1,4 +1,10 @@
 export type MonitoringState = 'stopped' | 'running' | 'paused';
+export interface SavedAlertEvent {
+  id: string; profileId: string; profileLabel: string; kind: 'quota_reset';
+  limitId: string; windowRole: 'primary' | 'secondary'; windowDurationMins: number;
+  evidenceAtUtc: string; sourceKind: 'official_artifact' | 'test_fixture'; deliveryState: 'recorded';
+}
+export interface SavedAlertHistory { events: SavedAlertEvent[]; truncated: boolean }
 export interface ProfileMonitoringStatus {
   profileId: string; state: MonitoringState; eligible: boolean;
   issue: null | 'sign_in_required' | 'account_changed' | 'source_changed' | 'profile_unavailable' | 'unsupported' | 'storage_unavailable' | 'provider_error';
@@ -261,6 +267,7 @@ interface Commands {
   load_combined_heatmap: { args: { profileIds: string[] }; result: CombinedHeatmapEligibility };
   load_profile_heatmap: { args: { profileId: string; mode: HeatmapMode; periodDays: 30 | 90 | 180 | 365 }; result: SavedProfileHeatmap | null };
   load_profile_quota_history: { args: { profileId: string; beforeRunId: string | null }; result: QuotaHistoryPage };
+  load_alert_history: { args: undefined; result: SavedAlertHistory };
   get_display_scale: { args: undefined; result: { percent: number } };
   set_display_scale: { args: { percent: number }; result: { percent: number } };
   load_profile_plan: { args: { profileId: string; bindingId: string }; result: { profileId: string; bindingId: string; plan: string | null } };
@@ -333,7 +340,8 @@ export async function invoke<K extends keyof Commands>(
   const core = window.__TAURI__?.core;
   if (!core) throw new DesktopUnavailable('Open the installed OpenUsage desktop application.');
   const response = await core.invoke<unknown>(command, args[0]);
-  const valid = command === 'load_profile_quota_history' ? isQuotaHistoryPage(response)
+  const valid = command === 'load_alert_history' ? isSavedAlertHistory(response)
+    : command === 'load_profile_quota_history' ? isQuotaHistoryPage(response)
     : (command === 'get_display_scale' || command === 'set_display_scale') ? isDisplayScale(response)
     : command === 'load_profile_plan' ? isProfilePlan(response)
     : ['load_monitoring', 'start_profile_monitoring', 'pause_profile_monitoring'].includes(command) ? isMonitoringStatus(response)
@@ -380,6 +388,25 @@ export async function invoke<K extends keyof Commands>(
     throw new Error('The desktop response is incompatible. Restart OpenUsage after updating the application.');
   }
   return response as Commands[K]['result'];
+}
+
+function isSavedAlertHistory(value: unknown): value is SavedAlertHistory {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const history = value as Record<string, unknown>;
+  if (Object.keys(history).length !== 2 || !Array.isArray(history.events) || history.events.length > 100 || typeof history.truncated !== 'boolean'
+    || (history.truncated && history.events.length !== 100)) return false;
+  const ids = new Set<string>();
+  for (const item of history.events) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
+    const event = item as Record<string, unknown>;
+    if (Object.keys(event).length !== 10 || !isUuid(event.id) || ids.has(event.id) || !isUuid(event.profileId)
+      || typeof event.profileLabel !== 'string' || Array.from(event.profileLabel).length < 1 || Array.from(event.profileLabel).length > 100
+      || /[\u0000-\u001f\u007f-\u009f]/u.test(event.profileLabel) || event.kind !== 'quota_reset' || !quotaText(event.limitId, 128)
+      || (event.windowRole !== 'primary' && event.windowRole !== 'secondary') || !Number.isSafeInteger(event.windowDurationMins) || (event.windowDurationMins as number) < 1
+      || !isUtcTimestamp(event.evidenceAtUtc) || (event.sourceKind !== 'official_artifact' && event.sourceKind !== 'test_fixture') || event.deliveryState !== 'recorded') return false;
+    ids.add(event.id);
+  }
+  return true;
 }
 
 function isQuotaHistoryPage(value: unknown): value is QuotaHistoryPage {

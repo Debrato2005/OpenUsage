@@ -867,6 +867,25 @@ async fn apply_restore(
 }
 
 #[tauri::command]
+async fn load_alert_history(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<workspace::SavedAlertHistory, CommandError> {
+    let _: ListProfilesArgs = arguments(&request)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        service
+            .lock()
+            .map_err(|_| CommandError::StorageUnavailable)?
+            .as_ref()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .load_alert_history()
+    })
+    .await
+    .map_err(|_| CommandError::StorageUnavailable)?
+}
+
+#[tauri::command]
 async fn list_restore_checkpoints(
     request: tauri::ipc::Request<'_>,
     service: State<'_, WorkspaceService>,
@@ -1755,6 +1774,7 @@ fn main() {
             cancel_profile_quota_read,
             load_profile_quota,
             load_profile_quota_history,
+            load_alert_history,
             review_profile_quota_association,
             begin_profile_quota_reassociation,
             load_profile_activity,

@@ -13,6 +13,7 @@ use std::{
 use zeroize::Zeroizing;
 
 mod activity_storage;
+mod alert_history;
 mod collection_storage;
 mod monitoring;
 mod profile_plan;
@@ -21,6 +22,7 @@ mod quota_storage;
 pub(crate) use activity_storage::{
     CombinedHeatmapEligibility, ProfileHeatmap, ReadAssociationReview, SavedProfileActivity,
 };
+pub(crate) use alert_history::SavedAlertHistory;
 #[cfg(test)]
 use monitoring::MonitoringState;
 pub(crate) use monitoring::{MonitoringIssue, MonitoringStatus};
