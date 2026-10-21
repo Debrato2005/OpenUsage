@@ -1,0 +1,10 @@
+{
+  "bundle": {
+    "active": true,
+    "externalBin": ["binaries/openusage-codex"],
+    "resources": {
+      "companion/licenses/LICENSE": "licenses/codex/LICENSE",
+      "companion/licenses/NOTICE": "licenses/codex/NOTICE"
+    }
+  }
+}

@@ -1,0 +1,43 @@
+node_modules/
+dist/
+target/
+apps/desktop/src-tauri/gen/
+apps/desktop/src-tauri/binaries/
+.tools/
+.recovery/
+.npm-cache/
+playwright-report/
+test-results/
+*.db
+*.db-shm
+*.db-wal
+*.key
+.env
+.env.*
+
+# Private authorization state and credential material.
+CODEX_HOME/
+.codex/
+auth.json
+auth.json.*
+credentials.json
+credentials.json.*
+database-key.v1
+*.pem
+*.p12
+*.pfx
+
+# Local storage, recovery archives and diagnostics.
+*.sqlite
+*.sqlite3
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3-wal
+*.sqlite3-shm
+*-journal
+*.oubackup
+*.log
+
+# Python tooling caches.
+__pycache__/
+*.py[cod]

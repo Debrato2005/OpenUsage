@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-cancel-profile-collection-read"
+description = "Enables the cancel_profile_collection_read command without any pre-configured scope."
+commands.allow = ["cancel_profile_collection_read"]
+
+[[permission]]
+identifier = "deny-cancel-profile-collection-read"
+description = "Denies the cancel_profile_collection_read command without any pre-configured scope."
+commands.deny = ["cancel_profile_collection_read"]

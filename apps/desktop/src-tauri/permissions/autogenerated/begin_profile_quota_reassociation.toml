@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-begin-profile-quota-reassociation"
+description = "Enables the begin_profile_quota_reassociation command without any pre-configured scope."
+commands.allow = ["begin_profile_quota_reassociation"]
+
+[[permission]]
+identifier = "deny-begin-profile-quota-reassociation"
+description = "Denies the begin_profile_quota_reassociation command without any pre-configured scope."
+commands.deny = ["begin_profile_quota_reassociation"]

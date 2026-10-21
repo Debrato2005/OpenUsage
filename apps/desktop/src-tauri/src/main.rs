@@ -1,0 +1,2033 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+mod backup;
+mod backup_inspection;
+mod display_scale;
+mod keyvault;
+mod monitoring;
+mod provider;
+mod readings_export;
+mod restore;
+mod workspace;
+
+use keyvault::OsVault;
+use openusage_storage::Theme;
+use serde::{Deserialize, Deserializer};
+use std::sync::{Arc, Mutex};
+use tauri::{
+    AppHandle, Manager, State, WebviewWindowBuilder, ipc::InvokeBody, webview::NewWindowResponse,
+};
+use workspace::{Bootstrap, CommandError, ProfileView, Workspace};
+use zeroize::Zeroizing;
+
+struct WorkspaceService(
+    Arc<Mutex<Option<Workspace>>>,
+    restore::RestoreCache,
+    provider::ProviderCoordinator,
+    monitoring::MonitoringWorker,
+);
+impl Default for WorkspaceService {
+    fn default() -> Self {
+        let workspace = Arc::new(Mutex::new(None));
+        let provider = provider::ProviderCoordinator::default();
+        let worker = monitoring::MonitoringWorker::start(workspace.clone(), provider.clone());
+        Self(
+            workspace,
+            restore::RestoreCache::default(),
+            provider,
+            worker,
+        )
+    }
+}
+
+struct Passphrase(Zeroizing<String>);
+
+impl<'de> Deserialize<'de> for Passphrase {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        String::deserialize(deserializer).map(|value| Self(Zeroizing::new(value)))
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SetupArgs {
+    #[serde(deserialize_with = "optional_passphrase")]
+    passphrase: Option<Passphrase>,
+}
+
+fn optional_passphrase<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<Passphrase>, D::Error> {
+    Option::deserialize(deserializer)
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct UnlockArgs {
+    passphrase: Passphrase,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct BackupArgs {
+    password: Passphrase,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ExportReadingsArgs {
+    profile_ids: Vec<String>,
+    format: readings_export::ExportFormat,
+    include_identifiers: bool,
+    confirmed: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ExportQuotaHistoryArgs {
+    profile_id: String,
+    format: readings_export::ExportFormat,
+    include_identifiers: bool,
+    confirmed: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct InspectBackupArgs {
+    file_name: String,
+    password: Passphrase,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CancelRestorePreviewArgs {
+    preview_id: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ApplyRestoreArgs {
+    preview_id: String,
+    confirmed: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CheckpointPreviewArgs {
+    checkpoint_id: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct InspectProviderArgs {
+    path: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ApproveProviderArgs {
+    candidate_id: String,
+    confirmed: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ProfileCheckArgs {
+    profile_id: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CombinedHeatmapArgs {
+    profile_ids: Vec<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ProfileHeatmapArgs {
+    profile_id: String,
+    mode: String,
+    period_days: u16,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ProfileQuotaHistoryArgs {
+    profile_id: String,
+    #[serde(deserialize_with = "Option::deserialize")]
+    before_run_id: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DisplayScaleArgs {
+    percent: u16,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ProfilePlanArgs {
+    profile_id: String,
+    binding_id: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum LoginFlowChoice {
+    DeviceCode,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct BeginLoginArgs {
+    profile_id: String,
+    approval_id: String,
+    flow: LoginFlowChoice,
+    confirmed: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct LoginAttemptArgs {
+    profile_id: String,
+    attempt_id: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct BeginReadArgs {
+    profile_id: String,
+    approval_id: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ActivityReassociationArgs {
+    profile_id: String,
+    approval_id: String,
+    review_id: String,
+    confirmed: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ProfileReadArgs {
+    profile_id: String,
+    request_id: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ThemeArgs {
+    theme: ThemeChoice,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ListProfilesArgs {}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CreateProfileArgs {
+    label: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RenameProfileArgs {
+    id: String,
+    label: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ArchiveProfileArgs {
+    id: String,
+    archived: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum ThemeChoice {
+    System,
+    Light,
+    Dark,
+}
+
+enum Operation {
+    Bootstrap,
+    Setup(Option<Zeroizing<String>>),
+    Unlock(Zeroizing<String>),
+    SetTheme(Theme),
+}
+
+enum ProfileOperation {
+    List,
+    Create(String),
+    Rename(String, String),
+    SetArchived(String, bool),
+}
+
+fn arguments<'a, T: Deserialize<'a>>(
+    request: &'a tauri::ipc::Request<'_>,
+) -> Result<T, CommandError> {
+    match request.body() {
+        InvokeBody::Json(body) if body.is_object() => {
+            T::deserialize(body).map_err(|_| CommandError::InvalidArguments)
+        }
+        _ => Err(CommandError::InvalidArguments),
+    }
+}
+
+fn cancel_revoked_scheduled(
+    service: &Arc<Mutex<Option<Workspace>>>,
+    provider: &provider::ProviderCoordinator,
+) -> Result<(), CommandError> {
+    let requests = service
+        .lock()
+        .map_err(|_| CommandError::ProviderUnavailable)?
+        .as_ref()
+        .map_or_else(Vec::new, Workspace::scheduled_cancellations);
+    for (id, request) in requests {
+        provider.cancel_collection(&id, &request)?;
+        if let Some(workspace) = service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?
+            .as_mut()
+        {
+            workspace.cancelled_scheduled_read(&id, &request);
+        }
+    }
+    Ok(())
+}
+fn revoke_scheduled(
+    service: &Arc<Mutex<Option<Workspace>>>,
+    provider: &provider::ProviderCoordinator,
+    id: Option<&str>,
+    issue: workspace::MonitoringIssue,
+) -> Result<(), CommandError> {
+    if let Some(workspace) = service
+        .lock()
+        .map_err(|_| CommandError::ProviderUnavailable)?
+        .as_mut()
+    {
+        if let Some(id) = id {
+            workspace.revoke_monitoring_profile(id, issue);
+        } else {
+            workspace.revoke_all_monitoring(issue);
+        }
+    }
+    cancel_revoked_scheduled(service, provider)
+}
+
+#[tauri::command]
+async fn load_monitoring(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<workspace::MonitoringStatus, CommandError> {
+    let _: ListProfilesArgs = arguments(&request)?;
+    let provider = service.2.clone();
+    let service = service.0.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .load_monitoring()?;
+        cancel_revoked_scheduled(&service, &provider)?;
+        service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .load_monitoring()
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+#[tauri::command]
+async fn start_profile_monitoring(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<workspace::MonitoringStatus, CommandError> {
+    let args: BeginReadArgs = arguments(&request)?;
+    let service = service.0.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .start_profile_monitoring(&args.profile_id, &args.approval_id)
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+#[tauri::command]
+async fn pause_profile_monitoring(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<workspace::MonitoringStatus, CommandError> {
+    let args: ProfileCheckArgs = arguments(&request)?;
+    let provider = service.2.clone();
+    let service = service.0.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let request = service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .pause_profile_monitoring(&args.profile_id)?;
+        if let Some(request) = request {
+            provider.cancel_collection(&args.profile_id, &request)?;
+            service
+                .lock()
+                .map_err(|_| CommandError::ProviderUnavailable)?
+                .as_mut()
+                .ok_or(CommandError::WorkspaceLocked)?
+                .cancelled_scheduled_read(&args.profile_id, &request);
+        }
+        service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .load_monitoring()
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+async fn run_workspace(
+    app: AppHandle,
+    service: Arc<Mutex<Option<Workspace>>>,
+    operation: Operation,
+) -> Result<Bootstrap, CommandError> {
+    let native_app = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut state = service
+            .lock()
+            .map_err(|_| CommandError::StorageUnavailable)?;
+        if state.is_none() {
+            let directory = app
+                .path()
+                .app_local_data_dir()
+                .map_err(|_| CommandError::StorageUnavailable)?
+                .join("workspace");
+            match Workspace::with_services(
+                directory,
+                app.state::<WorkspaceService>().1.clone(),
+                app.state::<WorkspaceService>().2.clone(),
+            ) {
+                Ok(workspace) => *state = Some(workspace),
+                Err(error) if matches!(operation, Operation::Bootstrap) => {
+                    return Ok(Bootstrap::blocked(error));
+                }
+                Err(error) => return Err(error),
+            }
+        }
+        let workspace = state.as_mut().ok_or(CommandError::StorageUnavailable)?;
+        let result = match operation {
+            Operation::Bootstrap => {
+                let vault = OsVault::new();
+                Ok(workspace.bootstrap(vault.as_ref().map_err(|error| *error)))
+            }
+            Operation::Setup(passphrase) => {
+                let vault = OsVault::new();
+                workspace.setup(vault.as_ref().map_err(|error| *error), passphrase)
+            }
+            Operation::Unlock(passphrase) => workspace.unlock(passphrase),
+            Operation::SetTheme(theme) => workspace.set_theme(theme),
+        };
+        if let Ok(bootstrap) = &result
+            && bootstrap.storage == workspace::StorageState::Ready
+        {
+            // Queue native appearance in commit order. Unsupported decoration styling is cosmetic.
+            native_app.set_theme(match bootstrap.theme {
+                "light" => Some(tauri::Theme::Light),
+                "dark" => Some(tauri::Theme::Dark),
+                _ => None,
+            });
+        }
+        result
+    })
+    .await
+    .map_err(|_| CommandError::StorageUnavailable)?
+}
+
+#[tauri::command]
+async fn bootstrap(
+    request: tauri::ipc::Request<'_>,
+    app: AppHandle,
+    service: State<'_, WorkspaceService>,
+) -> Result<Bootstrap, CommandError> {
+    match request.body() {
+        InvokeBody::Json(body) if body.as_object().is_some_and(|args| args.is_empty()) => {}
+        _ => return Err(CommandError::InvalidArguments),
+    }
+    run_workspace(app, Arc::clone(&service.0), Operation::Bootstrap).await
+}
+
+#[tauri::command]
+async fn get_display_scale(
+    request: tauri::ipc::Request<'_>,
+    app: AppHandle,
+    service: State<'_, display_scale::DisplayScaleService>,
+) -> Result<display_scale::DisplayScale, CommandError> {
+    let _: ListProfilesArgs = arguments(&request)?;
+    display_scale::run(app, Arc::clone(&service.0), None).await
+}
+
+#[tauri::command]
+async fn set_display_scale(
+    request: tauri::ipc::Request<'_>,
+    app: AppHandle,
+    service: State<'_, display_scale::DisplayScaleService>,
+) -> Result<display_scale::DisplayScale, CommandError> {
+    let args: DisplayScaleArgs = arguments(&request)?;
+    display_scale::validate(args.percent)?;
+    display_scale::run(app, Arc::clone(&service.0), Some(args.percent)).await
+}
+
+#[tauri::command]
+async fn load_profile_plan(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<workspace::SavedProfilePlan, CommandError> {
+    let args: ProfilePlanArgs = arguments(&request)?;
+    workspace::validate_profile_id(&args.profile_id)?;
+    restore::validate_preview_id(&args.binding_id)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        service
+            .lock()
+            .map_err(|_| CommandError::StorageUnavailable)?
+            .as_ref()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .load_profile_plan(&args.profile_id, &args.binding_id)
+    })
+    .await
+    .map_err(|_| CommandError::StorageUnavailable)?
+}
+
+#[tauri::command]
+async fn setup_workspace(
+    request: tauri::ipc::Request<'_>,
+    app: AppHandle,
+    service: State<'_, WorkspaceService>,
+) -> Result<Bootstrap, CommandError> {
+    let args: SetupArgs = arguments(&request)?;
+    if let Some(passphrase) = &args.passphrase {
+        workspace::validate_passphrase(&passphrase.0)?;
+    }
+    run_workspace(
+        app,
+        Arc::clone(&service.0),
+        Operation::Setup(args.passphrase.map(|passphrase| passphrase.0)),
+    )
+    .await
+}
+
+#[tauri::command]
+async fn unlock_workspace(
+    request: tauri::ipc::Request<'_>,
+    app: AppHandle,
+    service: State<'_, WorkspaceService>,
+) -> Result<Bootstrap, CommandError> {
+    let args: UnlockArgs = arguments(&request)?;
+    workspace::validate_unlock_passphrase(&args.passphrase.0)?;
+    run_workspace(
+        app,
+        Arc::clone(&service.0),
+        Operation::Unlock(args.passphrase.0),
+    )
+    .await
+}
+
+#[tauri::command]
+async fn set_theme(
+    request: tauri::ipc::Request<'_>,
+    app: AppHandle,
+    service: State<'_, WorkspaceService>,
+) -> Result<Bootstrap, CommandError> {
+    let args: ThemeArgs = arguments(&request)?;
+    let theme = match args.theme {
+        ThemeChoice::System => Theme::System,
+        ThemeChoice::Light => Theme::Light,
+        ThemeChoice::Dark => Theme::Dark,
+    };
+    run_workspace(app, Arc::clone(&service.0), Operation::SetTheme(theme)).await
+}
+
+#[tauri::command]
+async fn export_saved_readings(
+    request: tauri::ipc::Request<'_>,
+    app: AppHandle,
+    service: State<'_, WorkspaceService>,
+) -> Result<readings_export::ExportReceipt, CommandError> {
+    let args: ExportReadingsArgs = arguments(&request)?;
+    if !args.confirmed {
+        return Err(CommandError::InvalidArguments);
+    }
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let (snapshot, when) = {
+            let mut state = service
+                .lock()
+                .map_err(|_| CommandError::ExportUnavailable)?;
+            let workspace = state.as_mut().ok_or(CommandError::WorkspaceLocked)?;
+            let snapshot =
+                workspace.readings_export(&args.profile_ids, args.include_identifiers)?;
+            let when = restore::timestamp(std::time::SystemTime::now())
+                .ok_or(CommandError::ExportUnavailable)?;
+            (snapshot, when)
+        };
+        let directory = app
+            .path()
+            .download_dir()
+            .map_err(|_| CommandError::ExportUnavailable)?
+            .join("OpenUsage");
+        readings_export::create(
+            &directory,
+            snapshot,
+            args.format,
+            args.include_identifiers,
+            when,
+        )
+    })
+    .await
+    .map_err(|_| CommandError::ExportUnavailable)?
+}
+
+#[tauri::command]
+async fn export_quota_history(
+    request: tauri::ipc::Request<'_>,
+    app: AppHandle,
+    service: State<'_, WorkspaceService>,
+) -> Result<readings_export::ExportReceipt, CommandError> {
+    let args: ExportQuotaHistoryArgs = arguments(&request)?;
+    if !args.confirmed {
+        return Err(CommandError::InvalidArguments);
+    }
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let (snapshot, when) = {
+            let mut state = service
+                .lock()
+                .map_err(|_| CommandError::ExportUnavailable)?;
+            let workspace = state.as_mut().ok_or(CommandError::WorkspaceLocked)?;
+            let snapshot =
+                workspace.quota_history_export(&args.profile_id, args.include_identifiers)?;
+            let when = restore::timestamp(std::time::SystemTime::now())
+                .ok_or(CommandError::ExportUnavailable)?;
+            (snapshot, when)
+        };
+        let directory = app
+            .path()
+            .download_dir()
+            .map_err(|_| CommandError::ExportUnavailable)?
+            .join("OpenUsage");
+        readings_export::create(
+            &directory,
+            snapshot,
+            args.format,
+            args.include_identifiers,
+            when,
+        )
+    })
+    .await
+    .map_err(|_| CommandError::ExportUnavailable)?
+}
+
+#[tauri::command]
+async fn create_backup(
+    request: tauri::ipc::Request<'_>,
+    app: AppHandle,
+    service: State<'_, WorkspaceService>,
+) -> Result<backup::BackupDestination, CommandError> {
+    let args: BackupArgs = arguments(&request)?;
+    workspace::validate_passphrase(&args.password.0)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut state = service
+            .lock()
+            .map_err(|_| CommandError::BackupUnavailable)?;
+        let snapshot = state
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .backup_snapshot()?;
+        let directory = app
+            .path()
+            .download_dir()
+            .map_err(|_| CommandError::BackupUnavailable)?
+            .join("OpenUsage");
+        backup::create(&directory, snapshot, args.password.0)
+    })
+    .await
+    .map_err(|_| CommandError::BackupUnavailable)?
+}
+
+async fn run_profiles(
+    service: Arc<Mutex<Option<Workspace>>>,
+    operation: ProfileOperation,
+) -> Result<ProfileView, CommandError> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut state = service
+            .lock()
+            .map_err(|_| CommandError::ProfileUnavailable)?;
+        let workspace = state.as_mut().ok_or(CommandError::WorkspaceLocked)?;
+        match operation {
+            ProfileOperation::List => workspace.list_profiles(),
+            ProfileOperation::Create(label) => workspace.create_profile(&label),
+            ProfileOperation::Rename(id, label) => workspace.rename_profile(&id, &label),
+            ProfileOperation::SetArchived(id, archived) => {
+                workspace.set_profile_archived(&id, archived)
+            }
+        }
+    })
+    .await
+    .map_err(|_| CommandError::ProfileUnavailable)?
+}
+
+#[tauri::command]
+async fn list_profiles(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<ProfileView, CommandError> {
+    let _: ListProfilesArgs = arguments(&request)?;
+    run_profiles(Arc::clone(&service.0), ProfileOperation::List).await
+}
+
+#[tauri::command]
+async fn create_profile(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<ProfileView, CommandError> {
+    let args: CreateProfileArgs = arguments(&request)?;
+    workspace::validate_profile_label(&args.label)?;
+    run_profiles(Arc::clone(&service.0), ProfileOperation::Create(args.label)).await
+}
+
+#[tauri::command]
+async fn rename_profile(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<ProfileView, CommandError> {
+    let args: RenameProfileArgs = arguments(&request)?;
+    workspace::validate_profile_id(&args.id)?;
+    workspace::validate_profile_label(&args.label)?;
+    run_profiles(
+        Arc::clone(&service.0),
+        ProfileOperation::Rename(args.id, args.label),
+    )
+    .await
+}
+
+#[tauri::command]
+async fn set_profile_archived(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<ProfileView, CommandError> {
+    let args: ArchiveProfileArgs = arguments(&request)?;
+    workspace::validate_profile_id(&args.id)?;
+    run_profiles(
+        Arc::clone(&service.0),
+        ProfileOperation::SetArchived(args.id, args.archived),
+    )
+    .await
+}
+
+#[tauri::command]
+async fn list_backups(
+    request: tauri::ipc::Request<'_>,
+    app: AppHandle,
+    service: State<'_, WorkspaceService>,
+) -> Result<backup_inspection::BackupList, CommandError> {
+    match request.body() {
+        InvokeBody::Json(body) if body.as_object().is_some_and(|args| args.is_empty()) => {}
+        _ => return Err(CommandError::InvalidArguments),
+    }
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = service
+            .lock()
+            .map_err(|_| CommandError::BackupUnavailable)?;
+        state
+            .as_ref()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .backup_inspection_directory()?;
+        let directory = app
+            .path()
+            .download_dir()
+            .map_err(|_| CommandError::BackupUnavailable)?
+            .join("OpenUsage");
+        backup_inspection::list(&directory)
+    })
+    .await
+    .map_err(|_| CommandError::BackupUnavailable)?
+}
+
+#[tauri::command]
+async fn inspect_backup(
+    request: tauri::ipc::Request<'_>,
+    app: AppHandle,
+    service: State<'_, WorkspaceService>,
+) -> Result<backup_inspection::BackupInspection, CommandError> {
+    let args: InspectBackupArgs = arguments(&request)?;
+    backup_inspection::validate_file_name(&args.file_name)?;
+    workspace::validate_unlock_passphrase(&args.password.0)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = service
+            .lock()
+            .map_err(|_| CommandError::BackupUnavailable)?;
+        let staging = state
+            .as_ref()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .backup_inspection_directory()?;
+        let directory = app
+            .path()
+            .download_dir()
+            .map_err(|_| CommandError::BackupUnavailable)?
+            .join("OpenUsage");
+        backup_inspection::inspect(&directory, &staging, &args.file_name, args.password.0)
+    })
+    .await
+    .map_err(|_| CommandError::BackupUnavailable)?
+}
+
+#[tauri::command]
+async fn prepare_restore_preview(
+    request: tauri::ipc::Request<'_>,
+    app: AppHandle,
+    service: State<'_, WorkspaceService>,
+) -> Result<restore::RestorePreview, CommandError> {
+    let args: InspectBackupArgs = arguments(&request)?;
+    backup_inspection::validate_file_name(&args.file_name)?;
+    workspace::validate_unlock_passphrase(&args.password.0)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut state = service
+            .lock()
+            .map_err(|_| CommandError::BackupUnavailable)?;
+        let workspace = state.as_mut().ok_or(CommandError::WorkspaceLocked)?;
+        let directory = app
+            .path()
+            .download_dir()
+            .map_err(|_| CommandError::BackupUnavailable)?
+            .join("OpenUsage");
+        workspace.prepare_restore_preview(&directory, &args.file_name, args.password.0)
+    })
+    .await
+    .map_err(|_| CommandError::BackupUnavailable)?
+}
+
+#[tauri::command]
+async fn cancel_restore_preview(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<restore::Cancelled, CommandError> {
+    let args: CancelRestorePreviewArgs = arguments(&request)?;
+    restore::validate_preview_id(&args.preview_id)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut state = service
+            .lock()
+            .map_err(|_| CommandError::BackupUnavailable)?;
+        state
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .cancel_restore_preview(&args.preview_id)
+    })
+    .await
+    .map_err(|_| CommandError::BackupUnavailable)?
+}
+
+#[tauri::command]
+async fn apply_restore(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<restore::Applied, CommandError> {
+    let args: ApplyRestoreArgs = arguments(&request)?;
+    restore::validate_preview_id(&args.preview_id)?;
+    if !args.confirmed {
+        return Err(CommandError::InvalidArguments);
+    }
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut state = service.lock().map_err(|_| CommandError::RestoreFailed)?;
+        state
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .apply_restore(&args.preview_id, args.confirmed)
+    })
+    .await
+    .map_err(|_| CommandError::RestoreFailed)?
+}
+
+#[tauri::command]
+async fn list_restore_checkpoints(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<restore::CheckpointList, CommandError> {
+    let _: ListProfilesArgs = arguments(&request)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = service
+            .lock()
+            .map_err(|_| CommandError::RestoreCheckpointFailed)?;
+        state
+            .as_ref()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .list_restore_checkpoints()
+    })
+    .await
+    .map_err(|_| CommandError::RestoreCheckpointFailed)?
+}
+
+#[tauri::command]
+async fn prepare_checkpoint_restore_preview(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<restore::CheckpointRestorePreview, CommandError> {
+    let args: CheckpointPreviewArgs = arguments(&request)?;
+    restore::validate_preview_id(&args.checkpoint_id)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut state = service
+            .lock()
+            .map_err(|_| CommandError::RestoreCheckpointFailed)?;
+        state
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .prepare_checkpoint_restore_preview(&args.checkpoint_id)
+    })
+    .await
+    .map_err(|_| CommandError::RestoreCheckpointFailed)?
+}
+
+#[tauri::command]
+async fn prepare_provider_connection(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<provider::ExecutableApproval, CommandError> {
+    let _: ListProfilesArgs = arguments(&request)?;
+    let executable = std::env::current_exe().map_err(|_| CommandError::ProviderSetupUnavailable)?;
+    let companion = executable
+        .parent()
+        .ok_or(CommandError::ProviderSetupUnavailable)?
+        .join(if cfg!(windows) {
+            "openusage-codex.exe"
+        } else {
+            "openusage-codex"
+        });
+    let provider = service.2.clone();
+    let workspace = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = workspace
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?;
+        let profiles = state
+            .as_ref()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .provider_discovery_profiles()?;
+        provider.prepare_connection(&companion, &profiles)
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+#[tauri::command]
+async fn inspect_provider_executable(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<provider::ExecutableCandidate, CommandError> {
+    let args: InspectProviderArgs = arguments(&request)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?;
+        state
+            .as_ref()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .inspect_provider_executable(&args.path)
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+#[tauri::command]
+async fn approve_provider_executable(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<provider::ExecutableApproval, CommandError> {
+    let args: ApproveProviderArgs = arguments(&request)?;
+    crate::restore::validate_preview_id(&args.candidate_id)?;
+    if !args.confirmed {
+        return Err(CommandError::InvalidArguments);
+    }
+    let provider = service.2.clone();
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        revoke_scheduled(
+            &service,
+            &provider,
+            None,
+            workspace::MonitoringIssue::SourceChanged,
+        )?;
+        let state = service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?;
+        state
+            .as_ref()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .approve_provider_executable(&args.candidate_id, args.confirmed)
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+#[tauri::command]
+async fn check_profile_connection(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<provider::ConnectionDiagnostic, CommandError> {
+    let args: ProfileCheckArgs = arguments(&request)?;
+    workspace::validate_profile_id(&args.profile_id)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let pending = {
+            let mut state = service
+                .lock()
+                .map_err(|_| CommandError::ProviderUnavailable)?;
+            state
+                .as_mut()
+                .ok_or(CommandError::WorkspaceLocked)?
+                .start_profile_check(&args.profile_id)?
+        };
+        let joined = pending.wait()?;
+        let mut state = service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?;
+        state
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .finish_profile_check(joined)
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+#[tauri::command]
+async fn cancel_profile_check(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<provider::Cancelled, CommandError> {
+    let args: ProfileCheckArgs = arguments(&request)?;
+    workspace::validate_profile_id(&args.profile_id)?;
+    let provider = service.2.clone();
+    // Cancellation needs no Workspace lock and can interrupt a check while another operation waits.
+    tauri::async_runtime::spawn_blocking(move || provider.cancel(&args.profile_id))
+        .await
+        .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+#[tauri::command]
+async fn discover_provider_executables(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<provider::ExecutableDiscovery, CommandError> {
+    let _: ListProfilesArgs = arguments(&request)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let profiles = {
+            let state = service
+                .lock()
+                .map_err(|_| CommandError::ProviderDiscoveryUnavailable)?;
+            state
+                .as_ref()
+                .ok_or(CommandError::WorkspaceLocked)?
+                .provider_discovery_profiles()?
+        };
+        provider::discover(&profiles)
+    })
+    .await
+    .map_err(|_| CommandError::ProviderDiscoveryUnavailable)?
+}
+
+#[tauri::command]
+async fn begin_profile_login(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<provider::LoginReceipt, CommandError> {
+    let args: BeginLoginArgs = arguments(&request)?;
+    workspace::validate_profile_id(&args.profile_id)?;
+    restore::validate_preview_id(&args.approval_id)?;
+    if !args.confirmed {
+        return Err(CommandError::InvalidArguments);
+    }
+    let provider = service.2.clone();
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        revoke_scheduled(
+            &service,
+            &provider,
+            Some(&args.profile_id),
+            workspace::MonitoringIssue::SignInRequired,
+        )?;
+        let mut state = service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?;
+        match args.flow {
+            LoginFlowChoice::DeviceCode => state
+                .as_mut()
+                .ok_or(CommandError::WorkspaceLocked)?
+                .begin_profile_login(&args.profile_id, &args.approval_id, args.confirmed),
+        }
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+#[tauri::command]
+async fn await_profile_login_prompt(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<provider::LoginPromptReceipt, CommandError> {
+    let args: LoginAttemptArgs = arguments(&request)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let pending = {
+            let state = service
+                .lock()
+                .map_err(|_| CommandError::ProviderUnavailable)?;
+            state
+                .as_ref()
+                .ok_or(CommandError::WorkspaceLocked)?
+                .await_profile_login_prompt(&args.profile_id, &args.attempt_id)?
+        };
+        let ready = pending.wait()?;
+        let mut state = service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?;
+        state
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .finish_profile_login_prompt(ready)
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+#[tauri::command]
+async fn open_profile_login_page(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<(), CommandError> {
+    let args: LoginAttemptArgs = arguments(&request)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut state = service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?;
+        state
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .open_profile_login_page(&args.profile_id, &args.attempt_id, |url| {
+                // Only the validated fixed sign-in page reaches the OS opener.
+                open::that_detached(url).map_err(|_| CommandError::ProviderBrowserUnavailable)
+            })
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+#[tauri::command]
+async fn complete_profile_login(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<provider::LoginOutcome, CommandError> {
+    let args: LoginAttemptArgs = arguments(&request)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let pending = {
+            let state = service
+                .lock()
+                .map_err(|_| CommandError::ProviderUnavailable)?;
+            state
+                .as_ref()
+                .ok_or(CommandError::WorkspaceLocked)?
+                .complete_profile_login(&args.profile_id, &args.attempt_id)?
+        };
+        let completed = pending.wait()?;
+        let mut state = service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?;
+        state
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .finish_profile_login(completed)
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+#[tauri::command]
+async fn cancel_profile_login(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<provider::Cancelled, CommandError> {
+    let args: LoginAttemptArgs = arguments(&request)?;
+    let provider = service.2.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        provider.cancel_login(&args.profile_id, &args.attempt_id)
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+#[tauri::command]
+async fn load_profile_refresh_status(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<provider::ProfileRefreshStatus, CommandError> {
+    let args: ProfileCheckArgs = arguments(&request)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?;
+        state
+            .as_ref()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .load_profile_refresh_status(&args.profile_id)
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+#[tauri::command]
+async fn begin_profile_collection_read(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<provider::CollectionReceipt, CommandError> {
+    let args: BeginReadArgs = arguments(&request)?;
+    workspace::validate_profile_id(&args.profile_id)?;
+    restore::validate_preview_id(&args.approval_id)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut state = service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?;
+        state
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .begin_profile_collection_read(&args.profile_id, &args.approval_id)
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+#[tauri::command]
+async fn complete_profile_collection_read(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<provider::CollectionOutcome, CommandError> {
+    let args: ProfileReadArgs = arguments(&request)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let pending = {
+            let state = service
+                .lock()
+                .map_err(|_| CommandError::ProviderUnavailable)?;
+            state
+                .as_ref()
+                .ok_or(CommandError::WorkspaceLocked)?
+                .complete_profile_collection_read(&args.profile_id, &args.request_id)?
+        };
+        let binding = pending.binding().clone();
+        let completed = match pending.wait() {
+            Ok(completed) => completed,
+            Err(error) => {
+                if let Ok(mut state) = service.lock()
+                    && let Some(workspace) = state.as_mut()
+                {
+                    workspace.note_collection_failure(&args.profile_id, &args.request_id);
+                    workspace.note_monitoring_read_error(&args.profile_id, &args.request_id, error);
+                    workspace.note_collection_read_error(&binding, &args.request_id, error)?;
+                }
+                return Err(error);
+            }
+        };
+        let mut state = service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?;
+        state
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .finish_profile_collection_read(completed)
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+#[tauri::command]
+async fn cancel_profile_collection_read(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<provider::Cancelled, CommandError> {
+    let args: ProfileReadArgs = arguments(&request)?;
+    let provider = service.2.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        provider.cancel_collection(&args.profile_id, &args.request_id)
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+#[tauri::command]
+async fn review_profile_collection_association(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<workspace::ReadAssociationReview, CommandError> {
+    let args: BeginReadArgs = arguments(&request)?;
+    restore::validate_preview_id(&args.profile_id)?;
+    restore::validate_preview_id(&args.approval_id)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .review_profile_collection_association(&args.profile_id, &args.approval_id)
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+#[tauri::command]
+async fn begin_profile_collection_reassociation(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<provider::CollectionReceipt, CommandError> {
+    let args: ActivityReassociationArgs = arguments(&request)?;
+    restore::validate_preview_id(&args.profile_id)?;
+    restore::validate_preview_id(&args.approval_id)?;
+    restore::validate_preview_id(&args.review_id)?;
+    if !args.confirmed {
+        return Err(CommandError::InvalidArguments);
+    }
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .begin_profile_collection_reassociation(
+                &args.profile_id,
+                &args.approval_id,
+                &args.review_id,
+                args.confirmed,
+            )
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+#[tauri::command]
+async fn begin_profile_quota_read(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<provider::QuotaReceipt, CommandError> {
+    let args: BeginReadArgs = arguments(&request)?;
+    workspace::validate_profile_id(&args.profile_id)?;
+    restore::validate_preview_id(&args.approval_id)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut state = service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?;
+        state
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .begin_profile_quota_read(&args.profile_id, &args.approval_id)
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+#[tauri::command]
+async fn complete_profile_quota_read(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<provider::QuotaOutcome, CommandError> {
+    let args: ProfileReadArgs = arguments(&request)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let pending = {
+            let state = service
+                .lock()
+                .map_err(|_| CommandError::ProviderUnavailable)?;
+            state
+                .as_ref()
+                .ok_or(CommandError::WorkspaceLocked)?
+                .complete_profile_quota_read(&args.profile_id, &args.request_id)?
+        };
+        let completed = match pending.wait() {
+            Ok(completed) => completed,
+            Err(error) => {
+                if let Ok(mut state) = service.lock()
+                    && let Some(workspace) = state.as_mut()
+                {
+                    workspace.note_quota_failure(&args.profile_id, &args.request_id);
+                    workspace.note_monitoring_read_error(&args.profile_id, &args.request_id, error);
+                }
+                return Err(error);
+            }
+        };
+        let mut state = service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?;
+        state
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .finish_profile_quota_read(completed)
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+#[tauri::command]
+async fn cancel_profile_quota_read(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<provider::Cancelled, CommandError> {
+    let args: ProfileReadArgs = arguments(&request)?;
+    let provider = service.2.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        provider.cancel_quota(&args.profile_id, &args.request_id)
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+#[tauri::command]
+async fn load_profile_quota(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<Option<workspace::SavedProfileQuota>, CommandError> {
+    let args: ProfileCheckArgs = arguments(&request)?;
+    workspace::validate_profile_id(&args.profile_id)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        service
+            .lock()
+            .map_err(|_| CommandError::StorageUnavailable)?
+            .as_ref()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .load_profile_quota(&args.profile_id)
+    })
+    .await
+    .map_err(|_| CommandError::StorageUnavailable)?
+}
+
+#[tauri::command]
+async fn load_profile_quota_history(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<workspace::ProfileQuotaHistory, CommandError> {
+    let args: ProfileQuotaHistoryArgs = arguments(&request)?;
+    workspace::validate_profile_id(&args.profile_id)?;
+    if let Some(cursor) = &args.before_run_id {
+        restore::validate_preview_id(cursor)?;
+    }
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        service
+            .lock()
+            .map_err(|_| CommandError::StorageUnavailable)?
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .load_profile_quota_history(&args.profile_id, args.before_run_id.as_deref())
+    })
+    .await
+    .map_err(|_| CommandError::StorageUnavailable)?
+}
+
+#[tauri::command]
+async fn load_combined_heatmap(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<workspace::CombinedHeatmapEligibility, CommandError> {
+    let args: CombinedHeatmapArgs = arguments(&request)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        service
+            .lock()
+            .map_err(|_| CommandError::StorageUnavailable)?
+            .as_ref()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .load_combined_heatmap(&args.profile_ids)
+    })
+    .await
+    .map_err(|_| CommandError::StorageUnavailable)?
+}
+
+#[tauri::command]
+async fn load_profile_heatmap(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<Option<workspace::ProfileHeatmap>, CommandError> {
+    let args: ProfileHeatmapArgs = arguments(&request)?;
+    workspace::validate_profile_id(&args.profile_id)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        service
+            .lock()
+            .map_err(|_| CommandError::StorageUnavailable)?
+            .as_ref()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .load_profile_heatmap(&args.profile_id, &args.mode, args.period_days)
+    })
+    .await
+    .map_err(|_| CommandError::StorageUnavailable)?
+}
+
+#[tauri::command]
+async fn load_profile_activity(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<Option<workspace::SavedProfileActivity>, CommandError> {
+    let args: ProfileCheckArgs = arguments(&request)?;
+    workspace::validate_profile_id(&args.profile_id)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        service
+            .lock()
+            .map_err(|_| CommandError::StorageUnavailable)?
+            .as_ref()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .load_profile_activity(&args.profile_id)
+    })
+    .await
+    .map_err(|_| CommandError::StorageUnavailable)?
+}
+
+#[tauri::command]
+async fn begin_profile_activity_read(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<provider::ActivityReceipt, CommandError> {
+    let args: BeginReadArgs = arguments(&request)?;
+    workspace::validate_profile_id(&args.profile_id)?;
+    restore::validate_preview_id(&args.approval_id)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut state = service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?;
+        state
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .begin_profile_activity_read(&args.profile_id, &args.approval_id)
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+#[tauri::command]
+async fn review_profile_quota_association(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<workspace::ReadAssociationReview, CommandError> {
+    let args: BeginReadArgs = arguments(&request)?;
+    restore::validate_preview_id(&args.profile_id)?;
+    restore::validate_preview_id(&args.approval_id)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .review_profile_quota_association(&args.profile_id, &args.approval_id)
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+#[tauri::command]
+async fn begin_profile_quota_reassociation(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<provider::QuotaReceipt, CommandError> {
+    let args: ActivityReassociationArgs = arguments(&request)?;
+    restore::validate_preview_id(&args.profile_id)?;
+    restore::validate_preview_id(&args.approval_id)?;
+    restore::validate_preview_id(&args.review_id)?;
+    if !args.confirmed {
+        return Err(CommandError::InvalidArguments);
+    }
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .begin_profile_quota_reassociation(
+                &args.profile_id,
+                &args.approval_id,
+                &args.review_id,
+                args.confirmed,
+            )
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+#[tauri::command]
+async fn review_profile_activity_association(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<workspace::ReadAssociationReview, CommandError> {
+    let args: BeginReadArgs = arguments(&request)?;
+    restore::validate_preview_id(&args.profile_id)?;
+    restore::validate_preview_id(&args.approval_id)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .review_profile_activity_association(&args.profile_id, &args.approval_id)
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+#[tauri::command]
+async fn begin_profile_activity_reassociation(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<provider::ActivityReceipt, CommandError> {
+    let args: ActivityReassociationArgs = arguments(&request)?;
+    restore::validate_preview_id(&args.profile_id)?;
+    restore::validate_preview_id(&args.approval_id)?;
+    restore::validate_preview_id(&args.review_id)?;
+    if !args.confirmed {
+        return Err(CommandError::InvalidArguments);
+    }
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .begin_profile_activity_reassociation(
+                &args.profile_id,
+                &args.approval_id,
+                &args.review_id,
+                args.confirmed,
+            )
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+#[tauri::command]
+async fn complete_profile_activity_read(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<provider::ActivityOutcome, CommandError> {
+    let args: ProfileReadArgs = arguments(&request)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let pending = {
+            let state = service
+                .lock()
+                .map_err(|_| CommandError::ProviderUnavailable)?;
+            state
+                .as_ref()
+                .ok_or(CommandError::WorkspaceLocked)?
+                .complete_profile_activity_read(&args.profile_id, &args.request_id)?
+        };
+        let completed = match pending.wait() {
+            Ok(completed) => completed,
+            Err(error) => {
+                if let Ok(mut state) = service.lock()
+                    && let Some(workspace) = state.as_mut()
+                {
+                    workspace.note_activity_failure(&args.profile_id, &args.request_id);
+                    workspace.note_monitoring_read_error(&args.profile_id, &args.request_id, error);
+                }
+                return Err(error);
+            }
+        };
+        let mut state = service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?;
+        state
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .finish_profile_activity_read(completed)
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+#[tauri::command]
+async fn cancel_profile_activity_read(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<provider::Cancelled, CommandError> {
+    let args: ProfileReadArgs = arguments(&request)?;
+    let provider = service.2.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        provider.cancel_activity(&args.profile_id, &args.request_id)
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+fn is_bundled_url(url: &tauri::Url) -> bool {
+    url.username().is_empty()
+        && url.password().is_none()
+        && url.port().is_none()
+        && ((url.scheme() == "tauri" && url.host_str() == Some("localhost"))
+            || (url.scheme() == "http" && url.host_str() == Some("tauri.localhost")))
+}
+
+fn main() {
+    tauri::Builder::default()
+        .manage(WorkspaceService::default())
+        .manage(display_scale::DisplayScaleService::default())
+        .invoke_handler(tauri::generate_handler![
+            bootstrap,
+            get_display_scale,
+            set_display_scale,
+            load_profile_plan,
+            setup_workspace,
+            unlock_workspace,
+            set_theme,
+            create_backup,
+            export_saved_readings,
+            export_quota_history,
+            list_profiles,
+            create_profile,
+            rename_profile,
+            set_profile_archived,
+            list_backups,
+            inspect_backup,
+            prepare_restore_preview,
+            cancel_restore_preview,
+            apply_restore,
+            list_restore_checkpoints,
+            prepare_checkpoint_restore_preview,
+            prepare_provider_connection,
+            inspect_provider_executable,
+            approve_provider_executable,
+            check_profile_connection,
+            cancel_profile_check,
+            begin_profile_login,
+            await_profile_login_prompt,
+            open_profile_login_page,
+            complete_profile_login,
+            cancel_profile_login,
+            discover_provider_executables,
+            load_monitoring,
+            start_profile_monitoring,
+            pause_profile_monitoring,
+            load_profile_refresh_status,
+            begin_profile_collection_read,
+            complete_profile_collection_read,
+            cancel_profile_collection_read,
+            review_profile_collection_association,
+            begin_profile_collection_reassociation,
+            begin_profile_quota_read,
+            complete_profile_quota_read,
+            cancel_profile_quota_read,
+            load_profile_quota,
+            load_profile_quota_history,
+            review_profile_quota_association,
+            begin_profile_quota_reassociation,
+            load_profile_activity,
+            load_profile_heatmap,
+            load_combined_heatmap,
+            begin_profile_activity_read,
+            begin_profile_activity_reassociation,
+            review_profile_activity_association,
+            complete_profile_activity_read,
+            cancel_profile_activity_read
+        ])
+        .setup(|app| {
+            let window = &app.config().app.windows[0];
+            WebviewWindowBuilder::from_config(app, window)?
+                .on_navigation(is_bundled_url)
+                .on_new_window(|_, _| NewWindowResponse::Deny)
+                .build()?;
+            Ok(())
+        })
+        .build(tauri::generate_context!())
+        .expect("Failed to start OpenUsage")
+        .run(|app, event| {
+            if matches!(event, tauri::RunEvent::Exit) {
+                app.state::<WorkspaceService>().1.close();
+                if app.state::<WorkspaceService>().3.close().is_err() {
+                    // Typed cleanup failure only. Never log provider frames, credentials, or paths.
+                    eprintln!("OpenUsage could not complete owned provider cleanup.");
+                }
+            }
+        });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        ApplyRestoreArgs, ApproveProviderArgs, ArchiveProfileArgs, BackupArgs, BeginLoginArgs,
+        BeginReadArgs, CancelRestorePreviewArgs, CheckpointPreviewArgs, CreateProfileArgs,
+        DisplayScaleArgs, ExportQuotaHistoryArgs, InspectBackupArgs, InspectProviderArgs,
+        ListProfilesArgs, LoginAttemptArgs, ProfileCheckArgs, ProfilePlanArgs,
+        ProfileQuotaHistoryArgs, ProfileReadArgs, RenameProfileArgs, SetupArgs, ThemeArgs,
+        UnlockArgs, is_bundled_url,
+    };
+
+    #[test]
+    fn history_export_requires_explicit_typed_consent_and_no_caller_path_or_limit() {
+        let valid = serde_json::json!({"profileId":"11111111-1111-4111-8111-111111111111", "format":"csv", "includeIdentifiers":false, "confirmed":true});
+        assert!(serde_json::from_value::<ExportQuotaHistoryArgs>(valid.clone()).is_ok());
+        for field in ["profileId", "format", "includeIdentifiers", "confirmed"] {
+            let mut missing = valid.clone();
+            missing.as_object_mut().unwrap().remove(field);
+            assert!(serde_json::from_value::<ExportQuotaHistoryArgs>(missing).is_err());
+        }
+        for (field, value) in [
+            ("path", serde_json::json!("/external")),
+            ("limit", serde_json::json!(20)),
+            ("confirmed", serde_json::json!("true")),
+            ("format", serde_json::json!("xml")),
+        ] {
+            let mut invalid = valid.clone();
+            invalid[field] = value;
+            assert!(serde_json::from_value::<ExportQuotaHistoryArgs>(invalid).is_err());
+        }
+    }
+
+    #[test]
+    fn display_and_plan_commands_reject_paths_and_incorrect_types() {
+        for invalid in [
+            r#"{}"#,
+            r#"{"percent":"125"}"#,
+            r#"{"percent":125.5}"#,
+            r#"{"percent":-1}"#,
+            r#"{"percent":125,"path":"/external"}"#,
+        ] {
+            assert!(serde_json::from_str::<DisplayScaleArgs>(invalid).is_err());
+        }
+        for invalid in [
+            r#"{}"#,
+            r#"{"profileId":"synthetic"}"#,
+            r#"{"profileId":"synthetic","bindingId":null}"#,
+            r#"{"profileId":"synthetic","bindingId":"synthetic","email":"private"}"#,
+        ] {
+            assert!(serde_json::from_str::<ProfilePlanArgs>(invalid).is_err());
+        }
+    }
+
+    #[test]
+    fn quota_history_command_requires_nullable_cursor_and_refuses_extra_scope() {
+        for invalid in [
+            r#"{}"#,
+            r#"{"profileId":"synthetic"}"#,
+            r#"{"profileId":"synthetic","beforeRunId":1}"#,
+            r#"{"profileId":"synthetic","beforeRunId":null,"limit":1000}"#,
+            r#"{"profileId":"synthetic","beforeRunId":null,"bindingId":"injected"}"#,
+        ] {
+            assert!(serde_json::from_str::<ProfileQuotaHistoryArgs>(invalid).is_err());
+        }
+        assert!(
+            serde_json::from_str::<ProfileQuotaHistoryArgs>(
+                r#"{"profileId":"synthetic","beforeRunId":null}"#
+            )
+            .is_ok()
+        );
+    }
+
+    #[test]
+    fn storage_commands_reject_unexpected_fields_and_incorrect_value_types() {
+        for invalid in [
+            r#"{}"#,
+            r#"{"profileId":"synthetic"}"#,
+            r#"{"profileId":"synthetic","approvalId":null}"#,
+            r#"{"profileId":"synthetic","approvalId":"synthetic","home":"/external"}"#,
+        ] {
+            assert!(serde_json::from_str::<BeginReadArgs>(invalid).is_err());
+        }
+        for invalid in [
+            r#"{}"#,
+            r#"{"profileId":"synthetic"}"#,
+            r#"{"profileId":"synthetic","requestId":null}"#,
+            r#"{"profileId":"synthetic","requestId":"synthetic","accountId":"injected"}"#,
+        ] {
+            assert!(serde_json::from_str::<ProfileReadArgs>(invalid).is_err());
+        }
+        for invalid in [
+            r#"{}"#,
+            r#"{"profileId":"synthetic","flow":"device_code","confirmed":true}"#,
+            r#"{"profileId":"synthetic","approvalId":"synthetic","flow":"api_key","confirmed":true}"#,
+            r#"{"profileId":"synthetic","approvalId":"synthetic","flow":"device_code","confirmed":"true"}"#,
+            r#"{"profileId":"synthetic","approvalId":"synthetic","flow":"device_code","confirmed":true,"url":"https://external.invalid"}"#,
+        ] {
+            assert!(serde_json::from_str::<BeginLoginArgs>(invalid).is_err());
+        }
+        for invalid in [
+            r#"{}"#,
+            r#"{"profileId":"synthetic"}"#,
+            r#"{"profileId":"synthetic","attemptId":null}"#,
+            r#"{"profileId":"synthetic","attemptId":"synthetic","providerLoginId":"injected"}"#,
+        ] {
+            assert!(serde_json::from_str::<LoginAttemptArgs>(invalid).is_err());
+        }
+        for invalid in [
+            r#"{}"#,
+            r#"{"path":null}"#,
+            r#"{"path":"/synthetic","args":["exec"]}"#,
+        ] {
+            assert!(serde_json::from_str::<InspectProviderArgs>(invalid).is_err());
+        }
+        for invalid in [
+            r#"{}"#,
+            r#"{"candidateId":"synthetic"}"#,
+            r#"{"candidateId":"synthetic","confirmed":"true"}"#,
+            r#"{"candidateId":"synthetic","confirmed":true,"sha256":"caller-controlled"}"#,
+        ] {
+            assert!(serde_json::from_str::<ApproveProviderArgs>(invalid).is_err());
+        }
+        for invalid in [
+            r#"{}"#,
+            r#"{"profileId":null}"#,
+            r#"{"profileId":"synthetic","home":"/external"}"#,
+            r#"{"profileId":"synthetic","timeout":1}"#,
+        ] {
+            assert!(serde_json::from_str::<ProfileCheckArgs>(invalid).is_err());
+        }
+        for invalid in [
+            r#"{}"#,
+            r#"{"checkpointId":null}"#,
+            r#"{"checkpointId":"synthetic","path":"/external"}"#,
+            r#"{"checkpointId":"synthetic","password":"unnecessary"}"#,
+        ] {
+            assert!(serde_json::from_str::<CheckpointPreviewArgs>(invalid).is_err());
+        }
+        for invalid in [
+            r#"{}"#,
+            r#"{"previewId":"synthetic"}"#,
+            r#"{"previewId":"synthetic","confirmed":"true"}"#,
+            r#"{"previewId":"synthetic","confirmed":true,"path":"/external"}"#,
+        ] {
+            assert!(serde_json::from_str::<ApplyRestoreArgs>(invalid).is_err());
+        }
+        for invalid in [
+            r#"{}"#,
+            r#"{"previewId":null}"#,
+            r#"{"previewId":[]}"#,
+            r#"{"previewId":"synthetic","path":"/external"}"#,
+            r#"{"previewId":"synthetic","apply":true}"#,
+        ] {
+            assert!(serde_json::from_str::<CancelRestorePreviewArgs>(invalid).is_err());
+        }
+        assert!(serde_json::from_str::<ListProfilesArgs>(r#"{"home":"/external"}"#).is_err());
+        for invalid in [
+            r#"{}"#,
+            r#"{"label":null}"#,
+            r#"{"label":[]}"#,
+            r#"{"label":"Synthetic","id":"caller-selected"}"#,
+            r#"{"label":"Synthetic","environment":"wsl"}"#,
+            r#"{"label":"Synthetic","home":"/external"}"#,
+        ] {
+            assert!(serde_json::from_str::<CreateProfileArgs>(invalid).is_err());
+        }
+        for invalid in [
+            r#"{"label":"Synthetic"}"#,
+            r#"{"id":[],"label":"Synthetic"}"#,
+            r#"{"id":"synthetic","label":"Synthetic","extra":true}"#,
+        ] {
+            assert!(serde_json::from_str::<RenameProfileArgs>(invalid).is_err());
+        }
+        for invalid in [
+            r#"{"id":"synthetic"}"#,
+            r#"{"id":"synthetic","archived":"true"}"#,
+            r#"{"id":"synthetic","archived":1}"#,
+            r#"{"id":"synthetic","archived":true,"deleteHistory":true}"#,
+        ] {
+            assert!(serde_json::from_str::<ArchiveProfileArgs>(invalid).is_err());
+        }
+        for invalid in [
+            r#"{}"#,
+            r#"{"fileName":null,"password":"synthetic"}"#,
+            r#"{"fileName":"archive","password":null}"#,
+            r#"{"fileName":"archive","password":[]}"#,
+            r#"{"fileName":"archive","password":"synthetic","path":"/external"}"#,
+        ] {
+            assert!(serde_json::from_str::<InspectBackupArgs>(invalid).is_err());
+        }
+        for invalid in [
+            r#"{}"#,
+            r#"{"password":null}"#,
+            r#"{"password":[]}"#,
+            r#"{"password":"synthetic password","path":"/external"}"#,
+        ] {
+            assert!(serde_json::from_str::<BackupArgs>(invalid).is_err());
+        }
+        for invalid in [
+            r#"{}"#,
+            r#"{"passphrase":[],"path":"/external"}"#,
+            r#"{"passphrase":"synthetic secret","path":"/external"}"#,
+        ] {
+            assert!(serde_json::from_str::<SetupArgs>(invalid).is_err());
+        }
+        for invalid in [
+            r#"{"passphrase":null}"#,
+            r#"{"passphrase":42}"#,
+            r#"{"passphrase":"synthetic secret","extra":true}"#,
+        ] {
+            assert!(serde_json::from_str::<UnlockArgs>(invalid).is_err());
+        }
+        for invalid in [
+            r#"{"theme":["dark"]}"#,
+            r#"{"theme":"unknown"}"#,
+            r#"{"theme":"dark","path":"/external"}"#,
+        ] {
+            assert!(serde_json::from_str::<ThemeArgs>(invalid).is_err());
+        }
+    }
+
+    #[test]
+    fn navigation_rejects_external_content_and_disguised_local_origins() {
+        for url in [
+            "https://example.com/",
+            "http://127.0.0.1/",
+            "http://tauri.localhost.example.com/",
+            "http://tauri.localhost:1420/",
+            "http://user@tauri.localhost/",
+            "tauri://example.com/",
+            "file:///tmp/index.html",
+            "data:text/html,hello",
+        ] {
+            assert!(!is_bundled_url(&url.parse().unwrap()), "{url}");
+        }
+        for url in [
+            "tauri://localhost/index.html",
+            "tauri://localhost/index.html#main",
+            "http://tauri.localhost/index.html",
+        ] {
+            assert!(is_bundled_url(&url.parse().unwrap()), "{url}");
+        }
+    }
+}

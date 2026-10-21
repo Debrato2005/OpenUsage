@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-discover-provider-executables"
+description = "Enables the discover_provider_executables command without any pre-configured scope."
+commands.allow = ["discover_provider_executables"]
+
+[[permission]]
+identifier = "deny-discover-provider-executables"
+description = "Denies the discover_provider_executables command without any pre-configured scope."
+commands.deny = ["discover_provider_executables"]

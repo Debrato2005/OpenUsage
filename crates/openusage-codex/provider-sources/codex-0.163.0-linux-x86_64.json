@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "version": "0.163.0",
+  "target": "x86_64-unknown-linux-musl",
+  "executableSha256": "399ff69c431c066e40de318fba45c2b07f45a76b19939d247ee4828fc70c4215",
+  "executableBytes": 296865480,
+  "sourceUrl": "https://github.com/openai/codex/releases/download/rust-v0.163.0/codex-x86_64-unknown-linux-musl.tar.gz",
+  "sourceKind": "official_artifact",
+  "archive": {
+    "name": "codex-x86_64-unknown-linux-musl.tar.gz",
+    "sha256": "beb339e8ecd9ba057a6bb2dc81ad8ca474812edfbf0fc5056ca818797648dde4",
+    "bytes": 112589966,
+    "githubAssetId": 645227929
+  },
+  "upstreamProvenance": {
+    "repository": "https://github.com/openai/codex",
+    "releaseTag": "rust-v0.163.0",
+    "releaseUrl": "https://github.com/openai/codex/releases/tag/rust-v0.163.0",
+    "releasePublishedAt": "2026-10-15T21:30:38Z",
+    "releaseMetadataUrl": "https://api.github.com/repos/openai/codex/releases/tags/rust-v0.163.0",
+    "releaseMetadataSha256": "e9c5b66696a67499a85977a6e885522a542fbcc5884ffa6f30f7c312606fc3e3",
+    "sourceCommit": "83086188ae0614bd882818ff1aa23f3194962012",
+    "annotatedTagObject": "129b8ec7ee6f4511557a4856279f529025c25af4",
+    "annotatedTagSignatureVerified": false,
+    "annotatedTagSignatureStatus": "unsigned",
+    "signatureUrl": "https://github.com/openai/codex/releases/download/rust-v0.163.0/codex-x86_64-unknown-linux-musl.sigstore",
+    "signatureSha256": "3147bce4ddb9cb961124809719f5c1c2763b6cc1ffc6243d69e1f765a0523fbb",
+    "sigstoreVerification": "passed",
+    "signingIdentity": "https://github.com/openai/codex/.github/workflows/rust-release.yml@refs/tags/rust-v0.163.0",
+    "oidcIssuer": "https://token.actions.githubusercontent.com",
+    "certificateSha256": "c9c256b7a58afac275e9741ecdcca87c35f65545693a96619dbde391b00a3ab7",
+    "certificateTransparencyThreshold": 1,
+    "rekorThreshold": 1,
+    "rekorLogId": "c0d23d6ad406973f9559f3ba2d1ca01f84147d8ffc5b8445c224f98b9591801d",
+    "rekorLogIndex": "3267983038",
+    "rekorIntegratedTime": 1792091863,
+    "tufMirror": "https://tuf-repo-cdn.sigstore.dev",
+    "verifier": {
+      "name": "sigstore",
+      "version": "3.1.0"
+    }
+  },
+  "reviewedAt": "2026-10-18T05:24:54.894182+00:00",
+  "artifactExecutedDuringVerification": false,
+  "scope": "Only these exact Linux x86_64 musl executable bytes are allowed. Explicit user approval remains required. Other versions, targets, and hashes remain unverified."
+}

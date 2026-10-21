@@ -1,0 +1,17 @@
+> Public source copy: raw acceptance evidence remains private. Historical test statements keep their original scope and do not certify this source snapshot.
+
+# Retained schema 1 archive restore
+
+October 18, 2026. The current desktop application restored an actual retained schema 1 backup through the native interface. It preserved the original three profile UUIDs, names, archive flags, and native environment fields. The live database remained encrypted SQLCipher 4 with WAL at schema 2. No production code or dependency changed in this slice.
+
+The retained archive matches its original authenticated receipt and executed test source. A separate Rust oracle authenticated it again. That oracle read the original schema 1 columns directly in memory and supplied the exact UUIDs for comparison. It used private synthetic files, encrypted staging, and zeroizing plaintext memory. The original ciphertext stayed unchanged.
+
+The native journey inspected the archive, showed schema version 1, prepared a new checkpoint-backed preview, and required explicit replacement consent. It restored two active profiles and one archived profile into fresh empty private homes. Authentication reset to required. Independent SQLCipher, page authentication, integrity, and foreign-key checks passed. All six activity tables remained empty, matching the older archive's contents. No identity or activity was invented.
+
+A genuine application restart preserved the imported profiles and mappings. The UI then exported a schema 2 archive that authenticated and matched those mappings. Recovery of the original schema 2 checkpoint returned the prior profile, original home, and Light appearance. A second restart preserved that recovered state. The protected key, old home marker, synthetic Codex home, and original archive stayed unchanged.
+
+Five fresh captures were reviewed. The audit (private evidence omitted) binds six current-schema oracle states, the separate original-schema oracle, three genuine window closes, 185 product files, ten assets, and all executables, helpers, and tools. The application is the unchanged default debug executable from `a94d49b`. The one new source file is a separate test-only archive oracle. Its build, strict Clippy, and authentication check passed.
+
+The first run failed because its test incorrectly expected inspection to authorize restore. The contract requires `restoreAvailable:false` until a fresh preview. The corrected test verifies that refusal and the visible Preview restore action. It preserves the existing unchecked consent gate. The exact failed harness and raw failure remain retained.
+
+This journey verifies an older archive without activity history. Nonempty history preservation has separate schema 2 native evidence. Historical encrypted schema 1 checkpoints retain their Rust compatibility checks. These results do not establish every original timestamp, live provider data, optimized execution, performance targets, other platforms, or full acceptance. SQLCipher 4 with WAL and the normative SRS remain unchanged. Explicit account-association recovery is the next implementation slice.

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-export-quota-history"
+description = "Enables the export_quota_history command without any pre-configured scope."
+commands.allow = ["export_quota_history"]
+
+[[permission]]
+identifier = "deny-export-quota-history"
+description = "Denies the export_quota_history command without any pre-configured scope."
+commands.deny = ["export_quota_history"]

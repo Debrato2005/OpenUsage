@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-await-profile-login-prompt"
+description = "Enables the await_profile_login_prompt command without any pre-configured scope."
+commands.allow = ["await_profile_login_prompt"]
+
+[[permission]]
+identifier = "deny-await-profile-login-prompt"
+description = "Denies the await_profile_login_prompt command without any pre-configured scope."
+commands.deny = ["await_profile_login_prompt"]
