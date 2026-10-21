@@ -1,8 +1,8 @@
-# Remote branch cleanup awaiting approval
+# Completed remote branch cleanup
 
-Reviewed October 22, 2026. No remote branch was changed or deleted.
+Completed October 22, 2026, after the owner's approval: "review then delete after published". GitHub now contains only `main`.
 
-Keep `main`. The [exact candidate list](branch-cleanup-candidates.tsv) contains 219 temporary, recovery and archive branches with their reviewed tips. No active collaboration branch was identified in this review.
+The [historical candidate list](branch-cleanup-candidates.tsv) records the 219 deleted temporary, recovery and archive branches and their reviewed tips. No active collaboration branch was identified in this review.
 
 ## Work preservation
 
@@ -12,15 +12,15 @@ Local merge `6c6e0168e1b2ea16e93a596ac6e451d7f06a0808` records the 84 independen
 
 The normal root checkout now contains the complete reviewed development history. Additional publication repositories and archive tags are not needed for routine work. Original private recovery data remains local.
 
-## Required order
+## Executed sequence
 
-1. The owner reviews and pushes current `main` with ordinary `git push`. Agents must not push.
-2. Fetch the remote again. Confirm remote main contains every candidate tip and each candidate still matches this list. Re-review any changed branch.
-3. Obtain the owner's explicit approval for the exact 219 remote deletions.
-4. Delete only those approved branches. Preserve `main`, tags and any newly created or changed collaboration branch.
-5. Read the remote branch list again and confirm the approved result.
+1. The owner published `main` at `af70f601b864ed542e70e61c73ef93b90e811543` with ordinary Git.
+2. A fresh fetch and remote read confirmed that published main preserved all 219 candidate tips. Every candidate still matched its reviewed tip. No changed or additional branch was included.
+3. The owner's conditional approval covered the reviewed list after publication. The deletion hook also checked Git's advertised tips against the list to catch changes after preflight.
+4. One atomic operation deleted only those 219 approved branches. No source commit was pushed, existing commit rewritten, main updated or tag deleted.
+5. A fresh remote read confirmed exactly one branch, `main`, with the same hash. The remote default branch remains main. Stale local tracking references were pruned.
 
-Deletion is not approved by this document. Until the owner pushes main and approves the cleanup, GitHub retains the existing branches. The local pre-push hook also refuses branch deletion when its advertised tip is absent from either local main or the fetched origin/main.
+No further remote action is approved by this record. The candidate list is historical evidence, not an automatic cleanup instruction. Future deletions need fresh review and approval. The local pre-push hook refuses deletion when the advertised tip is absent from either local main or fetched origin/main.
 
 ## Verification scope
 
