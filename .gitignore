@@ -6,6 +6,10 @@ apps/desktop/src-tauri/binaries/
 .tools/
 .recovery/
 .npm-cache/
+.vite/
+.pnpm-store/
+.yarn/cache/
+coverage/
 playwright-report/
 test-results/
 *.db
@@ -37,6 +41,27 @@ database-key.v1
 *-journal
 *.oubackup
 *.log
+*.db3
+*.db3-wal
+*.db3-shm
+
+# Compiled outputs and local operating-system metadata.
+*.exe
+*.dll
+*.so
+*.dylib
+*.o
+*.a
+*.rlib
+*.rmeta
+*.dSYM/
+.DS_Store
+Thumbs.db
+Desktop.ini
+*:Zone.Identifier
+*.swp
+*.tmp
+*.temp
 
 # Python tooling caches.
 __pycache__/
@@ -47,6 +72,7 @@ docs/evidence/
 design-qa.md
 docs/master-build-prompt.md
 tests/native/recovery-artifact-audit.json
+crates/openusage-storage/tests/evidence/
 crates/openusage-codex/tests/evidence/*
 !crates/openusage-codex/tests/evidence/codex-0.163.0-linux-x86_64.sigstore.json
 !crates/openusage-codex/tests/evidence/official-codex-0.163.0-source.json

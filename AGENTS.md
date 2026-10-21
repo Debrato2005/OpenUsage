@@ -10,3 +10,5 @@ Do not claim a native build, provider capability, or platform passed without exe
 Run npm run check for renderer changes. Run cargo test --workspace and cargo clippy --workspace --all-targets when Rust is available.
 
 Use Git commits and concise receipts as development history. Follow docs/artifact-retention.md. Normal freeze calls record metadata only; executable retention is explicit and capped. Remove integrated clean agent worktrees after preserving unique work and required evidence.
+
+The project root is the canonical checkout. Do not create separate publication repositories or use recovery copies for new development. Keep temporary agent branches local. Never publish all refs or mirror a repository. The configured default push targets only origin/main; agents still must not push. Preserve the local secret-check hooks and review staged paths before each commit.

@@ -1,0 +1,2 @@
+#!/bin/sh
+exec node scripts/git-safety.mjs staged

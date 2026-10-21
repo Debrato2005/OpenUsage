@@ -2,6 +2,45 @@
 
 Keep changes small and verify the affected workflow. Preserve existing local data, unrelated work and the normative [SRS](docs/SRS.md). This development session permits local commits only: do not push, publish, open pull requests or change a remote.
 
+## Normal Git workflow
+
+Use the project root. Do not create a second publication checkout or develop inside recovery copies.
+
+Install [Gitleaks](https://github.com/gitleaks/gitleaks/releases) once from its official releases. The reviewed local version is 8.30.1. Make `gitleaks` available on `PATH`, or set `GITLEAKS_BIN` to its executable. The hook also recognizes the project-local copy under `.tools/security`. No package dependency or background service is added.
+
+Enable the tracked hooks once per clone:
+
+```sh
+git config --local core.hooksPath .githooks
+git config --local push.default simple
+git config --local remote.origin.push refs/heads/main:refs/heads/main
+```
+
+Git does not enable repository hooks automatically when cloning. See the [Git hook documentation](https://git-scm.com/docs/githooks) and [push configuration](https://git-scm.com/docs/git-config#Documentation/git-config.txt-remoteltnamegtpush).
+
+For routine work on `main`, review the diff, then use ordinary commands:
+
+```sh
+git add .
+git diff --cached --stat
+git commit -m "Describe the change"
+git push
+```
+
+The final command is for the repository owner after review. Agents must not execute it. The local default sends only `main` to `origin/main`. It does not publish temporary branches or tags. Do not publish all branches, mirror repositories or force updates.
+
+Pre-commit checks staged paths and runs Gitleaks. Pre-push checks outgoing history, requires a normal main-to-main fast-forward, and refuses other branch uploads or deletion of `main`. Missing scanners and timeouts fail the operation with an explanation. Secret values are redacted. These checks reduce risk but cannot prove that no secret exists. Review findings rather than disabling the hooks. Remote branch deletions require the owner's approval and a fresh preservation check.
+
+Recovery and build outputs stay ignored. Never force-add private data to work around an ignore rule. Keep source fixtures synthetic. If a real credential appears in published history, revoke or rotate it with its provider before reviewing history remediation.
+
+Run the small hook suite with the installed scanner:
+
+```sh
+node --test tests/tools/git-safety.test.mjs
+```
+
+Tests use disposable local repositories and nonfunctional synthetic tokens. They do not contact a remote or validate credentials.
+
 ## Keep build storage bounded
 
 Follow the [artifact retention policy](docs/artifact-retention.md). Before a large build, check repository storage:
