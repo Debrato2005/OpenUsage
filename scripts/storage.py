@@ -21,7 +21,7 @@ SUFFIXES = ('.db', '.sqlite', '.sqlite3', '.db-wal', '.db-shm', '.wal', '.shm',
             '.db-journal', '.sqlite-wal', '.sqlite-shm', '.sqlite-journal',
             '.sqlite3-wal', '.sqlite3-shm', '.sqlite3-journal', '.db3-wal',
             '.db3-shm', '.db3-journal', '.mjs', '.cjs', '.jsx', '.c', '.cpp',
-            '.h', '.yml', '.yaml', '.md', '.journal')
+            '.h', '.yml', '.yaml', '.md', '.journal', '.css', '.html', '.svg')
 
 
 def linked(path):

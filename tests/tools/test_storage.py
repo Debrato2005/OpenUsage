@@ -68,7 +68,7 @@ class StorageTests(unittest.TestCase):
                      '.keep', '.git', 'records.db-journal', 'old.db3', 'old.sqlite-wal',
                      'old.sqlite3-shm', 'old.sqlite3-journal', 'worker.mjs', 'component.jsx',
                      'build.cjs', 'source.c', 'source.cpp', 'source.h', 'config.yml',
-                     'config.yaml', 'notes.md', 'session.json']
+                     'config.yaml', 'notes.md', 'session.json', 'theme.css', 'index.html', 'icon.svg']
         for index, name in enumerate(protected):
             directory = self.run_directory('protected-' + str(index))
             (directory / name).write_text('Synthetic protected data')
