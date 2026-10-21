@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
-import type { ProfileRecord, SavedProfileActivity, SavedProfileQuota } from '../../apps/desktop/src/contracts';
+import type { ProfileRecord, SavedProfileActivity, SavedProfileQuota, SavedProfileHeatmap } from '../../apps/desktop/src/contracts';
 import { navigate, openOptions, openReadings } from './navigation';
 
 // Synthetic renderer fixtures. Native provider processes and encrypted storage are separate acceptance checks.
@@ -42,12 +42,24 @@ async function open(page: Page, options: { empty?: boolean; deferFirst?: boolean
     if (options.freshQuotas) value.freshness = 'fresh';
     return [id, value];
   }));
-  await page.addInitScript(({ first, second, ids, readings, quotas, options }) => {
+  const heatmap: SavedProfileHeatmap = { profileId: first, bindingId: chartActivity.bindingId, collectionRunId: chartActivity.collectionRunId, sourceKind: 'test_fixture', scope: chartActivity.scope, coverage: 'unknown', observedAtUtc, mode: 'daily', periodStart: '2026-10-01', periodEnd: '2026-10-03', scaleMaximum: '9007199254740993', cells: [
+    { startDate: '2026-10-01', endDate: '2026-10-01', tokens: '0', level: 0, knownDays: 1, expectedDays: 1, observedAtUtc, freshness: 'stale' },
+    { startDate: '2026-10-02', endDate: '2026-10-02', tokens: null, level: 0, knownDays: 0, expectedDays: 1, observedAtUtc: null, freshness: 'unknown' },
+    { startDate: '2026-10-03', endDate: '2026-10-03', tokens: '9007199254740993', level: 4, knownDays: 1, expectedDays: 1, observedAtUtc, freshness: 'fresh' },
+  ] };
+  await page.addInitScript(({ first, second, ids, readings, quotas, options, heatmap }) => {
     const fixture: Fixture = { calls: [], deferFirst: options.deferFirst ?? false, mismatchFirst: false, pending: [], profiles: ids.map((id, index) => ({ id, label: index === 0 ? 'Zero fixture' : index === 1 ? 'Large fixture' : `Fixture ${index + 1}`, environment: 'native', archived: false, connectionState: 'authentication_required' })), quotas, rejectQuota: [], mismatchQuota: [], deferQuota: options.deferSecond ? [second] : [] };
     Object.assign(window, { overviewFixture: fixture });
     let theme = 'light';
     window.__TAURI__ = { core: { invoke: async <T>(command: string, args: Record<string, unknown> = {}) => {
       fixture.calls.push(command);
+      if (command === 'load_combined_heatmap') return { status: 'unavailable', includedProfileIds: [], exclusions: (args.profileIds as string[]).map(profileId => ({ profileId, reason: 'not_connected' })) } as T;
+      if (command === 'load_profile_heatmap') {
+        if (!options.chart || args.profileId !== first) return null as T;
+        if (args.mode === 'weekly') return { ...heatmap, mode: 'weekly', cells: [{ ...heatmap.cells[2], startDate: '2026-09-28', endDate: '2026-10-04', knownDays: 2, expectedDays: 7 }] } as T;
+        if (args.mode === 'cumulative') return { ...heatmap, mode: 'cumulative', cells: heatmap.cells.map((cell, index) => ({ ...cell, tokens: index < 2 ? '0' : cell.tokens, knownDays: index < 2 ? 1 : 2, expectedDays: index + 1, observedAtUtc, freshness: 'stale' })) } as T;
+        return heatmap as T;
+      }
       if (command === 'load_monitoring') return { state: 'stopped', readingRevision: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', profiles: [] } as T;
       if (command === 'bootstrap') return { storage: 'ready', theme, schemaVersion: 4, activeProfiles: fixture.profiles.filter(profile => !profile.archived).length, monitoring: 'stopped', provider: 'not_configured', keyProtection: 'passphrase', storageIssue: null } as T;
       if (command === 'list_profiles') return { activeProfiles: fixture.profiles.filter(profile => !profile.archived).length, profiles: fixture.profiles } as T;
@@ -68,7 +80,7 @@ async function open(page: Page, options: { empty?: boolean; deferFirst?: boolean
       }
       throw new Error(`Unexpected overview fixture command: ${command}`);
     } } };
-  }, { first, second, ids, readings, quotas, options });
+  }, { first, second, ids, readings, quotas, options, heatmap });
   await page.goto('/');
   await expect(page.getByRole('region', { name: 'Usage overview', exact: true })).toBeVisible();
 }
@@ -83,7 +95,7 @@ test('renderer Overview keeps missing values unavailable and navigates through r
   await expect(dashboard(page).locator('[data-overview-lifetime]')).toHaveText('Not available');
   await expect(dashboard(page).locator('[data-overview-quota]').getByRole('meter')).toHaveCount(0);
   await expect(dashboard(page).locator('[data-overview-quota-chart]')).toHaveCount(0);
-  await dashboard(page).getByRole('button', { name: 'Manage accounts', exact: true }).click();
+  await navigate(page, 'accounts');
   await expect(page.locator('[data-workspace-view="accounts"]')).toBeVisible();
   await expect(page.locator('#profile-label')).toBeHidden();
   await page.getByRole('button', { name: 'Choose a name', exact: true }).click();
@@ -96,9 +108,10 @@ test('renderer Overview keeps missing values unavailable and navigates through r
 
 test('renderer Overview preserves exact zero and large values and rejects stale or mismatched profile readings', async ({ page }) => {
   await open(page);
-  await expect(dashboard(page).locator('[data-overview-account-share]')).toHaveAttribute('data-aggregation', 'unavailable');
-  await expect(dashboard(page).getByRole('figure', { name: 'Account usage share unavailable: identity and activity coverage are unverified.', exact: true })).toBeVisible();
-  await expect(dashboard(page).locator('[data-overview-combined-usage]')).toContainText('Combined total cannot be verified');
+  await expect(dashboard(page).locator('[data-overview-account-share]')).toHaveCount(1);
+  await expect(dashboard(page).locator('[data-overview-quota-donut]')).toHaveAttribute('data-remaining', '0');
+  await dashboard(page).getByRole('button', { name: 'Account share', exact: true }).click();
+  await expect(dashboard(page).locator('.overview-share-panel')).toContainText('Unavailable');
   await expect(dashboard(page).locator('[data-overview-lifetime]')).toHaveText('0');
   await expect(dashboard(page).locator('[data-overview-quota]').getByRole('meter')).toHaveAttribute('aria-valuenow', '0');
   await choose(page, 'Large fixture');
@@ -155,7 +168,7 @@ for (const scale of [1, 2]) test(`Overview compact count keeps exact values keyb
   const total = dashboard(page).locator('[data-overview-lifetime]');
   await expect(total.locator('bdi')).toHaveAttribute('title', '9223372036854775807');
   await expect(total).not.toHaveText('9223372036854775807');
-  expect(await page.evaluate(() => document.scrollingElement!.scrollWidth <= innerWidth + 1)).toBe(true);
+  expect(await page.evaluate(() => document.scrollingElement!.scrollWidth <= innerWidth + 1), JSON.stringify(await page.evaluate(() => [...document.querySelectorAll('.token-heatmap, .token-heatmap > *, .activity-scope-controls, .activity-scope-controls > *, .activity-scope-controls button, .overview-panel')].map(node => ({ tag: node.className, width: node.getBoundingClientRect().width, right: node.getBoundingClientRect().right, minWidth: getComputedStyle(node).minWidth }))))).toBe(true);
   const disclosure = dashboard(page).getByRole('button', { name: 'Reading details', exact: true });
   await dashboard(page).getByRole('button', { name: 'View usage', exact: true }).focus();
   await page.keyboard.press('Tab'); await expect(disclosure).toBeFocused();
@@ -167,7 +180,7 @@ for (const scale of [1, 2]) test(`Overview compact count keeps exact values keyb
   await expect(exactValues).toHaveCount(2);
   for (const value of await exactValues.all()) await expect(value).toBeVisible();
   await expect(details).toContainText('Account activity scope and coverage are unknown.');
-  expect(await page.evaluate(() => document.scrollingElement!.scrollWidth <= innerWidth + 1)).toBe(true);
+  expect(await page.evaluate(() => document.scrollingElement!.scrollWidth <= innerWidth + 1), JSON.stringify(await page.evaluate(() => [...document.querySelectorAll('.token-heatmap, .token-heatmap > *, .activity-scope-controls, .activity-scope-controls > *, .activity-scope-controls button, .overview-panel')].map(node => ({ tag: node.className, width: node.getBoundingClientRect().width, right: node.getBoundingClientRect().right, minWidth: getComputedStyle(node).minWidth }))))).toBe(true);
 });
 
 test('renderer Overview remains accessible in both themes at 360 pixels and enlarged text', async ({ page }) => {
@@ -183,7 +196,7 @@ test('renderer Overview remains accessible in both themes at 360 pixels and enla
     await navigate(page, 'overview');
     for (const scale of [1, 2]) {
       await page.evaluate(scale => { for (const node of document.querySelectorAll<HTMLElement>('body *')) { const baseline = node.dataset.testFontSize ?? getComputedStyle(node).fontSize; node.dataset.testFontSize = baseline; node.style.fontSize = `${parseFloat(baseline) * scale}px`; } }, scale);
-      expect(await page.evaluate(() => document.scrollingElement!.scrollWidth <= innerWidth + 1)).toBe(true);
+      expect(await page.evaluate(() => document.scrollingElement!.scrollWidth <= innerWidth + 1), JSON.stringify(await page.evaluate(() => [...document.querySelectorAll('.token-heatmap, .token-heatmap > *, .activity-scope-controls, .activity-scope-controls > *, .activity-scope-controls button, .overview-panel')].map(node => ({ tag: node.className, width: node.getBoundingClientRect().width, right: node.getBoundingClientRect().right, minWidth: getComputedStyle(node).minWidth }))))).toBe(true);
       await expect(dashboard(page).locator('[data-overview-lifetime] bdi')).toHaveAttribute('title', '9223372036854775807');
       const audit = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
       expect(audit.violations, `${theme}, ${scale * 100}% test text`).toEqual([]);
@@ -214,42 +227,27 @@ test('renderer Overview remains accessible in both themes at 360 pixels and enla
 });
 
 
-test('Overview renders Rust-prepared daily geometry with exact accessible values and no invented gap date', async ({ page }) => {
+test('Overview heatmap distinguishes missing dates, zero and exact counts without bar geometry', async ({ page }) => {
   await open(page, { chart: true });
-  const chart = dashboard(page).locator('[data-overview-daily-chart]');
-  await expect(chart).toContainText('2 saved dates');
-  await expect(chart.locator('[data-overview-day]')).toHaveCount(2);
-  await expect(chart.locator('[data-overview-day="2026-10-02"]')).toHaveCount(0);
-  const zero = chart.locator('[data-overview-day="2026-10-01"] .overview-daily-bar');
-  const maximum = chart.locator('[data-overview-day="2026-10-03"] .overview-daily-bar');
-  await expect(zero).toHaveAttribute('data-zero', 'true');
-  expect(await maximum.evaluate(node => node.getBoundingClientRect().height)).toBeGreaterThan(await zero.evaluate(node => node.getBoundingClientRect().height));
-  await chart.getByRole('button', { name: 'Daily values', exact: true }).focus();
-  await page.keyboard.press('Enter');
-  const zeroRow = chart.getByRole('row').filter({ has: page.getByRole('rowheader', { name: '2026-10-01', exact: true }) });
-  const largeRow = chart.getByRole('row').filter({ has: page.getByRole('rowheader', { name: '2026-10-03', exact: true }) });
-  await expect(zeroRow.getByRole('cell', { name: 'Tokens for 2026-10-01', exact: true })).toHaveText('0');
-  await expect(zeroRow.getByRole('cell', { name: 'Stale', exact: true })).toBeVisible();
-  await expect(largeRow.getByRole('cell', { name: 'Tokens for 2026-10-03', exact: true })).toHaveText('9007199254740993');
-  await expect(largeRow.getByRole('cell', { name: 'Fresh', exact: true })).toBeVisible();
+  const chart = dashboard(page).locator('[data-token-heatmap]');
+  await expect(chart.locator('[data-heatmap-cell]')).toHaveCount(3);
+  await expect(chart.locator('[data-heatmap-cell="2026-10-02"]')).toHaveAttribute('data-value', 'missing');
+  await expect(chart.locator('[data-heatmap-cell="2026-10-01"]')).toHaveAttribute('data-value', 'zero');
+  const cell = chart.locator('[data-heatmap-cell="2026-10-03"]');
+  await cell.focus(); await expect(chart).toContainText('9007199254740993');
+  await chart.locator('[data-heatmap-values-toggle]').click();
+  await expect(chart.locator('table')).toContainText('9007199254740993');
   await choose(page, 'Large fixture');
-  await expect(dashboard(page).locator('[data-overview-daily-chart]')).toHaveCount(0);
-  await expect(dashboard(page).locator('[data-overview-chart-empty]')).toHaveText('Daily usage was not supplied.');
+  await expect(chart).toContainText('No saved daily activity');
 });
 
-for (const scale of [1, 2]) test(`Daily chart values stay exact and locally scrollable at 360px and ${scale * 100}% text`, async ({ page }) => {
-  await open(page, { chart: true });
-  await page.setViewportSize({ width: 360, height: 800 });
-  await dashboard(page).getByRole('button', { name: 'Daily values', exact: true }).click();
-  if (scale === 2) await page.evaluate(() => {
-    const sizes = [...document.querySelectorAll<HTMLElement>('body *')].map(node => ({ node, size: getComputedStyle(node).fontSize }));
-    for (const { node, size } of sizes) node.style.fontSize = `${parseFloat(size) * 2}px`;
-  });
-  const table = dashboard(page).getByRole('region', { name: 'Saved daily usage values', exact: true });
-  await expect(table).toContainText('9007199254740993');
-  await table.focus(); await page.keyboard.press('ArrowRight');
-  await expect.poll(() => table.evaluate(node => node.scrollLeft)).toBeGreaterThan(0);
-  expect(await page.evaluate(() => document.scrollingElement!.scrollWidth <= innerWidth + 1)).toBe(true);
+for (const scale of [1, 2]) test(`Heatmap values stay exact and locally scrollable at 360px and ${scale * 100}% text`, async ({ page }) => {
+  await open(page, { chart: true }); await page.setViewportSize({ width: 360, height: 800 });
+  const chart = dashboard(page).locator('[data-token-heatmap]');
+  await chart.locator('[data-heatmap-values-toggle]').click();
+  if (scale === 2) await page.evaluate(() => { const sizes = [...document.querySelectorAll<HTMLElement>('body *')].map(node => ({ node, size: getComputedStyle(node).fontSize })); for (const { node, size } of sizes) node.style.fontSize = `${parseFloat(size) * 2}px`; });
+  await expect(chart.locator('table')).toContainText('9007199254740993');
+  expect(await page.evaluate(() => document.scrollingElement!.scrollWidth <= innerWidth + 1), JSON.stringify(await page.evaluate(() => [...document.querySelectorAll('.token-heatmap, .token-heatmap > *, .activity-scope-controls, .activity-scope-controls > *, .activity-scope-controls button, .overview-panel')].map(node => ({ tag: node.className, width: node.getBoundingClientRect().width, right: node.getBoundingClientRect().right, minWidth: getComputedStyle(node).minWidth }))))).toBe(true);
 });
 
 
@@ -335,22 +333,23 @@ test('archival removes the account and its late quota response cannot replace a 
 });
 
 
-test('reference dashboard keeps account share and combined totals unavailable while individual activity stays explicit', async ({ page }) => {
+test('Overview offers individual and combined scopes without fabricating unsupported totals', async ({ page }) => {
   await open(page, { chart: true });
-  const share = dashboard(page).locator('[data-overview-account-share]');
-  await expect(share).toContainText('Unavailable');
-  await expect(share.getByRole('listitem')).toHaveCount(0); // These fixtures are disconnected; saved values do not establish a connection.
-  await expect(share).not.toContainText('75%');
-  await expect(dashboard(page).locator('[data-overview-combined-usage]')).not.toContainText('9007199254740993');
-  await expect(dashboard(page).locator('.overview-chart-context')).toContainText('Selected account only');
-  await dashboard(page).getByRole('combobox', { name: 'Activity reporting range' }).click();
-  await page.getByRole('option', { name: '7 dates', exact: true }).click();
-  await expect(dashboard(page).getByRole('combobox', { name: 'Activity reporting range' })).toContainText('7 dates');
-  await expect(dashboard(page).locator('[data-overview-day]')).toHaveCount(2);
+  await expect(dashboard(page).locator('[data-overview-account-share]')).toHaveCount(1);
+  await expect(dashboard(page).locator('[data-overview-combined-usage]')).toHaveCount(0);
+  await dashboard(page).getByRole('button', { name: 'Combined', exact: true }).click();
+  const combined = dashboard(page).locator('[data-combined-heatmap]');
+  await combined.getByRole('checkbox', { name: 'Zero fixture', exact: true }).check();
+  await expect(combined).toContainText('These accounts cannot be combined yet.');
+  await expect(combined).toContainText('Not connected');
+  await expect(combined.locator('[data-heatmap-cell]')).toHaveCount(0);
+  await dashboard(page).getByRole('button', { name: 'Individual', exact: true }).click();
+  await expect(dashboard(page).locator('[data-token-heatmap]')).toContainText('Zero fixture');
+  await dashboard(page).locator('[data-heatmap-mode=weekly]').click();
+  await expect(dashboard(page).locator('[data-token-heatmap]')).toHaveAttribute('data-mode', 'weekly');
   const calls = await page.evaluate(() => (window as unknown as FixtureWindow).overviewFixture.calls);
   expect(calls.some(command => /^(begin_|complete_|check_profile)/.test(command))).toBe(false);
 });
-
 
 test('all provider-reported quota windows stay visible and missing windows are never inferred from plan names', async ({ page }) => {
   await open(page);

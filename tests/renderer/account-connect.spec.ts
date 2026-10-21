@@ -16,7 +16,7 @@ for (const verified of [true, false]) test(`Add OpenAI account prepares the comp
       if (command === 'load_monitoring') return { state: 'stopped', readingRevision: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', profiles: [] } as T;
       if (command === 'list_profiles') return profiles() as T;
       if (command === 'create_profile') { if (args.label !== 'Account A') throw new Error('Unexpected default account name.'); created = true; return profiles() as T; }
-      if (command === 'load_profile_activity' || command === 'load_profile_quota') return null as T;
+      if (command === 'load_profile_activity' || command === 'load_profile_quota' || command === 'load_profile_heatmap') return null as T;
       if (command === 'load_profile_refresh_status') return { profileId: id, retryAfterSeconds: 0 } as T;
       if (command === 'prepare_provider_connection') { if (!verified) throw 'provider_source_unverified'; return { ...metadata, approvalId: '33333333-3333-4333-8333-333333333333' } as T; }
       if (command === 'discover_provider_executables') return { candidates: [{ path: metadata.path, location: 'path' }], truncated: false } as T;
@@ -40,7 +40,7 @@ for (const verified of [true, false]) test(`Add OpenAI account prepares the comp
     await expect(signIn).toBeVisible();
     await expect(page.locator('[data-profile-action=readings]')).toBeHidden();
   } else {
-    await expect(page.getByRole('alert')).toContainText('OpenUsage could not verify its OpenAI companion.');
+    await expect(page.locator('[data-account-panel]').getByRole('alert')).toContainText('OpenUsage could not verify its OpenAI companion.');
     await expect(page.getByRole('button', { name: 'Retry connection', exact: true })).toBeEnabled();
     await expect(page.locator('[data-login-start]')).toHaveCount(0);
     expect(await page.evaluate(() => (window as unknown as { connectRequests: { command: string }[] }).connectRequests.some(row => row.command === 'begin_profile_login'))).toBe(false);

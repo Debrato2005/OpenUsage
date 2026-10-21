@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <title>OpenUsage</title>
+  <rect width="512" height="512" rx="104" fill="#fff"/>
+  <g transform="translate(80 80) scale(3.5)" fill="#111">
+    <path d="M84 26 A42 42 0 1 0 39 91" fill="none" stroke="#111" stroke-width="18" stroke-linecap="round"/>
+    <rect x="52" y="65" width="12" height="35" rx="6"/>
+    <rect x="69" y="51" width="12" height="44" rx="6"/>
+    <rect x="86" y="38" width="12" height="46" rx="6"/>
+  </g>
+</svg>

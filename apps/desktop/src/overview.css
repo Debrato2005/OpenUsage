@@ -1,9 +1,10 @@
 /* Reference-aligned dashboard. All metric geometry is supplied by Rust. */
 .overview-dashboard { position: relative; min-width: 0; container-type: inline-size; margin-block: 0; }
 .overview-panels { display: flex; gap: .625rem; align-items: stretch; }
-.overview-panel { flex: 1 1 0; min-width: 0; min-height: 25rem; padding: 1.125rem; border: 1px solid var(--line); border-radius: .9375rem; background: var(--surface); }
-.overview-account-panel { flex-grow: 1.712; padding: 1rem; }
-.overview-ring-panel { flex-grow: .828; }
+.overview-panel { flex: 1 1 0; min-width: 0; padding: 1.125rem; border: 1px solid var(--line); border-radius: .9375rem; background: var(--surface); }
+.overview-account-panel { flex: 1.78 1 0; padding: 1rem; }
+.overview-share-panel { flex: .94 1 0; }
+.overview-activity-panel { flex: 1.37 1 0; padding: 0; border: 0; background: transparent; }
 .overview-panel-heading { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: nowrap; gap: .5rem; min-height: 2rem; margin-bottom: .75rem; }
 .overview-panel h2 { margin: 0; font-size: 1rem; line-height: 1.4; font-weight: 650; letter-spacing: -.025em; }
 .overview-panel-heading [data-slot='select-trigger'] { flex-shrink: 0; min-height: 2rem; height: auto; font-size: .75rem; padding-inline: .5rem; border-radius: .5rem; }
@@ -65,40 +66,6 @@
 .overview-source-details { display: contents; }
 .overview-source-details > [data-slot="collapsible-panel"] { flex-basis: 100%; }
 .overview-source-details > button { padding: 0; min-height: 2rem; height: 2rem; font-size: .75rem; color: var(--muted); }
-.overview-share-chart { margin: 0; text-align: center; }
-.overview-share-chart svg { display: block; width: min(100%, 13.75rem); height: auto; margin: .25rem auto .5rem; }
-.overview-share-chart circle { stroke: var(--line); }
-.overview-share-value { fill: var(--text); font-size: 19px; font-weight: 600; letter-spacing: -.3px; }
-.overview-share-caption { fill: var(--muted); font-size: 12px; }
-.overview-share-chart figcaption { color: var(--muted); font-size: .75rem; line-height: 1.5; max-width: 15rem; margin-inline: auto; }
-.overview-share-legend { list-style: none; padding: 0; margin: 1rem 0 0; display: grid; gap: .5rem; }
-.overview-share-legend li { display: flex; align-items: center; gap: .5rem; min-width: 0; font-size: .8125rem; }
-.overview-share-legend bdi { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.overview-share-legend li > span:last-child { color: var(--muted); }
-.overview-share-dot { width: .625rem; height: .625rem; border-radius: 50%; background: var(--muted); flex: 0 0 auto; }
-.overview-combined-unavailable { display: flex; flex-direction: column; gap: .25rem; margin: .75rem 0 1rem; }
-.overview-combined-unavailable strong { font-size: 1.875rem; font-weight: 650; line-height: 1.2; letter-spacing: -.04em; }
-.overview-combined-unavailable > span { color: var(--muted); font-size: .75rem; }
-.overview-chart-context { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: .25rem .75rem; margin-block: .625rem .75rem; font-size: .75rem; }
-.overview-chart-context > span { color: var(--muted); }
-.overview-chart-context bdi { overflow-wrap: anywhere; }
-.overview-daily { min-width: 0; }
-.overview-daily figure { margin: 0; }
-.overview-daily figcaption p { margin: 0 0 .625rem; color: var(--muted); font-size: .75rem; }
-.overview-daily-plot { display: flex; align-items: stretch; justify-content: space-between; gap: 4px; height: 9rem; border-bottom: 1px solid var(--line); background: repeating-linear-gradient(to top, transparent 0, transparent calc(25% - 1px), var(--line) calc(25% - 1px), var(--line) 25%); }
-.overview-daily-column { flex: 1; min-width: 0; max-width: 1.25rem; display: flex; align-items: flex-end; }
-.overview-daily-bar { display: block; width: 100%; height: max(1px, calc(var(--bar-height) * .01%)); background: var(--chart, var(--accent)); border-radius: 3px 3px 0 0; }
-.overview-daily-bar[data-zero='true'] { height: 0; border-top: 2px solid var(--muted); background: none; }
-.overview-daily-axis { display: flex; justify-content: space-between; gap: .5rem; margin-top: .625rem; color: var(--muted); font-size: .75rem; }
-.overview-daily-details { margin-top: .5rem; }
-.overview-daily-details .text-button { padding: 0; min-height: 2rem; height: 2rem; font-size: .75rem; }
-.overview-daily-table { position: relative; overflow: auto; max-width: 100%; margin-top: .5rem; }
-.overview-daily-table table { min-width: 28rem; border-collapse: collapse; text-align: left; font-size: .75rem; }
-.overview-daily-table th, .overview-daily-table td { padding: .5rem; border-bottom: 1px solid var(--line); font-weight: 400; }
-.overview-chart-placeholder { position: relative; min-height: 13rem; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
-.overview-chart-grid { position: absolute; inset: 0; border-bottom: 1px solid var(--line); background: repeating-linear-gradient(to top, transparent 0, transparent calc(25% - 1px), var(--line) calc(25% - 1px), var(--line) 25%); opacity: .4; pointer-events: none; }
-.overview-chart-placeholder > p, .overview-chart-placeholder > button { position: relative; background: var(--surface); }
-.overview-chart-empty { color: var(--muted); font-size: .875rem; padding-block: 2.5rem; }
 .overview-fixture-label { position: absolute; right: 0; top: -1.375rem; color: var(--muted); font-size: .75rem; margin: 0; }
 .overview-accounts { margin-top: 1.125rem; padding: 1.125rem; border: 1px solid var(--line); border-radius: .9375rem; background: var(--surface); min-width: 0; }
 .overview-accounts-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .125rem .125rem 1.125rem; }
@@ -128,8 +95,10 @@
 .overview-quota-window[data-attention='low'] [data-slot='meter-indicator'] { background: var(--error); }
 @container (max-width: 1100px) {
   .overview-panels { flex-wrap: wrap; gap: 1rem; }
-  .overview-panel { flex-basis: calc(50% - .5rem); flex-grow: 1; }
+  .overview-panel { flex-basis: 100%; flex-grow: 1; }
   .overview-account-panel { flex-basis: 100%; }
+  .overview-share-panel { flex: .94 1 18rem; }
+  .overview-activity-panel { flex: 1.37 1 24rem; }
   .overview-summary > div { padding: .875rem; }
   .overview-stat-icon { position: absolute; left: .75rem; top: .875rem; margin: 0; }
   .overview-summary dt { padding-left: 2.125rem; }
@@ -150,8 +119,27 @@
   .overview-accounts-heading p { max-width: 22rem; }
   .overview-accounts th, .overview-accounts td { padding-inline: .75rem; }
 }
-@media (forced-colors: active) {
-  .overview-daily-bar { background: Highlight; }
-  .overview-daily-bar[data-zero='true'] { border-color: CanvasText; }
-  .overview-share-chart circle { stroke: GrayText; }
-}
+
+@container (max-width: 620px) { .overview-activity-panel { padding: 0; } }
+
+.overview-chart-modes { display: flex; flex-wrap: wrap; gap: .2rem; padding: .2rem; border-radius: .75rem; background: var(--bg); }
+.overview-chart-modes button { flex: 1 1 auto; min-width: 0; padding-inline: .5rem; font-size: .75rem; white-space: normal; }
+.overview-chart-modes button[aria-pressed='true'] { background: var(--text); color: var(--surface); }
+.overview-donut { margin: 1rem 0; text-align: center; }
+.overview-donut-plot { position: relative; width: 230px; height: 230px; max-width: 100%; margin-inline: auto; }
+.overview-donut-plot .recharts-wrapper { max-width: 100%; }
+.overview-donut-plot .recharts-surface { max-width: 100%; height: auto; }
+.overview-donut-center { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; pointer-events: none; }
+.overview-donut-center strong { font-size: 1.75rem; letter-spacing: -.035em; line-height: 1.4; }
+.overview-donut-center span, .overview-donut figcaption span { display: block; color: var(--muted); font-size: .8125rem; }
+.overview-donut-unavailable { border: 30px solid var(--line); border-radius: 50%; box-sizing: border-box; }
+.overview-donut-unavailable strong { font-size: 1rem; letter-spacing: normal; }
+.overview-donut figcaption { color: var(--text); font-size: .875rem; line-height: 1.5; overflow-wrap: anywhere; margin-top: .75rem; }
+.overview-donut-values { margin: 0; display: grid; gap: .625rem; font-size: .875rem; }
+.overview-donut-values > div, .overview-share-legend li { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
+.overview-donut-values dt { display: flex; align-items: center; gap: .5rem; color: var(--muted); }
+.overview-donut-values dd { margin: 0; font-variant-numeric: tabular-nums; }
+.overview-donut-values i { width: .625rem; height: .625rem; border-radius: 50%; background: var(--chart, var(--accent)); }
+.overview-donut-values > div + div i { background: var(--line); }
+.overview-share-legend { list-style: none; margin: 1rem 0; padding: 0; display: grid; gap: .625rem; font-size: .8125rem; }
+.overview-share-legend bdi { min-width: 0; overflow-wrap: anywhere; }
