@@ -24,3 +24,7 @@ The locked Linux GTK chain includes `glib 0.18.5`, affected by [RUSTSEC-2024-042
 The locked `proc-macro-error`, `zvariant`, `zbus_names` and `zvariant_derive` versions also have maintenance notices. Maintenance notices are not, by themselves, confirmed exploits. Recheck the exact lockfiles and review upstream migrations before release.
 
 Vulnerability scans are point-in-time checks. Native system libraries, the separate official companion, platform behavior and previously unknown vulnerabilities require their own qualification. See [implementation status](docs/implementation-status.md) for remaining product and release work.
+
+## Dependency notices
+
+[Native source notices](apps/desktop/public/licenses/rust-dependencies.txt) cover all 486 locked registry packages, including optional and build dependencies. The [inventory](apps/desktop/public/licenses/rust-dependencies.json) maps exact package and text hashes. This is not an inventory of packages linked into a released binary. Artifact-specific attribution, MPL source availability and system-library qualification remain release gates.

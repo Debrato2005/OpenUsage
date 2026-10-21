@@ -20,6 +20,8 @@ Normal freezing now records provenance only; retained binaries are explicit and 
 
 A security policy records reporting boundaries, the glib advisory and release gaps. Exact SQLCipher and OpenSSL license texts accompany the source assets. Two native harnesses now use portable repository paths and an explicitly selected, pinned official executable. Discovery uses a private fixture home without reading an existing credential home. Syntax and six setup checks passed; these checks do not establish native sign-in acceptance. Private evidence and historical source remain intact while a separate source-only publication candidate is reviewed.
 
+The native notice inventory now maps all 486 locked registry packages to 288 exact deduplicated texts. Original notices and explicitly paired standard bodies retain their source grants. Archive checksums, license expressions, text hashes and both source mirrors pass verification. This preparation does not qualify a linked binary or replace its platform/system-library and MPL compliance checks.
+
 ## Latest verified slice
 
 Overview, Usage and Settings are the only primary pages. Account actions use a contextual dialog. Overview shows both reported quota windows together and keeps Refresh on the same page, with selected-account progress, visible cooldown and actionable errors. Settings retains account renaming, archiving and recovery. Dark appearance uses VS Code-inspired true-black colors. No plan-derived windows or aggregate values are invented.

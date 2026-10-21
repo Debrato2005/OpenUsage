@@ -37,3 +37,7 @@ database-key.v1
 *-journal
 *.oubackup
 *.log
+
+# Python tooling caches.
+__pycache__/
+*.py[cod]
