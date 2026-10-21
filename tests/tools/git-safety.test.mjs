@@ -123,6 +123,12 @@ test('push permits main fast-forward and refuses unsafe updates', { timeout: 180
     git('update-ref', 'refs/remotes/origin/main', tip);
     const deleteArchive = check('push', `(delete) ${zero} refs/heads/archive/retired ${tip}\n`);
     assert.equal(deleteArchive.status, 0, deleteArchive.stderr);
+    put('docs/branch-cleanup-candidates.tsv', `branch\treviewed_tip\narchive/retired\t${base}\n`);
+    const changedAfterReview = check('push', `(delete) ${zero} refs/heads/archive/retired ${tip}\n`);
+    assert.notEqual(changedAfterReview.status, 0, 'must refuse a changed tip even when main preserves its commits');
+    put('docs/branch-cleanup-candidates.tsv', `branch\treviewed_tip\narchive/retired\t${tip}\n`);
+    const reviewedDeletion = check('push', `(delete) ${zero} refs/heads/archive/retired ${tip}\n`);
+    assert.equal(reviewedDeletion.status, 0, reviewedDeletion.stderr);
     const uniqueArchive = check('push', `(delete) ${zero} refs/heads/archive/changed ${divergent}\n`);
     assert.notEqual(uniqueArchive.status, 0, 'must refuse deleting unpreserved unique work');
   });

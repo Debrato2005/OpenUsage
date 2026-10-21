@@ -44,6 +44,12 @@ try {
       if (/^0+$/.test(localOid)) {
         if (remoteRef === 'refs/heads/main') refuse('Deleting main is refused.');
         if (!remoteRef.startsWith('refs/heads/')) refuse('Only reviewed branch deletions are supported.');
+        const candidates = join(root, 'docs', 'branch-cleanup-candidates.tsv');
+        if (existsSync(candidates)) {
+          const reviewed = new Map(readFileSync(candidates, 'utf8').trimEnd().split('\n').slice(1).map(line => line.split('\t').slice(0, 2)));
+          const expected = reviewed.get(remoteRef.slice('refs/heads/'.length));
+          if (expected && expected !== remoteOid) refuse('Branch tip changed since review. Exclude it and review the new work before deletion.');
+        }
         git(['merge-base', '--is-ancestor', remoteOid, 'main']);
         git(['merge-base', '--is-ancestor', remoteOid, 'origin/main']);
         continue;
