@@ -23,3 +23,6 @@
   .quota-history-entry-trigger > span:first-of-type { margin-left: 0; }
   .quota-history-source dl { grid-template-columns: minmax(0, 1fr); }
 }
+
+.quota-history [data-reading-export] { min-width: 0; margin-block: 1rem; padding-block: 0; border: 0; }
+.quota-history [data-export-toggle] { max-width: 100%; white-space: normal; height: auto; min-height: 2.5rem; }

@@ -12,11 +12,11 @@ Updated: October 21, 2026. OpenUsage remains in development. The normative [SRS]
 
 ## Latest functional slice
 
-Usage now opens quota history on request. Rust returns bounded 20-entry pages from a consistent SQLCipher snapshot. The UI retains exact percentages, expected resets and source/association details, keeps missing windows distinct from zero, and supports archived profiles. Browsing makes no provider requests and does not change storage.
+Usage now exports every saved quota snapshot for its selected profile as CSV or JSON, including older pages, previous associations and archived profiles. One Rust-owned SQLCipher snapshot supplies all rows. Default exports use aliases; names and exact local references need explicit consent. Email and credentials are always omitted. Oversized selections fail without truncation. Existing current-reading exports remain available separately.
 
-The [native history journey](evidence/native-quota-history/) passed 20/2 paging over 22 synthetic snapshots, selected-profile cursor isolation, zero values, unchanged database/WAL/key bytes, archived history after genuine restart, and unchanged other-account readings. A test-only helper seeded 21 snapshots through production storage while the app was closed. Three genuine closes passed. Both native builds compiled. The existing user window was preserved.
+The [native export journey](evidence/native-quota-history-export/) passed all-22-snapshot CSV/JSON parity, per-profile isolation, private files, archived restart, refused requests and unchanged database/WAL/key bytes. The earlier [history paging journey](evidence/native-quota-history/) retains its scope. Both native configurations compiled. The existing user window was preserved.
 
-Verification: 268 Rust tests passed, one ignored; strict workspace Clippy passed; build/type checks and 42 IPC contracts passed. The renderer milestone passed 239 cases, with one unchanged navigation-interrupted case passing its targeted rerun. All 240 cases passed across their recorded runs. Six new cases cover the history workflow and accessibility. Prior backup/restore receipts keep their original scope; unchanged broad native suites were not repeated.
+Verification: build/type checks and 43 IPC contracts passed. The renderer milestone passed 237 cases initially; all five failed cases passed their focused rerun after fixing export wrapping and the saving-button test selector. The unrelated Overview navigation case also passed its rerun. 272 Rust tests passed, one ignored; strict workspace Clippy passed. A redundant cooldown assertion in a slow encrypted-backup test was removed; dedicated admission and exact-time boundary tests retain cooldown coverage. Production timing is unchanged.
 
 ## Restore and recovery checkpoint
 
@@ -25,9 +25,9 @@ Confirmed archive restore and checkpoint recovery are implemented. Earlier nativ
 ## Still incomplete
 
 - Durable alerts, notification delivery, per-profile preferences and quiet hours.
-- Full activity-summary/history browsing, whole-history/application export, retention and complete local deletion.
+- Full activity-summary/history browsing, full activity-history/application export, retention and complete local deletion.
 - Subscription, promotion, billing, deadline and verified account-comparison requirements.
 - Real credential renewal/revocation acceptance, provider OS credential storage, safe browser callback isolation, and SIWC compatibility with both official usage operations.
 - Sleep/wake acceptance, release-scale performance, packaging/signing, Windows/macOS execution and the complete SRS acceptance matrix.
 
-The next functional work is durable alerts and the remaining history/export journeys. Real authorized-account verification remains separate from synthetic-provider evidence. Current file-level status and the exact working checkpoint are retained in the local `.recovery/active-checkpoint.json`; historical execution details remain in their linked evidence and local commits.
+The next work is the user-requested reference Overview redesign. Durable alerts and remaining activity-history/export journeys remain open. Real authorized-account verification remains separate from synthetic-provider evidence. Current file-level status and the exact working checkpoint are retained in the local `.recovery/active-checkpoint.json`; historical execution details remain in their linked evidence and local commits.

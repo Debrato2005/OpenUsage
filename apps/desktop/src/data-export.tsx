@@ -6,15 +6,15 @@ import { Field, FieldLabel } from './components/ui/field';
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from './components/ui/select';
 import { invoke, type ProfileRecord, type ReadingExportFormat, type ReadingExportReceipt } from './contracts';
 
-type Props = { profiles: ProfileRecord[]; busy: boolean; setBusy: (busy: boolean) => void };
+type Props = { profiles: ProfileRecord[]; busy: boolean; setBusy: (busy: boolean) => void; quotaHistory?: boolean };
 
-function exportFailure(error: unknown): string {
+function exportFailure(error: unknown, history: boolean): string {
   const messages: Record<string, string> = {
     workspace_locked: 'Unlock your workspace before you export readings.',
-    invalid_arguments: 'Choose active profiles and confirm the unencrypted export, then try again.',
-    invalid_export_selection: 'Choose between one and ten active profiles, then try again.',
+    invalid_arguments: 'Choose a profile and confirm the unencrypted export, then try again.',
+    invalid_export_selection: history ? 'This profile is no longer available. Choose another profile, then try again.' : 'Choose between one and ten active profiles, then try again.',
     insufficient_space: 'Free space in your Downloads folder, then try again.',
-    export_too_large: 'This export exceeds the file limit. Choose fewer profiles, then try again.',
+    export_too_large: history ? 'This history exceeds the 50,000-row or 64 MiB file limit. No partial file was saved.' : 'This export exceeds the file limit. Choose fewer profiles, then try again.',
     export_unsafe_text: 'A field could be treated as a spreadsheet formula. Omit names and email, or save as JSON.',
     export_unavailable: 'OpenUsage could not save the export. Check your Downloads folder and free space, then try again.',
   };
@@ -22,8 +22,11 @@ function exportFailure(error: unknown): string {
     : 'OpenUsage could not confirm the saved export. Check Downloads/OpenUsage before you try again.';
 }
 
-export function DataExport({ profiles, busy, setBusy }: Props) {
-  const active = profiles.filter(profile => !profile.archived);
+export function DataExport({ profiles, busy, setBusy, quotaHistory = false }: Props) {
+  const active = quotaHistory ? profiles.slice(0, 1) : profiles.filter(profile => !profile.archived);
+  const prefix = quotaHistory ? 'quota-history-export' : 'reading-export';
+  const title = quotaHistory ? 'Export quota history' : 'Export saved readings';
+  const Heading = quotaHistory ? 'h4' : 'h2';
   const profileKey = active.map(profile => profile.id).join(',');
   const [excluded, setExcluded] = useState<string[]>([]);
   const selected = active.filter(profile => !excluded.includes(profile.id));
@@ -67,7 +70,9 @@ export function DataExport({ profiles, busy, setBusy }: Props) {
     setError(null);
     setConfirmed(false);
     try {
-      const saved = await invoke('export_saved_readings', { profileIds, format, includeIdentifiers: identifiers, confirmed: true });
+      const saved = quotaHistory
+        ? await invoke('export_quota_history', { profileId: profileIds[0]!, format, includeIdentifiers: identifiers, confirmed: true })
+        : await invoke('export_saved_readings', { profileIds, format, includeIdentifiers: identifiers, confirmed: true });
       if (generation.current !== epoch) return;
       if (saved.format !== format || saved.profileCount !== profileIds.length || saved.identifiersIncluded !== identifiers) {
         throw new Error('The export receipt does not match the selected options.');
@@ -76,7 +81,7 @@ export function DataExport({ profiles, busy, setBusy }: Props) {
       setFocus(true);
     } catch (error: unknown) {
       if (generation.current !== epoch) return;
-      setError(exportFailure(error));
+      setError(exportFailure(error, quotaHistory));
       setFocus(true);
     } finally {
       if (generation.current === epoch) {
@@ -87,16 +92,16 @@ export function DataExport({ profiles, busy, setBusy }: Props) {
     }
   }
 
-  return <section className="backup-panel" aria-label="Export saved readings" data-reading-export>
+  return <section className="backup-panel" aria-label={title} data-reading-export>
     <Collapsible>
-      <h2><CollapsibleTrigger render={<Button variant="outline" />} type="button" disabled={busy} data-export-toggle>Export saved readings</CollapsibleTrigger></h2>
+      <Heading><CollapsibleTrigger render={<Button variant="outline" />} type="button" disabled={busy} data-export-toggle>{title}</CollapsibleTrigger></Heading>
       <CollapsiblePanel keepMounted>
-        <form className="unlock-form" aria-label="Saved readings export" aria-busy={saving} onSubmit={event => { event.preventDefault(); void save(); }}>
-          <p>Export the latest saved quota and activity summaries and daily buckets for selected active profiles. This does not include reading history or all application records.</p>
-          <p>Profiles stay separate, with no aggregation. Missing metrics remain unavailable. Use an encrypted backup to keep application records.</p>
-          <p id="reading-export-privacy">Exports are not encrypted. Activity may identify an account even when names and email are omitted.</p>
+        <form className="unlock-form" aria-label={quotaHistory ? 'Quota history export' : 'Saved readings export'} aria-busy={saving} onSubmit={event => { event.preventDefault(); void save(); }}>
+          <p>{quotaHistory ? 'Export every saved quota snapshot for this profile, including earlier connections. This includes all history pages, with no aggregation.' : 'Export the latest saved quota and activity summaries and daily buckets for selected active profiles. This does not include reading history or all application records.'}</p>
+          {!quotaHistory && <p>Profiles stay separate, with no aggregation. Missing metrics remain unavailable. Use an encrypted backup to keep application records.</p>}
+          <p id={`${prefix}-privacy`}>{quotaHistory ? 'Exports are not encrypted. Activity may identify an account even without its name. Email and credentials are never included.' : 'Exports are not encrypted. Activity may identify an account even when names and email are omitted.'}</p>
           {active.length === 0 && <p>No active profiles are available. Add an account profile before you export readings.</p>}
-          <fieldset disabled={busy || active.length === 0}>
+          {!quotaHistory && <fieldset disabled={busy || active.length === 0}>
             <legend>Profiles to export</legend>
             {active.map(profile => <Field key={profile.id} disabled={busy}>
               <FieldLabel className="backup-selection">
@@ -106,24 +111,24 @@ export function DataExport({ profiles, busy, setBusy }: Props) {
                 }} />{profile.label}
               </FieldLabel>
             </Field>)}
-          </fieldset>
+          </fieldset>}
           <Field disabled={busy || active.length === 0}>
-            <FieldLabel nativeLabel={false} render={<div id="reading-export-format-label" />}>File format</FieldLabel>
+            <FieldLabel nativeLabel={false} render={<div id={`${prefix}-format-label`} />}>File format</FieldLabel>
             <Select modal={false} value={format} disabled={busy || active.length === 0} items={{ csv: 'CSV', json: 'JSON' }} onValueChange={next => {
               if (next === 'csv' || next === 'json') { setFormat(next); changeSelection(); }
             }}>
-              <SelectTrigger id="reading-export-format" aria-labelledby="reading-export-format-label"><SelectValue /></SelectTrigger>
+              <SelectTrigger id={`${prefix}-format`} aria-labelledby={`${prefix}-format-label`}><SelectValue /></SelectTrigger>
               <SelectPopup alignItemWithTrigger={false}><SelectItem value="csv">CSV</SelectItem><SelectItem value="json">JSON</SelectItem></SelectPopup>
             </Select>
           </Field>
           <Field disabled={busy || active.length === 0}>
             <FieldLabel className="backup-selection">
-              <Checkbox nativeButton render={<button type="button" />} id="reading-export-identifiers" checked={identifiers} disabled={busy || active.length === 0} aria-describedby="reading-export-privacy" onCheckedChange={checked => { setIdentifiers(checked === true); changeSelection(); }} />Include profile names and email addresses
+              <Checkbox nativeButton render={<button type="button" />} id={`${prefix}-identifiers`} checked={identifiers} disabled={busy || active.length === 0} aria-describedby={`${prefix}-privacy`} onCheckedChange={checked => { setIdentifiers(checked === true); changeSelection(); }} />{quotaHistory ? 'Include profile name and local references' : 'Include profile names and email addresses'}
             </FieldLabel>
           </Field>
           <Field disabled={busy || selected.length === 0}>
             <FieldLabel className="backup-selection">
-              <Checkbox nativeButton render={<button type="button" />} id="reading-export-consent" checked={confirmed} disabled={busy || selected.length === 0} aria-describedby="reading-export-privacy" onCheckedChange={checked => setConfirmed(checked === true)} />I understand this file contains unencrypted activity.
+              <Checkbox nativeButton render={<button type="button" />} id={`${prefix}-consent`} checked={confirmed} disabled={busy || selected.length === 0} aria-describedby={`${prefix}-privacy`} onCheckedChange={checked => setConfirmed(checked === true)} />I understand this file contains unencrypted activity.
             </FieldLabel>
           </Field>
           <Button className="primary-button" type="submit" data-export-save disabled={busy || !confirmed || selected.length === 0 || selected.length > 10}>{saving ? 'Saving readings…' : 'Save readings'}</Button>
@@ -133,10 +138,10 @@ export function DataExport({ profiles, busy, setBusy }: Props) {
     </Collapsible>
     {error && <p ref={failure} className="operation-error" role="alert" tabIndex={-1} data-export-error>{error}</p>}
     {receipt && <div ref={result} className="backup-receipt" role="status" tabIndex={-1} data-export-result>
-      <p>Saved readings exported. This file is not encrypted.</p>
+      <p>{quotaHistory ? 'Quota history exported. This file is not encrypted.' : 'Saved readings exported. This file is not encrypted.'}</p>
       <p><strong>{receipt.fileName}</strong><br />{receipt.directory}</p>
       <p>{receipt.format.toUpperCase()} · {receipt.profileCount} profiles · {receipt.rowCount} rows</p>
-      <p>{receipt.identifiersIncluded ? 'Profile names and email addresses included.' : 'Profile names and email addresses omitted.'}</p>
+      <p>{quotaHistory ? (receipt.identifiersIncluded ? 'Profile name and local references included. Email omitted.' : 'Profile name, email and local identifiers omitted.') : (receipt.identifiersIncluded ? 'Profile names and email addresses included.' : 'Profile names and email addresses omitted.')}</p>
       <p>Exported at <time dateTime={receipt.exportedAt}>{receipt.exportedAt}</time></p>
     </div>}
   </section>;

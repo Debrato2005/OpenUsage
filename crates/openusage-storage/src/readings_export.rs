@@ -1,7 +1,10 @@
 //! Selected current readings, without attribution or aggregation across provisional profiles.
 use crate::{Storage, activity::require_uuid, quota::load_snapshot};
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior};
-use std::{collections::BTreeSet, fmt};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fmt,
+};
 use zeroize::Zeroizing;
 
 const MAX_ROWS: usize = 50_000;
@@ -27,6 +30,31 @@ const COLUMNS: &[&str] = &[
     "inclusion_rule",
     "limit_id",
     "window_role",
+];
+const HISTORY_COLUMNS: &[&str] = &[
+    "profile",
+    "profile_id",
+    "profile_label",
+    "email",
+    "record_kind",
+    "metric",
+    "value",
+    "unit",
+    "provider_date",
+    "observed_at_utc",
+    "source_method",
+    "source_kind",
+    "provider_version",
+    "source_scope",
+    "raw_scope",
+    "identity_confidence",
+    "coverage",
+    "status",
+    "inclusion_rule",
+    "limit_id",
+    "window_role",
+    "collection_run_id",
+    "binding_id",
 ];
 
 pub struct ReadingsExport {
@@ -135,6 +163,76 @@ fn context(
 }
 
 impl Storage {
+    /// Export every accepted quota run for one local profile, including prior associations
+    /// and archived profiles. One deferred transaction pins labels, runs and packets.
+    /// References are stable aliases unless local identifiers are explicitly requested.
+    /// No history cursor or current-reading pointer limits the selection.
+    pub fn quota_history_export(
+        &mut self,
+        profile_id: &str,
+        include_identifiers: bool,
+    ) -> Result<ReadingsExport, ExportError> {
+        require_uuid(profile_id).map_err(|_| ExportError::InvalidSelection)?;
+        let tx = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Deferred)
+            .map_err(read_error)?;
+        let label = tx
+            .query_row(
+                "SELECT CASE WHEN ?2 THEN name ELSE NULL END FROM profiles WHERE id=?1",
+                rusqlite::params![profile_id, include_identifiers],
+                |row| row.get::<_, Option<String>>(0),
+            )
+            .optional()
+            .map_err(read_error)?
+            .ok_or(ExportError::InvalidSelection)?;
+        let mut rows = Zeroizing::new(Vec::new());
+        {
+            let mut bindings = BTreeMap::new();
+            // Every snapshot emits at least three rows, so this lookahead cannot hide
+            // an oversized result: emit() fails before this run bound is reached.
+            let mut statement = tx.prepare("SELECT r.id,r.binding_id,r.observed_at_utc,r.source_method,r.source_kind,r.provider_version,r.source_scope,r.raw_scope,r.identity_confidence,r.coverage FROM collection_runs r WHERE r.profile_id=?1 AND r.source_method=?2 AND r.outcome='accepted' ORDER BY r.observed_at_utc,r.id LIMIT 50001").map_err(read_error)?;
+            let mut runs = statement
+                .query(rusqlite::params![profile_id, crate::QUOTA_SOURCE_METHOD])
+                .map_err(read_error)?;
+            let mut ordinal = 0;
+            while let Some(run) = runs.next().map_err(read_error)? {
+                let run_id: String = run.get(0).map_err(read_error)?;
+                let binding_id: String = run.get(1).map_err(read_error)?;
+                ordinal += 1;
+                let next_binding = bindings.len() + 1;
+                let binding_alias = bindings
+                    .entry(binding_id.clone())
+                    .or_insert_with(|| format!("association-{next_binding}"));
+                let mut base = Zeroizing::new(vec![None; HISTORY_COLUMNS.len()]);
+                base[0] = Some("profile-1".into());
+                base[18] = Some("separate_profile_no_aggregation".into());
+                for (column, index) in
+                    [(9, 2), (10, 3), (11, 4), (12, 5), (13, 6), (15, 8), (16, 9)]
+                {
+                    base[column] = Some(run.get::<_, String>(index).map_err(read_error)?);
+                }
+                base[14] = run.get(7).map_err(read_error)?;
+                if include_identifiers {
+                    base[1] = Some(profile_id.into());
+                    base[2] = label.clone();
+                    base[21] = Some(run_id.clone());
+                    base[22] = Some(binding_id);
+                } else {
+                    base[21] = Some(format!("reading-{ordinal}"));
+                    base[22] = Some(binding_alias.clone());
+                }
+                export_quota(&tx, &run_id, &base, &mut rows)?;
+            }
+        }
+        tx.commit().map_err(read_error)?;
+        Ok(ReadingsExport {
+            columns: HISTORY_COLUMNS,
+            rows,
+            profile_count: 1,
+        })
+    }
+
     /// The deferred transaction pins profile selection and every capability to one WAL snapshot.
     pub fn readings_export(
         &mut self,
@@ -536,6 +634,329 @@ mod tests {
             std::fs::read(directory.join("export.db")).unwrap(),
             std::fs::read(directory.join("export.db-wal")).unwrap(),
         )
+    }
+
+    #[test]
+    fn quota_history_export_includes_all_archived_runs_and_prior_bindings_with_opt_in_local_references()
+     {
+        let (directory, mut storage) = setup();
+        for index in 0..21 {
+            let (mut quota, _) = pair(100 + index, index);
+            let association = if index == 10 {
+                quota.binding.binding_id = id(6);
+                Some(ProfileBindingInput {
+                    profile_id: id(1),
+                    expected_home_reference: id(2),
+                    expected_previous_binding_id: Some(id(3)),
+                    new_binding_id: id(6),
+                    evidence: quota.identity_evidence.clone(),
+                    observed_at_utc: quota.observed_at_utc.clone(),
+                })
+            } else {
+                if index > 10 {
+                    quota.binding.binding_id = id(6);
+                }
+                None
+            };
+            if index == 1 {
+                quota.available_reset_credits = None;
+                quota.reset_credit_details = None;
+            }
+            storage.accept_quota(quota, association).unwrap();
+        }
+        storage.set_profile_archived(&id(1), true).unwrap();
+        let before = files(directory.path());
+        let records = crate::backup_validation::activity_records(&storage.connection);
+        let redacted = storage.quota_history_export(&id(1), false).unwrap();
+        assert_eq!(redacted.profile_count, 1);
+        assert_eq!(&redacted.columns[..21], COLUMNS);
+        assert_eq!(
+            &redacted.columns[21..],
+            &["collection_run_id", "binding_id"]
+        );
+        assert!(redacted.rows.iter().all(|row| row.len() == 23
+            && row[0].as_deref() == Some("profile-1")
+            && row[1..4].iter().all(Option::is_none)));
+        let summaries = redacted
+            .rows
+            .iter()
+            .filter(|row| row[5].as_deref() == Some("quota_limits_state"))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            summaries.len(),
+            22,
+            "History must exceed the browsing page without truncation."
+        );
+        for (index, row) in summaries.iter().enumerate() {
+            assert_eq!(row[21], Some(format!("reading-{}", index + 1)));
+            assert_eq!(
+                row[22].as_deref(),
+                Some(if index < 11 {
+                    "association-1"
+                } else {
+                    "association-2"
+                })
+            );
+            assert_eq!(row[10].as_deref(), Some(crate::QUOTA_SOURCE_METHOD));
+            assert_eq!(row[11].as_deref(), Some("test_fixture"));
+            assert_eq!(row[13].as_deref(), Some(crate::QUOTA_SOURCE_SCOPE));
+            assert!(row[14].is_none());
+            assert_eq!(row[15].as_deref(), Some("provisional"));
+            assert_eq!(row[16].as_deref(), Some("unknown"));
+            assert_eq!(row[18].as_deref(), Some("separate_profile_no_aggregation"));
+        }
+        let primary = redacted
+            .rows
+            .iter()
+            .find(|row| {
+                row[5].as_deref() == Some("used_percent") && row[20].as_deref() == Some("primary")
+            })
+            .unwrap();
+        assert_eq!(primary[6].as_deref(), Some("0"));
+        assert_eq!(primary[7].as_deref(), Some("percent"));
+        assert_eq!(primary[17].as_deref(), Some("available"));
+        let secondary = redacted
+            .rows
+            .iter()
+            .find(|row| {
+                row[5].as_deref() == Some("used_percent") && row[20].as_deref() == Some("secondary")
+            })
+            .unwrap();
+        assert!(secondary[6].is_none());
+        assert_eq!(secondary[17].as_deref(), Some("unavailable"));
+        assert_eq!(
+            find(
+                &redacted,
+                "profile-1",
+                "quota_summary",
+                "available_reset_credits"
+            )[6]
+            .as_deref(),
+            Some("9223372036854775807")
+        );
+        assert_eq!(
+            find(
+                &redacted,
+                "profile-1",
+                "quota_limit",
+                "monthly_credit_limit"
+            )[6]
+            .as_deref(),
+            Some("0000.01")
+        );
+        assert!(
+            redacted
+                .rows
+                .iter()
+                .any(|row| row[21].as_deref() == Some("reading-3")
+                    && row[5].as_deref() == Some("available_reset_credits")
+                    && row[6].is_none()
+                    && row[17].as_deref() == Some("unavailable"))
+        );
+        let joined = redacted
+            .rows
+            .iter()
+            .flatten()
+            .flatten()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("|");
+        for private in [
+            id(1),
+            id(2),
+            id(3),
+            id(4),
+            id(5),
+            id(6),
+            id(10),
+            id(100),
+            "Private selected label".into(),
+            "selected@example.invalid".into(),
+            "private-plan".into(),
+        ] {
+            assert!(
+                !joined.contains(&private),
+                "Private field escaped the redacted history export."
+            );
+        }
+        let identified = storage.quota_history_export(&id(1), true).unwrap();
+        assert!(
+            identified
+                .rows
+                .iter()
+                .all(|row| row[1].as_deref() == Some(id(1).as_str())
+                    && row[2].as_deref() == Some("Private selected label")
+                    && row[3].is_none())
+        );
+        let runs = identified
+            .rows
+            .iter()
+            .filter(|row| row[5].as_deref() == Some("quota_limits_state"))
+            .map(|row| (row[21].clone(), row[22].clone()))
+            .collect::<Vec<_>>();
+        assert_eq!(runs[0], (Some(id(10)), Some(id(3))));
+        assert_eq!(runs[1], (Some(id(100)), Some(id(3))));
+        assert_eq!(runs[11], (Some(id(110)), Some(id(6))));
+        assert!(
+            storage
+                .quota_history_export(&id(4), false)
+                .unwrap()
+                .rows
+                .is_empty()
+        );
+        for invalid in [id(99), "../external".into()] {
+            assert_eq!(
+                storage.quota_history_export(&invalid, false).err(),
+                Some(ExportError::InvalidSelection)
+            );
+        }
+        assert_eq!(files(directory.path()), before);
+        assert_eq!(
+            crate::backup_validation::activity_records(&storage.connection),
+            records
+        );
+        drop(storage);
+        let mut reopened = Storage::open(&directory.path().join("export.db"), &KEY).unwrap();
+        assert_eq!(
+            reopened
+                .quota_history_export(&id(1), false)
+                .unwrap()
+                .rows
+                .as_slice(),
+            redacted.rows.as_slice()
+        );
+    }
+
+    #[test]
+    fn quota_history_export_pins_profile_name_and_runs_to_one_wal_snapshot() {
+        let (directory, mut storage) = setup();
+        let mut writer = Storage::open(&directory.path().join("export.db"), &KEY).unwrap();
+        let (begin_tx, begin_rx) = std::sync::mpsc::channel();
+        let (done_tx, done_rx) = std::sync::mpsc::channel();
+        let writer = std::thread::spawn(move || {
+            begin_rx
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .unwrap();
+            writer
+                .rename_profile(&id(1), "Changed during history export")
+                .unwrap();
+            let (mut quota, _) = pair(20, 1);
+            quota.limits[0].primary.as_mut().unwrap().used_percent = 99;
+            writer.accept_quota(quota, None).unwrap();
+            done_tx.send(()).unwrap();
+        });
+        use rusqlite::hooks::{AuthAction, AuthContext, Authorization};
+        let mut triggered = false;
+        storage
+            .connection
+            .authorizer(Some(move |context: AuthContext<'_>| {
+                if !triggered
+                    && matches!(
+                        context.action,
+                        AuthAction::Read {
+                            table_name: "collection_runs",
+                            ..
+                        }
+                    )
+                {
+                    triggered = true;
+                    begin_tx.send(()).unwrap();
+                    done_rx
+                        .recv_timeout(std::time::Duration::from_secs(5))
+                        .unwrap();
+                }
+                Authorization::Allow
+            }))
+            .unwrap();
+        let snapshot = storage.quota_history_export(&id(1), true).unwrap();
+        storage
+            .connection
+            .authorizer(None::<fn(AuthContext<'_>) -> Authorization>)
+            .unwrap();
+        writer.join().unwrap();
+        assert!(
+            snapshot
+                .rows
+                .iter()
+                .all(|row| row[2].as_deref() == Some("Private selected label")
+                    && row[21].as_deref() == Some(id(10).as_str()))
+        );
+        let next = storage.quota_history_export(&id(1), true).unwrap();
+        assert_eq!(
+            next.rows
+                .iter()
+                .filter(|row| row[5].as_deref() == Some("quota_limits_state"))
+                .count(),
+            2
+        );
+        assert!(
+            next.rows
+                .iter()
+                .all(|row| row[2].as_deref() == Some("Changed during history export"))
+        );
+        assert!(
+            next.rows
+                .iter()
+                .any(|row| row[21].as_deref() == Some(id(20).as_str())
+                    && row[5].as_deref() == Some("used_percent")
+                    && row[6].as_deref() == Some("99"))
+        );
+    }
+
+    #[test]
+    fn quota_history_export_fails_atomically_on_packet_read_error_and_row_limit() {
+        let (directory, mut storage) = setup();
+        use rusqlite::hooks::{AuthAction, AuthContext, Authorization};
+        let before = files(directory.path());
+        storage
+            .connection
+            .authorizer(Some(|context: AuthContext<'_>| {
+                if matches!(
+                    context.action,
+                    AuthAction::Read {
+                        table_name: "quota_limits",
+                        ..
+                    }
+                ) {
+                    Authorization::Deny
+                } else {
+                    Authorization::Allow
+                }
+            }))
+            .unwrap();
+        assert_eq!(
+            storage.quota_history_export(&id(1), false).err(),
+            Some(ExportError::ReadFailed)
+        );
+        storage
+            .connection
+            .authorizer(None::<fn(AuthContext<'_>) -> Authorization>)
+            .unwrap();
+        assert!(storage.connection.is_autocommit());
+        assert_eq!(files(directory.path()), before);
+        for index in 0..49 {
+            let (mut quota, _) = pair(1000 + index, 0);
+            quota.limits = (0..64)
+                .map(|limit| {
+                    let mut value = quota.limits[0].clone();
+                    value.limit_id = format!("bucket-{limit}");
+                    value
+                })
+                .collect();
+            quota.reset_credit_details = Some(vec![
+                quota.reset_credit_details.as_ref().unwrap()[0]
+                    .clone();
+                32
+            ]);
+            storage.accept_quota(quota, None).unwrap();
+        }
+        let before = files(directory.path());
+        assert_eq!(
+            storage.quota_history_export(&id(1), false).err(),
+            Some(ExportError::TooLarge)
+        );
+        assert!(storage.connection.is_autocommit());
+        assert_eq!(files(directory.path()), before);
     }
 
     #[test]

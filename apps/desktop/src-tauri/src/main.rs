@@ -84,6 +84,15 @@ struct ExportReadingsArgs {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ExportQuotaHistoryArgs {
+    profile_id: String,
+    format: readings_export::ExportFormat,
+    include_identifiers: bool,
+    confirmed: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct InspectBackupArgs {
     file_name: String,
     password: Passphrase,
@@ -544,6 +553,46 @@ async fn export_saved_readings(
             let workspace = state.as_mut().ok_or(CommandError::WorkspaceLocked)?;
             let snapshot =
                 workspace.readings_export(&args.profile_ids, args.include_identifiers)?;
+            let when = restore::timestamp(std::time::SystemTime::now())
+                .ok_or(CommandError::ExportUnavailable)?;
+            (snapshot, when)
+        };
+        let directory = app
+            .path()
+            .download_dir()
+            .map_err(|_| CommandError::ExportUnavailable)?
+            .join("OpenUsage");
+        readings_export::create(
+            &directory,
+            snapshot,
+            args.format,
+            args.include_identifiers,
+            when,
+        )
+    })
+    .await
+    .map_err(|_| CommandError::ExportUnavailable)?
+}
+
+#[tauri::command]
+async fn export_quota_history(
+    request: tauri::ipc::Request<'_>,
+    app: AppHandle,
+    service: State<'_, WorkspaceService>,
+) -> Result<readings_export::ExportReceipt, CommandError> {
+    let args: ExportQuotaHistoryArgs = arguments(&request)?;
+    if !args.confirmed {
+        return Err(CommandError::InvalidArguments);
+    }
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let (snapshot, when) = {
+            let mut state = service
+                .lock()
+                .map_err(|_| CommandError::ExportUnavailable)?;
+            let workspace = state.as_mut().ok_or(CommandError::WorkspaceLocked)?;
+            let snapshot =
+                workspace.quota_history_export(&args.profile_id, args.include_identifiers)?;
             let when = restore::timestamp(std::time::SystemTime::now())
                 .ok_or(CommandError::ExportUnavailable)?;
             (snapshot, when)
@@ -1604,6 +1653,7 @@ fn main() {
             set_theme,
             create_backup,
             export_saved_readings,
+            export_quota_history,
             list_profiles,
             create_profile,
             rename_profile,
@@ -1675,10 +1725,32 @@ mod tests {
     use super::{
         ApplyRestoreArgs, ApproveProviderArgs, ArchiveProfileArgs, BackupArgs, BeginLoginArgs,
         BeginReadArgs, CancelRestorePreviewArgs, CheckpointPreviewArgs, CreateProfileArgs,
-        DisplayScaleArgs, InspectBackupArgs, InspectProviderArgs, ListProfilesArgs,
-        LoginAttemptArgs, ProfileCheckArgs, ProfilePlanArgs, ProfileQuotaHistoryArgs,
-        ProfileReadArgs, RenameProfileArgs, SetupArgs, ThemeArgs, UnlockArgs, is_bundled_url,
+        DisplayScaleArgs, ExportQuotaHistoryArgs, InspectBackupArgs, InspectProviderArgs,
+        ListProfilesArgs, LoginAttemptArgs, ProfileCheckArgs, ProfilePlanArgs,
+        ProfileQuotaHistoryArgs, ProfileReadArgs, RenameProfileArgs, SetupArgs, ThemeArgs,
+        UnlockArgs, is_bundled_url,
     };
+
+    #[test]
+    fn history_export_requires_explicit_typed_consent_and_no_caller_path_or_limit() {
+        let valid = serde_json::json!({"profileId":"11111111-1111-4111-8111-111111111111", "format":"csv", "includeIdentifiers":false, "confirmed":true});
+        assert!(serde_json::from_value::<ExportQuotaHistoryArgs>(valid.clone()).is_ok());
+        for field in ["profileId", "format", "includeIdentifiers", "confirmed"] {
+            let mut missing = valid.clone();
+            missing.as_object_mut().unwrap().remove(field);
+            assert!(serde_json::from_value::<ExportQuotaHistoryArgs>(missing).is_err());
+        }
+        for (field, value) in [
+            ("path", serde_json::json!("/external")),
+            ("limit", serde_json::json!(20)),
+            ("confirmed", serde_json::json!("true")),
+            ("format", serde_json::json!("xml")),
+        ] {
+            let mut invalid = valid.clone();
+            invalid[field] = value;
+            assert!(serde_json::from_value::<ExportQuotaHistoryArgs>(invalid).is_err());
+        }
+    }
 
     #[test]
     fn display_and_plan_commands_reject_paths_and_incorrect_types() {

@@ -13,6 +13,7 @@ fn main() {
             "set_theme",
             "create_backup",
             "export_saved_readings",
+            "export_quota_history",
             "list_profiles",
             "create_profile",
             "rename_profile",

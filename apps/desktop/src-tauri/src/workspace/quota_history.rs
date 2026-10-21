@@ -46,6 +46,25 @@ fn historical_window(
 }
 
 impl Workspace {
+    pub fn quota_history_export(
+        &mut self,
+        profile_id: &str,
+        include_identifiers: bool,
+    ) -> Result<openusage_storage::ReadingsExport, CommandError> {
+        validate_profile_id(profile_id)?;
+        self.storage
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .quota_history_export(profile_id, include_identifiers)
+            .map_err(|error| match error {
+                openusage_storage::ExportError::InvalidSelection => {
+                    CommandError::InvalidExportSelection
+                }
+                openusage_storage::ExportError::TooLarge => CommandError::ExportTooLarge,
+                openusage_storage::ExportError::ReadFailed => CommandError::ExportUnavailable,
+            })
+    }
+
     pub fn load_profile_quota_history(
         &mut self,
         profile_id: &str,

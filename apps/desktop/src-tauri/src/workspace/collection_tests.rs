@@ -410,22 +410,7 @@ fn collection_workspace_saves_exact_both_capabilities_retains_observation_anchor
     assert_eq!(quota.commit.observed_at_utc, q.observed_at_utc);
     assert_eq!(activity.commit.observed_at_utc, a.observed_at_utc);
     assert_eq!(cached(&f.workspace, &other), original_other);
-    assert_eq!(
-        f.workspace
-            .begin_profile_collection_read(&id, &approval)
-            .err(),
-        Some(CommandError::ProviderRefreshCooldown)
-    );
-    assert_eq!(
-        f.workspace.begin_profile_quota_read(&id, &approval).err(),
-        Some(CommandError::ProviderRefreshCooldown)
-    );
-    assert_eq!(
-        f.workspace
-            .begin_profile_activity_read(&id, &approval)
-            .err(),
-        Some(CommandError::ProviderRefreshCooldown)
-    );
+    // Dedicated admission tests cover cooldown without this encrypted-backup workload.
     let all = records(&mut f.workspace);
     assert_eq!(all["collection_runs"].len(), 4);
     let directory = f.workspace.directory.clone();

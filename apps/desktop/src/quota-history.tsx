@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
+import { DataExport } from './data-export';
 import { Button } from './components/ui/button';
 import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from './components/ui/collapsible';
-import { invoke, type QuotaHistoryEntry, type QuotaHistoryPage, type QuotaWindow } from './contracts';
+import { invoke, type QuotaHistoryEntry, type QuotaHistoryPage, type QuotaWindow, type ProfileRecord } from './contracts';
 import './quota-history.css';
 
 const dates = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', timeZoneName: 'short' });
@@ -30,7 +31,9 @@ function Snapshot({ value }: { value: QuotaHistoryEntry }) {
     </CollapsiblePanel>
   </Collapsible>;
 }
-export function QuotaHistory({ profileId, revision }: { profileId: string; revision: number }) {
+export function QuotaHistory({ profile, revision }: { profile: ProfileRecord; revision: number }) {
+  const profileId = profile.id;
+  const [exportBusy, setExportBusy] = useState(false);
   const [open, setOpen] = useState(false);
   const [navigation, setNavigation] = useState<{ revision: number; cursors: (string | null)[] }>({ revision, cursors: [null] });
   const cursors = navigation.revision === revision ? navigation.cursors : [null];
@@ -54,6 +57,7 @@ export function QuotaHistory({ profileId, revision }: { profileId: string; revis
     <CollapsibleTrigger render={<Button variant="outline" />} data-quota-history-open aria-expanded={open}>{open ? 'Hide quota history' : 'View quota history'}</CollapsibleTrigger>
     <CollapsiblePanel>
       <div className="quota-history-heading"><h3>Quota history</h3><p>Saved readings for this profile, newest first. Earlier connections remain separate snapshots.</p></div>
+      <DataExport profiles={[profile]} busy={exportBusy} setBusy={setExportBusy} quotaHistory />
       {loading && <p className="quota-history-meta" role="status">Loading saved history…</p>}
       {failed && <div className="quota-history-error" role="alert"><p>Saved quota history could not be loaded.</p><Button variant="outline" disabled={loading} onClick={() => setAttempt(value => value + 1)}>Retry history</Button>{cursor && <Button variant="ghost" disabled={loading} onClick={() => setNavigation({ revision, cursors: [null] })}>Back to latest readings</Button>}</div>}
       {page && <><div className="quota-history-entries">{page.entries.map(value => <Snapshot key={value.collectionRunId} value={value} />)}</div>

@@ -15,7 +15,7 @@ export function Usage({ profiles, revision, onAccounts, active }: { active: bool
         <SelectTrigger aria-label="Usage profile"><SelectValue /></SelectTrigger><SelectPopup>{profiles.map(value => <SelectItem key={value.id} value={value.id}>{value.label}{value.archived ? ' (archived)' : ''}</SelectItem>)}</SelectPopup>
       </Select>}
     </div>
-    {profile && <QuotaHistory key={`history:${profile.id}`} profileId={profile.id} revision={revision} />}
+    {profile && <QuotaHistory key={`history:${profile.id}`} profile={profile} revision={revision} />}
     {profile ? <ProfileActivity key={profile.id} readingRevision={String(revision)} profileId={profile.id} profileLabel={profile.label} emptyContent={<div className="empty-state"><h3>No saved activity for this profile</h3><p>Read its activity from Accounts to save a reading.</p><Button variant="outline" onClick={onAccounts}>View accounts</Button></div>}>{() => null}</ProfileActivity>
       : <div className="empty-state"><h3>No saved activity yet</h3><p>Add an account profile, then read its activity.</p><Button variant="outline" onClick={onAccounts}>View accounts</Button></div>}
   </section>;
