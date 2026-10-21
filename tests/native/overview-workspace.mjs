@@ -13,7 +13,7 @@ const repository = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const application = resolve(process.env.OPENUSAGE_NATIVE_BINARY);
 const output = resolve(process.env.OPENUSAGE_NATIVE_EVIDENCE);
 const passphrase = 'OpenUsage synthetic overview workspace 2026';
-const evidence = { requirement: 'NATIVE-OVERVIEW-WORKSPACE-001', result: 'failed', scope: 'Native WebKitGTK with synthetic saved readings, exact details, account actions, both themes, responsive layout, actual WebKit zoom and genuine restart. Not real OAuth, provider data, Windows/macOS or release qualification.', views: [], screenshots: [] };
+const evidence = { requirement: 'NATIVE-REFERENCE-DASHBOARD-002', result: 'failed', scope: 'Native WebKitGTK with synthetic saved readings, exact details, account actions, both themes, responsive layout, actual WebKit zoom and genuine restart. Not real OAuth, provider data, Windows/macOS or release qualification.', views: [], screenshots: [] };
 let driver, fixture, sequence = 0;
 const hash = async path => createHash('sha256').update(await readFile(path)).digest('hex');
 async function call(command, args) { const reply = await driver.invoke(command, args); assert.equal(reply.ok, true, `${command}: ${JSON.stringify(reply)}`); return reply.value; }
@@ -52,7 +52,8 @@ async function resize(width, height = 920) {
 }
 async function capture(name) {
   await driver.execute('scrollTo(0,0);return true;'); await driver.screenshot(join(output, name)); evidence.screenshots.push(name);
-  const geometry = await driver.execute('const panels=[...document.querySelectorAll(".overview-panels>.overview-panel")].map(node=>{const r=node.getBoundingClientRect();return {left:r.left,top:r.top,width:r.width,height:r.height};});return {width:innerWidth,scrollWidth:document.documentElement.scrollWidth,bodyFont:getComputedStyle(document.body).fontSize,titleFont:getComputedStyle(document.querySelector("h1")).fontSize,panels};');
+  await waitFor(() => driver.execute('return document.fonts.status === "loaded";'), 'loaded UI font');
+  const geometry = await driver.execute('const panels=[...document.querySelectorAll(".overview-panels>.overview-panel")].map(node=>{const r=node.getBoundingClientRect();return {left:r.left,top:r.top,width:r.width,height:r.height,scrollHeight:node.scrollHeight,layout:getComputedStyle(node.parentNode).display,children:[...node.children].map(child=>{const q=child.getBoundingClientRect(),s=getComputedStyle(child);return {class:child.className,height:q.height,top:q.top,width:q.width,marginTop:s.marginTop,marginBottom:s.marginBottom,position:s.position};})};});return {width:innerWidth,scrollWidth:document.documentElement.scrollWidth,height:innerHeight,bodyFont:getComputedStyle(document.body).fontSize,titleFont:getComputedStyle(document.querySelector("h1")).fontSize,panels};');
   assert.ok(geometry.scrollWidth <= geometry.width + 1); evidence.views.push({ name, ...geometry });
 }
 await mkdir(output, { recursive: true, mode: 0o700 });
@@ -70,14 +71,14 @@ try {
   await driver.click('#provider-executable-approved'); await driver.click('.provider-approval-form button[type=submit]');
   await waitFor(() => driver.execute('return Boolean(document.querySelector(".provider-approval-result"));'), 'fixture approved');
   const profiles = [];
-  for (let index = 0; index < 3; index++) {
+  for (let index = 0; index < 5; index++) {
     await driver.navigate('overview'); await driver.click('[data-overview-add-account]');
     await waitFor(async () => (await call('list_profiles')).profiles.length === index + 1, 'overview Add creates one profile');
     const profile = (await call('list_profiles')).profiles.find(item => !profiles.some(old => old.id === item.id)); profiles.push(profile);
   }
   for (const profile of profiles.slice(0, 2)) {
     const home = join(dirname(fixture.database), 'profiles', profile.id);
-    await writeFile(join(home, 'synthetic-collection-config.json'), JSON.stringify({ mode: 'startup_snapshot', requireLogin: true }) + '\n', { mode: 0o600 });
+    await writeFile(join(home, 'synthetic-collection-config.json'), JSON.stringify({ mode: 'dashboard_success', requireLogin: true }) + '\n', { mode: 0o600 });
     await driver.navigate('overview');
     await driver.click(`[data-overview-account="${profile.id}"] td:last-child button:first-child`);
     await waitFor(async () => Boolean(await call('load_profile_quota', { profileId: profile.id })) && Boolean(await call('load_profile_activity', { profileId: profile.id })), 'selected GUI sign-in automatically saves paired fixture readings', 45000);
@@ -85,7 +86,12 @@ try {
   await driver.navigate('overview');
   await waitFor(() => driver.execute('return document.querySelector("[data-overview-lifetime]")?.getAttribute("data-exact-value")==="9007199254740993";'), 'selected saved count');
   await waitFor(() => driver.execute('return document.querySelector(".overview-account-identity")?.textContent.includes("ChatGPT Plus");'), 'saved provider plan');
-  await resize(1600); await capture('overview-desktop-light.png');
+  await resize(1586, 992); await capture('overview-reference-light.png');
+  assert.equal(await driver.execute('return document.querySelector("[data-overview-account-share]")?.getAttribute("data-aggregation");'), 'unavailable');
+  assert.match(await driver.execute('return document.querySelector("[data-overview-combined-usage]").textContent;'), /Unavailable/);
+  assert.equal(await driver.execute('return document.querySelectorAll("[data-overview-day]").length;'), 7);
+  await driver.selectVisibleOption('[aria-label="Activity reporting range"]', '7 dates');
+  assert.equal(await driver.execute('return document.querySelector(arguments[0]).textContent.includes("7 dates");', ['[aria-label="Activity reporting range"]']), true);
   assert.ok(evidence.views.at(-1).panels.every(panel => Math.abs(panel.top - evidence.views.at(-1).panels[0].top) < 1));
   await driver.click('.overview-source-details > button');
   assert.ok((await driver.execute('return document.querySelector(".overview-source-details").textContent;')).includes('9007199254740993'));
@@ -97,7 +103,7 @@ try {
   assert.equal(await driver.execute('return [...document.querySelectorAll("[data-login-cancel]")].filter(node=>node.getClientRects().length).length;'), 1);
   await driver.click(`[data-login-cancel="${profiles[2].id}"]`);
   await waitFor(() => driver.execute('return !document.querySelector(arguments[0]);', [`[data-login-cancel="${profiles[2].id}"]`]), 'selected sign-in cancelled');
-  evidence.accountActions = { overviewAddCreatedThreeSeparateProfiles: true, selectedSignInStartedOnlyThirdAccount: true, cancellationCompleted: true };
+  evidence.accountActions = { overviewAddCreatedFiveSeparateProfiles: true, selectedSignInStartedOnlyThirdAccount: true, cancellationCompleted: true };
   await driver.navigate('overview');
   await driver.setAppearance('dark'); await resize(1280); await capture('overview-laptop-dark.png');
   const beforeZoom = await driver.execute('return {width:innerWidth,dpr:devicePixelRatio};');
@@ -116,8 +122,10 @@ try {
   assert.equal(savedAfterRestart.observedAtUtc, savedBeforeRestart.observedAtUtc);
   evidence.genuineRestart = { scaleRestored: true, savedReadingUnchanged: true };
   await driver.execute('document.querySelector("#display-scale").focus();return true;');
-  for (const value of ['\uE015', '\uE011', '\uE015', '\uE007']) await key(value);
-  await waitFor(() => driver.execute('return document.querySelector("#display-scale")?.textContent.trim()==="100%";'), 'keyboard scale selection');
+  await key('\uE007');
+  await waitFor(() => driver.execute('return [...document.querySelectorAll("[role=option]")].some(node=>node.getClientRects().length);'), 'scale keyboard popup');
+  for (const value of ['\uE011', '\uE015', '\uE007']) await key(value);
+  await waitFor(async () => (await call('get_display_scale')).percent === 100, 'keyboard scale selection');
   await resize(360, 800); await capture('overview-narrow-dark.png');
   assert.equal(await hash(application), evidence.applicationSha256);
   await close(); evidence.result = 'passed';

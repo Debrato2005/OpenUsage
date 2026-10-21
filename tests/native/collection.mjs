@@ -15,7 +15,7 @@ const application = resolve(process.env.OPENUSAGE_NATIVE_BINARY);
 const verifier = resolve(process.env.OPENUSAGE_LOGIN_VERIFIER);
 const output = resolve(process.env.OPENUSAGE_NATIVE_EVIDENCE ?? join('/tmp', `openusage-collection-${randomUUID()}`));
 const coreFixture = 'crates/openusage-codex/tests/fixtures/synthetic-collection-provider.py';
-const fixtureDigest = 'a21d53d66269e8c25c2f12ce5c37ed3abfef4d63aa003288cf2f7763fc146241';
+const fixtureDigest = 'e88d9644b66d5cd0e46d51d365c32d8575176909531a92ecb580d3acf4b02aa8';
 const verifierDigest = 'd4dcc3c1bce797976546b110a340f7a46aa922fded0fd2ba14459d1f54b3a1fb';
 const passphrase = 'OpenUsage synthetic combined collection workspace 2026';
 const hash = async path => createHash('sha256').update(await readFile(path)).digest('hex');

@@ -13,6 +13,7 @@ log = home / 'synthetic-collection-observations.jsonl'
 allowed = {'HOME', 'CODEX_HOME', 'XDG_CONFIG_HOME', 'XDG_DATA_HOME', 'XDG_CACHE_HOME', 'XDG_STATE_HOME', 'XDG_RUNTIME_DIR', 'TMPDIR', 'PATH', 'LANG', 'LC_CTYPE'}
 assert not set(os.environ) - allowed
 modes = {'success', 'quota_unsupported', 'activity_unsupported', 'both_unsupported', 'quota_invalid', 'activity_invalid', 'quota_rpc_error', 'activity_rpc_error', 'unknown', 'signed_out', 'no_auth_required', 'unsupported_auth', 'changed_email', 'changed_plan', 'changed_auth', 'account_notice', 'quota_hang', 'activity_hang', 'post_hold', 'cleanup_fault', 'stable_changed_identity', 'login_pending', 'login_failed'}
+modes.add('dashboard_success')
 modes |= {'startup_snapshot', 'startup_deferred', 'startup_deferred_changed', 'startup_wrong_plan', 'startup_wrong_auth', 'startup_duplicate', 'startup_missing_routing', 'startup_late', 'startup_invalid_timestamp', 'startup_unknown_field'}
 
 
@@ -156,7 +157,12 @@ if selected == 'account_notice':
     send({'method': 'account/updated', 'params': {'authMode': 'chatgpt'}})
 capability(3, 'quota', {'rateLimitsByLimitId': {'codex': {'limitId': 'codex', 'primary': {'usedPercent': 25, 'windowDurationMins': 300, 'resetsAt': 1893456000}, 'secondary': None}}})
 assert read_request() == {'id': 4, 'method': 'account/usage/read', 'params': {}}
-capability(4, 'activity', {'summary': {'lifetimeTokens': 9007199254740993, 'peakDailyTokens': 9223372036854775807, 'longestRunningTurnSec': None, 'currentStreakDays': 0, 'longestStreakDays': None}, 'dailyUsageBuckets': None})
+# Only this explicit visual-acceptance mode supplies synthetic daily activity.
+# Existing modes retain their original absent-bucket payloads.
+daily_buckets = None
+if selected == 'dashboard_success':
+    daily_buckets = [{'startDate': f'2026-10-{day:02d}', 'tokens': tokens} for day, tokens in zip(range(15, 22), [1200000, 2450000, 0, 1780000, 3100000, 920000, 2220000])]
+capability(4, 'activity', {'summary': {'lifetimeTokens': 9007199254740993, 'peakDailyTokens': 9223372036854775807, 'longestRunningTurnSec': None, 'currentStreakDays': 0, 'longestStreakDays': None}, 'dailyUsageBuckets': daily_buckets})
 assert read_request() == {'id': 5, 'method': 'account/read', 'params': {'refreshToken': False}}
 observe('post-read-pending')
 while mode() == 'post_hold':

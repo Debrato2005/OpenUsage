@@ -13,7 +13,7 @@ assert.ok(process.env.OPENUSAGE_NATIVE_BINARY, 'Select an explicit frozen native
 const application = resolve(process.env.OPENUSAGE_NATIVE_BINARY);
 const output = resolve(process.env.OPENUSAGE_NATIVE_EVIDENCE ?? join('/tmp', `openusage-first-account-read-${randomUUID()}`));
 const providerPath = 'crates/openusage-codex/tests/fixtures/synthetic-collection-provider.py';
-const providerSha = 'a21d53d66269e8c25c2f12ce5c37ed3abfef4d63aa003288cf2f7763fc146241';
+const providerSha = 'e88d9644b66d5cd0e46d51d365c32d8575176909531a92ecb580d3acf4b02aa8';
 const passphrase = 'OpenUsage synthetic initial account reading 2026';
 const hash = async path => createHash('sha256').update(await readFile(path)).digest('hex');
 const evidence = {

@@ -96,8 +96,9 @@ test('renderer Overview keeps missing values unavailable and navigates through r
 
 test('renderer Overview preserves exact zero and large values and rejects stale or mismatched profile readings', async ({ page }) => {
   await open(page);
-  await expect(dashboard(page).getByRole('figure', { name: 'Five-hour: 0% remaining, derived from 100% used', exact: true })).toBeVisible();
-  await expect(dashboard(page).locator('.overview-quota-ring-value')).toHaveAttribute('stroke-dasharray', '0 100');
+  await expect(dashboard(page).locator('[data-overview-account-share]')).toHaveAttribute('data-aggregation', 'unavailable');
+  await expect(dashboard(page).getByRole('figure', { name: 'Account usage share unavailable: identity and activity coverage are unverified.', exact: true })).toBeVisible();
+  await expect(dashboard(page).locator('[data-overview-combined-usage]')).toContainText('Combined total cannot be verified');
   await expect(dashboard(page).locator('[data-overview-lifetime]')).toHaveText('0');
   await expect(dashboard(page).locator('[data-overview-quota]').getByRole('meter')).toHaveAttribute('aria-valuenow', '0');
   await choose(page, 'Large fixture');
@@ -262,7 +263,7 @@ test('Overview shows saved quota and freshness for all ten accounts without sele
     const row = accountRow(page, id);
     await expect(row.locator('[data-overview-account-quota]')).toContainText(`${index === 0 ? 0 : index === 1 ? 75 : index * 10}% left`);
     await expect(row.locator('[data-overview-account-quota]')).toContainText('Five-hour');
-    await expect(row.locator('[data-overview-account-quota]')).toContainText('Synthetic test data');
+    await expect(row.getByRole('rowheader')).toContainText('Synthetic test data');
     await expect(row.locator('[data-overview-account-observed] time')).toHaveAttribute('datetime', observedAtUtc);
     await expect(row.locator('[data-overview-account-quota] [role=meter]')).toHaveAttribute('aria-valuenow', String(index === 0 ? 0 : index === 1 ? 75 : index * 10));
     await expect(row.locator('[data-overview-account-quota] [role=meter]')).toHaveAttribute('aria-label', /remaining \(derived\)/);
@@ -298,7 +299,7 @@ test('a successful missing-cache result clears the prior row instead of showing 
   await page.evaluate(second => { (window as unknown as FixtureWindow).overviewFixture.quotas[second] = null; }, second);
   await navigate(page, 'overview');
   await expect(accountRow(page, second).locator('[data-overview-account-quota]')).toHaveText('Not available');
-  await expect(accountRow(page, second).locator('[data-overview-account-observed]')).toHaveText('—');
+  await expect(accountRow(page, second).locator('[data-overview-account-observed]')).toHaveText('Never');
   await expect(accountRow(page, first).locator('[data-overview-account-quota]')).toContainText('0% left');
 });
 
@@ -330,4 +331,41 @@ test('archival removes the account and its late quota response cannot replace a 
   await expect(accountRow(page, first).locator('[data-overview-account-quota]')).toContainText('0% left');
   await expect(accountRow(page, second).locator('[data-overview-account-quota]')).toContainText('30% left');
   await expect(dashboard(page).locator('[data-overview-account]')).toHaveCount(2);
+});
+
+
+test('reference dashboard keeps account share and combined totals unavailable while individual activity stays explicit', async ({ page }) => {
+  await open(page, { chart: true });
+  const share = dashboard(page).locator('[data-overview-account-share]');
+  await expect(share).toContainText('Unavailable');
+  await expect(share.getByRole('listitem')).toHaveCount(0); // These fixtures are disconnected; saved values do not establish a connection.
+  await expect(share).not.toContainText('75%');
+  await expect(dashboard(page).locator('[data-overview-combined-usage]')).not.toContainText('9007199254740993');
+  await expect(dashboard(page).locator('.overview-chart-context')).toContainText('Selected account only');
+  await dashboard(page).getByRole('combobox', { name: 'Activity reporting range' }).click();
+  await page.getByRole('option', { name: '7 dates', exact: true }).click();
+  await expect(dashboard(page).getByRole('combobox', { name: 'Activity reporting range' })).toContainText('7 dates');
+  await expect(dashboard(page).locator('[data-overview-day]')).toHaveCount(2);
+  const calls = await page.evaluate(() => (window as unknown as FixtureWindow).overviewFixture.calls);
+  expect(calls.some(command => /^(begin_|complete_|check_profile)/.test(command))).toBe(false);
+});
+
+
+test('selected quota window switches without hiding or combining the other provider window', async ({ page }) => {
+  await open(page);
+  await page.evaluate(first => {
+    const fixture = (window as unknown as FixtureWindow).overviewFixture;
+    fixture.quotas[first]!.limits[0]!.secondary = { usedPercent: 40, derivedRemainingPercent: 60, windowDurationMins: 10080, resetsAtUnix: null, label: 'Seven-day', resetState: 'expected' };
+  }, first);
+  await navigate(page, 'accounts'); await navigate(page, 'overview');
+  const selected = dashboard(page).locator('[data-overview-quota]');
+  await expect(selected.getByRole('meter')).toHaveCount(1);
+  await expect(selected.getByRole('meter')).toHaveAttribute('aria-valuenow', '0');
+  await selected.getByRole('combobox', { name: 'Quota window', exact: true }).click();
+  await page.getByRole('option', { name: 'Seven-day', exact: true }).click();
+  await expect(selected.getByRole('meter')).toHaveAttribute('aria-valuenow', '60');
+  await expect(selected).toContainText('40% used');
+  await selected.getByRole('combobox', { name: 'Quota window', exact: true }).click();
+  await page.getByRole('option', { name: 'Five-hour', exact: true }).click();
+  await expect(selected.getByRole('meter')).toHaveAttribute('aria-valuenow', '0');
 });

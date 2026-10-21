@@ -2,6 +2,16 @@
 
 Updated: October 20, 2026. These foundations cover the native workspace, account overview, backup controls, and provisional quota preview. The user selected coss/ui for all components. The [adoption record](coss-ui-adoption.md) controls the incremental migration. Charts and accepted history need further native qualification.
 
+## Current reference dashboard — October 21, 2026
+
+The user's Image 2 controls the Overview composition. A 244-pixel rail and full-width workspace frame three upper areas: selected account, account-share availability and combined-usage availability. The selected account uses one quota window at a time, a thick capacity bar, used/reset context and four statistic tiles. An inset account table retains prominent Sign in and compact secondary actions. Supporting details remain secondary.
+
+Canonical Overview styles replace the prior layered overrides. A responsive flex layout replaces a native WebKit grid sizing fault found during resize. At laptop widths the selected account spans a row; charts share the next row. At narrow widths panels stack, controls wrap and the complete table scrolls locally. Shared shell rules are consolidated in `workspace-layout.css`.
+
+DM Sans, tabular counts, restrained functional green and matched surfaces preserve one visual system. User scaling remains a Rust-owned native webview preference. The unavailable ring never implies shares; selected-account daily bars are explicitly labeled. Reporting ranges count saved dates, not assumed complete calendar periods. Identity remains provisional, so current provider evidence cannot support combined totals or deduplication. No new UI dependency was added.
+
+See [design QA](../../design-qa.md) and [native reference evidence](../evidence/native-reference-dashboard/). The sections below record earlier design milestones and their original scopes.
+
 ## Structure and interaction
 
 The overview places storage state first, followed by a compact summary and accounts. Backups use a disclosure below accounts. Recovery messages retain the original database and key. Missing provider readings show “Not available”. Only the unlocked database supplies the profile count.

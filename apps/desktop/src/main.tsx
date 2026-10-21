@@ -224,7 +224,7 @@ function App() {
     ? 'The protected key exists, but its database is missing. Keep your database and key files. Recover your original encrypted database before you try again.'
     : 'OpenUsage cannot open the existing database. Keep your database and key files. Recover the original database and its protected key before you try again.';
 
-  const appearance = <div className="theme-control"><label id="theme-label" htmlFor="theme">Appearance</label><Select modal={false} value={theme} disabled={busy} items={{ system: 'System', light: 'Light', dark: 'Dark' }} onValueChange={next => { if (next === 'system' || next === 'light' || next === 'dark') changeTheme(next); }}><SelectTrigger ref={themeControl} id="theme" aria-labelledby="theme-label"><SelectValue /></SelectTrigger><SelectPopup alignItemWithTrigger={false}><SelectItem value="system">System</SelectItem><SelectItem value="light">Light</SelectItem><SelectItem value="dark">Dark</SelectItem></SelectPopup></Select></div>;
+  const appearance = <div className="theme-control"><label id="theme-label" htmlFor="theme">Appearance</label><Select modal={false} value={theme} disabled={busy} items={{ system: 'System', light: 'Light', dark: 'Dark' }} onValueChange={next => { if (next === 'system' || next === 'light' || next === 'dark') changeTheme(next); }}><SelectTrigger ref={themeControl} id="theme" aria-labelledby="theme-label">{ready && <svg className="appearance-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.4 1.4m11.2 11.2L19 19M5 19l1.4-1.4M17.6 6.4 19 5"/></svg>}<SelectValue className={ready ? 'sr-only' : undefined} /></SelectTrigger><SelectPopup alignItemWithTrigger={false}><SelectItem value="system">System</SelectItem><SelectItem value="light">Light</SelectItem><SelectItem value="dark">Dark</SelectItem></SelectPopup></Select></div>;
   function navigate(next: WorkspaceView) {
     setView(next);
     window.scrollTo({ top: 0, behavior: 'instant' });
@@ -243,7 +243,7 @@ function App() {
   const scaleControl = <div className="display-scale-control"><label htmlFor="display-scale" className="sr-only">Display scale</label><Select modal={false} value={displayScale} disabled={scaleBusy} items={Object.fromEntries([90, 100, 110, 125, 150, 175, 200].map(value => [value, `${value}%`]))} onValueChange={value => { if (value !== null) void changeScale(value); }}><SelectTrigger id="display-scale" aria-label="Display scale"><SelectValue /></SelectTrigger><SelectPopup alignItemWithTrigger={false}>{[90, 100, 110, 125, 150, 175, 200].map(value => <SelectItem key={value} value={value}>{value}%</SelectItem>)}</SelectPopup></Select></div>;
   const titles = { overview: 'Overview', accounts: 'Accounts', usage: 'Usage', settings: 'Settings' };
   const descriptions = {
-    overview: 'Your accounts and usage, at a glance.',
+    overview: 'Monitor your OpenAI usage and available quotas.',
     accounts: 'Manage profiles and collect new readings.',
     usage: 'Token activity saved on this device.',
     settings: 'Appearance, Codex connection, and encrypted backups.',
