@@ -1,10 +1,10 @@
-> Public source copy: raw acceptance evidence remains private. Historical test statements keep their original scope and do not certify this source snapshot.
-
 # OpenUsage
 
-Development source with preserved, privacy-filtered history. Original-Commit trailers link filtered commits to their local originals. This is not a production release. Raw test databases, captures and machine diagnostics stay private. Historical verification statements retain their original artifact scope. See [security limits](SECURITY.md) and [unfinished requirements](docs/implementation-status.md#still-incomplete).
-
 A local desktop application for account usage and quota readings. Development uses Tauri 2, Rust, React, and SQLCipher 4 with WAL. See [implementation status](docs/implementation-status.md) for the current scope and executed checks.
+
+This is development source, not a production release. See [security limits](SECURITY.md) and [unfinished requirements](docs/implementation-status.md#still-incomplete). Raw account data, test databases and diagnostic captures remain private. Historical test results apply to their recorded builds.
+
+The repository retains privacy-filtered development history. `Original-Commit` trailers link filtered commits to their local originals. Work from the repository root with ordinary Git commands. Recovery copies are private backups, not separate development checkouts. See [contributor instructions](CONTRIBUTING.md) for storage limits and verification commands.
 
 ## Linux build with LLD
 
