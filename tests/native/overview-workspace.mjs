@@ -13,10 +13,29 @@ const repository = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const application = resolve(process.env.OPENUSAGE_NATIVE_BINARY);
 const output = resolve(process.env.OPENUSAGE_NATIVE_EVIDENCE);
 const passphrase = 'OpenUsage synthetic overview workspace 2026';
-const evidence = { requirement: 'NATIVE-THREE-VIEW-DASHBOARD-001', result: 'failed', scope: 'Native WebKitGTK with synthetic saved readings, exact details, three primary views, contextual account actions, both reported quota windows, selected background refresh, VS Code-inspired true-black colors, both themes, responsive layout, actual WebKit zoom and genuine restart. Not real OAuth, provider data, Windows/macOS or release qualification.', views: [], screenshots: [] };
+const evidence = { requirement: 'NATIVE-TOKEN-HEATMAP-001', result: 'failed', scope: 'Native WebKitGTK with synthetic saved readings: selected-account daily/weekly/cumulative calendar heatmaps, exact zero versus missing, partial coverage, individual selection and refused unverified combined activity, read-only bytes and no provider requests from history controls; three primary views, contextual account actions, both reported quota windows, selected background refresh, true-black colors, themes, responsive layout, actual WebKit zoom and genuine restart. Not real OAuth, verified combined-account activity, Windows/macOS or release qualification.', views: [], screenshots: [] };
 let driver, fixture, sequence = 0;
 const hash = async path => createHash('sha256').update(await readFile(path)).digest('hex');
 async function call(command, args) { const reply = await driver.invoke(command, args); assert.equal(reply.ok, true, `${command}: ${JSON.stringify(reply)}`); return reply.value; }
+async function liveHashes() {
+  const result = {};
+  for (const path of [fixture.database, `${fixture.database}-wal`, join(dirname(fixture.database), 'database-key.v1')]) {
+    try { result[path] = await hash(path); } catch (error) { if (error.code !== 'ENOENT') throw error; result[path] = null; }
+  }
+  return result;
+}
+async function providerHashes(profiles) {
+  return Promise.all(profiles.map(async profile => {
+    try { return await hash(join(dirname(fixture.database), 'profiles', profile.id, 'synthetic-collection-observations.jsonl')); }
+    catch (error) { if (error.code !== 'ENOENT') throw error; return null; }
+  }));
+}
+async function heatmap(profileId, mode = 'daily', periodDays = 365) {
+  return call('load_profile_heatmap', { profileId, mode, periodDays });
+}
+async function visibleHeatmap(profileId, mode = 'daily', periodDays = 365) {
+  await waitFor(() => driver.execute('const node=document.querySelector("[data-overview] [data-token-heatmap]");return node?.getAttribute("data-profile-id")===arguments[0]&&node.getAttribute("data-mode")===arguments[1]&&node.getAttribute("data-period-days")===String(arguments[2])&&Boolean(node.querySelector("[data-heatmap-grid]"));', [profileId, mode, periodDays]), `loaded ${mode} ${periodDays}-day heatmap for selected account`);
+}
 async function key(value) {
   await driver.request('POST', `/session/${driver.session}/actions`, { actions: [{ type: 'key', id: 'native-keyboard', actions: [{ type: 'keyDown', value }, { type: 'keyUp', value }] }] });
   await driver.request('DELETE', `/session/${driver.session}/actions`);
@@ -95,13 +114,91 @@ try {
   assert.equal(await driver.execute('return document.querySelector("[data-account-refresh-message]");'), null, 'Automatic login collection does not add an Overview banner.');
   assert.deepEqual(await driver.execute('return [...document.querySelectorAll("[data-overview-quota] [role=meter]")].map(node=>Number(node.getAttribute("aria-valuenow")));'), [75, 60]);
   assert.deepEqual(await driver.execute('return [...document.querySelectorAll("[data-overview-window]")].map(node=>node.getAttribute("data-overview-window"));'), ['Primary window', 'Secondary window']);
+  await visibleHeatmap(profiles[0].id, 'daily', 90);
+  assert.equal(await driver.execute('return document.querySelector("[data-overview-quota-donut]")?.getAttribute("data-remaining");'), '75');
   await resize(1586, 992); await capture('overview-reference-light.png');
-  assert.equal(await driver.execute('return document.querySelector("[data-overview-account-share]")?.getAttribute("data-aggregation");'), 'unavailable');
-  assert.match(await driver.execute('return document.querySelector("[data-overview-combined-usage]").textContent;'), /Unavailable/);
-  assert.equal(await driver.execute('return document.querySelectorAll("[data-overview-day]").length;'), 7);
-  await driver.selectVisibleOption('[aria-label="Activity reporting range"]', '7 dates');
-  assert.equal(await driver.execute('return document.querySelector(arguments[0]).textContent.includes("7 dates");', ['[aria-label="Activity reporting range"]']), true);
+  assert.equal(await driver.execute('return document.querySelectorAll("[data-overview-combined-usage],[data-overview-day]").length;'), 0, 'The bar chart is replaced without inventing combined totals.');
+  assert.equal(evidence.views.at(-1).panels.length, 3);
   assert.ok(evidence.views.at(-1).panels.every(panel => Math.abs(panel.top - evidence.views.at(-1).panels[0].top) < 1));
+  await visibleHeatmap(profiles[0].id, 'daily', 90);
+  const beforeHeatmap = await liveHashes(), providersBeforeHeatmap = await providerHashes(profiles);
+  const daily = await heatmap(profiles[0].id);
+  assert.equal(daily.profileId, profiles[0].id);
+  assert.equal(daily.coverage, 'unknown');
+  assert.equal(daily.cells.length, 365);
+  const expectedDays = ['1200000', '2450000', '0', '1780000', '3100000', '920000', '2220000'];
+  assert.deepEqual(daily.cells.filter(cell => cell.tokens !== null).map(cell => cell.tokens), expectedDays);
+  assert.equal(daily.scaleMaximum, '3100000');
+  assert.ok(daily.cells.some(cell => cell.tokens === null && cell.knownDays === 0 && cell.observedAtUtc === null));
+  assert.equal(await driver.execute('return document.querySelectorAll("[data-overview] [data-heatmap-cell][data-value=missing]").length;'), 83);
+  assert.equal(await driver.execute('return document.querySelectorAll("[data-overview] [data-heatmap-cell][data-value=zero]").length;'), 1);
+  assert.equal(await driver.execute('return document.querySelector(arguments[0])?.getAttribute("data-exact-value");', ['[data-overview] [data-heatmap-cell="2026-10-17"]']), '0');
+  assert.equal(await driver.execute('return document.querySelector(arguments[0])?.getAttribute("data-exact-value");', ['[data-overview] [data-heatmap-cell="2026-10-19"]']), '3100000');
+  await driver.execute('document.querySelector(arguments[0]).focus();return true;', ['[data-overview] [data-heatmap-cell="2026-10-15"]']);
+  await key('\uE015');
+  await waitFor(() => driver.execute('return document.activeElement?.getAttribute("data-heatmap-cell")==="2026-10-16"&&document.querySelector("[data-overview] [data-heatmap-selected]")?.textContent.includes("2450000");'), 'native arrow key explores the next exact daily cell');
+  await driver.execute('document.querySelector("[data-overview] [data-heatmap-values-toggle]").focus();return true;');
+  await key('\uE007');
+  await waitFor(() => driver.execute('return Boolean(document.querySelector("[data-overview] [data-heatmap-values]")?.getClientRects().length);'), 'actual keyboard opens exact heatmap values');
+  const exactValues = await driver.execute('return document.querySelector("[data-overview] [data-heatmap-values]").textContent;');
+  assert.match(exactValues, /3100000/);
+  assert.match(exactValues, /2026-10-17/);
+  await key('\uE007');
+  await waitFor(() => driver.execute('return !document.querySelector("[data-overview] [data-heatmap-values]")?.getClientRects().length;'), 'keyboard closes exact values');
+  for (const days of [30, 90, 180, 365]) {
+    await driver.selectVisibleOption('[data-overview] [aria-label="Activity history range"]', `${days} days`);
+    await visibleHeatmap(profiles[0].id, 'daily', days);
+    assert.equal(await driver.execute('return document.querySelectorAll("[data-overview] [data-heatmap-cell]").length;'), days);
+  }
+  await driver.click('[data-overview] [data-heatmap-mode=weekly]');
+  await visibleHeatmap(profiles[0].id, 'weekly');
+  const weekly = await heatmap(profiles[0].id, 'weekly');
+  assert.deepEqual(weekly.cells.filter(cell => cell.tokens !== null).map(cell => [cell.startDate, cell.endDate, cell.tokens, cell.knownDays, cell.expectedDays]), [
+    ['2026-10-12', '2026-10-18', '5430000', 4, 7],
+    ['2026-10-19', '2026-10-25', '6240000', 3, 7],
+  ]);
+  assert.equal(await driver.execute('return document.querySelector(arguments[0])?.getAttribute("data-exact-value");', ['[data-overview] [data-heatmap-cell="2026-10-12"]']), '5430000');
+  await driver.click('[data-overview] [data-heatmap-mode=cumulative]');
+  await visibleHeatmap(profiles[0].id, 'cumulative');
+  const cumulative = await heatmap(profiles[0].id, 'cumulative');
+  assert.equal(cumulative.cells.at(-1).tokens, '11670000');
+  assert.equal(cumulative.cells.at(-1).knownDays, 7);
+  assert.equal(cumulative.cells.at(-1).expectedDays, 365);
+  assert.equal(await driver.execute('return [...document.querySelectorAll("[data-overview] [data-heatmap-cell]")].at(-1)?.getAttribute("data-exact-value");'), '11670000');
+  await driver.click('[data-overview] [data-heatmap-mode=daily]');
+  await visibleHeatmap(profiles[0].id);
+  await driver.selectVisibleOption('[data-overview] [aria-label="Activity account"]', profiles[1].label);
+  await visibleHeatmap(profiles[1].id);
+  assert.equal(await driver.execute('return document.querySelector("[data-overview]").getAttribute("data-overview-profile");'), profiles[1].id, 'Activity account selects the shared Overview account.');
+  const otherHeatmap = await heatmap(profiles[1].id);
+  assert.equal(otherHeatmap.profileId, profiles[1].id);
+  assert.notEqual(otherHeatmap.bindingId, daily.bindingId);
+  assert.notEqual(otherHeatmap.collectionRunId, daily.collectionRunId);
+  await driver.selectVisibleOption('#overview-profile', profiles[4].label);
+  assert.equal(await heatmap(profiles[4].id), null);
+  await waitFor(() => driver.execute('return document.querySelector("[data-overview] [data-token-heatmap]")?.getAttribute("data-profile-id")===arguments[0]&&document.querySelectorAll("[data-overview] [data-heatmap-cell]").length===0;', [profiles[4].id]), 'unconnected account does not inherit another account heatmap');
+  await driver.selectVisibleOption('#overview-profile', profiles[0].label);
+  await visibleHeatmap(profiles[0].id);
+  await driver.click('[data-overview] [aria-label="Activity accounts"] button:nth-child(2)');
+  await waitFor(() => driver.execute('return document.querySelector("[data-overview] [data-activity-scope]")?.getAttribute("data-activity-scope")==="combined"&&Boolean(document.querySelector("[data-overview] [data-combined-availability]"));'), 'Combined checks saved eligibility');
+  assert.equal(await driver.execute('return document.querySelectorAll("[data-overview] [data-combined-heatmap] [role=checkbox]").length;'), 5);
+  assert.equal(await driver.execute('return document.querySelectorAll("[data-overview] [data-combined-heatmap] [role=checkbox][aria-checked=true]").length;'), 2, 'Only connected accounts are selected by default.');
+  const combinedIds = profiles.slice(0, 2).map(profile => profile.id);
+  const combined = await call('load_combined_heatmap', { profileIds: combinedIds });
+  assert.deepEqual(combined, { status: 'unavailable', includedProfileIds: [], exclusions: combinedIds.map(profileId => ({ profileId, reason: 'identity_unverified' })) });
+  assert.equal(await driver.execute('return document.querySelectorAll("[data-overview] [data-heatmap-grid],[data-overview] [data-heatmap-cell]").length;'), 0, 'Ineligible accounts never produce a combined calendar or invented totals.');
+  assert.equal(await driver.execute('return document.querySelectorAll("[data-overview] .combined-exclusions li").length;'), 2);
+  await driver.click('[data-overview] .combined-account-selection label:nth-child(2) [role=checkbox]');
+  await waitFor(() => driver.execute('return document.querySelectorAll("[data-overview] .combined-exclusions li").length===1&&document.querySelectorAll("[data-overview] [data-combined-heatmap] [role=checkbox][aria-checked=true]").length===1;'), 'unchecking an account updates Combined eligibility');
+  assert.deepEqual(await call('load_combined_heatmap', { profileIds: [profiles[0].id] }), { status: 'unavailable', includedProfileIds: [], exclusions: [{ profileId: profiles[0].id, reason: 'identity_unverified' }] });
+  await driver.click('[data-overview] .combined-account-selection label:nth-child(2) [role=checkbox]');
+  await waitFor(() => driver.execute('return document.querySelectorAll("[data-overview] .combined-exclusions li").length===2&&document.querySelectorAll("[data-overview] [data-combined-heatmap] [role=checkbox][aria-checked=true]").length===2;'), 'checking the second account restores its exclusion');
+  await driver.click('[data-overview] [aria-label="Activity accounts"] button:first-child');
+  await visibleHeatmap(profiles[0].id, 'daily', 90);
+  assert.equal(await driver.execute('return document.querySelector("[data-overview]").getAttribute("data-overview-profile");'), profiles[0].id, 'Returning to Individual preserves its selected account.');
+  assert.deepEqual(await liveHashes(), beforeHeatmap, 'Calendar and combined-eligibility reads and controls must preserve encrypted database, WAL and key bytes.');
+  assert.deepEqual(await providerHashes(profiles), providersBeforeHeatmap, 'History browsing must not make provider requests.');
+  evidence.heatmap = { defaultDays: 90, knownDays: 7, missingDays: 83, explicitZeroDays: 1, dailyExactValues: expectedDays, weeklyExactTotals: ['5430000', '6240000'], cumulativeAvailableTotal: '11670000', coverageUnknown: true, keyboardExactValues: true, ranges: [30, 90, 180, 365], accountIsolation: true, individualAccountSelector: true, combinedSelectionControls: true, unverifiedCombinedRefused: true, databaseWalKeyUnchanged: true, noProviderRequests: true };
   await driver.click('.overview-source-details > button');
   assert.ok((await driver.execute('return document.querySelector(".overview-source-details").textContent;')).includes('9007199254740993'));
   await driver.click('.overview-source-details > button');
@@ -130,6 +227,8 @@ try {
   const otherId = profiles.slice(0, 2).find(profile=>profile.id!==selectedId).id;
   await driver.waitForProfileRefresh(otherId);
   const otherBeforeRefresh = await call('load_profile_quota', { profileId: otherId });
+  // The visible countdown updates separately from backend cooldown admission.
+  await waitFor(() => driver.execute('return document.querySelector(arguments[0])?.disabled===false;', [`[data-overview-row-refresh="${otherId}"]`]), 'other account visible cooldown finishes before independent refresh');
   const held = join(dirname(fixture.database), 'profiles', selectedId, 'synthetic-dashboard-hold');
   await writeFile(held, 'Owned synthetic refresh hold. No credentials.\n', { mode: 0o600 });
   try {
@@ -161,13 +260,22 @@ try {
   assert.equal((await driver.invoke('set_display_scale', { percent: 999 })).ok, false);
   assert.equal((await call('get_display_scale')).percent, 125);
   const savedBeforeRestart = await call('load_profile_quota', { profileId: profiles[0].id });
+  const heatmapBeforeRestart = await heatmap(profiles[0].id), providersBeforeRestart = await providerHashes(profiles);
   await close(); await open();
   assert.equal((await call('get_display_scale')).percent, 125);
   await waitFor(() => driver.execute('return document.querySelector("#display-scale")?.textContent.trim()==="125%";'), 'restored native scale shown');
   const savedAfterRestart = await call('load_profile_quota', { profileId: profiles[0].id });
   assert.equal(savedAfterRestart.collectionRunId, savedBeforeRestart.collectionRunId);
   assert.equal(savedAfterRestart.observedAtUtc, savedBeforeRestart.observedAtUtc);
-  evidence.genuineRestart = { scaleRestored: true, savedReadingUnchanged: true };
+  await visibleHeatmap(profiles[0].id, 'daily', 90);
+  // Freshness uses a process-local monotonic observation and becomes unknown after restart.
+  // Saved dates, exact counts, levels, coverage and source references must remain identical.
+  assert.deepEqual(await heatmap(profiles[0].id), {
+    ...heatmapBeforeRestart,
+    cells: heatmapBeforeRestart.cells.map(cell => ({ ...cell, freshness: 'unknown' })),
+  });
+  assert.deepEqual(await providerHashes(profiles), providersBeforeRestart, 'Restart restores saved calendar activity without provider requests.');
+  evidence.genuineRestart = { scaleRestored: true, savedReadingUnchanged: true, heatmapSavedValuesRestoredExactly: true, sessionFreshnessAfterRestart: 'unknown', noProviderRequests: true };
   await driver.execute('document.querySelector("#display-scale").focus();return true;');
   await key('\uE007');
   await waitFor(() => driver.execute('return [...document.querySelectorAll("[role=option]")].some(node=>node.getClientRects().length);'), 'scale keyboard popup');

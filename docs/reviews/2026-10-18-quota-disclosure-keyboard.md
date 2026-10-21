@@ -1,3 +1,5 @@
+> Public source copy: raw acceptance evidence remains private. Historical test statements keep their original scope and do not certify this source snapshot.
+
 # Quota disclosure keyboard access
 
 October 18, 2026. Quota disclosure labels now keep pointer hits on the native button. The label wrapper includes the entire text and any bidirectional isolation element. Carets stay hidden from assistive technology and cannot receive pointer hits. Names, expansion, rendering, and native keyboard behavior remain intact. No focus assignment or key remapping is added.
@@ -8,6 +10,6 @@ The rebuilt quota journey passed all 47 provider cases and six additional keyboa
 
 A full-image review initially suggested overlapping metadata text. Enlarged crops of the original and fresh settled image show four separate rows. Their decoded crop pixels are identical. Fresh native geometry also shows eight pixels between the status and monthly rows. The first observation is retained with a correction; it does not establish a native paint defect. No product workaround or screenshot replacement was needed.
 
-The [artifact audit](../evidence/native-quota-hit-verification/artifact-audit.json) binds both acceptance journeys, the separate diagnostic run, immutable executables, and all 166 source and harness files. Source commit is `86ace3d`. The frontend check passed 24 contracts and 18 renderer journeys. All Rust and Cargo bytes match the earlier fresh 123-test qualification, strict Clippy, and formatting. One owned child helper remains intentionally ignored.
+The artifact audit (private evidence omitted) binds both acceptance journeys, the separate diagnostic run, immutable executables, and all 166 source and harness files. Source commit is `86ace3d`. The frontend check passed 24 contracts and 18 renderer journeys. All Rust and Cargo bytes match the earlier fresh 123-test qualification, strict Clippy, and formatting. One owned child helper remains intentionally ignored.
 
 These are synthetic Linux checks on debug builds. JetBrains Mono remains bundled throughout. SQLCipher 4 with WAL, key management, encrypted backups, and narrow source approval remain unchanged. Full AT-36, screen readers, other mixed controls, other platforms, live OAuth, verified identity, accepted history, and release performance remain incomplete. The next slice builds and runs the optimized native executable while provisional activity collection proceeds separately.

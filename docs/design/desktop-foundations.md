@@ -1,3 +1,5 @@
+> Public source copy: raw acceptance evidence remains private. Historical test statements keep their original scope and do not certify this source snapshot.
+
 # Desktop design foundations
 
 Updated: October 20, 2026. These foundations cover the native workspace, account overview, backup controls, and provisional quota preview. The user selected coss/ui for all components. The [adoption record](coss-ui-adoption.md) controls the incremental migration. Charts and accepted history need further native qualification.
@@ -10,7 +12,7 @@ Canonical Overview styles replace the prior layered overrides. A responsive flex
 
 DM Sans, tabular counts, restrained functional green and matched surfaces preserve one visual system. User scaling remains a Rust-owned native webview preference. The unavailable ring never implies shares; selected-account daily bars are explicitly labeled. Reporting ranges count saved dates, not assumed complete calendar periods. Identity remains provisional, so current provider evidence cannot support combined totals or deduplication. No new UI dependency was added.
 
-See [design QA](../../design-qa.md) and [native reference evidence](../evidence/native-reference-dashboard/). The sections below record earlier design milestones and their original scopes.
+See design QA (local reference omitted) and native reference evidence (private evidence omitted). The sections below record earlier design milestones and their original scopes.
 
 ## Structure and interaction
 
@@ -142,7 +144,7 @@ Native review exposed the original Cancel document-order fault and competing sav
 
 Start and Pause stay under Manage profile. One workspace status poll updates all controls. A committed reading revision refreshes saved values without moving focus. Pause remains available during a scheduled read or a status-load failure. Restart shows saved readings with disabled Start and sign-in guidance. Eight reviewed native captures cover normal and enlarged text, both themes, keyboard Pause, and retained focus. See `../evidence/native-runtime-monitoring/`.
 
-The October 21 native check measured 16-pixel body/button text, 48-pixel primary controls, 10-pixel control corners, and 16-pixel panel corners. The Accounts view reflowed at 360 pixels without page overflow. Both native themes were inspected. See [the startup and readability evidence](../evidence/native-startup-snapshot/). Overview simplification and full accessibility acceptance remain open.
+The October 21 native check measured 16-pixel body/button text, 48-pixel primary controls, 10-pixel control corners, and 16-pixel panel corners. The Accounts view reflowed at 360 pixels without page overflow. Both native themes were inspected. See the startup and readability evidence (private evidence omitted). Overview simplification and full accessibility acceptance remain open.
 
 ## Reference overview composition — October 21, 2026
 

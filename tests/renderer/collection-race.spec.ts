@@ -371,7 +371,7 @@ test('a pre-restore status reply cannot restart or repaint the new workspace mon
   await navigate(page, 'accounts'); await openReadings(page, profileId); await page.getByRole('button', { name: 'Manage profile', exact: true }).click();
   await expect(page.locator(`[data-monitoring-start="${profileId}"]`)).toBeDisabled();
   await navigate(page, 'overview');
-  await expect(page.locator('[data-overview-quota] .overview-error')).toContainText('Saved quotas could not be loaded.');
+  await expect(page.locator('[data-overview-quota] .overview-error').filter({ hasText: 'Saved quotas could not be loaded.' })).toBeVisible();
   await expect(account.locator('[data-overview-account-quota]')).toHaveText('Not available');
   await expect(account.locator('[data-overview-account-observed]')).toContainText('Unavailable');
   await expect(account.locator('[data-overview-account-observed] time')).toHaveCount(0);

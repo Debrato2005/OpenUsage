@@ -1,3 +1,5 @@
+> Public source copy: raw acceptance evidence remains private. Historical test statements keep their original scope and do not certify this source snapshot.
+
 # Monthly credit limits
 
 October 18, 2026. Each quota bucket can now show its provider-returned monthly credit limit and spend-control state inside Reading details. The main quota view stays unchanged. Missing values show Not supplied. Zero stays zero, and a false spend-control flag shows Not reached.
@@ -10,4 +12,4 @@ The native quota journey passed 47 cases with eighteen reviewed captures. These 
 
 The strict profile regression also passed all three cancellation workflows and the ordinary privacy button, with eight reviewed captures. The production executable refused all three synthetic providers before execution. Fresh integrated Rust checks passed 121 tests, strict Clippy, and formatting. One owned child helper remains intentionally ignored. The frontend check passed 24 contracts and 18 renderer journeys.
 
-[The artifact audit](../evidence/native-monthly-credit-verification/artifact-audit.json) binds both rebuilt executables, the 163-file integrity map, all three receipts, and 26 captures. Earlier full visual, encrypted backup, and private key-store receipts retain their original source and executable scopes. SQLCipher 4 and WAL stay mandatory. This is a provisional, unsaved native preview using synthetic data. Live quotas, verified identity, accepted history, full accessibility, other platforms, and release performance remain incomplete.
+The artifact audit (private evidence omitted) binds both rebuilt executables, the 163-file integrity map, all three receipts, and 26 captures. Earlier full visual, encrypted backup, and private key-store receipts retain their original source and executable scopes. SQLCipher 4 and WAL stay mandatory. This is a provisional, unsaved native preview using synthetic data. Live quotas, verified identity, accepted history, full accessibility, other platforms, and release performance remain incomplete.

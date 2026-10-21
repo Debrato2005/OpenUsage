@@ -1,3 +1,5 @@
+> Public source copy: raw acceptance evidence remains private. Historical test statements keep their original scope and do not certify this source snapshot.
+
 # Activity sign-in recovery
 
 October 18, 2026. A changed account or restored profile environment now requires an account review before new activity can be saved. The review shows previous and current non-secret account details. It does not run the provider. Keep saved readings closes the review without changing records.
@@ -8,6 +10,6 @@ The actual Tauri journey passed nine accepted synthetic reads, 22 independent re
 
 The UI now says Undo a restore and Preview saved copy. Copy details hides the selected copy ID and size. This keeps the existing encrypted safety copy and explicit replacement consent.
 
-The [verification record](../evidence/native-activity-reassociation/verification.json) binds source `c6f24da`, the native executable, 188 source files, ten built assets, and retained receipts. All hashes matched after execution. Rust passed 158 tests, strict Clippy, and formatting. One owned child helper remains intentionally ignored as a standalone test. The UI passed 31 contract checks and 58 browser checks.
+The verification record (private evidence omitted) binds source `c6f24da`, the native executable, 188 source files, ten built assets, and retained receipts. All hashes matched after execution. Rust passed 158 tests, strict Clippy, and formatting. One owned child helper remains intentionally ignored as a standalone test. The UI passed 31 contract checks and 58 browser checks.
 
 Both desktop configurations compiled. This slice runs the native-test configuration with clearly labeled synthetic data. It does not qualify the new default executable at runtime, optimized execution, real OAuth, other platforms, performance targets, or full accessibility. SQLCipher 4 with WAL and the normative SRS remain unchanged.

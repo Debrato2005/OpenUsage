@@ -1,3 +1,5 @@
+> Public source copy: raw acceptance evidence remains private. Historical test statements keep their original scope and do not certify this source snapshot.
+
 # Provisional credit details
 
 October 18, 2026. Provider-supplied credit rows now appear inside About this preview. The closed main quota view stays unchanged. Each row shows its title, provider status, UTC grant time, and expiry. Unknown statuses display Unknown. Explicit null expiry displays No expiry; Unix zero remains a real date. The UI does not derive status from dates.
@@ -10,4 +12,4 @@ The actual native quota journey passed 38 cases with fourteen reviewed captures.
 
 The first native attempt published a valid preview, then failed on a fixture log written after the final response flush. Owned-child cleanup can precede that log. The corrected harness requires the actual focused successful preview and its fresh selected-home final account request with the exact request sequence. The old failed receipt remains intact. No product timing, process cleanup, fixture padding, or security control changed.
 
-[The audit](../evidence/native-credit-details-verification/artifact-audit.json) records both executable hashes, 163-file integrity maps, the one-file harness difference, screenshots, and logs. SQLCipher 4 and WAL remain mandatory. Earlier persistence/export/visual receipts retain their exact scopes. Monthly credit limits, spend-control state, live identity, accepted history, strict profile reverse Tab, complete accessibility, other platforms, and release performance remain incomplete.
+The audit (private evidence omitted) records both executable hashes, 163-file integrity maps, the one-file harness difference, screenshots, and logs. SQLCipher 4 and WAL remain mandatory. Earlier persistence/export/visual receipts retain their exact scopes. Monthly credit limits, spend-control state, live identity, accepted history, strict profile reverse Tab, complete accessibility, other platforms, and release performance remain incomplete.

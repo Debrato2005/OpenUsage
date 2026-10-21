@@ -138,6 +138,20 @@ struct ProfileCheckArgs {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CombinedHeatmapArgs {
+    profile_ids: Vec<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ProfileHeatmapArgs {
+    profile_id: String,
+    mode: String,
+    period_days: u16,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ProfileQuotaHistoryArgs {
     profile_id: String,
     #[serde(deserialize_with = "Option::deserialize")]
@@ -390,6 +404,7 @@ async fn run_workspace(
     service: Arc<Mutex<Option<Workspace>>>,
     operation: Operation,
 ) -> Result<Bootstrap, CommandError> {
+    let native_app = app.clone();
     tauri::async_runtime::spawn_blocking(move || {
         let mut state = service
             .lock()
@@ -413,7 +428,7 @@ async fn run_workspace(
             }
         }
         let workspace = state.as_mut().ok_or(CommandError::StorageUnavailable)?;
-        match operation {
+        let result = match operation {
             Operation::Bootstrap => {
                 let vault = OsVault::new();
                 Ok(workspace.bootstrap(vault.as_ref().map_err(|error| *error)))
@@ -424,7 +439,18 @@ async fn run_workspace(
             }
             Operation::Unlock(passphrase) => workspace.unlock(passphrase),
             Operation::SetTheme(theme) => workspace.set_theme(theme),
+        };
+        if let Ok(bootstrap) = &result
+            && bootstrap.storage == workspace::StorageState::Ready
+        {
+            // Queue native appearance in commit order. Unsupported decoration styling is cosmetic.
+            native_app.set_theme(match bootstrap.theme {
+                "light" => Some(tauri::Theme::Light),
+                "dark" => Some(tauri::Theme::Dark),
+                _ => None,
+            });
         }
+        result
     })
     .await
     .map_err(|_| CommandError::StorageUnavailable)?
@@ -1433,6 +1459,45 @@ async fn load_profile_quota_history(
 }
 
 #[tauri::command]
+async fn load_combined_heatmap(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<workspace::CombinedHeatmapEligibility, CommandError> {
+    let args: CombinedHeatmapArgs = arguments(&request)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        service
+            .lock()
+            .map_err(|_| CommandError::StorageUnavailable)?
+            .as_ref()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .load_combined_heatmap(&args.profile_ids)
+    })
+    .await
+    .map_err(|_| CommandError::StorageUnavailable)?
+}
+
+#[tauri::command]
+async fn load_profile_heatmap(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<Option<workspace::ProfileHeatmap>, CommandError> {
+    let args: ProfileHeatmapArgs = arguments(&request)?;
+    workspace::validate_profile_id(&args.profile_id)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        service
+            .lock()
+            .map_err(|_| CommandError::StorageUnavailable)?
+            .as_ref()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .load_profile_heatmap(&args.profile_id, &args.mode, args.period_days)
+    })
+    .await
+    .map_err(|_| CommandError::StorageUnavailable)?
+}
+
+#[tauri::command]
 async fn load_profile_activity(
     request: tauri::ipc::Request<'_>,
     service: State<'_, WorkspaceService>,
@@ -1693,6 +1758,8 @@ fn main() {
             review_profile_quota_association,
             begin_profile_quota_reassociation,
             load_profile_activity,
+            load_profile_heatmap,
+            load_combined_heatmap,
             begin_profile_activity_read,
             begin_profile_activity_reassociation,
             review_profile_activity_association,

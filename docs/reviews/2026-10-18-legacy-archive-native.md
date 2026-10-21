@@ -1,3 +1,5 @@
+> Public source copy: raw acceptance evidence remains private. Historical test statements keep their original scope and do not certify this source snapshot.
+
 # Retained schema 1 archive restore
 
 October 18, 2026. The current desktop application restored an actual retained schema 1 backup through the native interface. It preserved the original three profile UUIDs, names, archive flags, and native environment fields. The live database remained encrypted SQLCipher 4 with WAL at schema 2. No production code or dependency changed in this slice.
@@ -8,7 +10,7 @@ The native journey inspected the archive, showed schema version 1, prepared a ne
 
 A genuine application restart preserved the imported profiles and mappings. The UI then exported a schema 2 archive that authenticated and matched those mappings. Recovery of the original schema 2 checkpoint returned the prior profile, original home, and Light appearance. A second restart preserved that recovered state. The protected key, old home marker, synthetic Codex home, and original archive stayed unchanged.
 
-Five fresh captures were reviewed. The [audit](../evidence/native-activity-legacy-verification/artifact-audit.json) binds six current-schema oracle states, the separate original-schema oracle, three genuine window closes, 185 product files, ten assets, and all executables, helpers, and tools. The application is the unchanged default debug executable from `a94d49b`. The one new source file is a separate test-only archive oracle. Its build, strict Clippy, and authentication check passed.
+Five fresh captures were reviewed. The audit (private evidence omitted) binds six current-schema oracle states, the separate original-schema oracle, three genuine window closes, 185 product files, ten assets, and all executables, helpers, and tools. The application is the unchanged default debug executable from `a94d49b`. The one new source file is a separate test-only archive oracle. Its build, strict Clippy, and authentication check passed.
 
 The first run failed because its test incorrectly expected inspection to authorize restore. The contract requires `restoreAvailable:false` until a fresh preview. The corrected test verifies that refusal and the visible Preview restore action. It preserves the existing unchecked consent gate. The exact failed harness and raw failure remain retained.
 

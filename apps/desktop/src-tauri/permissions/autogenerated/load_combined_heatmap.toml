@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-load-combined-heatmap"
+description = "Enables the load_combined_heatmap command without any pre-configured scope."
+commands.allow = ["load_combined_heatmap"]
+
+[[permission]]
+identifier = "deny-load-combined-heatmap"
+description = "Denies the load_combined_heatmap command without any pre-configured scope."
+commands.deny = ["load_combined_heatmap"]

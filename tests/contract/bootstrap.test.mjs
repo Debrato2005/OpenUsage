@@ -706,3 +706,23 @@ test('history IPC keeps profiles, ordering, cursor bounds and missing windows ex
     desktopResponse(value); await assert.rejects(invoke('load_profile_quota_history', args), /desktop response is incompatible/);
   }
 });
+
+test('heatmap IPC keeps missing, zero and exact aggregate counts distinct and rejects malformed cells', async () => {
+  const profileId = '11111111-1111-4111-8111-111111111111';
+  const args = { profileId, mode: 'daily', periodDays: 90 };
+  const cell = { startDate: '2026-10-20', endDate: '2026-10-20', tokens: '9007199254740993', level: 4, knownDays: 1, expectedDays: 1, observedAtUtc: '2026-10-21T00:00:00.000Z', freshness: 'unknown' };
+  const value = { profileId, bindingId: '22222222-2222-4222-8222-222222222222', collectionRunId: '33333333-3333-4333-8333-333333333333', sourceKind: 'test_fixture', scope: 'account_activity_with_unknown_application_scope', coverage: 'unknown', observedAtUtc: cell.observedAtUtc, mode: 'daily', periodStart: '2026-10-20', periodEnd: '2026-10-21', scaleMaximum: cell.tokens, cells: [cell] };
+  for (const tokens of [null, '0', '9007199254740993', '11670000']) {
+    const entry = { ...cell, tokens, level: tokens === null || tokens === '0' ? 0 : 4, knownDays: tokens === null ? 0 : 1, observedAtUtc: tokens === null ? null : cell.observedAtUtc };
+    desktopResponse({ ...value, cells: [entry] });
+    assert.equal((await invoke('load_profile_heatmap', args)).cells[0].tokens, tokens);
+  }
+  for (const invalid of [{ ...cell, tokens: 9007199254740992 }, { ...cell, tokens: '01' }, { ...cell, tokens: '-1' }, { ...cell, tokens: null }, { ...cell, level: 5 }, { ...cell, startDate: '2026-02-30' }, { ...cell, knownDays: 2 }, { ...cell, extra: true }]) {
+    desktopResponse({ ...value, cells: [invalid] });
+    await assert.rejects(invoke('load_profile_heatmap', args), /desktop response is incompatible/);
+  }
+  desktopResponse({ ...value, cells: [cell, cell] });
+  await assert.rejects(invoke('load_profile_heatmap', args), /desktop response is incompatible/);
+  desktopResponse({ ...value, mode: 'monthly' });
+  await assert.rejects(invoke('load_profile_heatmap', args), /desktop response is incompatible/);
+});

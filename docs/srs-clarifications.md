@@ -1,3 +1,5 @@
+> Public source copy: raw acceptance evidence remains private. Historical test statements keep their original scope and do not certify this source snapshot.
+
 # SRS clarification record
 
 ## SC-001: reset confirmation with rapid new-window use
@@ -32,7 +34,7 @@ OU-ACCT-005 requires device-code login, while section 19.1(1) broadly prohibits 
 
 Codes must stay out of logs, notifications, toasts, exports, backups, application persistence, and retained real test evidence. Terminal states and approval invalidation clear the challenge. Clipboard retention remains under operating-system control. See the [exact approved interpretation](proposals/device-code-display-interpretation.md). Synthetic native checks passed. Real OAuth remains unexecuted.
 
-October 21 implementation update: the user's explicit per-account Sign in action supplies selected-profile consent. A separate Get sign-in code confirmation is no longer required. The named pending dialog retains Cancel; the fixed official verification page opens automatically. Production anonymous challenge/cancellation passed without retaining a code. Successful real OAuth remains unverified. See [the evidence](evidence/native-account-signin/).
+October 21 implementation update: the user's explicit per-account Sign in action supplies selected-profile consent. A separate Get sign-in code confirmation is no longer required. The named pending dialog retains Cancel; the fixed official verification page opens automatically. Production anonymous challenge/cancellation passed without retaining a code. Successful real OAuth remains unverified. See the evidence (private evidence omitted).
 
 ## SC-004: trusted companion preparation through Add
 
@@ -52,7 +54,7 @@ OU-ACCT-005 requires browser login. OU-AUTH-007 restricts authentication operati
 
 Status: source-backed implementation correction, October 21, 2026. No normative requirement changed.
 
-The pinned official provider sends an initial routing snapshot through `account/updated`. It is not by itself evidence of an account switch. Rust accepts one validated matching snapshot before the measurement baseline, supported by a full account response and routing context. A deferred snapshot requires another full account check before measurement requests. The snapshot never establishes identity, freshness, or reset evidence. Mismatches, duplicate snapshots, malformed envelopes, and all later account-update notifications still invalidate the collection. Message and read deadlines remain bounded. See [the source and executed evidence](evidence/native-startup-snapshot/).
+The pinned official provider sends an initial routing snapshot through `account/updated`. It is not by itself evidence of an account switch. Rust accepts one validated matching snapshot before the measurement baseline, supported by a full account response and routing context. A deferred snapshot requires another full account check before measurement requests. The snapshot never establishes identity, freshness, or reset evidence. Mismatches, duplicate snapshots, malformed envelopes, and all later account-update notifications still invalidate the collection. Message and read deadlines remain bounded. See the source and executed evidence (private evidence omitted).
 
 ## SC-007: three primary pages with contextual account management
 
@@ -60,4 +62,4 @@ Status: explicit user-directed navigation correction, October 21, 2026. The norm
 
 OU-UI-001 lists Accounts and other functional views. The user requires only Overview, Usage and Settings in primary navigation. Account selection, sign-in, management and details remain accessible through Overview, Usage and contextual dialogs. This changes navigation placement, not the required capabilities. Unimplemented Compare, Subscriptions, Calendar and Notifications functions remain acceptance gaps; removing their navigation entries does not waive them.
 
-Show each returned quota window. Do not infer a five-hour or weekly limit from the plan name. Refresh must preserve the current Overview route. See [native evidence](evidence/native-three-view-dashboard/).
+Show each returned quota window. Do not infer a five-hour or weekly limit from the plan name. Refresh must preserve the current Overview route. See native evidence (private evidence omitted).

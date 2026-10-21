@@ -1,3 +1,5 @@
+> Public source copy: raw acceptance evidence remains private. Historical test statements keep their original scope and do not certify this source snapshot.
+
 # Backup and recovery controls
 
 October 18, 2026. Backup and checkpoint selection now use coss Select. Setup, unlock, backup password fields, and explicit backup/restore consent use the reviewed coss Field and Checkbox components. Existing forms, password attributes, error associations, state ownership, Rust guards, and clearing behavior remain intact. Each password input has its own Field context and explicit label.
@@ -8,7 +10,7 @@ The backup result leads with readable content status, authentication, filename, 
 
 ## Native verification
 
-Eight native journeys passed with 46 reviewed captures within their recorded scopes: private credential-store persistence, authenticated backup export and content checks, restore preview, confirmed replacement, checkpoint recovery, picker resizing, and appearance selection. See the [artifact audit](../evidence/native-coss-backup-verification/result.json). The restore journeys use actual UI actions, fresh synthetic profiles, encrypted artifacts, and independent read-only Rust oracles. The resize journey identifies its initial Rust IPC fixture preparation separately from actual pointer, keyboard, and window operations.
+Eight native journeys passed with 46 reviewed captures within their recorded scopes: private credential-store persistence, authenticated backup export and content checks, restore preview, confirmed replacement, checkpoint recovery, picker resizing, and appearance selection. See the artifact audit (private evidence omitted). The restore journeys use actual UI actions, fresh synthetic profiles, encrypted artifacts, and independent read-only Rust oracles. The resize journey identifies its initial Rust IPC fixture preparation separately from actual pointer, keyboard, and window operations.
 
 Five journeys reran on the final simplified backup presentation. Export, private credential-store persistence, and appearance retain their exact ad82 source and binary evidence. Only backup-inspection presentation and the restore-comparison breakpoint differ. Their exercised code, Rust sources, password fields, shared picker, and dependency manifests remain unchanged. The artifact audit records tested and current hashes separately.
 

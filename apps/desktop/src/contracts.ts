@@ -236,6 +236,16 @@ export interface ProfileActivityAssociationReview {
 }
 
 export type ActivityFreshness = 'unknown' | 'fresh' | 'stale';
+export interface CombinedHeatmapEligibility { status: 'unavailable'; includedProfileIds: string[]; exclusions: { profileId: string; reason: 'not_connected' | 'activity_unavailable' | 'identity_unverified' }[] }
+export type HeatmapMode = 'daily' | 'weekly' | 'cumulative';
+export interface SavedProfileHeatmap {
+  profileId: string; bindingId: string; collectionRunId: string;
+  sourceKind: ProviderConnectionDiagnostic['sourceKind']; scope: 'account_activity_with_unknown_application_scope';
+  coverage: 'unknown'; observedAtUtc: string; mode: HeatmapMode;
+  periodStart: string; periodEnd: string; scaleMaximum: string | null;
+  cells: { startDate: string; endDate: string; tokens: string | null; level: number;
+    knownDays: number; expectedDays: number; observedAtUtc: string | null; freshness: ActivityFreshness }[];
+}
 export interface SavedProfileActivity {
   profileId: string; bindingId: string; collectionRunId: string;
   providerVersion: string; sourceKind: ProviderConnectionDiagnostic['sourceKind']; observedAtUtc: string;
@@ -248,6 +258,8 @@ export interface SavedProfileActivity {
 }
 
 interface Commands {
+  load_combined_heatmap: { args: { profileIds: string[] }; result: CombinedHeatmapEligibility };
+  load_profile_heatmap: { args: { profileId: string; mode: HeatmapMode; periodDays: 30 | 90 | 180 | 365 }; result: SavedProfileHeatmap | null };
   load_profile_quota_history: { args: { profileId: string; beforeRunId: string | null }; result: QuotaHistoryPage };
   get_display_scale: { args: undefined; result: { percent: number } };
   set_display_scale: { args: { percent: number }; result: { percent: number } };
@@ -334,6 +346,8 @@ export async function invoke<K extends keyof Commands>(
     : command === 'review_profile_activity_association' ? isActivityAssociationReview(response)
     : command === 'complete_profile_activity_read' ? isProfileActivitySavedRead(response)
     : command === 'load_profile_activity' ? isSavedProfileActivity(response)
+    : command === 'load_profile_heatmap' ? isSavedProfileHeatmap(response)
+    : command === 'load_combined_heatmap' ? isCombinedHeatmapEligibility(response)
     : command === 'cancel_profile_activity_read' ? isPreviewCancellation(response)
     : (command === 'begin_profile_quota_read' || command === 'begin_profile_quota_reassociation') ? isProfileQuotaRequest(response)
     : command === 'complete_profile_quota_read' ? isProfileQuotaSavedRead(response)
@@ -579,6 +593,45 @@ function isProfileActivitySavedRead(value: unknown): value is ProfileActivitySav
     dates.add(bucket.startDate); return true;
   });
 }
+function isCombinedHeatmapEligibility(value: unknown): value is CombinedHeatmapEligibility {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  if (Object.keys(v).length !== 3 || v.status !== 'unavailable' || !Array.isArray(v.includedProfileIds) || v.includedProfileIds.length !== 0 || !Array.isArray(v.exclusions) || v.exclusions.length > 10) return false;
+  const seen = new Set();
+  return v.exclusions.every(value => {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+    const e = value as Record<string, unknown>;
+    if (Object.keys(e).length !== 2 || !isUuid(e.profileId) || seen.has(e.profileId) || !['not_connected','activity_unavailable','identity_unverified'].includes(String(e.reason))) return false;
+    seen.add(e.profileId); return true;
+  });
+}
+
+function isSavedProfileHeatmap(value: unknown): value is SavedProfileHeatmap | null {
+  if (value === null) return true;
+  if (typeof value !== 'object' || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  const count = (value: unknown): value is string | null => value === null || typeof value === 'string' && /^(0|[1-9][0-9]{0,38})$/.test(value) && (value.length < 39 || value <= '340282366920938463463374607431768211455');
+  if (Object.keys(v).length !== 12 || !isUuid(v.profileId) || !isUuid(v.bindingId) || !isUuid(v.collectionRunId)
+    || !['official_artifact', 'test_fixture'].includes(String(v.sourceKind)) || v.coverage !== 'unknown'
+    || v.scope !== 'account_activity_with_unknown_application_scope' || !isUtcTimestamp(v.observedAtUtc)
+    || !['daily', 'weekly', 'cumulative'].includes(String(v.mode)) || !isProviderDate(v.periodStart) || !isProviderDate(v.periodEnd)
+    || v.periodStart > v.periodEnd || !count(v.scaleMaximum) || !Array.isArray(v.cells) || v.cells.length > 365) return false;
+  let last = '';
+  return v.cells.every(value => {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+    const c = value as Record<string, unknown>;
+    if (Object.keys(c).length !== 8 || !isProviderDate(c.startDate) || !isProviderDate(c.endDate) || c.startDate > c.endDate || c.startDate <= last
+      || !count(c.tokens) || !Number.isInteger(c.level) || Number(c.level) < 0 || Number(c.level) > 4
+      || !Number.isInteger(c.knownDays) || !Number.isInteger(c.expectedDays) || Number(c.knownDays) < 0 || Number(c.expectedDays) < 1
+      || Number(c.expectedDays) > 365 || Number(c.knownDays) > Number(c.expectedDays)
+      || !(c.observedAtUtc === null || isUtcTimestamp(c.observedAtUtc)) || !isActivityFreshness(c.freshness)
+      || (c.tokens === null ? c.level !== 0 || c.knownDays !== 0 : c.knownDays === 0 || c.observedAtUtc === null)
+      || (c.tokens === '0' && c.level !== 0) || (c.tokens !== null && c.tokens !== '0' && c.level === 0)) return false;
+    last = c.startDate;
+    return true;
+  });
+}
+
 function isSavedProfileActivity(value: unknown): value is SavedProfileActivity | null {
   if (value === null) return true;
   if (typeof value !== 'object' || Array.isArray(value)) return false;

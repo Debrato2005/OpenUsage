@@ -1,4 +1,8 @@
+> Public source copy: raw acceptance evidence remains private. Historical test statements keep their original scope and do not certify this source snapshot.
+
 # OpenUsage
+
+Development source with preserved, privacy-filtered history. Original-Commit trailers link filtered commits to their local originals. This is not a production release. Raw test databases, captures and machine diagnostics stay private. Historical verification statements retain their original artifact scope. See [security limits](SECURITY.md) and [unfinished requirements](docs/implementation-status.md#still-incomplete).
 
 A local desktop application for account usage and quota readings. Development uses Tauri 2, Rust, React, and SQLCipher 4 with WAL. See [implementation status](docs/implementation-status.md) for the current scope and executed checks.
 
@@ -13,7 +17,7 @@ CARGO_BUILD_JOBS=1 cargo rustc --locked --offline -p openusage-desktop --bin ope
 
 This Linux/LLD command limits linker workers as well as Cargo jobs. Cargo applies the additional flag only to the selected binary. See the [Cargo command documentation](https://doc.rust-lang.org/cargo/commands/cargo-rustc.html) and [LLD options](https://github.com/llvm/llvm-project/blob/main/lld/docs/ld.lld.1).
 
-The observed build took 39 seconds and produced the same bytes as the native-tested default binary. This is one shared-host observation, not a performance benchmark. See the [build record](docs/evidence/linux-bounded-linker/verification.json).
+The observed build took 39 seconds and produced the same bytes as the native-tested default binary. This is one shared-host observation, not a performance benchmark. See the build record (private evidence omitted).
 ## Linux companion build
 
 A provisioned build includes the pinned official Codex companion and its license notices. Rust checks the companion before execution. Account sign-in keeps its own consent. Manual paths remain in Settings for troubleshooting.

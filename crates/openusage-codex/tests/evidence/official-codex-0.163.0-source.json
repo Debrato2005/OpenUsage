@@ -33,57 +33,57 @@
     "memberName": "codex-x86_64-unknown-linux-musl",
     "outputMode": "0600",
     "outputBytes": 296865480,
-    "outputPath": "/example/home/Projects/OpenUsage/.tools/codex-0.163.0-source-verified/codex"
+    "outputPath": ".tools/codex-0.163.0-source-verified/codex"
   },
   "signedSourceCommitMatchesOfficialTagCommit": true,
   "unsignedAnnotatedTagNotTreatedAsSignatureProof": true,
   "evidenceFiles": {
     "codex-release-0.163.0.json": {
-      "path": "/example/home/Projects/OpenUsage/.tools/codex-release-0.163.0.json",
+      "path": ".tools/codex-release-0.163.0.json",
       "sha256": "e9c5b66696a67499a85977a6e885522a542fbcc5884ffa6f30f7c312606fc3e3"
     },
     "codex-tag-0.163.0.json": {
-      "path": "/example/home/Projects/OpenUsage/.tools/codex-tag-0.163.0.json",
+      "path": ".tools/codex-tag-0.163.0.json",
       "sha256": "054205eae8ed8df00a4bb49021e20c4db4979a6d68e433fc4c935993540e0213"
     },
     "codex-tag-object-0.163.0.json": {
-      "path": "/example/home/Projects/OpenUsage/.tools/codex-tag-object-0.163.0.json",
+      "path": ".tools/codex-tag-object-0.163.0.json",
       "sha256": "a05f607ec031e46bfab3aa0b276b09e4aa0a426a5e8fc8e0d9653d9b4e973cc3"
     },
     "codex-0.163.0-x86_64-unknown-linux-musl.sigstore": {
-      "path": "/example/home/Projects/OpenUsage/.tools/codex-0.163.0-x86_64-unknown-linux-musl.sigstore",
+      "path": ".tools/codex-0.163.0-x86_64-unknown-linux-musl.sigstore",
       "sha256": "3147bce4ddb9cb961124809719f5c1c2763b6cc1ffc6243d69e1f765a0523fbb"
     },
     "codex-0.163.0-converted-sigstore-bundle.json": {
-      "path": "/example/home/Projects/OpenUsage/.tools/codex-0.163.0-converted-sigstore-bundle.json",
+      "path": ".tools/codex-0.163.0-converted-sigstore-bundle.json",
       "sha256": "aa5e1022398ad1686aebf2017ea97579cf34d8945d91c28dcd4b11575cc8c883"
     },
     "codex-0.163.0-official-verification.json": {
-      "path": "/example/home/Projects/OpenUsage/.tools/codex-0.163.0-official-verification.json",
+      "path": ".tools/codex-0.163.0-official-verification.json",
       "sha256": "bcadf72163a99a8188f0d005b81bc719c6d8ca7558e9f9ddb87bc9e915d6e446"
     },
     "codex-0.163.0-verification.log": {
-      "path": "/example/home/Projects/OpenUsage/.tools/codex-0.163.0-verification.log",
+      "path": ".tools/codex-0.163.0-verification.log",
       "sha256": "ff867eabb2eed1a13a4a1d8904313cef15bb19ee69a48f4e7aab0d1b6212a890"
     },
     "sigstore-tuf/root.json": {
-      "path": "/example/home/Projects/OpenUsage/.tools/sigstore-tuf-cache/tuf-repo-cdn.sigstore.dev/root.json",
+      "path": ".tools/sigstore-tuf-cache/tuf-repo-cdn.sigstore.dev/root.json",
       "sha256": "73747011d0857ada15479a16c4cae0f3ed03aac698b523b97e1de314ac9d9ca8"
     },
     "sigstore-tuf/targets.json": {
-      "path": "/example/home/Projects/OpenUsage/.tools/sigstore-tuf-cache/tuf-repo-cdn.sigstore.dev/targets.json",
+      "path": ".tools/sigstore-tuf-cache/tuf-repo-cdn.sigstore.dev/targets.json",
       "sha256": "6a697f7f8908c8ab26c11786ecb490b54acec97fa8c802e399f065f8a0cc1acd"
     },
     "sigstore-tuf/timestamp.json": {
-      "path": "/example/home/Projects/OpenUsage/.tools/sigstore-tuf-cache/tuf-repo-cdn.sigstore.dev/timestamp.json",
+      "path": ".tools/sigstore-tuf-cache/tuf-repo-cdn.sigstore.dev/timestamp.json",
       "sha256": "6259c81a40e3481dee3798678b25e048fc30b2dcae686a359e82789f8869d1d6"
     },
     "sigstore-tuf/snapshot.json": {
-      "path": "/example/home/Projects/OpenUsage/.tools/sigstore-tuf-cache/tuf-repo-cdn.sigstore.dev/snapshot.json",
+      "path": ".tools/sigstore-tuf-cache/tuf-repo-cdn.sigstore.dev/snapshot.json",
       "sha256": "6d61405faa993ba3d07556b79d1e319627cdc06ff879a7b5700967dc25d1d224"
     },
     "sigstore-tuf/targets/trusted_root.json": {
-      "path": "/example/home/Projects/OpenUsage/.tools/sigstore-tuf-cache/tuf-repo-cdn.sigstore.dev/targets/trusted_root.json",
+      "path": ".tools/sigstore-tuf-cache/tuf-repo-cdn.sigstore.dev/targets/trusted_root.json",
       "sha256": "6494e21ea73fa7ee769f85f57d5a3e6a08725eae1e38c755fc3517c9e6bc0b66"
     }
   },
@@ -121,5 +121,10 @@
     "otherArtifactsNotApproved": true,
     "testFixturesNeverOfficialArtifacts": true,
     "tagGpgSignatureNotVerifiedBecauseTagUnsigned": true
+  },
+  "publicDerivative": {
+    "scope": "Only machine-local path prefixes were removed. Original private receipt is retained locally.",
+    "originalSha256": "5c5c9ce25d7a7ca0f83609705fa64712013dac50985ef4bc42da79b145e9634e",
+    "newVerificationPerformed": false
   }
 }

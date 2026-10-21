@@ -1,3 +1,5 @@
+> Public source copy: raw acceptance evidence remains private. Historical test statements keep their original scope and do not certify this source snapshot.
+
 # Ready workspace and reset-credit counts
 
 October 18, 2026. The ready workspace uses a compact storage-status row and two unboxed availability rows. Accounts keeps its active-profile count. Setup, locked storage, recovery, privacy, and security consent retain their behavior. JetBrains Mono remains the local UI typeface.
@@ -10,4 +12,4 @@ Five native journeys passed with 64 reviewed captures. These include a 48-image 
 
 The frontend check passed 24 contracts and 18 renderer journeys. Rust checks passed 113 tests, strict Clippy, and formatting on the exact unchanged Rust core. One child-process helper remains intentionally ignored. SQLCipher 4 and WAL remain mandatory. The normative SRS remains unchanged.
 
-[The audit](../evidence/native-ready-credit-verification/artifact-audit.json) records executable hashes, source scopes, harness changes, screenshots, and logs. Native-test uses its isolated credential namespace; default production separately qualifies export and fixture refusal. These debug builds do not qualify release performance, other platforms, strict profile reverse Tab, screen readers, live OAuth, accepted history, verified identity, or credit details. The next isolated draft adds bounded credit-detail rows; it still needs native qualification.
+The audit (private evidence omitted) records executable hashes, source scopes, harness changes, screenshots, and logs. Native-test uses its isolated credential namespace; default production separately qualifies export and fixture refusal. These debug builds do not qualify release performance, other platforms, strict profile reverse Tab, screen readers, live OAuth, accepted history, verified identity, or credit details. The next isolated draft adds bounded credit-detail rows; it still needs native qualification.

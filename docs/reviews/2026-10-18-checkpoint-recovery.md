@@ -1,3 +1,5 @@
+> Public source copy: raw acceptance evidence remains private. Historical test statements keep their original scope and do not certify this source snapshot.
+
 # Native checkpoint recovery
 
 The desktop can now recover records from a saved encrypted checkpoint. The user selects a local candidate, prepares a fresh preview, and explicitly approves replacement. Rust saves another encrypted checkpoint before returning that preview. Restart invalidates prior preview tokens and requires a new review.
@@ -26,4 +28,4 @@ The production-configuration native app passed preview, confirmed restore, and u
 
 Application, storage, provider, build inputs, and ten embedded assets match the previously tested application at f877816. Only five existing test paths and one new integration test changed. The frozen application was reused. The standalone executable test, full strict Clippy, formatting, and script syntax checks passed. The separate backup-export verifier still assumes schema 1 and is the next correction.
 
-See the [current native recovery receipt](../evidence/native-current-recovery/recovery/result.json), [confirmed restore](../evidence/native-current-recovery/apply/result.json), and [preview](../evidence/native-current-recovery/preview/result.json). Test source: `65aeb3c`.
+See the current native recovery receipt (private evidence omitted), confirmed restore (private evidence omitted), and preview (private evidence omitted). Test source: `65aeb3c`.

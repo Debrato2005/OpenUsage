@@ -1,3 +1,5 @@
+> Public source copy: raw acceptance evidence remains private. Historical test statements keep their original scope and do not certify this source snapshot.
+
 # Sign-in page and wait limit
 
 October 18, 2026. An active device sign-in now offers Open sign-in page beside the existing address, code, and Cancel action. The click requests the system's default browser. A launch error keeps manual copy and retry available. The app does not claim that a browser page loaded or sign-in succeeded.
@@ -14,7 +16,7 @@ A separate native journey exercised the unchanged full 900-second wait. The app 
 
 Two test faults were corrected without changing production behavior. Tauri freezes its exported API namespace, so an observer assignment did nothing. The corrected test uses a checked forwarding namespace and returns each original promise unchanged. A deliberate home rename also correctly caused cleanup failure. Its test now requires that exact error, preserved original and replacement homes, and process reaping. Cleanup errors remain visible.
 
-Fresh Rust checks passed 123 tests, strict Clippy, and formatting. One owned child helper remains intentionally ignored. The frontend check passed 24 contracts and 18 renderer journeys. [The combined audit](../evidence/native-login-browser-verification/artifact-audit.json) binds five journeys and 22 final captures. It preserves the original failures and the earlier seven-frame sign-in receipt.
+Fresh Rust checks passed 123 tests, strict Clippy, and formatting. One owned child helper remains intentionally ignored. The frontend check passed 24 contracts and 18 renderer journeys. The combined audit (private evidence omitted) binds five journeys and 22 final captures. It preserves the original failures and the earlier seven-frame sign-in receipt.
 
 The browser executables were built at `9573211`. Later changes affect native test harnesses and an excluded test module. The full timeout ran on the earlier `741f8c0` executable; it did not run again on the browser executable. Its core timer and session source remain unchanged. Every receipt retains that exact source and artifact scope.
 

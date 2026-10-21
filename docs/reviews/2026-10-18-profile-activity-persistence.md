@@ -1,3 +1,5 @@
+> Public source copy: raw acceptance evidence remains private. Historical test statements keep their original scope and do not certify this source snapshot.
+
 # Saved profile activity
 
 October 18, 2026. Read activity now saves a validated reading before it reports success. Saved activity loads after unlock, including archived profiles, without another executable approval. Three summary values remain visible first. Other values and saved daily rows stay under Activity details. JetBrains Mono and the shared coss controls remain in use.
@@ -12,7 +14,7 @@ Rust computes freshness for the summary and each retained row. A restart or rest
 
 Backup and restore copy all six activity tables through trusted SQL and bound values. Valid schema 1 images first copy into a hardened private memory database and receive trusted migrations. Archive SQL never runs. Source archives and checkpoints remain unchanged. Future schemas remain unsupported. A real disk-full test preserves every previous record and allows retry. Process-crash tests cover all six tables before and after commit.
 
-The [artifact audit](../evidence/native-activity-persistence-verification/artifact-audit.json) binds source `a94d49b`, 185 source and configuration files, ten built assets, and separate immutable native-test and default-production executables. The main native journey passed eight committed reads, 17 independent storage or archive checks, and three genuine window closes with restart. Exact values, two-profile isolation, cancellation, failure preservation, fresh-home refusal, and complete six-table backup/checkpoint round trips passed. Thirteen captures cover those flows. A focused three-capture supplement verifies the latest missing-daily notice beside retained rows. The original journey's notice capture showed middle rows only.
+The artifact audit (private evidence omitted) binds source `a94d49b`, 185 source and configuration files, ten built assets, and separate immutable native-test and default-production executables. The main native journey passed eight committed reads, 17 independent storage or archive checks, and three genuine window closes with restart. Exact values, two-profile isolation, cancellation, failure preservation, fresh-home refusal, and complete six-table backup/checkpoint round trips passed. Thirteen captures cover those flows. A focused three-capture supplement verifies the latest missing-daily notice beside retained rows. The original journey's notice capture showed middle rows only.
 
 The default production executable separately passed setup with a real private GNOME key store. Daemon/application restart, encrypted main/WAL checks, private permissions, and unkeyed SQLite refusal passed. Both fresh captures were reviewed. It also refused all four synthetic providers before execution. These are Linux debug artifacts. The preceding optimized executable retains its earlier scope.
 

@@ -1,3 +1,5 @@
+> Public source copy: raw acceptance evidence remains private. Historical test statements keep their original scope and do not certify this source snapshot.
+
 # Backup content validation review
 
 Archive authentication establishes integrity of the supplied bytes. OpenUsage also treats the database image as untrusted input. Native inspection validates supported contents in memory before returning record counts. It never opens the image as live storage, migrates it, creates a checkpoint, or applies records.
@@ -20,4 +22,4 @@ The export verifier now requires JSON with a password and expected schema versio
 
 The native export passed with explicit consent, matching passwords, private file modes, and authenticated contents. Wrong passwords and tampering failed. Staging stayed empty. The snapshot retained the saved dark theme. The screenshot was reviewed. Application, storage, provider, and embedded assets remain unchanged. Only the independent tool and its harness changed. This check covers appearance and profile count. It does not compare every database record. The earlier thirteen-table restore checks retain their separate scope.
 
-See the [current native export receipt](../evidence/native-current-backup-export/result.json). Test source: `289bd1a`. The standalone executable regression, strict Clippy, formatting, and script syntax checks passed.
+See the current native export receipt (private evidence omitted). Test source: `289bd1a`. The standalone executable regression, strict Clippy, formatting, and script syntax checks passed.

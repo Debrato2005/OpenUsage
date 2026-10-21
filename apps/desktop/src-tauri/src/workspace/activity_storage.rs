@@ -8,6 +8,9 @@ use openusage_storage::{
 };
 use std::time::{Duration, Instant, SystemTime};
 
+mod heatmap;
+pub(crate) use heatmap::{CombinedHeatmapEligibility, ProfileHeatmap};
+
 const FRESH_FOR: Duration = Duration::from_secs(30 * 60);
 
 #[derive(Serialize)]

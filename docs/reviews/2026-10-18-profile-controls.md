@@ -1,3 +1,5 @@
+> Public source copy: raw acceptance evidence remains private. Historical test statements keep their original scope and do not certify this source snapshot.
+
 # Simple profile actions and coss controls
 
 October 18, 2026. Active profiles show Sign in, Read quotas, and Manage profile after source approval. Manage profile groups connection checks, rename, and archive. Archived profiles keep their direct Restore action. Before approval, each row shows its profile identity and Manage profile.
@@ -10,7 +12,7 @@ The same slice adopts coss Field, Checkbox, and RadioGroup in profile, provider 
 
 ## Native checks and test repairs
 
-Nine native journeys passed within their recorded scope, with 51 reviewed captures. See [the artifact audit](../evidence/native-profile-ui-verification/result.json).
+Nine native journeys passed within their recorded scope, with 51 reviewed captures. See the artifact audit (private evidence omitted).
 
 Fresh native journeys cover ten-profile persistence and capacity, maintenance visibility, keyboard mutation workflows, provider lifecycle, quota reads, sign-in, executable discovery, production fixture refusal, official read-only checks, and encrypted backup contents. Fixtures are visibly synthetic. The official provider returns authentication required in a fresh managed home. No real OAuth or authenticated production quota claim follows.
 

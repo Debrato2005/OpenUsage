@@ -1,3 +1,5 @@
+> Public source copy: raw acceptance evidence remains private. Historical test statements keep their original scope and do not certify this source snapshot.
+
 # Profile activity preview
 
 October 18, 2026. A selected profile can now read account activity through the reviewed Codex interface. Read activity stays inside Manage profile. Its active status, Cancel action, and result remain outside that panel. The preview shows lifetime tokens, peak daily tokens, and current streak first. Other summary fields and returned daily rows stay under Activity details.
@@ -8,7 +10,7 @@ Every token count crosses IPC as an exact nonnegative decimal string. Zero and m
 
 The final native activity journey passed eleven data/refusal cases and all lifecycle checks. Twelve fresh captures cover both themes, missing metrics, daily rows, paging, errors, cancellation, and 200% text. Actual Tab and ArrowRight expose every digit of the largest count. The first native run exposed wrapped dates in a narrow enlarged view. A scoped CSS change stacks dates above values there. The rebuilt full journey now checks each date on one line within its row. Both inverse font restorations pass. The original run remains historical.
 
-The [audit](../evidence/native-activity-verification/artifact-audit.json) binds four distinct native scopes and 44 accepted captures. Final activity and four-fixture production refusal ran on `0cdb6d2`. The 47-case quota and strict profile regressions ran on `f37fba0`, before only the activity CSS and activity harness changed. Their relevant bytes remain unchanged. They did not rerun on the final executables. The quota tool-prehash limitation remains explicit. An [independent review](../evidence/native-activity-independent-review.json) matched the packaged hashes, source maps, and final captures.
+The audit (private evidence omitted) binds four distinct native scopes and 44 accepted captures. Final activity and four-fixture production refusal ran on `0cdb6d2`. The 47-case quota and strict profile regressions ran on `f37fba0`, before only the activity CSS and activity harness changed. Their relevant bytes remain unchanged. They did not rerun on the final executables. The quota tool-prehash limitation remains explicit. An independent review (private evidence omitted) matched the packaged hashes, source maps, and final captures.
 
 Rust passed 132 tests, strict Clippy, and formatting; one owned child helper remains intentionally ignored. Final frontend checks passed 27 contracts and 26 renderer journeys across Chromium and WebKit. The integrated renderer build also passed. All 178 frozen files match; 44 frontend/build/test files match the exact final frontend check. Review also fixed a delayed cancellation error across operations and aligned duplicate-date validation with Rust.
 

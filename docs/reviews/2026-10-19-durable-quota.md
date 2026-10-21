@@ -1,3 +1,5 @@
+> Public source copy: raw acceptance evidence remains private. Historical test statements keep their original scope and do not certify this source snapshot.
+
 # Saved quota readings
 
 October 19, 2026. Quota readings now persist in SQLCipher 4 with WAL. They load after unlock and restart without approving or executing a provider, including archived profiles. Failed refreshes and cancellation retain saved values. Rust controls freshness. Restart and restore return an unknown freshness state.
@@ -8,7 +10,7 @@ Schema 3 adds quota snapshots and current values, with exact nullable credit cou
 
 Backup, restore, and restore undo preserve all twelve activity/quota tables. No database engine, credential, or key-management downgrade was made.
 
-The [verification record](../evidence/native-durable-quota/verification.json) retains the executed evidence. The native Linux journey passed seven normal quota cases, a further keyboard-confirmed association read, and one activity seed. Eighteen independent all-column SQLCipher checks and two genuine window closes passed. Restart, profile isolation, failed refresh, keyboard cancellation, encrypted export, restore, and undo passed. Four reviewed captures cover dark desktop, narrow light views, and consent. JetBrains Mono loaded in each capture. The default build refused all four synthetic providers before execution.
+The verification record (private evidence omitted) retains the executed evidence. The native Linux journey passed seven normal quota cases, a further keyboard-confirmed association read, and one activity seed. Eighteen independent all-column SQLCipher checks and two genuine window closes passed. Restart, profile isolation, failed refresh, keyboard cancellation, encrypted export, restore, and undo passed. Four reviewed captures cover dark desktop, narrow light views, and consent. JetBrains Mono loaded in each capture. The default build refused all four synthetic providers before execution.
 
 Workspace tests passed 174 checks. One owned-child helper is intentionally ignored and invoked by its parent test. Strict workspace/all-target Clippy and formatting passed. `npm run check` passed the build, 34 contract checks, and 86 Chromium/WebKit renderer checks. Both desktop configurations compiled at `f4c2cb2`. The later `f7412bb` changes only the executed native test. All 199 checked files and ten assets matched their recorded hashes after execution.
 
@@ -18,7 +20,7 @@ These are synthetic Linux debug checks. They do not establish live OAuth, verifi
 
 The next slice adds a Rust-derived `resetDue` flag to saved windows. An elapsed valid reset time shows “Reset due; awaiting confirmation” beside its original UTC time. Saved values remain unchanged. Cache-load errors now show Freshness unknown for retained quota and activity values, including daily rows. A successful reload restores Rust's state. There is no schema change or new dependency.
 
-The native deadline check passed after 47 seconds through the existing sixty-second cache interval. No provider ran and all twelve tables and live storage hashes stayed unchanged. Restart without approval retained the due message. The full journey passed eight normal quota reads, another confirmed association read, twenty independent SQLCipher checks, restore and undo, and four reviewed captures. The default configuration refused all four fixtures. Workspace tests passed 176 checks, strict Clippy and formatting. The frontend passed 34 contracts and 88 renderer checks. The [reset verification record](../evidence/native-quota-reset-due/verification.json) binds source `dffda70`, both compiled configurations, and the unchanged reused read-only verifier.
+The native deadline check passed after 47 seconds through the existing sixty-second cache interval. No provider ran and all twelve tables and live storage hashes stayed unchanged. Restart without approval retained the due message. The full journey passed eight normal quota reads, another confirmed association read, twenty independent SQLCipher checks, restore and undo, and four reviewed captures. The default configuration refused all four fixtures. Workspace tests passed 176 checks, strict Clippy and formatting. The frontend passed 34 contracts and 88 renderer checks. The reset verification record (private evidence omitted) binds source `dffda70`, both compiled configurations, and the unchanged reused read-only verifier.
 
 Two failed native attempts remain retained. Setup timed out during concurrent linking. A separate attempt later stalled during WebDriver path entry after saving activity. No owned native processes remained. The same artifact and unchanged timeouts then passed with command timing only. The longest command took 1,394 ms and path entry took at most 257 ms. The isolated stall's cause remains unconfirmed. These figures do not qualify product performance.
 
@@ -30,7 +32,7 @@ Quota and activity now capture a Rust monotonic timestamp with each validated me
 
 Both delayed-publication service checks failed before this fix. The existing held-response core checks prove that observation precedes the final account response. The expiry check also keeps a reading stale when its wall-clock age is zero. All 176 workspace checks, strict Clippy, and formatting passed.
 
-The rebuilt native journey passed eight normal quota cases, explicit association, activity collection, twenty SQLCipher checks, restart, restore, and undo. Four fresh captures were reviewed. The default build refused all four fixtures. All 199 source hashes and ten assets matched. The 49 frontend/config/test files match the preceding 34-contract/88-renderer qualification, so those checks were reused. See the [observation verification record](../evidence/native-observation-anchor/verification.json), source `8fad7d1`.
+The rebuilt native journey passed eight normal quota cases, explicit association, activity collection, twenty SQLCipher checks, restart, restore, and undo. Four fresh captures were reviewed. The default build refused all four fixtures. All 199 source hashes and ten assets matched. The 49 frontend/config/test files match the preceding 34-contract/88-renderer qualification, so those checks were reused. See the observation verification record (private evidence omitted), source `8fad7d1`.
 
 The default debug link took 14 minutes 38 seconds during host memory pressure. It finished without cancellation or compiler changes. Native execution followed both completed builds.
 
@@ -50,7 +52,7 @@ Initial failures remain retained. A long temporary path prevented private D-Bus 
 
 OS alert delivery, delivered-event deduplication, monitoring, real OAuth, and other-platform qualification remain incomplete.
 
-See the [reset confirmation verification record](../evidence/native-quota-reset-confirmation/verification.json). Saved views use one Rust-owned status field. Generation identifiers stay in Rust.
+See the reset confirmation verification record (private evidence omitted). Saved views use one Rust-owned status field. Generation identifiers stay in Rust.
 
 ## Confirmation button contrast
 
@@ -58,7 +60,7 @@ The global control color rule overrode coss foreground utilities. Enabled confir
 
 The rebuilt native application passed quota persistence, keyboard consent, encrypted restore and undo. Native backup-content checks and default fixture refusal also passed. All eighteen screenshots were reviewed. The consent button now uses its coss foreground color. This is a focused contrast correction, not full accessibility qualification. SQLCipher 4 with WAL and the normative SRS remain unchanged.
 
-See the [native confirmation receipt](../evidence/native-button-foreground/quota/result.json) and [enabled confirmation capture](../evidence/native-button-foreground/quota/quota-association-consent-enabled-light-desktop.png). Source: `d92e88e`.
+See the native confirmation receipt (private evidence omitted) and enabled confirmation capture (private evidence omitted). Source: `d92e88e`.
 
 ## Manual refresh cooldown
 
@@ -70,7 +72,7 @@ All 186 Rust checks, strict Clippy, formatting, 34 contracts, and 102 renderer c
 
 Two earlier renderer failures received Vite full-page reloads during executable approval. The preserved traces prove the reloads but do not identify the changed file. The unchanged-source rerun passed. An initial build used the primary checkout and failed because its frontend output was absent. The canonical builds succeeded. This slice completes only the cooldown portion of OU-MON-005. Provider backoff and scheduled monitoring remain incomplete.
 
-See the [native cooldown receipt](../evidence/native-refresh-cooldown/refresh/result.json), source `f877816`. The elapsed-time guard uses Rust [Instant](https://doc.rust-lang.org/std/time/struct.Instant.html).
+See the native cooldown receipt (private evidence omitted), source `f877816`. The elapsed-time guard uses Rust [Instant](https://doc.rust-lang.org/std/time/struct.Instant.html).
 
 
 ## Typed transient retry delay — October 20, 2026

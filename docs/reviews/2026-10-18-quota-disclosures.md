@@ -1,3 +1,5 @@
+> Public source copy: raw acceptance evidence remains private. Historical test statements keep their original scope and do not certify this source snapshot.
+
 # Quota disclosures
 
 October 18, 2026. The quota preview uses the existing coss Collapsible adapter for limits, Reading details, and About this preview. The first limit opens by default. Other sections stay closed until the user opens them. The scoped trigger keeps a 44-pixel target, visible focus, natural wrapping, and JetBrains Mono. It adds no animation or dependency.
@@ -12,4 +14,4 @@ The first executable contained the separate future four-field reset-credit parse
 
 [Cargo freshness documentation](https://doc.rust-lang.org/stable/nightly-rustc/cargo/compiler/fingerprint/index.html) describes mtime-based local input checks. [Package-scoped cleaning](https://doc.rust-lang.org/cargo/commands/cargo-clean.html) supplies the bounded rebuild step. Upstream [build-directory discussion](https://github.com/rust-lang/cargo/issues/14125) supplies context for shared outputs. Future source-worktree or Rust-core switches must clean local outputs before building, then freeze each executable before another build.
 
-[The audit](../evidence/native-coss-quota-disclosure/artifact-audit.json) records exact receipts, source scopes, screenshots, and logs. This slice does not qualify strict profile reverse Tab, screen readers, live OAuth, accepted history, monitoring, reset confirmation, other platforms, or release performance. Earlier backup, persistence, and restore receipts retain their original scopes.
+The audit (private evidence omitted) records exact receipts, source scopes, screenshots, and logs. This slice does not qualify strict profile reverse Tab, screen readers, live OAuth, accepted history, monitoring, reset confirmation, other platforms, or release performance. Earlier backup, persistence, and restore receipts retain their original scopes.
