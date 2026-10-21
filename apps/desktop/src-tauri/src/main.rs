@@ -5,6 +5,7 @@ mod backup_inspection;
 mod display_scale;
 mod keyvault;
 mod monitoring;
+mod notifications;
 mod provider;
 mod readings_export;
 mod restore;
@@ -65,6 +66,12 @@ fn optional_passphrase<'de, D: Deserializer<'de>>(
 #[serde(deny_unknown_fields)]
 struct UnlockArgs {
     passphrase: Passphrase,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ResetNotificationPreferencesArgs {
+    preferences: workspace::ResetNotificationPreferences,
 }
 
 #[derive(Deserialize)]
@@ -864,6 +871,44 @@ async fn apply_restore(
     })
     .await
     .map_err(|_| CommandError::RestoreFailed)?
+}
+
+#[tauri::command]
+async fn load_reset_notification_preferences(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<workspace::ResetNotificationPreferences, CommandError> {
+    let _: ListProfilesArgs = arguments(&request)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        service
+            .lock()
+            .map_err(|_| CommandError::StorageUnavailable)?
+            .as_ref()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .load_reset_notification_preferences()
+    })
+    .await
+    .map_err(|_| CommandError::StorageUnavailable)?
+}
+
+#[tauri::command]
+async fn save_reset_notification_preferences(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<workspace::ResetNotificationPreferences, CommandError> {
+    let args: ResetNotificationPreferencesArgs = arguments(&request)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        service
+            .lock()
+            .map_err(|_| CommandError::StorageUnavailable)?
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .save_reset_notification_preferences(args.preferences)
+    })
+    .await
+    .map_err(|_| CommandError::StorageUnavailable)?
 }
 
 #[tauri::command]
@@ -1775,6 +1820,8 @@ fn main() {
             load_profile_quota,
             load_profile_quota_history,
             load_alert_history,
+            load_reset_notification_preferences,
+            save_reset_notification_preferences,
             review_profile_quota_association,
             begin_profile_quota_reassociation,
             load_profile_activity,

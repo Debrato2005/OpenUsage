@@ -22,6 +22,8 @@
     "allow-export-quota-history",
     "allow-list-profiles",
     "allow-load-alert-history",
+    "allow-load-reset-notification-preferences",
+    "allow-save-reset-notification-preferences",
     "allow-create-profile",
     "allow-rename-profile",
     "allow-set-profile-archived",

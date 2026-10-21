@@ -14,7 +14,7 @@ const output = resolve(process.env.OPENUSAGE_NATIVE_EVIDENCE);
 const passphrase = 'OpenUsage synthetic alert history workspace 2026';
 const backupPassword = 'OpenUsage synthetic alert history backup 2026';
 const hash = async path => createHash('sha256').update(await readFile(path)).digest('hex');
-const evidence = { requirement: 'NATIVE-ALERT-HISTORY-001', result: 'failed', startedAt: new Date().toISOString(), scope: 'Actual native GUI-created synthetic profiles in a private SQLCipher4/WAL application-schema5 workspace. An owned closed-app test helper uses production Storage::accept_quota to seed controlled reset proof and follow-ups; no provider execution or clock bypass. Read-only alert listing, explicit Settings disclosure, exact-profile Usage navigation, genuine restart and follow-up dedupe, archive visibility, and complete alert table fields in authenticated archive/checkpoint copies and actual typed-IPC archive restore/Undo are checked. The native path uses synthetic quota records, not a live provider or desktop notification delivery. Archive restore and Undo use explicit confirmed=true typed native IPC; GUI confirmation is qualified by the separate restore journey. No desktop delivery, crash durability or cross-platform acceptance.', screenshots: [], refusals: [], readOnly: [], oracles: [], closes: [] };
+const evidence = { requirement: 'NATIVE-ALERT-HISTORY-001', result: 'failed', startedAt: new Date().toISOString(), scope: 'Actual native GUI-created synthetic profiles in a private SQLCipher4/WAL application-schema6 workspace. An owned closed-app test helper uses production Storage::accept_quota to seed controlled reset proof and follow-ups; no provider execution or clock bypass. Read-only alert listing, explicit Settings disclosure, exact-profile Usage navigation, genuine restart and follow-up dedupe, archive visibility, and complete alert table fields in authenticated archive/checkpoint copies and actual typed-IPC archive restore/Undo are checked. The native path uses synthetic quota records, not a live provider or desktop notification delivery. Archive restore and Undo use explicit confirmed=true typed native IPC; GUI confirmation is qualified by the separate restore journey. No desktop delivery, crash durability or cross-platform acceptance.', screenshots: [], refusals: [], readOnly: [], oracles: [], closes: [] };
 let fixture, driver, sequence = 0, workspace, selected, event;
 async function call(command, args) { const response = await driver.invoke(command, args); assert.equal(response.ok, true, `${command}: ${JSON.stringify(response)}`); return response.value; }
 async function liveHashes() {
@@ -38,7 +38,7 @@ async function open(setup = false) {
   if (setup) await driver.type('#workspace-confirmation', passphrase);
   await driver.click('.unlock-form button[type=submit]');
   await waitFor(async () => (await call('bootstrap')).storage === 'ready', 'ready synthetic workspace');
-  assert.equal((await call('bootstrap')).schemaVersion, 5);
+  assert.equal((await call('bootstrap')).schemaVersion, 6);
 }
 async function close() {
   const queue = [driver.child.pid]; let pid;
@@ -71,7 +71,7 @@ async function history(label) {
   assert.deepEqual(Object.keys(first).sort(), ['events', 'truncated']); assert.equal(first.truncated, false); assert.equal(first.events.length, 1);
   const item = first.events[0];
   assert.deepEqual(Object.keys(item).sort(), ['deliveryState', 'evidenceAtUtc', 'id', 'kind', 'limitId', 'profileId', 'profileLabel', 'sourceKind', 'windowDurationMins', 'windowRole'].sort());
-  assert.deepEqual(item, { id: event.eventId, profileId: selected.id, profileLabel: selected.label, kind: 'quota_reset', limitId: 'synthetic-reset-window', windowRole: 'primary', windowDurationMins: 300, evidenceAtUtc: '2026-10-22T12:01:00.000Z', sourceKind: 'test_fixture', deliveryState: 'recorded' });
+  assert.deepEqual(item, { id: event.eventId, profileId: selected.id, profileLabel: selected.label, kind: 'quota_reset', limitId: 'synthetic-reset-window', windowRole: 'primary', windowDurationMins: 300, evidenceAtUtc: '2026-10-22T12:01:00.000Z', sourceKind: 'test_fixture', deliveryState: event.deliveryState });
   evidence.readOnly.push({ label, databaseWalKeyUnchanged: true, eventId: item.id, eventCount: 1 }); return first;
 }
 async function oracle(mode, input, label, full = false) {
@@ -84,8 +84,8 @@ async function oracle(mode, input, label, full = false) {
     }
     const report = JSON.parse(execFileSync(verifier, [mode, source, join(workspace, 'database-key.v1'), ...(full ? ['--profile-state'] : [])], { input: JSON.stringify({ passphrase, backupPassword }), encoding: 'utf8', timeout: 60000, maxBuffer: 16 * 1024 * 1024, env: fixture.environment }));
     for (const field of ['verified', 'readOnly', 'inputUnchanged', 'keyEnvelopeUnchanged', 'walRecordsUnchanged']) assert.equal(report[field], true, field);
-    assert.equal(report.schemaVersion, 5); assert.equal(report.plaintextDiskStaging, false);
-    assert.equal(Object.keys(report.state.tables).length, full ? 17 : 14);
+    assert.equal(report.schemaVersion, 6); assert.equal(report.plaintextDiskStaging, false);
+    assert.equal(Object.keys(report.state.tables).length, full ? 21 : 18);
     const rows = report.state.tables.alert_events; assert.equal(rows.length, 1); assert.equal(Object.keys(rows[0]).length, 12);
     assert.equal(rows[0].id, event.eventId); assert.equal(rows[0].generation_run_id, event.generationRunId);
     assert.deepEqual(await liveHashes(), before); assert.equal(await hash(input), original);
@@ -113,7 +113,7 @@ try {
   await driver.click('[data-alert-history-event] .alert-history-source > button');
   const visible = await driver.execute('const row=document.querySelector("[data-alert-history-event]");return {text:row.textContent,profile:row.querySelector("bdi").textContent,time:row.querySelector("time").dateTime};');
   assert.equal(visible.profile, selected.label); assert.equal(visible.time, expected.events[0].evidenceAtUtc);
-  assert.match(visible.text, /Synthetic test data/); assert.match(visible.text, /No desktop notification sent/);
+  assert.match(visible.text, /Synthetic test data/); assert.match(visible.text, event.deliveryState === 'suppressed' ? /Not sent because this reset is no longer eligible/ : /No desktop notification sent/);
   await driver.execute('document.querySelector("[data-alert-history-event]").scrollIntoView({block:"center"});return true;');
   await driver.screenshot(join(output, 'saved-reset-alert-history.png'));  evidence.screenshots.push('saved-reset-alert-history.png');
   await driver.execute('window.__alertNavigationClicks=[];document.addEventListener("click",event=>{const button=event.target.closest?.(".alert-history-event > button");if(button)window.__alertNavigationClicks.push({target:event.target.tagName,trusted:event.isTrusted,label:button.textContent});},true);return true;');

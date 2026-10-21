@@ -185,7 +185,7 @@ pub(crate) fn with_validated_snapshot<T, E: From<BackupValidationError>>(
 
 pub(crate) fn supported_schema_version(version: u32) -> bool {
     // A later migration must add explicit content/copy support before becoming restorable.
-    matches!(version, 1..=5) && version <= CURRENT_SCHEMA_VERSION
+    matches!(version, 1..=6) && version <= CURRENT_SCHEMA_VERSION
 }
 
 fn validate_size(size: u64) -> Result<()> {
@@ -333,6 +333,9 @@ pub(crate) fn validate_schema_connection(
             }
             if manifest_version >= 5 {
                 crate::alerts::validate(connection, schema)?;
+            }
+            if manifest_version >= 6 {
+                crate::reset_notifications::validate(connection, schema)?;
             }
         }
     }
@@ -491,7 +494,7 @@ pub(crate) fn trusted_memory_copy(
             copy_fields(source, &tx, schema, table, columns, columns)?;
         }
         if version >= 2 {
-            copy_activity_records(source, &tx, schema)?;
+            copy_activity_records(source, &tx, schema, false)?;
         }
         tx.commit().map_err(sql_error)?;
     }
@@ -503,6 +506,7 @@ pub(crate) fn copy_activity_records(
     source: &Connection,
     target: &Connection,
     schema: &str,
+    restore: bool,
 ) -> Result<()> {
     if !matches!(schema, "main" | "openusage_checkpoint") {
         return Err(BackupValidationError::Unavailable);
@@ -567,10 +571,13 @@ pub(crate) fn copy_activity_records(
             crate::alerts::ALERT_COLUMNS,
         )?;
     }
+    if version >= 6 {
+        crate::reset_notifications::copy_records(source, target, schema, restore)?;
+    }
     Ok(())
 }
 
-fn copy_fields(
+pub(crate) fn copy_fields(
     source: &Connection,
     target: &Connection,
     schema: &str,
@@ -1001,11 +1008,15 @@ pub(crate) fn activity_records(connection: &Connection) -> Vec<Vec<Vec<rusqlite:
         "current_quota",
         "quota_reset_assessments",
         "alert_events",
+        "reset_alert_preferences",
+        "reset_alert_overrides",
+        "reset_notification_outbox",
+        "reset_notification_receipts",
     ]
     .into_iter()
     .map(|table| {
         let mut statement = connection
-            .prepare(&format!("SELECT * FROM {table} ORDER BY 1,2,3"))
+            .prepare(&format!("SELECT * FROM {table} ORDER BY 1,2"))
             .unwrap();
         let count = statement.column_count();
         statement

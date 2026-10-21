@@ -16,7 +16,7 @@ const output = resolve(process.env.OPENUSAGE_NATIVE_EVIDENCE ?? join(tmpdir(), `
 const passphrase = 'OpenUsage synthetic preview workspace 2026';
 const password = 'OpenUsage synthetic preview archive 2026';
 const hash = async (path) => createHash('sha256').update(await readFile(path)).digest('hex');
-const expectedSchemaVersion = 4;
+const expectedSchemaVersion = 6;
 const evidence = { requirement: 'NATIVE-RESTORE-PREVIEW-001', startedAt: new Date().toISOString(), result: 'failed', scope: 'Actual GUI state A export, state B changes, authenticated preview only after encrypted checkpoint, read-only Rust checkpoint verification, cancel and genuine X11 WM_DELETE_WINDOW close and restart. The current UI exposes an unchecked confirmation and disabled Apply; this regression never confirms or applies. Synthetic homes only. No apply, undo, crash-durability, forced-exit zeroization, provider login, or cross-platform acceptance.', platform: { os: platform(), release: release() }, screenshots: [], steps: [], checkpoints: [], views: [], nativeCloses: [] };
 let fixture, driver, workspace, checkpointDirectory, archive, fileName, sequence = 0;
 const markers = new Map();

@@ -22,3 +22,6 @@ serde_json = "=1.0.154"
 libc = "=0.2.191"
 rusqlite = { version = "=0.40.1", features = ["bundled-sqlcipher-vendored-openssl", "serialize"] }
 zeroize = "=1.9.1"
+
+[features]
+native-test = ["openusage-storage/native-test"]

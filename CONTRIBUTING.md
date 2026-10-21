@@ -60,7 +60,7 @@ python3 scripts/storage.py clean --apply
 
 Use one shared, absolute `CARGO_TARGET_DIR` at the repository's `.tools/build-target`, and one dependency installation. Do not copy Cargo targets or `node_modules` into agent worktrees. Use the repository's dev/test profiles with incremental caching disabled and line-level debug information. The standalone native verifier declares the same profiles because nested Cargo workspaces do not inherit them. Build it with that same target directory. Enable full debugging information only for a specific investigation, then retire the disposable output through the documented policy.
 
-Normal native verification records receipts; it does not retain another executable. `scripts/freeze-native-artifact.py SOURCE LABEL` records provenance only. Supply the producing `--source-workspace`, `--build-command` and `--test-reference`. Use explicit `--retain` only for active debugging, release qualification or security evidence, within the documented count and size caps. Do not alter an already verified binary in place.
+Normal native verification records receipts; it does not retain another executable. `scripts/freeze-native-artifact.py SOURCE LABEL` records provenance only. Supply the producing `--source-workspace`, `--build-command` and `--test-reference`. Use explicit `--retain` only for active debugging, release qualification or security evidence, within the documented count and size caps. Do not patch verified executable bytes or overwrite an explicitly retained artifact. Reusing the shared build path is normal: seal the receipt and finish its tests before building another configuration. Qualify the resulting binary by its own hash.
 
 After integrating a worktree, preserve its commits with a local branch or tag, confirm that it has no unique tracked, untracked or ignored data, and remove it with `git worktree remove PATH`. Never force removal to discard unique work. Keep one authoritative copy of essential evidence; do not duplicate entire historical evidence trees for each slice.
 
@@ -73,3 +73,7 @@ python3 -m unittest discover -s tests/tools -p 'test_storage.py'
 ```
 
 The storage-policy workflow runs these tests and a read-only storage check on Linux, Windows and macOS. It performs no native build, artifact upload or remote publication. A workflow definition is not evidence that those platforms have passed; retain the actual results when it runs.
+
+## Native reset-notification checks
+
+Linux notification tests use `python3-dbus` and `python3-gi` to run an isolated synthetic Freedesktop service. They do not show real desktop notifications or read existing credential homes. The explicit `native-test` feature must be enabled for both the desktop application and the standalone fixture verifier to dispatch synthetic events. Normal production must refuse fixture queues, including queues imported from a test workspace. Keep one shared target for both configurations, record each hash, and restore the default production configuration afterward. Never point a test build at real workspaces or provider credential homes.

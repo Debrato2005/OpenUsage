@@ -2,9 +2,13 @@ export type MonitoringState = 'stopped' | 'running' | 'paused';
 export interface SavedAlertEvent {
   id: string; profileId: string; profileLabel: string; kind: 'quota_reset';
   limitId: string; windowRole: 'primary' | 'secondary'; windowDurationMins: number;
-  evidenceAtUtc: string; sourceKind: 'official_artifact' | 'test_fixture'; deliveryState: 'recorded';
+  evidenceAtUtc: string; sourceKind: 'official_artifact' | 'test_fixture'; deliveryState: 'recorded' | 'queued' | 'submitted' | 'failed' | 'suppressed' | 'uncertain';
 }
 export interface SavedAlertHistory { events: SavedAlertEvent[]; truncated: boolean }
+export interface ResetNotificationPreferences {
+  enabled: boolean; timeZone: string; quietEnabled: boolean; quietStart: string; quietEnd: string;
+  profileOverrides: { profileId: string; enabled: boolean }[];
+}
 export interface ProfileMonitoringStatus {
   profileId: string; state: MonitoringState; eligible: boolean;
   issue: null | 'sign_in_required' | 'account_changed' | 'source_changed' | 'profile_unavailable' | 'unsupported' | 'storage_unavailable' | 'provider_error';
@@ -268,6 +272,8 @@ interface Commands {
   load_profile_heatmap: { args: { profileId: string; mode: HeatmapMode; periodDays: 30 | 90 | 180 | 365 }; result: SavedProfileHeatmap | null };
   load_profile_quota_history: { args: { profileId: string; beforeRunId: string | null }; result: QuotaHistoryPage };
   load_alert_history: { args: undefined; result: SavedAlertHistory };
+  load_reset_notification_preferences: { args: undefined; result: ResetNotificationPreferences };
+  save_reset_notification_preferences: { args: { preferences: ResetNotificationPreferences }; result: ResetNotificationPreferences };
   get_display_scale: { args: undefined; result: { percent: number } };
   set_display_scale: { args: { percent: number }; result: { percent: number } };
   load_profile_plan: { args: { profileId: string; bindingId: string }; result: { profileId: string; bindingId: string; plan: string | null } };
@@ -340,7 +346,8 @@ export async function invoke<K extends keyof Commands>(
   const core = window.__TAURI__?.core;
   if (!core) throw new DesktopUnavailable('Open the installed OpenUsage desktop application.');
   const response = await core.invoke<unknown>(command, args[0]);
-  const valid = command === 'load_alert_history' ? isSavedAlertHistory(response)
+  const valid = command === 'load_reset_notification_preferences' || command === 'save_reset_notification_preferences' ? isResetNotificationPreferences(response)
+    : command === 'load_alert_history' ? isSavedAlertHistory(response)
     : command === 'load_profile_quota_history' ? isQuotaHistoryPage(response)
     : (command === 'get_display_scale' || command === 'set_display_scale') ? isDisplayScale(response)
     : command === 'load_profile_plan' ? isProfilePlan(response)
@@ -390,6 +397,24 @@ export async function invoke<K extends keyof Commands>(
   return response as Commands[K]['result'];
 }
 
+function isResetNotificationPreferences(value: unknown): value is ResetNotificationPreferences {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const prefs = value as Record<string, unknown>;
+  if (Object.keys(prefs).length !== 6 || typeof prefs.enabled !== 'boolean' || typeof prefs.quietEnabled !== 'boolean'
+    || typeof prefs.timeZone !== 'string' || !/^[A-Za-z0-9_+./-]{1,128}$/.test(prefs.timeZone)
+    || typeof prefs.quietStart !== 'string' || !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(prefs.quietStart)
+    || typeof prefs.quietEnd !== 'string' || !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(prefs.quietEnd) || prefs.quietStart === prefs.quietEnd
+    || !Array.isArray(prefs.profileOverrides) || prefs.profileOverrides.length > 100) return false;
+  const ids = new Set<string>();
+  for (const value of prefs.profileOverrides) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+    const item = value as Record<string, unknown>;
+    if (Object.keys(item).length !== 2 || !isUuid(item.profileId) || ids.has(item.profileId) || typeof item.enabled !== 'boolean') return false;
+    ids.add(item.profileId);
+  }
+  return true;
+}
+
 function isSavedAlertHistory(value: unknown): value is SavedAlertHistory {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const history = value as Record<string, unknown>;
@@ -403,7 +428,7 @@ function isSavedAlertHistory(value: unknown): value is SavedAlertHistory {
       || typeof event.profileLabel !== 'string' || Array.from(event.profileLabel).length < 1 || Array.from(event.profileLabel).length > 100
       || /[\u0000-\u001f\u007f-\u009f]/u.test(event.profileLabel) || event.kind !== 'quota_reset' || !quotaText(event.limitId, 128)
       || (event.windowRole !== 'primary' && event.windowRole !== 'secondary') || !Number.isSafeInteger(event.windowDurationMins) || (event.windowDurationMins as number) < 1
-      || !isUtcTimestamp(event.evidenceAtUtc) || (event.sourceKind !== 'official_artifact' && event.sourceKind !== 'test_fixture') || event.deliveryState !== 'recorded') return false;
+      || !isUtcTimestamp(event.evidenceAtUtc) || (event.sourceKind !== 'official_artifact' && event.sourceKind !== 'test_fixture') || typeof event.deliveryState !== 'string' || !['recorded', 'queued', 'submitted', 'failed', 'suppressed', 'uncertain'].includes(event.deliveryState)) return false;
     ids.add(event.id);
   }
   return true;

@@ -314,7 +314,7 @@ try {
   assert.deepEqual(Object.keys(metadata).sort(), ['archiveVersion', 'contentSummary', 'databaseValidation', 'entries', 'entryCount', 'fileName', 'manifestSchemaVersion', 'restoreAvailable', 'totalBytes']);
   assert.equal(metadata.fileName, fileName);
   assert.equal(metadata.archiveVersion, 1);
-  assert.equal(metadata.manifestSchemaVersion, 5);
+  assert.equal(metadata.manifestSchemaVersion, 6);
   assert.equal(metadata.entryCount, 1);
   assert.equal(metadata.databaseValidation, 'valid');
   assert.deepEqual(metadata.contentSummary, evidence.expectedContentSummary);
@@ -333,7 +333,7 @@ try {
   const counts = await driver.execute('return Object.fromEntries([...document.querySelectorAll(".backup-inspection-metadata dt")].map(node=>[node.textContent,node.nextElementSibling?.textContent]));');
   assert.deepEqual([counts['Active profiles'], counts['Archived profiles'], counts.Accounts], ['2', '1', '0']);
   const advanced = await readAdvancedDetails(true, true);
-  assert.deepEqual(advancedFields.map(field => advanced.metadata[field]), ['1', '5', '1', `${metadata.totalBytes} bytes`]);
+  assert.deepEqual(advancedFields.map(field => advanced.metadata[field]), ['1', '6', '1', `${metadata.totalBytes} bytes`]);
   await closeDetails();
   evidence.inspection = metadata;
   evidence.wrongPasswordView = failedView;
@@ -358,10 +358,10 @@ try {
   assert.deepEqual(await readdir(generatorStaging), []);
   evidence.contentFixtures = [];
   for (const [fixtureName, state, schema, screenshot] of [
-    ['openusage-backup-FixtureNonSqlite.oubackup', 'invalid', 5, 'inspection-invalid-database-dark.png'],
+    ['openusage-backup-FixtureNonSqlite.oubackup', 'invalid', 6, 'inspection-invalid-database-dark.png'],
     ['openusage-backup-FixtureManifest2.oubackup', 'unsupported', 77, 'inspection-unsupported-manifest-dark.png'],
-    ['openusage-backup-FixtureFutureDB1.oubackup', 'unsupported', 5, null],
-    ['openusage-backup-FixtureBadRows01.oubackup', 'invalid', 5, 'inspection-invalid-relation-dark.png'],
+    ['openusage-backup-FixtureFutureDB1.oubackup', 'unsupported', 6, null],
+    ['openusage-backup-FixtureBadRows01.oubackup', 'invalid', 6, 'inspection-invalid-relation-dark.png'],
   ]) {
     assert.ok(generated.files.includes(fixtureName));
     const path = join(directory, fixtureName);

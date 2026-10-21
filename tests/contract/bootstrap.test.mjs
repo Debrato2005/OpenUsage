@@ -740,3 +740,15 @@ test('heatmap IPC keeps missing, zero and exact aggregate counts distinct and re
   desktopResponse({ ...value, mode: 'monthly' });
   await assert.rejects(invoke('load_profile_heatmap', args), /desktop response is incompatible/);
 });
+
+test('reset notification preferences accept only typed bounded records and keep OS dispatch Rust-only', async () => {
+  const preferences = { enabled: false, timeZone: 'America/New_York', quietEnabled: true, quietStart: '22:00', quietEnd: '08:00', profileOverrides: [{ profileId: '11111111-1111-4111-8111-111111111111', enabled: true }] };
+  for (const command of ['load_reset_notification_preferences', 'save_reset_notification_preferences']) {
+    const args = command.startsWith('save') ? { preferences } : undefined;
+    desktopResponse(preferences); assert.deepEqual(await invoke(command, args), preferences);
+    for (const change of [{ enabled: ['false'] }, { timeZone: '../private\nzone' }, { quietEnabled: 1 }, { quietStart: '24:00' }, { quietEnd: '22:00' }, { profileOverrides: [preferences.profileOverrides[0], preferences.profileOverrides[0]] }, { profileOverrides: [{ ...preferences.profileOverrides[0], path: '/external' }] }, { secret: 'must never reach UI' }]) {
+      desktopResponse({ ...preferences, ...change }); await assert.rejects(invoke(command, args), /desktop response is incompatible/);
+    }
+    for (const field of Object.keys(preferences)) { const missing = { ...preferences }; delete missing[field]; desktopResponse(missing); await assert.rejects(invoke(command, args), /desktop response is incompatible/); }
+  }
+});

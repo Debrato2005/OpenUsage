@@ -16,6 +16,11 @@ mod quota;
 mod quota_history;
 pub use quota_history::QuotaHistoryPage;
 mod alerts;
+mod reset_notifications;
+pub use reset_notifications::{
+    AlertQuietHours, NotificationOutcome, ResetAlertOverride, ResetAlertPreferences,
+    ResetNotification,
+};
 mod quota_resets;
 mod quota_validation;
 pub use alerts::{AlertDeliveryState, AlertEvent, AlertHistory};
@@ -43,6 +48,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("schema_v3.sql"),
     include_str!("schema_v4.sql"),
     include_str!("schema_v5.sql"),
+    include_str!("schema_v6.sql"),
 ];
 pub const CURRENT_SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
 const MAX_BACKUP_SNAPSHOT_SIZE: u64 = 5 * 1024 * 1024 * 1024;
@@ -81,6 +87,7 @@ pub struct StorageMetadata {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum StorageError {
     InvalidPath,
+    InvalidAlertPreferences,
     CreateFailed,
     OpenFailed,
     EncryptionUnavailable,
@@ -97,6 +104,9 @@ pub enum StorageError {
 impl fmt::Display for StorageError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
+            Self::InvalidAlertPreferences => {
+                "Use valid alert preferences and an available IANA time zone."
+            }
             Self::InvalidPath => {
                 "Use a regular database file inside a private application directory."
             }

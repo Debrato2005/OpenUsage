@@ -8,7 +8,7 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
 };
 use std::thread::JoinHandle;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 pub(crate) struct MonitoringWorker {
     stop: Arc<(AtomicBool, Mutex<()>, Condvar)>,
@@ -23,7 +23,18 @@ impl MonitoringWorker {
         let stop = Arc::new((AtomicBool::new(false), Mutex::new(()), Condvar::new()));
         let signal = stop.clone();
         let thread = std::thread::spawn(move || {
+            let notifications = crate::notifications::NotificationSink::default();
+            let mut next_notification_check = Instant::now();
             while !signal.0.load(Ordering::Acquire) {
+                if Instant::now() >= next_notification_check {
+                    if let Ok(mut state) = workspace.lock()
+                        && let Some(workspace) = state.as_mut()
+                    {
+                        workspace.dispatch_next_reset_notification(&notifications);
+                    }
+                    // This reads only the local outbox. Provider polling stays unchanged.
+                    next_notification_check = Instant::now() + Duration::from_secs(10);
+                }
                 let job = workspace.lock().ok().and_then(|mut state| {
                     state
                         .as_mut()

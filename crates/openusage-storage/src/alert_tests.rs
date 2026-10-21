@@ -1,6 +1,6 @@
 use super::*;
 
-fn baseline() -> (tempfile::TempDir, Storage, QuotaReading) {
+pub(super) fn baseline() -> (tempfile::TempDir, Storage, QuotaReading) {
     let (directory, mut storage, mut reading) = fixture();
     reading.limits[0].primary.as_mut().unwrap().used_percent = 100;
     reading.limits[0].primary.as_mut().unwrap().resets_at_unix = Some(0);
@@ -15,7 +15,7 @@ fn baseline() -> (tempfile::TempDir, Storage, QuotaReading) {
     (directory, storage, reading)
 }
 
-fn next(original: &QuotaReading, n: u32) -> QuotaReading {
+pub(super) fn next(original: &QuotaReading, n: u32) -> QuotaReading {
     let mut reading = original.clone();
     reading.run_id = id(100 + n);
     reading.observed_at_utc = format!("2026-10-18T12:00:{n:02}.000Z");
@@ -51,7 +51,14 @@ fn reset_history_is_atomic_once_per_window_and_survives_restart_and_archiving() 
         assert_eq!(event.generation_run_id, confirmed.run_id);
         assert_eq!(event.evidence_at_utc, confirmed.observed_at_utc);
         assert_eq!(event.source_kind, ActivitySourceKind::TestFixture);
-        assert_eq!(event.delivery_state, crate::AlertDeliveryState::Recorded);
+        assert_eq!(
+            event.delivery_state,
+            if cfg!(feature = "native-test") {
+                crate::AlertDeliveryState::Suppressed
+            } else {
+                crate::AlertDeliveryState::Recorded
+            }
+        );
     }
     let mut repeated = next(&original, 2);
     let limit = &mut repeated.limits[0];
@@ -204,7 +211,7 @@ fn schema_four_migration_and_archive_normalization_do_not_replay_reset_history()
     // Reproduce an exact v4 catalog with real encrypted quota proof, before alert recording existed.
     storage
         .connection
-        .execute_batch("DROP TABLE alert_events;PRAGMA user_version=4")
+        .execute_batch("DROP TABLE reset_notification_outbox;DROP TABLE reset_notification_receipts;DROP TABLE reset_alert_overrides;DROP TABLE reset_alert_preferences;DROP TABLE alert_events;PRAGMA user_version=4")
         .unwrap();
     let mut legacy =
         crate::backup_validation::trusted_memory_copy(&storage.connection, "main", 4).unwrap();

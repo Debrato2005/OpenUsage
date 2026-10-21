@@ -12,6 +12,7 @@ import { BackupInspection } from './backup-inspection';
 import { DataExport } from './data-export';
 import { CheckpointRecovery } from './checkpoint-recovery';
 import { AlertHistory } from './alert-history';
+import { ResetNotifications } from './reset-notifications';
 import { ProviderSettings } from './provider';
 import { Overview } from './overview';
 import type { AccountAction, AccountActionRequest } from './account-actions';
@@ -363,6 +364,7 @@ function App() {
             ? 'Undoing a restore requires a preview and your confirmation.'
             : 'Inspect a backup before you prepare a restore. Replacing records requires confirmation.'}</p>
         </section>}
+        {ready && view === 'settings' && <ResetNotifications profiles={profiles} revision={String(profileRevision)} busy={busy} setBusy={setBusy} />}
         {ready && <AlertHistory revision={`${profileRevision}:${readingRevision}`} onViewUsage={profileId => requestAccountAction({ kind: 'usage', profileId })} />}
         {ready && <DataExport key={profileRevision} profiles={profiles} busy={busy} setBusy={setBusy} />}
         </section>

@@ -577,3 +577,6 @@ fn quota_validation_shared_cas_and_profile_isolation_refuse_without_writes() {
         r.limits
     );
 }
+
+#[path = "reset_notification_tests.rs"]
+mod reset_notification_tests;

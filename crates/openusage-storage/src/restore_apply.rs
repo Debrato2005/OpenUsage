@@ -181,7 +181,7 @@ impl Storage {
                     .map_err(|_| RestoreError::WriteFailed)?;
                 transaction
                     .execute_batch(
-                        "DELETE FROM alert_events; DELETE FROM quota_reset_assessments; DELETE FROM current_quota; DELETE FROM current_quota_readings; DELETE FROM credit_snapshots; DELETE FROM quota_limits; UPDATE quota_snapshots SET previous_quota_run_id=NULL; DELETE FROM quota_snapshots; DELETE FROM profile_bindings; DELETE FROM activity_day_history; DELETE FROM current_activity_days;
+                        "DELETE FROM reset_notification_outbox; DELETE FROM reset_alert_overrides; DELETE FROM reset_alert_preferences; DELETE FROM alert_events; DELETE FROM quota_reset_assessments; DELETE FROM current_quota; DELETE FROM current_quota_readings; DELETE FROM credit_snapshots; DELETE FROM quota_limits; UPDATE quota_snapshots SET previous_quota_run_id=NULL; DELETE FROM quota_snapshots; DELETE FROM profile_bindings; DELETE FROM activity_day_history; DELETE FROM current_activity_days;
                          DELETE FROM current_activity; DELETE FROM activity_summaries;
                          DELETE FROM collection_runs;
                          UPDATE profile_identity_events SET previous_binding_id=NULL;
@@ -212,7 +212,7 @@ impl Storage {
                     )
                     .map_err(|_| RestoreError::WriteFailed)?;
                 // Historical bindings keep their original homes; only live profiles use new mappings.
-                crate::backup_validation::copy_activity_records(source, &transaction, "main")
+                crate::backup_validation::copy_activity_records(source, &transaction, "main", true)
                     .map_err(|_| RestoreError::WriteFailed)?;
                 if validate_connection(&transaction, CURRENT_SCHEMA_VERSION)
                     .map_err(|_| RestoreError::WriteFailed)?

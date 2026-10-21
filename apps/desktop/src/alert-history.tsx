@@ -4,6 +4,12 @@ import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from './components/
 import { invoke, type SavedAlertHistory } from './contracts';
 import './alert-history.css';
 
+const delivery = {
+  recorded: 'No desktop notification sent.', queued: 'Waiting for quiet hours to end.',
+  submitted: 'Accepted by the desktop notification service.', failed: 'The desktop notification service could not accept this alert.',
+  suppressed: 'Not sent because this reset is no longer eligible.', uncertain: 'Delivery could not be confirmed. This alert will not be sent again automatically.',
+};
+
 const dates = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' });
 
 function windowLabel(minutes: number) {
@@ -35,7 +41,7 @@ export function AlertHistory({ revision = '', onViewUsage }: { revision?: string
         {current.history.events.length === 0 ? <p className="alert-history-note">No confirmed resets are saved yet.</p> : <ol className="alert-history-events" aria-label="Saved reset confirmations" tabIndex={0}>
           {current.history.events.map(event => <li key={event.id} data-alert-history-event={event.id}>
             <div className="alert-history-event"><div><strong>Reset confirmed</strong><p><bdi>{event.profileLabel}</bdi> · {windowLabel(event.windowDurationMins)}</p><time dateTime={event.evidenceAtUtc} title={event.evidenceAtUtc}>{dates.format(new Date(event.evidenceAtUtc))} UTC</time></div><Button variant="outline" onClick={() => onViewUsage(event.profileId)}>View usage<span className="sr-only"> for {event.profileLabel}</span></Button></div>
-            <Collapsible className="alert-history-source"><CollapsibleTrigger render={<Button variant="ghost" />}>Source details</CollapsibleTrigger><CollapsiblePanel><dl><dt>Source</dt><dd>{event.sourceKind === 'test_fixture' ? 'Synthetic test data' : 'Official OpenAI companion'}</dd><dt>Quota limit</dt><dd><bdi>{event.limitId}</bdi></dd><dt>Window</dt><dd>{event.windowRole === 'primary' ? 'Primary' : 'Secondary'} · {event.windowDurationMins} minutes</dd><dt>Evidence time (UTC)</dt><dd><time dateTime={event.evidenceAtUtc}>{event.evidenceAtUtc}</time></dd><dt>Delivery</dt><dd>No desktop notification sent.</dd></dl></CollapsiblePanel></Collapsible>
+            <Collapsible className="alert-history-source"><CollapsibleTrigger render={<Button variant="ghost" />}>Source details</CollapsibleTrigger><CollapsiblePanel><dl><dt>Source</dt><dd>{event.sourceKind === 'test_fixture' ? 'Synthetic test data' : 'Official OpenAI companion'}</dd><dt>Quota limit</dt><dd><bdi>{event.limitId}</bdi></dd><dt>Window</dt><dd>{event.windowRole === 'primary' ? 'Primary' : 'Secondary'} · {event.windowDurationMins} minutes</dd><dt>Evidence time (UTC)</dt><dd><time dateTime={event.evidenceAtUtc}>{event.evidenceAtUtc}</time></dd><dt>Delivery</dt><dd>{delivery[event.deliveryState]}</dd></dl></CollapsiblePanel></Collapsible>
           </li>)}
         </ol>}
         {current.history.truncated && <p className="alert-history-note">Showing the latest 100 saved events.</p>}

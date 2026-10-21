@@ -48,6 +48,7 @@ fn reading(
     binding: &ProfileBinding,
     evidence: &ProfileIdentityEvidence,
     number: u8,
+    times: Option<&Value>,
 ) -> QuotaReading {
     let (observed, used, reset) = match number {
         1 => ("2026-10-22T11:59:00.000Z", 80, 1_792_670_400),
@@ -56,7 +57,7 @@ fn reading(
         4 => ("2026-10-22T12:03:00.000Z", 20, 1_792_674_000),
         _ => panic!("Invalid synthetic observation."),
     };
-    QuotaReading {
+    let mut result = QuotaReading {
         run_id: format!("b1000000-0000-4000-8000-{number:012}"),
         binding: binding.clone(),
         identity_evidence: evidence.clone(),
@@ -80,7 +81,29 @@ fn reading(
         }],
         available_reset_credits: None,
         reset_credit_details: None,
+    };
+    if let Some(times) = times {
+        let observations = times["observations"]
+            .as_array()
+            .expect("Synthetic observation array required.");
+        assert_eq!(observations.len(), 4);
+        let observed = observations[usize::from(number - 1)].as_str().unwrap();
+        result.started_at_utc = observed.into();
+        result.observed_at_utc = observed.into();
+        result.completed_at_utc = observed.into();
+        let reset = times[if number == 1 {
+            "priorResetUnix"
+        } else {
+            "nextResetUnix"
+        }]
+        .as_i64()
+        .unwrap();
+        result.limits[0].primary.as_mut().unwrap().resets_at_unix = Some(reset);
+        // Keep synthetic provenance. Only an explicitly compiled native-test
+        // storage feature may enqueue these packets; production must refuse them.
+        assert!(cfg!(feature = "native-test"));
     }
+    result
 }
 fn main() {
     let args: Vec<_> = env::args_os().collect();
@@ -120,12 +143,16 @@ fn main() {
     );
     directory(&root.join("control"));
     let mode = args[3].to_str().unwrap();
-    assert!(matches!(mode, "seed" | "followup"));
+    assert!(matches!(
+        mode,
+        "seed" | "followup" | "notification-seed" | "notification-followup"
+    ));
+    let notification_mode = mode.starts_with("notification-");
     let marker: Value =
         serde_json::from_slice(&private_file(&root.join("control/alert-fixture.json"))).unwrap();
     assert_eq!(
         marker,
-        json!({"purpose":"openusage-native-alert-history-v1","profileId":profile})
+        json!({"purpose":if notification_mode { "openusage-native-reset-notifications-v1" } else { "openusage-native-alert-history-v1" },"profileId":profile})
     );
     let workspace = root.join("data/app.openusage.desktop/workspace");
     directory(&workspace);
@@ -139,7 +166,17 @@ fn main() {
     io::stdin().take(4097).read_to_string(&mut input).unwrap();
     assert!(input.len() <= 4096);
     let mut request: Value = serde_json::from_str(&input).expect("Invalid synthetic request.");
-    assert!(request.as_object().is_some_and(|object| object.len() == 1));
+    assert!(
+        request
+            .as_object()
+            .is_some_and(|object| object.len() == if notification_mode { 2 } else { 1 })
+    );
+    let fixture_times = notification_mode.then(|| {
+        request
+            .get("notificationTimes")
+            .expect("Missing controlled synthetic times.")
+            .clone()
+    });
     let password = match request
         .get_mut("passphrase")
         .expect("Missing synthetic password.")
@@ -179,10 +216,10 @@ fn main() {
         home_reference: profile.into(),
         binding_id: "a1000000-0000-4000-8000-000000000001".into(),
     };
-    if mode == "seed" {
+    if mode.ends_with("seed") {
         assert!(storage.alert_history().unwrap().events.is_empty());
         assert!(storage.current_quota(profile).unwrap().is_none());
-        let first = reading(&binding, &evidence, 1);
+        let first = reading(&binding, &evidence, 1, fixture_times.as_ref());
         let association = ProfileBindingInput {
             profile_id: profile.into(),
             expected_home_reference: profile.into(),
@@ -194,17 +231,26 @@ fn main() {
         storage.accept_quota(first, Some(association)).unwrap();
         assert!(storage.alert_history().unwrap().events.is_empty());
         storage
-            .accept_quota(reading(&binding, &evidence, 2), None)
+            .accept_quota(
+                reading(&binding, &evidence, 2, fixture_times.as_ref()),
+                None,
+            )
             .unwrap();
         assert_eq!(storage.alert_history().unwrap().events.len(), 1);
         storage
-            .accept_quota(reading(&binding, &evidence, 3), None)
+            .accept_quota(
+                reading(&binding, &evidence, 3, fixture_times.as_ref()),
+                None,
+            )
             .unwrap();
     } else {
         let before = storage.alert_history().unwrap();
         assert_eq!(before.events.len(), 1);
         storage
-            .accept_quota(reading(&binding, &evidence, 4), None)
+            .accept_quota(
+                reading(&binding, &evidence, 4, fixture_times.as_ref()),
+                None,
+            )
             .unwrap();
         assert_eq!(
             storage.alert_history().unwrap(),
@@ -223,6 +269,6 @@ fn main() {
     );
     println!(
         "{}",
-        json!({"synthetic":true,"productionStorageApi":true,"schemaVersion":CURRENT_SCHEMA_VERSION,"mode":mode,"profileId":profile,"eventId":event.id,"generationRunId":event.generation_run_id,"eventCount":1,"evidenceAtUtc":event.evidence_at_utc,"deliveryState":"recorded"})
+        json!({"synthetic":true,"productionStorageApi":true,"schemaVersion":CURRENT_SCHEMA_VERSION,"mode":mode,"profileId":profile,"eventId":event.id,"generationRunId":event.generation_run_id,"eventCount":1,"evidenceAtUtc":event.evidence_at_utc,"deliveryState":event.delivery_state.as_str()})
     );
 }

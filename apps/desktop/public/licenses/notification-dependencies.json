@@ -1,0 +1,888 @@
+{
+  "formatVersion": 1,
+  "scope": "Incremental notification dependency notice preparation; supplements the unchanged 486-package baseline with 24 newly locked packages. Not linked-binary or native-release qualification.",
+  "cargoLockSha256": "9f60cce025f7e3047b8bf4a4abaeae1b3456582c2f311ddb52e02839f0f5ea90",
+  "registryPackageCount": 24,
+  "totalLockedRegistryPackageCount": 510,
+  "baseline": {
+    "manifest": "rust-dependencies.json",
+    "manifestSha256": "ad94968c7d8eb9388367fb0ac2fbe28970d600b20022657a3bd6be2e8406d1dc",
+    "textFile": "rust-dependencies.txt",
+    "textFileSha256": "67ec8afff96bf82279eabfba751ddbc8a7c6d44430e95459f939e170e2dc4083",
+    "cargoLockSha256": "494af7a40fa4937fca5f754669157eab4a17a08ef5c18ed296f13e08356b1a1d",
+    "registryPackageCount": 486
+  },
+  "qualifications": [
+    "This supplement covers the 24 registry name/version pairs added to the 486-package baseline rust-dependencies.json. The union covers the 510 registry packages in the stated Cargo.lock; the baseline files remain unchanged.",
+    "Coverage includes locked platform-specific and optional dependencies. It does not establish which packages are linked in a distributed application, native release qualification, or legal certification.",
+    "License expressions remain verbatim, including OR alternatives, any AND requirements, and the mac-notification-sys legacy slash spelling. Original full license and notice bytes retain their copyright statements.",
+    "Original crate license/NOTICE files come from SHA-256-verified official published archives. The two missing mac-notification-sys files come from its exact pinned repository commit, with verified Git blob IDs and matching published manifest/README.",
+    "No license body was invented or replaced with a generic template. Existing system-library, MPL-2.0 source-availability, companion and artifact-specific redistribution checks still apply."
+  ],
+  "textFile": "notification-dependencies.txt",
+  "textFileSha256": "b5ff376700ba79cc57c82a3ad6a66816c47b6cad18da4ed4b8296e88a3836b4b",
+  "packages": [
+    {
+      "name": "async-channel",
+      "version": "2.5.0",
+      "declaredLicense": "Apache-2.0 OR MIT",
+      "crateSha256": "924ed96dd52d1b75e9c1a3e6275715fd320f5f9439fb5a4a11fa51f4221158d2",
+      "archiveUrl": "https://static.crates.io/crates/async-channel/async-channel-2.5.0.crate",
+      "manifestSha256": "0d56b953fd80e91c2f60d92df14866dede9822a91fa2abccc618b76abbf1ea97",
+      "originalManifestSha256": "4b88d2c58ff7187b3d96b14b1d60fc7c01145aa946f2ce04c0e23d140e4a2463",
+      "source": "crates.io",
+      "repository": "https://github.com/smol-rs/async-channel",
+      "textRefs": [
+        "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+        "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+      ],
+      "noticePreparation": []
+    },
+    {
+      "name": "async-executor",
+      "version": "1.14.0",
+      "declaredLicense": "Apache-2.0 OR MIT",
+      "crateSha256": "c96bf972d85afc50bf5ab8fe2d54d1586b4e0b46c97c50a0c9e71e2f7bcd812a",
+      "archiveUrl": "https://static.crates.io/crates/async-executor/async-executor-1.14.0.crate",
+      "manifestSha256": "218fc99af9babf2dcf6a0dcaac640fdc3fcddca31aee3120349f77f5835713fa",
+      "originalManifestSha256": "2e5cafbb13a26d3d79f0ddc2d8a7ff042dee76b9631bf02e65610eeb09ec3b4c",
+      "source": "crates.io",
+      "repository": "https://github.com/smol-rs/async-executor",
+      "textRefs": [
+        "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+        "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+      ],
+      "noticePreparation": []
+    },
+    {
+      "name": "async-io",
+      "version": "2.6.0",
+      "declaredLicense": "Apache-2.0 OR MIT",
+      "crateSha256": "456b8a8feb6f42d237746d4b3e9a178494627745c3c56c6ea55d92ba50d026fc",
+      "archiveUrl": "https://static.crates.io/crates/async-io/async-io-2.6.0.crate",
+      "manifestSha256": "b995db0d5def306a7a08eff23999894444fe89d2aae1e9968699cdb832692477",
+      "originalManifestSha256": "821925ff226a314d2fbf3ae8784beb7be7d326a48dc57baef56b02ebf81ebef9",
+      "source": "crates.io",
+      "repository": "https://github.com/smol-rs/async-io",
+      "textRefs": [
+        "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+        "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+      ],
+      "noticePreparation": []
+    },
+    {
+      "name": "async-lock",
+      "version": "3.4.2",
+      "declaredLicense": "Apache-2.0 OR MIT",
+      "crateSha256": "290f7f2596bd5b78a9fec8088ccd89180d7f9f55b94b0576823bbbdc72ee8311",
+      "archiveUrl": "https://static.crates.io/crates/async-lock/async-lock-3.4.2.crate",
+      "manifestSha256": "e2ff7374a103f10feb6c11bf78f2e6852be7f2d6ab8e7f4b2ebb338d543be965",
+      "originalManifestSha256": "feaec699f41ad57aa6f8bd751c6314be139ba5fbebdf5ce41c6f5f34fe2c1cfb",
+      "source": "crates.io",
+      "repository": "https://github.com/smol-rs/async-lock",
+      "textRefs": [
+        "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+        "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+      ],
+      "noticePreparation": []
+    },
+    {
+      "name": "async-process",
+      "version": "2.5.0",
+      "declaredLicense": "Apache-2.0 OR MIT",
+      "crateSha256": "fc50921ec0055cdd8a16de48773bfeec5c972598674347252c0399676be7da75",
+      "archiveUrl": "https://static.crates.io/crates/async-process/async-process-2.5.0.crate",
+      "manifestSha256": "a494118941294a7214b7e661308ea5d9ce357915653cfcca219a3a61d5cecc88",
+      "originalManifestSha256": "4bee4d21e32200da10ed1bfe4dc1e7cc3589d24516d1bd729b9a224d4ecdbf41",
+      "source": "crates.io",
+      "repository": "https://github.com/smol-rs/async-process",
+      "textRefs": [
+        "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+        "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+      ],
+      "noticePreparation": []
+    },
+    {
+      "name": "async-signal",
+      "version": "0.2.14",
+      "declaredLicense": "Apache-2.0 OR MIT",
+      "crateSha256": "52b5aaafa020cf5053a01f2a60e8ff5dccf550f0f77ec54a4e47285ac2bab485",
+      "archiveUrl": "https://static.crates.io/crates/async-signal/async-signal-0.2.14.crate",
+      "manifestSha256": "91381fedcf489d6e5f4bd67a51c0756c7f03fd7f7ec5554cebee1757ecc61a22",
+      "originalManifestSha256": "f3b66875c7c47845b84f9c8878e9f819bc20710bb1401b0e81a9217859caa797",
+      "source": "crates.io",
+      "repository": "https://github.com/smol-rs/async-signal",
+      "textRefs": [
+        "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+        "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+      ],
+      "noticePreparation": []
+    },
+    {
+      "name": "async-task",
+      "version": "4.7.1",
+      "declaredLicense": "Apache-2.0 OR MIT",
+      "crateSha256": "8b75356056920673b02621b35afd0f7dda9306d03c79a30f5c56c44cf256e3de",
+      "archiveUrl": "https://static.crates.io/crates/async-task/async-task-4.7.1.crate",
+      "manifestSha256": "1ee0e30526e13349dafcd286676747fbbe1b6e876ec28dafa735ae0f603600e7",
+      "originalManifestSha256": "d94de6be0f8ab5af18a17337a6d93c6adeb47f28cf917b9ba0c709cff9095390",
+      "source": "crates.io",
+      "repository": "https://github.com/smol-rs/async-task",
+      "textRefs": [
+        "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+        "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+      ],
+      "noticePreparation": []
+    },
+    {
+      "name": "blocking",
+      "version": "1.7.0",
+      "declaredLicense": "Apache-2.0 OR MIT",
+      "crateSha256": "a70e4329df6cb94385eed412ec92375c3cdd8a6e502493d1229b6414e4036dfa",
+      "archiveUrl": "https://static.crates.io/crates/blocking/blocking-1.7.0.crate",
+      "manifestSha256": "98a18b37c0173572c053570808f335f4614b1cd214767922699d497a65299c12",
+      "originalManifestSha256": "cf94e527441218a3cc9d1f3d512dd9e8ef4fb3205d5f2d8cfee602da98d42a98",
+      "source": "crates.io",
+      "repository": "https://github.com/smol-rs/blocking",
+      "textRefs": [
+        "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+        "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+      ],
+      "noticePreparation": []
+    },
+    {
+      "name": "concurrent-queue",
+      "version": "2.5.0",
+      "declaredLicense": "Apache-2.0 OR MIT",
+      "crateSha256": "4ca0197aee26d1ae37445ee532fefce43251d24cc7c166799f4d46817f1d3973",
+      "archiveUrl": "https://static.crates.io/crates/concurrent-queue/concurrent-queue-2.5.0.crate",
+      "manifestSha256": "d14f713829a83746178dd8a52732e1d106c895b3b4370bb9436fb190a2d763b2",
+      "originalManifestSha256": "18cfe5d32e53cdd29e2566612323ba36657b9cf2de41f7fae2a13e3880b9f458",
+      "source": "crates.io",
+      "repository": "https://github.com/smol-rs/concurrent-queue",
+      "textRefs": [
+        "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+        "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+      ],
+      "noticePreparation": []
+    },
+    {
+      "name": "hermit-abi",
+      "version": "0.5.3",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "crateSha256": "e17592d60ebacc7d5e169f4663c5f84f9161cc90328abcfe8456f41e4dfcb284",
+      "archiveUrl": "https://static.crates.io/crates/hermit-abi/hermit-abi-0.5.3.crate",
+      "manifestSha256": "f9c1cf5c051787c34fa0cd1a6d7faa7b9625a9ae5bbc10549bb28e5af263b29f",
+      "originalManifestSha256": "30d7d432990a2e8efda6cd51b1e669920d3ff2e6646cd9baf200171624dd8fc8",
+      "source": "crates.io",
+      "repository": "https://github.com/hermit-os/hermit-rs",
+      "textRefs": [
+        "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+        "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+      ],
+      "noticePreparation": []
+    },
+    {
+      "name": "mac-notification-sys",
+      "version": "0.6.15",
+      "declaredLicense": "MIT/Apache-2.0",
+      "crateSha256": "fd604973958ddcc11b561193c0fb96ba146506ef2f231ef2e7c35fd2cbc9beca",
+      "archiveUrl": "https://static.crates.io/crates/mac-notification-sys/mac-notification-sys-0.6.15.crate",
+      "manifestSha256": "43ba2e864aa9ffb0d13ff38df49d651d36d1e371b317100e49a63694fb38f4bb",
+      "originalManifestSha256": "8cbd867cec6544fb09a0381ddf50a6ecaa20931646ce3507787eab8b1cb4bf91",
+      "source": "crates.io",
+      "repository": "https://github.com/h4llow3En/mac-notification-sys",
+      "textRefs": [
+        "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1",
+        "1299b4d9d15e9d67e4ac0e7d47ae9404887ca3cf0764aadeec7588d5a6e8e0cc"
+      ],
+      "noticePreparation": [
+        "The published crate omits license files. Both original license files were retrieved from the exact repository commit in its checksum-verified .cargo_vcs_info.json. Their Git blob IDs and the matching original manifest/README blobs were checked. No generic license or copyright substitution was used."
+      ],
+      "grantClarification": {
+        "kind": "pinned_crate_readme_excerpt",
+        "crateRelativePath": "README.md",
+        "fileSha256": "804be37edacc3c7b2e5bfea8fd3629982fd637220b50b96dbe3d894251ace84b",
+        "byteOffset": 2226,
+        "byteLength": 338,
+        "text": "## license\nLicensed under either of Apache License, Version 2.0 or MIT license at your option.\n\nUnless you explicitly state otherwise, any contribution intentionally submitted for inclusion in mac-notification-sys by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any additional terms or conditions.\n\n",
+        "note": "The declared legacy slash expression is preserved verbatim. The pinned README explicitly grants Apache-2.0 or MIT at the recipient's option."
+      },
+      "pinnedRepositoryCommit": "deb559683962d314a7693478476bf8d052efa84e"
+    },
+    {
+      "name": "notify-rust",
+      "version": "4.18.0",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "crateSha256": "c5b4c1b4f2aa9f25f63a7a49d3dd0ed567b3670da15330a66b29434be899b891",
+      "archiveUrl": "https://static.crates.io/crates/notify-rust/notify-rust-4.18.0.crate",
+      "manifestSha256": "a91db04754b2d599449516c1c5554333c2d920da244d166269da92540481df98",
+      "originalManifestSha256": "e9285eb0bcdc4fc7824941671afa96f5c2e00bc60a6fbe2c611391b91772de2f",
+      "source": "crates.io",
+      "repository": "https://github.com/hoodie/notify-rust",
+      "textRefs": [
+        "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1",
+        "d848c165548bd3f33419b71c3c3bb7cacec620d93383483393410688cba68431"
+      ],
+      "noticePreparation": []
+    },
+    {
+      "name": "piper",
+      "version": "0.2.5",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "crateSha256": "c835479a4443ded371d6c535cbfd8d31ad92c5d23ae9770a61bc155e4992a3c1",
+      "archiveUrl": "https://static.crates.io/crates/piper/piper-0.2.5.crate",
+      "manifestSha256": "43d77b2465991787818b376ae55f9e4f3b04be51967e4be3a52a5d840234f0ec",
+      "originalManifestSha256": "193a93883b5d4aeb8cb73a4bf8b372be5bb8752ee91c1693fa0aac32bb28ffbd",
+      "source": "crates.io",
+      "repository": "https://github.com/smol-rs/piper",
+      "textRefs": [
+        "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+        "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+      ],
+      "noticePreparation": []
+    },
+    {
+      "name": "polling",
+      "version": "3.11.0",
+      "declaredLicense": "Apache-2.0 OR MIT",
+      "crateSha256": "5d0e4f59085d47d8241c88ead0f274e8a0cb551f3625263c05eb8dd897c34218",
+      "archiveUrl": "https://static.crates.io/crates/polling/polling-3.11.0.crate",
+      "manifestSha256": "ea3f2ed65b75e51a9ffdab8dfd2053e17ad68d0c99fa268ae635c7e2d89baa6c",
+      "originalManifestSha256": "03cfee5ed096a93f17bc5fada47cd0b73350c3453c193e3da4f6680759a25b24",
+      "source": "crates.io",
+      "repository": "https://github.com/smol-rs/polling",
+      "textRefs": [
+        "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+        "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+      ],
+      "noticePreparation": []
+    },
+    {
+      "name": "tauri-winrt-notification",
+      "version": "0.7.3",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "crateSha256": "9ed071c670382e85fc2f48ae706492d8c338f4f89bf72520d32f8abfe880aade",
+      "archiveUrl": "https://static.crates.io/crates/tauri-winrt-notification/tauri-winrt-notification-0.7.3.crate",
+      "manifestSha256": "5de8635c8ce4cf3625a666904237d6fdfafa3e7142ba66c90d43c5121551b87f",
+      "originalManifestSha256": "0544b6e3b12451bad8b0a8aaeeb41e868679d3f2b09eeb68cd7174ad9c131ce1",
+      "source": "crates.io",
+      "repository": "https://github.com/tauri-apps/winrt-notification",
+      "textRefs": [
+        "a212bb763e1d415210f9d345a4c0bb896571b997f3599a92de16281acafc989b",
+        "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594",
+        "9dd42ea92cff2ede5cd477cbfcce051b2d0115c0ac7f368ee88cb545055dff1d"
+      ],
+      "noticePreparation": []
+    },
+    {
+      "name": "windows",
+      "version": "0.61.3",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "crateSha256": "9babd3a767a4c1aef6900409f85f5d53ce2544ccdfaa86dad48c91782c6d6893",
+      "archiveUrl": "https://static.crates.io/crates/windows/windows-0.61.3.crate",
+      "manifestSha256": "d7f6be7cf67d68c853f953a83739fa7f7d9bc129f0e1761b371d266df5ad3c51",
+      "originalManifestSha256": "27bc9a93fcd7a515952f3c73f9b15873a417e70b26019f4a0c351ee701e3c9b1",
+      "source": "crates.io",
+      "repository": "https://github.com/microsoft/windows-rs",
+      "textRefs": [
+        "c16f8dcf1a368b83be78d826ea23de4079fe1b4469a0ab9ee20563f37ff3d44b",
+        "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
+      ],
+      "noticePreparation": []
+    },
+    {
+      "name": "windows-collections",
+      "version": "0.2.0",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "crateSha256": "3beeceb5e5cfd9eb1d76b381630e82c4241ccd0d27f1a39ed41b2760b255c5e8",
+      "archiveUrl": "https://static.crates.io/crates/windows-collections/windows-collections-0.2.0.crate",
+      "manifestSha256": "1997af171348cb0d0fea600729bbdd0c586946d182f9032742c8009451c4fe6c",
+      "originalManifestSha256": "b8ee18f9fc1a42e2daa8e8917e72891adea82390659424308d1fd6d0cf2761bf",
+      "source": "crates.io",
+      "repository": "https://github.com/microsoft/windows-rs",
+      "textRefs": [
+        "c16f8dcf1a368b83be78d826ea23de4079fe1b4469a0ab9ee20563f37ff3d44b",
+        "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
+      ],
+      "noticePreparation": []
+    },
+    {
+      "name": "windows-core",
+      "version": "0.61.2",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "crateSha256": "c0fdd3ddb90610c7638aa2b3a3ab2904fb9e5cdbecc643ddb3647212781c4ae3",
+      "archiveUrl": "https://static.crates.io/crates/windows-core/windows-core-0.61.2.crate",
+      "manifestSha256": "456dc07cec06c3e91d1bb7b109e24148db18a7d68671eb0f8c66bf67c1857284",
+      "originalManifestSha256": "0049c56b3e3a57451044456b9b2e77c6b28da52de99311c58dca9fef7bd9d85a",
+      "source": "crates.io",
+      "repository": "https://github.com/microsoft/windows-rs",
+      "textRefs": [
+        "c16f8dcf1a368b83be78d826ea23de4079fe1b4469a0ab9ee20563f37ff3d44b",
+        "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
+      ],
+      "noticePreparation": []
+    },
+    {
+      "name": "windows-future",
+      "version": "0.2.1",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "crateSha256": "fc6a41e98427b19fe4b73c550f060b59fa592d7d686537eebf9385621bfbad8e",
+      "archiveUrl": "https://static.crates.io/crates/windows-future/windows-future-0.2.1.crate",
+      "manifestSha256": "46bb3abc47054be82d3f4f1837996e12cb91f6c4b3f547c8a5e2e4aebcf68b73",
+      "originalManifestSha256": "c95367a79e9a3f87eecfde97031130bd4afc034645c26cebfd0c9f222a7fc398",
+      "source": "crates.io",
+      "repository": "https://github.com/microsoft/windows-rs",
+      "textRefs": [
+        "c16f8dcf1a368b83be78d826ea23de4079fe1b4469a0ab9ee20563f37ff3d44b",
+        "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
+      ],
+      "noticePreparation": []
+    },
+    {
+      "name": "windows-link",
+      "version": "0.1.3",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "crateSha256": "5e6ad25900d524eaabdbbb96d20b4311e1e7ae1699af4fb28c17ae66c80d798a",
+      "archiveUrl": "https://static.crates.io/crates/windows-link/windows-link-0.1.3.crate",
+      "manifestSha256": "00b8d262ec4a731d58c73e529e9195409b241bb0c74271591637e55b8a9191f4",
+      "originalManifestSha256": "59af034f7a3cd65411779a3b439d0de96028f735713dbf1916cde09a55894970",
+      "source": "crates.io",
+      "repository": "https://github.com/microsoft/windows-rs",
+      "textRefs": [
+        "c16f8dcf1a368b83be78d826ea23de4079fe1b4469a0ab9ee20563f37ff3d44b",
+        "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
+      ],
+      "noticePreparation": []
+    },
+    {
+      "name": "windows-numerics",
+      "version": "0.2.0",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "crateSha256": "9150af68066c4c5c07ddc0ce30421554771e528bde427614c61038bc2c92c2b1",
+      "archiveUrl": "https://static.crates.io/crates/windows-numerics/windows-numerics-0.2.0.crate",
+      "manifestSha256": "a3af0c060a7be121d7ae98dbadb164618a0a56c29ea25691c74d644ddabc4183",
+      "originalManifestSha256": "e67a9a40cd370f577e94010708c6d99ef1cdb2fdec9d0c9d698ade0d91c1f2b3",
+      "source": "crates.io",
+      "repository": "https://github.com/microsoft/windows-rs",
+      "textRefs": [
+        "c16f8dcf1a368b83be78d826ea23de4079fe1b4469a0ab9ee20563f37ff3d44b",
+        "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
+      ],
+      "noticePreparation": []
+    },
+    {
+      "name": "windows-result",
+      "version": "0.3.4",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "crateSha256": "56f42bd332cc6c8eac5af113fc0c1fd6a8fd2aa08a0119358686e5160d0586c6",
+      "archiveUrl": "https://static.crates.io/crates/windows-result/windows-result-0.3.4.crate",
+      "manifestSha256": "7f11a5d3c8caba1677f50b00571a44969b1099744c16199baad15c1a15cd2ad1",
+      "originalManifestSha256": "79f292fe17efb2a1433b8286b76459c842098c02f3bd31055861a54d5e740bc5",
+      "source": "crates.io",
+      "repository": "https://github.com/microsoft/windows-rs",
+      "textRefs": [
+        "c16f8dcf1a368b83be78d826ea23de4079fe1b4469a0ab9ee20563f37ff3d44b",
+        "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
+      ],
+      "noticePreparation": []
+    },
+    {
+      "name": "windows-strings",
+      "version": "0.4.2",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "crateSha256": "56e6c93f3a0c3b36176cb1327a4958a0353d5d166c2a35cb268ace15e91d3b57",
+      "archiveUrl": "https://static.crates.io/crates/windows-strings/windows-strings-0.4.2.crate",
+      "manifestSha256": "22709084fde58a11249eeae779b2708377a49958b65180020d712a8c5aafb5a9",
+      "originalManifestSha256": "5664ca5271c221491856640220beebabd58f41e67e3accf55fc8b582b8b02cf4",
+      "source": "crates.io",
+      "repository": "https://github.com/microsoft/windows-rs",
+      "textRefs": [
+        "c16f8dcf1a368b83be78d826ea23de4079fe1b4469a0ab9ee20563f37ff3d44b",
+        "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
+      ],
+      "noticePreparation": []
+    },
+    {
+      "name": "windows-threading",
+      "version": "0.1.0",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "crateSha256": "b66463ad2e0ea3bbf808b7f1d371311c80e115c0b71d60efc142cafbcfb057a6",
+      "archiveUrl": "https://static.crates.io/crates/windows-threading/windows-threading-0.1.0.crate",
+      "manifestSha256": "20f4a164e438e155021852a497cda931620ed24c420b149d26c3d57154216ada",
+      "originalManifestSha256": "e32e486bad1021f4b1202637c4dfe0273a4f76cd4d99c288a36d5112bdf56850",
+      "source": "crates.io",
+      "repository": "https://github.com/microsoft/windows-rs",
+      "textRefs": [
+        "c16f8dcf1a368b83be78d826ea23de4079fe1b4469a0ab9ee20563f37ff3d44b",
+        "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
+      ],
+      "noticePreparation": []
+    }
+  ],
+  "texts": [
+    {
+      "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594",
+      "byteOffset": 9661,
+      "byteLength": 10174,
+      "encoding": "UTF-8",
+      "kinds": [
+        "license_or_notice_file"
+      ],
+      "origins": [
+        {
+          "kind": "pinned_crate_file",
+          "package": "tauri-winrt-notification",
+          "version": "0.7.3",
+          "crateRelativePath": "LICENSE_APACHE-2.0",
+          "crateSha256": "9ed071c670382e85fc2f48ae706492d8c338f4f89bf72520d32f8abfe880aade"
+        }
+      ]
+    },
+    {
+      "sha256": "1299b4d9d15e9d67e4ac0e7d47ae9404887ca3cf0764aadeec7588d5a6e8e0cc",
+      "byteOffset": 20005,
+      "byteLength": 1070,
+      "encoding": "UTF-8",
+      "kinds": [
+        "original_upstream_license_file"
+      ],
+      "origins": [
+        {
+          "kind": "pinned_repository_file",
+          "package": "mac-notification-sys",
+          "version": "0.6.15",
+          "repository": "https://github.com/h4llow3En/mac-notification-sys",
+          "commit": "deb559683962d314a7693478476bf8d052efa84e",
+          "path": "LICENSE-MIT",
+          "gitBlobSha1": "a6a98a84ac3f77aa01837efa8f4ddf70fa8f5b62",
+          "url": "https://raw.githubusercontent.com/h4llow3En/mac-notification-sys/deb559683962d314a7693478476bf8d052efa84e/LICENSE-MIT",
+          "crateSha256": "fd604973958ddcc11b561193c0fb96ba146506ef2f231ef2e7c35fd2cbc9beca"
+        }
+      ]
+    },
+    {
+      "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+      "byteOffset": 21584,
+      "byteLength": 1023,
+      "encoding": "UTF-8",
+      "kinds": [
+        "license_or_notice_file"
+      ],
+      "origins": [
+        {
+          "kind": "pinned_crate_file",
+          "package": "async-channel",
+          "version": "2.5.0",
+          "crateRelativePath": "LICENSE-MIT",
+          "crateSha256": "924ed96dd52d1b75e9c1a3e6275715fd320f5f9439fb5a4a11fa51f4221158d2"
+        },
+        {
+          "kind": "pinned_crate_file",
+          "package": "async-executor",
+          "version": "1.14.0",
+          "crateRelativePath": "LICENSE-MIT",
+          "crateSha256": "c96bf972d85afc50bf5ab8fe2d54d1586b4e0b46c97c50a0c9e71e2f7bcd812a"
+        },
+        {
+          "kind": "pinned_crate_file",
+          "package": "async-io",
+          "version": "2.6.0",
+          "crateRelativePath": "LICENSE-MIT",
+          "crateSha256": "456b8a8feb6f42d237746d4b3e9a178494627745c3c56c6ea55d92ba50d026fc"
+        },
+        {
+          "kind": "pinned_crate_file",
+          "package": "async-lock",
+          "version": "3.4.2",
+          "crateRelativePath": "LICENSE-MIT",
+          "crateSha256": "290f7f2596bd5b78a9fec8088ccd89180d7f9f55b94b0576823bbbdc72ee8311"
+        },
+        {
+          "kind": "pinned_crate_file",
+          "package": "async-process",
+          "version": "2.5.0",
+          "crateRelativePath": "LICENSE-MIT",
+          "crateSha256": "fc50921ec0055cdd8a16de48773bfeec5c972598674347252c0399676be7da75"
+        },
+        {
+          "kind": "pinned_crate_file",
+          "package": "async-signal",
+          "version": "0.2.14",
+          "crateRelativePath": "LICENSE-MIT",
+          "crateSha256": "52b5aaafa020cf5053a01f2a60e8ff5dccf550f0f77ec54a4e47285ac2bab485"
+        },
+        {
+          "kind": "pinned_crate_file",
+          "package": "async-task",
+          "version": "4.7.1",
+          "crateRelativePath": "LICENSE-MIT",
+          "crateSha256": "8b75356056920673b02621b35afd0f7dda9306d03c79a30f5c56c44cf256e3de"
+        },
+        {
+          "kind": "pinned_crate_file",
+          "package": "blocking",
+          "version": "1.7.0",
+          "crateRelativePath": "LICENSE-MIT",
+          "crateSha256": "a70e4329df6cb94385eed412ec92375c3cdd8a6e502493d1229b6414e4036dfa"
+        },
+        {
+          "kind": "pinned_crate_file",
+          "package": "concurrent-queue",
+          "version": "2.5.0",
+          "crateRelativePath": "LICENSE-MIT",
+          "crateSha256": "4ca0197aee26d1ae37445ee532fefce43251d24cc7c166799f4d46817f1d3973"
+        },
+        {
+          "kind": "pinned_crate_file",
+          "package": "hermit-abi",
+          "version": "0.5.3",
+          "crateRelativePath": "LICENSE-MIT",
+          "crateSha256": "e17592d60ebacc7d5e169f4663c5f84f9161cc90328abcfe8456f41e4dfcb284"
+        },
+        {
+          "kind": "pinned_crate_file",
+          "package": "piper",
+          "version": "0.2.5",
+          "crateRelativePath": "LICENSE-MIT",
+          "crateSha256": "c835479a4443ded371d6c535cbfd8d31ad92c5d23ae9770a61bc155e4992a3c1"
+        },
+        {
+          "kind": "pinned_crate_file",
+          "package": "polling",
+          "version": "3.11.0",
+          "crateRelativePath": "LICENSE-MIT",
+          "crateSha256": "5d0e4f59085d47d8241c88ead0f274e8a0cb551f3625263c05eb8dd897c34218"
+        }
+      ]
+    },
+    {
+      "sha256": "9dd42ea92cff2ede5cd477cbfcce051b2d0115c0ac7f368ee88cb545055dff1d",
+      "byteOffset": 22780,
+      "byteLength": 1090,
+      "encoding": "UTF-8",
+      "kinds": [
+        "license_or_notice_file"
+      ],
+      "origins": [
+        {
+          "kind": "pinned_crate_file",
+          "package": "tauri-winrt-notification",
+          "version": "0.7.3",
+          "crateRelativePath": "LICENSE_MIT",
+          "crateSha256": "9ed071c670382e85fc2f48ae706492d8c338f4f89bf72520d32f8abfe880aade"
+        }
+      ]
+    },
+    {
+      "sha256": "a212bb763e1d415210f9d345a4c0bb896571b997f3599a92de16281acafc989b",
+      "byteOffset": 24044,
+      "byteLength": 873,
+      "encoding": "UTF-8",
+      "kinds": [
+        "license_or_notice_file"
+      ],
+      "origins": [
+        {
+          "kind": "pinned_crate_file",
+          "package": "tauri-winrt-notification",
+          "version": "0.7.3",
+          "crateRelativePath": "LICENSE.spdx",
+          "crateSha256": "9ed071c670382e85fc2f48ae706492d8c338f4f89bf72520d32f8abfe880aade"
+        }
+      ]
+    },
+    {
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+      "byteOffset": 25462,
+      "byteLength": 10847,
+      "encoding": "UTF-8",
+      "kinds": [
+        "license_or_notice_file"
+      ],
+      "origins": [
+        {
+          "kind": "pinned_crate_file",
+          "package": "async-channel",
+          "version": "2.5.0",
+          "crateRelativePath": "LICENSE-APACHE",
+          "crateSha256": "924ed96dd52d1b75e9c1a3e6275715fd320f5f9439fb5a4a11fa51f4221158d2"
+        },
+        {
+          "kind": "pinned_crate_file",
+          "package": "async-executor",
+          "version": "1.14.0",
+          "crateRelativePath": "LICENSE-APACHE",
+          "crateSha256": "c96bf972d85afc50bf5ab8fe2d54d1586b4e0b46c97c50a0c9e71e2f7bcd812a"
+        },
+        {
+          "kind": "pinned_crate_file",
+          "package": "async-io",
+          "version": "2.6.0",
+          "crateRelativePath": "LICENSE-APACHE",
+          "crateSha256": "456b8a8feb6f42d237746d4b3e9a178494627745c3c56c6ea55d92ba50d026fc"
+        },
+        {
+          "kind": "pinned_crate_file",
+          "package": "async-lock",
+          "version": "3.4.2",
+          "crateRelativePath": "LICENSE-APACHE",
+          "crateSha256": "290f7f2596bd5b78a9fec8088ccd89180d7f9f55b94b0576823bbbdc72ee8311"
+        },
+        {
+          "kind": "pinned_crate_file",
+          "package": "async-process",
+          "version": "2.5.0",
+          "crateRelativePath": "LICENSE-APACHE",
+          "crateSha256": "fc50921ec0055cdd8a16de48773bfeec5c972598674347252c0399676be7da75"
+        },
+        {
+          "kind": "pinned_crate_file",
+          "package": "async-signal",
+          "version": "0.2.14",
+          "crateRelativePath": "LICENSE-APACHE",
+          "crateSha256": "52b5aaafa020cf5053a01f2a60e8ff5dccf550f0f77ec54a4e47285ac2bab485"
+        },
+        {
+          "kind": "pinned_crate_file",
+          "package": "async-task",
+          "version": "4.7.1",
+          "crateRelativePath": "LICENSE-APACHE",
+          "crateSha256": "8b75356056920673b02621b35afd0f7dda9306d03c79a30f5c56c44cf256e3de"
+        },
+        {
+          "kind": "pinned_crate_file",
+          "package": "blocking",
+          "version": "1.7.0",
+          "crateRelativePath": "LICENSE-APACHE",
+          "crateSha256": "a70e4329df6cb94385eed412ec92375c3cdd8a6e502493d1229b6414e4036dfa"
+        },
+        {
+          "kind": "pinned_crate_file",
+          "package": "concurrent-queue",
+          "version": "2.5.0",
+          "crateRelativePath": "LICENSE-APACHE",
+          "crateSha256": "4ca0197aee26d1ae37445ee532fefce43251d24cc7c166799f4d46817f1d3973"
+        },
+        {
+          "kind": "pinned_crate_file",
+          "package": "hermit-abi",
+          "version": "0.5.3",
+          "crateRelativePath": "LICENSE-APACHE",
+          "crateSha256": "e17592d60ebacc7d5e169f4663c5f84f9161cc90328abcfe8456f41e4dfcb284"
+        },
+        {
+          "kind": "pinned_crate_file",
+          "package": "piper",
+          "version": "0.2.5",
+          "crateRelativePath": "LICENSE-APACHE",
+          "crateSha256": "c835479a4443ded371d6c535cbfd8d31ad92c5d23ae9770a61bc155e4992a3c1"
+        },
+        {
+          "kind": "pinned_crate_file",
+          "package": "polling",
+          "version": "3.11.0",
+          "crateRelativePath": "LICENSE-APACHE",
+          "crateSha256": "5d0e4f59085d47d8241c88ead0f274e8a0cb551f3625263c05eb8dd897c34218"
+        }
+      ]
+    },
+    {
+      "sha256": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1",
+      "byteOffset": 36518,
+      "byteLength": 11357,
+      "encoding": "UTF-8",
+      "kinds": [
+        "license_or_notice_file",
+        "original_upstream_license_file"
+      ],
+      "origins": [
+        {
+          "kind": "pinned_repository_file",
+          "package": "mac-notification-sys",
+          "version": "0.6.15",
+          "repository": "https://github.com/h4llow3En/mac-notification-sys",
+          "commit": "deb559683962d314a7693478476bf8d052efa84e",
+          "path": "LICENSE-Apache",
+          "gitBlobSha1": "8dada3edaf50dbc082c9a125058f25def75e625a",
+          "url": "https://raw.githubusercontent.com/h4llow3En/mac-notification-sys/deb559683962d314a7693478476bf8d052efa84e/LICENSE-Apache",
+          "crateSha256": "fd604973958ddcc11b561193c0fb96ba146506ef2f231ef2e7c35fd2cbc9beca"
+        },
+        {
+          "kind": "pinned_crate_file",
+          "package": "notify-rust",
+          "version": "4.18.0",
+          "crateRelativePath": "LICENSE-Apache",
+          "crateSha256": "c5b4c1b4f2aa9f25f63a7a49d3dd0ed567b3670da15330a66b29434be899b891"
+        }
+      ]
+    },
+    {
+      "sha256": "c16f8dcf1a368b83be78d826ea23de4079fe1b4469a0ab9ee20563f37ff3d44b",
+      "byteOffset": 48383,
+      "byteLength": 11351,
+      "encoding": "UTF-8",
+      "kinds": [
+        "license_or_notice_file"
+      ],
+      "origins": [
+        {
+          "kind": "pinned_crate_file",
+          "package": "windows",
+          "version": "0.61.3",
+          "crateRelativePath": "license-apache-2.0",
+          "crateSha256": "9babd3a767a4c1aef6900409f85f5d53ce2544ccdfaa86dad48c91782c6d6893"
+        },
+        {
+          "kind": "pinned_crate_file",
+          "package": "windows-collections",
+          "version": "0.2.0",
+          "crateRelativePath": "license-apache-2.0",
+          "crateSha256": "3beeceb5e5cfd9eb1d76b381630e82c4241ccd0d27f1a39ed41b2760b255c5e8"
+        },
+        {
+          "kind": "pinned_crate_file",
+          "package": "windows-core",
+          "version": "0.61.2",
+          "crateRelativePath": "license-apache-2.0",
+          "crateSha256": "c0fdd3ddb90610c7638aa2b3a3ab2904fb9e5cdbecc643ddb3647212781c4ae3"
+        },
+        {
+          "kind": "pinned_crate_file",
+          "package": "windows-future",
+          "version": "0.2.1",
+          "crateRelativePath": "license-apache-2.0",
+          "crateSha256": "fc6a41e98427b19fe4b73c550f060b59fa592d7d686537eebf9385621bfbad8e"
+        },
+        {
+          "kind": "pinned_crate_file",
+          "package": "windows-link",
+          "version": "0.1.3",
+          "crateRelativePath": "license-apache-2.0",
+          "crateSha256": "5e6ad25900d524eaabdbbb96d20b4311e1e7ae1699af4fb28c17ae66c80d798a"
+        },
+        {
+          "kind": "pinned_crate_file",
+          "package": "windows-numerics",
+          "version": "0.2.0",
+          "crateRelativePath": "license-apache-2.0",
+          "crateSha256": "9150af68066c4c5c07ddc0ce30421554771e528bde427614c61038bc2c92c2b1"
+        },
+        {
+          "kind": "pinned_crate_file",
+          "package": "windows-result",
+          "version": "0.3.4",
+          "crateRelativePath": "license-apache-2.0",
+          "crateSha256": "56f42bd332cc6c8eac5af113fc0c1fd6a8fd2aa08a0119358686e5160d0586c6"
+        },
+        {
+          "kind": "pinned_crate_file",
+          "package": "windows-strings",
+          "version": "0.4.2",
+          "crateRelativePath": "license-apache-2.0",
+          "crateSha256": "56e6c93f3a0c3b36176cb1327a4958a0353d5d166c2a35cb268ace15e91d3b57"
+        },
+        {
+          "kind": "pinned_crate_file",
+          "package": "windows-threading",
+          "version": "0.1.0",
+          "crateRelativePath": "license-apache-2.0",
+          "crateSha256": "b66463ad2e0ea3bbf808b7f1d371311c80e115c0b71d60efc142cafbcfb057a6"
+        }
+      ]
+    },
+    {
+      "sha256": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383",
+      "byteOffset": 60179,
+      "byteLength": 1141,
+      "encoding": "UTF-8",
+      "kinds": [
+        "license_or_notice_file"
+      ],
+      "origins": [
+        {
+          "kind": "pinned_crate_file",
+          "package": "windows",
+          "version": "0.61.3",
+          "crateRelativePath": "license-mit",
+          "crateSha256": "9babd3a767a4c1aef6900409f85f5d53ce2544ccdfaa86dad48c91782c6d6893"
+        },
+        {
+          "kind": "pinned_crate_file",
+          "package": "windows-collections",
+          "version": "0.2.0",
+          "crateRelativePath": "license-mit",
+          "crateSha256": "3beeceb5e5cfd9eb1d76b381630e82c4241ccd0d27f1a39ed41b2760b255c5e8"
+        },
+        {
+          "kind": "pinned_crate_file",
+          "package": "windows-core",
+          "version": "0.61.2",
+          "crateRelativePath": "license-mit",
+          "crateSha256": "c0fdd3ddb90610c7638aa2b3a3ab2904fb9e5cdbecc643ddb3647212781c4ae3"
+        },
+        {
+          "kind": "pinned_crate_file",
+          "package": "windows-future",
+          "version": "0.2.1",
+          "crateRelativePath": "license-mit",
+          "crateSha256": "fc6a41e98427b19fe4b73c550f060b59fa592d7d686537eebf9385621bfbad8e"
+        },
+        {
+          "kind": "pinned_crate_file",
+          "package": "windows-link",
+          "version": "0.1.3",
+          "crateRelativePath": "license-mit",
+          "crateSha256": "5e6ad25900d524eaabdbbb96d20b4311e1e7ae1699af4fb28c17ae66c80d798a"
+        },
+        {
+          "kind": "pinned_crate_file",
+          "package": "windows-numerics",
+          "version": "0.2.0",
+          "crateRelativePath": "license-mit",
+          "crateSha256": "9150af68066c4c5c07ddc0ce30421554771e528bde427614c61038bc2c92c2b1"
+        },
+        {
+          "kind": "pinned_crate_file",
+          "package": "windows-result",
+          "version": "0.3.4",
+          "crateRelativePath": "license-mit",
+          "crateSha256": "56f42bd332cc6c8eac5af113fc0c1fd6a8fd2aa08a0119358686e5160d0586c6"
+        },
+        {
+          "kind": "pinned_crate_file",
+          "package": "windows-strings",
+          "version": "0.4.2",
+          "crateRelativePath": "license-mit",
+          "crateSha256": "56e6c93f3a0c3b36176cb1327a4958a0353d5d166c2a35cb268ace15e91d3b57"
+        },
+        {
+          "kind": "pinned_crate_file",
+          "package": "windows-threading",
+          "version": "0.1.0",
+          "crateRelativePath": "license-mit",
+          "crateSha256": "b66463ad2e0ea3bbf808b7f1d371311c80e115c0b71d60efc142cafbcfb057a6"
+        }
+      ]
+    },
+    {
+      "sha256": "d848c165548bd3f33419b71c3c3bb7cacec620d93383483393410688cba68431",
+      "byteOffset": 61481,
+      "byteLength": 1072,
+      "encoding": "UTF-8",
+      "kinds": [
+        "license_or_notice_file"
+      ],
+      "origins": [
+        {
+          "kind": "pinned_crate_file",
+          "package": "notify-rust",
+          "version": "4.18.0",
+          "crateRelativePath": "LICENSE-MIT",
+          "crateSha256": "c5b4c1b4f2aa9f25f63a7a49d3dd0ed567b3670da15330a66b29434be899b891"
+        }
+      ]
+    }
+  ],
+  "unresolvedPackages": []
+}

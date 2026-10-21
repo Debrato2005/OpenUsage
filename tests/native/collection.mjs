@@ -16,10 +16,10 @@ const verifier = resolve(process.env.OPENUSAGE_LOGIN_VERIFIER);
 const output = resolve(process.env.OPENUSAGE_NATIVE_EVIDENCE ?? join('/tmp', `openusage-collection-${randomUUID()}`));
 const coreFixture = 'crates/openusage-codex/tests/fixtures/synthetic-collection-provider.py';
 const fixtureDigest = '53a853b737ceca311649e9f1d9ebd1341154a5f782efd8e915f7f834c819a6dc';
-const verifierDigest = '50505102ebf5239bc5dd05182e7827dc5746c5c38611900729d4bd02f000079c';
+const verifierDigest = 'ef6cbaeba962d3b22d8b5ecc492104f58648cd86cabc1f631a53e05221c9126b';
 const passphrase = 'OpenUsage synthetic combined collection workspace 2026';
 const hash = async path => createHash('sha256').update(await readFile(path)).digest('hex');
-const evidence = { requirement: 'NATIVE-COMBINED-COLLECTION-001', result: 'failed', startedAt: new Date().toISOString(), scope: 'Synthetic native combined collection: primary GUI success, cancellation, account reassociation and restart; typed IPC negative boundaries and capability isolation; independent comparisons of all columns in seventeen SQLCipher tables using encrypted derived copies. No real provider account, scheduler eligibility, verified identity, live OAuth, or platform qualification.', steps: [], cases: [], screenshots: [], oracles: [], closes: [] };
+const evidence = { requirement: 'NATIVE-COMBINED-COLLECTION-001', result: 'failed', startedAt: new Date().toISOString(), scope: 'Synthetic native combined collection: primary GUI success, cancellation, account reassociation and restart; typed IPC negative boundaries and capability isolation; independent comparisons of all columns in twenty-one SQLCipher tables using encrypted derived copies. No real provider account, scheduler eligibility, verified identity, live OAuth, or platform qualification.', steps: [], cases: [], screenshots: [], oracles: [], closes: [] };
 let fixture, driver, workspace, executable, approvalId, sequence = 0;
 const profiles = [];
 const active = new Map();
@@ -44,10 +44,10 @@ async function oracle(label) {
     try { await copyFile(`${fixture.database}-wal`, `${database}-wal`); await chmod(`${database}-wal`, 0o600); } catch (error) { if (error.code !== 'ENOENT') throw error; }
     const report = JSON.parse(execFileSync(verifier, ['database', database, join(workspace, 'database-key.v1'), '--profile-state'], { input: JSON.stringify({ passphrase }), env: fixture.environment, encoding: 'utf8', timeout: 60000, maxBuffer: 16 * 1024 * 1024 }));
     for (const key of ['verified', 'readOnly', 'encryptedPagesAuthenticated', 'originalProtectedKeyUsed', 'inputUnchanged', 'keyEnvelopeUnchanged', 'walRecordsUnchanged']) assert.equal(report[key], true, key);
-    // This frozen oracle reports the actual schema; this caller requires exactly schema 5.
-    assert.equal(report.schemaVersion, 5); assert.equal(report.plaintextDiskStaging, false); assert.equal(report.state.monitoring, 'stopped'); assert.equal(Object.keys(report.state.tables).length, 17);
+    // This frozen oracle reports the actual schema; this caller requires exactly schema 6.
+    assert.equal(report.schemaVersion, 6); assert.equal(report.plaintextDiskStaging, false); assert.equal(report.state.monitoring, 'stopped'); assert.equal(Object.keys(report.state.tables).length, 21);
     assert.deepEqual(await liveHashes(), before);
-    evidence.oracles.push({ label, expectedSchemaVersion: 5, schemaExpectationEnforcedByCaller: true, actualSchemaVersion: report.schemaVersion, derivedEncryptedCopy: true, plaintextDiskStaging: false, tableHashes: Object.fromEntries(Object.entries(report.state.tables).map(([name, values]) => [name, { rows: values.length, sha256: createHash('sha256').update(JSON.stringify(values)).digest('hex') }])), verification: { ...report, state: undefined } });
+    evidence.oracles.push({ label, expectedSchemaVersion: 6, schemaExpectationEnforcedByCaller: true, actualSchemaVersion: report.schemaVersion, derivedEncryptedCopy: true, plaintextDiskStaging: false, tableHashes: Object.fromEntries(Object.entries(report.state.tables).map(([name, values]) => [name, { rows: values.length, sha256: createHash('sha256').update(JSON.stringify(values)).digest('hex') }])), verification: { ...report, state: undefined } });
     return report.state;
   } finally { await rm(copy, { recursive: true, force: true }); }
 }
@@ -73,8 +73,8 @@ async function open(setup = false) {
   driver = new NativeDriver(application, fixture.environment, join(output, `driver-${++sequence}.log`)); await driver.start();
   await waitFor(async () => driver.execute('const a=document.querySelector("#workspace-passphrase"),b=document.querySelector("#workspace-confirmation");return Boolean(a&&!a.disabled&&(!arguments[0]||b&&!b.disabled));', [setup]), 'native unlock fields');
   await driver.type('#workspace-passphrase', passphrase); if (setup) await driver.type('#workspace-confirmation', passphrase); await driver.click('.unlock-form button[type=submit]');
-  await waitFor(async () => (await driver.invoke('bootstrap')).value?.storage === 'ready', 'unlocked schema-5 collection workspace');
-  assert.equal((await call('bootstrap')).schemaVersion, 5);
+  await waitFor(async () => (await driver.invoke('bootstrap')).value?.storage === 'ready', 'unlocked schema-6 collection workspace');
+  assert.equal((await call('bootstrap')).schemaVersion, 6);
 }
 async function ownedDesktopPid() {
   const queue = [driver.child.pid]; let pid;
@@ -131,7 +131,7 @@ async function capture(name, selector, width = 1280) { for (let attempt = 0; att
 await mkdir(output, { recursive: true, mode: 0o700 });
 process.once('exit', () => { driver?.kill('SIGKILL'); stopGroup(fixture?.bus, 'SIGKILL'); });
 try {
-  evidence.application = { path: application, sha256: await hash(application) }; assert.equal(await hash(verifier), verifierDigest); evidence.verifier = { path: verifier, sha256: verifierDigest, reusedReadOnlyQueryLogic: true, expectedSchemaVersion: 5, schemaExpectationEnforcedByCaller: true };
+  evidence.application = { path: application, sha256: await hash(application) }; assert.equal(await hash(verifier), verifierDigest); evidence.verifier = { path: verifier, sha256: verifierDigest, reusedReadOnlyQueryLogic: true, expectedSchemaVersion: 6, schemaExpectationEnforcedByCaller: true };
   evidence.sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repository, encoding: 'utf8' }).trim();
   evidence.sourceHashes = {}; const sources = execFileSync('rg', ['--files', 'apps/desktop/src', 'apps/desktop/src-tauri/src', 'crates/openusage-codex/src', 'crates/openusage-storage/src'], { cwd: repository, encoding: 'utf8' }).trim().split('\n'); for (const path of [...sources, coreFixture, 'Cargo.lock']) evidence.sourceHashes[path] = await hash(join(repository, path));
   evidence.harnessHashes = {}; for (const path of ['collection.mjs', 'webdriver.mjs', 'private-fixture.mjs', 'x11-close.py', 'x11-reverse-tab.py']) evidence.harnessHashes[path] = await hash(join(harness, path));
@@ -159,7 +159,7 @@ try {
   const beforeRestart = await oracle('seeded selected-profile data before genuine restart');
   await closeNormally(); await open();
   await refused('begin_profile_collection_read', { profileId: first.id, approvalId }, 'provider_executable_not_approved');
-  validatePair(await cached(first), first); assert.deepEqual(metrics(await cached(first)), metrics(initial)); assert.deepEqual(await oracle('genuine restart preserves all seventeen tables without executable approval'), beforeRestart);
+  validatePair(await cached(first), first); assert.deepEqual(metrics(await cached(first)), metrics(initial)); assert.deepEqual(await oracle('genuine restart preserves all twenty-one tables without executable approval'), beforeRestart);
   await driver.openProfileReadings(first.id); await capture('collection-saved-after-restart-no-approval.png', `[data-profile-id="${first.id}"]`);
   await approveGui(first);
   // Establish fresh anchors in this process; later unsupported reads must retain them.

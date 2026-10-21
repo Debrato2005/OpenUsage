@@ -12,10 +12,22 @@ pub(crate) const ALERT_COLUMNS: &str = "id,event_key,profile_id,binding_id,verif
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AlertDeliveryState {
     Recorded,
+    Queued,
+    Uncertain,
+    Submitted,
+    Failed,
+    Suppressed,
 }
 impl AlertDeliveryState {
     pub fn as_str(self) -> &'static str {
-        "recorded"
+        match self {
+            Self::Recorded => "recorded",
+            Self::Queued => "queued",
+            Self::Uncertain => "uncertain",
+            Self::Submitted => "submitted",
+            Self::Failed => "failed",
+            Self::Suppressed => "suppressed",
+        }
     }
 }
 #[derive(Clone, PartialEq, Eq)]
@@ -45,7 +57,7 @@ pub struct AlertHistory {
 impl Storage {
     /// Return the newest 100 events, including archived profiles, without provider execution.
     pub fn alert_history(&self) -> Result<AlertHistory, StorageError> {
-        let mut statement = self.connection.prepare("SELECT e.id,e.profile_id,p.name,e.limit_id,e.window_role,e.window_duration_mins,e.generation_run_id,e.evidence_at_utc,e.source_kind,e.delivery_state FROM alert_events e JOIN profiles p ON p.id=e.profile_id ORDER BY e.evidence_at_utc DESC,e.id DESC LIMIT 101").map_err(|_|StorageError::ReadFailed)?;
+        let mut statement = self.connection.prepare("SELECT e.id,e.profile_id,p.name,e.limit_id,e.window_role,e.window_duration_mins,e.generation_run_id,e.evidence_at_utc,e.source_kind,COALESCE(o.state,e.delivery_state) FROM alert_events e JOIN profiles p ON p.id=e.profile_id LEFT JOIN reset_notification_outbox o ON o.event_id=e.id ORDER BY e.evidence_at_utc DESC,e.id DESC LIMIT 101").map_err(|_|StorageError::ReadFailed)?;
         let mut rows = statement.query([]).map_err(|_| StorageError::ReadFailed)?;
         let mut events = Vec::new();
         while let Some(row) = rows.next().map_err(|_| StorageError::ReadFailed)? {
@@ -69,10 +81,10 @@ impl Storage {
                         "test_fixture" => ActivitySourceKind::TestFixture,
                         _ => return Err(rusqlite::Error::InvalidQuery),
                     },
-                    delivery_state: match row.get::<_, String>(9)?.as_str() {
-                        "recorded" => AlertDeliveryState::Recorded,
-                        _ => return Err(rusqlite::Error::InvalidQuery),
-                    },
+                    delivery_state: crate::reset_notifications::delivery_state(
+                        &row.get::<_, String>(9)?,
+                    )
+                    .ok_or(rusqlite::Error::InvalidQuery)?,
                 })
             })()
             .map_err(|_| StorageError::ReadFailed)?;
@@ -168,7 +180,15 @@ pub(crate) fn record(
             duration,
             &packet.commit.collection_run_id,
         );
-        connection.execute("INSERT INTO alert_events VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,'recorded') ON CONFLICT(event_key) DO NOTHING",params![id,key,packet.binding.profile_id,packet.binding.binding_id,identity,assessment.limit_id,assessment.window_role.as_str(),duration as i64,packet.commit.collection_run_id,packet.commit.observed_at_utc,packet.source_kind.as_str()]).map_err(write_error)?;
+        let inserted=connection.execute("INSERT INTO alert_events VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,'recorded') ON CONFLICT(event_key) DO NOTHING",params![id,key,packet.binding.profile_id,packet.binding.binding_id,identity,assessment.limit_id,assessment.window_role.as_str(),duration as i64,packet.commit.collection_run_id,packet.commit.observed_at_utc,packet.source_kind.as_str()]).map_err(write_error)?;
+        if inserted == 1 {
+            crate::reset_notifications::enqueue(
+                connection,
+                &id,
+                &packet.binding.profile_id,
+                packet.source_kind.as_str(),
+            )?;
+        }
     }
     Ok(())
 }
