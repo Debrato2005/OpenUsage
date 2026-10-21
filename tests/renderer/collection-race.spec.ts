@@ -341,7 +341,14 @@ test('status failure retains saved readings without claiming monitoring stopped'
 
 
 test('a pre-restore status reply cannot restart or repaint the new workspace monitoring epoch', async ({ page }) => {
-  await open(page); await page.getByRole('button', { name: 'Manage profile', exact: true }).click(); await eligibleMonitoring(page);
+  await open(page);
+  await navigate(page, 'overview');
+  const account = page.locator(`[data-overview-account="${profileId}"]`);
+  await expect(account.locator('[data-overview-account-quota]')).toContainText('75% left (derived)');
+  await expect(account.locator('[data-overview-account-observed] time')).toHaveAttribute('datetime', observedAtUtc);
+  await expect(page.locator('[data-overview-lifetime]')).toHaveText('9007199254740993');
+  await navigate(page, 'accounts');
+  await page.getByRole('button', { name: 'Manage profile', exact: true }).click(); await eligibleMonitoring(page);
   await page.locator(`[data-monitoring-start="${profileId}"]`).click();
   await page.evaluate(() => { (window as unknown as FixtureWindow).collectionFixture.deferMonitoring = true; });
   await expect.poll(() => page.evaluate(() => (window as unknown as FixtureWindow).collectionFixture.pendingMonitoring.length)).toBe(1);
@@ -352,6 +359,7 @@ test('a pre-restore status reply cannot restart or repaint the new workspace mon
   await page.locator('#restore-preview-password').fill('Synthetic backup password');
   await page.locator('.restore-preview-form button[type=submit]').click();
   await page.getByLabel('I approve replacing my current application records.').check();
+  await page.evaluate(() => { (window as unknown as FixtureWindow).collectionFixture.failLoads = true; });
   await page.getByRole('button', { name: 'Restore records', exact: true }).click();
   await expect(page.locator('.restore-result')).toBeVisible();
   await expect(page.locator('[data-global-monitoring]')).toHaveText('Monitoring stopped');
@@ -359,4 +367,11 @@ test('a pre-restore status reply cannot restart or repaint the new workspace mon
   await expect(page.locator('[data-global-monitoring]')).toHaveText('Monitoring stopped');
   await navigate(page, 'accounts'); await openReadings(page, profileId); await page.getByRole('button', { name: 'Manage profile', exact: true }).click();
   await expect(page.locator(`[data-monitoring-start="${profileId}"]`)).toBeDisabled();
+  await navigate(page, 'overview');
+  await expect(page.locator('[data-overview-quota] .overview-error')).toContainText('Saved quotas could not be loaded.');
+  await expect(account.locator('[data-overview-account-quota]')).toHaveText('Not available');
+  await expect(account.locator('[data-overview-account-observed]')).toContainText('Not available');
+  await expect(account.locator('[data-overview-account-observed] time')).toHaveCount(0);
+  await expect(page.locator('[data-overview-lifetime]')).toHaveText('Not available');
+  await expect(page.locator('[data-global-monitoring]')).toHaveText('Monitoring stopped');
 });

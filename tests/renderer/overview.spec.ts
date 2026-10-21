@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
-import type { SavedProfileActivity, SavedProfileQuota } from '../../apps/desktop/src/contracts';
-import { navigate } from './navigation';
+import type { ProfileRecord, SavedProfileActivity, SavedProfileQuota } from '../../apps/desktop/src/contracts';
+import { navigate, openOptions, openReadings } from './navigation';
 
 // Synthetic renderer fixtures. Native provider processes and encrypted storage are separate acceptance checks.
 const first = '11111111-1111-4111-8111-111111111111';
@@ -14,18 +14,18 @@ function activity(profileId: string, lifetimeTokens: string): SavedProfileActivi
     summary: { lifetimeTokens, peakDailyTokens: '9223372036854775807', currentStreakDays: '0', longestStreakDays: null, longestRunningTurnSec: null },
     dailyState: 'unavailable', dailyUsageBuckets: [], dailyTruncated: false, dailyChart: { maxTokens: null, bars: [] } };
 }
-function quota(profileId: string): SavedProfileQuota {
+function quota(profileId: string, remaining = 0): SavedProfileQuota {
   return { profileId, bindingId: '33333333-3333-4333-8333-333333333333', collectionRunId: '55555555-5555-4555-8555-555555555555',
     providerVersion: '0.163.0', sourceKind: 'test_fixture', observedAtUtc, identityConfidence: 'provisional', verifiedIdentityKey: null,
     monitoring: 'stopped', accepted: true, coverage: 'unknown', scope: 'account_quota_with_unknown_application_scope', freshness: 'unknown',
     availableResetCredits: '0', resetCreditDetails: null, limits: [{ limitId: 'codex', limitName: 'Synthetic account limit', reachedType: null, monthlyCreditLimit: null, spendControlReached: null,
-      primary: { usedPercent: 100, derivedRemainingPercent: 0, windowDurationMins: 300, resetsAtUnix: null, label: 'Five-hour', resetState: 'expected' }, secondary: null }] };
+      primary: { usedPercent: 100 - remaining, derivedRemainingPercent: remaining, windowDurationMins: 300, resetsAtUnix: null, label: 'Five-hour', resetState: 'expected' }, secondary: null }] };
 }
 type Pending = { profileId: string; kind: string; resolve: (value: unknown) => void };
-type Fixture = { calls: string[]; deferFirst: boolean; mismatchFirst: boolean; pending: Pending[] };
+type Fixture = { calls: string[]; deferFirst: boolean; mismatchFirst: boolean; pending: Pending[]; profiles: ProfileRecord[]; quotas: Record<string, SavedProfileQuota | null>; rejectQuota: string[]; mismatchQuota: string[]; deferQuota: string[] };
 type FixtureWindow = Window & { overviewFixture: Fixture };
 
-async function open(page: Page, options: { empty?: boolean; deferFirst?: boolean; chart?: boolean } = {}) {
+async function open(page: Page, options: { empty?: boolean; deferFirst?: boolean; chart?: boolean; count?: number; freshQuotas?: boolean; deferSecond?: boolean } = {}) {
   const chartActivity = activity(first, '0');
   if (options.chart) {
     chartActivity.dailyState = 'returned';
@@ -35,29 +35,40 @@ async function open(page: Page, options: { empty?: boolean; deferFirst?: boolean
     ];
     chartActivity.dailyChart = { maxTokens: '9007199254740993', bars: [{ date: '2026-10-01', heightBasisPoints: 0 }, { date: '2026-10-03', heightBasisPoints: 10000 }] };
   }
-  await page.addInitScript(({ first, second, readings, quotas, options }) => {
-    const fixture: Fixture = { calls: [], deferFirst: options.deferFirst ?? false, mismatchFirst: false, pending: [] };
+  const ids = [first, second, ...Array.from({ length: Math.max(0, (options.count ?? 2) - 2) }, (_, index) => `${String(index + 3).padStart(8, '0')}-6666-4666-8666-666666666666`)];
+  const readings = Object.fromEntries(ids.map(id => [id, id === first ? chartActivity : activity(id, '9223372036854775807')]));
+  const quotas = Object.fromEntries(ids.map((id, index) => {
+    const value = quota(id, index === 0 ? 0 : index === 1 ? 75 : index * 10);
+    if (options.freshQuotas) value.freshness = 'fresh';
+    return [id, value];
+  }));
+  await page.addInitScript(({ first, second, ids, readings, quotas, options }) => {
+    const fixture: Fixture = { calls: [], deferFirst: options.deferFirst ?? false, mismatchFirst: false, pending: [], profiles: ids.map((id, index) => ({ id, label: index === 0 ? 'Zero fixture' : index === 1 ? 'Large fixture' : `Fixture ${index + 1}`, environment: 'native', archived: false, connectionState: 'authentication_required' })), quotas, rejectQuota: [], mismatchQuota: [], deferQuota: options.deferSecond ? [second] : [] };
     Object.assign(window, { overviewFixture: fixture });
     let theme = 'light';
-    const profiles = [first, second].map((id, index) => ({ id, label: index === 0 ? 'Zero fixture' : 'Large fixture', environment: 'native', archived: false, connectionState: 'authentication_required' }));
     window.__TAURI__ = { core: { invoke: async <T>(command: string, args: Record<string, unknown> = {}) => {
       fixture.calls.push(command);
       if (command === 'load_monitoring') return { state: 'stopped', readingRevision: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', profiles: [] } as T;
-      if (command === 'bootstrap') return { storage: 'ready', theme, schemaVersion: 4, activeProfiles: 2, monitoring: 'stopped', provider: 'not_configured', keyProtection: 'passphrase', storageIssue: null } as T;
-      if (command === 'list_profiles') return { activeProfiles: 2, profiles } as T;
+      if (command === 'bootstrap') return { storage: 'ready', theme, schemaVersion: 4, activeProfiles: fixture.profiles.filter(profile => !profile.archived).length, monitoring: 'stopped', provider: 'not_configured', keyProtection: 'passphrase', storageIssue: null } as T;
+      if (command === 'list_profiles') return { activeProfiles: fixture.profiles.filter(profile => !profile.archived).length, profiles: fixture.profiles } as T;
+      if (command === 'set_profile_archived') {
+        fixture.profiles.find(profile => profile.id === args.id)!.archived = args.archived === true;
+        return { activeProfiles: fixture.profiles.filter(profile => !profile.archived).length, profiles: fixture.profiles } as T;
+      }
       if (command === 'set_theme') { theme = String(args.theme); return { theme } as T; }
       if (command === 'load_profile_refresh_status') return { profileId: args.profileId, retryAfterSeconds: 0 } as T;
       if (command === 'load_profile_activity' || command === 'load_profile_quota') {
         const id = String(args.profileId), kind = command === 'load_profile_activity' ? 'activity' : 'quota';
-        if (fixture.deferFirst && id === first) return await new Promise<unknown>(resolve => fixture.pending.push({ profileId: id, kind, resolve })) as T;
+        if (kind === 'quota' && fixture.rejectQuota.includes(id)) throw 'provider_quota_load_failed';
+        if (fixture.deferFirst && id === first || kind === 'quota' && fixture.deferQuota.includes(id)) return await new Promise<unknown>(resolve => fixture.pending.push({ profileId: id, kind, resolve })) as T;
         if (options.empty) return null as T;
-        const selected = fixture.mismatchFirst && id === first ? second : id;
-        const values: Record<string, SavedProfileActivity | SavedProfileQuota> = kind === 'activity' ? readings : quotas;
+        const selected = fixture.mismatchFirst && id === first ? second : kind === 'quota' && fixture.mismatchQuota.includes(id) ? first : id;
+        const values: Record<string, SavedProfileActivity | SavedProfileQuota | null> = kind === 'activity' ? readings : fixture.quotas;
         return structuredClone(values[selected]) as T;
       }
       throw new Error(`Unexpected overview fixture command: ${command}`);
     } } };
-  }, { first, second, readings: { [first]: chartActivity, [second]: activity(second, '9223372036854775807') }, quotas: { [first]: quota(first), [second]: quota(second) }, options });
+  }, { first, second, ids, readings, quotas, options });
   await page.goto('/');
   await expect(page.getByRole('region', { name: 'Usage overview', exact: true })).toBeVisible();
 }
@@ -236,4 +247,85 @@ for (const scale of [1, 2]) test(`Daily chart values stay exact and locally scro
   await table.focus(); await page.keyboard.press('ArrowRight');
   await expect.poll(() => table.evaluate(node => node.scrollLeft)).toBeGreaterThan(0);
   expect(await page.evaluate(() => document.scrollingElement!.scrollWidth <= innerWidth + 1)).toBe(true);
+});
+
+
+const accountRow = (page: Page, id: string) => dashboard(page).locator(`[data-overview-account="${id}"]`);
+
+test('Overview shows saved quota and freshness for all ten accounts without selecting each or contacting a provider', async ({ page }) => {
+  await open(page, { count: 10, freshQuotas: true });
+  const rows = dashboard(page).locator('[data-overview-account]');
+  await expect(rows).toHaveCount(10);
+  const ids = await page.evaluate(() => (window as unknown as FixtureWindow).overviewFixture.profiles.map(profile => profile.id));
+  for (const [index, id] of ids.entries()) {
+    const row = accountRow(page, id);
+    await expect(row.locator('[data-overview-account-quota]')).toContainText(`${index === 0 ? 0 : index === 1 ? 75 : index * 10}% left (derived)`);
+    await expect(row.locator('[data-overview-account-quota]')).toContainText('Five-hour');
+    await expect(row.locator('[data-overview-account-quota]')).toContainText('Unverified identity');
+    await expect(row.locator('[data-overview-account-quota]')).toContainText('Synthetic test data');
+    await expect(row.locator('[data-overview-account-observed] time')).toHaveAttribute('datetime', observedAtUtc);
+    await expect(row.locator('[data-overview-account-observed]')).toContainText('Fresh');
+  }
+  await expect(accountRow(page, first).getByRole('button')).toHaveAttribute('aria-pressed', 'true');
+  await expect(accountRow(page, second).getByRole('button')).toHaveAttribute('aria-pressed', 'false');
+  expect(await page.evaluate(() => (window as unknown as FixtureWindow).overviewFixture.calls.some(command => /^(begin_|complete_|check_profile|inspect_provider|approve_provider)/.test(command)))).toBe(false);
+});
+
+for (const failure of ['rejected', 'mismatched'] as const) test(`Overview retains only the same account saved quota with unknown freshness after a ${failure} reload`, async ({ page }) => {
+  await open(page, { freshQuotas: true });
+  const row = accountRow(page, second);
+  await expect(row.locator('[data-overview-account-quota]')).toContainText('75% left (derived)');
+  await expect(row.locator('[data-overview-account-observed]')).toContainText('Fresh');
+  await navigate(page, 'accounts');
+  await page.evaluate(({ second, failure }) => {
+    const f = (window as unknown as FixtureWindow).overviewFixture;
+    if (failure === 'rejected') f.rejectQuota = [second]; else f.mismatchQuota = [second];
+  }, { second, failure });
+  await navigate(page, 'overview');
+  await expect(row.locator('[data-overview-account-quota]')).toContainText('75% left (derived)');
+  await expect(row.locator('[data-overview-account-observed]')).toContainText('Freshness unknown');
+  await expect(row.locator('[data-overview-account-observed]')).toContainText('Saved quota could not be reloaded.');
+  await expect(row.locator('[data-overview-account-observed] time')).toHaveAttribute('datetime', observedAtUtc);
+  await expect(accountRow(page, first).locator('[data-overview-account-quota]')).toContainText('0% left (derived)');
+});
+
+test('a successful missing-cache result clears the prior row instead of showing zero or an old quota', async ({ page }) => {
+  await open(page);
+  await expect(accountRow(page, second).locator('[data-overview-account-quota]')).toContainText('75% left (derived)');
+  await navigate(page, 'accounts');
+  await page.evaluate(second => { (window as unknown as FixtureWindow).overviewFixture.quotas[second] = null; }, second);
+  await navigate(page, 'overview');
+  await expect(accountRow(page, second).locator('[data-overview-account-quota]')).toHaveText('Not available');
+  await expect(accountRow(page, second).locator('[data-overview-account-observed]')).toHaveText('Not available');
+  await expect(accountRow(page, first).locator('[data-overview-account-quota]')).toContainText('0% left (derived)');
+});
+
+test('archival removes the account and its late quota response cannot replace a restored row', async ({ page }) => {
+  await open(page, { deferSecond: true });
+  await expect(accountRow(page, second).locator('[data-overview-account-quota]')).toHaveText('Loading…');
+  await expect.poll(() => page.evaluate(second => (window as unknown as FixtureWindow).overviewFixture.pending.filter(pending => pending.profileId === second).length, second)).toBeGreaterThan(0);
+  await navigate(page, 'accounts'); await openOptions(page, second);
+  await page.locator(`[data-profile-id="${second}"] [data-profile-action="archive"]`).click();
+  await expect(page.getByText('Archived profiles (1)', { exact: true })).toBeVisible();
+  await navigate(page, 'overview');
+  await expect(accountRow(page, second)).toHaveCount(0);
+  await expect(dashboard(page).locator('[data-overview-account]')).toHaveCount(1);
+  await page.evaluate(({ second, value }) => {
+    const f = (window as unknown as FixtureWindow).overviewFixture;
+    f.deferQuota = []; f.quotas[second] = value;
+  }, { second, value: quota(second, 30) });
+  await navigate(page, 'accounts');
+  await page.getByText('Archived profiles (1)', { exact: true }).click();
+  await openReadings(page, second);
+  await page.locator(`[data-profile-id="${second}"] [data-profile-action="restore"]`).click();
+  await navigate(page, 'overview');
+  await expect(accountRow(page, second).locator('[data-overview-account-quota]')).toContainText('30% left (derived)');
+  await page.evaluate(async value => {
+    const f = (window as unknown as FixtureWindow).overviewFixture;
+    for (const pending of f.pending.splice(0)) pending.resolve(value);
+    await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+  }, quota(second, 75));
+  await expect(accountRow(page, first).locator('[data-overview-account-quota]')).toContainText('0% left (derived)');
+  await expect(accountRow(page, second).locator('[data-overview-account-quota]')).toContainText('30% left (derived)');
+  await expect(dashboard(page).locator('[data-overview-account]')).toHaveCount(2);
 });

@@ -8,6 +8,7 @@ import './activity.css';
 import './overview.css';
 
 type Props = { profiles: ProfileRecord[]; revision: number; onAccounts: () => void; active?: boolean };
+type AccountQuota = { quota: SavedProfileQuota | null; loading: boolean; failed: boolean };
 type Reading = { profileId: string; activity: SavedProfileActivity | null; quota: SavedProfileQuota | null; activityFailed: boolean; quotaFailed: boolean };
 const dates = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' });
 const freshness = { fresh: 'Fresh', stale: 'Stale', unknown: 'Freshness unknown' };
@@ -75,6 +76,8 @@ function QuotaChart({ value }: { value: SavedQuotaWindow }) {
 
 export function Overview({ profiles, revision, onAccounts, active = true }: Props) {
   const activeProfiles = profiles.filter(profile => !profile.archived);
+  const tableProfileIds = activeProfiles.map(profile => profile.id).join(',');
+  const [accountQuotas, setAccountQuotas] = useState<Record<string, AccountQuota>>({});
   const [selection, setSelection] = useState<string | null>(null);
   const [limitSelection, setLimitSelection] = useState<string | null>(null);
   const selected = activeProfiles.find(profile => profile.id === selection) ?? activeProfiles[0];
@@ -120,6 +123,29 @@ export function Overview({ profiles, revision, onAccounts, active = true }: Prop
     });
     return () => { current = false; };
   }, [profileId, revision, refresh, active]);
+  useEffect(() => {
+    if (!active) return;
+    let current = true;
+    const ids = tableProfileIds ? tableProfileIds.split(',') : [];
+    setAccountQuotas(previous => Object.fromEntries(ids.map(id => [id, {
+      quota: previous[id]?.quota ?? null, loading: true, failed: false,
+    }])));
+    for (const id of ids) {
+      void invoke('load_profile_quota', { profileId: id }).then(value => {
+        if (value && value.profileId !== id) throw new Error('Incompatible saved quota profile.');
+        if (current) setAccountQuotas(previous => ({ ...previous, [id]: { quota: value, loading: false, failed: false } }));
+      }).catch(() => {
+        if (current) setAccountQuotas(previous => {
+          const retained = previous[id]?.quota;
+          return { ...previous, [id]: {
+            quota: retained ? { ...retained, freshness: 'unknown' as const } : null,
+            loading: false, failed: true,
+          } };
+        });
+      });
+    }
+    return () => { current = false; };
+  }, [tableProfileIds, revision, refresh, active]);
   const saved = reading?.profileId === profileId ? reading : null;
   const pending = loading || (active && !!profileId && !saved);
   const activity = saved?.activity;
@@ -169,12 +195,25 @@ export function Overview({ profiles, revision, onAccounts, active = true }: Prop
     <section className="overview-accounts" aria-labelledby="overview-accounts-heading" data-overview-accounts-table>
       <div className="overview-accounts-heading"><h2 id="overview-accounts-heading">Accounts</h2><Button type="button" variant="outline" onClick={onAccounts} data-overview-accounts>View accounts</Button></div>
       {activeProfiles.length > 0 ? <div className="overview-table-scroll"><table><thead><tr><th scope="col">Profile</th><th scope="col">Connection</th><th scope="col">Quota</th><th scope="col">Last quota read</th></tr></thead>
-        <tbody>{activeProfiles.map(profile => <tr key={profile.id} data-overview-account={profile.id}>
-          <th scope="row"><Button type="button" variant="ghost" onClick={() => setSelection(profile.id)} aria-pressed={profile.id === profileId} className="overview-account-link">{profile.label}</Button></th>
-          <td>{connectionLabels[profile.connectionState]}</td>
-          <td>{profile.id !== profileId ? 'Select profile' : firstWindow ? <><span>{firstWindow.derivedRemainingPercent}% left (derived)</span><small>{firstWindow.label}</small></> : pending ? 'Loading…' : 'Not available'}</td>
-          <td>{profile.id !== profileId ? 'Select profile' : quota ? <><time dateTime={quota.observedAtUtc}>{dates.format(new Date(quota.observedAtUtc))}</time><small>{freshness[quota.freshness]}</small></> : pending ? 'Loading…' : 'Not available'}</td>
-        </tr>)}</tbody>
+        <tbody>{activeProfiles.map(profile => {
+          const selectedRow = profile.id === profileId;
+          const cached = accountQuotas[profile.id];
+          const rowQuota = selectedRow ? quota : cached?.quota;
+          const rowLimit = selectedRow ? limit : rowQuota?.limits.find(limit => limit.primary || limit.secondary);
+          const rowWindow = rowLimit?.primary ?? rowLimit?.secondary;
+          const rowLoading = selectedRow ? pending : active && (!cached || cached.loading);
+          const rowFailed = selectedRow ? saved?.quotaFailed : cached?.failed;
+          return <tr key={profile.id} data-overview-account={profile.id}>
+            <th scope="row"><Button type="button" variant="ghost" onClick={() => setSelection(profile.id)} aria-pressed={selectedRow} className="overview-account-link">{profile.label}</Button></th>
+            <td>{connectionLabels[profile.connectionState]}</td>
+            <td data-overview-account-quota>{rowWindow ? <><span>{rowWindow.derivedRemainingPercent}% left (derived)</span><small>{rowWindow.label}</small></> : rowLoading ? 'Loading…' : 'Not available'}
+              {rowQuota && <small>{rowQuota.sourceKind === 'test_fixture' ? 'Synthetic test data · ' : ''}Unverified identity</small>}
+            </td>
+            <td data-overview-account-observed>{rowQuota ? <><time dateTime={rowQuota.observedAtUtc}>{dates.format(new Date(rowQuota.observedAtUtc))}</time><small>{rowLoading ? 'Updating saved quota…' : freshness[rowQuota.freshness]}</small></> : rowLoading ? 'Loading…' : 'Not available'}
+              {rowFailed && <small>Saved quota could not be reloaded.</small>}
+            </td>
+          </tr>;
+        })}</tbody>
       </table></div> : <p className="overview-meta">No active profiles. Create a profile in Accounts to get started.</p>}
     </section>
   </section>;

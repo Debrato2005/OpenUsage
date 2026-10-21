@@ -157,6 +157,12 @@ async function savedGui(profile) {
   await driver.openProfileReadings(profile.id);
   await waitFor(() => driver.execute('const quota=document.querySelector(arguments[0]),activity=document.querySelector(arguments[1]);return Boolean(quota?.getClientRects().length&&activity?.getClientRects().length&&quota.querySelector("[role=meter]")?.getAttribute("aria-valuenow")==="75"&&activity.querySelector("[data-activity-metric=lifetimeTokens]")?.textContent.trim()==="9007199254740993");', [`[data-quota-saved="${profile.id}"]`, `[data-activity-saved="${profile.id}"]`]), 'exact saved quota and activity visible');
 }
+async function overviewRows(expectedFreshness) {
+  await driver.navigate('overview');
+  for (const profile of profiles) {
+    await waitFor(() => driver.execute('const row=document.querySelector(arguments[0]);return Boolean(row?.querySelector("[data-overview-account-quota]")?.textContent.includes("75% left (derived)")&&row.querySelector("[data-overview-account-observed]")?.textContent.includes(arguments[1]));', [`[data-overview-account="${profile.id}"]`, expectedFreshness]), 'each saved account quota visible without selecting its profile');
+  }
+}
 async function capture(name, selector) {
   await driver.execute('document.querySelector(arguments[0])?.scrollIntoView({block:"center"});return true;', [selector]);
   await driver.screenshot(join(output, name)); evidence.screenshots.push(name);
@@ -195,7 +201,8 @@ try {
   assert.equal(await hash(join(workspace, 'database-key.v1')), keySha);
   await driver.navigate('overview'); await driver.selectVisibleOption('#overview-profile', 'Account B');
   await waitFor(() => driver.execute('return document.querySelector("[data-overview-lifetime]")?.textContent.trim()==="9007199254740993";'), 'Overview loads Account B automatic reading');
-  await capture('second-account-auto-read-overview.png', '[data-overview]');
+  await overviewRows('Fresh');
+  await capture('second-account-auto-read-overview.png', '[data-overview-accounts-table]');
   await writeFile(join(home(second.profile), 'synthetic-collection-config.json'), JSON.stringify({ mode: 'activity_invalid', requireLogin: true }) + '\n', { mode: 0o600 });
   await driver.navigate('accounts'); await driver.openProfileReadings(second.profile.id);
   await driver.waitForProfileRefresh(second.profile.id);
@@ -225,12 +232,16 @@ try {
   }
   const monitoring = await call('load_monitoring');
   assert.equal(monitoring.state, 'stopped'); assert.ok(monitoring.profiles.every(profile => !profile.eligible && !profile.readingActive));
-  await capture('two-account-saved-after-restart.png', `[data-profile-id="${second.profile.id}"]`);
   assert.deepEqual(await liveHashes(), restartedHashes, 'Saved-cache navigation after restart preserves encrypted database/WAL/key bytes.');
+  await driver.navigate('settings'); await driver.selectVisibleOption('#theme', 'Dark');
+  const themedHashes = await liveHashes();
+  await overviewRows('Freshness unknown');
+  await capture('two-account-saved-after-restart.png', '[data-overview-accounts-table]');
+  assert.deepEqual(await liveHashes(), themedHashes, 'Saved-cache navigation after the explicit theme change preserves encrypted database/WAL/key bytes.');
   assert.equal(await readFile(join(fixture.dirs.codex, 'synthetic-fixture.txt'), 'utf8'), CODEX_SENTINEL);
   assert.deepEqual(await readdir(fixture.dirs.codex), ['synthetic-fixture.txt']);
   evidence.observations = Object.fromEntries(await Promise.all(profiles.map(async profile => [profile.id, await observations(profile)])));
-  evidence.restart = { genuineWindowClose: true, bothSavedPairsPreserved: true, noProviderExecution: true, noAutomaticRead: true, unchangedDatabaseWalKey: restartedHashes, runtimeMonitoringGrantsAbsent: true };
+  evidence.restart = { genuineWindowClose: true, bothSavedPairsPreserved: true, noProviderExecution: true, noAutomaticRead: true, bothOverviewRowsVisible: true, theme: 'dark', unchangedDatabaseWalKeyAfterThemeSave: themedHashes, runtimeMonitoringGrantsAbsent: true };
   assert.equal(await hash(application), evidence.application.sha256);
   assert.equal(await hash(executable), providerSha);
   for (const [path, digest] of Object.entries(evidence.harnessHashes)) assert.equal(await hash(join(harness, path)), digest, `Harness drift: ${path}`);
