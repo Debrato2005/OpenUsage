@@ -2,7 +2,7 @@
 
 # Implementation status
 
-Updated: October 21, 2026. OpenUsage remains in development. The normative [SRS](SRS.md) is unchanged. Only local commits are permitted; never push, publish, create pull requests or modify a remote.
+Updated: October 22, 2026. OpenUsage remains in development. The normative [SRS](SRS.md) is unchanged. Only local commits are permitted. Remote branch deletion requires separate owner approval. Agents must not push or publish.
 
 ## Current product
 
@@ -19,6 +19,8 @@ The P0 cleanup reduced the measured workspace from 78.578 to 8.112 GiB while pre
 Normal freezing now records provenance only; retained binaries are explicit and capped. Repository-private native fixtures clean setup failures and normal teardown. The storage command checks allocation and safely previews/applies bounded, marker-owned diagnostic cleanup. Seventeen storage tests passed on Linux, including measurement of existing runtime sockets without opening them. Cleanup still refuses special files. Two consecutive renderer builds retained identical 2,457,600-byte outputs; three synthetic private D-Bus fixture cycles left no additional workspace. Cross-platform CI is defined but has not run. No Rust rebuild was performed to recreate deleted caches. See [contributor instructions](../CONTRIBUTING.md) and [retention policy](artifact-retention.md).
 
 The project root is now the normal reviewed working checkout on `main`. Independent checks matched all 338 reviewed files, their modes and the Git index. The original Git metadata, exact staged index and 47 replaced source files remain in private local backups. All 604 reviewed commits and 220 local branch tips survived the switch. No remote operation occurred. These counts describe the consolidation baseline, before later commits. Remote branch cleanup remains a separate task that requires permission to change the remote.
+
+The Git workflow repair now leaves one local main branch. One ancestry merge preserves all 607 prior commits without changing the source tree or rewriting an existing commit. The 219 merged local branches were retired and the redundant publication mirror was removed. Default pushes target only origin/main. Four hook tests passed with real Gitleaks, including synthetic-secret redaction, refused private artifacts and preservation checks for branch deletion. All 219 remote deletions remain pending the owner's push and approval. See the [exact cleanup plan](branch-cleanup-plan.md).
 
 ## Publication security follow-up
 
