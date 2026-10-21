@@ -33,6 +33,33 @@ function App() {
   const [scaleError, setScaleError] = useState(false);
   useEffect(() => { let current = true; void invoke('get_display_scale').then(value => { if (current) setDisplayScale(value.percent); }).catch(() => {}); return () => { current = false; }; }, []);
   const [view, setView] = useState<WorkspaceView>('overview');
+  const [accountPanelOpen, setAccountPanelOpen] = useState(false);
+  const [accountPanelProfile, setAccountPanelProfile] = useState<string | null>(null);
+  const [usageProfile, setUsageProfile] = useState<string | null>(null);
+  const [refreshingProfiles, setRefreshingProfiles] = useState<string[]>([]);
+  const [refreshWaitSeconds, setRefreshWaitSeconds] = useState<Record<string, number>>({});
+  const manualRefreshes = useRef(new Set<string>());
+  const [accountMessage, setAccountMessage] = useState<{ profileId: string; outcome: 'saved' | 'failed' } | null>(null);
+  const accountPanel = useRef<HTMLDialogElement>(null);
+  const accountReturnFocus = useRef<HTMLElement | null>(null);
+  const refreshState = useCallback((id: string, working: boolean, waitSeconds: number) => {
+    setRefreshingProfiles(current => working ? current.includes(id) ? current : [...current, id] : current.includes(id) ? current.filter(value => value !== id) : current);
+    setRefreshWaitSeconds(current => (current[id] ?? 0) === waitSeconds ? current : { ...current, [id]: waitSeconds });
+  }, []);
+  const reportAccountOperation = useCallback((event: { profileId: string; outcome: 'saved' | 'failed' }) => {
+    if (manualRefreshes.current.delete(event.profileId)) setAccountMessage(event);
+  }, []);
+  useEffect(() => {
+    const dialog = accountPanel.current;
+    if (!dialog) return;
+    if (accountPanelOpen && !dialog.open) {
+      accountReturnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      dialog.showModal();
+    } else if (!accountPanelOpen && dialog.open) {
+      dialog.close();
+      if (accountReturnFocus.current?.isConnected) accountReturnFocus.current.focus({ preventScroll: true });
+    }
+  }, [accountPanelOpen, startup]);
   const [profiles, setProfiles] = useState<ProfileRecord[]>([]);
   const [readingRevision, setReadingRevision] = useState(0);
   const updateProfiles = useCallback((value: ProfileRecord[]) => setProfiles(value), []);
@@ -91,6 +118,7 @@ function App() {
     setProfileRevision(value => value + 1);
     setProfiles([]);
     setAccountAction(null);
+    setAccountPanelOpen(false); setAccountPanelProfile(null); setRefreshingProfiles([]); setRefreshWaitSeconds({}); manualRefreshes.current.clear(); setAccountMessage(null);
     setReadingRevision(value => value + 1);
   }, []);
 
@@ -226,12 +254,16 @@ function App() {
 
   const appearance = <div className="theme-control"><label id="theme-label" htmlFor="theme">Appearance</label><Select modal={false} value={theme} disabled={busy} items={{ system: 'System', light: 'Light', dark: 'Dark' }} onValueChange={next => { if (next === 'system' || next === 'light' || next === 'dark') changeTheme(next); }}><SelectTrigger ref={themeControl} id="theme" aria-labelledby="theme-label">{ready && <svg className="appearance-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.4 1.4m11.2 11.2L19 19M5 19l1.4-1.4M17.6 6.4 19 5"/></svg>}<SelectValue className={ready ? 'sr-only' : undefined} /></SelectTrigger><SelectPopup alignItemWithTrigger={false}><SelectItem value="system">System</SelectItem><SelectItem value="light">Light</SelectItem><SelectItem value="dark">Dark</SelectItem></SelectPopup></Select></div>;
   function navigate(next: WorkspaceView) {
+    setAccountPanelOpen(false);
     setView(next);
     window.scrollTo({ top: 0, behavior: 'instant' });
   }
   function requestAccountAction(action: AccountAction) {
+    if (action.kind === 'usage') { setUsageProfile(action.profileId); navigate('usage'); return; }
+    if (action.kind === 'refresh') { manualRefreshes.current.add(action.profileId); setAccountMessage(null); setAccountAction({ ...action, sequence: ++actionSequence.current }); return; }
+    setAccountPanelProfile(action.kind === 'add' ? null : action.profileId);
+    setAccountPanelOpen(true);
     setAccountAction({ ...action, sequence: ++actionSequence.current });
-    navigate('accounts');
   }
   async function changeScale(percent: number) {
     if (scaleBusy) return;
@@ -241,10 +273,9 @@ function App() {
     finally { setScaleBusy(false); }
   }
   const scaleControl = <div className="display-scale-control"><label htmlFor="display-scale" className="sr-only">Display scale</label><Select modal={false} value={displayScale} disabled={scaleBusy} items={Object.fromEntries([90, 100, 110, 125, 150, 175, 200].map(value => [value, `${value}%`]))} onValueChange={value => { if (value !== null) void changeScale(value); }}><SelectTrigger id="display-scale" aria-label="Display scale"><SelectValue /></SelectTrigger><SelectPopup alignItemWithTrigger={false}>{[90, 100, 110, 125, 150, 175, 200].map(value => <SelectItem key={value} value={value}>{value}%</SelectItem>)}</SelectPopup></Select></div>;
-  const titles = { overview: 'Overview', accounts: 'Accounts', usage: 'Usage', settings: 'Settings' };
+  const titles = { overview: 'Overview', usage: 'Usage', settings: 'Settings' };
   const descriptions = {
     overview: 'Monitor your OpenAI usage and available quotas.',
-    accounts: 'Manage profiles and collect new readings.',
     usage: 'Token activity saved on this device.',
     settings: 'Appearance, Codex connection, and encrypted backups.',
   };
@@ -299,16 +330,20 @@ function App() {
         </section>
         {!ready && <Button variant="ghost" className="text-button onboarding-privacy" onClick={() => setPrivacy(!privacy)} aria-expanded={privacy} aria-controls="privacy-details">{privacy ? 'Hide privacy details' : 'About your privacy'}</Button>}
         {privacy && <section className="privacy-details" id="privacy-details" aria-labelledby="privacy-heading"><h2 id="privacy-heading">Privacy and local storage</h2><p>OpenUsage has no hosted account or telemetry. Account connections require your approval. Provider credentials stay with Codex.</p><p>Encrypted storage protects application records. It does not encrypt provider credential files or operating-system swap.</p><p>Codex handles approved sign-in requests, connection checks, and readings. Monitoring runs only while OpenUsage is open and your workspace is unlocked.</p></section>}
-        {ready && <section data-workspace-view="overview" hidden={view !== 'overview'} inert={view !== 'overview'} aria-label="Overview"><Overview key={profileRevision} active={view === 'overview'} profiles={profiles} revision={readingRevision} onAccounts={() => navigate('accounts')} onAccountAction={requestAccountAction} busy={busy} /></section>}
+        {ready && view === 'overview' && connectionError && !accountPanelOpen && <div className="account-refresh-feedback" role="alert" data-overview-connection-error><p>{connectionError}</p><Button variant="outline" onClick={() => navigate('settings')}>Connection details</Button><Button variant="ghost" onClick={() => setConnectionError(null)}>Dismiss</Button></div>}
+        {ready && view === 'overview' && accountMessage && <div className="account-refresh-feedback" role={accountMessage.outcome === 'failed' ? 'alert' : 'status'} data-account-refresh-message><p>{profiles.find(profile => profile.id === accountMessage.profileId)?.label ?? 'Account'}: {accountMessage.outcome === 'saved' ? 'Readings updated.' : 'Could not finish refreshing. Saved readings are still available.'}</p>{accountMessage.outcome === 'failed' && <Button variant="outline" onClick={() => requestAccountAction({ kind: 'manage', profileId: accountMessage.profileId })}>View account details</Button>}<Button variant="ghost" aria-label="Dismiss account update" onClick={() => setAccountMessage(null)}>Dismiss</Button></div>}
+        {ready && <section data-workspace-view="overview" hidden={view !== 'overview'} inert={view !== 'overview'} aria-label="Overview"><Overview key={profileRevision} active={view === 'overview'} profiles={profiles} revision={readingRevision} onAccounts={() => { setAccountPanelProfile(null); setAccountPanelOpen(true); }} onAccountAction={requestAccountAction} busy={busy} refreshingProfileIds={refreshingProfiles} refreshWaitSeconds={refreshWaitSeconds} /></section>}
         {ready && <div hidden={view !== 'settings'} inert={view !== 'settings'}><ProviderSettings busy={busy} setBusy={setBusy} approval={providerApproval} onApproved={setProviderApproval} /></div>}
-        {ready && <section data-workspace-view="accounts" hidden={view !== 'accounts'} inert={view !== 'accounts'} aria-label="Account profiles">
+        {ready && <dialog ref={accountPanel} data-account-panel aria-modal="true" data-workspace-view="accounts" hidden={!accountPanelOpen} aria-labelledby="account-panel-heading" onCancel={event => { event.preventDefault(); setAccountPanelOpen(false); }} onClose={() => setAccountPanelOpen(false)}>
+          <div className="account-panel-heading"><h2 id="account-panel-heading">{profiles.find(profile => profile.id === accountPanelProfile)?.label ?? 'Manage accounts'}</h2><Button data-account-panel-close variant="ghost" aria-label="Close account details" onClick={() => setAccountPanelOpen(false)}>Close</Button></div>
           {connectionPreparing && <p role="status">Preparing OpenAI sign-in…</p>}
           {connectionError && <div role="alert"><p>{connectionError}</p><Button type="button" variant="outline" disabled={busy} onClick={() => setConnectionRequest(value => value + 1)}>Retry connection</Button><Button type="button" variant="ghost" onClick={() => navigate('settings')}>Connection details</Button></div>}
-          <ProfileManager key={profileRevision} busy={busy} setBusy={setBusy} onCount={updateProfileCount} requestedAction={accountAction} onActionHandled={handledAccountAction} providerApproval={providerApproval} onProfilesChange={updateProfiles} onReadingsChanged={readingsChanged} monitoring={monitoring.status} monitoringUnavailable={monitoring.unavailable} onMonitoringAction={monitoring.action} onConnectAccount={() => setConnectionRequest(value => value + 1)} />
-        </section>}
-        {ready && <section data-workspace-view="usage" hidden={view !== 'usage'} inert={view !== 'usage'} aria-label="Saved usage"><Usage active={view === 'usage'} profiles={profiles} revision={readingRevision} onAccounts={() => navigate('accounts')} /></section>}
+          <ProfileManager key={profileRevision} embedded selectedProfileId={accountPanelProfile} onSelectProfile={setAccountPanelProfile} onAccountOperation={reportAccountOperation} onRefreshState={refreshState} busy={busy} setBusy={setBusy} onCount={updateProfileCount} requestedAction={accountAction} onActionHandled={handledAccountAction} providerApproval={providerApproval} onProfilesChange={updateProfiles} onReadingsChanged={readingsChanged} monitoring={monitoring.status} monitoringUnavailable={monitoring.unavailable} onMonitoringAction={monitoring.action} onConnectAccount={() => setConnectionRequest(value => value + 1)} />
+        </dialog>}
+        {ready && <section data-workspace-view="usage" hidden={view !== 'usage'} inert={view !== 'usage'} aria-label="Saved usage"><Usage requestedProfileId={usageProfile} active={view === 'usage'} profiles={profiles} revision={readingRevision} onAccounts={() => { setAccountPanelProfile(null); setAccountPanelOpen(true); }} /></section>}
         <section data-workspace-view="settings" hidden={!ready || view !== 'settings'} inert={!ready || view !== 'settings'} aria-label="Workspace settings">
 
+        {ready && <section className="account-settings"><h2>Accounts</h2><p>Rename accounts or restore an archived profile.</p><Button data-account-manager-open variant="outline" onClick={() => { setAccountPanelProfile(null); setAccountPanelOpen(true); }}>Manage accounts</Button></section>}
         {ready && <section className="backup-panel" aria-labelledby="backup-heading">
           <div className="section-heading"><div><h2 id="backup-heading">Encrypted backups</h2><p>Save a password-protected copy of your application records.</p></div><div className="backup-actions"><Button ref={backupToggle} variant="outline" className="secondary-button" disabled={busy} onClick={() => toggleBackup('create')} aria-expanded={backupOpen} aria-controls="backup-form">{backupOpen ? 'Hide backup form' : 'Create a backup'}</Button><Button variant="outline" className="secondary-button" disabled={busy} onClick={() => toggleBackup('inspect')} aria-expanded={backupAction === 'inspect'} aria-controls="backup-inspection">{backupAction === 'inspect' ? 'Hide backup inspection' : 'Inspect a backup'}</Button><Button variant="outline" className="secondary-button" disabled={busy} onClick={() => toggleBackup('recover')} aria-expanded={backupAction === 'recover'} aria-controls="checkpoint-recovery">{backupAction === 'recover' ? 'Hide saved copies' : 'Undo a restore'}</Button></div></div>
           {backupOpen && <form id="backup-form" className="unlock-form backup-form" onSubmit={event => { event.preventDefault(); void saveBackup(); }}>
@@ -335,11 +370,10 @@ function App() {
   </div>;
 }
 
-type WorkspaceView = 'overview' | 'accounts' | 'usage' | 'settings';
+type WorkspaceView = 'overview' | 'usage' | 'settings';
 function NavIcon({ view }: { view: WorkspaceView }) {
   const paths = {
     overview: <><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z" /></>,
-    accounts: <><ellipse cx="12" cy="5" rx="8" ry="3" /><path d="M4 5v7c0 4 16 4 16 0V5M4 12v7c0 4 16 4 16 0v-7" /></>,
     usage: <path d="M4 20v-6m5 6V9m6 11V4m5 16V11" />,
     settings: <><path d="m9 3-1 3-3 1-2 4 2 2v4l4 3 3-1 3 1 4-3v-4l2-2-2-4-3-1-1-3Z" /><circle cx="12" cy="12" r="3" /></>,
   };

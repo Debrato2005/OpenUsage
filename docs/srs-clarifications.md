@@ -53,3 +53,11 @@ OU-ACCT-005 requires browser login. OU-AUTH-007 restricts authentication operati
 Status: source-backed implementation correction, October 21, 2026. No normative requirement changed.
 
 The pinned official provider sends an initial routing snapshot through `account/updated`. It is not by itself evidence of an account switch. Rust accepts one validated matching snapshot before the measurement baseline, supported by a full account response and routing context. A deferred snapshot requires another full account check before measurement requests. The snapshot never establishes identity, freshness, or reset evidence. Mismatches, duplicate snapshots, malformed envelopes, and all later account-update notifications still invalidate the collection. Message and read deadlines remain bounded. See [the source and executed evidence](evidence/native-startup-snapshot/).
+
+## SC-007: three primary pages with contextual account management
+
+Status: explicit user-directed navigation correction, October 21, 2026. The normative SRS stays unchanged.
+
+OU-UI-001 lists Accounts and other functional views. The user requires only Overview, Usage and Settings in primary navigation. Account selection, sign-in, management and details remain accessible through Overview, Usage and contextual dialogs. This changes navigation placement, not the required capabilities. Unimplemented Compare, Subscriptions, Calendar and Notifications functions remain acceptance gaps; removing their navigation entries does not waive them.
+
+Show each returned quota window. Do not infer a five-hour or weekly limit from the plan name. Refresh must preserve the current Overview route. See [native evidence](evidence/native-three-view-dashboard/).

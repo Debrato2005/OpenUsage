@@ -25,11 +25,17 @@
 .overview-connection[data-connected='true'] { color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
 .overview-quota-block { padding: 1.125rem 1rem; background: var(--bg); border: 1px solid var(--line); border-radius: .75rem; }
 .overview-block-title { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: .5rem; }
-.overview-block-title > [data-slot='select-trigger'] { min-height: 2rem; height: auto; margin-bottom: .75rem; font-size: .8125rem; }
 .overview-block-title h3 { margin: 0; }
 .overview-limit-picker { min-width: 0; max-width: 100%; margin-bottom: .75rem; }
 .overview-limit-picker [data-slot='select-trigger'] { height: 2rem; font-size: .8125rem; }
-.overview-quota-window + .overview-quota-window { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+.overview-quota-window + .overview-quota-window { margin-top: .75rem; padding-top: .75rem; border-top: 1px solid var(--line); }
+.overview-quota-block[data-window-count="2"] { padding-block: .875rem; }
+.overview-quota-block[data-window-count="2"] .overview-quota-window [data-slot="meter-track"] { height: .625rem; }
+.overview-quota-block[data-window-count="2"] .overview-quota-footnote { margin-top: .375rem; gap: .25rem .75rem; }
+.overview-quota-block[data-window-count="2"] .overview-quota-footnote > p:first-child > span { display: none; }
+.overview-quota-block[data-window-count="2"] .overview-reset svg { display: none; }
+.overview-quota-block[data-window-count="2"] .overview-reset > span { display: flex; flex-wrap: wrap; gap: .25rem .375rem; }
+.overview-quota-block[data-window-count="2"] .overview-reset time { margin-top: 0; }
 .overview-meter-heading { display: flex; align-items: baseline; justify-content: space-between; gap: .75rem; font-size: .9375rem; font-weight: 550; }
 .overview-meter-heading strong { font-size: 1.25rem; font-weight: 650; letter-spacing: -.025em; }
 .overview-quota-window [data-slot='meter-track'] { height: .875rem; border-radius: .3125rem; background: var(--line); margin-top: .2rem; }

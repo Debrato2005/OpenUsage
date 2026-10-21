@@ -83,7 +83,7 @@ test('renderer Overview keeps missing values unavailable and navigates through r
   await expect(dashboard(page).locator('[data-overview-lifetime]')).toHaveText('Not available');
   await expect(dashboard(page).locator('[data-overview-quota]').getByRole('meter')).toHaveCount(0);
   await expect(dashboard(page).locator('[data-overview-quota-chart]')).toHaveCount(0);
-  await dashboard(page).getByRole('button', { name: 'Open Accounts', exact: true }).click();
+  await dashboard(page).getByRole('button', { name: 'Manage accounts', exact: true }).click();
   await expect(page.locator('[data-workspace-view="accounts"]')).toBeVisible();
   await expect(page.locator('#profile-label')).toBeHidden();
   await page.getByRole('button', { name: 'Choose a name', exact: true }).click();
@@ -113,7 +113,7 @@ test('renderer Overview preserves exact zero and large values and rejects stale 
   await page.evaluate(({ reading, savedQuota }) => { const fixture = (window as unknown as FixtureWindow).overviewFixture; fixture.deferFirst = false; fixture.mismatchFirst = true; for (const pending of fixture.pending.splice(0)) pending.resolve(pending.kind === 'activity' ? reading : savedQuota); }, { reading: activity(first, '0'), savedQuota: quota(first) });
   await expect(dashboard(page).locator('[data-overview-lifetime] bdi')).toHaveAttribute('title', '9223372036854775807');
   await choose(page, 'Zero fixture');
-  await expect(dashboard(page).getByText('Saved activity could not be loaded. Reload it from Accounts.', { exact: true })).toBeVisible();
+  await expect(dashboard(page).getByText('Saved activity could not be loaded. Try Refresh.', { exact: true })).toBeVisible();
   await expect(dashboard(page).locator('[data-overview-lifetime]')).toHaveText('Not available');
   await expect(dashboard(page).locator('[data-overview-quota]').getByRole('meter')).toHaveCount(0);
 });
@@ -179,6 +179,7 @@ test('renderer Overview remains accessible in both themes at 360 pixels and enla
     await page.getByRole('combobox', { name: 'Appearance', exact: true }).click();
     await page.getByRole('option', { name: theme === 'light' ? 'Light' : 'Dark', exact: true }).click();
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+    if (theme === 'dark') expect(await page.evaluate(() => ({ background: getComputedStyle(document.documentElement).backgroundColor, sidebar: getComputedStyle(document.querySelector('.sidebar')!).backgroundColor }))).toEqual({ background: 'rgb(0, 0, 0)', sidebar: 'rgb(0, 0, 0)' });
     await navigate(page, 'overview');
     for (const scale of [1, 2]) {
       await page.evaluate(scale => { for (const node of document.querySelectorAll<HTMLElement>('body *')) { const baseline = node.dataset.testFontSize ?? getComputedStyle(node).fontSize; node.dataset.testFontSize = baseline; node.style.fontSize = `${parseFloat(baseline) * scale}px`; } }, scale);
@@ -351,21 +352,39 @@ test('reference dashboard keeps account share and combined totals unavailable wh
 });
 
 
-test('selected quota window switches without hiding or combining the other provider window', async ({ page }) => {
+test('all provider-reported quota windows stay visible and missing windows are never inferred from plan names', async ({ page }) => {
   await open(page);
   await page.evaluate(first => {
     const fixture = (window as unknown as FixtureWindow).overviewFixture;
     fixture.quotas[first]!.limits[0]!.secondary = { usedPercent: 40, derivedRemainingPercent: 60, windowDurationMins: 10080, resetsAtUnix: null, label: 'Seven-day', resetState: 'expected' };
   }, first);
-  await navigate(page, 'accounts'); await navigate(page, 'overview');
+  await navigate(page, 'usage'); await navigate(page, 'overview');
   const selected = dashboard(page).locator('[data-overview-quota]');
+  await expect(selected.getByRole('meter')).toHaveCount(2);
+  await expect(selected.getByRole('meter').nth(0)).toHaveAttribute('aria-label', 'Five-hour: 0% remaining (derived)');
+  await expect(selected.getByRole('meter').nth(1)).toHaveAttribute('aria-label', 'Seven-day: 60% remaining (derived)');
+  await expect(selected.locator('[data-overview-window="Primary window"]')).toContainText('100% used');
+  await expect(selected.locator('[data-overview-window="Secondary window"]')).toContainText('40% used');
+  await expect(selected.getByRole('combobox', { name: 'Quota window', exact: true })).toHaveCount(0);
+  await page.evaluate(first => {
+    const fixture = (window as unknown as FixtureWindow).overviewFixture;
+    fixture.quotas[first]!.limits[0]!.primary = null;
+  }, first);
+  await navigate(page, 'usage'); await navigate(page, 'overview');
   await expect(selected.getByRole('meter')).toHaveCount(1);
-  await expect(selected.getByRole('meter')).toHaveAttribute('aria-valuenow', '0');
-  await selected.getByRole('combobox', { name: 'Quota window', exact: true }).click();
-  await page.getByRole('option', { name: 'Seven-day', exact: true }).click();
-  await expect(selected.getByRole('meter')).toHaveAttribute('aria-valuenow', '60');
-  await expect(selected).toContainText('40% used');
-  await selected.getByRole('combobox', { name: 'Quota window', exact: true }).click();
-  await page.getByRole('option', { name: 'Five-hour', exact: true }).click();
-  await expect(selected.getByRole('meter')).toHaveAttribute('aria-valuenow', '0');
+  await expect(selected.getByRole('meter')).toHaveAttribute('aria-label', 'Seven-day: 60% remaining (derived)');
+  await expect(selected.locator('[data-overview-window="Primary window"]')).toHaveCount(0);
+});
+
+test('View usage returns to its account after choosing another account in Usage', async ({ page }) => {
+  await open(page);
+  const view = dashboard(page).getByRole('button', { name: 'View usage', exact: true }).first();
+  await view.click();
+  const picker = page.getByRole('combobox', { name: 'Usage profile', exact: true });
+  await expect(picker).toContainText('Zero fixture');
+  await picker.click();
+  await page.getByRole('option', { name: 'Large fixture', exact: true }).click();
+  await expect(picker).toContainText('Large fixture');
+  await navigate(page, 'overview'); await view.click();
+  await expect(picker).toContainText('Zero fixture');
 });

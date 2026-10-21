@@ -1,12 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from './components/ui/button';
 import { Select, SelectTrigger, SelectValue, SelectPopup, SelectItem } from './components/ui/select';
 import type { ProfileRecord } from './contracts';
 import { ProfileActivity } from './activity';
 import { QuotaHistory } from './quota-history';
 
-export function Usage({ profiles, revision, onAccounts, active }: { active: boolean; profiles: ProfileRecord[]; revision: number; onAccounts: () => void }) {
+export function Usage({ profiles, revision, onAccounts, active, requestedProfileId }: { requestedProfileId?: string | null; active: boolean; profiles: ProfileRecord[]; revision: number; onAccounts: () => void }) {
   const [selected, setSelected] = useState<string | null>(null);
+  useEffect(() => { if (active && requestedProfileId) setSelected(requestedProfileId); }, [active, requestedProfileId]);
   const profile = profiles.find(value => value.id === selected) ?? profiles.find(value => !value.archived) ?? profiles[0];
   if (!active) return null;
   return <section className="usage-content">
@@ -16,7 +17,7 @@ export function Usage({ profiles, revision, onAccounts, active }: { active: bool
       </Select>}
     </div>
     {profile && <QuotaHistory key={`history:${profile.id}`} profile={profile} revision={revision} />}
-    {profile ? <ProfileActivity key={profile.id} readingRevision={String(revision)} profileId={profile.id} profileLabel={profile.label} emptyContent={<div className="empty-state"><h3>No saved activity for this profile</h3><p>Read its activity from Accounts to save a reading.</p><Button variant="outline" onClick={onAccounts}>View accounts</Button></div>}>{() => null}</ProfileActivity>
-      : <div className="empty-state"><h3>No saved activity yet</h3><p>Add an account profile, then read its activity.</p><Button variant="outline" onClick={onAccounts}>View accounts</Button></div>}
+    {profile ? <ProfileActivity key={profile.id} readingRevision={String(revision)} profileId={profile.id} profileLabel={profile.label} emptyContent={<div className="empty-state"><h3>No saved activity for this profile</h3><p>Refresh this account on Overview to save a reading.</p><Button variant="outline" onClick={onAccounts}>Manage accounts</Button></div>}>{() => null}</ProfileActivity>
+      : <div className="empty-state"><h3>No saved activity yet</h3><p>Add an account profile, then read its activity.</p><Button variant="outline" onClick={onAccounts}>Manage accounts</Button></div>}
   </section>;
 }

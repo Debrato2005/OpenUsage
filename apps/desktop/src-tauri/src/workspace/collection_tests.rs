@@ -31,7 +31,7 @@ impl Fixture {
         );
         assert_eq!(
             format!("{:x}", Sha256::digest(bytes)),
-            "e88d9644b66d5cd0e46d51d365c32d8575176909531a92ecb580d3acf4b02aa8"
+            "53a853b737ceca311649e9f1d9ebd1341154a5f782efd8e915f7f834c819a6dc"
         );
         fs::write(&executable, bytes).unwrap();
         fs::set_permissions(&executable, fs::Permissions::from_mode(0o700)).unwrap();

@@ -155,7 +155,10 @@ if selected == 'startup_late':
     send(startup)
 if selected == 'account_notice':
     send({'method': 'account/updated', 'params': {'authMode': 'chatgpt'}})
-capability(3, 'quota', {'rateLimitsByLimitId': {'codex': {'limitId': 'codex', 'primary': {'usedPercent': 25, 'windowDurationMins': 300, 'resetsAt': 1893456000}, 'secondary': None}}})
+secondary_window = None
+if selected == 'dashboard_success':
+    secondary_window = {'usedPercent': 40, 'windowDurationMins': 10080, 'resetsAt': 1893974400}
+capability(3, 'quota', {'rateLimitsByLimitId': {'codex': {'limitId': 'codex', 'primary': {'usedPercent': 25, 'windowDurationMins': 300, 'resetsAt': 1893456000}, 'secondary': secondary_window}}})
 assert read_request() == {'id': 4, 'method': 'account/usage/read', 'params': {}}
 # Only this explicit visual-acceptance mode supplies synthetic daily activity.
 # Existing modes retain their original absent-bucket payloads.
@@ -170,5 +173,8 @@ while mode() == 'post_hold':
 if selected == 'cleanup_fault':
     root = pathlib.Path(os.environ['HOME']).parent
     root.rename(root.with_name(root.name + '-moved'))
+# This owned test marker lets native acceptance observe the selected refresh in progress.
+while selected == 'dashboard_success' and (home / 'synthetic-dashboard-hold').exists():
+    time.sleep(0.01)
 account(5, final=True)
 time.sleep(60)

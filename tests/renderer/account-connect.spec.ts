@@ -26,18 +26,19 @@ for (const verified of [true, false]) test(`Add OpenAI account prepares the comp
     } } };
   }, { verified });
   await page.goto('/');
-  await navigate(page, 'accounts');
-  await page.getByRole('button', { name: 'Add OpenAI account', exact: true }).click();
+  await navigate(page, 'overview');
+  await page.locator('[data-overview-add-account]').click();
   await expect(page.locator('[data-profile-id] .profile-label')).toHaveText('Account A');
   await expect(page.locator('#profile-label')).toBeHidden();
-  await expect(page.locator('[data-workspace-nav="accounts"]')).toHaveAttribute('aria-current', 'page');
+  await expect(page.locator('[data-workspace-nav="accounts"]')).toHaveCount(0);
+  await expect(page.locator('[data-account-panel]')).toBeVisible();
   await expect(page.locator('.provider-panel')).toBeHidden();
   await expect(page.locator('#provider-executable-approved')).toHaveCount(0);
   if (verified) {
-    const signIn = page.getByRole('button', { name: 'Sign in', exact: true });
+    const signIn = page.locator('[data-account-panel]').getByRole('button', { name: 'Sign in', exact: true });
     await expect(signIn).toBeFocused();
     await expect(signIn).toBeVisible();
-    await expect(page.locator('[data-profile-action=readings]')).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.locator('[data-profile-action=readings]')).toBeHidden();
   } else {
     await expect(page.getByRole('alert')).toContainText('OpenUsage could not verify its OpenAI companion.');
     await expect(page.getByRole('button', { name: 'Retry connection', exact: true })).toBeEnabled();

@@ -85,8 +85,8 @@ test('profile and JSON identifier choices require fresh consent and match the sa
 
 test('late completion keeps navigation focus and the receipt available when Settings is revisited', async ({ page }) => {
   await open(page); await consent(page).check(); await save(page).click();
-  await navigate(page, 'accounts'); await publish(page);
-  await expect(page.locator('[data-workspace-nav="accounts"]')).toBeFocused();
+  await navigate(page, 'usage'); await publish(page);
+  await expect(page.locator('[data-workspace-nav="usage"]')).toBeFocused();
   await navigate(page, 'settings');
   await expect(page.locator('[data-export-result]')).toContainText('Saved readings exported.');
   await expect(page.locator('[data-workspace-nav="settings"]')).toBeFocused();

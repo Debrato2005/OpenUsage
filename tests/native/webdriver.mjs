@@ -92,10 +92,23 @@ export class NativeDriver {
 
   async navigate(view) {
     assert.ok(['overview', 'accounts', 'usage', 'settings'].includes(view));
-    const selector = `nav[aria-label="Main"] [data-workspace-nav="${view}"]`;
-    await waitFor(async () => this.execute('const link=document.querySelector(arguments[0]);return Boolean(link&&link.getClientRects().length&&!link.disabled);', [selector]), `available ${view} navigation link`);
+    // Account management remains testable through Settings without restoring a fourth route.
+    if (await this.execute('const panel=document.querySelector("[data-account-panel]");return Boolean(panel?.open&&panel.getClientRects().length);')) {
+      await this.click('[data-account-panel-close]');
+      await waitFor(async () => this.execute('const panel=document.querySelector("[data-account-panel]");return Boolean(panel&&!panel.open&&!panel.getClientRects().length);'), 'account dialog closed before navigation');
+    }
+    const destination = view === 'accounts' ? 'settings' : view;
+    const selector = `nav[aria-label="Main"] [data-workspace-nav="${destination}"]`;
+    assert.equal(await this.execute('return document.querySelectorAll("nav[aria-label=Main] [data-workspace-nav=accounts]").length;'), 0);
+    await waitFor(async () => this.execute('const link=document.querySelector(arguments[0]);return Boolean(link&&link.getClientRects().length&&!link.disabled);', [selector]), `available ${destination} navigation link`);
     if (!await this.execute('return document.querySelector(arguments[0])?.getAttribute("aria-current")==="page";', [selector])) await this.click(selector);
-    await waitFor(async () => this.execute('const link=document.querySelector(arguments[0]),panel=document.querySelector(`[data-workspace-view="${arguments[1]}"]`);return link?.getAttribute("aria-current")==="page"&&Boolean(panel&&!panel.hidden&&panel.getClientRects().length)&&[...document.querySelectorAll("[data-workspace-view]")].every(node=>node===panel||node.hidden);', [selector, view]), `visible ${view} navigation destination`);
+    await waitFor(async () => this.execute('const link=document.querySelector(arguments[0]),panel=document.querySelector(`[data-workspace-view="${arguments[1]}"]`),views=[...document.querySelectorAll("[data-workspace-view]")].filter(node=>["overview","usage","settings"].includes(node.getAttribute("data-workspace-view")));return link?.getAttribute("aria-current")==="page"&&views.length===3&&Boolean(panel&&!panel.hidden&&panel.getClientRects().length)&&views.every(node=>node===panel||node.hidden);', [selector, destination]), `visible ${destination} navigation destination`);
+    if (view === 'accounts') {
+      await this.click('[data-account-manager-open]');
+      await waitFor(async () => this.execute('const panel=document.querySelector("[data-account-panel]"),profiles=panel?.querySelector(".accounts-section");return Boolean(panel?.open&&!panel.hidden&&panel.getClientRects().length&&profiles?.getClientRects().length)&&document.querySelector("nav[aria-label=Main] [data-workspace-nav=settings]")?.getAttribute("aria-current")==="page";'), 'visible account management dialog over Settings');
+    } else {
+      await waitFor(async () => this.execute('const panel=document.querySelector("[data-account-panel]");return Boolean(panel&&!panel.open&&!panel.getClientRects().length);'), 'account dialog stays closed on a primary view');
+    }
   }
 
   async setAppearance(theme) {

@@ -13,7 +13,7 @@ const repository = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const application = resolve(process.env.OPENUSAGE_NATIVE_BINARY);
 const output = resolve(process.env.OPENUSAGE_NATIVE_EVIDENCE);
 const passphrase = 'OpenUsage synthetic overview workspace 2026';
-const evidence = { requirement: 'NATIVE-REFERENCE-DASHBOARD-002', result: 'failed', scope: 'Native WebKitGTK with synthetic saved readings, exact details, account actions, both themes, responsive layout, actual WebKit zoom and genuine restart. Not real OAuth, provider data, Windows/macOS or release qualification.', views: [], screenshots: [] };
+const evidence = { requirement: 'NATIVE-THREE-VIEW-DASHBOARD-001', result: 'failed', scope: 'Native WebKitGTK with synthetic saved readings, exact details, three primary views, contextual account actions, both reported quota windows, selected background refresh, VS Code-inspired true-black colors, both themes, responsive layout, actual WebKit zoom and genuine restart. Not real OAuth, provider data, Windows/macOS or release qualification.', views: [], screenshots: [] };
 let driver, fixture, sequence = 0;
 const hash = async path => createHash('sha256').update(await readFile(path)).digest('hex');
 async function call(command, args) { const reply = await driver.invoke(command, args); assert.equal(reply.ok, true, `${command}: ${JSON.stringify(reply)}`); return reply.value; }
@@ -63,6 +63,7 @@ try {
   fixture = await createFixture('overview-workspace');
   fixture.environment.HOME = join(fixture.root, 'synthetic-home'); await mkdir(fixture.environment.HOME, { mode: 0o700 });
   await open(true);
+  assert.deepEqual(await driver.execute('return [...document.querySelectorAll("nav[aria-label=Main] [data-workspace-nav]")].map(node=>node.getAttribute("data-workspace-nav"));'), ['overview', 'usage', 'settings']);
   const executable = join(fixture.root, 'synthetic-collection-provider.py');
   await copyFile(join(repository, 'crates/openusage-codex/tests/fixtures/synthetic-collection-provider.py'), executable); await chmod(executable, 0o700);
   await driver.navigate('settings'); await driver.click('[data-provider-settings]'); await driver.click('[data-provider-manual]');
@@ -75,17 +76,25 @@ try {
     await driver.navigate('overview'); await driver.click('[data-overview-add-account]');
     await waitFor(async () => (await call('list_profiles')).profiles.length === index + 1, 'overview Add creates one profile');
     const profile = (await call('list_profiles')).profiles.find(item => !profiles.some(old => old.id === item.id)); profiles.push(profile);
+    await waitFor(() => driver.execute('const panel=document.querySelector("[data-account-panel]");return Boolean(panel?.open&&panel.querySelector(arguments[0])?.getClientRects().length);', [`[data-profile-id="${profile.id}"]`]), 'Overview Add opens its isolated profile dialog');
+    assert.equal(await driver.execute('return document.querySelector("nav[aria-label=Main] [data-workspace-nav=overview]")?.getAttribute("aria-current");'), 'page');
   }
   for (const profile of profiles.slice(0, 2)) {
     const home = join(dirname(fixture.database), 'profiles', profile.id);
     await writeFile(join(home, 'synthetic-collection-config.json'), JSON.stringify({ mode: 'dashboard_success', requireLogin: true }) + '\n', { mode: 0o600 });
     await driver.navigate('overview');
     await driver.click(`[data-overview-account="${profile.id}"] td:last-child button:first-child`);
+    await waitFor(() => driver.execute('const panel=document.querySelector("[data-account-panel]");return Boolean(panel?.open&&panel.querySelector(arguments[0])?.getClientRects().length);', [`[data-profile-id="${profile.id}"]`]), 'selected Sign in opens account dialog');
+    assert.equal(await driver.execute('return [...document.querySelectorAll("[data-account-panel] [data-profile-id]")].filter(node=>node.getClientRects().length).length;'), 1);
     await waitFor(async () => Boolean(await call('load_profile_quota', { profileId: profile.id })) && Boolean(await call('load_profile_activity', { profileId: profile.id })), 'selected GUI sign-in automatically saves paired fixture readings', 45000);
   }
   await driver.navigate('overview');
   await waitFor(() => driver.execute('return document.querySelector("[data-overview-lifetime]")?.getAttribute("data-exact-value")==="9007199254740993";'), 'selected saved count');
   await waitFor(() => driver.execute('return document.querySelector(".overview-account-identity")?.textContent.includes("ChatGPT Plus");'), 'saved provider plan');
+  assert.equal(await driver.execute('return document.querySelector("[data-account-panel]").open;'), false);
+  assert.equal(await driver.execute('return document.querySelector("[data-account-refresh-message]");'), null, 'Automatic login collection does not add an Overview banner.');
+  assert.deepEqual(await driver.execute('return [...document.querySelectorAll("[data-overview-quota] [role=meter]")].map(node=>Number(node.getAttribute("aria-valuenow")));'), [75, 60]);
+  assert.deepEqual(await driver.execute('return [...document.querySelectorAll("[data-overview-window]")].map(node=>node.getAttribute("data-overview-window"));'), ['Primary window', 'Secondary window']);
   await resize(1586, 992); await capture('overview-reference-light.png');
   assert.equal(await driver.execute('return document.querySelector("[data-overview-account-share]")?.getAttribute("data-aggregation");'), 'unavailable');
   assert.match(await driver.execute('return document.querySelector("[data-overview-combined-usage]").textContent;'), /Unavailable/);
@@ -96,6 +105,14 @@ try {
   await driver.click('.overview-source-details > button');
   assert.ok((await driver.execute('return document.querySelector(".overview-source-details").textContent;')).includes('9007199254740993'));
   await driver.click('.overview-source-details > button');
+  await driver.click('.overview-account-footer > button');
+  await waitFor(() => driver.execute('return document.querySelector("[data-workspace-view=usage] [role=combobox]")?.textContent.includes(arguments[0]);', [profiles[0].label]), 'View usage selects the requested account');
+  await driver.selectVisibleOption('[aria-label="Usage profile"]', profiles[1].label);
+  await driver.navigate('overview');
+  await driver.click('.overview-account-footer > button');
+  await waitFor(() => driver.execute('return document.querySelector("[data-workspace-view=usage] [role=combobox]")?.textContent.includes(arguments[0]);', [profiles[0].label]), 'Repeated View usage restores its account');
+  evidence.usageSelection = { repeatedAccountActionWinsOverUsageSelection: true };
+  await driver.navigate('overview');
   // The prominent row action starts the existing sign-in controller for only this profile.
   await writeFile(join(dirname(fixture.database), 'profiles', profiles[2].id, 'synthetic-collection-config.json'), JSON.stringify({ mode: 'login_pending', requireLogin: true }) + '\n', { mode: 0o600 });
   await driver.click(`[data-overview-account="${profiles[2].id}"] td:last-child button:first-child`);
@@ -103,9 +120,39 @@ try {
   assert.equal(await driver.execute('return [...document.querySelectorAll("[data-login-cancel]")].filter(node=>node.getClientRects().length).length;'), 1);
   await driver.click(`[data-login-cancel="${profiles[2].id}"]`);
   await waitFor(() => driver.execute('return !document.querySelector(arguments[0]);', [`[data-login-cancel="${profiles[2].id}"]`]), 'selected sign-in cancelled');
-  evidence.accountActions = { overviewAddCreatedFiveSeparateProfiles: true, selectedSignInStartedOnlyThirdAccount: true, cancellationCompleted: true };
+  evidence.accountActions = { overviewAddCreatedFiveSeparateProfiles: true, selectedSignInStartedOnlyThirdAccount: true, cancellationCompleted: true, onlyThreePrimaryViews: true, addAndSignInUseSelectedDialog: true };
+  await driver.navigate('overview');
+  await driver.selectVisibleOption('#overview-profile', profiles[0].label);
+  const selectedId = await driver.execute('return document.querySelector("[data-overview]").getAttribute("data-overview-profile");');
+  assert.ok(profiles.slice(0, 2).some(profile=>profile.id===selectedId));
+  await driver.waitForProfileRefresh(selectedId);
+  const beforeRefresh = await call('load_profile_quota', { profileId: selectedId });
+  const otherId = profiles.slice(0, 2).find(profile=>profile.id!==selectedId).id;
+  await driver.waitForProfileRefresh(otherId);
+  const otherBeforeRefresh = await call('load_profile_quota', { profileId: otherId });
+  const held = join(dirname(fixture.database), 'profiles', selectedId, 'synthetic-dashboard-hold');
+  await writeFile(held, 'Owned synthetic refresh hold. No credentials.\n', { mode: 0o600 });
+  try {
+    await driver.click(`[data-overview-refresh="${selectedId}"]`);
+    await waitFor(() => driver.execute('const button=document.querySelector(arguments[0]);return button?.disabled&&button.textContent==="Refreshing…"&&button.getAttribute("aria-busy")==="true";', [`[data-overview-refresh="${selectedId}"]`]), 'selected Overview refresh shows progress');
+    assert.equal(await driver.execute('return document.querySelector("[data-account-panel]").open;'), false);
+    assert.equal(await driver.execute('return document.querySelector("nav[aria-label=Main] [data-workspace-nav=overview]")?.getAttribute("aria-current");'), 'page');
+    assert.equal(await driver.execute('return document.querySelector(arguments[0])?.textContent;', [`[data-overview-row-refresh="${selectedId}"]`]), 'Refreshing…');
+    assert.equal(await driver.execute('return document.querySelector(arguments[0])?.disabled;', [`[data-overview-row-refresh="${otherId}"]`]), false);
+  } finally { await rm(held, { force: true }); }
+  await waitFor(async () => (await call('load_profile_quota', { profileId: selectedId })).collectionRunId !== beforeRefresh.collectionRunId, 'selected Refresh commits new saved reading', 45000);
+  await waitFor(() => driver.execute('return document.querySelector("[data-account-refresh-message]")?.textContent.includes("Readings updated.");'), 'Overview reports successful refresh');
+  assert.equal(await driver.execute('return document.querySelector("[data-account-panel]").open;'), false);
+  assert.equal((await call('load_profile_quota', { profileId: otherId })).collectionRunId, otherBeforeRefresh.collectionRunId);
+  evidence.backgroundRefresh = { realCooldownRespected: true, selectedAccountProgress: true, otherAccountUnchanged: true, overviewStayedVisible: true, noDialogOpened: true, savedNewReading: true };
+  await waitFor(() => driver.execute('const button=document.querySelector(arguments[0]);return button?.disabled&&/^Refresh in \\d+s$/.test(button.textContent);', [`[data-overview-refresh="${selectedId}"]`]), 'Overview exposes selected cooldown');
+  evidence.backgroundRefresh.cooldownVisible = true;
+  await driver.click('[aria-label="Dismiss account update"]');
+
   await driver.navigate('overview');
   await driver.setAppearance('dark'); await resize(1280); await capture('overview-laptop-dark.png');
+  evidence.darkTheme = await driver.execute('return { background:getComputedStyle(document.documentElement).backgroundColor,sidebar:getComputedStyle(document.querySelector(".sidebar")).backgroundColor,foreground:getComputedStyle(document.body).color };');
+  assert.deepEqual(evidence.darkTheme, { background: 'rgb(0, 0, 0)', sidebar: 'rgb(0, 0, 0)', foreground: 'rgb(204, 204, 204)' });
   const beforeZoom = await driver.execute('return {width:innerWidth,dpr:devicePixelRatio};');
   await driver.selectVisibleOption('#display-scale', '125%');
   await waitFor(async () => (await driver.execute('return innerWidth;')) < beforeZoom.width, 'native zoom changes CSS viewport');

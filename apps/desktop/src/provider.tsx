@@ -163,7 +163,7 @@ export function ProviderSettings({ busy, setBusy, approval, onApproved }: Settin
   </section>;
 }
 
-export function ProfileProviderCheck({ profileId, profileLabel, approval, busy, managementActions, managementTrigger, onConnectionChanged, reconnectRequested = false, onReconnectRequested, loginContainerId = '', connected = false, loginActionLabel = 'Sign in', onActivitySaved, onActivityFailed, onQuotaSaved, onQuotaFailed, onCollectionSaved, onCollectionFailed, monitoring, monitoringUnavailable, onMonitoringAction }: { profileId: string; profileLabel: string; approval: ProviderExecutableApproval; busy: boolean; managementActions: ReactNode; managementTrigger: ReactNode; onConnectionChanged: () => Promise<void>; reconnectRequested?: boolean; onReconnectRequested?: () => void; loginContainerId?: string; connected?: boolean; loginActionLabel?: string; onActivitySaved: (value: ProfileReadingReference) => Promise<void>; onActivityFailed: () => Promise<void>; onQuotaSaved: (value: ProfileReadingReference) => Promise<void>; onQuotaFailed: () => Promise<void>; onCollectionSaved: (value: ProfileCollectionOutcome) => Promise<void>; onCollectionFailed: () => Promise<void>; monitoring: ProfileMonitoringStatus | null; monitoringUnavailable: boolean; onMonitoringAction: MonitoringAction }) {
+export function ProfileProviderCheck({ profileId, profileLabel, approval, busy, managementActions, managementTrigger, onConnectionChanged, reconnectRequested = false, onReconnectRequested, onRefreshState, loginContainerId = '', connected = false, loginActionLabel = 'Sign in', onActivitySaved, onActivityFailed, onQuotaSaved, onQuotaFailed, onCollectionSaved, onCollectionFailed, monitoring, monitoringUnavailable, onMonitoringAction }: { profileId: string; profileLabel: string; approval: ProviderExecutableApproval; busy: boolean; managementActions: ReactNode; managementTrigger: ReactNode; onConnectionChanged: () => Promise<void>; reconnectRequested?: boolean; onReconnectRequested?: () => void; onRefreshState?: (working: boolean, waitSeconds: number) => void; loginContainerId?: string; connected?: boolean; loginActionLabel?: string; onActivitySaved: (value: ProfileReadingReference) => Promise<void>; onActivityFailed: () => Promise<void>; onQuotaSaved: (value: ProfileReadingReference) => Promise<void>; onQuotaFailed: () => Promise<void>; onCollectionSaved: (value: ProfileCollectionOutcome) => Promise<void>; onCollectionFailed: () => Promise<void>; monitoring: ProfileMonitoringStatus | null; monitoringUnavailable: boolean; onMonitoringAction: MonitoringAction }) {
   const [checking, setChecking] = useState(false);
   const [loggingIn, setLoggingIn] = useState(false);
   const [readingQuota, setReadingQuota] = useState(false);
@@ -191,6 +191,12 @@ export function ProfileProviderCheck({ profileId, profileLabel, approval, busy, 
   } });
 
   const reconnectConsumed = useRef(false);
+  const reportWorking = useRef(onRefreshState);
+  useEffect(() => { reportWorking.current = onRefreshState; }, [onRefreshState]);
+  useEffect(() => {
+    reportWorking.current?.(checking || loggingIn || readingCollection || readingQuota || activity.working, refreshWait);
+  }, [checking, loggingIn, readingCollection, readingQuota, activity.working, refreshWait]);
+  useEffect(() => () => { reportWorking.current?.(false, 0); }, []);
   useEffect(() => {
     if (!reconnectRequested) { reconnectConsumed.current = false; return; }
     if (busy || reconnectConsumed.current) return;

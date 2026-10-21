@@ -42,3 +42,13 @@
 .account-quota-summary .quota-meter-heading { gap: var(--space-3); font-variant-numeric: tabular-nums; }
 @media (max-width: 1050px) { .profile-row-summary { grid-template-columns: minmax(0, 1fr) auto; } .profile-row-summary > [id^="profile-quota-summary-"] { grid-row: 2; } .profile-table-heading { display: none; } }
 @media (max-width: 760px) { .profile-row-summary > [id^="profile-quota-summary-"] { flex-basis: 100%; } }
+
+/* The contextual manager reuses mounted account controllers without duplicate readings. */
+.accounts-section[data-embedded] .profile-row-summary { display: flex; flex-wrap: wrap; padding: 0; }
+.accounts-section[data-embedded] .profile-row { border: 0; }
+.accounts-section[data-embedded] .profile-reading-panel { padding-inline: 0; border: 0; background: transparent; }
+.accounts-section[data-embedded] .activity-saved,
+.accounts-section[data-embedded] [data-quota-saved],
+.accounts-section[data-embedded] [id^="profile-quota-summary-"] { display: none; }
+.accounts-section[data-embedded] .account-sign-in { padding-inline: 0; }
+.accounts-section [hidden] { display: none !important; }

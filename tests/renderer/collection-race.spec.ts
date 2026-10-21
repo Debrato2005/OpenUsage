@@ -20,6 +20,7 @@ type Fixture = {
   quota: SavedProfileQuota; activity: SavedProfileActivity; failLoads: boolean;
   approvalId: string; refreshSeconds: number; monitoring: MonitoringStatus; deferMonitoring: boolean; pendingMonitoring: Deferred[]; failMonitoring: boolean;
   connectionState?: 'connected' | 'authentication_required';
+  failPrepare?: boolean;
 };
 type FixtureWindow = Window & { collectionFixture: Fixture };
 function cachedQuota(): SavedProfileQuota {
@@ -62,7 +63,7 @@ async function open(page: Page, reconnect = false) {
         case 'load_profile_refresh_status': result = { profileId, retryAfterSeconds: fixture.refreshSeconds }; break;
         case 'load_profile_quota': if (fixture.failLoads) throw 'provider_quota_load_failed'; result = structuredClone(fixture.quota); break;
         case 'load_profile_activity': if (fixture.failLoads) throw 'provider_activity_load_failed'; result = structuredClone(fixture.activity); break;
-        case 'prepare_provider_connection': result = { ...metadata, approvalId: fixture.approvalId }; break;
+        case 'prepare_provider_connection': if (fixture.failPrepare) throw 'provider_source_unverified'; result = { ...metadata, approvalId: fixture.approvalId }; break;
         case 'inspect_provider_executable': result = { ...metadata, candidateId: reviewId }; break;
         case 'approve_provider_executable': result = { ...metadata, approvalId: fixture.approvalId }; break;
         case 'begin_profile_activity_read':
@@ -372,7 +373,7 @@ test('a pre-restore status reply cannot restart or repaint the new workspace mon
   await navigate(page, 'overview');
   await expect(page.locator('[data-overview-quota] .overview-error')).toContainText('Saved quotas could not be loaded.');
   await expect(account.locator('[data-overview-account-quota]')).toHaveText('Not available');
-  await expect(account.locator('[data-overview-account-observed]')).toContainText('—');
+  await expect(account.locator('[data-overview-account-observed]')).toContainText('Unavailable');
   await expect(account.locator('[data-overview-account-observed] time')).toHaveCount(0);
   await expect(page.locator('[data-overview-lifetime]')).toHaveText('Not available');
   await expect(page.locator('[data-global-monitoring]')).toHaveText('Monitoring stopped');
@@ -435,4 +436,66 @@ test('row Refresh during cooldown cannot queue a provider read after the wait ex
   expect(calls.filter(call => call.command === 'begin_profile_collection_read')).toHaveLength(1);
   expect(calls.some(call => call.command === 'begin_profile_login' || call.command === 'start_profile_monitoring')).toBe(false);
   await expect(page.locator(`[data-activity-saved="${profileId}"] [data-activity-metric=lifetimeTokens]`)).toHaveText('9223372036854775807');
+});
+
+
+test('Overview refresh stays on the same page, updates its account row and preserves background failures', async ({ page }) => {
+  await open(page, true);
+  await navigate(page, 'overview');
+  const navigation = page.getByRole('navigation', { name: 'Main', exact: true });
+  await expect(navigation.getByRole('link')).toHaveCount(3);
+  await expect(navigation.locator('[data-workspace-nav="accounts"]')).toHaveCount(0);
+  const selected = page.locator('[data-overview-quota]');
+  await selected.getByRole('button', { name: 'Refresh', exact: true }).click();
+  await expect.poll(() => page.evaluate(id => Boolean((window as unknown as FixtureWindow).collectionFixture.completions[id]), requests[0]!)).toBe(true);
+  await expect(navigation.locator('[data-workspace-nav="overview"]')).toHaveAttribute('aria-current', 'page');
+  await expect(page.locator('[data-account-panel]')).toBeHidden();
+  await expect(selected.getByRole('button', { name: 'Refreshing…', exact: true })).toBeDisabled();
+  await publish(page, { ...committed(), sourceKind: 'official_artifact' });
+  await expect(page.locator('[data-account-refresh-message]')).toContainText('Readings updated.');
+  await expect(page.locator(`[data-overview-account="${profileId}"] [data-overview-account-quota]`)).toContainText('50% left');
+  await expect(page.locator('[data-account-panel]')).toBeHidden();
+  await selected.getByRole('button', { name: 'Refresh', exact: true }).click();
+  await expect.poll(() => page.evaluate(id => Boolean((window as unknown as FixtureWindow).collectionFixture.completions[id]), requests[1]!)).toBe(true);
+  await reject(page, 'provider_unavailable', 1);
+  await expect(page.locator('[data-account-refresh-message]')).toContainText('Saved readings are still available.');
+  await expect(page.locator(`[data-overview-account="${profileId}"] [data-overview-account-quota]`)).toContainText('50% left');
+  await expect(navigation.locator('[data-workspace-nav="overview"]')).toHaveAttribute('aria-current', 'page');
+  await expect(page.locator('[data-account-panel]')).toBeHidden();
+  await page.getByRole('button', { name: 'View account details', exact: true }).click();
+  await expect(page.locator('[data-account-panel]')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('[data-account-panel]')).toBeHidden();
+});
+
+test('Overview refresh exposes its cooldown and never queues a provider request', async ({ page }) => {
+  await page.clock.install();
+  await open(page, true); await navigate(page, 'overview');
+  const refresh = page.locator(`[data-overview-refresh="${profileId}"]`);
+  await refresh.click();
+  await expect.poll(() => page.evaluate(id => Boolean((window as unknown as FixtureWindow).collectionFixture.completions[id]), requests[0]!)).toBe(true);
+  await page.evaluate(() => { (window as unknown as FixtureWindow).collectionFixture.refreshSeconds = 30; });
+  await publish(page, { ...committed(), sourceKind: 'official_artifact' });
+  await expect(refresh).toHaveText('Refresh in 30s');
+  await expect(refresh).toBeDisabled();
+  await expect(page.locator(`[data-overview-row-refresh="${profileId}"]`)).toBeDisabled();
+  await refresh.evaluate(node => (node as HTMLButtonElement).click());
+  await page.clock.runFor(31_000);
+  await expect(refresh).toHaveText('Refresh');
+  await expect(refresh).toBeEnabled();
+  expect(await page.evaluate(() => (window as unknown as FixtureWindow).collectionFixture.calls.filter(call => call.command === 'begin_profile_collection_read').length)).toBe(1);
+  await expect(page.locator('[data-workspace-nav="overview"]')).toHaveAttribute('aria-current', 'page');
+  await expect(page.locator('[data-account-panel]')).toBeHidden();
+});
+
+test('Overview reports a refused companion without navigating or starting a provider', async ({ page }) => {
+  await open(page, true); await navigate(page, 'overview');
+  await page.evaluate(() => { (window as unknown as FixtureWindow).collectionFixture.failPrepare = true; });
+  await page.locator(`[data-overview-refresh="${profileId}"]`).click();
+  await expect(page.locator('[data-overview-connection-error]')).toContainText('could not verify');
+  await expect(page.locator('[data-workspace-nav="overview"]')).toHaveAttribute('aria-current', 'page');
+  await expect(page.locator('[data-account-panel]')).toBeHidden();
+  expect(await page.evaluate(() => (window as unknown as FixtureWindow).collectionFixture.calls.some(call => call.command === 'begin_profile_collection_read'))).toBe(false);
+  await page.locator('[data-overview-connection-error]').getByRole('button', { name: 'Connection details', exact: true }).click();
+  await expect(page.locator('[data-workspace-nav="settings"]')).toHaveAttribute('aria-current', 'page');
 });

@@ -394,6 +394,7 @@ test('new account reads once after matched login and status reload, then uses th
     f.completions[`collection:${requestId}`]!.resolve({ profileId, approvalId, requestId, providerVersion: '0.163.0', sourceKind: 'test_fixture', identityConfidence: 'provisional', verifiedIdentityKey: null, monitoring: 'stopped', accepted: true, quota: { bindingId, collectionRunId, observedAtUtc }, activity: null });
   }, { profileId, approvalId, requestId: attempts[0]! });
   await expect(page.locator(`[data-account-quota="${profileId}"] [role=meter]`)).toHaveAttribute('aria-valuenow', '75');
+  await navigate(page, 'accounts');
   await openReadings(page, profileId);
   await expect(page.locator(`[data-quota-saved="${profileId}"]`).getByText('75%', { exact: true })).toBeVisible();
   await expect(page.locator(`[data-collection-profile="${profileId}"]`)).toContainText('Quotas saved.');
