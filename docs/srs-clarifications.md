@@ -39,3 +39,9 @@ Status: user-directed implementation interpretation, October 21, 2026. The norma
 The user requires normal onboarding without manual executable paths or technical approval panels. Add or Connect now authorizes preparation of the exact reviewed official companion. Rust retains the source pin, held-file checks, isolated homes, and process controls required by OU-PROTO-002/004/005. Sign-in retains explicit consent for the selected account. A present invalid companion fails closed. No credential import or runtime download is permitted.
 
 Technical review remains available in Settings for troubleshooting. Test fixtures still require the explicit test-build approval path and cannot pass normal production preparation. See the [source review and decision](reviews/2026-10-21-onboarding-sources.md). This change does not grant another profile access to an active sign-in or saved reading. Scoped native Linux qualification passed. Real OAuth and release-platform acceptance remain open.
+
+## SC-005: browser callback isolation remains unresolved
+
+Status: confirmed implementation restriction, October 21, 2026. No normative requirement changed or waived.
+
+OU-ACCT-005 requires browser login. OU-AUTH-007 restricts authentication operations to the selected profile. The pinned provider can cancel another listener on its fixed callback port. A probe reproduced that behavior against owned listeners. No supported app-server port override was found. A precheck leaves a race and does not establish isolation. The browser draft stays outside the working build while this conflict remains unresolved. Official device-code login remains available. See [the source review and executed result](reviews/2026-10-21-official-authentication.md).
