@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-prepare-provider-connection"
+description = "Enables the prepare_provider_connection command without any pre-configured scope."
+commands.allow = ["prepare_provider_connection"]
+
+[[permission]]
+identifier = "deny-prepare-provider-connection"
+description = "Denies the prepare_provider_connection command without any pre-configured scope."
+commands.deny = ["prepare_provider_connection"]

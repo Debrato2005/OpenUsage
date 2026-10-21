@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-complete-profile-activity-read"
+description = "Enables the complete_profile_activity_read command without any pre-configured scope."
+commands.allow = ["complete_profile_activity_read"]
+
+[[permission]]
+identifier = "deny-complete-profile-activity-read"
+description = "Denies the complete_profile_activity_read command without any pre-configured scope."
+commands.deny = ["complete_profile_activity_read"]

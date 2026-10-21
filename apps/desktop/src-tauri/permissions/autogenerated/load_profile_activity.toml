@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-load-profile-activity"
+description = "Enables the load_profile_activity command without any pre-configured scope."
+commands.allow = ["load_profile_activity"]
+
+[[permission]]
+identifier = "deny-load-profile-activity"
+description = "Denies the load_profile_activity command without any pre-configured scope."
+commands.deny = ["load_profile_activity"]

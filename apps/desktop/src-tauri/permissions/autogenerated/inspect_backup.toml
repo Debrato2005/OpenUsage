@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-inspect-backup"
+description = "Enables the inspect_backup command without any pre-configured scope."
+commands.allow = ["inspect_backup"]
+
+[[permission]]
+identifier = "deny-inspect-backup"
+description = "Denies the inspect_backup command without any pre-configured scope."
+commands.deny = ["inspect_backup"]

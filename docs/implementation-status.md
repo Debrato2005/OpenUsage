@@ -1,0 +1,41 @@
+# Implementation status
+
+Updated: October 21, 2026. OpenUsage remains in development. The normative [SRS](SRS.md) is unchanged. Only local commits are permitted; never push, publish, create pull requests or modify a remote.
+
+## Current product
+
+- Two authorized OpenAI profiles have completed official sign-in and saved quota/activity collection. The first profile's readings and connection stayed unchanged when the second connected. Genuine cache restart passed. The user also confirmed both saved accounts and readings in the redesigned production overview. See [real-account evidence](evidence/native-startup-snapshot/) and [production overview review](evidence/native-reference-overview/user-review.json).
+- The overview follows the supplied reference: selected account with quota/statistic tiles, account-share availability, combined-usage availability with explicitly selected-account activity, and a compact account list. DM Sans, accessible coss controls, both themes and persistent native display scaling are implemented. Unsupported data stays unavailable; no account-share totals or token quotas are invented.
+- Add creates isolated default-named profiles, up to 10 active accounts. Prominent per-account Sign in, Cancel, Retry/Reconnect and automatic initial collection use the selected profile. Routine onboarding uses a bundled pinned official companion without a manual path. Credentials remain provider-managed in separate homes.
+- Rust owns persistence, provider execution, authentication, scheduling, exact counts and IPC validation. SQLCipher 4/WAL protects application records. OS-backed database keys are used where available; the preserved WSL workspace uses its required fallback password because its session key store is unavailable. Provider keyring support remains incomplete.
+- Runtime monitoring, manual refresh cooldown, provider backoff, saved daily activity, current quota/reset assessments, current-reading CSV/JSON export, encrypted authenticated backups, confirmed restore and Undo are implemented within their recorded Linux scopes.
+
+## Latest verified slice
+
+Overview, Usage and Settings are the only primary pages. Account actions use a contextual dialog. Overview shows both reported quota windows together and keeps Refresh on the same page, with selected-account progress, visible cooldown and actionable errors. Settings retains account renaming, archiving and recovery. Dark appearance uses VS Code-inspired true-black colors. No plan-derived windows or aggregate values are invented.
+
+The [native three-view journey](evidence/native-three-view-dashboard/) passed selected synthetic sign-in/cancellation, automatic saved readings, both quota bars, same-page Refresh with another account unchanged, exact details, both themes, narrow reflow, genuine native zoom and saved readings/scale after restart. Both native configurations compiled. All 254 renderer cases passed across the recorded runs. Six final color/accessibility cases, build/type checks and 43 contracts passed. The prior 272 Rust tests and strict workspace Clippy passed; final UI refinements leave Rust unchanged. One Rust test remains ignored. Production refused all five synthetic sources before execution. The encrypted real-account workspace was preserved. Its prior process was absent after the executor restart.
+
+The user requested this revision after rejecting the previous visual result. Owner acceptance of this revision remains open. Earlier reference captures retain their original artifact scope.
+
+## Previous functional slice
+
+Usage now exports every saved quota snapshot for its selected profile as CSV or JSON, including older pages, previous associations and archived profiles. One Rust-owned SQLCipher snapshot supplies all rows. Default exports use aliases; names and exact local references need explicit consent. Email and credentials are always omitted. Oversized selections fail without truncation. Existing current-reading exports remain available separately.
+
+The [native export journey](evidence/native-quota-history-export/) passed all-22-snapshot CSV/JSON parity, per-profile isolation, private files, archived restart, refused requests and unchanged database/WAL/key bytes. The earlier [history paging journey](evidence/native-quota-history/) retains its scope. Both native configurations compiled. The existing user window was preserved.
+
+Verification: build/type checks and 43 IPC contracts passed. The renderer milestone passed 237 cases initially; all five failed cases passed their focused rerun after fixing export wrapping and the saving-button test selector. The unrelated Overview navigation case also passed its rerun. 272 Rust tests passed, one ignored; strict workspace Clippy passed. A redundant cooldown assertion in a slow encrypted-backup test was removed; dedicated admission and exact-time boundary tests retain cooldown coverage. Production timing is unchanged.
+
+## Restore and recovery checkpoint
+
+Confirmed archive restore and checkpoint recovery are implemented. Earlier native journeys verified authenticated previews, explicit consent, reversible encrypted checkpoints, original protected keys/home mappings, process quiescence, stale-token refusal, restore/Undo/restart and current-schema backup content. Focused checks compare all columns in 16 tables. Rust tests cover rollback and owned-process interruption. These results do not establish power-loss durability or unexecuted platform acceptance. See [acceptance traceability](acceptance-traceability.md) for exact artifacts and limits.
+
+## Still incomplete
+
+- Durable alerts, notification delivery, per-profile preferences and quiet hours.
+- Full activity-summary/history browsing, full activity-history/application export, retention and complete local deletion.
+- Subscription, promotion, billing, deadline and verified account-comparison requirements.
+- Real credential renewal/revocation acceptance, provider OS credential storage, safe browser callback isolation, and SIWC compatibility with both official usage operations.
+- Sleep/wake acceptance, release-scale performance, packaging/signing, Windows/macOS execution and the complete SRS acceptance matrix.
+
+The three-view Overview revision is locally verified within the recorded synthetic Linux scope. Durable alerts and remaining activity-history/export journeys remain open. Real authorized-account verification remains separate from synthetic-provider evidence. Current file-level status and the exact working checkpoint are retained in the local `.recovery/active-checkpoint.json`; historical execution details remain in their linked evidence and local commits.

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-prepare-checkpoint-restore-preview"
+description = "Enables the prepare_checkpoint_restore_preview command without any pre-configured scope."
+commands.allow = ["prepare_checkpoint_restore_preview"]
+
+[[permission]]
+identifier = "deny-prepare-checkpoint-restore-preview"
+description = "Denies the prepare_checkpoint_restore_preview command without any pre-configured scope."
+commands.deny = ["prepare_checkpoint_restore_preview"]
