@@ -16,6 +16,10 @@ The P0 cleanup reduced the measured workspace from 78.578 to 8.112 GiB while pre
 
 Normal freezing now records provenance only; retained binaries are explicit and capped. Repository-private native fixtures clean setup failures and normal teardown. The storage command checks allocation and safely previews/applies bounded, marker-owned diagnostic cleanup. Sixteen storage tests passed on Linux. Two consecutive renderer builds retained identical 2,457,600-byte outputs; three synthetic private D-Bus fixture cycles left no additional workspace. Cross-platform CI is defined but has not run. No Rust rebuild was performed to recreate deleted caches. See [contributor instructions](../CONTRIBUTING.md) and [retention policy](artifact-retention.md).
 
+## Publication security follow-up
+
+A security policy records reporting boundaries, the glib advisory and release gaps. Exact SQLCipher and OpenSSL license texts accompany the source assets. Two native harnesses now use portable repository paths and an explicitly selected, pinned official executable. Discovery uses a private fixture home without reading an existing credential home. Syntax and six setup checks passed; these checks do not establish native sign-in acceptance. Private evidence and historical source remain intact while a separate source-only publication candidate is reviewed.
+
 ## Latest verified slice
 
 Overview, Usage and Settings are the only primary pages. Account actions use a contextual dialog. Overview shows both reported quota windows together and keeps Refresh on the same page, with selected-account progress, visible cooldown and actionable errors. Settings retains account renaming, archiving and recovery. Dark appearance uses VS Code-inspired true-black colors. No plan-derived windows or aggregate values are invented.

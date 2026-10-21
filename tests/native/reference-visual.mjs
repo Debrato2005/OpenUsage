@@ -1,17 +1,19 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { chmod, copyFile, lstat, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
-import { arch, platform, release, tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { arch, platform, release } from 'node:os';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-const repository = resolve(process.env.OPENUSAGE_NATIVE_SOURCE_ROOT ?? '/example/home/Projects/OpenUsage/.recovery/integration');
+const sourceOverride = process.env.OPENUSAGE_NATIVE_SOURCE_ROOT;
+assert.ok(sourceOverride === undefined || isAbsolute(sourceOverride), 'OPENUSAGE_NATIVE_SOURCE_ROOT must be absolute when supplied.');
+const repository = resolve(sourceOverride ?? fileURLToPath(new URL('../../', import.meta.url)));
 const harness = join(repository, 'tests/native');
 const { NativeDriver, waitFor } = await import(pathToFileURL(join(harness, 'webdriver.mjs')));
 const { CODEX_SENTINEL, createFixture, stopGroup } = await import(pathToFileURL(join(harness, 'private-fixture.mjs')));
 const application = resolve(process.env.OPENUSAGE_NATIVE_BINARY ?? join(repository, 'target/debug/openusage-desktop'));
-const output = resolve(process.env.OPENUSAGE_NATIVE_EVIDENCE ?? join(tmpdir(), `openusage-reference-visual-${randomUUID()}`));
+const output = resolve(process.env.OPENUSAGE_NATIVE_EVIDENCE ?? join(repository, '.recovery/evidence/reference-visual'));
 const hash = async path => createHash('sha256').update(await readFile(path)).digest('hex');
 const passphrase = 'OpenUsage synthetic reference visual workspace 2026';
 const fixtures = {
