@@ -136,7 +136,7 @@ test('renderer focuses committed saved quotas outside closed Manage and survives
   await expect(page.getByRole('button', { name: 'Read activity', exact: true })).toBeHidden();
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   await expect(remaining(page)).toBeVisible();
-  await page.getByRole('button', { name: 'Back', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Sign-in could not finish', exact: true })).toBeVisible();
   await expect(remaining(page)).toBeVisible();
 });
 

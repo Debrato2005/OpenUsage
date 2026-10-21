@@ -1,3 +1,5 @@
+import { createPortal } from 'react-dom';
+import { useAccountSlot } from './account-slots';
 import { Button } from './components/ui/button';
 import { Collapsible, CollapsibleTrigger, CollapsiblePanel } from './components/ui/collapsible';
 import './quota-disclosure.css';
@@ -74,7 +76,8 @@ function QuotaValues({ value }: { value: SavedQuota }) {
 }
 
 // Cache reads do not require executable approval or execute the provider.
-export function SavedProfileQuota({ profileId, profileLabel, children, readingRevision }: { profileId: string; profileLabel: string; readingRevision?: string | undefined; children: (onSaved: (value: ProfileReadingReference, focusResult?: boolean) => Promise<void>, onFailed: () => Promise<void>) => ReactNode }) {
+export function SavedProfileQuota({ profileId, profileLabel, children, readingRevision, summaryContainerId }: { summaryContainerId?: string; profileId: string; profileLabel: string; readingRevision?: string | undefined; children: (onSaved: (value: ProfileReadingReference, focusResult?: boolean) => Promise<void>, onFailed: () => Promise<void>) => ReactNode }) {
+  const summaryContainer = useAccountSlot(summaryContainerId);
   const [value, setValue] = useState<SavedQuota | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -115,7 +118,22 @@ export function SavedProfileQuota({ profileId, profileLabel, children, readingRe
     }
   }
   const freshnessLabels = { unknown: 'Freshness unknown', fresh: 'Current', stale: 'Stale' };
+  const limit = value?.limits.find(limit => limit.primary || limit.secondary);
+  const quotaWindow = limit?.primary ?? limit?.secondary;
+  const reset = quotaWindow?.resetsAtUnix == null ? null : new Date(quotaWindow.resetsAtUnix * 1000).toISOString();
   return <>
+    {summaryContainer && createPortal(<div className="account-quota-summary" data-account-quota={profileId}>
+      {quotaWindow ? <>
+        <span>{quotaWindow.label}</span>
+        <Meter min={0} max={100} value={quotaWindow.derivedRemainingPercent} aria-label={`${profileLabel}, ${quotaWindow.label}: ${quotaWindow.derivedRemainingPercent}% remaining (derived)`}>
+          <div className="quota-meter-heading"><MeterLabel>Remaining (derived)</MeterLabel><MeterValue>{(_formatted, remaining) => `${remaining}%`}</MeterValue></div>
+          <MeterTrack><MeterIndicator /></MeterTrack>
+        </Meter>
+        {reset && <small>{quotaWindow.resetState === 'due' ? 'Reset due' : 'Expected reset'} · <time dateTime={reset}>{date(reset)}</time></small>}
+      </> : <span>{loading ? 'Loading saved usage…' : 'No quota data'}</span>}
+      {value && <small>{value.sourceKind === 'test_fixture' ? 'Synthetic data · ' : ''}{freshnessLabels[value.freshness]} · <time dateTime={value.observedAtUtc}>{date(value.observedAtUtc)}</time></small>}
+      {error && <small role="alert">Saved quota could not be reloaded.</small>}
+    </div>, summaryContainer)}
     {children((receipt, focusResult = true) => load(receipt, focusResult), () => load())}
     {(value || error) && <div ref={result} className="quota-result" data-quota-saved={profileId} role="region" aria-label={`Saved quotas for ${profileLabel}`} tabIndex={-1}>
       <div className="quota-preview-heading"><h3>Saved quotas</h3>{value?.sourceKind === 'test_fixture' && <span className="quota-fixture-label" data-provider-fixture>Synthetic test data</span>}</div>

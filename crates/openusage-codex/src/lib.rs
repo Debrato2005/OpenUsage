@@ -499,6 +499,10 @@ fn login_url(raw: &str) -> Result<Url, ProtocolError> {
 struct Notification {
     method: String,
     params: LoginCompleted,
+    // Pinned app-server notifications include this optional transport timestamp.
+    // It never supplies authentication, freshness, or reset evidence.
+    #[serde(default, rename = "emittedAtMs")]
+    _emitted_at_ms: Option<u64>,
 }
 
 #[derive(Deserialize)]

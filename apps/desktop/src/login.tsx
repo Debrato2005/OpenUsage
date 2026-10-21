@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { useAccountSlot } from './account-slots';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
-import { Textarea } from './components/ui/textarea';
-import { Field, FieldLabel, FieldDescription } from './components/ui/field';
+import { Field, FieldLabel } from './components/ui/field';
+import { Spinner } from './components/ui/spinner';
 import { invoke, type ProviderExecutableApproval, type ProviderLoginAttempt, type ProviderLoginPrompt } from './contracts';
 import { providerFailure } from './provider-errors';
 
@@ -15,6 +17,9 @@ type Props = {
   onStarted: () => void;
   onConnectionChanged: () => Promise<void>;
   onAuthenticated?: () => void;
+  actionContainerId?: string;
+  connected?: boolean;
+  actionLabel?: string;
 };
 
 type Outcome = { kind: 'success' | 'cancelled' | 'error' | 'incomplete'; message: string };
@@ -24,8 +29,8 @@ function selectField(field: HTMLInputElement | HTMLTextAreaElement) {
   requestAnimationFrame(() => { if (document.activeElement === field) field.select(); });
 }
 
-export function ProfileDeviceLogin({ profileId, profileLabel, approval, busy, onActivity, onStarted, onConnectionChanged, onAuthenticated }: Props) {
-  const [consent, setConsent] = useState(false);
+export function ProfileDeviceLogin({ profileId, profileLabel, approval, busy, onActivity, onStarted, onConnectionChanged, onAuthenticated, actionContainerId, connected = false, actionLabel = 'Sign in' }: Props) {
+  const actionContainer = useAccountSlot(actionContainerId);
   const [working, setWorking] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [openingBrowser, setOpeningBrowser] = useState(false);
@@ -35,9 +40,8 @@ export function ProfileDeviceLogin({ profileId, profileLabel, approval, busy, on
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [connectionRefreshError, setConnectionRefreshError] = useState<string | null>(null);
   const [refreshingConnection, setRefreshingConnection] = useState(false);
-  const [focus, setFocus] = useState<'consent' | 'prompt' | 'result' | 'launch' | null>(null);
+  const [focus, setFocus] = useState<'prompt' | 'result' | 'launch' | null>(null);
   const launch = useRef<HTMLButtonElement>(null);
-  const submit = useRef<HTMLButtonElement>(null);
   const code = useRef<HTMLInputElement>(null);
   const result = useRef<HTMLDivElement>(null);
   const pending = useRef(false);
@@ -58,21 +62,9 @@ export function ProfileDeviceLogin({ profileId, profileLabel, approval, busy, on
   }, [profileId]);
   useEffect(() => {
     if (!focus) return;
-    const target = focus === 'consent' ? submit.current : focus === 'prompt' ? code.current : focus === 'result' ? result.current : launch.current;
+    const target = focus === 'prompt' ? code.current : focus === 'result' ? result.current : launch.current;
     if (target) { target.focus(); setFocus(null); }
-  }, [focus, consent, prompt, outcome]);
-
-  function explain() {
-    if (busy || pending.current) return;
-    ++generation.current;
-    authenticatedOperation.current = null;
-    setOutcome(null);
-    setConnectionRefreshError(null);
-    setRefreshingConnection(false);
-    setBrowserError(null);
-    setConsent(true);
-    setFocus('consent');
-  }
+  }, [focus, prompt, outcome]);
 
   async function refreshConnection(operation: number) {
     const current = () => alive.current && generation.current === operation && !cancelled.current && !cancellationFailure.current;
@@ -95,13 +87,12 @@ export function ProfileDeviceLogin({ profileId, profileLabel, approval, busy, on
   }
 
   async function start() {
-    if (busy || pending.current || !consent) return;
+    if (busy || pending.current) return;
     const operation = ++generation.current;
     authenticatedOperation.current = null;
     pending.current = true;
     cancelled.current = false;
     cancellationFailure.current = null;
-    setConsent(false);
     setWorking(true);
     setOutcome(null);
     setConnectionRefreshError(null);
@@ -121,7 +112,15 @@ export function ProfileDeviceLogin({ profileId, profileLabel, approval, busy, on
       const args = { profileId, attemptId: begun.attemptId };
       let challenge: ProviderLoginPrompt | null = await invoke('await_profile_login_prompt', args);
       if (challenge.profileId !== profileId || challenge.attemptId !== begun.attemptId || challenge.sourceKind !== begun.sourceKind) throw new Error('Incompatible sign-in challenge.');
-      if (alive.current && !cancelled.current) { setPrompt(challenge); setFocus('prompt'); }
+      if (alive.current && !cancelled.current) {
+        setPrompt(challenge); setFocus('prompt');
+        if (approval.sourceKind === 'official_artifact') {
+          setOpeningBrowser(true);
+          void invoke('open_profile_login_page', args).catch(failure => {
+            if (alive.current && generation.current === operation && !cancelled.current) setBrowserError(providerFailure(failure));
+          }).finally(() => { if (alive.current && generation.current === operation) setOpeningBrowser(false); });
+        }
+      }
       challenge = null;
       const completed = await invoke('complete_profile_login', args);
       if (completed.attemptId !== begun.attemptId || completed.diagnostic.profileId !== profileId || completed.diagnostic.approvalId !== approval.approvalId || completed.diagnostic.sourceKind !== begun.sourceKind) throw new Error('Incompatible sign-in result.');
@@ -131,8 +130,8 @@ export function ProfileDeviceLogin({ profileId, profileLabel, approval, busy, on
           : cancelled.current
           ? { kind: 'cancelled', message: 'Credentials already saved by Codex may remain in this profile.' }
           : completed.diagnostic.identityConfidence === 'unknown'
-          ? { kind: 'incomplete', message: 'Codex completed sign-in, but account identity could not be confirmed. Check the connection or sign in again. Your saved readings are still available.' }
-          : { kind: 'success', message: 'Codex confirmed a ChatGPT account for this profile. Identity has not been verified. Start monitoring from Manage profile when you are ready.' });
+          ? { kind: 'incomplete', message: 'OpenAI completed sign-in, but account details are unavailable. Try reconnecting. Your saved readings are still available.' }
+          : { kind: 'success', message: 'Connected. Retrieving available usage…' });
         if (!cancelled.current && !cancellationFailure.current) {
           if (completed.diagnostic.persisted && completed.diagnostic.authentication === 'chatgpt' && completed.diagnostic.identityConfidence === 'provisional') authenticatedOperation.current = operation;
           void refreshConnection(operation);
@@ -198,31 +197,22 @@ export function ProfileDeviceLogin({ profileId, profileLabel, approval, busy, on
     }
   }
 
-  return <div className="profile-device-login">
-    {!working && !consent && <Button ref={launch} className="text-button" variant="ghost" type="button" data-login-start={profileId} aria-describedby={`profile-name-${profileId}`} disabled={busy} onClick={explain}>Sign in</Button>}
-    {consent && <form className="login-panel" data-login-consent={profileId} aria-labelledby={`login-heading-${profileId}`} onSubmit={event => { event.preventDefault(); void start(); }}>
-      <h3 id={`login-heading-${profileId}`}>Sign in to <bdi>{profileLabel}</bdi></h3>
-      <p>Codex will contact OpenAI to request a sign-in code. If you finish, Codex saves sign-in information for this profile on this device.</p>
-      <p className="provider-help">Cancelling stops this attempt. Credentials already saved by Codex may remain.</p>
-      {approval.sourceKind === 'test_fixture' && <p className="provider-fixture-note" data-provider-fixture>Synthetic provider fixture. This flow uses controlled test data.</p>}
-      <div className="profile-actions"><Button ref={submit} className="primary-button" type="submit" disabled={busy}>Get sign-in code</Button><Button className="text-button" variant="ghost" type="button" onClick={() => { setConsent(false); setFocus('launch'); }}>Back</Button></div>
-    </form>}
-    {working && <div className="login-panel" aria-labelledby={`login-pending-${profileId}`}>
+  const content = <div className="profile-device-login">
+    {!working && (!connected || outcome?.kind === 'error' || outcome?.kind === 'incomplete') && <Button ref={launch} className="primary-button" type="button" data-login-start={profileId} aria-describedby={`profile-name-${profileId}`} disabled={busy} onClick={() => { void start(); }}>{outcome?.kind === 'error' || outcome?.kind === 'incomplete' ? 'Retry sign-in' : actionLabel}</Button>}
+    {working && <div className="login-panel" role="dialog" aria-labelledby={`login-pending-${profileId}`} onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); void cancel(); } }}>
       <h3 id={`login-pending-${profileId}`}>Sign in to <bdi>{profileLabel}</bdi></h3>
       {approval.sourceKind === 'test_fixture' && <p className="provider-fixture-note" data-provider-fixture>Synthetic provider fixture. Do not use this code for a real sign-in.</p>}
       {prompt ? <div className="login-prompt" data-login-profile={profileId}>
-        <p>Open this address in your browser, then enter the code.</p>
-        <Field><FieldLabel htmlFor={`login-address-${profileId}`}>Sign-in page</FieldLabel>
-        <Textarea id={`login-address-${profileId}`} rows={3} spellCheck={false} readOnly value={prompt.verificationUrl} onFocus={event => selectField(event.currentTarget)} /></Field>
+        <p>Enter this code on OpenAI’s sign-in page.</p>
         <Field><FieldLabel htmlFor={`login-code-${profileId}`}>Your sign-in code</FieldLabel>
-        <Input ref={code} id={`login-code-${profileId}`} inputClassName="login-code" type="text" autoComplete="off" readOnly value={prompt.userCode} aria-describedby={`login-wait-${profileId}`} onFocus={event => selectField(event.currentTarget)} />
-        <FieldDescription id={`login-wait-${profileId}`} className="provider-help" render={<p />}>OpenUsage waits up to 15 minutes. Codex did not provide a code expiry time.</FieldDescription></Field>
+        <Input ref={code} id={`login-code-${profileId}`} inputClassName="login-code" type="text" autoComplete="off" readOnly value={prompt.userCode} onFocus={event => selectField(event.currentTarget)} />
+        </Field>
         <Button variant="outline" type="button" data-login-browser={profileId} disabled={openingBrowser || cancelling} aria-describedby={browserError ? `login-browser-error-${profileId}` : undefined} onClick={() => { void openBrowser(); }}>{openingBrowser ? 'Opening…' : 'Open sign-in page'}</Button>
         {browserError && <p id={`login-browser-error-${profileId}`} role="alert" className="operation-error">{browserError}</p>}
-      </div> : <p role="status">{cancelling || cancelled.current ? 'Stopping sign-in…' : 'Preparing your sign-in code…'}</p>}
+      </div> : <p role="status"><Spinner aria-hidden="true" /> {cancelling || cancelled.current ? 'Stopping sign-in…' : 'Preparing sign-in…'}</p>}
       {attempt && <Button className="secondary-button" variant="outline" type="button" data-login-cancel={profileId} aria-describedby={`profile-name-${profileId}`} disabled={cancelling} onClick={() => { void cancel(); }}>{cancelling ? 'Stopping sign-in…' : 'Cancel sign-in'}</Button>}
     </div>}
-    {outcome && <div ref={result} className="login-panel login-result" data-login-profile={profileId} role={outcome.kind === 'error' || outcome.kind === 'incomplete' ? 'alert' : 'status'} tabIndex={-1}>
+    {outcome && !(connected && outcome.kind === 'success') && <div ref={result} className="login-panel login-result" data-login-profile={profileId} role={outcome.kind === 'error' || outcome.kind === 'incomplete' ? 'alert' : 'status'} tabIndex={-1}>
       {approval.sourceKind === 'test_fixture' && <p className="provider-fixture-note" data-provider-fixture>Synthetic provider fixture</p>}
       <h3>{outcome.kind === 'success' ? 'Sign-in completed' : outcome.kind === 'cancelled' ? 'Sign-in stopped' : outcome.kind === 'incomplete' ? 'Connection needs attention' : 'Sign-in could not finish'}</h3>
       <p>{outcome.message}</p>
@@ -232,4 +222,5 @@ export function ProfileDeviceLogin({ profileId, profileLabel, approval, busy, on
       </div>}
     </div>}
   </div>;
+  return actionContainer ? createPortal(content, actionContainer) : actionContainerId ? null : content;
 }

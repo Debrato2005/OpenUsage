@@ -130,10 +130,9 @@ async function addAccount(label) {
   await writeFile(join(home(profile), 'synthetic-collection-config.json'), JSON.stringify({ mode: 'success', requireLogin: true }) + '\n', { mode: 0o600 });
   await waitFor(() => driver.execute('const button=document.querySelector(arguments[0]);return Boolean(button&&!button.disabled&&button.getClientRects().length);', [`[data-login-start="${profile.id}"]`]), 'new account visible Sign in action');
   await driver.click(`[data-login-start="${profile.id}"]`);
-  assert.match(await driver.execute('return document.querySelector(arguments[0]).textContent;', [`[data-login-consent="${profile.id}"]`]), new RegExp(`Sign in to ${label}`));
-  await driver.click(`[data-login-consent="${profile.id}"] button[type=submit]`);
   await waitFor(async () => { const value = await cached(profile); return Boolean(value.quota && value.activity); }, `automatic initial paired COMMIT for ${label}`, 45000);
   const saved = await cached(profile); validatePair(saved, profile);
+  await driver.openProfileReadings(profile.id);
   await waitFor(() => driver.execute('const result=document.querySelector(arguments[0]);return Boolean(result&&result.getClientRects().length&&result.textContent.includes("Quota and activity readings saved.")&&!document.querySelector(arguments[1]));', [`[data-collection-profile="${profile.id}"]`, `[data-collection-cancel="${profile.id}"]`]), 'automatic initial read reaches existing saved result');
   await waitFor(() => driver.execute('return document.querySelector(arguments[0])?.textContent.trim()==="Connected";', [`[data-profile-id="${profile.id}"] .profile-connection-state`]), 'GUI connection row refreshed from storage');
   await savedGui(profile);
@@ -150,7 +149,7 @@ async function addAccount(label) {
   const runtimeHome = (await readFile(join(home(profile), 'synthetic-runtime-home'), 'utf8')).trim();
   assert.ok(runtimeHome.startsWith(`${home(profile)}/openusage-provider-`), 'Provider runtime HOME remains inside this exact fresh managed profile.');
   evidence.profiles.push({ id: profile.id, label, managedHome: home(profile), runtimeHome, starts, methods: methodSets, syntheticChallengeCount: 1, saved });
-  evidence.steps.push({ profileId: profile.id, primaryAdd: true, namedSignInConsent: true, automaticCombinedRead: true, refreshClicked: false, savedViewsVisible: true });
+  evidence.steps.push({ profileId: profile.id, primaryAdd: true, explicitPerAccountSignIn: true, automaticCombinedRead: true, refreshClicked: false, savedViewsVisible: true });
   return { profile, saved, observations: rows };
 }
 async function savedGui(profile) {
@@ -287,7 +286,12 @@ try {
   assert.equal(afterReconnectMonitoring.state, 'stopped'); assert.ok(afterReconnectMonitoring.profiles.every(profile => !profile.eligible&&!profile.readingActive));
   assert.equal(await hash(join(workspace, 'database-key.v1')), keySha);
   assert.equal((await call('list_profiles')).profiles.find(profile => profile.id === second.profile.id).connectionState, 'authentication_required');
-  await waitFor(() => driver.execute('return document.querySelector(arguments[0])?.textContent.trim()==="Sign-in required";', [`[data-profile-id="${second.profile.id}"] .profile-connection-state`]), 'signed-out failure updates the durable and visible account status');
+  await waitFor(() => driver.execute('return document.querySelector(arguments[0])?.textContent.trim()==="Not connected";', [`[data-profile-id="${second.profile.id}"] .profile-connection-state`]), 'signed-out failure updates the durable and visible account status');
+  for (const profile of profiles) {
+    const selector = `[data-profile-id="${profile.id}"] [data-profile-action="readings"]`;
+    if (await driver.execute('return document.querySelector(arguments[0]).getAttribute("aria-expanded")==="true";', [selector])) await driver.click(selector);
+  }
+  await capture('account-rows-dark-desktop.png', '.accounts-section');
   evidence.reconnect = { explicitTestFixtureReapproval: true, selectedProfile: second.profile.id, sameProfilesAndBinding: true, successfulCombinedSessions: 1, signedOutSessions: 1, newLoginSessions: 0, previousReadingsRetainedOnFailure: true, otherAccountUnchanged: true, noMonitoringGrant: true, reportedConnectionAfterAuthFailure: 'authentication_required' };
   evidence.observations = Object.fromEntries(await Promise.all(profiles.map(async profile => [profile.id, await observations(profile)])));
   evidence.restart = { genuineWindowClose: true, bothSavedPairsPreserved: true, savedNavigationWithoutProviderExecution: true, noAutomaticRead: true, bothOverviewRowsVisible: true, theme: 'dark', unchangedDatabaseWalKeyBeforeExplicitReconnect: themedHashes, runtimeMonitoringGrantsAbsent: true };

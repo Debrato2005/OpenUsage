@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
+import { useAccountSlot } from './account-slots';
 import { Button } from './components/ui/button';
 import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from './components/ui/collapsible';
 import { AssociationReview } from './association-review';
@@ -7,6 +9,8 @@ import { providerFailure } from './provider-errors';
 
 type Props = {
   automaticRequest?: number | null;
+  actionContainerId?: string;
+  connected?: boolean;
   profileId: string; approval: ProviderExecutableApproval; busy: boolean; retryAfterSeconds: number;
   onActivity: (active: boolean) => void; onStarted: () => void;
   onSaved: (value: ProfileCollectionOutcome) => Promise<void>; onFailed: () => Promise<void>;
@@ -17,7 +21,8 @@ function focusVisible(element: HTMLElement | null) {
   if (element?.getClientRects().length && !element.closest('[hidden]')) element.focus();
 }
 
-export function ProfileCollectionRead({ automaticRequest = null, profileId, approval, busy, retryAfterSeconds, onActivity, onStarted, onSaved, onFailed, children }: Props) {
+export function ProfileCollectionRead({ actionContainerId, connected = false, automaticRequest = null, profileId, approval, busy, retryAfterSeconds, onActivity, onStarted, onSaved, onFailed, children }: Props) {
+  const actionContainer = useAccountSlot(actionContainerId);
   const [working, setWorking] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [requestId, setRequestId] = useState<string | null>(null);
@@ -120,10 +125,9 @@ export function ProfileCollectionRead({ automaticRequest = null, profileId, appr
       if (current(operation) && pending.current && activeRequest.current === requestId) { cancellationFailure.current = failure; setOutcome({ kind: 'error', message: providerFailure(failure) }); }
     } finally { if (alive.current && (generation.current === operation || generation.current === operation + 1)) setStopping(false); }
   }
-  const action = <Button type="button" className="primary-button" data-collection-read={profileId} aria-describedby={`profile-name-${profileId}`} disabled={busy || working || reviewing || retryAfterSeconds > 0} onClick={() => { void read(); }}>{working ? 'Refreshing readings…' : 'Refresh readings'}</Button>;
+  const action = <Button type="button" className="primary-button" data-profile-connect={profileId} data-collection-read={profileId} aria-describedby={`profile-name-${profileId}`} disabled={busy || working || reviewing || retryAfterSeconds > 0} onClick={() => { void read(); }}>{working ? 'Refreshing readings…' : 'Refresh readings'}</Button>;
   const cancelAction = working && requestId ? <Button ref={cancelButton} type="button" variant="ghost" data-collection-cancel={profileId} disabled={stopping} onClick={() => { void cancel(); }}>{stopping ? 'Stopping refresh…' : 'Cancel refresh'}</Button> : null;
-  return <div className="profile-collection-read">
-    {children(action, cancelAction)}
+  const status = <>
     {working && <div className="profile-actions"><span role="status">Refreshing quota and activity readings…</span></div>}
     {outcome && <div ref={result} className="quota-result" data-collection-profile={profileId} role={outcome.kind === 'error' ? 'alert' : 'status'} tabIndex={-1}>
       {approval.sourceKind === 'test_fixture' && <p className="provider-fixture-note" data-provider-fixture>Synthetic test data</p>}
@@ -133,5 +137,9 @@ export function ProfileCollectionRead({ automaticRequest = null, profileId, appr
         <CollapsiblePanel><AssociationReview profileId={profileId} purpose="collection" review={review} reviewing={reviewing} error={reviewError} approved={approved} busy={busy || working || reviewing} consentRef={consent} onApproved={setApproved} onRetry={() => { void reviewAssociation(); }} onConfirm={() => { void read(true); }} onKeep={() => { closeReview(); onActivity(false); focusVisible(reviewTrigger.current); }} /></CollapsiblePanel>
       </Collapsible>}
     </div>}
+  </>;
+  return <div className="profile-collection-read">
+    {children(actionContainerId ? null : action, actionContainerId ? null : cancelAction)}
+    {actionContainer ? createPortal(<>{(connected || working || outcome) && <div className="profile-actions">{action}{cancelAction}</div>}{status}</>, actionContainer) : !actionContainerId && status}
   </div>;
 }

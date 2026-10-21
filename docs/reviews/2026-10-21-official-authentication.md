@@ -32,4 +32,6 @@ Do not ship the browser draft with only a port precheck. That leaves a race and 
 
 ## Remaining real-account gate
 
+The post-code failure investigation found a concrete protocol mismatch: the pinned provider's [outgoing notification serializer](https://github.com/openai/codex/blob/83086188ae0614bd882818ff1aa23f3194962012/codex-rs/app-server/src/outgoing_message.rs#L904) adds `emittedAtMs`. OpenUsage rejected that envelope. The correction explicitly accepts an optional unsigned timestamp while retaining strict fields and selected-attempt matching. The RED/GREEN regression, official anonymous notification shape, production challenge/cancellation, and synthetic two-account native journeys passed. See [the bounded evidence](../evidence/native-account-signin/). A successful real user login remains unverified.
+
 Complete official sign-in, initial supported reads, encrypted persistence, restart, refresh, and second-account isolation. Then check renewal, cancellation, and revocation with authorized sessions. Never retain passwords, challenges, tokens, or raw authentication responses as evidence. Browser isolation, protected provider storage, and sign-out remain open. SQLCipher 4/WAL and the normative SRS are unchanged.

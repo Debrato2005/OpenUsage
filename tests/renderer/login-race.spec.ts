@@ -135,8 +135,7 @@ async function openSyntheticProfile(page: Page, newAccount = false) {
 }
 
 async function begin(page: Page, code: string) {
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-  await page.getByRole('button', { name: 'Get sign-in code', exact: true }).click();
+  await page.locator(`[data-login-start="${profileId}"]`).click();
   await expect(page.getByLabel('Your sign-in code', { exact: true })).toHaveValue(code);
 }
 
@@ -150,10 +149,8 @@ async function reject(page: Page, kind: 'completions' | 'cancellations', attempt
 
 test('renderer fixture keeps the new sign-in intact after an old cancel rejects late', async ({ page }) => {
   await openSyntheticProfile(page);
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   expect(await page.evaluate(() => (window as unknown as FixtureWindow).loginFixture.requests
     .filter(request => request.command === 'begin_profile_login'))).toEqual([]);
-  await page.getByRole('button', { name: 'Back', exact: true }).click();
   await begin(page, 'SYNTH-OLD');
   await page.getByRole('button', { name: 'Cancel sign-in', exact: true }).click();
   await reject(page, 'completions', attempts[0]!, 'provider_login_cancelled');
@@ -173,8 +170,8 @@ test('renderer fixture keeps the new sign-in intact after an old cancel rejects 
         identityConfidence: 'provisional', requiresOpenaiAuth: true, checkedAt: '2026-10-18T04:00:00.123Z',
         monitoring: 'stopped', persisted: true, sourceKind: 'test_fixture' } });
   }, { attemptId: attempts[1]!, profileId, approvalId });
-  await expect(page.getByRole('heading', { name: 'Sign-in completed', exact: true })).toBeVisible();
-  await expect(page.getByText('Codex confirmed a ChatGPT account for this profile. Identity has not been verified. Start monitoring from Manage profile when you are ready.')).toBeVisible();
+  await expect(connectionRow(page)).toHaveText('Connected');
+  await expect(page.locator(`[data-collection-cancel="${profileId}"]`)).toBeVisible();
   await expect(page.getByLabel('Your sign-in code', { exact: true })).toHaveCount(0);
 });
 
@@ -185,7 +182,7 @@ test('renderer fixture retains a cleanup failure when requested cancellation als
   await reject(page, 'cancellations', attempts[0]!, 'provider_cleanup_failed');
   await expect(page.getByRole('heading', { name: 'Sign-in could not finish', exact: true })).toBeVisible();
   await reject(page, 'completions', attempts[0]!, 'provider_login_cancelled');
-  await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Retry sign-in', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Sign-in could not finish', exact: true })).toBeVisible();
   await expect(page.getByText('OpenUsage could not confirm that the provider process stopped. Restart OpenUsage before another check.')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Sign-in stopped', exact: true })).toHaveCount(0);
@@ -287,10 +284,10 @@ test('renderer retains the previous saved quotas through pending, invalid respon
 
 test('renderer retains saved quotas when its provider operation component is replaced', async ({ page }) => {
   await openSyntheticProfile(page); await startQuota(page); await publishQuota(page, 75, '2026-10-18T00:00:00.000Z');
-  await expect(page.getByText('75%', { exact: true })).toBeVisible();
+  await expect(page.locator(`[data-quota-saved="${profileId}"]`).getByText('75%', { exact: true })).toBeVisible();
   await openOptions(page, profileId);
   await page.getByRole('button', { name: 'Check connection', exact: true }).click();
-  await expect(page.getByText('75%', { exact: true })).toBeVisible();
+  await expect(page.locator(`[data-quota-saved="${profileId}"]`).getByText('75%', { exact: true })).toBeVisible();
   await expect(page.locator(`[data-quota-profile="${profileId}"]`)).toHaveCount(0);
 });
 
@@ -308,16 +305,16 @@ async function finishLogin(page: Page, index = 0, identity: 'provisional' | 'unk
 const connectionRow = (page: Page) => page.locator(`[data-profile-id="${profileId}"] .profile-connection-state`);
 const profileLoadCount = (page: Page) => page.evaluate(() => (window as unknown as FixtureWindow).loginFixture.requests.filter(request => request.command === 'list_profiles').length);
 
-test('renderer refreshes the saved Connected row after validated login without remounting or stealing result focus', async ({ page }) => {
+test('an existing account refreshes its Connected row and automatically reads after matched sign-in', async ({ page }) => {
   await openSyntheticProfile(page);
   const loads = await profileLoadCount(page);
   await begin(page, 'SYNTH-OLD');
-  await expect(connectionRow(page)).toHaveText('Sign-in required');
+  await expect(connectionRow(page)).toHaveText('Not connected');
   await finishLogin(page);
   await expect(connectionRow(page)).toHaveText('Connected');
-  await expect(page.locator('.login-result')).toBeFocused();
+  await expect(page.locator(`[data-collection-cancel="${profileId}"]`)).toBeFocused();
   expect(await profileLoadCount(page)).toBe(loads + 1);
-  expect(await collectionStarts(page)).toBe(0);
+  expect(await collectionStarts(page)).toBe(1);
   expect(await page.evaluate(() => (window as unknown as FixtureWindow).loginFixture.requests.filter(request => request.command === 'cancel_profile_login'))).toEqual([]);
   await navigate(page, 'overview');
   await expect(page.locator(`[data-overview-account="${profileId}"]`)).toContainText('Connected');
@@ -327,7 +324,7 @@ test('renderer shows durable Error for a completed login with unknown identity',
   await openSyntheticProfile(page); await begin(page, 'SYNTH-OLD'); await finishLogin(page, 0, 'unknown');
   await expect(connectionRow(page)).toHaveText('Connection error');
   await expect(page.getByRole('heading', { name: 'Connection needs attention', exact: true })).toBeVisible();
-  await expect(page.getByText('Codex completed sign-in, but account identity could not be confirmed. Check the connection or sign in again. Your saved readings are still available.', { exact: true })).toBeVisible();
+  await expect(page.getByText('OpenAI completed sign-in, but account details are unavailable. Try reconnecting. Your saved readings are still available.', { exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Sign-in completed', exact: true })).toHaveCount(0);
 });
 
@@ -336,7 +333,7 @@ test('renderer does not refresh Connected after a completion received during req
   await page.getByRole('button', { name: 'Cancel sign-in', exact: true }).click();
   await finishLogin(page);
   await expect(page.getByRole('heading', { name: 'Sign-in stopped', exact: true })).toBeVisible();
-  await expect(connectionRow(page)).toHaveText('Sign-in required');
+  await expect(connectionRow(page)).toHaveText('Not connected');
   expect(await profileLoadCount(page)).toBe(loads);
 });
 
@@ -346,7 +343,7 @@ test('renderer preserves saved sign-in success and retries only the connection s
   await finishLogin(page);
   await expect(page.getByRole('heading', { name: 'Sign-in completed', exact: true })).toBeVisible();
   await expect(page.locator('[data-login-connection-refresh-error]')).toHaveText('The sign-in result was saved, but the connection status could not be refreshed. Retry the status refresh to check it.');
-  await expect(connectionRow(page)).toHaveText('Sign-in required');
+  await expect(connectionRow(page)).toHaveText('Not connected');
   await expect(page.getByRole('heading', { name: 'Sign-in could not finish', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Retry status refresh', exact: true }).click();
   await expect(page.locator('[data-login-connection-refresh-error]')).toBeVisible();
@@ -396,11 +393,12 @@ test('new account reads once after matched login and status reload, then uses th
     f.savedQuota = { profileId, bindingId, collectionRunId, providerVersion: '0.163.0', sourceKind: 'test_fixture', observedAtUtc, identityConfidence: 'provisional', verifiedIdentityKey: null, availableResetCredits: null, resetCreditDetails: null, monitoring: 'stopped', accepted: true, freshness: 'fresh', coverage: 'unknown', scope: 'account_quota_with_unknown_application_scope', limits: [{ limitId: 'codex', limitName: null, reachedType: null, monthlyCreditLimit: null, spendControlReached: null, secondary: null, primary: { usedPercent: 25, derivedRemainingPercent: 75, windowDurationMins: 300, resetsAtUnix: null, label: 'Five-hour', resetState: 'unconfirmed' } }] };
     f.completions[`collection:${requestId}`]!.resolve({ profileId, approvalId, requestId, providerVersion: '0.163.0', sourceKind: 'test_fixture', identityConfidence: 'provisional', verifiedIdentityKey: null, monitoring: 'stopped', accepted: true, quota: { bindingId, collectionRunId, observedAtUtc }, activity: null });
   }, { profileId, approvalId, requestId: attempts[0]! });
+  await expect(page.locator(`[data-account-quota="${profileId}"] [role=meter]`)).toHaveAttribute('aria-valuenow', '75');
+  await openReadings(page, profileId);
   await expect(page.locator(`[data-quota-saved="${profileId}"]`).getByText('75%', { exact: true })).toBeVisible();
   await expect(page.locator(`[data-collection-profile="${profileId}"]`)).toContainText('Quotas saved.');
   await navigate(page, 'overview'); await navigate(page, 'accounts');
-  await begin(page, 'SYNTH-NEW'); await finishLogin(page, 1);
-  await expect(page.getByRole('heading', { name: 'Sign-in completed', exact: true })).toBeVisible();
+  await expect(page.locator(`[data-login-start="${profileId}"]`)).toHaveCount(0);
   expect(await collectionStarts(page)).toBe(1);
 });
 

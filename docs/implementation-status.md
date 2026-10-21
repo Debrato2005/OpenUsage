@@ -2,6 +2,8 @@
 
 Updated: October 21, 2026. The mission remains ongoing. Runtime-only Start/Pause monitoring passed its synthetic native Linux journey. DM Sans serves interface text and exact values. SQLCipher 4 with WAL remains mandatory. Alerts, live-provider authentication, verified aggregation, and full platform acceptance remain incomplete.
 
+Per-account Sign in is now visible without opening usage details. Named progress, Cancel, Retry, automatic official-page opening, and automatic first collection follow the selected account. The pinned official completion timestamp previously caused an unsupported-response error; Rust now explicitly accepts it while preserving envelope and attempt guards. Production anonymous challenge/cancellation and signed-out restart passed. Synthetic two-account login, first reads, failure preservation, existing-session refresh, and restart passed separately. Rust, strict Clippy, builds, and affected renderer checks passed. See [the scoped evidence](evidence/native-account-signin/). Real authorized OAuth and collection remain unverified; the next step is a user sign-in attempt in the fixed native build.
+
 ## Latest restore correction
 
 Restore validation now precedes cancellation. A native test reproduced the original cancelled-token fault. The correction passed 234 Rust tests, strict Clippy, formatting, and both desktop builds. The focused native journey confirmed rejected-token preservation, archive restore, and Undo during pending reads. Seven encrypted-copy checks compare every column in sixteen tables. Archive homes must be fresh, empty, and private. Undo requires the saved mappings. Both operations reap owned processes, require sign-in, and keep monitoring stopped after restart.

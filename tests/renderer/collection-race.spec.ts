@@ -405,7 +405,7 @@ test('reconnect authentication failure preserves saved readings and exposes sign
   await reject(page, 'provider_authentication_required');
   await expect(status(page)).toContainText('Sign in again before reading or starting monitoring.');
   await expect(page.locator(`[data-login-start="${profileId}"]`)).toBeVisible();
-  await expect(page.locator(`[data-profile-id="${profileId}"] .profile-connection-state`)).toHaveText('Sign-in required');
+  await expect(page.locator(`[data-profile-id="${profileId}"] .profile-connection-state`)).toHaveText('Not connected');
   await expect(page.locator(`[data-activity-saved="${profileId}"] [data-activity-metric=lifetimeTokens]`)).toHaveText('9007199254740993');
   await expect(page.locator(`[data-quota-saved="${profileId}"] [role=meter]`)).toHaveAttribute('aria-valuenow', '75');
   await page.getByRole('button', { name: 'Manage profile', exact: true }).click();
@@ -426,7 +426,8 @@ test('row Refresh during cooldown cannot queue a provider read after the wait ex
   await expect(status(page)).toContainText('Quota and activity readings saved.');
   await expect(page.locator(`[data-collection-read="${profileId}"]`)).toBeDisabled();
   await expect(page.locator(`[data-profile-refresh-status="${profileId}"]`)).toContainText('Next reading in');
-  await page.locator(`[data-profile-connect="${profileId}"]`).click();
+  await expect(page.locator(`[data-profile-connect="${profileId}"]`)).toBeDisabled();
+  await page.locator(`[data-profile-connect="${profileId}"]`).evaluate(node => (node as HTMLButtonElement).click());
   await page.evaluate(() => { (window as unknown as FixtureWindow).collectionFixture.refreshSeconds = 0; });
   await page.clock.runFor(31_000);
   await expect(page.locator(`[data-collection-read="${profileId}"]`)).toBeEnabled();

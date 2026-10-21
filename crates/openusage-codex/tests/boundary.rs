@@ -153,6 +153,43 @@ fn login_completion_matches_the_selected_attempt_and_still_requires_account_read
 }
 
 #[test]
+fn timestamped_login_completion_keeps_the_attempt_and_envelope_guards() {
+    let completion: Value = serde_json::from_slice(COMPLETED).unwrap();
+    for timestamp in [json!(-1), json!(1.5), json!("1792573000123"), json!({})] {
+        let mut invalid = completion.clone();
+        invalid["emittedAtMs"] = timestamp;
+        let mut attempt = parse_login_start(LOGIN, 3, LoginFlow::Browser)
+            .unwrap()
+            .attempt;
+        assert_eq!(
+            attempt.apply_completion(&serde_json::to_vec(&invalid).unwrap()),
+            Err(ProtocolError::InvalidMessage)
+        );
+        assert_eq!(attempt.state(), LoginState::Pending);
+    }
+    for (key, value) in [("id", json!(3)), ("token", json!("synthetic-secret"))] {
+        let mut invalid = completion.clone();
+        invalid[key] = value;
+        let mut attempt = parse_login_start(LOGIN, 3, LoginFlow::Browser)
+            .unwrap()
+            .attempt;
+        assert_eq!(
+            attempt.apply_completion(&serde_json::to_vec(&invalid).unwrap()),
+            Err(ProtocolError::InvalidMessage)
+        );
+    }
+    let mut other = completion.clone();
+    other["params"]["loginId"] = json!("another-attempt");
+    let mut attempt = parse_login_start(LOGIN, 3, LoginFlow::Browser)
+        .unwrap()
+        .attempt;
+    assert_eq!(
+        attempt.apply_completion(&serde_json::to_vec(&other).unwrap()),
+        Err(ProtocolError::MismatchedLogin)
+    );
+}
+
+#[test]
 fn login_prompts_reject_unapproved_destinations_and_auth_modes() {
     for destination in [
         "javascript:alert(1)",

@@ -36,13 +36,13 @@ for (const verified of [true, false]) test(`Add OpenAI account prepares the comp
   if (verified) {
     const signIn = page.getByRole('button', { name: 'Sign in', exact: true });
     await expect(signIn).toBeFocused();
-    await expect(signIn).toBeVisible(); await signIn.click();
-    await expect(page.getByRole('heading', { name: 'Sign in to Account A', exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Get sign-in code', exact: true })).toBeEnabled();
+    await expect(signIn).toBeVisible();
+    await expect(page.locator('[data-profile-action=readings]')).toHaveAttribute('aria-expanded', 'false');
   } else {
     await expect(page.getByRole('alert')).toContainText('OpenUsage could not verify its OpenAI companion.');
     await expect(page.getByRole('button', { name: 'Retry connection', exact: true })).toBeEnabled();
-    await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toHaveCount(0);
+    await expect(page.locator('[data-login-start]')).toHaveCount(0);
+    expect(await page.evaluate(() => (window as unknown as { connectRequests: { command: string }[] }).connectRequests.some(row => row.command === 'begin_profile_login'))).toBe(false);
   }
   const requests = await page.evaluate(() => (window as unknown as { connectRequests: { command: string }[] }).connectRequests);
   expect(requests.filter(value => value.command === 'prepare_provider_connection')).toHaveLength(1);

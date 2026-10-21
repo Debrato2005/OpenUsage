@@ -32,6 +32,8 @@ OU-ACCT-005 requires device-code login, while section 19.1(1) broadly prohibits 
 
 Codes must stay out of logs, notifications, toasts, exports, backups, application persistence, and retained real test evidence. Terminal states and approval invalidation clear the challenge. Clipboard retention remains under operating-system control. See the [exact approved interpretation](proposals/device-code-display-interpretation.md). Synthetic native checks passed. Real OAuth remains unexecuted.
 
+October 21 implementation update: the user's explicit per-account Sign in action supplies selected-profile consent. A separate Get sign-in code confirmation is no longer required. The named pending dialog retains Cancel; the fixed official verification page opens automatically. Production anonymous challenge/cancellation passed without retaining a code. Successful real OAuth remains unverified. See [the evidence](evidence/native-account-signin/).
+
 ## SC-004: trusted companion preparation through Add
 
 Status: user-directed implementation interpretation, October 21, 2026. The normative SRS stays unchanged.

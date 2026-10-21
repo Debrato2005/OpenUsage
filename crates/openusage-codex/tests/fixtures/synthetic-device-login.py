@@ -39,7 +39,7 @@ assert request == {"id": 3, "method": "account/login/start", "params": {"type": 
 if MODE == "start_hang":
     (home / "synthetic-login-start-pending").write_text("ready")
     time.sleep(60)
-completion = {"method": "account/login/completed", "params": {
+completion = {"emittedAtMs": 1792573000123, "method": "account/login/completed", "params": {
     "loginId": "synthetic-device-attempt", "success": True, "error": None}}
 if MODE == "early":
     send(completion)

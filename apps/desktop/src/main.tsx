@@ -1,3 +1,4 @@
+import openusageLogo from './assets/openusage-logo.png';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
 import { Checkbox } from './components/ui/checkbox';
@@ -229,13 +230,13 @@ function App() {
   return <div className={`app-shell${ready ? '' : ' onboarding-shell'}`}>
     <a className="skip-link" href="#main">Skip to dashboard</a>
     <aside className="sidebar" aria-label="Workspace" hidden={!ready}>
-      <a className="brand" href="#main" onClick={() => navigate('overview')} aria-label="OpenUsage dashboard"><span className="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M10 3a9 9 0 0 0 0 18v-5a4 4 0 0 1 0-8V3Zm4 0v5a4 4 0 0 1 0 8v5a9 9 0 0 0 0-18Z" fill="currentColor"/></svg></span><span>OpenUsage</span></a>
+      <a className="brand" href="#main" onClick={() => navigate('overview')} aria-label="OpenUsage dashboard"><span className="brand-wordmark"><img src={openusageLogo} alt="OpenUsage" /></span></a>
       <nav aria-label="Main">{(Object.keys(titles) as WorkspaceView[]).map(name => <a key={name} href={`#${name}`} data-workspace-nav={name} className={view === name ? 'nav-active' : undefined} aria-current={view === name ? 'page' : undefined} onClick={event => { event.preventDefault(); navigate(name); }}><NavIcon view={name} /><span>{titles[name]}</span></a>)}</nav>
       <div className="sidebar-note"><Button variant="ghost" className="text-button" onClick={() => setPrivacy(!privacy)} aria-expanded={privacy} aria-controls="privacy-details">{privacy ? 'Hide privacy details' : 'About your privacy'}</Button></div>
       <div className="sidebar-footer"><span>Local workspace</span><span>0.1.0 · In development</span></div>
     </aside>
     <div className="workspace">
-      {!ready && <header className="onboarding-header"><a className="brand" href="#main" aria-label="OpenUsage"><span className="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M10 3a9 9 0 0 0 0 18v-5a4 4 0 0 1 0-8V3Zm4 0v5a4 4 0 0 1 0 8v5a9 9 0 0 0 0-18Z" fill="currentColor" /></svg></span><span>OpenUsage</span></a>{appearance}</header>}
+      {!ready && <header className="onboarding-header"><a className="brand" href="#main" aria-label="OpenUsage"><span className="brand-wordmark"><img src={openusageLogo} alt="OpenUsage" /></span></a>{appearance}</header>}
       <main id="main" tabIndex={-1}>
         {ready && <div className="page-heading"><div><h1>{titles[view]}</h1><p className="subtitle">{descriptions[view]}</p></div><span className="status-pill" data-global-monitoring={ready && !monitoring.unavailable ? monitoring.status?.state : undefined}><span className="status-dot" aria-hidden="true" />{!ready ? 'Monitoring stopped' : monitoring.unavailable ? 'Monitoring status unavailable' : monitoring.status ? `Monitoring ${monitoring.status.state}` : 'Loading monitoring status…'}</span></div>}
         <section hidden={ready && view !== 'settings'} inert={ready && view !== 'settings'} className="startup-panel" data-storage={data?.storage ?? startup.kind} aria-labelledby="startup-heading" aria-busy={startup.kind === 'loading' || busy}>
