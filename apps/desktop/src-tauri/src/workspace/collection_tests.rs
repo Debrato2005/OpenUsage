@@ -218,7 +218,7 @@ fn failed_auth_read(
     f: &mut Fixture,
     id: &str,
     approval: &str,
-) -> (String, provider::ProfileBinding, CommandError) {
+) -> (String, Box<provider::CompletedReadFailure>) {
     f.mode("signed_out");
     let receipt = f
         .workspace
@@ -228,10 +228,9 @@ fn failed_auth_read(
         .workspace
         .complete_profile_collection_read(id, &receipt.request_id)
         .unwrap();
-    let binding = pending.binding().clone();
-    let error = pending.wait().err().unwrap();
-    assert_eq!(error, CommandError::ProviderAuthenticationRequired);
-    (receipt.request_id, binding, error)
+    let joined = pending.wait_with_failure().err().unwrap();
+    assert_eq!(joined.error, CommandError::ProviderAuthenticationRequired);
+    (receipt.request_id, joined.failure.unwrap())
 }
 
 #[test]
@@ -268,10 +267,8 @@ fn collection_auth_failure_after_reopen_updates_only_selected_connection_and_kee
             .all(|profile| profile["eligible"] == false)
     );
     let approval = f.approve();
-    let (request, binding, error) = failed_auth_read(&mut f, &id, &approval);
-    f.workspace
-        .note_collection_read_error(&binding, &request, error)
-        .unwrap();
+    let (_request, failure) = failed_auth_read(&mut f, &id, &approval);
+    f.workspace.record_profile_read_failure(failure).unwrap();
     let profiles = f.workspace.list_profiles().unwrap().profiles;
     assert_eq!(
         profiles
@@ -309,7 +306,7 @@ fn collection_auth_failure_waiting_for_workspace_cannot_overwrite_a_new_login() 
     f.save(&id, &approval);
     let saved = cached(&f.workspace, &id);
     let before = records(&mut f.workspace);
-    let (request, binding, error) = failed_auth_read(&mut f, &id, &approval);
+    let (_request, failure) = failed_auth_read(&mut f, &id, &approval);
     f.mode("success");
     fs::write(
         f.home(&id).join("synthetic-collection-config.json"),
@@ -337,9 +334,10 @@ fn collection_auth_failure_waiting_for_workspace_cannot_overwrite_a_new_login() 
         .unwrap();
     f.workspace.finish_profile_login(completed).unwrap();
     let monitoring = serde_json::to_value(f.workspace.load_monitoring().unwrap()).unwrap();
-    f.workspace
-        .note_collection_read_error(&binding, &request, error)
-        .unwrap();
+    assert_eq!(
+        f.workspace.record_profile_read_failure(failure),
+        Err(CommandError::ProviderCollectionCancelled)
+    );
     assert_eq!(
         f.workspace
             .list_profiles()

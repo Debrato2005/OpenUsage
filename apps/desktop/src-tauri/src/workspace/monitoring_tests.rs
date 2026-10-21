@@ -92,7 +92,7 @@ fn status(workspace: &mut Workspace, id: &str) -> serde_json::Value {
         .clone()
 }
 fn publish(workspace: &mut Workspace, job: monitoring::ScheduledCollection) {
-    let result = job.pending.wait();
+    let result = job.pending.wait_with_failure();
     workspace.finish_scheduled_collection(&job.profile_id, &job.request_id, job.revision, result);
 }
 fn child(f: &Fixture, id: &str, barrier: &str, previous: Option<libc::pid_t>) -> libc::pid_t {
@@ -263,7 +263,7 @@ fn monitoring_pause_after_wait_prevents_publication_and_restart_never_recovers_t
         .start_profile_monitoring(&id, &approval)
         .unwrap();
     let job = f.workspace.next_scheduled_collection().unwrap();
-    let completed = job.pending.wait().unwrap();
+    let completed = job.pending.wait_with_failure().unwrap();
     let revision = f.workspace.load_monitoring().unwrap().reading_revision;
     assert_eq!(
         f.workspace.pause_profile_monitoring(&id).unwrap(),
@@ -884,7 +884,7 @@ fn monitoring_cancelled_restore_preview_preserves_pending_read_and_valid_restore
     assert!(restored.authentication_required);
     assert_eq!(unsafe { libc::kill(pid, 0) }, -1);
     assert_eq!(unsafe { libc::killpg(pid, 0) }, -1);
-    let result = job.pending.wait();
+    let result = job.pending.wait_with_failure();
     assert!(result.is_err());
     f.workspace
         .finish_scheduled_collection(&id, &job.request_id, job.revision, result);
@@ -917,5 +917,32 @@ fn monitoring_cancelled_restore_preview_preserves_pending_read_and_valid_restore
     assert_eq!(
         f.workspace.start_profile_monitoring(&id, &approval).err(),
         Some(CommandError::MonitoringNotEligible)
+    );
+}
+
+#[test]
+fn unavailable_identity_does_not_assert_an_expired_session() {
+    let mut f = Fixture::new("success");
+    let id = f.profiles[0].clone();
+    let approval = f.approve();
+    login(&mut f, &id, &approval);
+    f.workspace
+        .start_profile_monitoring(&id, &approval)
+        .unwrap();
+    f.workspace
+        .note_monitoring_error(&id, CommandError::ProviderAccountIdentityUnavailable);
+    let current = status(&mut f.workspace, &id);
+    assert_eq!(current["state"], "running");
+    assert_eq!(current["eligible"], true);
+    assert_eq!(current["issue"], "provider_error");
+    assert!(
+        f.workspace
+            .storage
+            .as_ref()
+            .unwrap()
+            .operational_alert_history()
+            .unwrap()
+            .events
+            .is_empty()
     );
 }

@@ -554,7 +554,21 @@ fn schema_six_receipts_migrate_with_proof_backfill_but_orphans_keep_unknown_anch
             NotificationOutcome::Submitted,
         )
         .unwrap();
-    storage.connection.execute_batch("DROP TABLE threshold_alert_events; DROP TABLE threshold_alert_preferences; DROP TABLE threshold_alert_overrides; ALTER TABLE reset_notification_receipts RENAME TO current_receipts;").unwrap();
+    storage.connection.execute_batch("DROP TABLE operational_alert_events;DROP TABLE operational_alert_outcomes;DROP TABLE operational_alert_state;DROP TABLE operational_alert_preferences;DROP TABLE operational_alert_overrides;DROP TABLE threshold_alert_events;DROP TABLE threshold_alert_preferences;DROP TABLE threshold_alert_overrides;CREATE TEMP TABLE saved_alerts AS SELECT * FROM alert_events;CREATE TEMP TABLE saved_outbox AS SELECT * FROM reset_notification_outbox;DROP TABLE reset_notification_outbox;DROP TABLE alert_events;DROP TABLE notification_event_ids;").unwrap();
+    storage
+        .connection
+        .execute_batch(include_str!("schema_v5.sql"))
+        .unwrap();
+    let outbox_schema = include_str!("schema_v6.sql");
+    let start = outbox_schema
+        .find("CREATE TABLE reset_notification_outbox")
+        .unwrap();
+    let end = start + outbox_schema[start..].find(") STRICT;").unwrap() + ") STRICT;".len();
+    storage
+        .connection
+        .execute_batch(&outbox_schema[start..end])
+        .unwrap();
+    storage.connection.execute_batch("INSERT INTO alert_events SELECT * FROM saved_alerts;INSERT INTO reset_notification_outbox SELECT * FROM saved_outbox;DROP TABLE saved_alerts;DROP TABLE saved_outbox;ALTER TABLE reset_notification_receipts RENAME TO current_receipts;").unwrap();
     // Use the exact old application-owned receipt definition, not a look-alike.
     let old_schema = include_str!("schema_v6.sql");
     let definition = old_schema
@@ -604,6 +618,9 @@ fn schema_six_receipts_migrate_with_proof_backfill_but_orphans_keep_unknown_anch
             .1
             .is_none()
     );
-    assert_eq!(storage.metadata().unwrap().schema_version, 7);
+    assert_eq!(
+        storage.metadata().unwrap().schema_version,
+        crate::CURRENT_SCHEMA_VERSION
+    );
     validate(&mut storage);
 }

@@ -181,8 +181,7 @@ impl Workspace {
             | CommandError::ProviderQuotaAssociationChanged => {
                 Some(MonitoringIssue::AccountChanged)
             }
-            CommandError::ProviderAccountIdentityUnavailable
-            | CommandError::ProviderAuthenticationRequired => Some(MonitoringIssue::SignInRequired),
+            CommandError::ProviderAuthenticationRequired => Some(MonitoringIssue::SignInRequired),
             CommandError::ProviderUnsupported => Some(MonitoringIssue::Unsupported),
             CommandError::ProviderHomeUnavailable
             | CommandError::ProviderProfileArchived
@@ -466,7 +465,7 @@ impl Workspace {
         id: &str,
         request: &str,
         revision: String,
-        result: Result<provider::CompletedCollection, CommandError>,
+        result: Result<provider::CompletedCollection, provider::JoinedReadError>,
     ) {
         let current = self.monitoring.entries.get(id).is_some_and(|e| {
             e.state == MonitoringState::Running
@@ -480,7 +479,15 @@ impl Workspace {
             self.cancelled_scheduled_read(id, request);
             return;
         }
-        let result = result.and_then(|completed| self.finish_profile_collection_read(completed));
+        let result = match result {
+            Ok(completed) => self.finish_profile_collection_read(completed),
+            Err(joined) => {
+                let recorded = joined
+                    .failure
+                    .map_or(Ok(()), |failure| self.record_profile_read_failure(failure));
+                recorded.and(Err(joined.error))
+            }
+        };
         self.cancelled_scheduled_read(id, request);
         match result {
             Ok(value) => {
@@ -507,7 +514,7 @@ impl Workspace {
 
 impl ScheduledCollection {
     pub(crate) fn run(self, workspace: &std::sync::Arc<std::sync::Mutex<Option<Workspace>>>) {
-        let result = self.pending.wait();
+        let result = self.pending.wait_with_failure();
         if let Ok(mut state) = workspace.lock()
             && let Some(workspace) = state.as_mut()
         {

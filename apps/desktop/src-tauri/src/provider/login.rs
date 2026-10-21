@@ -131,12 +131,6 @@ impl ProviderCoordinator {
             .lock()
             .map_err(|_| CommandError::ProviderUnavailable)?;
         require_open(&state)?;
-        // Explicit sign-in supersedes an unpublished diagnostic for this profile.
-        state.checks.remove(profile_id);
-        require_profile_available(&state, profile_id)?;
-        if state.active_count() >= 2 {
-            return Err(CommandError::ProviderCapacityReached);
-        }
         let approved = state
             .approved
             .as_mut()
@@ -147,6 +141,23 @@ impl ProviderCoordinator {
         approved.held.recheck()?;
         let executable = approved.executable.clone();
         let source_kind = approved.metadata.source_kind;
+        held_home.require_identity()?;
+        // Explicit sign-in supersedes only already-joined failures and unpublished
+        // diagnostics. A read with a taken handle can still have an active worker.
+        state.checks.remove(profile_id);
+        state
+            .quotas
+            .retain(|_, entry| entry.binding.profile_id != profile_id || !entry.failure_ready);
+        state
+            .activities
+            .retain(|_, entry| entry.binding.profile_id != profile_id || !entry.failure_ready);
+        state
+            .collections
+            .retain(|_, entry| entry.binding.profile_id != profile_id || !entry.failure_ready);
+        require_profile_available(&state, profile_id)?;
+        if state.active_count() >= 2 {
+            return Err(CommandError::ProviderCapacityReached);
+        }
         let attempt_id = new_id()?;
         let handle = state
             .supervisor

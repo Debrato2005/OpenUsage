@@ -74,7 +74,8 @@ pub(super) fn require_review(
 
 pub(super) struct Entry {
     pub(super) binding: ProfileBinding,
-    handle: Option<ActivityHandle>,
+    pub(super) failure_ready: bool,
+    pub(super) handle: Option<ActivityHandle>,
     association: ReadAssociation,
 }
 
@@ -180,6 +181,7 @@ impl ProviderCoordinator {
             Entry {
                 binding,
                 handle: Some(handle),
+                failure_ready: false,
                 association,
             },
         );
@@ -258,7 +260,13 @@ fn validate_ids(profile_id: &str, request_id: &str) -> Result<(), CommandError> 
 
 impl CompletingActivity {
     /// The caller releases Workspace before waiting for the owned provider process.
+    #[cfg(test)]
     pub fn wait(self) -> Result<CompletedActivity, CommandError> {
+        self.wait_with_failure().map_err(|joined| joined.error)
+    }
+
+    /// Preserve a typed owned failure until the native coordinator publishes or discards it.
+    pub fn wait_with_failure(self) -> Result<CompletedActivity, JoinedReadError> {
         match self.handle.wait() {
             Ok(probe) => Ok(CompletedActivity {
                 coordinator: self.coordinator,
@@ -281,12 +289,31 @@ impl CompletingActivity {
                 });
                 let current = owned && binding_current(&state, &self.binding);
                 record_refresh_failure(&mut state, &self.binding, error, current);
-                state.activities.remove(&self.request_id);
-                Err(if current {
+                let kind = current
+                    .then(|| ReadFailureKind::from_error(error))
+                    .flatten();
+                if kind.is_none() {
+                    state.activities.remove(&self.request_id);
+                } else if let Some(entry) = state.activities.get_mut(&self.request_id) {
+                    entry.failure_ready = true;
+                }
+                let error = if current {
                     activity_error(error)
                 } else {
                     CommandError::ProviderActivityCancelled
-                })
+                };
+                drop(state);
+                let failure = kind.map(|kind| {
+                    Box::new(CompletedReadFailure::capture(
+                        self.coordinator,
+                        self.binding,
+                        self.request_id,
+                        self.association.expected_binding,
+                        ReadOperation::Activity,
+                        kind,
+                    ))
+                });
+                Err(JoinedReadError { error, failure })
             }
         }
     }

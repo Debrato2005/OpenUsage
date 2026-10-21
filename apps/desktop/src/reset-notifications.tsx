@@ -84,6 +84,8 @@ export function ResetNotifications({ profiles, revision, busy, setBusy }: Props)
       {preferences && <form className="reset-notifications-form" onSubmit={event => { event.preventDefault(); void save(); }} aria-busy={saving}>
         <Field disabled={busy}><FieldLabel className="reset-notifications-check"><Checkbox nativeButton render={<button type="button" />} id="reset-notifications-enabled" checked={preferences.reset.enabled} disabled={busy} onCheckedChange={checked => edit({ reset: { ...preferences.reset, enabled: checked === true } })} />Notify me when a quota reset is confirmed</FieldLabel></Field>
         <Field disabled={busy}><FieldLabel className="reset-notifications-check"><Checkbox nativeButton render={<button type="button" />} id="usage-notifications-enabled" checked={preferences.usage.enabled} disabled={busy} onCheckedChange={checked => edit({ usage: { ...preferences.usage, enabled: checked === true } })} />Notify me at 80%, 90% and 100% quota used</FieldLabel></Field>
+        <Field disabled={busy}><FieldLabel className="reset-notifications-check"><Checkbox nativeButton render={<button type="button" />} id="authentication-notifications-enabled" checked={preferences.authentication.enabled} disabled={busy} onCheckedChange={checked => edit({ authentication: { ...preferences.authentication, enabled: checked === true } })} />Sign-in is required</FieldLabel></Field>
+        <Field disabled={busy}><FieldLabel className="reset-notifications-check"><Checkbox nativeButton render={<button type="button" />} id="collection-failure-notifications-enabled" checked={preferences.collectionFailure.enabled} disabled={busy} onCheckedChange={checked => edit({ collectionFailure: { ...preferences.collectionFailure, enabled: checked === true } })} />Three readings fail in a row</FieldLabel></Field>
         <p className="reset-notifications-note">Usage alerts start after a confirmed reset. Saved events are not replayed.</p>
         <Collapsible className="reset-notifications-details">
           <CollapsibleTrigger render={<Button variant="ghost" />}>Quiet hours</CollapsibleTrigger>
@@ -104,11 +106,11 @@ export function ResetNotifications({ profiles, revision, busy, setBusy }: Props)
             <p className="reset-notifications-note">Default follows each setting above.</p>
             <ul className="reset-notifications-overrides">{activeProfiles.map(profile => <li key={profile.id}>
               <strong><bdi>{profile.label}</bdi></strong>
-              <div className="reset-notifications-account-options">{(['reset', 'usage'] as const).map(kind => {
+              <div className="reset-notifications-account-options">{(['reset', 'usage', 'authentication', 'collectionFailure'] as const).map(kind => {
                 const selected = preferences[kind];
                 const override = selected.profileOverrides.find(item => item.profileId === profile.id);
                 const value = override ? override.enabled ? 'on' : 'off' : 'default';
-                const label = kind === 'reset' ? 'Reset alerts' : 'Usage alerts';
+                const label = { reset: 'Reset alerts', usage: 'Usage alerts', authentication: 'Sign-in alerts', collectionFailure: 'Reading failure alerts' }[kind];
                 return <Field key={kind} disabled={busy}><FieldLabel htmlFor={`${kind}-notifications-${profile.id}`}>{label}<span className="sr-only"> for {profile.label}</span></FieldLabel><Select modal={false} value={value} disabled={busy} items={{ default: 'Default', on: 'On', off: 'Off' }} onValueChange={next => {
                   if (!['default', 'on', 'off'].includes(String(next))) return;
                   const profileOverrides = selected.profileOverrides.filter(item => item.profileId !== profile.id);

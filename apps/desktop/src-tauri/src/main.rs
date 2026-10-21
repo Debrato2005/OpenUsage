@@ -1355,16 +1355,19 @@ async fn complete_profile_collection_read(
                 .ok_or(CommandError::WorkspaceLocked)?
                 .complete_profile_collection_read(&args.profile_id, &args.request_id)?
         };
-        let binding = pending.binding().clone();
-        let completed = match pending.wait() {
+        let completed = match pending.wait_with_failure() {
             Ok(completed) => completed,
-            Err(error) => {
+            Err(joined) => {
+                let error = joined.error;
                 if let Ok(mut state) = service.lock()
                     && let Some(workspace) = state.as_mut()
                 {
+                    let recorded = joined.failure.map_or(Ok(()), |failure| {
+                        workspace.record_profile_read_failure(failure)
+                    });
                     workspace.note_collection_failure(&args.profile_id, &args.request_id);
                     workspace.note_monitoring_read_error(&args.profile_id, &args.request_id, error);
-                    workspace.note_collection_read_error(&binding, &args.request_id, error)?;
+                    recorded?;
                 }
                 return Err(error);
             }
@@ -1485,14 +1488,19 @@ async fn complete_profile_quota_read(
                 .ok_or(CommandError::WorkspaceLocked)?
                 .complete_profile_quota_read(&args.profile_id, &args.request_id)?
         };
-        let completed = match pending.wait() {
+        let completed = match pending.wait_with_failure() {
             Ok(completed) => completed,
-            Err(error) => {
+            Err(joined) => {
+                let error = joined.error;
                 if let Ok(mut state) = service.lock()
                     && let Some(workspace) = state.as_mut()
                 {
+                    let recorded = joined.failure.map_or(Ok(()), |failure| {
+                        workspace.record_profile_read_failure(failure)
+                    });
                     workspace.note_quota_failure(&args.profile_id, &args.request_id);
                     workspace.note_monitoring_read_error(&args.profile_id, &args.request_id, error);
+                    recorded?;
                 }
                 return Err(error);
             }
@@ -1766,14 +1774,19 @@ async fn complete_profile_activity_read(
                 .ok_or(CommandError::WorkspaceLocked)?
                 .complete_profile_activity_read(&args.profile_id, &args.request_id)?
         };
-        let completed = match pending.wait() {
+        let completed = match pending.wait_with_failure() {
             Ok(completed) => completed,
-            Err(error) => {
+            Err(joined) => {
+                let error = joined.error;
                 if let Ok(mut state) = service.lock()
                     && let Some(workspace) = state.as_mut()
                 {
+                    let recorded = joined.failure.map_or(Ok(()), |failure| {
+                        workspace.record_profile_read_failure(failure)
+                    });
                     workspace.note_activity_failure(&args.profile_id, &args.request_id);
                     workspace.note_monitoring_read_error(&args.profile_id, &args.request_id, error);
+                    recorded?;
                 }
                 return Err(error);
             }

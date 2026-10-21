@@ -365,7 +365,7 @@ function App() {
             : 'Inspect a backup before you prepare a restore. Replacing records requires confirmation.'}</p>
         </section>}
         {ready && view === 'settings' && <ResetNotifications profiles={profiles} revision={String(profileRevision)} busy={busy} setBusy={setBusy} />}
-        {ready && <AlertHistory revision={`${profileRevision}:${readingRevision}`} onViewUsage={profileId => requestAccountAction({ kind: 'usage', profileId })} />}
+        {ready && <AlertHistory revision={`${profileRevision}:${readingRevision}`} onViewUsage={profileId => requestAccountAction({ kind: 'usage', profileId })} onViewAccount={profileId => requestAccountAction({ kind: 'manage', profileId })} />}
         {ready && <DataExport key={profileRevision} profiles={profiles} busy={busy} setBusy={setBusy} />}
         </section>
       </main>

@@ -583,3 +583,6 @@ mod reset_notification_tests;
 
 #[path = "threshold_alert_tests.rs"]
 mod threshold_alert_tests;
+
+#[path = "operational_alert_tests.rs"]
+mod operational_alert_tests;

@@ -210,6 +210,24 @@ impl Storage {
         reading: ActivityReading,
         association: Option<ProfileBindingInput>,
     ) -> Result<ActivityCommit> {
+        self.accept_activity_at(reading, association, None)
+    }
+    /// Only a fresh supervised live success closes operational alert incidents.
+    pub fn accept_live_activity_with_binding(
+        &mut self,
+        reading: ActivityReading,
+        association: Option<ProfileBindingInput>,
+        now_utc: &str,
+    ) -> Result<ActivityCommit> {
+        crate::threshold_alerts::validate_now(now_utc)?;
+        self.accept_activity_at(reading, association, Some(now_utc))
+    }
+    fn accept_activity_at(
+        &mut self,
+        reading: ActivityReading,
+        association: Option<ProfileBindingInput>,
+        now_utc: Option<&str>,
+    ) -> Result<ActivityCommit> {
         validate_reading(&reading)?;
         if let Some(input) = &association {
             validate_association(input)?;
@@ -232,6 +250,10 @@ impl Storage {
             associate_in_transaction(&tx, input)?;
         }
         let commit = accept_in_transaction(&tx, reading)?;
+        if let Some(now) = now_utc {
+            crate::operational_alerts::accepted_success(&tx, &commit.collection_run_id, now)
+                .map_err(|_| ActivityError::WriteFailed)?;
+        }
         tx.commit().map_err(write_error)?;
         Ok(commit)
     }

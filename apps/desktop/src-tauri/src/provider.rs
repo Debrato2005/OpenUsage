@@ -31,6 +31,8 @@ mod login;
 pub(crate) use login::*;
 mod discovery;
 pub(crate) use discovery::{ExecutableDiscovery, discover};
+mod failure;
+pub(crate) use failure::*;
 
 const MAX_EXECUTABLE_BYTES: u64 = 1024 * 1024 * 1024;
 
@@ -1805,6 +1807,305 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn owned_failure_cancelled_after_join_cannot_reach_persistence() {
+        let mut fixture = monitored_fixture("signed_out", false);
+        let approval = fixture.approve().approval_id;
+        let id = fixture.homes[0].0.clone();
+        let receipt = fixture.collection(0, &approval, true).unwrap();
+        let joined = fixture
+            .provider
+            .complete_collection(&id, &receipt.request_id)
+            .unwrap()
+            .wait_with_failure()
+            .err()
+            .unwrap();
+        assert_eq!(joined.error, CommandError::ProviderAuthenticationRequired);
+        let proof = joined
+            .failure
+            .expect("An owned signed-out response has typed evidence.");
+        assert!(
+            fixture
+                .provider
+                .0
+                .lock()
+                .unwrap()
+                .collections
+                .contains_key(&receipt.request_id)
+        );
+        fixture.provider.cancel_profile_operations(&id).unwrap();
+        assert_eq!(
+            proof.publish(|_, _| panic!("A cancelled failure must not reach storage.")),
+            Err(CommandError::ProviderCollectionCancelled)
+        );
+        assert_eq!(fixture.provider.0.lock().unwrap().active_count(), 0);
+    }
+
+    #[test]
+    fn explicit_sign_in_supersedes_joined_failure_but_preserves_active_workers() {
+        let mut fixture = monitored_fixture("activity_hang", false);
+        let approval = fixture.approve().approval_id;
+        let (id, path) = fixture.homes[0].clone();
+        let receipt = fixture.collection(0, &approval, true).unwrap();
+        let pid = monitored_stage(&fixture, 0, "activity-pending");
+        let pending = fixture
+            .provider
+            .complete_collection(&id, &receipt.request_id)
+            .unwrap();
+        let revision = fixture.storage.restore_state().unwrap().revision;
+        assert_eq!(
+            fixture
+                .provider
+                .begin_login(&id, &approval, &id, revision, &path)
+                .err(),
+            Some(CommandError::ProviderCollectionInProgress)
+        );
+        assert_eq!(
+            unsafe { libc::kill(pid, 0) },
+            0,
+            "A taken handle is not a terminal failure."
+        );
+        let other_id = fixture.homes[1].0.clone();
+        let other = fixture.collection(1, &approval, true).unwrap();
+        let other_pid = monitored_stage(&fixture, 1, "activity-pending");
+        assert_eq!(unsafe { libc::killpg(pid, libc::SIGKILL) }, 0);
+        let proof = pending.wait_with_failure().err().unwrap().failure.unwrap();
+        gone(pid);
+        let revision = fixture.storage.restore_state().unwrap().revision;
+        assert_eq!(
+            fixture
+                .provider
+                .begin_login(&id, &new_id().unwrap(), &id, revision, &path)
+                .err(),
+            Some(CommandError::StaleProviderApproval)
+        );
+        assert!(
+            fixture
+                .provider
+                .0
+                .lock()
+                .unwrap()
+                .collections
+                .contains_key(&receipt.request_id),
+            "An unapproved request cannot discard failure evidence."
+        );
+        let revision = fixture.storage.restore_state().unwrap().revision;
+        fixture
+            .provider
+            .begin_login(&id, &approval, &id, revision, &path)
+            .unwrap();
+        assert_eq!(
+            proof.publish(|_, _| panic!("Sign-in superseded this failure.")),
+            Err(CommandError::ProviderCollectionCancelled)
+        );
+        {
+            let state = fixture.provider.0.lock().unwrap();
+            assert!(!state.collections.contains_key(&receipt.request_id));
+            assert!(state.collections.contains_key(&other.request_id));
+            assert_eq!(state.active_count(), 2);
+        }
+        assert_eq!(unsafe { libc::kill(other_pid, 0) }, 0);
+        fixture.provider.cancel_profile_operations(&id).unwrap();
+        assert_eq!(unsafe { libc::kill(other_pid, 0) }, 0);
+        fixture
+            .provider
+            .cancel_profile_operations(&other_id)
+            .unwrap();
+        gone(other_pid);
+    }
+
+    #[test]
+    fn owned_failure_callback_error_consumes_each_read_kind_and_retains_admission_binding() {
+        for operation in [
+            ReadOperation::Quota,
+            ReadOperation::Activity,
+            ReadOperation::Collection,
+        ] {
+            let mut fixture = monitored_fixture("signed_out", false);
+            let approval = fixture.approve().approval_id;
+            let (id, path) = fixture.homes[0].clone();
+            let admission_binding = new_id().unwrap();
+            let evidence = openusage_storage::ProfileIdentityEvidence {
+                email: "synthetic-collection@example.invalid".into(),
+                plan: Some("plus".into()),
+            };
+            fixture
+                .storage
+                .associate_profile_binding(openusage_storage::ProfileBindingInput {
+                    profile_id: id.clone(),
+                    expected_home_reference: id.clone(),
+                    expected_previous_binding_id: None,
+                    new_binding_id: admission_binding.clone(),
+                    evidence: evidence.clone(),
+                    observed_at_utc: "2026-10-22T12:00:00.000Z".into(),
+                })
+                .unwrap();
+            let revision = fixture.storage.restore_state().unwrap().revision;
+            let association = ReadAssociation {
+                expected_binding: Some(admission_binding.clone()),
+                review: None,
+            };
+            let joined = match operation {
+                ReadOperation::Quota => {
+                    let receipt = fixture
+                        .provider
+                        .begin_quota(&id, &approval, &id, revision, &path, association)
+                        .unwrap();
+                    fixture
+                        .provider
+                        .complete_quota(&id, &receipt.request_id)
+                        .unwrap()
+                        .wait_with_failure()
+                        .err()
+                        .unwrap()
+                }
+                ReadOperation::Activity => {
+                    let receipt = fixture
+                        .provider
+                        .begin_activity(&id, &approval, &id, revision, &path, association)
+                        .unwrap();
+                    fixture
+                        .provider
+                        .complete_activity(&id, &receipt.request_id)
+                        .unwrap()
+                        .wait_with_failure()
+                        .err()
+                        .unwrap()
+                }
+                ReadOperation::Collection => {
+                    let receipt = fixture
+                        .provider
+                        .begin_collection(&id, &approval, &id, revision, &path, association)
+                        .unwrap();
+                    fixture
+                        .provider
+                        .complete_collection(&id, &receipt.request_id)
+                        .unwrap()
+                        .wait_with_failure()
+                        .err()
+                        .unwrap()
+                }
+            };
+            assert_eq!(joined.error, CommandError::ProviderAuthenticationRequired);
+            let proof = joined.failure.unwrap();
+            assert_eq!(proof.operation(), operation);
+            let request = proof.request_id().to_owned();
+            // A concurrent reassociation must not rewrite the proof's admission fence.
+            let replacement = new_id().unwrap();
+            fixture
+                .storage
+                .associate_profile_binding(openusage_storage::ProfileBindingInput {
+                    profile_id: id.clone(),
+                    expected_home_reference: id.clone(),
+                    expected_previous_binding_id: Some(admission_binding.clone()),
+                    new_binding_id: replacement.clone(),
+                    evidence,
+                    observed_at_utc: "2026-10-22T12:01:00.000Z".into(),
+                })
+                .unwrap();
+            assert_eq!(
+                fixture
+                    .storage
+                    .profile_binding(&id)
+                    .unwrap()
+                    .unwrap()
+                    .binding_id,
+                replacement
+            );
+            assert_eq!(
+                proof.publish(|binding, failure| {
+                    assert_eq!(binding.profile_id, id);
+                    assert_eq!(failure.kind, ReadFailureKind::AuthenticationRequired);
+                    assert_eq!(failure.request_id, request);
+                    assert_eq!(
+                        failure.expected_binding_id.as_deref(),
+                        Some(admission_binding.as_str())
+                    );
+                    assert_eq!(failure.source_kind, ExecutableSourceKind::TestFixture);
+                    assert_eq!(failure.tested_provider_version, TESTED_PROVIDER_VERSION);
+                    assert!(failure.observed_at <= std::time::SystemTime::now());
+                    assert!(failure.observed_monotonic <= Instant::now());
+                    Err(CommandError::StorageUnavailable)
+                }),
+                Err(CommandError::StorageUnavailable)
+            );
+            assert_eq!(fixture.provider.0.lock().unwrap().active_count(), 0);
+            let next = fixture.collection(0, &approval, true).unwrap();
+            // The compatibility path drops its proof and must not leak an active request.
+            assert_eq!(
+                fixture
+                    .provider
+                    .complete_collection(&id, &next.request_id)
+                    .unwrap()
+                    .wait()
+                    .err(),
+                Some(CommandError::ProviderAuthenticationRequired)
+            );
+            assert_eq!(fixture.provider.0.lock().unwrap().active_count(), 0);
+        }
+    }
+
+    #[test]
+    fn owned_transient_failure_keeps_typed_evidence_and_existing_backoff() {
+        let mut fixture = monitored_fixture("activity_hang", false);
+        let approval = fixture.approve().approval_id;
+        let id = fixture.homes[0].0.clone();
+        let receipt = fixture.collection(0, &approval, true).unwrap();
+        let pid = monitored_stage(&fixture, 0, "activity-pending");
+        let pending = fixture
+            .provider
+            .complete_collection(&id, &receipt.request_id)
+            .unwrap();
+        assert_eq!(unsafe { libc::killpg(pid, libc::SIGKILL) }, 0);
+        let joined = pending.wait_with_failure().err().unwrap();
+        gone(pid);
+        let proof = joined
+            .failure
+            .expect("An owned transport exit has typed evidence.");
+        assert_eq!(backoff_failures(&fixture.provider, &id), 1);
+        proof
+            .publish(|binding, failure| {
+                assert_eq!(binding.profile_id, id);
+                assert_eq!(failure.kind, ReadFailureKind::TransientFailure);
+                assert_eq!(failure.request_id, receipt.request_id);
+                Ok(())
+            })
+            .unwrap();
+        assert_eq!(fixture.provider.0.lock().unwrap().active_count(), 0);
+        assert!(fixture.provider.scheduled_retry_after_seconds(&id).unwrap() > 0);
+    }
+
+    #[test]
+    fn semantic_read_errors_never_supply_failure_proofs() {
+        for mode in [
+            "unknown",
+            "no_auth_required",
+            "unsupported_auth",
+            "quota_invalid",
+            "quota_rpc_error",
+            "changed_email",
+        ] {
+            let mut fixture = monitored_fixture(mode, false);
+            let approval = fixture.approve().approval_id;
+            let id = fixture.homes[0].0.clone();
+            let receipt = fixture.collection(0, &approval, true).unwrap();
+            let joined = fixture
+                .provider
+                .complete_collection(&id, &receipt.request_id)
+                .unwrap()
+                .wait_with_failure()
+                .err()
+                .unwrap();
+            assert!(joined.failure.is_none(), "{mode}");
+            assert_eq!(backoff_failures(&fixture.provider, &id), 0, "{mode}");
+            assert_eq!(
+                fixture.provider.0.lock().unwrap().active_count(),
+                0,
+                "{mode}"
+            );
+        }
+    }
+
+    #[test]
     fn transient_backoff_excludes_semantic_errors_and_stale_or_unowned_completions() {
         let mut fixture = Fixture::new(false);
         let approval = fixture.approve();
@@ -1834,12 +2135,16 @@ pub(crate) mod tests {
                 openusage_codex::ProtocolError::UnsupportedAuthentication,
             )),
             SupervisorError::Session(SessionError::Protocol(
+                openusage_codex::ProtocolError::AccountIdentityUnavailable,
+            )),
+            SupervisorError::Session(SessionError::Protocol(
                 openusage_codex::ProtocolError::InvalidMessage,
             )),
             SupervisorError::Session(SessionError::Protocol(
                 openusage_codex::ProtocolError::AccountChanged,
             )),
         ] {
+            assert_eq!(ReadFailureKind::from_error(error), None, "{error:?}");
             record_refresh_failure(&mut state, &binding, error, true);
             assert!(state.refresh_backoff.is_empty(), "{error:?}");
         }
@@ -1863,6 +2168,10 @@ pub(crate) mod tests {
         .take(10)
         .enumerate()
         {
+            assert_eq!(
+                ReadFailureKind::from_error(error.into()),
+                Some(ReadFailureKind::TransientFailure)
+            );
             record_refresh_failure(&mut state, &binding, error.into(), true);
             let retry = &state.refresh_backoff[&binding.profile_id];
             assert_eq!(retry.failures, ((index + 1) as u8).min(8));

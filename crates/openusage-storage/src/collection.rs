@@ -101,6 +101,21 @@ impl Storage {
                 .map(|reading| activity::accept_in_transaction(&tx, reading))
                 .transpose()?,
         };
+        if let Some(now) = now_utc {
+            let run = commit
+                .quota
+                .as_ref()
+                .map(|q| q.collection_run_id.as_str())
+                .or_else(|| {
+                    commit
+                        .activity
+                        .as_ref()
+                        .map(|a| a.collection_run_id.as_str())
+                })
+                .ok_or(ActivityError::InvalidInput)?;
+            crate::operational_alerts::accepted_success(&tx, run, now)
+                .map_err(|_| ActivityError::WriteFailed)?;
+        }
         tx.commit().map_err(write_error)?;
         Ok(commit)
     }

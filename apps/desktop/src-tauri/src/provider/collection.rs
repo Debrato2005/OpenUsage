@@ -40,7 +40,8 @@ pub(crate) struct CollectionOutcome {
 
 pub(super) struct Entry {
     pub(super) binding: ProfileBinding,
-    handle: Option<CollectionHandle>,
+    pub(super) failure_ready: bool,
+    pub(super) handle: Option<CollectionHandle>,
     association: ReadAssociation,
     activity_run_id: String,
 }
@@ -191,6 +192,7 @@ impl ProviderCoordinator {
             Entry {
                 binding,
                 handle: Some(handle),
+                failure_ready: false,
                 association,
                 activity_run_id,
             },
@@ -267,11 +269,13 @@ fn validate_ids(profile: &str, request: &str) -> Result<(), CommandError> {
     crate::restore::validate_preview_id(request)
 }
 impl CompletingCollection {
-    pub fn binding(&self) -> &ProfileBinding {
-        &self.binding
+    #[cfg(test)]
+    pub fn wait(self) -> Result<CompletedCollection, CommandError> {
+        self.wait_with_failure().map_err(|joined| joined.error)
     }
 
-    pub fn wait(self) -> Result<CompletedCollection, CommandError> {
+    /// Preserve a typed owned failure until the native coordinator publishes or discards it.
+    pub fn wait_with_failure(self) -> Result<CompletedCollection, JoinedReadError> {
         match self.handle.wait() {
             Ok(probe) => Ok(CompletedCollection {
                 coordinator: self.coordinator,
@@ -294,12 +298,31 @@ impl CompletingCollection {
                     });
                 let current = owned && binding_current(&state, &self.binding);
                 record_refresh_failure(&mut state, &self.binding, error, current);
-                state.collections.remove(&self.request_id);
-                Err(if current {
+                let kind = current
+                    .then(|| ReadFailureKind::from_error(error))
+                    .flatten();
+                if kind.is_none() {
+                    state.collections.remove(&self.request_id);
+                } else if let Some(entry) = state.collections.get_mut(&self.request_id) {
+                    entry.failure_ready = true;
+                }
+                let error = if current {
                     collection_error(error)
                 } else {
                     CommandError::ProviderCollectionCancelled
-                })
+                };
+                drop(state);
+                let failure = kind.map(|kind| {
+                    Box::new(CompletedReadFailure::capture(
+                        self.coordinator,
+                        self.binding,
+                        self.request_id,
+                        self.association.expected_binding,
+                        ReadOperation::Collection,
+                        kind,
+                    ))
+                });
+                Err(JoinedReadError { error, failure })
             }
         }
     }

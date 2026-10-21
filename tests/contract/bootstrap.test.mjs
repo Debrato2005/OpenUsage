@@ -32,6 +32,18 @@ test('alert history accepts saved reset evidence and refuses leaked fields or fa
   }
 });
 
+test('operational alerts expose only the selected account and safe evidence', async () => {
+  for (const kind of ['authentication_required', 'collection_failure']) {
+    const event = { id: '11111111-1111-4111-8111-111111111111', profileId: '22222222-2222-4222-8222-222222222222', profileLabel: 'Account A', kind, evidenceAtUtc: '2026-10-22T08:00:00.000Z', sourceKind: 'official_artifact', deliveryState: 'recorded' };
+    desktopResponse({ events: [event], truncated: false });
+    assert.deepEqual((await invoke('load_alert_history')).events, [event]);
+    for (const extra of [{ evidenceRunId: event.id }, { thresholdPercent: null }, { error: 'raw provider error' }, { deliveryState: 'covered' }, { kind: 'invalid_credentials' }]) {
+      desktopResponse({ events: [{ ...event, ...extra }], truncated: false });
+      await assert.rejects(invoke('load_alert_history'), /desktop response is incompatible/);
+    }
+  }
+});
+
 afterEach(() => { delete globalThis.window; });
 
 test('accepts valid native bootstrap states without changing missing values', async () => {
@@ -762,12 +774,12 @@ test('reset notification preferences accept only typed bounded records and keep 
 test('combined notification preferences reject malformed usage settings and private fields', async () => {
   const reset = { enabled: false, timeZone: 'Etc/UTC', quietEnabled: true, quietStart: '22:00', quietEnd: '08:00', profileOverrides: [] };
   const usage = { enabled: true, profileOverrides: [{ profileId: '11111111-1111-4111-8111-111111111111', enabled: false }] };
-  const preferences = { reset, usage };
+  const preferences = { reset, usage, authentication: { enabled: false, profileOverrides: [] }, collectionFailure: { enabled: false, profileOverrides: [] } };
   for (const command of ['load_notification_preferences', 'save_notification_preferences']) {
     const args = command.startsWith('save') ? { preferences } : undefined;
     desktopResponse(preferences); assert.deepEqual(await invoke(command, args), preferences);
     for (const invalid of [
-      { reset }, { usage }, { ...preferences, secret: 'private' },
+      { reset }, { usage }, { ...preferences, authentication: null }, { ...preferences, collectionFailure: { enabled: true, profileOverrides: [], token: 'private' } }, { ...preferences, secret: 'private' },
       { ...preferences, usage: { ...usage, enabled: 'true' } },
       { ...preferences, usage: { ...usage, threshold: 85 } },
       { ...preferences, usage: { ...usage, profileOverrides: [...usage.profileOverrides, ...usage.profileOverrides] } },

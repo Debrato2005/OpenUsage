@@ -250,7 +250,13 @@ pub(crate) fn record(
                 continue;
             }
             let id = crate::activity::new_uuid()?;
+            crate::operational_alerts::register_id(connection, &id).map_err(write_error)?;
             let inserted = connection.execute("INSERT INTO alert_events VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,'recorded') ON CONFLICT(event_key) DO NOTHING",params![id,key,packet.binding.profile_id,packet.binding.binding_id,identity,assessment.limit_id,assessment.window_role.as_str(),duration as i64,generation,packet.commit.observed_at_utc,packet.source_kind.as_str()]).map_err(write_error)?;
+            if inserted == 0 {
+                connection
+                    .execute("DELETE FROM notification_event_ids WHERE id=?1", [&id])
+                    .map_err(write_error)?;
+            }
             if inserted == 1 {
                 connection
                     .execute(

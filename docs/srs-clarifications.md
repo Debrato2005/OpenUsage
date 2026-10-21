@@ -70,3 +70,9 @@ Show each returned quota window. Do not infer a five-hour or weekly limit from t
 Status: implementation interpretation, October 22, 2026. No normative text changed.
 
 OU-ALERT-018 consumes lower satisfied thresholds after the first reading selects the highest threshold. The saved Covered state means that no separate OS notification was submitted for that lower level. It does not claim OS delivery. The consumed key survives restore and Undo even if the higher notification fails. Later crossings remain separate under OU-ALERT-002. The normative SRS is unchanged.
+
+## SC-009: authentication-required evidence
+
+The approved app-server interface can report `AuthenticationRequired`. For a profile with an accepted reading from the same home and association, OpenUsage can report that sign-in is required. This response does not establish `invalid_grant` or confirmed invalid credentials. Missing identity, unsupported methods, malformed responses, cancellation and stale operations do not qualify as authentication proof.
+
+OU-ALERT-007 remains open for confirmed invalid-credential evidence through a supported interface. The added sign-in alert is a narrower capability, not a change to that requirement. The normative SRS is unchanged.

@@ -1,7 +1,8 @@
 //! Narrow preferences IPC. Queuing and submission remain Rust-owned.
 use super::*;
 use openusage_storage::{
-    AlertQuietHours, ResetAlertOverride, ResetAlertPreferences, ThresholdAlertPreferences,
+    AlertQuietHours, OperationalAlertPreferences, ResetAlertOverride, ResetAlertPreferences,
+    ThresholdAlertPreferences,
 };
 use serde::Deserialize;
 
@@ -10,6 +11,8 @@ use serde::Deserialize;
 pub(crate) struct NotificationPreferences {
     reset: ResetNotificationPreferences,
     usage: ThresholdNotificationPreferences,
+    authentication: ThresholdNotificationPreferences,
+    collection_failure: ThresholdNotificationPreferences,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
@@ -109,6 +112,40 @@ impl From<ResetAlertPreferences> for ResetNotificationPreferences {
         }
     }
 }
+impl From<OperationalAlertPreferences> for ThresholdNotificationPreferences {
+    fn from(value: OperationalAlertPreferences) -> Self {
+        Self {
+            enabled: value.enabled,
+            profile_overrides: value
+                .profile_overrides
+                .into_iter()
+                .map(|item| ProfileOverride {
+                    profile_id: item.profile_id,
+                    enabled: item.enabled,
+                })
+                .collect(),
+        }
+    }
+}
+impl TryFrom<ThresholdNotificationPreferences> for OperationalAlertPreferences {
+    type Error = CommandError;
+    fn try_from(value: ThresholdNotificationPreferences) -> Result<Self, Self::Error> {
+        if value.profile_overrides.len() > 100 {
+            return Err(CommandError::InvalidArguments);
+        }
+        Ok(Self {
+            enabled: value.enabled,
+            profile_overrides: value
+                .profile_overrides
+                .into_iter()
+                .map(|item| ResetAlertOverride {
+                    profile_id: item.profile_id,
+                    enabled: item.enabled,
+                })
+                .collect(),
+        })
+    }
+}
 impl Workspace {
     pub(crate) fn load_notification_preferences(
         &self,
@@ -119,43 +156,37 @@ impl Workspace {
             .map_err(|_| CommandError::StorageUnavailable)?;
         Ok(NotificationPreferences {
             reset: self.load_reset_notification_preferences()?,
-            usage: ThresholdNotificationPreferences {
+            usage: OperationalAlertPreferences {
                 enabled: usage.enabled,
-                profile_overrides: usage
-                    .profile_overrides
-                    .into_iter()
-                    .map(|item| ProfileOverride {
-                        profile_id: item.profile_id,
-                        enabled: item.enabled,
-                    })
-                    .collect(),
-            },
+                profile_overrides: usage.profile_overrides,
+            }
+            .into(),
+            authentication: storage
+                .load_authentication_alert_preferences()
+                .map_err(|_| CommandError::StorageUnavailable)?
+                .into(),
+            collection_failure: storage
+                .load_collection_failure_alert_preferences()
+                .map_err(|_| CommandError::StorageUnavailable)?
+                .into(),
         })
     }
     pub(crate) fn save_notification_preferences(
         &mut self,
         preferences: NotificationPreferences,
     ) -> Result<NotificationPreferences, CommandError> {
-        if preferences.usage.profile_overrides.len() > 100 {
-            return Err(CommandError::InvalidArguments);
-        }
         let reset = preferences.reset.try_into()?;
+        let usage: OperationalAlertPreferences = preferences.usage.try_into()?;
         let usage = ThresholdAlertPreferences {
-            enabled: preferences.usage.enabled,
-            profile_overrides: preferences
-                .usage
-                .profile_overrides
-                .into_iter()
-                .map(|item| ResetAlertOverride {
-                    profile_id: item.profile_id,
-                    enabled: item.enabled,
-                })
-                .collect(),
+            enabled: usage.enabled,
+            profile_overrides: usage.profile_overrides,
         };
+        let authentication = preferences.authentication.try_into()?;
+        let collection = preferences.collection_failure.try_into()?;
         self.storage
             .as_mut()
             .ok_or(CommandError::WorkspaceLocked)?
-            .save_alert_preferences(&reset, &usage)
+            .save_notification_preferences(&reset, &usage, &authentication, &collection)
             .map_err(|error| match error {
                 StorageError::InvalidAlertPreferences => CommandError::InvalidArguments,
                 _ => CommandError::StorageUnavailable,
@@ -202,17 +233,26 @@ impl Workspace {
         let Some(now) = crate::restore::timestamp(std::time::SystemTime::now()) else {
             return;
         };
-        let Ok(Some(event)) = storage.claim_usage_notification(&now) else {
+        let Ok(Some(event)) = storage.claim_notification(&now) else {
             return;
         };
-        let notification = crate::notifications::ResetNotification::new(
-            &event.event_id,
-            &event.profile_id,
-            &event.profile_label,
-            event.window_duration_mins,
-            &event.evidence_at_utc,
-            event.threshold_percent,
-        );
+        let (event_id, attempt_id, notification) = match event {
+            openusage_storage::PendingNotification::Quota(event) => {
+                let notification = crate::notifications::ResetNotification::new(
+                    &event.event_id,
+                    &event.profile_id,
+                    &event.profile_label,
+                    event.window_duration_mins,
+                    &event.evidence_at_utc,
+                    event.threshold_percent,
+                );
+                (event.event_id, event.attempt_id, notification)
+            }
+            openusage_storage::PendingNotification::Operational(event) => {
+                let notification = crate::notifications::ResetNotification::operational(&event);
+                (event.event_id, event.attempt_id, notification)
+            }
+        };
         use crate::notifications::DeliveryOutcome;
         let outcome = match notification {
             Ok(notification) => sink.submit(&notification),
@@ -227,7 +267,7 @@ impl Workspace {
             // Its durable uncertain receipt prevents automatic replay.
             DeliveryOutcome::Uncertain => return,
         };
-        let _ = storage.complete_reset_notification(&event.event_id, &event.attempt_id, completion);
+        let _ = storage.complete_notification(&event_id, &attempt_id, completion);
     }
 }
 

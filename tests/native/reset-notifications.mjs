@@ -24,7 +24,7 @@ async function open(setup = false) {
   await driver.request('POST', `/session/${driver.session}/actions`, { actions: [{ type: 'key', id: 'unlock', actions: [{ type: 'keyDown', value: '\uE007' }, { type: 'keyUp', value: '\uE007' }] }] });
   await driver.request('DELETE', `/session/${driver.session}/actions`);
   await waitFor(async () => (await call('bootstrap')).storage === 'ready', 'ready workspace');
-  assert.equal((await call('bootstrap')).schemaVersion, 7);
+  assert.equal((await call('bootstrap')).schemaVersion, 8);
 }
 async function close() {
   const queue = [driver.child.pid]; let owned;
@@ -48,12 +48,12 @@ async function notificationRows(label) {
     const copy = join(temporary, 'database.db'); await copyFile(fixture.database, copy); await chmod(copy, 0o600);
     if (walHash !== null) { await copyFile(`${fixture.database}-wal`, `${copy}-wal`); await chmod(`${copy}-wal`, 0o600); }
     const result = JSON.parse(execFileSync(verifier, ['database', copy, keyPath, '--profile-state'], { input: JSON.stringify({ passphrase: password }), encoding: 'utf8', timeout: 30000, env: fixture.environment, maxBuffer: 4 * 1024 * 1024 }));
-    assert.equal(result.schemaVersion, 7); assert.equal(result.verified, true); assert.equal(result.readOnly, true); assert.equal(result.plaintextDiskStaging, false);
-    assert.equal(Object.keys(result.state.tables).length, 24);
+    assert.equal(result.schemaVersion, 8); assert.equal(result.verified, true); assert.equal(result.readOnly, true); assert.equal(result.plaintextDiskStaging, false);
+    assert.equal(Object.keys(result.state.tables).length, 30);
     assert.equal(await hash(fixture.database), before.database); assert.equal(await hash(keyPath), before.key);
     if (walHash !== null) assert.equal(await hash(`${fixture.database}-wal`), walHash);
     const rows = Object.fromEntries(['alert_events', 'threshold_alert_events', 'reset_notification_outbox', 'reset_notification_receipts'].map(name => [name, result.state.tables[name]]));
-    (evidence.oracleChecks ??= []).push({ label, allNamedTables: 24, databaseWalKeyUnchanged: true, rows: Object.fromEntries(Object.entries(rows).map(([name, value]) => [name, { count: value.length, sha256: createHash('sha256').update(JSON.stringify(value)).digest('hex') }])) });
+    (evidence.oracleChecks ??= []).push({ label, allNamedTables: 30, databaseWalKeyUnchanged: true, rows: Object.fromEntries(Object.entries(rows).map(([name, value]) => [name, { count: value.length, sha256: createHash('sha256').update(JSON.stringify(value)).digest('hex') }])) });
     return rows;
   } finally { await rm(temporary, { recursive: true, force: true }); }
 }
@@ -79,7 +79,7 @@ async function seedThreshold(profile, mode, retainedReset) {
       nextResetUnix: retainedReset?.nextResetUnix ?? Math.floor(now / 1000) + 18000,
     };
     const result = JSON.parse(execFileSync(seeder, [fixture.root, profile.id, mode], { input: JSON.stringify({ passphrase: password, notificationTimes: times }), encoding: 'utf8', timeout: 30000, env: { PATH: '/usr/bin:/bin' } }));
-    assert.equal(result.synthetic, true); assert.equal(result.explicitNativeTestLiveContext, true); assert.equal(result.schemaVersion, 7);
+    assert.equal(result.synthetic, true); assert.equal(result.explicitNativeTestLiveContext, true); assert.equal(result.schemaVersion, 8);
     return { result, priorResetUnix: times.priorResetUnix, nextResetUnix: times.nextResetUnix };
   } finally { await rm(marker); }
 }

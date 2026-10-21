@@ -185,7 +185,7 @@ pub(crate) fn with_validated_snapshot<T, E: From<BackupValidationError>>(
 
 pub(crate) fn supported_schema_version(version: u32) -> bool {
     // A later migration must add explicit content/copy support before becoming restorable.
-    matches!(version, 1..=7) && version <= CURRENT_SCHEMA_VERSION
+    matches!(version, 1..=8) && version <= CURRENT_SCHEMA_VERSION
 }
 
 fn validate_size(size: u64) -> Result<()> {
@@ -338,6 +338,9 @@ pub(crate) fn validate_schema_connection(
                 crate::reset_notifications::validate(connection, schema, manifest_version)?;
                 if manifest_version >= 7 {
                     crate::threshold_alerts::validate(connection, schema)?;
+                }
+                if manifest_version >= 8 {
+                    crate::operational_alerts::validate(connection, schema)?;
                 }
             }
         }
@@ -564,6 +567,27 @@ pub(crate) fn copy_activity_records(
                 .map_err(sql_error)?;
         }
     }
+    let target_version: u32 = target
+        .pragma_query_value(None, "user_version", |r| r.get(0))
+        .map_err(sql_error)?;
+    if target_version >= 8 {
+        if version >= 8 {
+            copy_fields(source, target, schema, "notification_event_ids", "id", "id")?;
+        } else if version >= 5 {
+            let mut ids = source
+                .prepare(&format!("SELECT id FROM {schema}.alert_events"))
+                .map_err(sql_error)?;
+            let mut rows = ids.query([]).map_err(sql_error)?;
+            while let Some(row) = rows.next().map_err(sql_error)? {
+                target
+                    .execute(
+                        "INSERT INTO notification_event_ids VALUES(?1)",
+                        [text(row, 0)?],
+                    )
+                    .map_err(sql_error)?;
+            }
+        }
+    }
     if version >= 5 {
         copy_fields(
             source,
@@ -591,6 +615,9 @@ pub(crate) fn copy_activity_records(
         ] {
             copy_fields(source, target, schema, table, columns, columns)?;
         }
+    }
+    if version >= 8 {
+        crate::operational_alerts::copy_records(source, target, schema, restore)?;
     }
     if version >= 6 {
         crate::reset_notifications::copy_records(source, target, schema, restore, version)?;
@@ -1036,11 +1063,22 @@ pub(crate) fn activity_records(connection: &Connection) -> Vec<Vec<Vec<rusqlite:
         "threshold_alert_events",
         "threshold_alert_preferences",
         "threshold_alert_overrides",
+        "notification_event_ids",
+        "operational_alert_outcomes",
+        "operational_alert_state",
+        "operational_alert_events",
+        "operational_alert_preferences",
+        "operational_alert_overrides",
     ]
     .into_iter()
     .map(|table| {
+        let order = if table == "notification_event_ids" {
+            "1"
+        } else {
+            "1,2"
+        };
         let mut statement = connection
-            .prepare(&format!("SELECT * FROM {table} ORDER BY 1,2"))
+            .prepare(&format!("SELECT * FROM {table} ORDER BY {order}"))
             .unwrap();
         let count = statement.column_count();
         statement

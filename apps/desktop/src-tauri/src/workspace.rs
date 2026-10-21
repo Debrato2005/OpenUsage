@@ -16,6 +16,7 @@ mod activity_storage;
 mod alert_history;
 mod collection_storage;
 mod monitoring;
+mod operational_alerts;
 mod profile_plan;
 mod quota_history;
 mod quota_storage;

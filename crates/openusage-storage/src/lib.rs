@@ -16,8 +16,14 @@ mod quota;
 mod quota_history;
 pub use quota_history::QuotaHistoryPage;
 mod alerts;
+mod operational_alerts;
 mod reset_notifications;
 mod threshold_alerts;
+pub use operational_alerts::{
+    OperationalAlertEvent, OperationalAlertHistory, OperationalAlertKind,
+    OperationalAlertPreferences, OperationalFailure, OperationalFailureKind,
+    OperationalNotification, PendingNotification,
+};
 pub use reset_notifications::{
     AlertQuietHours, NotificationOutcome, ResetAlertOverride, ResetAlertPreferences,
     ResetNotification,
@@ -52,6 +58,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("schema_v5.sql"),
     include_str!("schema_v6.sql"),
     include_str!("schema_v7.sql"),
+    include_str!("schema_v8.sql"),
 ];
 pub const CURRENT_SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
 const MAX_BACKUP_SNAPSHOT_SIZE: u64 = 5 * 1024 * 1024 * 1024;
@@ -91,6 +98,7 @@ pub struct StorageMetadata {
 pub enum StorageError {
     InvalidPath,
     InvalidAlertPreferences,
+    InvalidAlertEvidence,
     CreateFailed,
     OpenFailed,
     EncryptionUnavailable,
@@ -107,6 +115,9 @@ pub enum StorageError {
 impl fmt::Display for StorageError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
+            Self::InvalidAlertEvidence => {
+                "The alert evidence does not match the current account operation."
+            }
             Self::InvalidAlertPreferences => {
                 "Use valid alert preferences and an available IANA time zone."
             }

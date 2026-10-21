@@ -211,7 +211,7 @@ fn schema_four_migration_and_archive_normalization_do_not_replay_reset_history()
     // Reproduce an exact v4 catalog with real encrypted quota proof, before alert recording existed.
     storage
         .connection
-        .execute_batch("DROP TABLE threshold_alert_events;DROP TABLE threshold_alert_preferences;DROP TABLE threshold_alert_overrides;DROP TABLE reset_notification_outbox;DROP TABLE reset_notification_receipts;DROP TABLE reset_alert_overrides;DROP TABLE reset_alert_preferences;DROP TABLE alert_events;PRAGMA user_version=4")
+        .execute_batch("DROP TABLE operational_alert_events;DROP TABLE operational_alert_outcomes;DROP TABLE operational_alert_state;DROP TABLE operational_alert_overrides;DROP TABLE operational_alert_preferences;DROP TABLE threshold_alert_events;DROP TABLE threshold_alert_preferences;DROP TABLE threshold_alert_overrides;DROP TABLE reset_notification_outbox;DROP TABLE reset_notification_receipts;DROP TABLE reset_alert_overrides;DROP TABLE reset_alert_preferences;DROP TABLE alert_events;DROP TABLE notification_event_ids;PRAGMA user_version=4")
         .unwrap();
     let mut legacy =
         crate::backup_validation::trusted_memory_copy(&storage.connection, "main", 4).unwrap();

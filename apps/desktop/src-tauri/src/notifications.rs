@@ -52,49 +52,10 @@ impl ResetNotification {
         evidence_at_utc: &str,
         threshold_percent: Option<u8>,
     ) -> Result<Self, NotificationInputError> {
-        for value in [event_id, profile_id] {
-            if uuid::Uuid::parse_str(value)
-                .ok()
-                .is_none_or(|id| id.to_string() != value)
-            {
-                return Err(NotificationInputError::Identifier);
-            }
-        }
-        crate::workspace::validate_profile_label(profile_label)
-            .map_err(|_| NotificationInputError::Label)?;
-        if profile_label
-            .chars()
-            .any(|c| matches!(c, '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}'))
-        {
-            return Err(NotificationInputError::Label);
-        }
+        let label = notification_label(event_id, profile_id, profile_label, evidence_at_utc)?;
         if !(1..=9_007_199_254_740_991).contains(&window_duration_mins) {
             return Err(NotificationInputError::Window);
         }
-        let bytes = evidence_at_utc.as_bytes();
-        if bytes.len() != 24
-            || !evidence_at_utc.is_ascii()
-            || bytes[10] != b'T'
-            || bytes[19] != b'.'
-            || bytes[23] != b'Z'
-            || !bytes[20..23].iter().all(u8::is_ascii_digit)
-            || !evidence_at_utc[17..19]
-                .parse::<u8>()
-                .is_ok_and(|seconds| seconds < 60)
-            || evidence_at_utc.parse::<jiff::Timestamp>().is_err()
-        {
-            return Err(NotificationInputError::Evidence);
-        }
-        // A custom profile name may itself be an email or credential-shaped value.
-        // Use an opaque local alias rather than disclose it on the lock screen.
-        let label = if profile_label.contains(['@', '/', '\\'])
-            || profile_label.starts_with("sk-")
-            || profile_label.starts_with("Bearer ")
-        {
-            format!("Account {}", &profile_id[..8])
-        } else {
-            profile_label.trim().to_owned()
-        };
         let window = if window_duration_mins.is_multiple_of(1440) {
             format!("{}-day", window_duration_mins / 1440)
         } else if window_duration_mins.is_multiple_of(60) {
@@ -118,6 +79,83 @@ impl ResetNotification {
             body: format!("{detail}\nEvidence: {evidence_at_utc}\nOpen OpenUsage to view usage."),
         })
     }
+    pub(crate) fn operational(
+        event: &openusage_storage::OperationalNotification,
+    ) -> Result<Self, NotificationInputError> {
+        let label = notification_label(
+            &event.event_id,
+            &event.profile_id,
+            &event.profile_label,
+            &event.evidence_at_utc,
+        )?;
+        let (title, detail) = match event.kind {
+            openusage_storage::OperationalAlertKind::AuthenticationRequired => (
+                format!("{label}: sign-in required"),
+                "Sign in again to refresh this account.",
+            ),
+            openusage_storage::OperationalAlertKind::CollectionFailure => (
+                format!("{label}: readings unavailable"),
+                "Three readings failed in a row. Check this account in OpenUsage.",
+            ),
+        };
+        Ok(Self {
+            title,
+            body: format!(
+                "{detail}\nEvidence: {}\nOpen OpenUsage to view the account.",
+                event.evidence_at_utc
+            ),
+        })
+    }
+}
+
+fn notification_label(
+    event_id: &str,
+    profile_id: &str,
+    profile_label: &str,
+    evidence_at_utc: &str,
+) -> Result<String, NotificationInputError> {
+    for value in [event_id, profile_id] {
+        if uuid::Uuid::parse_str(value)
+            .ok()
+            .is_none_or(|id| id.to_string() != value)
+        {
+            return Err(NotificationInputError::Identifier);
+        }
+    }
+    crate::workspace::validate_profile_label(profile_label)
+        .map_err(|_| NotificationInputError::Label)?;
+    if profile_label
+        .chars()
+        .any(|c| matches!(c, '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}'))
+    {
+        return Err(NotificationInputError::Label);
+    }
+    let bytes = evidence_at_utc.as_bytes();
+    if bytes.len() != 24
+        || !evidence_at_utc.is_ascii()
+        || bytes[10] != b'T'
+        || bytes[19] != b'.'
+        || bytes[23] != b'Z'
+        || !bytes[20..23].iter().all(u8::is_ascii_digit)
+        || !evidence_at_utc[17..19]
+            .parse::<u8>()
+            .is_ok_and(|seconds| seconds < 60)
+        || evidence_at_utc.parse::<jiff::Timestamp>().is_err()
+    {
+        return Err(NotificationInputError::Evidence);
+    }
+    // A custom profile name may itself be an email or credential-shaped value.
+    // Use an opaque local alias rather than disclose it on the lock screen.
+    Ok(
+        if profile_label.contains(['@', '/', '\\'])
+            || profile_label.starts_with("sk-")
+            || profile_label.starts_with("Bearer ")
+        {
+            format!("Account {}", &profile_id[..8])
+        } else {
+            profile_label.trim().to_owned()
+        },
+    )
 }
 
 #[derive(Default)]
@@ -365,6 +403,37 @@ mod tests {
         let path =
             ResetNotification::new(EVENT, PROFILE, "/private/workspace", 300, TIME, None).unwrap();
         assert_eq!(path.title, "Account 22222222: reset confirmed");
+    }
+
+    #[test]
+    fn operational_messages_are_actionable_without_inventing_credential_or_quota_evidence() {
+        for kind in [
+            openusage_storage::OperationalAlertKind::AuthenticationRequired,
+            openusage_storage::OperationalAlertKind::CollectionFailure,
+        ] {
+            let mut event = openusage_storage::OperationalNotification {
+                event_id: EVENT.into(),
+                attempt_id: EVENT.into(),
+                profile_id: PROFILE.into(),
+                profile_label: "private@example.test".into(),
+                kind,
+                evidence_at_utc: TIME.into(),
+            };
+            let message = ResetNotification::operational(&event).unwrap();
+            assert!(message.title.starts_with("Account 22222222:"));
+            assert!(message.body.contains(TIME));
+            for private in [
+                "private@example.test",
+                EVENT,
+                PROFILE,
+                "invalid credentials",
+                "quota",
+            ] {
+                assert!(!message.body.contains(private));
+            }
+            event.evidence_at_utc = "2026-02-30T12:00:00.000Z".into();
+            assert!(ResetNotification::operational(&event).is_err());
+        }
     }
 
     #[test]

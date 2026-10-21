@@ -120,7 +120,7 @@ fn validate_preferences(value: &ResetAlertPreferences) -> Result<()> {
     }
     Ok(())
 }
-fn load(connection: &Connection) -> Result<ResetAlertPreferences> {
+pub(crate) fn load(connection: &Connection) -> Result<ResetAlertPreferences> {
     let record = connection.query_row("SELECT enabled,quiet_enabled,time_zone,quiet_start_minute,quiet_end_minute FROM reset_alert_preferences WHERE id=1", [], |r| Ok(ResetAlertPreferences {
         enabled:r.get(0)?,quiet_enabled:r.get(1)?,quiet_hours:AlertQuietHours{time_zone:r.get(2)?,start_minute:r.get(3)?,end_minute:r.get(4)?},profile_overrides:Vec::new()
     })).optional().map_err(read)?;
@@ -141,7 +141,7 @@ fn load(connection: &Connection) -> Result<ResetAlertPreferences> {
     validate_preferences(&value).map_err(|_| StorageError::ReadFailed)?;
     Ok(value)
 }
-fn source_eligible(value: &str) -> bool {
+pub(crate) fn source_eligible(value: &str) -> bool {
     value == "official_artifact" || (cfg!(feature = "native-test") && value == "test_fixture")
 }
 fn enabled(value: &ResetAlertPreferences, profile: &str) -> bool {
@@ -151,7 +151,7 @@ fn enabled(value: &ResetAlertPreferences, profile: &str) -> bool {
         .find(|item| item.profile_id == profile)
         .map_or(value.enabled, |item| item.enabled)
 }
-fn quiet(value: &ResetAlertPreferences, now: Timestamp) -> Result<bool> {
+pub(crate) fn quiet(value: &ResetAlertPreferences, now: Timestamp) -> Result<bool> {
     if !value.quiet_enabled {
         return Ok(false);
     }
@@ -166,7 +166,7 @@ fn quiet(value: &ResetAlertPreferences, now: Timestamp) -> Result<bool> {
         minute >= start || minute < end
     })
 }
-fn save_reset_preferences(tx: &Connection, value: &ResetAlertPreferences) -> Result<()> {
+pub(crate) fn save_reset_preferences(tx: &Connection, value: &ResetAlertPreferences) -> Result<()> {
     validate_preferences(value)?;
     for item in &value.profile_overrides {
         let exists: bool = tx
@@ -234,12 +234,12 @@ impl Storage {
     /// Atomically consume one eligible event before any external OS side effect.
     /// An interrupted attempt stays uncertain and is never automatically retried.
     pub fn claim_reset_notification(&mut self, now_utc: &str) -> Result<Option<ResetNotification>> {
-        self.claim_notification(now_utc, false)
+        self.claim_quota_notification(now_utc, false)
     }
     pub fn claim_usage_notification(&mut self, now_utc: &str) -> Result<Option<ResetNotification>> {
-        self.claim_notification(now_utc, true)
+        self.claim_quota_notification(now_utc, true)
     }
-    fn claim_notification(
+    fn claim_quota_notification(
         &mut self,
         now_utc: &str,
         include_thresholds: bool,
@@ -395,7 +395,7 @@ impl Storage {
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(write)?;
-        let key:Option<String>=tx.query_row("SELECT e.event_key FROM reset_notification_outbox o JOIN alert_events e ON e.id=o.event_id JOIN reset_notification_receipts r ON r.event_key=e.event_key AND r.attempt_id=o.attempt_id WHERE o.event_id=?1 AND o.attempt_id=?2 AND o.state='uncertain' AND r.state='uncertain'",params![event_id,attempt_id],|r|r.get(0)).optional().map_err(read)?;
+        let key:Option<String>=tx.query_row("SELECT e.event_key FROM reset_notification_outbox o JOIN (SELECT id,event_key FROM alert_events UNION ALL SELECT id,event_key FROM operational_alert_events) e ON e.id=o.event_id JOIN reset_notification_receipts r ON r.event_key=e.event_key AND r.attempt_id=o.attempt_id WHERE o.event_id=?1 AND o.attempt_id=?2 AND o.state='uncertain' AND r.state='uncertain'",params![event_id,attempt_id],|r|r.get(0)).optional().map_err(read)?;
         let Some(key) = key else {
             return Err(StorageError::WriteFailed);
         };
@@ -560,7 +560,8 @@ pub(crate) fn validate(
         ))?;
         require(
             (key.starts_with("reset_completed:1:")
-                || (version >= 7 && key.starts_with("usage_threshold:1:")))
+                || (version >= 7 && key.starts_with("usage_threshold:1:"))
+                || (version >= 8 && key.starts_with("operational_alert:1:")))
                 && crate::activity::safe_text(key, 8192)
                 && canonical_uuid(text(row, 1)?)
                 && matches!(state, "uncertain" | "submitted" | "failed" | "covered")
@@ -598,7 +599,14 @@ pub(crate) fn validate(
             )?;
         }
     }
-    let mut outbox=connection.prepare(&format!("SELECT o.event_id,o.state,o.attempt_id,o.attempted_at_utc,o.completed_at_utc,e.source_kind,r.attempt_id,r.state,r.attempted_at_utc,r.completed_at_utc FROM {schema}.reset_notification_outbox o JOIN {schema}.alert_events e ON e.id=o.event_id LEFT JOIN {schema}.reset_notification_receipts r ON r.event_key=e.event_key")).map_err(sql_error)?;
+    let event_evidence = if version >= 8 {
+        format!(
+            "(SELECT id,event_key,source_kind FROM {schema}.alert_events UNION ALL SELECT id,event_key,source_kind FROM {schema}.operational_alert_events)"
+        )
+    } else {
+        format!("{schema}.alert_events")
+    };
+    let mut outbox=connection.prepare(&format!("SELECT o.event_id,o.state,o.attempt_id,o.attempted_at_utc,o.completed_at_utc,e.source_kind,r.attempt_id,r.state,r.attempted_at_utc,r.completed_at_utc FROM {schema}.reset_notification_outbox o JOIN {event_evidence} e ON e.id=o.event_id LEFT JOIN {schema}.reset_notification_receipts r ON r.event_key=e.event_key")).map_err(sql_error)?;
     let mut rows = outbox.query([]).map_err(sql_error)?;
     while let Some(row) = rows.next().map_err(sql_error)? {
         let state = text(row, 1)?;
@@ -707,13 +715,15 @@ pub(crate) fn copy_records(
         backfill_window_keys(target).map_err(sql_error)?;
     }
     if restore {
+        let events = if target_version >= 8 {
+            "(SELECT id,event_key FROM alert_events UNION ALL SELECT id,event_key FROM operational_alert_events)"
+        } else {
+            "alert_events"
+        };
         target.execute("UPDATE reset_notification_outbox SET state='suppressed',attempt_id=NULL,attempted_at_utc=NULL,completed_at_utc=NULL WHERE state='queued'",[]).map_err(sql_error)?;
-        target.execute("UPDATE reset_notification_outbox SET state='suppressed',attempt_id=NULL,attempted_at_utc=NULL,completed_at_utc=NULL WHERE event_id IN (SELECT e.id FROM alert_events e JOIN reset_notification_receipts r ON r.event_key=e.event_key WHERE r.state='covered')",[]).map_err(sql_error)?;
-        // A preserved different event key may own the same confirmed window anchor.
-        // Never keep an imported attempt whose exact receipt lost that conflict.
-        target.execute("UPDATE reset_notification_outbox SET state='suppressed',attempt_id=NULL,attempted_at_utc=NULL,completed_at_utc=NULL WHERE state IN('uncertain','submitted','failed') AND NOT EXISTS(SELECT 1 FROM alert_events e JOIN reset_notification_receipts r ON r.event_key=e.event_key WHERE e.id=reset_notification_outbox.event_id)",[]).map_err(sql_error)?;
-        // A current receipt wins over an older archive's receipt for the same event.
-        target.execute_batch("UPDATE reset_notification_outbox SET (state,attempt_id,attempted_at_utc,completed_at_utc)=(SELECT r.state,r.attempt_id,r.attempted_at_utc,r.completed_at_utc FROM reset_notification_receipts r JOIN alert_events e ON e.event_key=r.event_key WHERE e.id=reset_notification_outbox.event_id AND r.state!='covered') WHERE EXISTS(SELECT 1 FROM reset_notification_receipts r JOIN alert_events e ON e.event_key=r.event_key WHERE e.id=reset_notification_outbox.event_id AND r.state!='covered')").map_err(sql_error)?;
+        target.execute(&format!("UPDATE reset_notification_outbox SET state='suppressed',attempt_id=NULL,attempted_at_utc=NULL,completed_at_utc=NULL WHERE event_id IN (SELECT e.id FROM {events} e JOIN reset_notification_receipts r ON r.event_key=e.event_key WHERE r.state='covered')"),[]).map_err(sql_error)?;
+        target.execute(&format!("UPDATE reset_notification_outbox SET state='suppressed',attempt_id=NULL,attempted_at_utc=NULL,completed_at_utc=NULL WHERE state IN('uncertain','submitted','failed') AND NOT EXISTS(SELECT 1 FROM {events} e JOIN reset_notification_receipts r ON r.event_key=e.event_key WHERE e.id=reset_notification_outbox.event_id)"),[]).map_err(sql_error)?;
+        target.execute_batch(&format!("UPDATE reset_notification_outbox SET (state,attempt_id,attempted_at_utc,completed_at_utc)=(SELECT r.state,r.attempt_id,r.attempted_at_utc,r.completed_at_utc FROM reset_notification_receipts r JOIN {events} e ON e.event_key=r.event_key WHERE e.id=reset_notification_outbox.event_id AND r.state!='covered') WHERE EXISTS(SELECT 1 FROM reset_notification_receipts r JOIN {events} e ON e.event_key=r.event_key WHERE e.id=reset_notification_outbox.event_id AND r.state!='covered')")).map_err(sql_error)?;
     }
     Ok(())
 }
@@ -816,6 +826,9 @@ fn key_fields<'a>(
     Some((fields, threshold))
 }
 fn valid_receipt_key(key: &str, window: Option<&str>, covered: bool) -> bool {
+    if key.starts_with("operational_alert:1:") {
+        return window.is_none() && !covered && crate::operational_alerts::valid_receipt_key(key);
+    }
     let Some((fields, threshold)) = key_fields(key, "reset_completed:1:", "usage_threshold:1:")
     else {
         return false;

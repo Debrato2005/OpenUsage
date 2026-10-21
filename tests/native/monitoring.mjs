@@ -15,7 +15,7 @@ const application = resolve(process.env.OPENUSAGE_NATIVE_BINARY), verifier = res
 const output = resolve(process.env.OPENUSAGE_NATIVE_EVIDENCE ?? join('/tmp', `openusage-monitoring-${randomUUID()}`));
 const providerPath = 'crates/openusage-codex/tests/fixtures/synthetic-collection-provider.py';
 const providerSha = '53a853b737ceca311649e9f1d9ebd1341154a5f782efd8e915f7f834c819a6dc';
-const oracleSha = '06246fa3ce05b87cb4db62ad61d353067d22c7a71c417be83abdd4508367cf36';
+const oracleSha = 'a2e4a64707081a9943f3c04f8237c2b16bea673e974e96393d6a8a7d9357f975';
 const passphrase = 'OpenUsage synthetic native monitoring workspace 2026';
 const hash = async path => createHash('sha256').update(await readFile(path)).digest('hex');
 const diagnostic = process.env.OPENUSAGE_MONITORING_STATUS_DIAGNOSTIC === '1';
@@ -24,7 +24,7 @@ const readingsExport = process.env.OPENUSAGE_NATIVE_READINGS_EXPORT === '1';
 const exportScope = 'Actual native CSV/JSON export of selected latest saved synthetic readings. GUI privacy consent, profile selection, identifier opt-in, exact numeric strings, null values, provenance, CSV quoting and refusal of a known formula prefix, private files, strict IPC refusal, twenty-one-table and database/WAL/key preservation, and genuine restart. Daily/credit history is not populated; no universal spreadsheet safety, live provider, all-history export, aggregation, encryption, or platform qualification.';
 const evidence = {
   requirement: readingsExport ? 'NATIVE-SAVED-READINGS-EXPORT-001' : 'NATIVE-RUNTIME-MONITORING-001', result: 'failed', startedAt: new Date().toISOString(),
-  scope: readingsExport ? exportScope : 'Actual native synthetic login and explicit Start/Pause; a real 300-second scheduled interval, one accepted scheduled pair, an independent manual pair, and one pending scheduled pair cancelled before COMMIT. Independent encrypted-copy checks cover every column in twenty-four schema-7 tables. Runtime eligibility is not inferred from saved connection status, a provider-owned synthetic marker, or metric bindings. No live authentication, real credentials, verified identity, populated daily or credit history, sleep injection, crash durability, OS scaling, or release-platform qualification.',
+  scope: readingsExport ? exportScope : 'Actual native synthetic login and explicit Start/Pause; a real 300-second scheduled interval, one accepted scheduled pair, an independent manual pair, and one pending scheduled pair cancelled before COMMIT. Independent encrypted-copy checks cover every column in thirty schema-8 tables. Runtime eligibility is not inferred from saved connection status, a provider-owned synthetic marker, or metric bindings. No live authentication, real credentials, verified identity, populated daily or credit history, sleep injection, crash durability, OS scaling, or release-platform qualification.',
   steps: [], screenshots: [], oracles: [], closes: [],
 };
 let fixture, driver, workspace, executable, approvalId, sequence = 0;
@@ -64,9 +64,9 @@ async function oracle(label) {
     try { await copyFile(`${fixture.database}-wal`, `${database}-wal`); await chmod(`${database}-wal`, 0o600); } catch (error) { if (error.code !== 'ENOENT') throw error; }
     const report = JSON.parse(execFileSync(verifier, ['database', database, join(workspace, 'database-key.v1'), '--profile-state'], { input: JSON.stringify({ passphrase }), env: fixture.environment, encoding: 'utf8', timeout: 60000, maxBuffer: 16 * 1024 * 1024 }));
     for (const key of ['verified', 'readOnly', 'encryptedPagesAuthenticated', 'originalProtectedKeyUsed', 'inputUnchanged', 'keyEnvelopeUnchanged', 'walRecordsUnchanged']) assert.equal(report[key], true, key);
-    assert.equal(report.schemaVersion, 7); assert.equal(report.plaintextDiskStaging, false); assert.equal(Object.keys(report.state.tables).length, 24);
+    assert.equal(report.schemaVersion, 8); assert.equal(report.plaintextDiskStaging, false); assert.equal(Object.keys(report.state.tables).length, 30);
     assert.deepEqual(await liveHashes(), original);
-    evidence.oracles.push({ label, actualSchemaVersion: 7, allTwentyFourTables: Object.fromEntries(Object.entries(report.state.tables).map(([name, rows]) => [name, { rows: rows.length, sha256: createHash('sha256').update(JSON.stringify(rows)).digest('hex') }])), derivedEncryptedCopy: true, persistentStateIsNotRuntimeMonitoringStatus: true, verification: { ...report, state: undefined } });
+    evidence.oracles.push({ label, actualSchemaVersion: 8, allThirtyTables: Object.fromEntries(Object.entries(report.state.tables).map(([name, rows]) => [name, { rows: rows.length, sha256: createHash('sha256').update(JSON.stringify(rows)).digest('hex') }])), derivedEncryptedCopy: true, persistentStateIsNotRuntimeMonitoringStatus: true, verification: { ...report, state: undefined } });
     return report.state;
   } finally { await rm(copy, { recursive: true, force: true }); }
 }
@@ -74,7 +74,7 @@ async function open(setup = false) {
   driver = new NativeDriver(application, fixture.environment, join(output, `driver-${++sequence}.log`)); await driver.start();
   await waitFor(async () => driver.execute('const input=document.querySelector("#workspace-passphrase");return Boolean(input&&!input.disabled&&(!arguments[0]||document.querySelector("#workspace-confirmation")));', [setup]), 'native unlock fields');
   await driver.type('#workspace-passphrase', passphrase); if (setup) await driver.type('#workspace-confirmation', passphrase); await driver.click('.unlock-form button[type=submit]');
-  await waitFor(async () => (await driver.invoke('bootstrap')).value?.storage === 'ready', 'unlocked monitoring workspace'); assert.equal((await call('bootstrap')).schemaVersion, 7);
+  await waitFor(async () => (await driver.invoke('bootstrap')).value?.storage === 'ready', 'unlocked monitoring workspace'); assert.equal((await call('bootstrap')).schemaVersion, 8);
 }
 async function ownedPid() { const queue = [driver.child.pid]; for (let count = 0; queue.length && count < 64; count++) { const pid = queue.shift(); try { if (await readlink(`/proc/${pid}/exe`) === application) return pid; queue.push(...(await readFile(`/proc/${pid}/task/${pid}/children`, 'utf8')).trim().split(/\s+/).filter(Boolean).map(Number)); } catch (error) { if (error.code !== 'ENOENT') throw error; } } assert.fail('No owned frozen desktop process.'); }
 async function closeNormally() { const pid = await ownedPid(); evidence.closes.push(JSON.parse(execFileSync('/usr/bin/python3', [join(harness, 'x11-close.py'), String(pid)], { env: fixture.environment, encoding: 'utf8', timeout: 10000 }))); await waitFor(async () => { try { await readlink(`/proc/${pid}/exe`); return false; } catch (error) { if (error.code === 'ENOENT') return true; throw error; } }, 'normal native exit joins scheduler'); driver.session = undefined; await driver.stop(); driver = undefined; }

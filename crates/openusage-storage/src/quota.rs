@@ -151,6 +151,10 @@ impl Storage {
             associate_in_transaction(&tx, input)?;
         }
         let commit = accept_live_in_transaction(&tx, reading, now_utc)?;
+        if let Some(now) = now_utc {
+            crate::operational_alerts::accepted_success(&tx, &commit.collection_run_id, now)
+                .map_err(|_| ActivityError::WriteFailed)?;
+        }
         tx.commit().map_err(write_error)?;
         Ok(commit)
     }

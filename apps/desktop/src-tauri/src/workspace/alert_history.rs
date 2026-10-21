@@ -10,7 +10,7 @@ pub(crate) struct SavedAlertHistory {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-struct SavedAlertEvent {
+struct SavedQuotaAlert {
     id: String,
     profile_id: String,
     profile_label: String,
@@ -25,6 +25,32 @@ struct SavedAlertEvent {
     delivery_state: &'static str,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SavedOperationalAlert {
+    id: String,
+    profile_id: String,
+    profile_label: String,
+    kind: &'static str,
+    evidence_at_utc: String,
+    source_kind: &'static str,
+    delivery_state: &'static str,
+}
+#[derive(Serialize)]
+#[serde(untagged)]
+enum SavedAlertEvent {
+    Quota(SavedQuotaAlert),
+    Operational(SavedOperationalAlert),
+}
+impl SavedAlertEvent {
+    fn order(&self) -> (&str, &str) {
+        match self {
+            Self::Quota(event) => (&event.evidence_at_utc, &event.id),
+            Self::Operational(event) => (&event.evidence_at_utc, &event.id),
+        }
+    }
+}
+
 impl Workspace {
     pub fn load_alert_history(&self) -> Result<SavedAlertHistory, CommandError> {
         let history = self
@@ -33,12 +59,17 @@ impl Workspace {
             .ok_or(CommandError::WorkspaceLocked)?
             .alert_history()
             .map_err(|_| CommandError::StorageUnavailable)?;
-        Ok(SavedAlertHistory {
-            truncated: history.truncated,
-            events: history
-                .events
-                .into_iter()
-                .map(|event| SavedAlertEvent {
+        let operational = self
+            .storage
+            .as_ref()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .operational_alert_history()
+            .map_err(|_| CommandError::StorageUnavailable)?;
+        let mut events: Vec<SavedAlertEvent> = history
+            .events
+            .into_iter()
+            .map(|event| {
+                SavedAlertEvent::Quota(SavedQuotaAlert {
                     id: event.id,
                     profile_id: event.profile_id,
                     profile_label: event.profile_label,
@@ -56,7 +87,22 @@ impl Workspace {
                     source_kind: event.source_kind.as_str(),
                     delivery_state: event.delivery_state.as_str(),
                 })
-                .collect(),
-        })
+            })
+            .collect();
+        events.extend(operational.events.into_iter().map(|event| {
+            SavedAlertEvent::Operational(SavedOperationalAlert {
+                id: event.id,
+                profile_id: event.profile_id,
+                profile_label: event.profile_label,
+                kind: event.kind.as_str(),
+                evidence_at_utc: event.evidence_at_utc,
+                source_kind: event.source_kind.as_str(),
+                delivery_state: event.delivery_state.as_str(),
+            })
+        }));
+        events.sort_by(|a, b| b.order().cmp(&a.order()));
+        let truncated = history.truncated || operational.truncated || events.len() > 100;
+        events.truncate(100);
+        Ok(SavedAlertHistory { events, truncated })
     }
 }

@@ -1,10 +1,13 @@
 export type MonitoringState = 'stopped' | 'running' | 'paused';
-export interface SavedAlertEvent {
-  id: string; profileId: string; profileLabel: string; kind: 'quota_reset' | 'quota_threshold';
-  thresholdPercent: 80 | 90 | 100 | null; evidenceRunId: string;
-  limitId: string; windowRole: 'primary' | 'secondary'; windowDurationMins: number;
-  evidenceAtUtc: string; sourceKind: 'official_artifact' | 'test_fixture'; deliveryState: 'recorded' | 'queued' | 'submitted' | 'failed' | 'suppressed' | 'uncertain' | 'covered';
+interface SavedAlertCommon {
+  id: string; profileId: string; profileLabel: string;
+  evidenceAtUtc: string; sourceKind: 'official_artifact' | 'test_fixture';
+  deliveryState: 'recorded' | 'queued' | 'submitted' | 'failed' | 'suppressed' | 'uncertain' | 'covered';
 }
+export type SavedAlertEvent = (SavedAlertCommon & {
+  kind: 'quota_reset' | 'quota_threshold'; thresholdPercent: 80 | 90 | 100 | null;
+  evidenceRunId: string; limitId: string; windowRole: 'primary' | 'secondary'; windowDurationMins: number;
+}) | (SavedAlertCommon & { kind: 'authentication_required' | 'collection_failure' });
 export interface SavedAlertHistory { events: SavedAlertEvent[]; truncated: boolean }
 export interface ResetNotificationPreferences {
   enabled: boolean; timeZone: string; quietEnabled: boolean; quietStart: string; quietEnd: string;
@@ -15,6 +18,7 @@ export interface ThresholdNotificationPreferences {
 }
 export interface NotificationPreferences {
   reset: ResetNotificationPreferences; usage: ThresholdNotificationPreferences;
+  authentication: ThresholdNotificationPreferences; collectionFailure: ThresholdNotificationPreferences;
 }
 export interface ProfileMonitoringStatus {
   profileId: string; state: MonitoringState; eligible: boolean;
@@ -428,11 +432,14 @@ function isResetNotificationPreferences(value: unknown): value is ResetNotificat
 function isNotificationPreferences(value: unknown): value is NotificationPreferences {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const prefs = value as Record<string, unknown>;
-  if (Object.keys(prefs).length !== 2 || !isResetNotificationPreferences(prefs.reset)
-    || !prefs.usage || typeof prefs.usage !== 'object' || Array.isArray(prefs.usage)) return false;
-  const usage = prefs.usage as Record<string, unknown>;
-  return Object.keys(usage).length === 2 && typeof usage.enabled === 'boolean'
-    && isResetNotificationPreferences({ ...(prefs.reset as ResetNotificationPreferences), enabled: usage.enabled, profileOverrides: usage.profileOverrides });
+  if (Object.keys(prefs).length !== 4 || !isResetNotificationPreferences(prefs.reset)) return false;
+  return ['usage', 'authentication', 'collectionFailure'].every(key => {
+    const value = prefs[key];
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+    const preference = value as Record<string, unknown>;
+    return Object.keys(preference).length === 2 && typeof preference.enabled === 'boolean'
+      && isResetNotificationPreferences({ ...(prefs.reset as ResetNotificationPreferences), enabled: preference.enabled, profileOverrides: preference.profileOverrides });
+  });
 }
 
 function isSavedAlertHistory(value: unknown): value is SavedAlertHistory {
@@ -444,13 +451,19 @@ function isSavedAlertHistory(value: unknown): value is SavedAlertHistory {
   for (const item of history.events) {
     if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
     const event = item as Record<string, unknown>;
-    if (Object.keys(event).length !== 12 || !isUuid(event.id) || ids.has(event.id) || !isUuid(event.profileId)
+    if (!isUuid(event.id) || ids.has(event.id) || !isUuid(event.profileId)
       || typeof event.profileLabel !== 'string' || Array.from(event.profileLabel).length < 1 || Array.from(event.profileLabel).length > 100
-      || /[\u0000-\u001f\u007f-\u009f]/u.test(event.profileLabel) || (event.kind !== 'quota_reset' && event.kind !== 'quota_threshold')
-      || !isUuid(event.evidenceRunId)
-      || (event.kind === 'quota_reset' ? event.thresholdPercent !== null || event.deliveryState === 'covered' : ![80, 90, 100].includes(event.thresholdPercent as number) || (event.thresholdPercent === 100 && event.deliveryState === 'covered')) || !quotaText(event.limitId, 128)
-      || (event.windowRole !== 'primary' && event.windowRole !== 'secondary') || !Number.isSafeInteger(event.windowDurationMins) || (event.windowDurationMins as number) < 1
-      || !isUtcTimestamp(event.evidenceAtUtc) || (event.sourceKind !== 'official_artifact' && event.sourceKind !== 'test_fixture') || typeof event.deliveryState !== 'string' || !['recorded', 'queued', 'submitted', 'failed', 'suppressed', 'uncertain', 'covered'].includes(event.deliveryState)) return false;
+      || /[\u0000-\u001f\u007f-\u009f]/u.test(event.profileLabel)
+      || !isUtcTimestamp(event.evidenceAtUtc) || (event.sourceKind !== 'official_artifact' && event.sourceKind !== 'test_fixture')
+      || typeof event.deliveryState !== 'string' || !['recorded', 'queued', 'submitted', 'failed', 'suppressed', 'uncertain', 'covered'].includes(event.deliveryState)) return false;
+    if (event.kind === 'authentication_required' || event.kind === 'collection_failure') {
+      if (Object.keys(event).length !== 7 || event.deliveryState === 'covered') return false;
+    } else if (event.kind === 'quota_reset' || event.kind === 'quota_threshold') {
+      if (Object.keys(event).length !== 12 || !isUuid(event.evidenceRunId)
+        || (event.kind === 'quota_reset' ? event.thresholdPercent !== null || event.deliveryState === 'covered' : ![80, 90, 100].includes(event.thresholdPercent as number) || (event.thresholdPercent === 100 && event.deliveryState === 'covered'))
+        || !quotaText(event.limitId, 128) || (event.windowRole !== 'primary' && event.windowRole !== 'secondary')
+        || !Number.isSafeInteger(event.windowDurationMins) || (event.windowDurationMins as number) < 1) return false;
+    } else return false;
     ids.add(event.id);
   }
   return true;

@@ -474,38 +474,41 @@ impl Workspace {
             binding_id: next_binding_id,
         };
         let summary = &probe.activity.summary;
-        storage
-            .accept_activity_with_binding(
-                ActivityReading {
-                    run_id: request_id.into(),
-                    binding: local_binding,
-                    identity_evidence: evidence,
-                    provider_version: probe.version.into(),
-                    source_kind,
-                    started_at_utc: restore::timestamp(probe.started_at)
-                        .ok_or(CommandError::ProviderActivitySaveFailed)?,
-                    observed_at_utc,
-                    completed_at_utc: restore::timestamp(probe.completed_at)
-                        .ok_or(CommandError::ProviderActivitySaveFailed)?,
-                    summary: ActivitySummaryValues {
-                        lifetime_tokens: exact(&summary.lifetime_tokens),
-                        peak_daily_tokens: exact(&summary.peak_daily_tokens),
-                        longest_running_turn_sec: exact(&summary.longest_running_turn_sec),
-                        current_streak_days: exact(&summary.current_streak_days),
-                        longest_streak_days: exact(&summary.longest_streak_days),
-                    },
-                    daily_usage: probe.activity.daily_usage_buckets.as_ref().map(|rows| {
-                        rows.iter()
-                            .map(|row| ActivityDayValue {
-                                provider_date: row.start_date.clone(),
-                                tokens: row.tokens.as_str().into(),
-                            })
-                            .collect()
-                    }),
-                },
-                new_association,
-            )
-            .map_err(save_error)
+        let reading = ActivityReading {
+            run_id: request_id.into(),
+            binding: local_binding,
+            identity_evidence: evidence,
+            provider_version: probe.version.into(),
+            source_kind,
+            started_at_utc: restore::timestamp(probe.started_at)
+                .ok_or(CommandError::ProviderActivitySaveFailed)?,
+            observed_at_utc,
+            completed_at_utc: restore::timestamp(probe.completed_at)
+                .ok_or(CommandError::ProviderActivitySaveFailed)?,
+            summary: ActivitySummaryValues {
+                lifetime_tokens: exact(&summary.lifetime_tokens),
+                peak_daily_tokens: exact(&summary.peak_daily_tokens),
+                longest_running_turn_sec: exact(&summary.longest_running_turn_sec),
+                current_streak_days: exact(&summary.current_streak_days),
+                longest_streak_days: exact(&summary.longest_streak_days),
+            },
+            daily_usage: probe.activity.daily_usage_buckets.as_ref().map(|rows| {
+                rows.iter()
+                    .map(|row| ActivityDayValue {
+                        provider_date: row.start_date.clone(),
+                        tokens: row.tokens.as_str().into(),
+                    })
+                    .collect()
+            }),
+        };
+        let now = restore::timestamp(SystemTime::now())
+            .ok_or(CommandError::ProviderActivitySaveFailed)?;
+        if probe.observed_monotonic.elapsed() < Duration::from_secs(600) {
+            storage.accept_live_activity_with_binding(reading, new_association, &now)
+        } else {
+            storage.accept_activity_with_binding(reading, new_association)
+        }
+        .map_err(save_error)
     }
 }
 

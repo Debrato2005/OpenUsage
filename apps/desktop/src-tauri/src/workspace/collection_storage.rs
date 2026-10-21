@@ -79,43 +79,6 @@ impl Workspace {
         self.note_activity_failure(id, request);
     }
 
-    /// Record a current signed-out response without changing saved measurements or eligibility.
-    pub fn note_collection_read_error(
-        &mut self,
-        binding: &provider::ProfileBinding,
-        request: &str,
-        error: CommandError,
-    ) -> Result<(), CommandError> {
-        let id = &binding.profile_id;
-        if error != CommandError::ProviderAuthenticationRequired
-            || self.quota_requests.get(id).map(String::as_str) != Some(request)
-            || self.activity_requests.get(id).map(String::as_str) != Some(request)
-            || !self.provider.binding_is_current(binding)
-        {
-            return Ok(());
-        }
-        match self.require_provider_binding(
-            id,
-            &binding.home_reference,
-            &binding.revision,
-            CommandError::ProviderCollectionCancelled,
-        ) {
-            Err(CommandError::ProviderCollectionCancelled) => return Ok(()),
-            result => result?,
-        }
-        self.storage
-            .as_mut()
-            .ok_or(CommandError::WorkspaceLocked)?
-            .record_profile_connection(
-                id,
-                &binding.home_reference,
-                ProfileConnectionState::AuthenticationRequired,
-            )
-            .map_err(profile_error)?;
-        self.restore_preview.clear();
-        Ok(())
-    }
-
     fn persist_collection(
         &mut self,
         binding: &provider::ProfileBinding,
@@ -308,13 +271,15 @@ impl Workspace {
                 })
             })
             .transpose()?;
-        let fresh_quota = probe
+        let fresh = probe
             .quota
             .as_ref()
-            .is_some_and(|read| read.observed_monotonic.elapsed() < Duration::from_secs(600));
+            .map(|read| read.observed_monotonic)
+            .or_else(|| probe.activity.as_ref().map(|read| read.observed_monotonic))
+            .is_some_and(|observed| observed.elapsed() < Duration::from_secs(600));
         let now = restore::timestamp(SystemTime::now())
             .ok_or(CommandError::ProviderCollectionSaveFailed)?;
-        if fresh_quota {
+        if fresh {
             storage.accept_live_collection(quota, activity, input, &now)
         } else {
             storage.accept_collection(quota, activity, input)

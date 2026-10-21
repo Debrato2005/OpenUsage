@@ -10,7 +10,7 @@ Updated: October 22, 2026. OpenUsage remains in development. The normative [SRS]
 - The overview follows the supplied reference: selected account with quota/statistic tiles, account-share availability, combined-usage availability with explicitly selected-account activity, and a compact account list. DM Sans, accessible coss controls, both themes and persistent native display scaling are implemented. Unsupported data stays unavailable; no account-share totals or token quotas are invented.
 - Add creates isolated default-named profiles, up to 10 active accounts. Prominent per-account Sign in, Cancel, Retry/Reconnect and automatic initial collection use the selected profile. Routine onboarding uses a bundled pinned official companion without a manual path. Credentials remain provider-managed in separate homes.
 - Rust owns persistence, provider execution, authentication, scheduling, exact counts and IPC validation. SQLCipher 4/WAL protects application records. OS-backed database keys are used where available; the preserved WSL workspace uses its required fallback password because its session key store is unavailable. Provider keyring support remains incomplete.
-- Runtime monitoring, manual refresh cooldown, provider backoff, saved daily activity, current quota/reset assessments, saved reset-event history, opt-in quota threshold/reset notifications with quiet hours, current-reading CSV/JSON export, encrypted authenticated backups, confirmed restore and Undo are implemented within their recorded Linux scopes.
+- Runtime monitoring, manual refresh cooldown, provider backoff, saved daily activity, current quota/reset assessments, saved reset-event history, opt-in quota threshold/reset, sign-in-required and repeated-failure notifications with quiet hours, current-reading CSV/JSON export, encrypted authenticated backups, confirmed restore and Undo are implemented within their recorded Linux scopes.
 
 ## Development storage and publication checks
 
@@ -29,6 +29,18 @@ A security policy records reporting boundaries, the glib advisory and release ga
 The native notice inventory now maps all 486 locked registry packages to 288 exact deduplicated texts. Original notices and explicitly paired standard bodies retain their source grants. Archive checksums, license expressions, text hashes and both source mirrors pass verification. This preparation does not qualify a linked binary or replace its platform/system-library and MPL compliance checks.
 
 ## Latest verified slice
+
+Sign-in-required and repeated-collection-failure alerts now share the existing Notifications form, quiet hours and desktop delivery journal. All four alert types default to off and retain independent account overrides. Three accepted transient failures produce one alert. A fresh accepted live reading closes the incident in the same transaction.
+
+Schema 8 keeps immutable failure evidence separate from quota proof. Current incident state and submission receipts survive archive restore, Undo and checkpoint recovery. Ordinary successful polls add no operational history. Cancellation, unsupported capabilities, malformed data and unavailable identity do not count as transient failures.
+
+The workspace passed 330 Rust tests, with one intentional child-only test ignored. Strict Clippy, 48 IPC contracts, 282 renderer cases, both schema-oracle tests and 14 explicit test-feature storage cases passed. The final failure-proof representation also passed 21 focused provider tests and both authentication-race tests.
+
+The default production build passed native authenticated backup-content, checkpoint recovery and fixture refusal. The explicit test build passed controlled supervised failures, actual retry delays, account isolation, quiet queues, two private desktop-service acknowledgements, genuine restart, archive restore and Undo. Five independent read-only checks covered all 30 tables without changing database, WAL or key bytes.
+
+These results cover synthetic Linux journeys. They do not establish real-provider invalid-credential detection, desktop visibility, notification click routing or other platforms. A supported authentication-required response permits an actionable sign-in alert after a prior accepted reading. It does not prove invalid credentials. OU-ALERT-007 remains open under [SC-009](srs-clarifications.md#sc-009-authentication-required-evidence). Provider polling is unchanged.
+
+## Earlier verified slices
 
 Usage alerts at 80%, 90% and 100% now share one Notifications form. Reset alerts, quiet hours and independent account overrides use the same form. Rust accepts crossings only from fresh readings in a confirmed quota window. A first reading at 95% queues only 90% and consumes 80% as Covered. Later crossings remain separate.
 
@@ -68,10 +80,10 @@ Confirmed archive restore and checkpoint recovery are implemented. Earlier nativ
 
 ## Still incomplete
 
-- Deadline and authentication/failure notifications, including their per-type settings and overrides. Quota threshold/reset notifications have opt-in, per-profile overrides and quiet hours. Real-provider-triggered and installed-platform delivery remain open.
+- Deadline notifications and confirmed invalid-credential detection. The four implemented alert types have opt-in, per-profile overrides and quiet hours. Real-provider-triggered and installed-platform delivery remain open.
 - Full activity-summary/history browsing, full activity-history/application export, retention and complete local deletion.
 - Subscription, promotion, billing, deadline and verified account-comparison requirements.
 - Real credential renewal/revocation acceptance, provider OS credential storage, safe browser callback isolation, and SIWC compatibility with both official usage operations.
 - Sleep/wake acceptance, release-scale performance, packaging/signing, Windows/macOS execution and the complete SRS acceptance matrix.
 
-The three-view Overview revision is locally verified within the recorded synthetic Linux scope. Durable alerts and remaining activity-history/export journeys remain open. Real authorized-account verification remains separate from synthetic-provider evidence. Current file-level status and the exact working checkpoint are retained in the local `.recovery/active-checkpoint.json`; historical execution details remain in their linked evidence and local commits.
+The three-view Overview revision is locally verified within the recorded synthetic Linux scope. Deadline alerts and remaining activity-history/export journeys remain open. Real authorized-account verification remains separate from synthetic-provider evidence. Current file-level status and the exact working checkpoint are retained in the local `.recovery/active-checkpoint.json`; historical execution details remain in their linked evidence and local commits.

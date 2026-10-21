@@ -283,7 +283,7 @@ fn current_schema_is_explicit_and_mismatch_refusal_preserves_the_synthetic_works
             assert_eq!(report["plaintextDiskStaging"], false);
             let mut tables = report["state"]["tables"].as_object().unwrap().clone();
             if flag.is_none() {
-                assert_eq!(tables.len(), 21);
+                assert_eq!(tables.len(), 27);
                 assert_eq!(tables.get("alert_events"), Some(&json!([])));
                 for table in [
                     "reset_alert_preferences",
@@ -293,13 +293,19 @@ fn current_schema_is_explicit_and_mismatch_refusal_preserves_the_synthetic_works
                     "threshold_alert_events",
                     "threshold_alert_preferences",
                     "threshold_alert_overrides",
+                    "notification_event_ids",
+                    "operational_alert_outcomes",
+                    "operational_alert_state",
+                    "operational_alert_events",
+                    "operational_alert_preferences",
+                    "operational_alert_overrides",
                 ] {
                     assert_eq!(tables.get(table), Some(&json!([])), "{table}");
                 }
                 assert!(!tables.contains_key("profiles"));
                 default_tables = Some(tables);
             } else {
-                assert_eq!(tables.len(), 24);
+                assert_eq!(tables.len(), 30);
                 let profiles = tables.remove("profiles").unwrap();
                 assert_eq!(profiles.as_array().unwrap().len(), 1);
                 let profile = &profiles[0];
