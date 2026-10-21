@@ -17,6 +17,7 @@ pub enum AlertDeliveryState {
     Submitted,
     Failed,
     Suppressed,
+    Covered,
 }
 impl AlertDeliveryState {
     pub fn as_str(self) -> &'static str {
@@ -27,6 +28,7 @@ impl AlertDeliveryState {
             Self::Submitted => "submitted",
             Self::Failed => "failed",
             Self::Suppressed => "suppressed",
+            Self::Covered => "covered",
         }
     }
 }
@@ -42,6 +44,9 @@ pub struct AlertEvent {
     pub evidence_at_utc: String,
     pub source_kind: ActivitySourceKind,
     pub delivery_state: AlertDeliveryState,
+    /// None denotes a reset event; Some denotes this exact usage threshold.
+    pub threshold_percent: Option<u8>,
+    pub evidence_run_id: String,
 }
 impl fmt::Debug for AlertEvent {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -57,7 +62,7 @@ pub struct AlertHistory {
 impl Storage {
     /// Return the newest 100 events, including archived profiles, without provider execution.
     pub fn alert_history(&self) -> Result<AlertHistory, StorageError> {
-        let mut statement = self.connection.prepare("SELECT e.id,e.profile_id,p.name,e.limit_id,e.window_role,e.window_duration_mins,e.generation_run_id,e.evidence_at_utc,e.source_kind,COALESCE(o.state,e.delivery_state) FROM alert_events e JOIN profiles p ON p.id=e.profile_id LEFT JOIN reset_notification_outbox o ON o.event_id=e.id ORDER BY e.evidence_at_utc DESC,e.id DESC LIMIT 101").map_err(|_|StorageError::ReadFailed)?;
+        let mut statement = self.connection.prepare("SELECT e.id,e.profile_id,p.name,e.limit_id,e.window_role,e.window_duration_mins,e.generation_run_id,e.evidence_at_utc,e.source_kind,CASE WHEN j.state='covered' THEN 'covered' ELSE COALESCE(o.state,e.delivery_state) END,t.threshold_percent,COALESCE(t.evidence_run_id,e.generation_run_id) FROM alert_events e JOIN profiles p ON p.id=e.profile_id LEFT JOIN reset_notification_outbox o ON o.event_id=e.id LEFT JOIN threshold_alert_events t ON t.event_id=e.id LEFT JOIN reset_notification_receipts j ON j.event_key=e.event_key ORDER BY e.evidence_at_utc DESC,e.id DESC LIMIT 101").map_err(|_|StorageError::ReadFailed)?;
         let mut rows = statement.query([]).map_err(|_| StorageError::ReadFailed)?;
         let mut events = Vec::new();
         while let Some(row) = rows.next().map_err(|_| StorageError::ReadFailed)? {
@@ -85,12 +90,18 @@ impl Storage {
                         &row.get::<_, String>(9)?,
                     )
                     .ok_or(rusqlite::Error::InvalidQuery)?,
+                    threshold_percent: row.get(10)?,
+                    evidence_run_id: row.get(11)?,
                 })
             })()
             .map_err(|_| StorageError::ReadFailed)?;
             if !crate::backup_validation::canonical_uuid(&event.id)
                 || !crate::backup_validation::canonical_uuid(&event.profile_id)
                 || !crate::backup_validation::canonical_uuid(&event.generation_run_id)
+                || !crate::backup_validation::canonical_uuid(&event.evidence_run_id)
+                || event
+                    .threshold_percent
+                    .is_some_and(|value| !matches!(value, 80 | 90 | 100))
                 || !crate::activity::activity_utc_timestamp(&event.evidence_at_utc)
                 || !crate::activity::safe_text(&event.limit_id, 128)
                 || !(1..=9_007_199_254_740_991).contains(&event.window_duration_mins)
@@ -105,7 +116,7 @@ impl Storage {
     }
 }
 
-fn event_key(
+pub(crate) fn event_key(
     profile: &str,
     identity: Option<&str>,
     binding: &str,
@@ -196,10 +207,18 @@ pub(crate) fn record(
 pub(crate) fn validate(
     connection: &Connection,
     schema: &str,
+    version: u32,
 ) -> Result<(), crate::BackupValidationError> {
     use crate::backup_validation::{canonical_uuid, optional_text, require, sql_error, text};
     require(matches!(schema, "main" | "openusage_checkpoint"))?;
-    let mut statement=connection.prepare(&format!("SELECT e.id,e.event_key,e.profile_id,e.binding_id,e.verified_identity_key,e.limit_id,e.window_role,e.window_duration_mins,e.generation_run_id,e.evidence_at_utc,e.source_kind,e.delivery_state,a.state,a.generation_run_id,r.observed_at_utc,r.source_kind,r.verified_identity_key,CASE e.window_role WHEN 'primary' THEN l.primary_duration_mins ELSE l.secondary_duration_mins END FROM {schema}.alert_events e JOIN {schema}.quota_reset_assessments a ON a.collection_run_id=e.generation_run_id AND a.limit_id=e.limit_id AND a.window_role=e.window_role JOIN {schema}.quota_limits l ON l.collection_run_id=e.generation_run_id AND l.profile_id=e.profile_id AND l.binding_id=e.binding_id AND l.limit_id=e.limit_id JOIN {schema}.collection_runs r ON r.id=e.generation_run_id")).map_err(sql_error)?;
+    let filter = if version >= 7 {
+        format!(
+            " WHERE NOT EXISTS(SELECT 1 FROM {schema}.threshold_alert_events t WHERE t.event_id=e.id)"
+        )
+    } else {
+        String::new()
+    };
+    let mut statement=connection.prepare(&format!("SELECT e.id,e.event_key,e.profile_id,e.binding_id,e.verified_identity_key,e.limit_id,e.window_role,e.window_duration_mins,e.generation_run_id,e.evidence_at_utc,e.source_kind,e.delivery_state,a.state,a.generation_run_id,r.observed_at_utc,r.source_kind,r.verified_identity_key,CASE e.window_role WHEN 'primary' THEN l.primary_duration_mins ELSE l.secondary_duration_mins END FROM {schema}.alert_events e JOIN {schema}.quota_reset_assessments a ON a.collection_run_id=e.generation_run_id AND a.limit_id=e.limit_id AND a.window_role=e.window_role JOIN {schema}.quota_limits l ON l.collection_run_id=e.generation_run_id AND l.profile_id=e.profile_id AND l.binding_id=e.binding_id AND l.limit_id=e.limit_id JOIN {schema}.collection_runs r ON r.id=e.generation_run_id{filter}")).map_err(sql_error)?;
     let mut rows = statement.query([]).map_err(sql_error)?;
     while let Some(row) = rows.next().map_err(sql_error)? {
         let profile = text(row, 2)?;

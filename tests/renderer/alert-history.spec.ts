@@ -7,8 +7,8 @@ import { navigate } from './navigation';
 const first = '11111111-1111-4111-8111-111111111111';
 const second = '22222222-2222-4222-8222-222222222222';
 const saved: SavedAlertHistory = { events: [
-  { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', profileId: second, profileLabel: 'Second account', kind: 'quota_reset', limitId: 'codex', windowRole: 'primary', windowDurationMins: 300, evidenceAtUtc: '2026-10-22T03:04:05.123Z', sourceKind: 'test_fixture', deliveryState: 'recorded' },
-  { id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', profileId: first, profileLabel: 'First account', kind: 'quota_reset', limitId: 'codex', windowRole: 'secondary', windowDurationMins: 10080, evidenceAtUtc: '2026-10-21T23:59:59.000Z', sourceKind: 'official_artifact', deliveryState: 'recorded' },
+  { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', profileId: second, profileLabel: 'Second account', kind: 'quota_reset', thresholdPercent: null, evidenceRunId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', limitId: 'codex', windowRole: 'primary', windowDurationMins: 300, evidenceAtUtc: '2026-10-22T03:04:05.123Z', sourceKind: 'test_fixture', deliveryState: 'recorded' },
+  { id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', profileId: first, profileLabel: 'First account', kind: 'quota_reset', thresholdPercent: null, evidenceRunId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', limitId: 'codex', windowRole: 'secondary', windowDurationMins: 10080, evidenceAtUtc: '2026-10-21T23:59:59.000Z', sourceKind: 'official_artifact', deliveryState: 'recorded' },
 ], truncated: false };
 type Fixture = { calls: string[]; value: unknown; fail: boolean; defer: boolean; pending: ((value: unknown) => void)[] };
 type FixtureWindow = Window & { alertFixture: Fixture };
@@ -19,7 +19,7 @@ async function open(page: Page, options: { empty?: boolean; fail?: boolean; defe
     Object.assign(window, { alertFixture: fixture });
     let theme = 'light';
     const profiles = [first, second].map((id, index) => ({ id, label: index === 0 ? 'First account' : 'Second account', environment: 'native', archived: false, connectionState: 'authentication_required' }));
-    const bootstrap = () => ({ storage: 'ready', theme, schemaVersion: 4, activeProfiles: 2, monitoring: 'stopped', provider: 'not_configured', keyProtection: 'os_store', storageIssue: null });
+    const bootstrap = () => ({ storage: 'ready', theme, schemaVersion: 7, activeProfiles: 2, monitoring: 'stopped', provider: 'not_configured', keyProtection: 'os_store', storageIssue: null });
     window.__TAURI__ = { core: { invoke: async <T>(command: string, args: Record<string, unknown> = {}) => {
       fixture.calls.push(command);
       if (command === 'bootstrap') return bootstrap() as T;
@@ -59,7 +59,7 @@ test('alert history loads on expansion, preserves exact evidence and opens the e
   await expect(event.locator('time').first()).toContainText('3:04 AM UTC');
   await expect(event.locator('time').first()).toHaveAttribute('datetime', '2026-10-22T03:04:05.123Z');
   await expect(event.locator('time').first()).toHaveAttribute('title', '2026-10-22T03:04:05.123Z');
-  await expect(history(page)).toContainText('Confirmed resets saved on this device.');
+  await expect(history(page)).toContainText('Quota alerts saved on this device.');
   await event.getByRole('button', { name: 'Source details', exact: true }).click();
   await expect(event).toContainText('Synthetic test data');
   await expect(event).toContainText('Primary · 300 minutes');
@@ -72,10 +72,34 @@ test('alert history loads on expansion, preserves exact evidence and opens the e
   expect((await calls(page)).some(command => /^(begin_|complete_|check_profile|start_profile)/.test(command))).toBe(false);
 });
 
+test('threshold history distinguishes exact levels and covered lower alerts from desktop submission', async ({ page }) => {
+  await open(page);
+  const thresholds: SavedAlertHistory = { events: [
+    { ...saved.events[0]!, kind: 'quota_threshold', thresholdPercent: 100, deliveryState: 'submitted' },
+    { ...saved.events[0]!, id: saved.events[1]!.id, kind: 'quota_threshold', thresholdPercent: 90, deliveryState: 'covered' },
+    { ...saved.events[0]!, id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', kind: 'quota_threshold', thresholdPercent: 80, deliveryState: 'covered' },
+  ], truncated: false };
+  await page.evaluate(value => { (window as unknown as FixtureWindow).alertFixture.value = value; }, thresholds);
+  await history(page).getByRole('button', { name: 'Alert history', exact: true }).click();
+  await expect(events(page)).toHaveCount(3);
+  for (const [index, threshold] of [100, 90, 80].entries()) {
+    const event = events(page).nth(index);
+    await expect(event.locator('strong')).toHaveText(`${threshold}% quota used`);
+    await event.getByRole('button', { name: 'Source details', exact: true }).click();
+    if (index === 0) await expect(event).toContainText('Accepted by the desktop notification service.');
+    else {
+      await expect(event).toContainText('A higher threshold was recorded. No separate desktop notification sent.');
+      await expect(event).not.toContainText('Accepted by the desktop notification service.');
+    }
+  }
+  await events(page).nth(1).getByRole('button', { name: 'View usage for Second account', exact: true }).click();
+  await expect(page.getByRole('combobox', { name: 'Usage profile', exact: true })).toContainText('Second account');
+});
+
 test('alert history reports an empty list and refreshes only when requested', async ({ page }) => {
   await open(page, { empty: true });
   await history(page).getByRole('button', { name: 'Alert history', exact: true }).click();
-  await expect(history(page)).toContainText('No confirmed resets are saved yet.');
+  await expect(history(page)).toContainText('No quota alerts are saved yet.');
   await page.evaluate(value => { (window as unknown as FixtureWindow).alertFixture.value = { events: Array.from({ length: 100 }, (_, index) => ({ ...value.events[index % 2]!, id: `${index.toString(16).padStart(8, '0')}-cccc-4ccc-8ccc-cccccccccccc` })), truncated: true }; }, saved);
   await history(page).getByRole('button', { name: 'Refresh list', exact: true }).click();
   await expect(events(page)).toHaveCount(100);
@@ -92,6 +116,11 @@ test('alert history fails closed on errors and malformed saved events, then retr
     { ...saved.events[0], evidenceAtUtc: '2026-02-30T03:04:05.123Z' },
     { ...saved.events[0], deliveryState: 'delivered' },
     { ...saved.events[0], sourceKind: 'unverified' },
+    { ...saved.events[0], kind: 'quota_threshold', thresholdPercent: null },
+    { ...saved.events[0], kind: 'quota_threshold', thresholdPercent: 85 },
+    { ...saved.events[0], thresholdPercent: 80 },
+    { ...saved.events[0], deliveryState: 'covered' },
+    { ...saved.events[0], evidenceRunId: 'not-a-run-id' },
   ]) {
     await page.evaluate(value => { const fixture = (window as unknown as FixtureWindow).alertFixture; fixture.fail = false; fixture.value = { events: [value], truncated: false }; }, invalid);
     await history(page).getByRole('button', { name: 'Retry alert history', exact: true }).click();
@@ -112,9 +141,9 @@ test('closing alert history ignores a late reply before a new load', async ({ pa
   await trigger.click();
   await page.evaluate(() => { const fixture = (window as unknown as FixtureWindow).alertFixture; fixture.defer = false; fixture.value = { events: [], truncated: false }; });
   await trigger.click();
-  await expect(history(page)).toContainText('No confirmed resets are saved yet.');
+  await expect(history(page)).toContainText('No quota alerts are saved yet.');
   await page.evaluate(value => { for (const resolve of (window as unknown as FixtureWindow).alertFixture.pending.splice(0)) resolve(value); }, saved);
-  await expect(history(page)).toContainText('No confirmed resets are saved yet.');
+  await expect(history(page)).toContainText('No quota alerts are saved yet.');
   await expect(events(page)).toHaveCount(0);
   expect((await calls(page)).filter(command => command === 'load_alert_history')).toHaveLength(2);
 });

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-save-notification-preferences"
+description = "Enables the save_notification_preferences command without any pre-configured scope."
+commands.allow = ["save_notification_preferences"]
+
+[[permission]]
+identifier = "deny-save-notification-preferences"
+description = "Denies the save_notification_preferences command without any pre-configured scope."
+commands.deny = ["save_notification_preferences"]

@@ -17,7 +17,7 @@ const passphrase = 'OpenUsage synthetic apply workspace 2026';
 const password = 'OpenUsage synthetic apply archive 2026';
 const hash = async (path) => createHash('sha256').update(await readFile(path)).digest('hex');
 const liveVerifier = resolve(process.env.OPENUSAGE_LIVE_VERIFIER ?? join(harness, 'backup-verifier/target/debug/openusage-native-live-verifier'));
-const expectedSchemaVersion = 6;
+const expectedSchemaVersion = 7;
 const evidence = {requirement:'NATIVE-CHECKPOINT-WM-REGRESSION-001',startedAt:new Date().toISOString(),result:'failed',scope:'Actual native encrypted backup restore followed by confirmed checkpoint recovery across genuine X11 WM_DELETE_WINDOW exits. A pending authenticated archive preview is rejected after restart. Synthetic homes only. Selected semantic fields and original home mappings match state B. Timestamps and unselected columns are not compared. No provider login, forced interruption, crash-durability, or cross-platform acceptance.',platform:{os:platform(),release:release()},screenshots:[],steps:[],checkpoints:[],views:[]};
 let fixture, driver, workspace, checkpointDirectory, archive, fileName, sequence = 0;
 evidence.nativeCloses=[];

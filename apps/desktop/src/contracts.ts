@@ -1,13 +1,20 @@
 export type MonitoringState = 'stopped' | 'running' | 'paused';
 export interface SavedAlertEvent {
-  id: string; profileId: string; profileLabel: string; kind: 'quota_reset';
+  id: string; profileId: string; profileLabel: string; kind: 'quota_reset' | 'quota_threshold';
+  thresholdPercent: 80 | 90 | 100 | null; evidenceRunId: string;
   limitId: string; windowRole: 'primary' | 'secondary'; windowDurationMins: number;
-  evidenceAtUtc: string; sourceKind: 'official_artifact' | 'test_fixture'; deliveryState: 'recorded' | 'queued' | 'submitted' | 'failed' | 'suppressed' | 'uncertain';
+  evidenceAtUtc: string; sourceKind: 'official_artifact' | 'test_fixture'; deliveryState: 'recorded' | 'queued' | 'submitted' | 'failed' | 'suppressed' | 'uncertain' | 'covered';
 }
 export interface SavedAlertHistory { events: SavedAlertEvent[]; truncated: boolean }
 export interface ResetNotificationPreferences {
   enabled: boolean; timeZone: string; quietEnabled: boolean; quietStart: string; quietEnd: string;
   profileOverrides: { profileId: string; enabled: boolean }[];
+}
+export interface ThresholdNotificationPreferences {
+  enabled: boolean; profileOverrides: { profileId: string; enabled: boolean }[];
+}
+export interface NotificationPreferences {
+  reset: ResetNotificationPreferences; usage: ThresholdNotificationPreferences;
 }
 export interface ProfileMonitoringStatus {
   profileId: string; state: MonitoringState; eligible: boolean;
@@ -272,6 +279,8 @@ interface Commands {
   load_profile_heatmap: { args: { profileId: string; mode: HeatmapMode; periodDays: 30 | 90 | 180 | 365 }; result: SavedProfileHeatmap | null };
   load_profile_quota_history: { args: { profileId: string; beforeRunId: string | null }; result: QuotaHistoryPage };
   load_alert_history: { args: undefined; result: SavedAlertHistory };
+  load_notification_preferences: { args: undefined; result: NotificationPreferences };
+  save_notification_preferences: { args: { preferences: NotificationPreferences }; result: NotificationPreferences };
   load_reset_notification_preferences: { args: undefined; result: ResetNotificationPreferences };
   save_reset_notification_preferences: { args: { preferences: ResetNotificationPreferences }; result: ResetNotificationPreferences };
   get_display_scale: { args: undefined; result: { percent: number } };
@@ -346,7 +355,8 @@ export async function invoke<K extends keyof Commands>(
   const core = window.__TAURI__?.core;
   if (!core) throw new DesktopUnavailable('Open the installed OpenUsage desktop application.');
   const response = await core.invoke<unknown>(command, args[0]);
-  const valid = command === 'load_reset_notification_preferences' || command === 'save_reset_notification_preferences' ? isResetNotificationPreferences(response)
+  const valid = command === 'load_notification_preferences' || command === 'save_notification_preferences' ? isNotificationPreferences(response)
+    : command === 'load_reset_notification_preferences' || command === 'save_reset_notification_preferences' ? isResetNotificationPreferences(response)
     : command === 'load_alert_history' ? isSavedAlertHistory(response)
     : command === 'load_profile_quota_history' ? isQuotaHistoryPage(response)
     : (command === 'get_display_scale' || command === 'set_display_scale') ? isDisplayScale(response)
@@ -415,6 +425,16 @@ function isResetNotificationPreferences(value: unknown): value is ResetNotificat
   return true;
 }
 
+function isNotificationPreferences(value: unknown): value is NotificationPreferences {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const prefs = value as Record<string, unknown>;
+  if (Object.keys(prefs).length !== 2 || !isResetNotificationPreferences(prefs.reset)
+    || !prefs.usage || typeof prefs.usage !== 'object' || Array.isArray(prefs.usage)) return false;
+  const usage = prefs.usage as Record<string, unknown>;
+  return Object.keys(usage).length === 2 && typeof usage.enabled === 'boolean'
+    && isResetNotificationPreferences({ ...(prefs.reset as ResetNotificationPreferences), enabled: usage.enabled, profileOverrides: usage.profileOverrides });
+}
+
 function isSavedAlertHistory(value: unknown): value is SavedAlertHistory {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const history = value as Record<string, unknown>;
@@ -424,11 +444,13 @@ function isSavedAlertHistory(value: unknown): value is SavedAlertHistory {
   for (const item of history.events) {
     if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
     const event = item as Record<string, unknown>;
-    if (Object.keys(event).length !== 10 || !isUuid(event.id) || ids.has(event.id) || !isUuid(event.profileId)
+    if (Object.keys(event).length !== 12 || !isUuid(event.id) || ids.has(event.id) || !isUuid(event.profileId)
       || typeof event.profileLabel !== 'string' || Array.from(event.profileLabel).length < 1 || Array.from(event.profileLabel).length > 100
-      || /[\u0000-\u001f\u007f-\u009f]/u.test(event.profileLabel) || event.kind !== 'quota_reset' || !quotaText(event.limitId, 128)
+      || /[\u0000-\u001f\u007f-\u009f]/u.test(event.profileLabel) || (event.kind !== 'quota_reset' && event.kind !== 'quota_threshold')
+      || !isUuid(event.evidenceRunId)
+      || (event.kind === 'quota_reset' ? event.thresholdPercent !== null || event.deliveryState === 'covered' : ![80, 90, 100].includes(event.thresholdPercent as number) || (event.thresholdPercent === 100 && event.deliveryState === 'covered')) || !quotaText(event.limitId, 128)
       || (event.windowRole !== 'primary' && event.windowRole !== 'secondary') || !Number.isSafeInteger(event.windowDurationMins) || (event.windowDurationMins as number) < 1
-      || !isUtcTimestamp(event.evidenceAtUtc) || (event.sourceKind !== 'official_artifact' && event.sourceKind !== 'test_fixture') || typeof event.deliveryState !== 'string' || !['recorded', 'queued', 'submitted', 'failed', 'suppressed', 'uncertain'].includes(event.deliveryState)) return false;
+      || !isUtcTimestamp(event.evidenceAtUtc) || (event.sourceKind !== 'official_artifact' && event.sourceKind !== 'test_fixture') || typeof event.deliveryState !== 'string' || !['recorded', 'queued', 'submitted', 'failed', 'suppressed', 'uncertain', 'covered'].includes(event.deliveryState)) return false;
     ids.add(event.id);
   }
   return true;

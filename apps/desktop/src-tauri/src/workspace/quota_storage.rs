@@ -280,69 +280,72 @@ impl Workspace {
             evidence: evidence.clone(),
             observed_at_utc: observed.clone(),
         });
-        storage
-            .accept_quota(
-                openusage_storage::QuotaReading {
-                    run_id: request.into(),
-                    binding: openusage_storage::ProfileBinding {
-                        profile_id: binding.profile_id.clone(),
-                        home_reference: binding.home_reference.clone(),
-                        binding_id: id,
-                    },
-                    identity_evidence: evidence,
-                    provider_version: probe.version.into(),
-                    source_kind,
-                    started_at_utc: restore::timestamp(probe.started_at)
-                        .ok_or(CommandError::ProviderQuotaSaveFailed)?,
-                    completed_at_utc: restore::timestamp(probe.completed_at)
-                        .ok_or(CommandError::ProviderQuotaSaveFailed)?,
-                    observed_at_utc: observed,
-                    limits: probe
-                        .quota
-                        .limits
-                        .iter()
-                        .map(|l| openusage_storage::QuotaLimit {
-                            limit_id: l.limit_id.clone(),
-                            limit_name: l.limit_name.clone(),
-                            primary: l.primary.as_ref().map(stored_window),
-                            secondary: l.secondary.as_ref().map(stored_window),
-                            reached_type: l.reached_type.clone(),
-                            monthly_credit_limit: l.monthly_credit_limit.clone(),
-                            spend_control_reached: l.spend_control_reached,
-                        })
-                        .collect(),
-                    available_reset_credits: probe
-                        .quota
-                        .available_reset_credits
-                        .as_ref()
-                        .map(|v| v.as_str().into()),
-                    reset_credit_details: probe.quota.reset_credit_details.as_ref().map(|rows| {
-                        rows.iter()
-                            .map(|d| openusage_storage::QuotaCreditDetail {
-                                title: d.title.clone(),
-                                status: match d.status {
-                                    openusage_codex::ResetCreditStatus::Available => {
-                                        openusage_storage::QuotaCreditStatus::Available
-                                    }
-                                    openusage_codex::ResetCreditStatus::Redeeming => {
-                                        openusage_storage::QuotaCreditStatus::Redeeming
-                                    }
-                                    openusage_codex::ResetCreditStatus::Redeemed => {
-                                        openusage_storage::QuotaCreditStatus::Redeemed
-                                    }
-                                    openusage_codex::ResetCreditStatus::Unknown => {
-                                        openusage_storage::QuotaCreditStatus::Unknown
-                                    }
-                                },
-                                granted_at_unix: d.granted_at_unix,
-                                expires_at_unix: d.expires_at_unix,
-                            })
-                            .collect()
-                    }),
-                },
-                input,
-            )
-            .map_err(save_error)
+        let reading = openusage_storage::QuotaReading {
+            run_id: request.into(),
+            binding: openusage_storage::ProfileBinding {
+                profile_id: binding.profile_id.clone(),
+                home_reference: binding.home_reference.clone(),
+                binding_id: id,
+            },
+            identity_evidence: evidence,
+            provider_version: probe.version.into(),
+            source_kind,
+            started_at_utc: restore::timestamp(probe.started_at)
+                .ok_or(CommandError::ProviderQuotaSaveFailed)?,
+            completed_at_utc: restore::timestamp(probe.completed_at)
+                .ok_or(CommandError::ProviderQuotaSaveFailed)?,
+            observed_at_utc: observed,
+            limits: probe
+                .quota
+                .limits
+                .iter()
+                .map(|l| openusage_storage::QuotaLimit {
+                    limit_id: l.limit_id.clone(),
+                    limit_name: l.limit_name.clone(),
+                    primary: l.primary.as_ref().map(stored_window),
+                    secondary: l.secondary.as_ref().map(stored_window),
+                    reached_type: l.reached_type.clone(),
+                    monthly_credit_limit: l.monthly_credit_limit.clone(),
+                    spend_control_reached: l.spend_control_reached,
+                })
+                .collect(),
+            available_reset_credits: probe
+                .quota
+                .available_reset_credits
+                .as_ref()
+                .map(|v| v.as_str().into()),
+            reset_credit_details: probe.quota.reset_credit_details.as_ref().map(|rows| {
+                rows.iter()
+                    .map(|d| openusage_storage::QuotaCreditDetail {
+                        title: d.title.clone(),
+                        status: match d.status {
+                            openusage_codex::ResetCreditStatus::Available => {
+                                openusage_storage::QuotaCreditStatus::Available
+                            }
+                            openusage_codex::ResetCreditStatus::Redeeming => {
+                                openusage_storage::QuotaCreditStatus::Redeeming
+                            }
+                            openusage_codex::ResetCreditStatus::Redeemed => {
+                                openusage_storage::QuotaCreditStatus::Redeemed
+                            }
+                            openusage_codex::ResetCreditStatus::Unknown => {
+                                openusage_storage::QuotaCreditStatus::Unknown
+                            }
+                        },
+                        granted_at_unix: d.granted_at_unix,
+                        expires_at_unix: d.expires_at_unix,
+                    })
+                    .collect()
+            }),
+        };
+        let now =
+            restore::timestamp(SystemTime::now()).ok_or(CommandError::ProviderQuotaSaveFailed)?;
+        if probe.observed_monotonic.elapsed() < Duration::from_secs(600) {
+            storage.accept_live_quota(reading, input, &now)
+        } else {
+            storage.accept_quota(reading, input)
+        }
+        .map_err(save_error)
     }
 }
 

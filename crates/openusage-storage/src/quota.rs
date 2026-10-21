@@ -107,6 +107,25 @@ impl Storage {
         reading: QuotaReading,
         association: Option<ProfileBindingInput>,
     ) -> Result<QuotaCommit> {
+        self.accept_quota_at(reading, association, None)
+    }
+    /// Accept a supervised live reading. Only a fresh observation can create a
+    /// threshold event; historical ingestion through `accept_quota` cannot.
+    pub fn accept_live_quota(
+        &mut self,
+        reading: QuotaReading,
+        association: Option<ProfileBindingInput>,
+        now_utc: &str,
+    ) -> Result<QuotaCommit> {
+        crate::threshold_alerts::validate_now(now_utc)?;
+        self.accept_quota_at(reading, association, Some(now_utc))
+    }
+    fn accept_quota_at(
+        &mut self,
+        reading: QuotaReading,
+        association: Option<ProfileBindingInput>,
+        now_utc: Option<&str>,
+    ) -> Result<QuotaCommit> {
         validate_reading(&reading)?;
         if let Some(input) = &association {
             validate_association(input)?;
@@ -131,7 +150,7 @@ impl Storage {
         if let Some(input) = &association {
             associate_in_transaction(&tx, input)?;
         }
-        let commit = accept_in_transaction(&tx, reading)?;
+        let commit = accept_live_in_transaction(&tx, reading, now_utc)?;
         tx.commit().map_err(write_error)?;
         Ok(commit)
     }
@@ -151,7 +170,11 @@ impl Storage {
             .transpose()
     }
 }
-pub(crate) fn accept_in_transaction(tx: &Connection, reading: QuotaReading) -> Result<QuotaCommit> {
+pub(crate) fn accept_live_in_transaction(
+    tx: &Connection,
+    reading: QuotaReading,
+    now_utc: Option<&str>,
+) -> Result<QuotaCommit> {
     require_profile(
         tx,
         &reading.binding.profile_id,
@@ -265,6 +288,11 @@ pub(crate) fn accept_in_transaction(tx: &Connection, reading: QuotaReading) -> R
     }
     let packet = load_snapshot_packet(tx, "main", &reading.run_id)?;
     crate::quota_resets::save(tx, &packet, previous.as_ref())?;
+    if let Some(now_utc) = now_utc {
+        let mut packet = packet;
+        packet.reset_assessments = crate::quota_resets::load(tx, "main", &reading.run_id)?;
+        crate::threshold_alerts::record(tx, &packet, &reading.completed_at_utc, now_utc)?;
+    }
     let commit = QuotaCommit {
         profile_id: reading.binding.profile_id,
         binding_id: reading.binding.binding_id,

@@ -1,4 +1,4 @@
-//! Test-only reset proof in a marker-owned synthetic workspace, through public storage APIs.
+//! Test-only quota proofs in a marker-owned synthetic workspace, through public storage APIs.
 use openusage_storage::{
     ActivitySourceKind, CURRENT_SCHEMA_VERSION, ProfileBinding, ProfileBindingInput,
     ProfileIdentityEvidence, QuotaLimit, QuotaReading, QuotaWindow, Storage, keywrap::unwrap_key,
@@ -43,6 +43,16 @@ fn directory(path: &Path) {
             && metadata.mode() & 0o777 == 0o700,
         "The synthetic directory must be private and owned."
     );
+}
+fn canonical_uuid(value: &str) -> bool {
+    value.len() == 36
+        && value.bytes().enumerate().all(|(index, byte)| {
+            if [8, 13, 18, 23].contains(&index) {
+                byte == b'-'
+            } else {
+                byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)
+            }
+        })
 }
 fn reading(
     binding: &ProfileBinding,
@@ -105,6 +115,147 @@ fn reading(
     }
     result
 }
+
+fn threshold_readings(
+    storage: &mut Storage,
+    profile: &str,
+    home_reference: &str,
+    evidence: &ProfileIdentityEvidence,
+    mode: &str,
+    times: &Value,
+) {
+    // This helper cannot grant synthetic packets production provenance or bypass
+    // the production dispatch gate. Only the explicit test build may call it.
+    assert!(cfg!(feature = "native-test"));
+    let first_high = mode.starts_with("threshold-high-");
+    let seed = mode.ends_with("seed");
+    let reseed = mode.ends_with("reseed");
+    let values: &[u8] = match (first_high, seed) {
+        (true, true) => &[99, 95],
+        (false, true) => &[99, 79, 80, 90, 100],
+        (true, false) => &[85, 95],
+        (false, false) => &[79, 100],
+    };
+    let observations = times["observations"].as_array().unwrap();
+    let runs = times["runIds"].as_array().unwrap();
+    assert_eq!(observations.len(), 7);
+    assert_eq!(runs.len(), 7);
+    let now = times["acceptedAt"].as_str().unwrap();
+    let binding = ProfileBinding {
+        profile_id: profile.into(),
+        home_reference: home_reference.into(),
+        binding_id: profile.into(),
+    };
+    let before = storage.alert_history().unwrap();
+    if seed {
+        assert!(storage.current_quota(profile).unwrap().is_none());
+        assert!(
+            before
+                .events
+                .iter()
+                .all(|event| event.profile_id != profile)
+        );
+    }
+    for (step, used) in values.iter().enumerate() {
+        let index = if seed { step } else { step + 5 };
+        let prior = seed && step == 0;
+        let mut packet = reading(&binding, evidence, if prior { 1 } else { 2 }, None);
+        packet.run_id = runs[index].as_str().unwrap().into();
+        let observed = observations[index].as_str().unwrap();
+        packet.started_at_utc = observed.into();
+        packet.observed_at_utc = observed.into();
+        packet.completed_at_utc = observed.into();
+        let window = packet.limits[0].primary.as_mut().unwrap();
+        window.used_percent = *used;
+        window.resets_at_unix = Some(
+            times[if prior {
+                "priorResetUnix"
+            } else {
+                "nextResetUnix"
+            }]
+            .as_i64()
+            .unwrap(),
+        );
+        let association = prior.then(|| ProfileBindingInput {
+            profile_id: profile.into(),
+            expected_home_reference: home_reference.into(),
+            expected_previous_binding_id: None,
+            new_binding_id: binding.binding_id.clone(),
+            evidence: evidence.clone(),
+            observed_at_utc: observed.into(),
+        });
+        storage.accept_live_quota(packet, association, now).unwrap();
+        if prior {
+            assert!(
+                storage
+                    .alert_history()
+                    .unwrap()
+                    .events
+                    .iter()
+                    .all(|event| event.profile_id != profile),
+                "An initial reading must not manufacture a confirmed generation."
+            );
+        }
+    }
+    let history = storage.alert_history().unwrap();
+    if !seed {
+        assert_eq!(
+            history, before,
+            "A decline and re-cross must not replay consumed levels."
+        );
+    }
+    let events: Vec<_> = history
+        .events
+        .iter()
+        .filter(|event| event.profile_id == profile)
+        .collect();
+    assert_eq!(
+        events.len(),
+        if reseed {
+            1
+        } else if first_high {
+            3
+        } else {
+            4
+        }
+    );
+    let mut thresholds: Vec<_> = events
+        .iter()
+        .filter_map(|event| {
+            event
+                .threshold_percent
+                .map(|threshold| (threshold, event.delivery_state.as_str()))
+        })
+        .collect();
+    thresholds.sort_unstable();
+    if reseed {
+        assert!(
+            thresholds.is_empty(),
+            "Restoring before the reset proof must not revive consumed provider-window thresholds."
+        );
+    } else if seed {
+        assert_eq!(
+            thresholds,
+            if first_high {
+                vec![(80, "covered"), (90, "queued")]
+            } else {
+                vec![(80, "queued"), (90, "queued"), (100, "queued")]
+            }
+        );
+    }
+    let generation = &events[0].generation_run_id;
+    assert!(
+        events
+            .iter()
+            .all(|event| event.generation_run_id == *generation
+                && event.source_kind == ActivitySourceKind::TestFixture)
+    );
+    println!(
+        "{}",
+        json!({"synthetic":true,"productionStorageApi":true,"explicitNativeTestLiveContext":true,"schemaVersion":CURRENT_SCHEMA_VERSION,"mode":mode,"profileId":profile,"generationRunId":generation,"eventCount":events.len(),"thresholds":thresholds})
+    );
+}
+
 fn main() {
     let args: Vec<_> = env::args_os().collect();
     assert!(
@@ -131,23 +282,25 @@ fn main() {
     directory(&root);
     let profile = args[2].to_str().unwrap();
     assert!(
-        profile.len() == 36
-            && profile.bytes().enumerate().all(|(index, byte)| {
-                if [8, 13, 18, 23].contains(&index) {
-                    byte == b'-'
-                } else {
-                    byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)
-                }
-            }),
+        canonical_uuid(profile),
         "A canonical synthetic profile UUID is required."
     );
     directory(&root.join("control"));
     let mode = args[3].to_str().unwrap();
     assert!(matches!(
         mode,
-        "seed" | "followup" | "notification-seed" | "notification-followup"
+        "seed"
+            | "followup"
+            | "notification-seed"
+            | "notification-followup"
+            | "threshold-high-seed"
+            | "threshold-high-followup"
+            | "threshold-steps-seed"
+            | "threshold-steps-followup"
+            | "threshold-high-reseed"
+            | "threshold-steps-reseed"
     ));
-    let notification_mode = mode.starts_with("notification-");
+    let notification_mode = mode.starts_with("notification-") || mode.starts_with("threshold-");
     let marker: Value =
         serde_json::from_slice(&private_file(&root.join("control/alert-fixture.json"))).unwrap();
     assert_eq!(
@@ -156,12 +309,6 @@ fn main() {
     );
     let workspace = root.join("data/app.openusage.desktop/workspace");
     directory(&workspace);
-    let home = workspace.join("profiles").join(profile);
-    directory(&home);
-    assert!(
-        fs::read_dir(&home).unwrap().next().is_none(),
-        "The synthetic home must contain no provider files."
-    );
     let mut input = Zeroizing::new(String::new());
     io::stdin().take(4097).read_to_string(&mut input).unwrap();
     assert!(input.len() <= 4096);
@@ -207,13 +354,44 @@ fn main() {
             .iter()
             .any(|item| item.id == profile && !item.archived)
     );
+    // Archive restore intentionally assigns fresh managed homes. Read the
+    // current Rust-owned mapping rather than assuming that it is the profile ID.
+    let revision = storage.restore_state().unwrap().revision;
+    let mappings = storage.restore_home_mappings(&revision).unwrap();
+    let home_reference = &mappings
+        .iter()
+        .find(|mapping| mapping.profile_id == profile)
+        .expect("The synthetic profile must have a managed home.")
+        .managed_home_reference;
+    assert!(canonical_uuid(home_reference));
+    let homes = workspace.join("profiles");
+    directory(&homes);
+    assert_eq!(homes.canonicalize().unwrap(), homes);
+    let home = homes.join(home_reference);
+    directory(&home);
+    assert_eq!(home.canonicalize().unwrap(), home);
+    assert!(
+        fs::read_dir(&home).unwrap().next().is_none(),
+        "The synthetic home must contain no provider files."
+    );
     let evidence = ProfileIdentityEvidence {
         email: "alert-synthetic@example.invalid".into(),
         plan: None,
     };
+    if mode.starts_with("threshold-") {
+        threshold_readings(
+            &mut storage,
+            profile,
+            home_reference,
+            &evidence,
+            mode,
+            fixture_times.as_ref().unwrap(),
+        );
+        return;
+    }
     let binding = ProfileBinding {
         profile_id: profile.into(),
-        home_reference: profile.into(),
+        home_reference: home_reference.into(),
         binding_id: "a1000000-0000-4000-8000-000000000001".into(),
     };
     if mode.ends_with("seed") {
@@ -222,7 +400,7 @@ fn main() {
         let first = reading(&binding, &evidence, 1, fixture_times.as_ref());
         let association = ProfileBindingInput {
             profile_id: profile.into(),
-            expected_home_reference: profile.into(),
+            expected_home_reference: home_reference.into(),
             expected_previous_binding_id: None,
             new_binding_id: binding.binding_id.clone(),
             evidence: evidence.clone(),

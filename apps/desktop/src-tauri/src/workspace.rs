@@ -30,7 +30,7 @@ pub(crate) use monitoring::{MonitoringIssue, MonitoringStatus};
 pub(crate) use profile_plan::SavedProfilePlan;
 pub(crate) use quota_history::ProfileQuotaHistory;
 pub(crate) use quota_storage::SavedProfileQuota;
-pub(crate) use reset_notifications::ResetNotificationPreferences;
+pub(crate) use reset_notifications::{NotificationPreferences, ResetNotificationPreferences};
 
 const DATABASE_FILE: &str = "openusage.db";
 const WRAPPED_KEY_FILE: &str = "database-key.v1";

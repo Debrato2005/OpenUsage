@@ -32,9 +32,10 @@ pub(crate) enum NotificationInputError {
     Label,
     Window,
     Evidence,
+    Threshold,
 }
 
-/// Construct only from accepted local reset evidence, never a provider response directly.
+/// Construct only from accepted local quota evidence, never a provider response directly.
 /// No Debug implementation: profile names must not enter diagnostic logs by accident.
 #[derive(Clone)]
 pub(crate) struct ResetNotification {
@@ -49,6 +50,7 @@ impl ResetNotification {
         profile_label: &str,
         window_duration_mins: u64,
         evidence_at_utc: &str,
+        threshold_percent: Option<u8>,
     ) -> Result<Self, NotificationInputError> {
         for value in [event_id, profile_id] {
             if uuid::Uuid::parse_str(value)
@@ -100,11 +102,20 @@ impl ResetNotification {
         } else {
             format!("{window_duration_mins}-minute")
         };
-        Ok(Self {
-            title: format!("{label}: reset confirmed"),
-            body: format!(
-                "The {window} quota window reset.\nEvidence: {evidence_at_utc}\nOpen OpenUsage to view usage."
+        let (title, detail) = match threshold_percent {
+            None => (
+                format!("{label}: reset confirmed"),
+                format!("The {window} quota window reset."),
             ),
+            Some(level @ (80 | 90 | 100)) => (
+                format!("{label}: {level}% quota used"),
+                format!("The {window} quota window reached {level}% used."),
+            ),
+            Some(_) => return Err(NotificationInputError::Threshold),
+        };
+        Ok(Self {
+            title,
+            body: format!("{detail}\nEvidence: {evidence_at_utc}\nOpen OpenUsage to view usage."),
         })
     }
 }
@@ -313,8 +324,30 @@ mod tests {
     const TIME: &str = "2026-10-22T12:00:00.000Z";
 
     #[test]
+    fn usage_messages_keep_exact_levels_and_refuse_unsupported_thresholds() {
+        for level in [80, 90, 100] {
+            let message =
+                ResetNotification::new(EVENT, PROFILE, "Account A", 10080, TIME, Some(level))
+                    .unwrap();
+            assert_eq!(message.title, format!("Account A: {level}% quota used"));
+            assert!(
+                message
+                    .body
+                    .starts_with(&format!("The 7-day quota window reached {level}% used."))
+            );
+            assert!(!message.body.contains(EVENT));
+        }
+        for level in [0, 79, 85, 99, 101] {
+            assert!(
+                ResetNotification::new(EVENT, PROFILE, "Account A", 300, TIME, Some(level))
+                    .is_err()
+            );
+        }
+    }
+
+    #[test]
     fn reset_message_uses_only_account_window_evidence_and_next_action() {
-        let message = ResetNotification::new(EVENT, PROFILE, "Account A", 300, TIME).unwrap();
+        let message = ResetNotification::new(EVENT, PROFILE, "Account A", 300, TIME, None).unwrap();
         assert_eq!(message.title, "Account A: reset confirmed");
         assert_eq!(
             message.body,
@@ -322,31 +355,33 @@ mod tests {
         );
         assert!(!message.body.contains(EVENT));
         assert!(!message.body.contains(PROFILE));
-        let weekly = ResetNotification::new(EVENT, PROFILE, "Account A", 10080, TIME).unwrap();
+        let weekly =
+            ResetNotification::new(EVENT, PROFILE, "Account A", 10080, TIME, None).unwrap();
         assert!(weekly.body.starts_with("The 7-day quota window reset."));
         let email =
-            ResetNotification::new(EVENT, PROFILE, "owner@example.test", 300, TIME).unwrap();
+            ResetNotification::new(EVENT, PROFILE, "owner@example.test", 300, TIME, None).unwrap();
         assert_eq!(email.title, "Account 22222222: reset confirmed");
         assert!(!email.title.contains('@'));
-        let path = ResetNotification::new(EVENT, PROFILE, "/private/workspace", 300, TIME).unwrap();
+        let path =
+            ResetNotification::new(EVENT, PROFILE, "/private/workspace", 300, TIME, None).unwrap();
         assert_eq!(path.title, "Account 22222222: reset confirmed");
     }
 
     #[test]
     fn unsafe_or_noncanonical_inputs_are_refused_before_os_work() {
-        assert!(ResetNotification::new("bad", PROFILE, "Account A", 300, TIME).is_err());
-        assert!(ResetNotification::new(EVENT, "bad", "Account A", 300, TIME).is_err());
+        assert!(ResetNotification::new("bad", PROFILE, "Account A", 300, TIME, None).is_err());
+        assert!(ResetNotification::new(EVENT, "bad", "Account A", 300, TIME, None).is_err());
         for label in ["", "bad\nlabel", "hidden\u{202e}label"] {
-            assert!(ResetNotification::new(EVENT, PROFILE, label, 300, TIME).is_err());
+            assert!(ResetNotification::new(EVENT, PROFILE, label, 300, TIME, None).is_err());
         }
-        assert!(ResetNotification::new(EVENT, PROFILE, "Account A", 0, TIME).is_err());
+        assert!(ResetNotification::new(EVENT, PROFILE, "Account A", 0, TIME, None).is_err());
         for time in [
             "2026-02-30T12:00:00.000Z",
             "2026-10-22T12:00:60.000Z",
             "2026-10-22T12:00:00+00:00",
             "2026-10-22T12:00:00.000Z\n",
         ] {
-            assert!(ResetNotification::new(EVENT, PROFILE, "Account A", 300, time).is_err());
+            assert!(ResetNotification::new(EVENT, PROFILE, "Account A", 300, time, None).is_err());
         }
     }
 }

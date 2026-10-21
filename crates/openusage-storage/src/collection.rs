@@ -23,6 +23,27 @@ impl Storage {
         activity: Option<ActivityReading>,
         association: Option<ProfileBindingInput>,
     ) -> Result<CollectionCommit, ActivityError> {
+        self.accept_collection_at(quota, activity, association, None)
+    }
+    /// The native coordinator supplies its current UTC time at the live acceptance
+    /// boundary. Restored and historical packets cannot create threshold alerts.
+    pub fn accept_live_collection(
+        &mut self,
+        quota: Option<QuotaReading>,
+        activity: Option<ActivityReading>,
+        association: Option<ProfileBindingInput>,
+        now_utc: &str,
+    ) -> Result<CollectionCommit, ActivityError> {
+        crate::threshold_alerts::validate_now(now_utc)?;
+        self.accept_collection_at(quota, activity, association, Some(now_utc))
+    }
+    fn accept_collection_at(
+        &mut self,
+        quota: Option<QuotaReading>,
+        activity: Option<ActivityReading>,
+        association: Option<ProfileBindingInput>,
+        now_utc: Option<&str>,
+    ) -> Result<CollectionCommit, ActivityError> {
         require(quota.is_some() || activity.is_some())?;
         if let Some(reading) = &quota {
             quota::validate_reading(reading)?;
@@ -74,7 +95,7 @@ impl Storage {
         }
         let commit = CollectionCommit {
             quota: quota
-                .map(|reading| quota::accept_in_transaction(&tx, reading))
+                .map(|reading| quota::accept_live_in_transaction(&tx, reading, now_utc))
                 .transpose()?,
             activity: activity
                 .map(|reading| activity::accept_in_transaction(&tx, reading))

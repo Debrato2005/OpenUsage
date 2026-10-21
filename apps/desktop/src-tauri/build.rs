@@ -47,6 +47,8 @@ fn main() {
             "load_profile_quota",
             "load_profile_quota_history",
             "load_alert_history",
+            "load_notification_preferences",
+            "save_notification_preferences",
             "load_reset_notification_preferences",
             "save_reset_notification_preferences",
             "load_profile_refresh_status",

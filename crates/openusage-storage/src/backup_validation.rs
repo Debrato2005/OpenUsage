@@ -185,7 +185,7 @@ pub(crate) fn with_validated_snapshot<T, E: From<BackupValidationError>>(
 
 pub(crate) fn supported_schema_version(version: u32) -> bool {
     // A later migration must add explicit content/copy support before becoming restorable.
-    matches!(version, 1..=6) && version <= CURRENT_SCHEMA_VERSION
+    matches!(version, 1..=7) && version <= CURRENT_SCHEMA_VERSION
 }
 
 fn validate_size(size: u64) -> Result<()> {
@@ -332,10 +332,13 @@ pub(crate) fn validate_schema_connection(
                     .map_err(|_| BackupValidationError::InvalidDatabase)?;
             }
             if manifest_version >= 5 {
-                crate::alerts::validate(connection, schema)?;
+                crate::alerts::validate(connection, schema, manifest_version)?;
             }
             if manifest_version >= 6 {
-                crate::reset_notifications::validate(connection, schema)?;
+                crate::reset_notifications::validate(connection, schema, manifest_version)?;
+                if manifest_version >= 7 {
+                    crate::threshold_alerts::validate(connection, schema)?;
+                }
             }
         }
     }
@@ -571,8 +574,26 @@ pub(crate) fn copy_activity_records(
             crate::alerts::ALERT_COLUMNS,
         )?;
     }
+    if version >= 7 {
+        for (table, columns) in [
+            (
+                "threshold_alert_events",
+                crate::threshold_alerts::DETAIL_COLUMNS,
+            ),
+            (
+                "threshold_alert_preferences",
+                crate::threshold_alerts::PREFERENCE_COLUMNS,
+            ),
+            (
+                "threshold_alert_overrides",
+                crate::threshold_alerts::OVERRIDE_COLUMNS,
+            ),
+        ] {
+            copy_fields(source, target, schema, table, columns, columns)?;
+        }
+    }
     if version >= 6 {
-        crate::reset_notifications::copy_records(source, target, schema, restore)?;
+        crate::reset_notifications::copy_records(source, target, schema, restore, version)?;
     }
     Ok(())
 }
@@ -1012,6 +1033,9 @@ pub(crate) fn activity_records(connection: &Connection) -> Vec<Vec<Vec<rusqlite:
         "reset_alert_overrides",
         "reset_notification_outbox",
         "reset_notification_receipts",
+        "threshold_alert_events",
+        "threshold_alert_preferences",
+        "threshold_alert_overrides",
     ]
     .into_iter()
     .map(|table| {

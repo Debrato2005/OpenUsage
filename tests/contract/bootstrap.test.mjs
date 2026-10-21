@@ -14,13 +14,18 @@ function desktopResponse(value) {
 }
 
 test('alert history accepts saved reset evidence and refuses leaked fields or false delivery claims', async () => {
-  const event = { id: '11111111-1111-4111-8111-111111111111', profileId: '22222222-2222-4222-8222-222222222222', profileLabel: 'Account A', kind: 'quota_reset', limitId: 'codex', windowRole: 'primary', windowDurationMins: 300, evidenceAtUtc: '2026-10-22T08:00:00.000Z', sourceKind: 'official_artifact', deliveryState: 'recorded' };
+  const event = { id: '11111111-1111-4111-8111-111111111111', profileId: '22222222-2222-4222-8222-222222222222', profileLabel: 'Account A', kind: 'quota_reset', thresholdPercent: null, evidenceRunId: '33333333-3333-4333-8333-333333333333', limitId: 'codex', windowRole: 'primary', windowDurationMins: 300, evidenceAtUtc: '2026-10-22T08:00:00.000Z', sourceKind: 'official_artifact', deliveryState: 'recorded' };
   const valid = { events: [event], truncated: false };
   desktopResponse(valid); assert.deepEqual(await invoke('load_alert_history'), valid);
   desktopResponse({ events: [], truncated: false }); assert.deepEqual(await invoke('load_alert_history'), { events: [], truncated: false });
-  for (const fields of [{ id: '../unsafe' }, { profileId: [] }, { profileLabel: '' }, { profileLabel: 'private\nlabel' }, { kind: 'usage_threshold' }, { limitId: '' }, { windowRole: ['primary'] }, { windowDurationMins: 0 }, { windowDurationMins: Number.MAX_SAFE_INTEGER + 1 }, { evidenceAtUtc: '2026-02-30T08:00:00.000Z' }, { sourceKind: 'unknown' }, { deliveryState: 'delivered' }, { eventKey: 'private identity' }]) {
+  for (const fields of [{ id: '../unsafe' }, { profileId: [] }, { profileLabel: '' }, { profileLabel: 'private\nlabel' }, { kind: 'usage_threshold' }, { kind: 'quota_threshold', thresholdPercent: null }, { kind: 'quota_threshold', thresholdPercent: 85 }, { kind: 'quota_threshold', thresholdPercent: 100, deliveryState: 'covered' }, { thresholdPercent: 80 }, { deliveryState: 'covered' }, { evidenceRunId: '../unsafe' }, { limitId: '' }, { windowRole: ['primary'] }, { windowDurationMins: 0 }, { windowDurationMins: Number.MAX_SAFE_INTEGER + 1 }, { evidenceAtUtc: '2026-02-30T08:00:00.000Z' }, { sourceKind: 'unknown' }, { deliveryState: 'delivered' }, { eventKey: 'private identity' }]) {
     desktopResponse({ events: [{ ...event, ...fields }], truncated: false });
     await assert.rejects(invoke('load_alert_history'), /desktop response is incompatible/);
+  }
+  for (const thresholdPercent of [80, 90, 100]) {
+    const threshold = { ...event, kind: 'quota_threshold', thresholdPercent, deliveryState: thresholdPercent === 100 ? 'submitted' : 'covered' };
+    desktopResponse({ events: [threshold], truncated: false });
+    assert.deepEqual((await invoke('load_alert_history')).events, [threshold]);
   }
   for (const value of [{ ...valid, credentials: 'must never reach the renderer' }, { ...valid, truncated: true }, { events: [event, event], truncated: false }, { events: Array.from({ length: 101 }, () => event), truncated: true }]) {
     desktopResponse(value); await assert.rejects(invoke('load_alert_history'), /desktop response is incompatible/);
@@ -750,5 +755,26 @@ test('reset notification preferences accept only typed bounded records and keep 
       desktopResponse({ ...preferences, ...change }); await assert.rejects(invoke(command, args), /desktop response is incompatible/);
     }
     for (const field of Object.keys(preferences)) { const missing = { ...preferences }; delete missing[field]; desktopResponse(missing); await assert.rejects(invoke(command, args), /desktop response is incompatible/); }
+  }
+});
+
+
+test('combined notification preferences reject malformed usage settings and private fields', async () => {
+  const reset = { enabled: false, timeZone: 'Etc/UTC', quietEnabled: true, quietStart: '22:00', quietEnd: '08:00', profileOverrides: [] };
+  const usage = { enabled: true, profileOverrides: [{ profileId: '11111111-1111-4111-8111-111111111111', enabled: false }] };
+  const preferences = { reset, usage };
+  for (const command of ['load_notification_preferences', 'save_notification_preferences']) {
+    const args = command.startsWith('save') ? { preferences } : undefined;
+    desktopResponse(preferences); assert.deepEqual(await invoke(command, args), preferences);
+    for (const invalid of [
+      { reset }, { usage }, { ...preferences, secret: 'private' },
+      { ...preferences, usage: { ...usage, enabled: 'true' } },
+      { ...preferences, usage: { ...usage, threshold: 85 } },
+      { ...preferences, usage: { ...usage, profileOverrides: [...usage.profileOverrides, ...usage.profileOverrides] } },
+      { ...preferences, usage: { ...usage, profileOverrides: [{ profileId: '../unsafe', enabled: true }] } },
+      { ...preferences, reset: { ...reset, quietStart: '24:00' } },
+    ]) {
+      desktopResponse(invalid); await assert.rejects(invoke(command, args), /desktop response is incompatible/);
+    }
   }
 });

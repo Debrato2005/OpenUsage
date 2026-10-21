@@ -580,3 +580,6 @@ fn quota_validation_shared_cas_and_profile_isolation_refuse_without_writes() {
 
 #[path = "reset_notification_tests.rs"]
 mod reset_notification_tests;
+
+#[path = "threshold_alert_tests.rs"]
+mod threshold_alert_tests;

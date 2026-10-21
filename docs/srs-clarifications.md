@@ -63,3 +63,10 @@ Status: explicit user-directed navigation correction, October 21, 2026. The norm
 OU-UI-001 lists Accounts and other functional views. The user requires only Overview, Usage and Settings in primary navigation. Account selection, sign-in, management and details remain accessible through Overview, Usage and contextual dialogs. This changes navigation placement, not the required capabilities. Unimplemented Compare, Subscriptions, Calendar and Notifications functions remain acceptance gaps; removing their navigation entries does not waive them.
 
 Show each returned quota window. Do not infer a five-hour or weekly limit from the plan name. Refresh must preserve the current Overview route. See native evidence (private evidence omitted).
+
+
+## SC-008: consumed lower thresholds and desktop delivery
+
+Status: implementation interpretation, October 22, 2026. No normative text changed.
+
+OU-ALERT-018 consumes lower satisfied thresholds after the first reading selects the highest threshold. The saved Covered state means that no separate OS notification was submitted for that lower level. It does not claim OS delivery. The consumed key survives restore and Undo even if the higher notification fails. Later crossings remain separate under OU-ALERT-002. The normative SRS is unchanged.

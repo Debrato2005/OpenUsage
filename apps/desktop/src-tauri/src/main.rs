@@ -76,6 +76,12 @@ struct ResetNotificationPreferencesArgs {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct NotificationPreferencesArgs {
+    preferences: workspace::NotificationPreferences,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct BackupArgs {
     password: Passphrase,
 }
@@ -871,6 +877,44 @@ async fn apply_restore(
     })
     .await
     .map_err(|_| CommandError::RestoreFailed)?
+}
+
+#[tauri::command]
+async fn load_notification_preferences(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<workspace::NotificationPreferences, CommandError> {
+    let _: ListProfilesArgs = arguments(&request)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        service
+            .lock()
+            .map_err(|_| CommandError::StorageUnavailable)?
+            .as_ref()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .load_notification_preferences()
+    })
+    .await
+    .map_err(|_| CommandError::StorageUnavailable)?
+}
+
+#[tauri::command]
+async fn save_notification_preferences(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<workspace::NotificationPreferences, CommandError> {
+    let args: NotificationPreferencesArgs = arguments(&request)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        service
+            .lock()
+            .map_err(|_| CommandError::StorageUnavailable)?
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .save_notification_preferences(args.preferences)
+    })
+    .await
+    .map_err(|_| CommandError::StorageUnavailable)?
 }
 
 #[tauri::command]
@@ -1820,6 +1864,8 @@ fn main() {
             load_profile_quota,
             load_profile_quota_history,
             load_alert_history,
+            load_notification_preferences,
+            save_notification_preferences,
             load_reset_notification_preferences,
             save_reset_notification_preferences,
             review_profile_quota_association,

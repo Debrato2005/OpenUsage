@@ -5,7 +5,7 @@ use openusage_codex::session::CollectionProbe;
 use openusage_storage::{
     ActivityError, ActivitySourceKind, ProfileBindingInput, ProfileIdentityEvidence,
 };
-use std::time::Instant;
+use std::time::{Duration, Instant, SystemTime};
 
 impl Workspace {
     pub fn finish_profile_collection_read(
@@ -308,10 +308,19 @@ impl Workspace {
                 })
             })
             .transpose()?;
-        storage
-            .accept_collection(quota, activity, input)
-            .map(Some)
-            .map_err(save_error)
+        let fresh_quota = probe
+            .quota
+            .as_ref()
+            .is_some_and(|read| read.observed_monotonic.elapsed() < Duration::from_secs(600));
+        let now = restore::timestamp(SystemTime::now())
+            .ok_or(CommandError::ProviderCollectionSaveFailed)?;
+        if fresh_quota {
+            storage.accept_live_collection(quota, activity, input, &now)
+        } else {
+            storage.accept_collection(quota, activity, input)
+        }
+        .map(Some)
+        .map_err(save_error)
     }
 }
 fn save_error(error: ActivityError) -> CommandError {

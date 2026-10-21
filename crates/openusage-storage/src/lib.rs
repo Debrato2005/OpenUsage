@@ -17,10 +17,12 @@ mod quota_history;
 pub use quota_history::QuotaHistoryPage;
 mod alerts;
 mod reset_notifications;
+mod threshold_alerts;
 pub use reset_notifications::{
     AlertQuietHours, NotificationOutcome, ResetAlertOverride, ResetAlertPreferences,
     ResetNotification,
 };
+pub use threshold_alerts::ThresholdAlertPreferences;
 mod quota_resets;
 mod quota_validation;
 pub use alerts::{AlertDeliveryState, AlertEvent, AlertHistory};
@@ -49,6 +51,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("schema_v4.sql"),
     include_str!("schema_v5.sql"),
     include_str!("schema_v6.sql"),
+    include_str!("schema_v7.sql"),
 ];
 pub const CURRENT_SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
 const MAX_BACKUP_SNAPSHOT_SIZE: u64 = 5 * 1024 * 1024 * 1024;
@@ -400,6 +403,9 @@ fn migrate(connection: &mut Connection, migrations: &[&str]) -> Result<(), Stora
             transaction
                 .pragma_update(None, "user_version", (index + 1) as u32)
                 .map_err(failed)?;
+            if index == 6 {
+                crate::reset_notifications::backfill_window_keys(&transaction).map_err(failed)?;
+            }
         }
         let invalid: bool = transaction
             .query_row(
