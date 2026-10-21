@@ -1364,6 +1364,108 @@ IFS= read -r request
     }
 
     #[test]
+    fn startup_routing_snapshot_precedes_the_measurement_baseline_without_extra_requests() {
+        let fixture = collection_fixture("startup_snapshot");
+        let supervisor = Supervisor::new();
+        let probe = supervisor
+            .start_collection_diagnostic(&fixture.executable, &fixture.homes[0])
+            .unwrap()
+            .wait()
+            .unwrap();
+        assert!(probe.quota.is_some() && probe.activity.is_some());
+        let methods: Vec<_> = collection_rows(&fixture, 0)
+            .into_iter()
+            .filter(|row| row["kind"] == "request")
+            .map(|row| row["request"]["method"].as_str().unwrap().to_owned())
+            .collect();
+        assert_eq!(
+            methods,
+            [
+                "initialize",
+                "initialized",
+                "account/read",
+                "account/rateLimits/read",
+                "account/usage/read",
+                "account/read"
+            ]
+        );
+        gone(fixture.child(0));
+        fixture.runtime_removed(0);
+    }
+
+    #[test]
+    fn startup_deferred_snapshot_rechecks_the_account_before_any_measurement() {
+        let fixture = collection_fixture("startup_deferred");
+        let supervisor = Supervisor::new();
+        let probe = supervisor
+            .start_collection_diagnostic(&fixture.executable, &fixture.homes[0])
+            .unwrap()
+            .wait()
+            .unwrap();
+        assert!(probe.quota.is_some() && probe.activity.is_some());
+        let methods: Vec<_> = collection_rows(&fixture, 0)
+            .into_iter()
+            .filter(|row| row["kind"] == "request")
+            .map(|row| row["request"]["method"].as_str().unwrap().to_owned())
+            .collect();
+        assert_eq!(
+            methods,
+            [
+                "initialize",
+                "initialized",
+                "account/read",
+                "account/read",
+                "account/rateLimits/read",
+                "account/usage/read",
+                "account/read"
+            ]
+        );
+        gone(fixture.child(0));
+        fixture.runtime_removed(0);
+    }
+
+    #[test]
+    fn startup_snapshot_exception_rejects_changes_malformed_frames_and_later_notices() {
+        for mode in [
+            "startup_deferred_changed",
+            "startup_wrong_plan",
+            "startup_wrong_auth",
+            "startup_duplicate",
+            "startup_missing_routing",
+            "startup_late",
+            "startup_invalid_timestamp",
+            "startup_unknown_field",
+        ] {
+            let fixture = collection_fixture(mode);
+            let supervisor = Supervisor::new();
+            let error = supervisor
+                .start_collection_diagnostic(&fixture.executable, &fixture.homes[0])
+                .unwrap()
+                .wait()
+                .expect_err("The invalidated collection must not return measurements.");
+            let expected = if matches!(mode, "startup_invalid_timestamp" | "startup_unknown_field")
+            {
+                ProtocolError::InvalidMessage
+            } else {
+                ProtocolError::AccountChanged
+            };
+            assert_eq!(
+                error,
+                SupervisorError::Session(SessionError::Protocol(expected)),
+                "{mode}"
+            );
+            assert!(
+                !collection_rows(&fixture, 0)
+                    .iter()
+                    .any(|row| row["kind"] == "request"
+                        && row["request"]["method"] == "account/usage/read")
+            );
+            gone(fixture.child(0));
+            fixture.runtime_removed(0);
+        }
+    }
+
+    #[test]
     fn synthetic_collection_unsupported_capabilities_are_isolated_and_still_account_checked() {
         for (mode, quota, activity) in [
             ("quota_unsupported", false, true),

@@ -13,6 +13,7 @@ log = home / 'synthetic-collection-observations.jsonl'
 allowed = {'HOME', 'CODEX_HOME', 'XDG_CONFIG_HOME', 'XDG_DATA_HOME', 'XDG_CACHE_HOME', 'XDG_STATE_HOME', 'XDG_RUNTIME_DIR', 'TMPDIR', 'PATH', 'LANG', 'LC_CTYPE'}
 assert not set(os.environ) - allowed
 modes = {'success', 'quota_unsupported', 'activity_unsupported', 'both_unsupported', 'quota_invalid', 'activity_invalid', 'quota_rpc_error', 'activity_rpc_error', 'unknown', 'signed_out', 'no_auth_required', 'unsupported_auth', 'changed_email', 'changed_plan', 'changed_auth', 'account_notice', 'quota_hang', 'activity_hang', 'post_hold', 'cleanup_fault', 'stable_changed_identity', 'login_pending', 'login_failed'}
+modes |= {'startup_snapshot', 'startup_deferred', 'startup_deferred_changed', 'startup_wrong_plan', 'startup_wrong_auth', 'startup_duplicate', 'startup_missing_routing', 'startup_late', 'startup_invalid_timestamp', 'startup_unknown_field'}
 
 
 def observe(kind, **fields):
@@ -63,6 +64,8 @@ def send(value):
 
 def account(request_id, final=False):
     value = {'account': {'type': 'chatgpt', 'email': 'synthetic-collection@example.invalid', 'planType': 'plus'}, 'requiresOpenaiAuth': True}
+    if selected.startswith('startup_') and selected != 'startup_missing_routing':
+        value['workspaceRouting'] = {'chatgptAccountId': 'synthetic-routing-account', 'backendOrigin': 'https://chatgpt.com', 'accountRoutingOverride': 'NO_CONSTRAINT'}
     if selected == 'unknown':
         value['account']['email'] = None
     if selected in ('signed_out', 'no_auth_required'):
@@ -73,7 +76,7 @@ def account(request_id, final=False):
         value['account'] = {'type': 'apiKey'}
     if selected == 'stable_changed_identity':
         value['account']['email'] = 'changed@example.invalid'
-    if final and selected == 'changed_email':
+    if (final and selected == 'changed_email') or (request_id == 6 and selected == 'startup_deferred_changed'):
         value['account']['email'] = 'changed@example.invalid'
     if final and selected == 'changed_plan':
         value['account']['planType'] = 'pro'
@@ -128,8 +131,27 @@ if request.get('method') == 'account/login/start':
     time.sleep(60)
     sys.exit(0)
 assert request == {'id': 2, 'method': 'account/read', 'params': {'refreshToken': False}}
+startup = {'emittedAtMs': 1792573000123, 'method': 'account/updated', 'params': {'authMode': 'chatgpt', 'planType': 'plus'}}
+if selected.startswith('startup_') and selected not in ('startup_deferred', 'startup_deferred_changed'):
+    if selected == 'startup_wrong_plan':
+        startup['params']['planType'] = 'pro'
+    if selected == 'startup_wrong_auth':
+        startup['params']['authMode'] = None
+    if selected == 'startup_invalid_timestamp':
+        startup['emittedAtMs'] = -1
+    if selected == 'startup_unknown_field':
+        startup['unexpected'] = True
+    send(startup)
+    if selected == 'startup_duplicate':
+        send(startup)
 account(2)
+if selected in ('startup_deferred', 'startup_deferred_changed'):
+    send(startup)
+    assert read_request() == {'id': 6, 'method': 'account/read', 'params': {'refreshToken': False}}
+    account(6)
 assert read_request() == {'id': 3, 'method': 'account/rateLimits/read', 'params': {}}
+if selected == 'startup_late':
+    send(startup)
 if selected == 'account_notice':
     send({'method': 'account/updated', 'params': {'authMode': 'chatgpt'}})
 capability(3, 'quota', {'rateLimitsByLimitId': {'codex': {'limitId': 'codex', 'primary': {'usedPercent': 25, 'windowDurationMins': 300, 'resetsAt': 1893456000}, 'secondary': None}}})

@@ -3,7 +3,7 @@
 .overview-profile-picker > label { color: var(--muted); font-size: var(--text-xs); }
 .overview-profile-picker [data-slot='select-trigger'] { min-width: 0; }
 .overview-panels { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
-.overview-panel { display: flex; flex-direction: column; min-width: 0; padding: 1.25rem; border: 1px solid var(--line); border-radius: .75rem; background: var(--surface); }
+.overview-panel { display: flex; flex-direction: column; min-width: 0; padding: 1.25rem; border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--surface); }
 .overview-panel-heading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .375rem 1rem; margin-bottom: 1rem; }
 .overview-panel-heading h2 { margin: 0; font-size: var(--text-section); font-weight: 600; }
 .overview-panel-heading > span { overflow-wrap: anywhere; }
@@ -27,7 +27,7 @@
 .overview-meter-heading strong { font-size: var(--text-sm); font-weight: 600; }
 .overview-quota-window [data-slot='meter-track'] { height: .5rem; border-radius: .25rem; }
 .overview-quota-window [data-slot='meter-indicator'] { border-radius: inherit; background: var(--accent); }
-.overview-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; margin: 1rem 0 0; border: 1px solid var(--line); border-radius: .75rem; background: var(--surface); padding: 1rem 0; }
+.overview-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; margin: 1rem 0 0; border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--surface); padding: 1rem 0; }
 .overview-summary > div { min-width: 0; padding-inline: 1.25rem; }
 .overview-summary > div + div { border-left: 1px solid var(--line); }
 .overview-summary dt { color: var(--muted); font-size: var(--text-xs); }
@@ -43,7 +43,7 @@
 .overview-quota-chart figcaption { display: grid; gap: .375rem; color: var(--muted); font-size: var(--text-xs); }
 .overview-quota-chart figcaption strong { color: var(--text); font-size: var(--text-sm); font-weight: 500; }
 .overview-provenance { margin: 0 0 .75rem; }
-.overview-accounts { margin-top: 1rem; padding: 1.25rem; border: 1px solid var(--line); border-radius: .75rem; background: var(--surface); min-width: 0; }
+.overview-accounts { margin-top: 1rem; padding: 1.25rem; border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--surface); min-width: 0; }
 .overview-accounts-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem; margin-bottom: .875rem; }
 .overview-accounts-heading h2 { margin: 0; font-size: var(--text-section); font-weight: 600; }
 .overview-table-scroll { overflow-x: auto; }

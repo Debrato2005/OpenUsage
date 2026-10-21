@@ -10,24 +10,24 @@ Privacy stays accessible in narrow windows. Native controls retain keyboard beha
 
 Restore preview compares the current checkpoint with incoming backup counts. The first native capture showed broken column headings at 200% text size. An em-based container query now presents each record category with two labeled values when space is limited. Explicit table roles retain the comparison structure. Five native captures cover desktop, both narrow themes, errors, and enlarged text. Native DOM and keyboard checks passed; screen-reader acceptance remains open. See `../evidence/native-restore-preview/`.
 
-The layout uses one page scroll area, a 204-pixel sidebar, and a 1,400-pixel content limit. At smaller widths, navigation becomes a compact header and summary cells stack. Content wraps instead of concealing overflow. The controls have a minimum height of 44 CSS pixels.
+The layout uses one page scroll area, a 204-pixel sidebar, and a 1,400-pixel content limit. At smaller widths, navigation becomes a compact header and summary cells stack. Content wraps instead of concealing overflow. Primary buttons and text fields have a minimum height of 48 CSS pixels. Navigation retains the same minimum height; compact secondary controls remain at least 44 CSS pixels.
 
 ## Typography and tokens
 
-DM Sans serves interface text and exact values, following the user's latest font choice. It replaces Geist Sans and JetBrains Mono. The supplied reference guides the sidebar, paired overview panels, summary strip, and account table. Missing readings remain explicit. The layout and text sizes stay unchanged.
+DM Sans serves interface text and exact values, following the user's latest font choice. It replaces Geist Sans and JetBrains Mono. The supplied reference guides the sidebar, paired overview panels, summary strip, and account table. Missing readings remain explicit. The October 21 readability update enlarges shared text and controls, following the user's request for a larger, softer interface. It changes the existing tokens without adding panels, animation, or dependencies.
 
 | Role | Family | Size | Weight | Line height |
 |---|---|---|---|---|
-| Metadata | DM Sans | 12 px | 400 | 1.5 |
-| Supporting text | DM Sans | 13 px | 400–500 | 1.5–1.55 |
-| Body and controls | DM Sans | 14 px | 400–500 | 1.5 |
-| Section headings | DM Sans | 17 px | 600 | 1.3 |
-| Page title | DM Sans | 28 px | 500 | 1.3 |
+| Metadata | DM Sans | 13 px | 400 | 1.5 |
+| Supporting text | DM Sans | 14 px | 400–500 | 1.5–1.55 |
+| Body and controls | DM Sans | 16 px | 400–500 | 1.5 |
+| Section headings | DM Sans | 18 px | 600 | 1.3 |
+| Page title | DM Sans | 30 px | 500 | 1.3 |
 | Exact overview total | DM Sans | 32 px | 600 | 1.25 |
 
-Sizes use `rem` units. Numeric roles use tabular digits, no ligatures, and zero letter spacing. Dates also use tabular digits. OpenUsage bundles and preloads the variable font. `font-display: swap` keeps text available during loading. Synthetic font weights `rem`ain disabled. The app makes no font request to a `rem`ote server.
+Sizes use `rem` units. Numeric roles use tabular digits, no ligatures, and zero letter spacing. Dates also use tabular digits. OpenUsage bundles and preloads the variable font. `font-display: swap` keeps text available during loading. Synthetic font weights remain disabled. The app makes no font request to a remote server.
 
-[Vercel typography guidance](https://vercel.com/geist/typography) informed the 14-pixel interface and 13-pixel supporting-text roles. Taste informed the restrained weights and spacing. The user's desktop requirements control the layout.
+[Vercel typography guidance](https://vercel.com/geist/typography) informed the original type hierarchy. The current sizes prioritize the user's readability feedback. Taste informed the restrained weights and spacing. The user's desktop requirements control the layout.
 
 CSS tokens define typography, spacing, surfaces, borders, radii, focus, errors, and interaction states. Spacing follows a 4-pixel base. Light and dark themes use neutral surfaces. Green identifies an open encrypted workspace. It does not decorate unrelated panels. Panels use borders without shadows.
 
@@ -131,3 +131,5 @@ Native review exposed the original Cancel document-order fault and competing sav
 ## Monitoring controls
 
 Start and Pause stay under Manage profile. One workspace status poll updates all controls. A committed reading revision refreshes saved values without moving focus. Pause remains available during a scheduled read or a status-load failure. Restart shows saved readings with disabled Start and sign-in guidance. Eight reviewed native captures cover normal and enlarged text, both themes, keyboard Pause, and retained focus. See `../evidence/native-runtime-monitoring/`.
+
+The October 21 native check measured 16-pixel body/button text, 48-pixel primary controls, 10-pixel control corners, and 16-pixel panel corners. The Accounts view reflowed at 360 pixels without page overflow. Both native themes were inspected. See [the startup and readability evidence](../evidence/native-startup-snapshot/). Overview simplification and full accessibility acceptance remain open.

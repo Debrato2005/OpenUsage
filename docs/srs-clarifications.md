@@ -47,3 +47,9 @@ Technical review remains available in Settings for troubleshooting. Test fixture
 Status: confirmed implementation restriction, October 21, 2026. No normative requirement changed or waived.
 
 OU-ACCT-005 requires browser login. OU-AUTH-007 restricts authentication operations to the selected profile. The pinned provider can cancel another listener on its fixed callback port. A probe reproduced that behavior against owned listeners. No supported app-server port override was found. A precheck leaves a race and does not establish isolation. The browser draft stays outside the working build while this conflict remains unresolved. Official device-code login remains available. See [the source review and executed result](reviews/2026-10-21-official-authentication.md).
+
+## SC-006: initial account snapshot before measurements
+
+Status: source-backed implementation correction, October 21, 2026. No normative requirement changed.
+
+The pinned official provider sends an initial routing snapshot through `account/updated`. It is not by itself evidence of an account switch. Rust accepts one validated matching snapshot before the measurement baseline, supported by a full account response and routing context. A deferred snapshot requires another full account check before measurement requests. The snapshot never establishes identity, freshness, or reset evidence. Mismatches, duplicate snapshots, malformed envelopes, and all later account-update notifications still invalidate the collection. Message and read deadlines remain bounded. See [the source and executed evidence](evidence/native-startup-snapshot/).

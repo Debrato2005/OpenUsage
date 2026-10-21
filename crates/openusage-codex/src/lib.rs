@@ -309,6 +309,26 @@ struct AccountResponse {
     requires_openai_auth: bool,
 }
 
+// Read only the presence of the pinned provider's routing context. Its account
+// identifier and origin never become an identity assertion or a network target.
+pub(crate) fn has_workspace_routing(bytes: &[u8], id: u32) -> Result<bool, ProtocolError> {
+    #[derive(Deserialize)]
+    struct Routing {
+        #[serde(rename = "chatgptAccountId")]
+        _account: String,
+        #[serde(rename = "backendOrigin")]
+        _origin: String,
+        #[serde(rename = "accountRoutingOverride")]
+        _routing: String,
+    }
+    #[derive(Deserialize)]
+    struct Context {
+        #[serde(rename = "workspaceRouting")]
+        routing: Option<Routing>,
+    }
+    Ok(decode::<Context>(bytes, id)?.routing.is_some())
+}
+
 #[derive(Deserialize)]
 #[serde(tag = "type")]
 enum AccountWire {

@@ -85,7 +85,7 @@ fn reviewed_source(digest: &[u8; 32]) -> SourceProof {
             | "25476e3759cbdc1cc74bcd9e46f4a01d1d85ea8ccc34425ddb45a38df27b9859"
             | "ffceb4436e3ddbaf93548e36aa057232fc62bbda7138e00f90f250480d17e25c"
             | "91e780f49518a25ffa75963b2856f5951c5fe6f4d1e1c9040b41a4231d0750ae"
-            | "afaeb19874b3b08b6439a9d5d82a6d2f873517697598bf695a2f92254a7f6bba"
+            | "a21d53d66269e8c25c2f12ce5c37ed3abfef4d63aa003288cf2f7763fc146241"
     ) {
         return SourceProof {
             kind: ExecutableSourceKind::TestFixture,

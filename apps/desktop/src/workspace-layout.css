@@ -1,5 +1,5 @@
 /* Compact desktop shell. Controls retain the shared coss focus and state styles. */
-:root { --bg: #fafbfc; --sidebar: #f3f5f7; --line: #e1e5ea; --text-title: 1.75rem; }
+:root { --bg: #fafbfc; --sidebar: #f3f5f7; --line: #e1e5ea; }
 :root[data-theme='dark'] { --bg: #111315; --sidebar: #171a1e; --line: #343b43; }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']):not([data-theme='dark']) { --bg: #111315; --sidebar: #171a1e; --line: #343b43; }
@@ -11,7 +11,7 @@
 .brand-mark { border: none; width: 26px; height: 26px; }
 .brand-mark svg { width: 26px; height: 26px; }
 .sidebar nav { display: grid; gap: 6px; margin-top: 28px; }
-.sidebar nav a { gap: 12px; min-height: 44px; padding: 10px 12px; color: var(--muted); font-size: var(--text-body); font-weight: 400; }
+.sidebar nav a { gap: 12px; min-height: 48px; padding: 12px; color: var(--muted); font-size: var(--text-body); font-weight: 400; }
 .sidebar nav a:hover { background: var(--hover); }
 .sidebar nav a[aria-current='page'] { color: var(--text); font-weight: 500; background: var(--selected); }
 .nav-icon { width: 20px; height: 20px; flex: 0 0 20px; }
@@ -41,7 +41,7 @@
   .sidebar { position: static; height: auto; display: block; padding: 12px 16px; border-right: 0; border-bottom: 1px solid var(--line); }
   .brand { min-height: 36px; }
   .sidebar nav { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; margin-top: 12px; }
-  .sidebar nav a { justify-content: center; flex-wrap: wrap; gap: 6px; padding: 10px 6px; font-size: .75rem; }
+  .sidebar nav a { justify-content: center; flex-wrap: wrap; gap: 6px; padding: 10px 6px; font-size: var(--text-sm); }
   .sidebar nav .nav-icon { width: 16px; height: 16px; flex-basis: 16px; }
   .sidebar-note { padding: 4px 0 0; }
   .sidebar-note .text-button { min-height: 32px; padding: 4px 8px; }
@@ -65,7 +65,7 @@
 .onboarding-header .theme-control { flex-wrap: wrap; gap: 8px; }
 .onboarding-shell .workspace > main { width: 100%; max-width: 544px; padding: 0 32px 32px; margin: clamp(40px, 12vh, 120px) auto 0; }
 .onboarding-shell .startup-panel { padding: 32px; box-shadow: none; }
-.onboarding-shell #startup-heading { font-size: 1.75rem; font-weight: 600; letter-spacing: -.025em; line-height: 1.2; }
+.onboarding-shell #startup-heading { font-size: var(--text-title); font-weight: 600; letter-spacing: -.025em; line-height: 1.2; }
 .onboarding-shell .startup-content > p { margin-top: 12px; }
 .onboarding-shell .unlock-form { margin-top: 24px; }
 .onboarding-shell .unlock-form > p { margin: 0; font-size: var(--text-sm); }

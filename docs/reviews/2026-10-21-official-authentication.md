@@ -1,6 +1,6 @@
 # Official authentication decision
 
-Reviewed October 21, 2026. Keep the local, open-source Codex-managed authentication baseline. Real authorized usage remains unverified. This review grants no account-enforcement guarantee.
+Reviewed October 21, 2026. Keep the local, open-source Codex-managed authentication baseline. One real authorized account now passes official login and quota/activity reads in the native app. Full authentication acceptance remains incomplete. This review grants no account-enforcement guarantee.
 
 ## Supported baseline
 
@@ -32,6 +32,8 @@ Do not ship the browser draft with only a port precheck. That leaves a race and 
 
 ## Remaining real-account gate
 
-The post-code failure investigation found a concrete protocol mismatch: the pinned provider's [outgoing notification serializer](https://github.com/openai/codex/blob/83086188ae0614bd882818ff1aa23f3194962012/codex-rs/app-server/src/outgoing_message.rs#L904) adds `emittedAtMs`. OpenUsage rejected that envelope. The correction explicitly accepts an optional unsigned timestamp while retaining strict fields and selected-attempt matching. The RED/GREEN regression, official anonymous notification shape, production challenge/cancellation, and synthetic two-account native journeys passed. See [the bounded evidence](../evidence/native-account-signin/). A successful real user login remains unverified.
+October 21 follow-up: the user completed official login. The next real collection exposed the provider's initial routing snapshot, which OpenUsage incorrectly rejected before reading any measurements. The corrected startup barrier preserves later account-change rejection. A Rust-owned collection and the native app then accepted real quota and activity using saved authorization. The user confirmed the readings. See [the source-backed correction](../evidence/native-startup-snapshot/). Real native cache restart and a second real account remain pending.
 
-Complete official sign-in, initial supported reads, encrypted persistence, restart, refresh, and second-account isolation. Then check renewal, cancellation, and revocation with authorized sessions. Never retain passwords, challenges, tokens, or raw authentication responses as evidence. Browser isolation, protected provider storage, and sign-out remain open. SQLCipher 4/WAL and the normative SRS are unchanged.
+The post-code failure investigation found a concrete protocol mismatch: the pinned provider's [outgoing notification serializer](https://github.com/openai/codex/blob/83086188ae0614bd882818ff1aa23f3194962012/codex-rs/app-server/src/outgoing_message.rs#L904) adds `emittedAtMs`. OpenUsage rejected that envelope. The correction explicitly accepts an optional unsigned timestamp while retaining strict fields and selected-attempt matching. The RED/GREEN regression, official anonymous notification shape, production challenge/cancellation, and synthetic two-account native journeys passed. See [the bounded evidence](../evidence/native-account-signin/). That earlier slice did not establish real OAuth; the follow-up above records the successful real-account check.
+
+Complete real native cache restart, safe refresh after restart, and second-account isolation. Then check renewal, cancellation, and revocation with authorized sessions. Never retain passwords, challenges, tokens, or raw authentication responses as evidence. Browser isolation, protected provider storage, and sign-out remain open. SQLCipher 4/WAL and the normative SRS are unchanged.

@@ -14,7 +14,7 @@ assert.ok(process.env.OPENUSAGE_NATIVE_BINARY && process.env.OPENUSAGE_LOGIN_VER
 const application = resolve(process.env.OPENUSAGE_NATIVE_BINARY), verifier = resolve(process.env.OPENUSAGE_LOGIN_VERIFIER);
 const output = resolve(process.env.OPENUSAGE_NATIVE_EVIDENCE ?? join('/tmp', `openusage-monitoring-${randomUUID()}`));
 const providerPath = 'crates/openusage-codex/tests/fixtures/synthetic-collection-provider.py';
-const providerSha = 'afaeb19874b3b08b6439a9d5d82a6d2f873517697598bf695a2f92254a7f6bba';
+const providerSha = 'a21d53d66269e8c25c2f12ce5c37ed3abfef4d63aa003288cf2f7763fc146241';
 const oracleSha = 'd4dcc3c1bce797976546b110a340f7a46aa922fded0fd2ba14459d1f54b3a1fb';
 const passphrase = 'OpenUsage synthetic native monitoring workspace 2026';
 const hash = async path => createHash('sha256').update(await readFile(path)).digest('hex');

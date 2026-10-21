@@ -800,16 +800,7 @@ pub(crate) mod unix {
             start_initialized(executable, sandbox, control, timeouts, before_start)?;
         let process_id = process.id()?;
         let result = (|| {
-            process.send(&Request::account_read(2).to_line()?)?;
-            let before = parse_account(
-                &process.response_routed(
-                    2,
-                    Instant::now() + timeouts.read,
-                    true,
-                    account_bound_notification,
-                )?,
-                2,
-            )?;
+            let before = initial_account(&mut process, timeouts.read)?;
             if before.authentication == crate::AccountAuth::AuthenticationRequired
                 && before.requires_openai_auth
             {
@@ -844,13 +835,7 @@ pub(crate) mod unix {
                 )?,
                 4,
             )?;
-            // Descriptive equality detects changes; it never establishes a stable identity key.
-            if before.authentication != after.authentication
-                || before.identity != after.identity
-                || before.requires_openai_auth != after.requires_openai_auth
-                || before.email != after.email
-                || before.plan != after.plan
-            {
+            if !same_account_description(&before, &after) {
                 return Err(ProtocolError::AccountChanged.into());
             }
             Ok(QuotaProbe {
@@ -881,16 +866,7 @@ pub(crate) mod unix {
             start_initialized(executable, sandbox, control, timeouts, before_start)?;
         let process_id = process.id()?;
         let result = (|| {
-            process.send(&Request::account_read(2).to_line()?)?;
-            let before = parse_account(
-                &process.response_routed(
-                    2,
-                    Instant::now() + timeouts.read,
-                    true,
-                    account_bound_notification,
-                )?,
-                2,
-            )?;
+            let before = initial_account(&mut process, timeouts.read)?;
             if before.authentication == crate::AccountAuth::AuthenticationRequired
                 && before.requires_openai_auth
             {
@@ -925,13 +901,7 @@ pub(crate) mod unix {
                 )?,
                 4,
             )?;
-            // Descriptive equality detects changes; it never establishes a stable identity key.
-            if before.authentication != after.authentication
-                || before.identity != after.identity
-                || before.requires_openai_auth != after.requires_openai_auth
-                || before.email != after.email
-                || before.plan != after.plan
-            {
+            if !same_account_description(&before, &after) {
                 return Err(ProtocolError::AccountChanged.into());
             }
             Ok(ActivityProbe {
@@ -976,16 +946,7 @@ pub(crate) mod unix {
             start_initialized(executable, sandbox, control, timeouts, before_start)?;
         let process_id = process.id()?;
         let result = (|| {
-            process.send(&Request::account_read(2).to_line()?)?;
-            let before = parse_account(
-                &process.response_routed(
-                    2,
-                    Instant::now() + timeouts.read,
-                    true,
-                    account_bound_notification,
-                )?,
-                2,
-            )?;
+            let before = initial_account(&mut process, timeouts.read)?;
             if before.authentication == crate::AccountAuth::AuthenticationRequired
                 && before.requires_openai_auth
             {
@@ -1028,13 +989,7 @@ pub(crate) mod unix {
                 )?,
                 5,
             )?;
-            // Descriptive equality detects changes; it never establishes a stable identity key.
-            if before.authentication != after.authentication
-                || before.identity != after.identity
-                || before.requires_openai_auth != after.requires_openai_auth
-                || before.email != after.email
-                || before.plan != after.plan
-            {
+            if !same_account_description(&before, &after) {
                 return Err(ProtocolError::AccountChanged.into());
             }
             Ok(CollectionProbe {
@@ -1050,6 +1005,115 @@ pub(crate) mod unix {
         })();
         process.stop()?;
         result
+    }
+
+    // Descriptive equality detects changes; it never establishes a stable identity key.
+    fn same_account_description(before: &AccountSnapshot, after: &AccountSnapshot) -> bool {
+        before.authentication == after.authentication
+            && before.identity == after.identity
+            && before.requires_openai_auth == after.requires_openai_auth
+            && before.email == after.email
+            && before.plan == after.plan
+    }
+
+    fn initial_account(
+        process: &mut OwnedProcess,
+        timeout: Duration,
+    ) -> Result<AccountSnapshot, SessionError> {
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct StartupNotice {
+            method: String,
+            params: StartupState,
+            #[serde(default, rename = "emittedAtMs")]
+            _emitted_at_ms: Option<u64>,
+        }
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase", deny_unknown_fields)]
+        struct StartupState {
+            auth_mode: Option<String>,
+            plan_type: Option<String>,
+        }
+        fn observe(
+            bytes: Zeroizing<Vec<u8>>,
+            startup: &mut Option<StartupNotice>,
+        ) -> Result<(), SessionError> {
+            #[derive(Deserialize)]
+            struct Method {
+                method: String,
+                id: Option<u32>,
+            }
+            let route: Method =
+                serde_json::from_slice(&bytes).map_err(|_| ProtocolError::InvalidMessage)?;
+            if route.id.is_some() {
+                return Err(ProtocolError::MismatchedRequest.into());
+            }
+            if route.method == "account/updated" {
+                if startup.is_some() {
+                    return Err(ProtocolError::AccountChanged.into());
+                }
+                *startup = Some(
+                    serde_json::from_slice(&bytes).map_err(|_| ProtocolError::InvalidMessage)?,
+                );
+                Ok(())
+            } else {
+                account_bound_notification(bytes)
+            }
+        }
+        let mut startup: Option<StartupNotice> = None;
+        let deadline = Instant::now() + timeout;
+        process.send(&Request::account_read(2).to_line()?)?;
+        let bytes =
+            process.response_routed(2, deadline, true, |bytes| observe(bytes, &mut startup))?;
+        let mut account = parse_account(&bytes, 2)?;
+        let routing = crate::has_workspace_routing(&bytes, 2)?;
+        if routing && startup.is_none() {
+            // The connection snapshot and first response can arrive in either
+            // order. Finish startup before requesting either measurement.
+            let mut received = 0;
+            for _ in 0..MAX_NOTIFICATIONS {
+                let bytes = process.line_with_cancel(deadline, true)?;
+                received += bytes.len();
+                if received > MAX_RESPONSE_BYTES {
+                    return Err(SessionError::NotificationLimit);
+                }
+                observe(bytes, &mut startup)?;
+                if startup.is_some() {
+                    break;
+                }
+            }
+            if startup.is_none() {
+                return Err(SessionError::NotificationLimit);
+            }
+            process.send(&Request::account_read(6).to_line()?)?;
+            let fresh = process.response_routed(
+                6,
+                Instant::now() + timeout,
+                true,
+                account_bound_notification,
+            )?;
+            let current = parse_account(&fresh, 6)?;
+            if !same_account_description(&account, &current)
+                || !crate::has_workspace_routing(&fresh, 6)?
+            {
+                return Err(ProtocolError::AccountChanged.into());
+            }
+            account = current;
+        }
+        if let Some(notice) = startup {
+            // A matching routing snapshot precedes the measurement baseline.
+            // Later notices invalidate the whole read, even when fields match.
+            if notice.method != "account/updated"
+                || !routing
+                || notice.params.auth_mode.as_deref() != Some("chatgpt")
+                || account.authentication != crate::AccountAuth::Chatgpt
+                || !account.requires_openai_auth
+                || notice.params.plan_type != account.plan
+            {
+                return Err(ProtocolError::AccountChanged.into());
+            }
+        }
+        Ok(account)
     }
 
     fn account_bound_notification(bytes: Zeroizing<Vec<u8>>) -> Result<(), SessionError> {

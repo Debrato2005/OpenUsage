@@ -13,7 +13,7 @@ assert.ok(process.env.OPENUSAGE_NATIVE_BINARY, 'Select an explicit frozen native
 const application = resolve(process.env.OPENUSAGE_NATIVE_BINARY);
 const output = resolve(process.env.OPENUSAGE_NATIVE_EVIDENCE ?? join('/tmp', `openusage-first-account-read-${randomUUID()}`));
 const providerPath = 'crates/openusage-codex/tests/fixtures/synthetic-collection-provider.py';
-const providerSha = 'afaeb19874b3b08b6439a9d5d82a6d2f873517697598bf695a2f92254a7f6bba';
+const providerSha = 'a21d53d66269e8c25c2f12ce5c37ed3abfef4d63aa003288cf2f7763fc146241';
 const passphrase = 'OpenUsage synthetic initial account reading 2026';
 const hash = async path => createHash('sha256').update(await readFile(path)).digest('hex');
 const evidence = {
@@ -127,7 +127,7 @@ async function addAccount(label) {
   assert.equal(metadata.isDirectory(), true); assert.equal(metadata.isSymbolicLink(), false); assert.equal(metadata.mode & 0o777, 0o700);
   assert.deepEqual(await cached(profile), { quota: null, activity: null });
   assert.deepEqual(await observations(profile), []);
-  await writeFile(join(home(profile), 'synthetic-collection-config.json'), JSON.stringify({ mode: 'success', requireLogin: true }) + '\n', { mode: 0o600 });
+  await writeFile(join(home(profile), 'synthetic-collection-config.json'), JSON.stringify({ mode: 'startup_snapshot', requireLogin: true }) + '\n', { mode: 0o600 });
   await waitFor(() => driver.execute('const button=document.querySelector(arguments[0]);return Boolean(button&&!button.disabled&&button.getClientRects().length);', [`[data-login-start="${profile.id}"]`]), 'new account visible Sign in action');
   await driver.click(`[data-login-start="${profile.id}"]`);
   await waitFor(async () => { const value = await cached(profile); return Boolean(value.quota && value.activity); }, `automatic initial paired COMMIT for ${label}`, 45000);
@@ -149,7 +149,7 @@ async function addAccount(label) {
   const runtimeHome = (await readFile(join(home(profile), 'synthetic-runtime-home'), 'utf8')).trim();
   assert.ok(runtimeHome.startsWith(`${home(profile)}/openusage-provider-`), 'Provider runtime HOME remains inside this exact fresh managed profile.');
   evidence.profiles.push({ id: profile.id, label, managedHome: home(profile), runtimeHome, starts, methods: methodSets, syntheticChallengeCount: 1, saved });
-  evidence.steps.push({ profileId: profile.id, primaryAdd: true, explicitPerAccountSignIn: true, automaticCombinedRead: true, refreshClicked: false, savedViewsVisible: true });
+  evidence.steps.push({ profileId: profile.id, primaryAdd: true, explicitPerAccountSignIn: true, startupAccountSnapshot: true, automaticCombinedRead: true, refreshClicked: false, savedViewsVisible: true });
   return { profile, saved, observations: rows };
 }
 async function savedGui(profile) {
@@ -245,7 +245,7 @@ try {
   const secondBeforeReconnect = await cached(second.profile);
   const secondLogBeforeReconnect = await observations(second.profile);
   await approveFixture(profilesBeforeReconnect); // Explicit synthetic test provisioning, not a production setup step.
-  await writeFile(join(home(second.profile), 'synthetic-collection-config.json'), JSON.stringify({ mode: 'success', requireLogin: true }) + '\n', { mode: 0o600 });
+  await writeFile(join(home(second.profile), 'synthetic-collection-config.json'), JSON.stringify({ mode: 'startup_deferred', requireLogin: true }) + '\n', { mode: 0o600 });
   await driver.navigate('accounts');
   await waitFor(() => driver.execute('const button=document.querySelector(arguments[0]);return Boolean(button&&!button.disabled&&button.getClientRects().length);', [`[data-profile-connect="${second.profile.id}"]`]), 'selected account row Refresh after test fixture reapproval');
   await driver.click(`[data-profile-connect="${second.profile.id}"]`);
@@ -259,7 +259,7 @@ try {
   let additional = (await observations(second.profile)).slice(secondLogBeforeReconnect.length);
   const reconnectStarts = additional.filter(row => row.kind === 'start' && row.arguments[0] === 'app-server');
   assert.equal(reconnectStarts.length, 1);
-  assert.deepEqual(additional.filter(row => row.kind === 'request').map(row => row.request.method), ['initialize', 'initialized', 'account/read', 'account/rateLimits/read', 'account/usage/read', 'account/read']);
+  assert.deepEqual(additional.filter(row => row.kind === 'request').map(row => row.request.method), ['initialize', 'initialized', 'account/read', 'account/read', 'account/rateLimits/read', 'account/usage/read', 'account/read']);
   assert.equal(additional.some(row => row.kind.startsWith('login-')), false, 'Existing authorized managed home must not start a new login.');
   await reaped(reconnectStarts[0]);
   let afterReconnectMonitoring = await call('load_monitoring');
@@ -292,6 +292,18 @@ try {
     if (await driver.execute('return document.querySelector(arguments[0]).getAttribute("aria-expanded")==="true";', [selector])) await driver.click(selector);
   }
   await capture('account-rows-dark-desktop.png', '.accounts-section');
+  evidence.readability = await driver.execute('const button=document.querySelector("[data-login-start]"),style=getComputedStyle(button);return {bodyFont:getComputedStyle(document.body).fontSize,buttonFont:style.fontSize,buttonHeight:button.getBoundingClientRect().height,buttonRadius:style.borderRadius,panelRadius:getComputedStyle(document.querySelector(".profile-list")).borderRadius};');
+  await driver.setAppearance('light');
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const size = await driver.execute('return {width:innerWidth,height:innerHeight};');
+    if (size.width === 360 && size.height === 800) break;
+    const rect = await driver.request('GET', `/session/${driver.session}/window/rect`);
+    await driver.request('POST', `/session/${driver.session}/window/rect`, { width: rect.width + 360 - size.width, height: rect.height + 800 - size.height });
+  }
+  evidence.readability.narrow = await driver.execute('return {width:innerWidth,scrollWidth:document.documentElement.scrollWidth};');
+  assert.equal(evidence.readability.narrow.width, 360);
+  assert.ok(evidence.readability.narrow.scrollWidth <= 361, 'Larger controls must reflow without page overflow.');
+  await capture('account-rows-light-360.png', '.accounts-section');
   evidence.reconnect = { explicitTestFixtureReapproval: true, selectedProfile: second.profile.id, sameProfilesAndBinding: true, successfulCombinedSessions: 1, signedOutSessions: 1, newLoginSessions: 0, previousReadingsRetainedOnFailure: true, otherAccountUnchanged: true, noMonitoringGrant: true, reportedConnectionAfterAuthFailure: 'authentication_required' };
   evidence.observations = Object.fromEntries(await Promise.all(profiles.map(async profile => [profile.id, await observations(profile)])));
   evidence.restart = { genuineWindowClose: true, bothSavedPairsPreserved: true, savedNavigationWithoutProviderExecution: true, noAutomaticRead: true, bothOverviewRowsVisible: true, theme: 'dark', unchangedDatabaseWalKeyBeforeExplicitReconnect: themedHashes, runtimeMonitoringGrantsAbsent: true };
