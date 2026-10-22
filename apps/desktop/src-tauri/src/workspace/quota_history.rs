@@ -56,13 +56,7 @@ impl Workspace {
             .as_mut()
             .ok_or(CommandError::WorkspaceLocked)?
             .quota_history_export(profile_id, include_identifiers)
-            .map_err(|error| match error {
-                openusage_storage::ExportError::InvalidSelection => {
-                    CommandError::InvalidExportSelection
-                }
-                openusage_storage::ExportError::TooLarge => CommandError::ExportTooLarge,
-                openusage_storage::ExportError::ReadFailed => CommandError::ExportUnavailable,
-            })
+            .map_err(export_error)
     }
 
     pub fn load_profile_quota_history(

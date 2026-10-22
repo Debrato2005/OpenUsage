@@ -97,7 +97,7 @@ struct ExportReadingsArgs {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct ExportQuotaHistoryArgs {
+struct ExportHistoryArgs {
     profile_id: String,
     format: readings_export::ExportFormat,
     include_identifiers: bool,
@@ -573,25 +573,40 @@ async fn set_theme(
     run_workspace(app, Arc::clone(&service.0), Operation::SetTheme(theme)).await
 }
 
-#[tauri::command]
-async fn export_saved_readings(
-    request: tauri::ipc::Request<'_>,
+enum ExportSelection {
+    Latest(Vec<String>),
+    QuotaHistory(String),
+    ActivityHistory(String),
+}
+
+async fn save_readings_export(
     app: AppHandle,
-    service: State<'_, WorkspaceService>,
+    service: Arc<Mutex<Option<Workspace>>>,
+    selection: ExportSelection,
+    format: readings_export::ExportFormat,
+    include_identifiers: bool,
+    confirmed: bool,
 ) -> Result<readings_export::ExportReceipt, CommandError> {
-    let args: ExportReadingsArgs = arguments(&request)?;
-    if !args.confirmed {
+    if !confirmed {
         return Err(CommandError::InvalidArguments);
     }
-    let service = Arc::clone(&service.0);
     tauri::async_runtime::spawn_blocking(move || {
         let (snapshot, when) = {
             let mut state = service
                 .lock()
                 .map_err(|_| CommandError::ExportUnavailable)?;
             let workspace = state.as_mut().ok_or(CommandError::WorkspaceLocked)?;
-            let snapshot =
-                workspace.readings_export(&args.profile_ids, args.include_identifiers)?;
+            let snapshot = match selection {
+                ExportSelection::Latest(ids) => {
+                    workspace.readings_export(&ids, include_identifiers)?
+                }
+                ExportSelection::QuotaHistory(id) => {
+                    workspace.quota_history_export(&id, include_identifiers)?
+                }
+                ExportSelection::ActivityHistory(id) => {
+                    workspace.activity_history_export(&id, include_identifiers)?
+                }
+            };
             let when = restore::timestamp(std::time::SystemTime::now())
                 .ok_or(CommandError::ExportUnavailable)?;
             (snapshot, when)
@@ -601,16 +616,28 @@ async fn export_saved_readings(
             .download_dir()
             .map_err(|_| CommandError::ExportUnavailable)?
             .join("OpenUsage");
-        readings_export::create(
-            &directory,
-            snapshot,
-            args.format,
-            args.include_identifiers,
-            when,
-        )
+        readings_export::create(&directory, snapshot, format, include_identifiers, when)
     })
     .await
     .map_err(|_| CommandError::ExportUnavailable)?
+}
+
+#[tauri::command]
+async fn export_saved_readings(
+    request: tauri::ipc::Request<'_>,
+    app: AppHandle,
+    service: State<'_, WorkspaceService>,
+) -> Result<readings_export::ExportReceipt, CommandError> {
+    let args: ExportReadingsArgs = arguments(&request)?;
+    save_readings_export(
+        app,
+        Arc::clone(&service.0),
+        ExportSelection::Latest(args.profile_ids),
+        args.format,
+        args.include_identifiers,
+        args.confirmed,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -619,38 +646,34 @@ async fn export_quota_history(
     app: AppHandle,
     service: State<'_, WorkspaceService>,
 ) -> Result<readings_export::ExportReceipt, CommandError> {
-    let args: ExportQuotaHistoryArgs = arguments(&request)?;
-    if !args.confirmed {
-        return Err(CommandError::InvalidArguments);
-    }
-    let service = Arc::clone(&service.0);
-    tauri::async_runtime::spawn_blocking(move || {
-        let (snapshot, when) = {
-            let mut state = service
-                .lock()
-                .map_err(|_| CommandError::ExportUnavailable)?;
-            let workspace = state.as_mut().ok_or(CommandError::WorkspaceLocked)?;
-            let snapshot =
-                workspace.quota_history_export(&args.profile_id, args.include_identifiers)?;
-            let when = restore::timestamp(std::time::SystemTime::now())
-                .ok_or(CommandError::ExportUnavailable)?;
-            (snapshot, when)
-        };
-        let directory = app
-            .path()
-            .download_dir()
-            .map_err(|_| CommandError::ExportUnavailable)?
-            .join("OpenUsage");
-        readings_export::create(
-            &directory,
-            snapshot,
-            args.format,
-            args.include_identifiers,
-            when,
-        )
-    })
+    let args: ExportHistoryArgs = arguments(&request)?;
+    save_readings_export(
+        app,
+        Arc::clone(&service.0),
+        ExportSelection::QuotaHistory(args.profile_id),
+        args.format,
+        args.include_identifiers,
+        args.confirmed,
+    )
     .await
-    .map_err(|_| CommandError::ExportUnavailable)?
+}
+
+#[tauri::command]
+async fn export_activity_history(
+    request: tauri::ipc::Request<'_>,
+    app: AppHandle,
+    service: State<'_, WorkspaceService>,
+) -> Result<readings_export::ExportReceipt, CommandError> {
+    let args: ExportHistoryArgs = arguments(&request)?;
+    save_readings_export(
+        app,
+        Arc::clone(&service.0),
+        ExportSelection::ActivityHistory(args.profile_id),
+        args.format,
+        args.include_identifiers,
+        args.confirmed,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -1863,6 +1886,7 @@ fn main() {
             create_backup,
             export_saved_readings,
             export_quota_history,
+            export_activity_history,
             list_profiles,
             create_profile,
             rename_profile,
@@ -1942,7 +1966,7 @@ mod tests {
     use super::{
         ApplyRestoreArgs, ApproveProviderArgs, ArchiveProfileArgs, BackupArgs, BeginLoginArgs,
         BeginReadArgs, CancelRestorePreviewArgs, CheckpointPreviewArgs, CreateProfileArgs,
-        DisplayScaleArgs, ExportQuotaHistoryArgs, InspectBackupArgs, InspectProviderArgs,
+        DisplayScaleArgs, ExportHistoryArgs, InspectBackupArgs, InspectProviderArgs,
         ListProfilesArgs, LoginAttemptArgs, ProfileCheckArgs, ProfileHistoryArgs, ProfilePlanArgs,
         ProfileReadArgs, RenameProfileArgs, SetupArgs, ThemeArgs, UnlockArgs, is_bundled_url,
     };
@@ -1950,11 +1974,11 @@ mod tests {
     #[test]
     fn history_export_requires_explicit_typed_consent_and_no_caller_path_or_limit() {
         let valid = serde_json::json!({"profileId":"11111111-1111-4111-8111-111111111111", "format":"csv", "includeIdentifiers":false, "confirmed":true});
-        assert!(serde_json::from_value::<ExportQuotaHistoryArgs>(valid.clone()).is_ok());
+        assert!(serde_json::from_value::<ExportHistoryArgs>(valid.clone()).is_ok());
         for field in ["profileId", "format", "includeIdentifiers", "confirmed"] {
             let mut missing = valid.clone();
             missing.as_object_mut().unwrap().remove(field);
-            assert!(serde_json::from_value::<ExportQuotaHistoryArgs>(missing).is_err());
+            assert!(serde_json::from_value::<ExportHistoryArgs>(missing).is_err());
         }
         for (field, value) in [
             ("path", serde_json::json!("/external")),
@@ -1964,7 +1988,7 @@ mod tests {
         ] {
             let mut invalid = valid.clone();
             invalid[field] = value;
-            assert!(serde_json::from_value::<ExportQuotaHistoryArgs>(invalid).is_err());
+            assert!(serde_json::from_value::<ExportHistoryArgs>(invalid).is_err());
         }
     }
 

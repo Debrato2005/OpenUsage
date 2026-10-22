@@ -235,6 +235,14 @@ pub struct Workspace {
     monitoring: monitoring::RuntimeMonitoring,
 }
 
+fn export_error(error: openusage_storage::ExportError) -> CommandError {
+    match error {
+        openusage_storage::ExportError::InvalidSelection => CommandError::InvalidExportSelection,
+        openusage_storage::ExportError::TooLarge => CommandError::ExportTooLarge,
+        openusage_storage::ExportError::ReadFailed => CommandError::ExportUnavailable,
+    }
+}
+
 impl Workspace {
     #[cfg(test)]
     pub fn new(directory: PathBuf) -> Result<Self, CommandError> {
@@ -474,13 +482,7 @@ impl Workspace {
             .as_mut()
             .ok_or(CommandError::WorkspaceLocked)?
             .readings_export(profile_ids, include_identifiers)
-            .map_err(|error| match error {
-                openusage_storage::ExportError::InvalidSelection => {
-                    CommandError::InvalidExportSelection
-                }
-                openusage_storage::ExportError::TooLarge => CommandError::ExportTooLarge,
-                openusage_storage::ExportError::ReadFailed => CommandError::ExportUnavailable,
-            })
+            .map_err(export_error)
     }
 
     pub fn list_profiles(&self) -> Result<ProfileView, CommandError> {

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
+import { DataExport } from './data-export';
 import { Button } from './components/ui/button';
 import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from './components/ui/collapsible';
-import { invoke, type ActivityHistoryEntry, type ActivityHistoryPage } from './contracts';
+import { invoke, type ActivityHistoryEntry, type ActivityHistoryPage, type ProfileRecord } from './contracts';
 import './activity-history.css';
 
 const dates = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', timeZoneName: 'short' });
@@ -26,7 +27,9 @@ function Snapshot({ value }: { value: ActivityHistoryEntry }) {
   </Collapsible>;
 }
 
-export function ActivityHistory({ profileId, revision }: { profileId: string; revision: number }) {
+export function ActivityHistory({ profile, revision }: { profile: ProfileRecord; revision: number }) {
+  const profileId = profile.id;
+  const [exportBusy, setExportBusy] = useState(false);
   const scope = `${profileId}:${revision}`;
   const [disclosure, setDisclosure] = useState({ profileId, open: false });
   const open = disclosure.profileId === profileId && disclosure.open;
@@ -53,6 +56,7 @@ export function ActivityHistory({ profileId, revision }: { profileId: string; re
     <CollapsibleTrigger render={<Button variant="outline" />} data-activity-history-open aria-expanded={open}>{open ? 'Hide activity history' : 'View activity history'}</CollapsibleTrigger>
     <CollapsiblePanel>
       <div className="activity-history-heading"><h3>Activity history</h3><p>Saved account summaries, newest first. Snapshots are separate observations, not individual usage events.</p></div>
+      <DataExport profiles={[profile]} busy={exportBusy} setBusy={setExportBusy} activityHistory />
       {loading && <p className="activity-history-meta" role="status">Loading saved activity history…</p>}
       {current?.failed && <div className="activity-history-error" role="alert"><p>{cursor ? 'This activity history page could not be loaded.' : 'Saved activity history could not be loaded.'}</p><Button variant="outline" onClick={() => setAttempt(value => value + 1)}>Retry activity history</Button>{cursor && <Button variant="ghost" onClick={() => setNavigation({ scope, cursors: [null] })}>Back to latest readings</Button>}</div>}
       {page && <div className="activity-history-entries">{page.entries.length === 0 ? <p className="activity-history-meta">No accepted activity summaries are saved for this account.</p> : page.entries.map(value => <Snapshot key={value.collectionRunId} value={value} />)}</div>}

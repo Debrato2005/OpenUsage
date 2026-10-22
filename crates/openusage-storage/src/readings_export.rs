@@ -233,6 +233,117 @@ impl Storage {
         })
     }
 
+    /// Export immutable activity summaries and their retained daily observations.
+    /// Each observation keeps its own run and association; values are never summed.
+    /// Labels, run references, and all observations share one deferred WAL snapshot.
+    pub fn activity_history_export(
+        &mut self,
+        profile_id: &str,
+        include_identifiers: bool,
+    ) -> Result<ReadingsExport, ExportError> {
+        require_uuid(profile_id).map_err(|_| ExportError::InvalidSelection)?;
+        let tx = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Deferred)
+            .map_err(read_error)?;
+        let label = tx
+            .query_row(
+                "SELECT CASE WHEN ?2 THEN name ELSE NULL END FROM profiles WHERE id=?1",
+                rusqlite::params![profile_id, include_identifiers],
+                |row| row.get::<_, Option<String>>(0),
+            )
+            .optional()
+            .map_err(read_error)?
+            .ok_or(ExportError::InvalidSelection)?;
+        // Inspect both sides of retained links. A corrupt child must not disappear
+        // merely because its parent is outside the selected usage-run query.
+        let invalid:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM activity_summaries s LEFT JOIN collection_runs r ON r.id=s.collection_run_id WHERE s.profile_id=?1 AND (r.id IS NULL OR s.id!=r.id OR s.profile_id!=r.profile_id OR s.binding_id!=r.binding_id OR r.source_method!=?2 OR r.outcome!='accepted') UNION ALL SELECT 1 FROM activity_day_history d LEFT JOIN collection_runs r ON r.id=d.collection_run_id WHERE d.profile_id=?1 AND (r.id IS NULL OR d.profile_id!=r.profile_id OR d.binding_id!=r.binding_id OR r.source_method!=?2 OR r.outcome!='accepted') UNION ALL SELECT 1 FROM collection_runs r LEFT JOIN profile_identity_events e ON e.id=r.binding_id AND e.profile_id=r.profile_id WHERE r.profile_id=?1 AND r.source_method=?2 AND r.outcome='accepted' AND e.id IS NULL)",rusqlite::params![profile_id,crate::ACTIVITY_SOURCE_METHOD],|row|row.get(0)).map_err(read_error)?;
+        if invalid {
+            return Err(ExportError::ReadFailed);
+        }
+        let mut rows = Zeroizing::new(Vec::new());
+        {
+            let mut bindings = BTreeMap::new();
+            // Six mandatory summary rows make emit() reach its 50k limit before
+            // this defensive run lookahead can truncate a valid export.
+            let mut query=tx.prepare("SELECT id,binding_id,observed_at_utc,source_method,source_kind,provider_version,source_scope,raw_scope,identity_confidence,coverage,started_at_utc,completed_at_utc,normalized_unit,verified_identity_key FROM collection_runs WHERE profile_id=?1 AND source_method=?2 AND outcome='accepted' ORDER BY observed_at_utc,id LIMIT 50001").map_err(read_error)?;
+            let mut runs = query
+                .query(rusqlite::params![profile_id, crate::ACTIVITY_SOURCE_METHOD])
+                .map_err(read_error)?;
+            let mut ordinal = 0;
+            while let Some(run) = runs.next().map_err(read_error)? {
+                let run_id: String = run.get(0).map_err(read_error)?;
+                let binding_id: String = run.get(1).map_err(read_error)?;
+                require_uuid(&run_id).map_err(|_| ExportError::ReadFailed)?;
+                require_uuid(&binding_id).map_err(|_| ExportError::ReadFailed)?;
+                let mut base = Zeroizing::new(vec![None; HISTORY_COLUMNS.len()]);
+                base[0] = Some("profile-1".into());
+                base[18] = Some("separate_profile_no_aggregation".into());
+                for (column, index) in
+                    [(9, 2), (10, 3), (11, 4), (12, 5), (13, 6), (15, 8), (16, 9)]
+                {
+                    base[column] = Some(run.get::<_, String>(index).map_err(read_error)?);
+                }
+                base[14] = run.get(7).map_err(read_error)?;
+                let start: String = run.get(10).map_err(read_error)?;
+                let completed: String = run.get(11).map_err(read_error)?;
+                let unit: String = run.get(12).map_err(read_error)?;
+                let identity: Option<String> = run.get(13).map_err(read_error)?;
+                let observed = base[9].as_deref().ok_or(ExportError::ReadFailed)?;
+                if !crate::activity::activity_utc_timestamp(&start)
+                    || !crate::activity::activity_utc_timestamp(observed)
+                    || !crate::activity::activity_utc_timestamp(&completed)
+                    || start.as_str() > observed
+                    || observed > completed.as_str()
+                    || base[10].as_deref() != Some(crate::ACTIVITY_SOURCE_METHOD)
+                    || !matches!(
+                        base[11].as_deref(),
+                        Some("official_artifact" | "test_fixture")
+                    )
+                    || !base[12]
+                        .as_deref()
+                        .is_some_and(|value| crate::activity::safe_text(value, 64))
+                    || base[13].as_deref() != Some(crate::ACTIVITY_SOURCE_SCOPE)
+                    || base[14].is_some()
+                    || base[15].as_deref() != Some("provisional")
+                    || base[16].as_deref() != Some("unknown")
+                    || unit != "tokens"
+                    || identity.is_some()
+                {
+                    return Err(ExportError::ReadFailed);
+                }
+                ordinal += 1;
+                let next_binding = bindings.len() + 1;
+                let binding_alias = bindings
+                    .entry(binding_id.clone())
+                    .or_insert_with(|| format!("association-{next_binding}"));
+                if include_identifiers {
+                    base[1] = Some(profile_id.into());
+                    base[2] = label.clone();
+                    base[21] = Some(run_id.clone());
+                    base[22] = Some(binding_id.clone());
+                } else {
+                    base[21] = Some(format!("reading-{ordinal}"));
+                    base[22] = Some(binding_alias.clone());
+                }
+                export_activity_history_run(
+                    &tx,
+                    &run_id,
+                    profile_id,
+                    &binding_id,
+                    &base,
+                    &mut rows,
+                )?;
+            }
+        }
+        tx.commit().map_err(read_error)?;
+        Ok(ReadingsExport {
+            columns: HISTORY_COLUMNS,
+            rows,
+            profile_count: 1,
+        })
+    }
+
     /// The deferred transaction pins profile selection and every capability to one WAL snapshot.
     pub fn readings_export(
         &mut self,
@@ -358,6 +469,64 @@ fn export_activity(
             base,
             metric("activity_summary", name, values[index].clone(), unit),
         )?;
+    }
+    Ok(())
+}
+
+fn export_activity_history_run(
+    connection: &Connection,
+    run: &str,
+    profile: &str,
+    binding: &str,
+    base: &[Option<String>],
+    rows: &mut Zeroizing<Vec<Vec<Option<String>>>>,
+) -> Result<(), ExportError> {
+    let state=connection.query_row("SELECT id,profile_id,binding_id,collection_run_id,lifetime_tokens,peak_daily_tokens,longest_running_turn_sec,current_streak_days,longest_streak_days,daily_state FROM activity_summaries WHERE collection_run_id=?1",[run],|row| {
+        if row.get::<_,String>(0)?!=run||row.get::<_,String>(1)?!=profile||row.get::<_,String>(2)?!=binding||row.get::<_,String>(3)?!=run {return Err(rusqlite::Error::InvalidQuery);}
+        for index in 4..9 {if row.get::<_,Option<String>>(index)?.as_deref().is_some_and(|count|!crate::activity::activity_decimal(count)) {return Err(rusqlite::Error::InvalidQuery);}}
+        let state:String=row.get(9)?;
+        if !matches!(state.as_str(),"unavailable"|"empty"|"returned") {return Err(rusqlite::Error::InvalidQuery);}
+        Ok(state)
+    }).map_err(read_error)?;
+    export_activity(connection, Some(run), base, rows)?;
+    let mut query=connection.prepare("SELECT id,profile_id,provider_date,source_scope,binding_id,collection_run_id,prior_tokens,accepted_tokens,observed_at_utc FROM activity_day_history WHERE collection_run_id=?1 ORDER BY provider_date,id LIMIT 50001").map_err(read_error)?;
+    let mut days = query.query([run]).map_err(read_error)?;
+    let mut dates = BTreeSet::new();
+    while let Some(day) = days.next().map_err(read_error)? {
+        let id: String = day.get(0).map_err(read_error)?;
+        let day_profile: String = day.get(1).map_err(read_error)?;
+        let date: String = day.get(2).map_err(read_error)?;
+        let scope: String = day.get(3).map_err(read_error)?;
+        let day_binding: String = day.get(4).map_err(read_error)?;
+        let day_run: String = day.get(5).map_err(read_error)?;
+        let prior: Option<String> = day.get(6).map_err(read_error)?;
+        let accepted: String = day.get(7).map_err(read_error)?;
+        let observed: String = day.get(8).map_err(read_error)?;
+        if require_uuid(&id).is_err()
+            || day_profile != profile
+            || day_binding != binding
+            || day_run != run
+            || scope != crate::ACTIVITY_SOURCE_SCOPE
+            || base[9].as_deref() != Some(observed.as_str())
+            || !crate::activity::activity_utc_timestamp(&observed)
+            || !crate::activity::activity_date(&date)
+            || !crate::activity::activity_decimal(&accepted)
+            || prior
+                .as_deref()
+                .is_some_and(|value| !crate::activity::activity_decimal(value))
+            || !dates.insert(date.clone())
+            || dates.len() > crate::MAX_ACTIVITY_ROWS_PER_READ
+        {
+            return Err(ExportError::ReadFailed);
+        }
+        for (name, value) in [("accepted_tokens", Some(accepted)), ("prior_tokens", prior)] {
+            let mut entry = metric("activity_daily_history", name, value, "tokens");
+            entry.date = Some(&date);
+            emit(rows, base, entry)?;
+        }
+    }
+    if (state == "returned") == dates.is_empty() {
+        return Err(ExportError::ReadFailed);
     }
     Ok(())
 }
@@ -1343,5 +1512,452 @@ mod tests {
                 .unwrap(),
             count
         );
+    }
+
+    #[test]
+    fn activity_history_export_keeps_all_snapshots_exact_daily_observations_and_private_aliases() {
+        let (directory, mut storage) = setup();
+        for n in 0..21 {
+            let (_, mut activity) = pair(100 + n * 2, n + 1);
+            if n >= 10 {
+                activity.binding.binding_id = id(6);
+            }
+            if n == 0 {
+                activity.summary.lifetime_tokens = None;
+                activity.daily_usage = None;
+            }
+            if n == 1 {
+                activity.summary.lifetime_tokens = Some("0".into());
+                activity.daily_usage = Some(vec![]);
+            }
+            let association = (n == 10).then(|| ProfileBindingInput {
+                profile_id: id(1),
+                expected_home_reference: id(2),
+                expected_previous_binding_id: Some(id(3)),
+                new_binding_id: id(6),
+                evidence: activity.identity_evidence.clone(),
+                observed_at_utc: activity.observed_at_utc.clone(),
+            });
+            storage
+                .accept_activity_with_binding(activity, association)
+                .unwrap();
+        }
+        let (_, mut other) = pair(5000, 30);
+        other.binding.profile_id = id(4);
+        other.binding.home_reference = id(5);
+        other.binding.binding_id = id(7);
+        other.identity_evidence.email = "excluded@example.invalid".into();
+        let association = ProfileBindingInput {
+            profile_id: id(4),
+            expected_home_reference: id(5),
+            expected_previous_binding_id: None,
+            new_binding_id: id(7),
+            evidence: other.identity_evidence.clone(),
+            observed_at_utc: other.observed_at_utc.clone(),
+        };
+        storage
+            .accept_activity_with_binding(other, Some(association))
+            .unwrap();
+        storage
+            .create_profile(&id(8), "Empty activity history", &id(9))
+            .unwrap();
+        storage.set_profile_archived(&id(1), true).unwrap();
+        let before = files(directory.path());
+        let records = crate::backup_validation::activity_records(&storage.connection);
+        let redacted = storage.activity_history_export(&id(1), false).unwrap();
+        assert_eq!(redacted.profile_count, 1);
+        assert_eq!(redacted.columns, HISTORY_COLUMNS);
+        assert!(redacted.rows.iter().all(|row| row.len() == 23
+            && row[0].as_deref() == Some("profile-1")
+            && row[1..4].iter().all(Option::is_none)));
+        let summaries = redacted
+            .rows
+            .iter()
+            .filter(|row| row[5].as_deref() == Some("lifetime_tokens"))
+            .collect::<Vec<_>>();
+        assert_eq!(summaries.len(), 22);
+        for (index, row) in summaries.iter().enumerate() {
+            assert_eq!(row[21], Some(format!("reading-{}", index + 1)));
+            assert_eq!(
+                row[22].as_deref(),
+                Some(if index < 11 {
+                    "association-1"
+                } else {
+                    "association-2"
+                })
+            );
+            assert_eq!(row[10].as_deref(), Some(crate::ACTIVITY_SOURCE_METHOD));
+            assert_eq!(row[13].as_deref(), Some(crate::ACTIVITY_SOURCE_SCOPE));
+            assert_eq!(row[16].as_deref(), Some("unknown"));
+        }
+        assert!(summaries[1][6].is_none());
+        assert_eq!(summaries[1][17].as_deref(), Some("unavailable"));
+        assert_eq!(summaries[2][6].as_deref(), Some("0"));
+        assert_eq!(summaries[2][17].as_deref(), Some("available"));
+        assert_eq!(
+            find(
+                &redacted,
+                "profile-1",
+                "activity_summary",
+                "peak_daily_tokens"
+            )[6]
+            .as_deref(),
+            Some("9223372036854775807")
+        );
+        assert_eq!(
+            find(
+                &redacted,
+                "profile-1",
+                "activity_summary",
+                "lifetime_tokens"
+            )[6]
+            .as_deref(),
+            Some("9007199254740993")
+        );
+        let daily = |reading: &str, metric: &str, date: &str| {
+            redacted
+                .rows
+                .iter()
+                .find(|row| {
+                    row[21].as_deref() == Some(reading)
+                        && row[4].as_deref() == Some("activity_daily_history")
+                        && row[5].as_deref() == Some(metric)
+                        && row[8].as_deref() == Some(date)
+                })
+                .unwrap()
+        };
+        assert_eq!(
+            daily("reading-1", "accepted_tokens", "2026-10-19")[6].as_deref(),
+            Some("9007199254740993")
+        );
+        assert!(daily("reading-1", "prior_tokens", "2026-10-19")[6].is_none());
+        assert_eq!(
+            daily("reading-4", "accepted_tokens", "2026-10-20")[6].as_deref(),
+            Some("0")
+        );
+        assert_eq!(
+            daily("reading-4", "prior_tokens", "2026-10-20")[6].as_deref(),
+            Some("0")
+        );
+        assert!(daily("reading-12", "prior_tokens", "2026-10-19")[6].is_none());
+        assert_eq!(
+            redacted
+                .rows
+                .iter()
+                .filter(|row| row[4].as_deref() == Some("activity_daily_history"))
+                .count(),
+            80
+        );
+        let joined = redacted
+            .rows
+            .iter()
+            .flatten()
+            .flatten()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("|");
+        for value in [
+            id(1),
+            id(2),
+            id(3),
+            id(4),
+            id(5),
+            id(6),
+            id(7),
+            id(11),
+            id(101),
+            "Private selected label".into(),
+            "selected@example.invalid".into(),
+            "excluded@example.invalid".into(),
+            "private-plan".into(),
+        ] {
+            assert!(!joined.contains(&value));
+        }
+        use rusqlite::hooks::{AuthAction, AuthContext, Authorization};
+        storage
+            .connection
+            .authorizer(Some(|context: AuthContext<'_>| {
+                if matches!(
+                    context.action,
+                    AuthAction::Read {
+                        column_name: "home_reference"
+                            | "approved_home_reference"
+                            | "returned_email"
+                            | "returned_plan",
+                        ..
+                    }
+                ) {
+                    Authorization::Deny
+                } else {
+                    Authorization::Allow
+                }
+            }))
+            .unwrap();
+        let identified = storage.activity_history_export(&id(1), true).unwrap();
+        storage
+            .connection
+            .authorizer(None::<fn(AuthContext<'_>) -> Authorization>)
+            .unwrap();
+        assert!(
+            identified
+                .rows
+                .iter()
+                .all(|row| row[1].as_deref() == Some(id(1).as_str())
+                    && row[2].as_deref() == Some("Private selected label")
+                    && row[3].is_none())
+        );
+        let summaries = identified
+            .rows
+            .iter()
+            .filter(|row| row[5].as_deref() == Some("lifetime_tokens"))
+            .collect::<Vec<_>>();
+        assert_eq!(summaries[0][21].as_deref(), Some(id(11).as_str()));
+        assert_eq!(summaries[11][22].as_deref(), Some(id(6).as_str()));
+        assert!(
+            storage
+                .activity_history_export(&id(8), false)
+                .unwrap()
+                .rows
+                .is_empty()
+        );
+        for invalid in [id(99), "../external".into()] {
+            assert_eq!(
+                storage.activity_history_export(&invalid, false).err(),
+                Some(ExportError::InvalidSelection)
+            );
+        }
+        assert_eq!(files(directory.path()), before);
+        assert_eq!(
+            crate::backup_validation::activity_records(&storage.connection),
+            records
+        );
+        drop(storage);
+        let mut storage = Storage::open(&directory.path().join("export.db"), &KEY).unwrap();
+        assert_eq!(
+            storage
+                .activity_history_export(&id(1), false)
+                .unwrap()
+                .rows
+                .as_slice(),
+            redacted.rows.as_slice()
+        );
+    }
+
+    #[test]
+    fn activity_history_export_pins_label_summaries_and_daily_rows_to_one_wal_snapshot() {
+        let (directory, mut storage) = setup();
+        let mut writer = Storage::open(&directory.path().join("export.db"), &KEY).unwrap();
+        let (begin_tx, begin_rx) = std::sync::mpsc::channel();
+        let (done_tx, done_rx) = std::sync::mpsc::channel();
+        let writer = std::thread::spawn(move || {
+            begin_rx
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .unwrap();
+            writer
+                .rename_profile(&id(1), "Changed during activity export")
+                .unwrap();
+            let (_, mut activity) = pair(20, 1);
+            activity.summary.lifetime_tokens = Some("88".into());
+            activity.daily_usage.as_mut().unwrap()[0].tokens = "3".into();
+            writer.accept_activity(activity).unwrap();
+            done_tx.send(()).unwrap();
+        });
+        use rusqlite::hooks::{AuthAction, AuthContext, Authorization};
+        let mut triggered = false;
+        storage
+            .connection
+            .authorizer(Some(move |context: AuthContext<'_>| {
+                if !triggered
+                    && matches!(
+                        context.action,
+                        AuthAction::Read {
+                            table_name: "collection_runs",
+                            ..
+                        }
+                    )
+                {
+                    triggered = true;
+                    begin_tx.send(()).unwrap();
+                    done_rx
+                        .recv_timeout(std::time::Duration::from_secs(5))
+                        .unwrap();
+                }
+                Authorization::Allow
+            }))
+            .unwrap();
+        let export = storage.activity_history_export(&id(1), true).unwrap();
+        storage
+            .connection
+            .authorizer(None::<fn(AuthContext<'_>) -> Authorization>)
+            .unwrap();
+        writer.join().unwrap();
+        assert!(
+            export
+                .rows
+                .iter()
+                .all(|row| row[2].as_deref() == Some("Private selected label")
+                    && row[21].as_deref() == Some(id(11).as_str()))
+        );
+        assert_eq!(
+            find(&export, "profile-1", "activity_summary", "lifetime_tokens")[6].as_deref(),
+            Some("9007199254740993")
+        );
+        assert_eq!(
+            find(
+                &export,
+                "profile-1",
+                "activity_daily_history",
+                "accepted_tokens"
+            )[6]
+            .as_deref(),
+            Some("9007199254740993")
+        );
+        let next = storage.activity_history_export(&id(1), true).unwrap();
+        assert!(
+            next.rows
+                .iter()
+                .all(|row| row[2].as_deref() == Some("Changed during activity export"))
+        );
+        assert_eq!(
+            next.rows
+                .iter()
+                .filter(|row| row[5].as_deref() == Some("lifetime_tokens"))
+                .count(),
+            2
+        );
+        assert!(
+            next.rows
+                .iter()
+                .any(|row| row[21].as_deref() == Some(id(21).as_str())
+                    && row[5].as_deref() == Some("accepted_tokens")
+                    && row[6].as_deref() == Some("3"))
+        );
+        assert!(
+            next.rows
+                .iter()
+                .any(|row| row[21].as_deref() == Some(id(21).as_str())
+                    && row[5].as_deref() == Some("prior_tokens")
+                    && row[6].as_deref() == Some("9007199254740993"))
+        );
+    }
+
+    #[test]
+    fn activity_history_export_read_failure_is_atomic_after_summary_rows_are_prepared() {
+        let (directory, mut storage) = setup();
+        let before = files(directory.path());
+        let records = crate::backup_validation::activity_records(&storage.connection);
+        use rusqlite::hooks::{AuthAction, AuthContext, Authorization};
+        storage
+            .connection
+            .authorizer(Some(|context: AuthContext<'_>| {
+                if matches!(
+                    context.action,
+                    AuthAction::Read {
+                        table_name: "activity_day_history",
+                        column_name: "accepted_tokens"
+                    }
+                ) {
+                    Authorization::Deny
+                } else {
+                    Authorization::Allow
+                }
+            }))
+            .unwrap();
+        assert_eq!(
+            storage.activity_history_export(&id(1), false).err(),
+            Some(ExportError::ReadFailed)
+        );
+        storage
+            .connection
+            .authorizer(None::<fn(AuthContext<'_>) -> Authorization>)
+            .unwrap();
+        assert!(storage.connection.is_autocommit());
+        assert_eq!(files(directory.path()), before);
+        assert_eq!(
+            crate::backup_validation::activity_records(&storage.connection),
+            records
+        );
+        storage
+            .connection
+            .pragma_update(None, "query_only", true)
+            .unwrap();
+        assert!(
+            !storage
+                .activity_history_export(&id(1), false)
+                .unwrap()
+                .rows
+                .is_empty()
+        );
+        assert_eq!(files(directory.path()), before);
+    }
+
+    #[test]
+    fn activity_history_export_refuses_corrupt_counts_dates_states_and_cross_record_provenance() {
+        let (_directory, mut storage) = setup();
+        storage
+            .connection
+            .execute_batch("PRAGMA foreign_keys=OFF;PRAGMA ignore_check_constraints=ON;")
+            .unwrap();
+        for (bad, restore) in [
+            (
+                "UPDATE activity_summaries SET lifetime_tokens='9223372036854775808'",
+                "UPDATE activity_summaries SET lifetime_tokens='9007199254740993'",
+            ),
+            (
+                "UPDATE activity_summaries SET daily_state='empty'",
+                "UPDATE activity_summaries SET daily_state='returned'",
+            ),
+            (
+                "UPDATE activity_summaries SET profile_id='00000004-0000-4000-8000-000000000000'",
+                "UPDATE activity_summaries SET profile_id='00000001-0000-4000-8000-000000000000'",
+            ),
+            (
+                "UPDATE activity_day_history SET accepted_tokens='00' WHERE provider_date='2026-10-19'",
+                "UPDATE activity_day_history SET accepted_tokens='9007199254740993' WHERE provider_date='2026-10-19'",
+            ),
+            (
+                "UPDATE activity_day_history SET prior_tokens='-1'",
+                "UPDATE activity_day_history SET prior_tokens=NULL",
+            ),
+            (
+                "UPDATE activity_day_history SET provider_date='2026-02-30' WHERE provider_date='2026-10-19'",
+                "UPDATE activity_day_history SET provider_date='2026-10-19' WHERE provider_date='2026-02-30'",
+            ),
+            (
+                "UPDATE activity_day_history SET source_scope='invented'",
+                "UPDATE activity_day_history SET source_scope='account_activity_with_unknown_application_scope'",
+            ),
+            (
+                "UPDATE activity_day_history SET collection_run_id='0000000a-0000-4000-8000-000000000000'",
+                "UPDATE activity_day_history SET collection_run_id='0000000b-0000-4000-8000-000000000000'",
+            ),
+            (
+                "UPDATE activity_day_history SET observed_at_utc='2026-10-20T12:00:01.000Z'",
+                "UPDATE activity_day_history SET observed_at_utc='2026-10-20T12:00:00.000Z'",
+            ),
+            (
+                "UPDATE collection_runs SET source_kind='invented' WHERE source_method='account/usage/read'",
+                "UPDATE collection_runs SET source_kind='test_fixture' WHERE source_method='account/usage/read'",
+            ),
+        ] {
+            storage.connection.execute_batch(bad).unwrap();
+            assert_eq!(
+                storage.activity_history_export(&id(1), false).err(),
+                Some(ExportError::ReadFailed),
+                "{bad}"
+            );
+            storage.connection.execute_batch(restore).unwrap();
+            assert!(
+                !storage
+                    .activity_history_export(&id(1), false)
+                    .unwrap()
+                    .rows
+                    .is_empty()
+            );
+        }
+        storage
+            .connection
+            .execute_batch("PRAGMA ignore_check_constraints=OFF;PRAGMA foreign_keys=ON;")
+            .unwrap();
     }
 }

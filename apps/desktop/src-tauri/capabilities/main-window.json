@@ -20,6 +20,7 @@
     "allow-create-backup",
     "allow-export-saved-readings",
     "allow-export-quota-history",
+    "allow-export-activity-history",
     "allow-list-profiles",
     "allow-load-alert-history",
     "allow-load-notification-preferences",

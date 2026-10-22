@@ -14,6 +14,7 @@ fn main() {
             "create_backup",
             "export_saved_readings",
             "export_quota_history",
+            "export_activity_history",
             "list_profiles",
             "create_profile",
             "rename_profile",

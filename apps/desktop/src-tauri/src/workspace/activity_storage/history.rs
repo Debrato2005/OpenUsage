@@ -23,6 +23,19 @@ struct ActivityHistoryEntry {
     daily_buckets_state: &'static str,
 }
 impl Workspace {
+    pub fn activity_history_export(
+        &mut self,
+        profile_id: &str,
+        include_identifiers: bool,
+    ) -> Result<openusage_storage::ReadingsExport, CommandError> {
+        validate_profile_id(profile_id)?;
+        self.storage
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .activity_history_export(profile_id, include_identifiers)
+            .map_err(export_error)
+    }
+
     pub fn load_profile_activity_history(
         &mut self,
         profile_id: &str,
@@ -113,6 +126,17 @@ mod tests {
         ] {
             assert!(entry.get(field).is_none());
         }
+        let export = f.workspace.activity_history_export(&id, false).unwrap();
+        assert!(export.rows.iter().any(|row| {
+            row[5].as_deref() == Some("lifetime_tokens")
+                && row[6].as_deref() == Some("9007199254740993")
+        }));
+        assert!(export.rows.iter().all(|row| {
+            row[1..4].iter().all(Option::is_none)
+                && row[21]
+                    .as_deref()
+                    .is_some_and(|value| value.starts_with("reading-"))
+        }));
         assert!(
             f.workspace
                 .load_profile_activity_history(&id, Some("../unsafe"))

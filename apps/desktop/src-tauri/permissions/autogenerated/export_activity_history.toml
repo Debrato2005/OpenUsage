@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-export-activity-history"
+description = "Enables the export_activity_history command without any pre-configured scope."
+commands.allow = ["export_activity_history"]
+
+[[permission]]
+identifier = "deny-export-activity-history"
+description = "Denies the export_activity_history command without any pre-configured scope."
+commands.deny = ["export_activity_history"]

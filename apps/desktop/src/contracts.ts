@@ -349,6 +349,7 @@ interface Commands {
   create_backup: { args: { password: string }; result: BackupReceipt };
   export_saved_readings: { args: { profileIds: string[]; format: ReadingExportFormat; includeIdentifiers: boolean; confirmed: true }; result: ReadingExportReceipt };
   export_quota_history: { args: { profileId: string; format: ReadingExportFormat; includeIdentifiers: boolean; confirmed: true }; result: ReadingExportReceipt };
+  export_activity_history: { args: { profileId: string; format: ReadingExportFormat; includeIdentifiers: boolean; confirmed: true }; result: ReadingExportReceipt };
 }
 
 declare global {
@@ -412,7 +413,7 @@ export async function invoke<K extends keyof Commands>(
     : command === 'list_backups' ? isBackupList(response)
     : command === 'inspect_backup' ? isBackupInspection(response)
     : command === 'create_backup' ? isBackupReceipt(response)
-    : command === 'export_saved_readings' || command === 'export_quota_history' ? isReadingExportReceipt(response) && (command !== 'export_quota_history' || response.profileCount === 1)
+    : command === 'export_saved_readings' || command === 'export_quota_history' || command === 'export_activity_history' ? isReadingExportReceipt(response) && (command === 'export_saved_readings' || response.profileCount === 1)
     : ['list_profiles', 'create_profile', 'rename_profile', 'set_profile_archived'].includes(command)
     ? isProfileView(response) : isBootstrap(response);
   if (!valid) {

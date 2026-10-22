@@ -138,14 +138,14 @@ test('saved-readings export accepts only bounded exact receipts with matching fo
   }
 });
 
-test('quota-history export accepts only one-profile receipts and rejects payload leakage', async () => {
+for (const command of ['export_quota_history', 'export_activity_history']) test(`${command} accepts only one-profile receipts and rejects payload leakage`, async () => {
   const args = { profileId: '11111111-1111-4111-8111-111111111111', format: 'json', includeIdentifiers: false, confirmed: true };
   const valid = { fileName: 'openusage-readings-0123456789abcdef.json', directory: '/synthetic/Downloads/OpenUsage', format: 'json', profileCount: 1, rowCount: 50000, identifiersIncluded: false, exportedAt: '2026-10-21T00:00:00.000Z' };
   desktopResponse(valid);
-  assert.deepEqual(await invoke('export_quota_history', args), valid);
+  assert.deepEqual(await invoke(command, args), valid);
   for (const change of [{ profileCount: 2 }, { rowCount: 50001 }, { records: [] }, { directory: '' }, { fileName: '../records.json' }]) {
     desktopResponse({ ...valid, ...change });
-    await assert.rejects(invoke('export_quota_history', args), /desktop response is incompatible/);
+    await assert.rejects(invoke(command, args), /desktop response is incompatible/);
   }
 });
 

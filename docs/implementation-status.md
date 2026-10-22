@@ -10,7 +10,7 @@ Updated: October 22, 2026. OpenUsage remains in development. The normative [SRS]
 - The overview follows the supplied reference: selected account with quota/statistic tiles, account-share availability, combined-usage availability with explicitly selected-account activity, and a compact account list. DM Sans, accessible coss controls, both themes and persistent native display scaling are implemented. Unsupported data stays unavailable; no account-share totals or token quotas are invented.
 - Add creates isolated default-named profiles, up to 10 active accounts. Prominent per-account Sign in, Cancel, Retry/Reconnect and automatic initial collection use the selected profile. Routine onboarding uses a bundled pinned official companion without a manual path. Credentials remain provider-managed in separate homes.
 - Rust owns persistence, provider execution, authentication, scheduling, exact counts and IPC validation. SQLCipher 4/WAL protects application records. OS-backed database keys are used where available; the preserved WSL workspace uses its required fallback password because its session key store is unavailable. Provider keyring support remains incomplete.
-- Runtime monitoring, manual refresh cooldown, provider backoff, saved daily activity, current quota/reset assessments, saved reset-event history, opt-in quota threshold/reset, sign-in-required and repeated-failure notifications with quiet hours, saved activity-summary history, current-reading CSV/JSON export, encrypted authenticated backups, confirmed restore and Undo are implemented within their recorded Linux scopes.
+- Runtime monitoring, manual refresh cooldown, provider backoff, saved daily activity, current quota/reset assessments, saved reset-event history, opt-in quota threshold/reset, sign-in-required and repeated-failure notifications with quiet hours, saved activity-summary history, selected quota/activity history and current-reading CSV/JSON export, encrypted authenticated backups, confirmed restore and Undo are implemented within their recorded Linux scopes.
 
 ## Development storage and publication checks
 
@@ -30,6 +30,16 @@ The native notice inventory now maps all 486 locked registry packages to 288 exa
 
 ## Latest verified slice
 
+Usage now exports saved activity history as CSV or JSON from the existing history panel. Each file keeps separate summary snapshots and daily accepted/prior values. It calculates no events, deltas or totals. One SQLCipher/WAL snapshot covers the selected profile, including archived profiles and earlier connections. Aliases are the default. Explicit consent permits local names and references, but never email or credentials.
+
+All 341 Rust tests passed, with one intentional child test ignored. Four final storage cases, strict Clippy, build/type checks, 50 contracts and 306 renderer cases passed. A privacy test denies reads of email, plan and managed-home references. Closing an export panel now releases only its own busy state and ignores stale replies.
+
+The explicit native-test build passed two synthetic sign-ins and automatic collection. CSV and JSON matched all 146 records from 22 summaries and seven retained daily observations. Four independent checks compared all 30 tables and unchanged database/WAL/key bytes. Consent, redaction, file permissions, invalid requests, account isolation, shared export routes and archived restart passed. The rendered receipt passed visual review. The first native run caught a receipt-text parsing error in the test; the corrected selector passed without application changes.
+
+Private evidence: `activity-summary-history-export-native-receipt`. The production executable compiled and returned with the same hash after the test. Schema 8 and dependency locks remain unchanged. The existing 50,000-row/64 MiB limit refuses oversized exports without a partial file. Complete application export, local deletion, real-provider history and other platforms remain open.
+
+## Earlier verified slices
+
 Activity history opens on demand in Usage. Rust reads 20 saved summaries per page from one consistent SQLCipher/WAL snapshot. Exact counts, missing values, original connections and source details remain separate for each reading. The app infers no events or usage deltas. Archived accounts remain available after restart. Schema 8 remains unchanged.
 
 All 337 Rust tests passed, with one intentional child test ignored. Strict Clippy, build/type checks, 49 contracts and 294 renderer cases passed. The explicit native-test build passed two synthetic sign-ins, automatic collection, 20/2 paging, exact values, cursor isolation and archived restart.
@@ -37,8 +47,6 @@ All 337 Rust tests passed, with one intentional child test ignored. Strict Clipp
 Four independent checks compared all 30 tables and unchanged database/WAL/key bytes. Browsing started no provider sessions. I inspected the rendered history. The first native run caught a missing command permission. The fix granted that command only to the local main window.
 
 Private evidence: `activity-summary-history-native-acl`. Real-provider history, history export and other platforms remain separate.
-
-## Earlier verified slices
 
 Sign-in-required and repeated-collection-failure alerts now share the existing Notifications form, quiet hours and desktop delivery journal. All four alert types default to off and retain independent account overrides. Three accepted transient failures produce one alert. A fresh accepted live reading closes the incident in the same transaction.
 
