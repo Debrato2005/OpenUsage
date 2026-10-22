@@ -3,6 +3,9 @@
 use super::*;
 use std::collections::BTreeMap;
 
+mod aggregation;
+pub(crate) use aggregation::ActivityDashboard;
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct CombinedHeatmapEligibility {
@@ -135,8 +138,31 @@ fn build(
         .checked_sub(u32::from(period_days) - 1)
         .filter(|start| *start > 0)
         .ok_or(CommandError::ProviderActivityLoadFailed)?;
+    let (cells, maximum) = project(&saved.daily_usage_buckets, mode, start, end)?;
+    Ok(ProfileHeatmap {
+        profile_id: saved.profile_id.clone(),
+        binding_id: saved.binding_id.clone(),
+        collection_run_id: saved.collection_run_id.clone(),
+        source_kind: saved.source_kind,
+        scope: saved.scope,
+        coverage: "unknown",
+        observed_at_utc: saved.observed_at_utc.clone(),
+        mode: mode.into(),
+        period_start: date_string(start),
+        period_end: date_string(end),
+        scale_maximum: maximum.map(|value| value.to_string()),
+        cells,
+    })
+}
+
+fn project(
+    rows: &[SavedActivityDay],
+    mode: &str,
+    start: u32,
+    end: u32,
+) -> Result<(Vec<HeatmapCell>, Option<u128>), CommandError> {
     let mut days = BTreeMap::new();
-    for day in &saved.daily_usage_buckets {
+    for day in rows {
         let date = ordinal(&day.date).ok_or(CommandError::ProviderActivityLoadFailed)?;
         let tokens = day
             .tokens
@@ -148,7 +174,7 @@ fn build(
             return Err(CommandError::ProviderActivityLoadFailed);
         }
     }
-    let mut cells = Vec::with_capacity(usize::from(period_days));
+    let mut cells = Vec::with_capacity((end - start + 1) as usize);
     if mode == "weekly" {
         // 0001-01-01 was Monday. Keep full ISO week bounds even at period edges.
         let mut monday = start - (start - 1) % 7;
@@ -193,20 +219,7 @@ fn build(
             cell.level = level(value, maximum);
         }
     }
-    Ok(ProfileHeatmap {
-        profile_id: saved.profile_id.clone(),
-        binding_id: saved.binding_id.clone(),
-        collection_run_id: saved.collection_run_id.clone(),
-        source_kind: saved.source_kind,
-        scope: saved.scope,
-        coverage: "unknown",
-        observed_at_utc: saved.observed_at_utc.clone(),
-        mode: mode.into(),
-        period_start: date_string(start),
-        period_end: date_string(end),
-        scale_maximum: maximum.map(|value| value.to_string()),
-        cells,
-    })
+    Ok((cells, maximum))
 }
 
 fn cell(
@@ -333,7 +346,7 @@ fn date_string(ordinal: u32) -> String {
 mod tests {
     use super::*;
 
-    fn saved(rows: &[(&str, &str)]) -> SavedProfileActivity {
+    pub(super) fn saved(rows: &[(&str, &str)]) -> SavedProfileActivity {
         let daily_usage_buckets = rows
             .iter()
             .map(|(date, tokens)| SavedActivityDay {

@@ -76,3 +76,7 @@ OU-ALERT-018 consumes lower satisfied thresholds after the first reading selects
 The approved app-server interface can report `AuthenticationRequired`. For a profile with an accepted reading from the same home and association, OpenUsage can report that sign-in is required. This response does not establish `invalid_grant` or confirmed invalid credentials. Missing identity, unsupported methods, malformed responses, cancellation and stale operations do not qualify as authentication proof.
 
 OU-ALERT-007 remains open for confirmed invalid-credential evidence through a supported interface. The added sign-in alert is a narrower capability, not a change to that requirement. The normative SRS is unchanged.
+
+## SC-010: approved unverified selected-profile activity
+
+The owner approved [the narrow amendment](proposals/user-curated-profile-activity.md) on October 22, 2026. An explicit Profile sum view may calculate observed subtotals and shares from the same pinned provider contract and matching provider dates. Its visible Unverified label and details retain unknown identity, application scope and day-definition limits. This does not certify compatibility or distinct accounts. Known duplicate identities and known contract differences are excluded. Verified combined totals retain every existing identity, scope and live-contract gate. The normative SRS file remains unchanged.

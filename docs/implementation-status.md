@@ -4,6 +4,20 @@
 
 Updated: October 22, 2026. OpenUsage remains in development. The normative [SRS](SRS.md) is unchanged. Only local commits are permitted. Remote branch deletion requires separate owner approval. Agents must not push or publish.
 
+## Completed assignment: synchronized profile activity
+
+The owner approved the narrow [selected-profile aggregation amendment](proposals/user-curated-profile-activity.md). Overview now has Individual, Profile sum and Verified combined views. One Rust response supplies the heatmap, observed total, contribution shares, exclusions and coverage for one selection and date range. Daily, ISO-week and cumulative projections reuse the existing calendar calculation.
+
+Profile sums carry a visible Unverified label. Details explain overlapping accounts, unknown application scope and unknown day definitions. The calculation requires the same pinned provider contract and matching provider dates. Known scope differences and known duplicate identities are excluded. Verified totals still require distinct approved identity keys and verified compatible semantics. The current managed adapter supplies neither proof, so verified totals remain unavailable.
+
+Rust uses checked exact integer arithmetic. Shares use the same observed denominator and deterministic basis-point rounding. Zero totals have no percentage shares. Missing contributions remain unknown. Each cell and the equivalent text table retain coverage. Quota percentages and provider lifetime summaries never enter these sums. Large values now show readable abbreviations, with grouped exact integers in tooltips and Values.
+
+The actual native-test journey passed two isolated synthetic sign-ins, automatic saved readings, synchronized charts, custom date input events, all three modes, strict IPC refusal, the verified gate and genuine restart. Database, WAL and protected-key bytes stayed unchanged during read-only aggregation. This does not qualify real-provider identity or scope contracts, OAuth renewal or other platforms.
+
+Verification: 164 desktop Rust tests, strict Clippy and 55 IPC checks passed. All 370 renderer cases passed across the milestone, remaining-engine and focused correction runs. The initial milestone hit its deadline. The clock assertion now checks an actual tick without assuming a zero-second startup. The final native harness waits for the enabled unlock form after restart.
+
+Private evidence: activity-dashboard-native-final-ready. The normative SRS file, SQLCipher 4/WAL and schema 9 remain unchanged. No new dependency, provider endpoint or executable copy was added.
+
 ## Current recovery regression: schema 9
 
 The backup-content and checkpoint-recovery native harnesses now expect schema 9. Both passed against production executable 6c6672bbcfe27df9e54aa828fc8b65b80c797f4056aaa8b79b28053f0d1bf708. The journeys used private synthetic workspaces on an isolated X11 display. The active desktop first failed its exact-window focus gate. No security or focus assertion was removed.

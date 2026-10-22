@@ -25,7 +25,7 @@ mod reset_notifications;
 mod sign_out;
 pub(crate) mod subscriptions;
 pub(crate) use activity_storage::{
-    CombinedHeatmapEligibility, ProfileActivityHistory, ProfileHeatmap, ReadAssociationReview,
+    ActivityDashboard, CombinedHeatmapEligibility, ProfileActivityHistory, ProfileHeatmap, ReadAssociationReview,
     SavedProfileActivity,
 };
 pub(crate) use alert_history::SavedAlertHistory;

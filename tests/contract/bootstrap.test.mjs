@@ -862,3 +862,15 @@ test('time-zone IPC accepts recognized zones and refuses extra or malformed fiel
     desktopResponse(value); await assert.rejects(invoke('load_time_zone'), /desktop response is incompatible/);
   }
 });
+
+test('activity dashboard rejects forged coverage, shares, identities and non-exact totals', async () => {
+  const id='11111111-1111-4111-8111-111111111111', stamp='2026-10-22T00:00:00.000Z';
+  const args={profileIds:[id],view:'profile_sum',mode:'daily',startDate:'2026-10-21',endDate:'2026-10-21'};
+  const member={profileId:id,label:'Synthetic account',tokens:'1022190232',shareBasisPoints:10000,knownDays:1,sourceKind:'test_fixture',scope:'account_activity_with_unknown_application_scope',observedAtUtc:stamp,bindingId:'22222222-2222-4222-8222-222222222222',collectionRunId:'33333333-3333-4333-8333-333333333333'};
+  const cell={startDate:args.startDate,endDate:args.endDate,tokens:member.tokens,level:4,knownDays:1,expectedDays:1,observedAtUtc:stamp,freshness:'unknown',knownContributions:1,expectedContributions:1};
+  const value={view:'profile_sum',status:'available',mode:'daily',periodStart:args.startDate,periodEnd:args.endDate,sourceKind:'test_fixture',observedAtUtc:stamp,scopeVerified:false,totalTokens:member.tokens,knownContributions:1,expectedContributions:1,scaleMaximum:member.tokens,members:[member],exclusions:[],cells:[cell]};
+  desktopResponse(value);assert.deepEqual(await invoke('load_activity_dashboard',args),value);
+  for(const invalid of [{...value,view:'individual'},{...value,mode:'weekly'},{...value,members:[{...member,profileId:'44444444-4444-4444-8444-444444444444'}]},{...value,totalTokens:'1022190233'},{...value,totalTokens:1022190232},{...value,view:'verified'},{...value,knownContributions:0},{...value,expectedContributions:2},{...value,members:[member,member]},{...value,exclusions:[{profileId:id,reason:'duplicate_identity'}]},{...value,members:[{...member,shareBasisPoints:9999}]},{...value,cells:[{...cell,tokens:null}]},{...value,cells:[{...cell,knownContributions:2}]},{...value,secret:'refuse'}]) {
+    desktopResponse(invalid);await assert.rejects(invoke('load_activity_dashboard',args),/desktop response is incompatible/);
+  }
+});

@@ -270,6 +270,17 @@ export interface ProfileActivityAssociationReview {
 export type ActivityFreshness = 'unknown' | 'fresh' | 'stale';
 export interface CombinedHeatmapEligibility { status: 'unavailable'; includedProfileIds: string[]; exclusions: { profileId: string; reason: 'not_connected' | 'activity_unavailable' | 'identity_unverified' }[] }
 export type HeatmapMode = 'daily' | 'weekly' | 'cumulative';
+export type ActivityView = 'individual' | 'verified' | 'profile_sum';
+export interface ActivityDashboard {
+  view: ActivityView; status: 'available' | 'unavailable'; mode: HeatmapMode;
+  periodStart: string; periodEnd: string; sourceKind: 'official_artifact' | 'test_fixture' | 'unverified';
+  observedAtUtc: string | null; scopeVerified: boolean; totalTokens: string | null;
+  knownContributions: number; expectedContributions: number; scaleMaximum: string | null;
+  members: { profileId: string; label: string; tokens: string | null; shareBasisPoints: number | null; knownDays: number;
+    sourceKind: 'official_artifact' | 'test_fixture'; scope: string; observedAtUtc: string; bindingId: string; collectionRunId: string }[];
+  exclusions: { profileId: string; reason: 'archived' | 'not_connected' | 'activity_unavailable' | 'truncated_history' | 'identity_unverified' | 'scope_unverified' | 'incompatible_scope' | 'duplicate_identity' }[];
+  cells: (SavedProfileHeatmap['cells'][number] & { knownContributions: number; expectedContributions: number })[];
+}
 export interface SavedProfileHeatmap {
   profileId: string; bindingId: string; collectionRunId: string;
   sourceKind: ProviderConnectionDiagnostic['sourceKind']; scope: 'account_activity_with_unknown_application_scope';
@@ -361,6 +372,7 @@ interface Commands {
   set_subscription_archived: { args: { profileId: string; subscriptionId: string; expectedRevision: string; archived: boolean }; result: SubscriptionRecord };
   delete_subscription: { args: { profileId: string; subscriptionId: string; expectedRevision: string; confirmed: true }; result: { deleted: true; subscriptionId: string; profileId: string } };
   load_combined_heatmap: { args: { profileIds: string[] }; result: CombinedHeatmapEligibility };
+  load_activity_dashboard: { args: { profileIds: string[]; view: ActivityView; mode: HeatmapMode; startDate: string; endDate: string }; result: ActivityDashboard };
   load_profile_heatmap: { args: { profileId: string; mode: HeatmapMode; periodDays: 30 | 90 | 180 | 365 }; result: SavedProfileHeatmap | null };
   load_profile_activity_history: { args: { profileId: string; beforeRunId: string | null }; result: ActivityHistoryPage };
   load_profile_quota_history: { args: { profileId: string; beforeRunId: string | null }; result: QuotaHistoryPage };
@@ -472,6 +484,7 @@ export async function invoke<K extends keyof Commands>(
     : command === 'load_profile_activity' ? isSavedProfileActivity(response)
     : command === 'load_profile_heatmap' ? isSavedProfileHeatmap(response)
     : command === 'load_combined_heatmap' ? isCombinedHeatmapEligibility(response)
+    : command === 'load_activity_dashboard' ? isActivityDashboard(response) && matchesActivitySelection(response, args[0])
     : command === 'cancel_profile_activity_read' ? isPreviewCancellation(response)
     : (command === 'begin_profile_quota_read' || command === 'begin_profile_quota_reassociation') ? isProfileQuotaRequest(response)
     : command === 'complete_profile_quota_read' ? isProfileQuotaSavedRead(response)
@@ -809,6 +822,66 @@ function isCombinedHeatmapEligibility(value: unknown): value is CombinedHeatmapE
     const e = value as Record<string, unknown>;
     if (Object.keys(e).length !== 2 || !isUuid(e.profileId) || seen.has(e.profileId) || !['not_connected','activity_unavailable','identity_unverified'].includes(String(e.reason))) return false;
     seen.add(e.profileId); return true;
+  });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+function matchesActivitySelection(value: ActivityDashboard, args: unknown): boolean {
+  if (!isRecord(args) || !Array.isArray(args.profileIds) || !args.profileIds.length || args.profileIds.length > 10
+    || value.view !== args.view || value.mode !== args.mode || value.periodStart !== args.startDate || value.periodEnd !== args.endDate) return false;
+  const ids = [...value.members,...value.exclusions].map(m => m.profileId);
+  return ids.length === args.profileIds.length && args.profileIds.every(id => isUuid(id) && ids.includes(id));
+}
+function isActivityDashboard(value: unknown): value is ActivityDashboard {
+  if (!isRecord(value)) return false;
+  const v = value;
+  const count = (n: unknown): n is string | null => n === null || typeof n === 'string' && /^(0|[1-9][0-9]{0,38})$/.test(n) && BigInt(n) <= 340282366920938463463374607431768211455n;
+  const integer = (n: unknown, max: number): n is number => typeof n === 'number' && Number.isInteger(n) && n >= 0 && n <= max;
+  if (Object.keys(v).length !== 15 || !['individual','verified','profile_sum'].includes(String(v.view))
+    || !['available','unavailable'].includes(String(v.status)) || !['daily','weekly','cumulative'].includes(String(v.mode))
+    || !isProviderDate(v.periodStart) || !isProviderDate(v.periodEnd) || v.periodStart > v.periodEnd
+    || (Date.parse(v.periodEnd) - Date.parse(v.periodStart)) / 86400000 >= 365
+    || !['official_artifact','test_fixture','unverified'].includes(String(v.sourceKind))
+    || !(v.observedAtUtc === null || isUtcTimestamp(v.observedAtUtc)) || typeof v.scopeVerified !== 'boolean'
+    || !count(v.totalTokens) || !count(v.scaleMaximum) || !integer(v.knownContributions,3650) || !integer(v.expectedContributions,3650)
+    || v.knownContributions > v.expectedContributions || !Array.isArray(v.members) || v.members.length > 10
+    || !Array.isArray(v.exclusions) || v.exclusions.length > 10 || !Array.isArray(v.cells) || v.cells.length > 365
+    || (v.view === 'verified' && v.status === 'available' && !v.scopeVerified)
+    || (v.status === 'available' ? v.members.length === 0 || v.observedAtUtc === null : v.members.length !== 0 || v.cells.length !== 0 || v.totalTokens !== null)) return false;
+  const ids = new Set<string>();
+  if (!v.members.every(m => {
+    if (!isRecord(m) || Object.keys(m).length !== 10 || !isUuid(m.profileId) || ids.has(m.profileId)
+      || typeof m.label !== 'string' || !m.label.trim() || m.label.length > 256 || !count(m.tokens)
+      || !(m.shareBasisPoints === null || integer(m.shareBasisPoints,10000)) || !integer(m.knownDays,365)
+      || !['official_artifact','test_fixture'].includes(String(m.sourceKind)) || typeof m.scope !== 'string' || m.scope.length > 256
+      || !isUtcTimestamp(m.observedAtUtc) || !isUuid(m.bindingId) || !isUuid(m.collectionRunId)
+      || (m.tokens === null ? m.knownDays !== 0 || m.shareBasisPoints !== null : m.knownDays === 0)) return false;
+    ids.add(m.profileId); return true;
+  }) || !v.exclusions.every(e => {
+    if (!isRecord(e) || Object.keys(e).length !== 2 || !isUuid(e.profileId) || ids.has(e.profileId)
+      || !['archived','not_connected','activity_unavailable','truncated_history','identity_unverified','scope_unverified','incompatible_scope','duplicate_identity'].includes(String(e.reason))) return false;
+    ids.add(e.profileId); return true;
+  })) return false;
+  if (ids.size > 10 || (v.view === 'individual' && ids.size !== 1)) return false;
+  const members = v.members as ActivityDashboard['members'];
+  const reported = members.filter(m => m.tokens !== null);
+  const sum = reported.reduce((n,m) => n + BigInt(m.tokens!),0n);
+  if ((reported.length === 0 ? v.totalTokens !== null : v.totalTokens !== sum.toString())
+    || v.knownContributions !== members.reduce((n,m) => n + m.knownDays,0)
+    || v.expectedContributions !== ((Date.parse(v.periodEnd) - Date.parse(v.periodStart)) / 86400000 + 1) * members.length
+    || (sum > 0n ? reported.some(m => m.shareBasisPoints === null) || reported.reduce((n,m) => n + m.shareBasisPoints!,0) !== 10000 : members.some(m => m.shareBasisPoints !== null))) return false;
+  let last = '';
+  return v.cells.every(c => {
+    if (!isRecord(c) || Object.keys(c).length !== 10 || !isProviderDate(c.startDate) || !isProviderDate(c.endDate) || c.startDate > c.endDate || c.startDate <= last
+      || !count(c.tokens) || !integer(c.level,4) || !integer(c.knownDays,365) || !integer(c.expectedDays,365) || c.expectedDays < 1 || c.knownDays > c.expectedDays
+      || !integer(c.knownContributions,3650) || !integer(c.expectedContributions,3650) || c.expectedContributions < 1 || c.knownContributions > c.expectedContributions
+      || c.expectedContributions !== c.expectedDays * members.length
+      || !(c.observedAtUtc === null || isUtcTimestamp(c.observedAtUtc)) || !isActivityFreshness(c.freshness)
+      || (c.tokens === null ? c.level !== 0 || c.knownDays !== 0 || c.knownContributions !== 0 : c.knownDays === 0 || c.observedAtUtc === null)
+      || (c.tokens === '0' && c.level !== 0) || (c.tokens !== null && c.tokens !== '0' && c.level === 0)) return false;
+    last = c.startDate; return true;
   });
 }
 

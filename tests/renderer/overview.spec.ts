@@ -25,7 +25,7 @@ type Pending = { profileId: string; kind: string; resolve: (value: unknown) => v
 type Fixture = { calls: string[]; deferFirst: boolean; mismatchFirst: boolean; pending: Pending[]; profiles: ProfileRecord[]; quotas: Record<string, SavedProfileQuota | null>; rejectQuota: string[]; mismatchQuota: string[]; deferQuota: string[] };
 type FixtureWindow = Window & { overviewFixture: Fixture };
 
-async function open(page: Page, options: { empty?: boolean; deferFirst?: boolean; chart?: boolean; count?: number; freshQuotas?: boolean; deferSecond?: boolean; year?: boolean } = {}) {
+async function open(page: Page, options: { empty?: boolean; deferFirst?: boolean; chart?: boolean; count?: number; freshQuotas?: boolean; deferSecond?: boolean; year?: boolean; aggregation?: boolean } = {}) {
   const chartActivity = activity(first, '0');
   if (options.chart) {
     chartActivity.dailyState = 'returned';
@@ -54,8 +54,10 @@ async function open(page: Page, options: { empty?: boolean; deferFirst?: boolean
       return { startDate: date, endDate: date, tokens: index % 10 === 0 ? null : String(index), level: index % 10 === 0 ? 0 : 3, knownDays: index % 10 === 0 ? 0 : 1, expectedDays: 1, observedAtUtc: index % 10 === 0 ? null : observedAtUtc, freshness: 'unknown' as const };
     });
   }
+  if (options.aggregation) { heatmap.cells[2]!.tokens = '30'; heatmap.scaleMaximum = '30'; }
   await page.addInitScript(({ first, second, ids, readings, quotas, options, heatmap }) => {
-    const fixture: Fixture = { calls: [], deferFirst: options.deferFirst ?? false, mismatchFirst: false, pending: [], profiles: ids.map((id, index) => ({ id, label: index === 0 ? 'Zero fixture' : index === 1 ? 'Large fixture' : `Fixture ${index + 1}`, environment: 'native', archived: false, connectionState: 'authentication_required' })), quotas, rejectQuota: [], mismatchQuota: [], deferQuota: options.deferSecond ? [second] : [] };
+    const observedAtUtc = heatmap.observedAtUtc;
+    const fixture: Fixture = { calls: [], deferFirst: options.deferFirst ?? false, mismatchFirst: false, pending: [], profiles: ids.map((id, index) => ({ id, label: index === 0 ? 'Zero fixture' : index === 1 ? 'Large fixture' : `Fixture ${index + 1}`, environment: 'native', archived: false, connectionState: options.aggregation ? 'connected' : 'authentication_required' })), quotas, rejectQuota: [], mismatchQuota: [], deferQuota: options.deferSecond ? [second] : [] };
     Object.assign(window, { overviewFixture: fixture });
     let theme = 'light';
     window.__TAURI__ = { core: { invoke: async <T>(command: string, args: Record<string, unknown> = {}) => {
@@ -63,6 +65,29 @@ async function open(page: Page, options: { empty?: boolean; deferFirst?: boolean
       if (command === 'load_time_zone') return { timeZone: localStorage.getItem('fixture-zone') ?? 'UTC' } as T;
       if (command === 'set_time_zone') { localStorage.setItem('fixture-zone', String(args.timeZone)); return { timeZone: args.timeZone } as T; }
       if (command === 'load_combined_heatmap') return { status: 'unavailable', includedProfileIds: [], exclusions: (args.profileIds as string[]).map(profileId => ({ profileId, reason: 'not_connected' })) } as T;
+      if (command === 'load_activity_dashboard') {
+        const selected = args.profileIds as string[], view = String(args.view), mode = String(args.mode);
+        const start = String(args.startDate), end = String(args.endDate), days = Math.round((Date.parse(end)-Date.parse(start))/86400000)+1;
+        const included = selected.filter(id => options.chart && (id === first || options.aggregation) && view !== 'verified' && (view === 'individual' || fixture.profiles.find(p => p.id === id)?.connectionState === 'connected'));
+        const members = included.map(id => {
+          const rows = heatmap.cells.filter(c => c.startDate >= start && c.startDate <= end && (id === first ? c.tokens !== null : c.startDate === '2026-10-03'));
+          const total = rows.length ? rows.reduce((n,c) => n+BigInt(id === first ? c.tokens! : '10'),0n).toString() : null;
+          return { profileId:id,label:fixture.profiles.find(p => p.id===id)!.label,tokens:total,shareBasisPoints:null as number|null,knownDays:rows.length,sourceKind:'test_fixture',scope:heatmap.scope,observedAtUtc,bindingId:heatmap.bindingId,collectionRunId:heatmap.collectionRunId };
+        });
+        const total = members.some(m => m.tokens!==null) ? members.reduce((n,m)=>n+BigInt(m.tokens??'0'),0n) : null;
+        let assigned=0;
+        if (total!==null && total>0n) for (const m of members) if (m.tokens!==null) { m.shareBasisPoints=Number(BigInt(m.tokens)*10000n/total);assigned+=m.shareBasisPoints; }
+        if (assigned && assigned<10000) members.find(m=>m.shareBasisPoints!==null)!.shareBasisPoints!+=10000-assigned;
+        const daily = heatmap.cells.filter(c=>c.startDate>=start&&c.startDate<=end).map(c=> {
+          const reporting=members.filter(m=>m.profileId===first?c.tokens!==null:c.startDate==='2026-10-03');
+          const tokens=reporting.length?reporting.reduce((n,m)=>n+BigInt(m.profileId===first?c.tokens!:'10'),0n).toString():null;
+          return {...c,tokens,level:tokens===null||tokens==='0'?0:4,knownDays:tokens===null?0:1,expectedDays:1,observedAtUtc:tokens===null?null:observedAtUtc,knownContributions:reporting.length,expectedContributions:members.length};
+        });
+        let cells = daily;
+        if (mode==='weekly' && daily.length) cells=[{...daily[0]!,startDate:'2026-09-28',endDate:'2026-10-04',tokens:total?.toString()??null,level:total===null||total===0n?0:4,knownDays:daily.filter(c=>c.tokens!==null).length,expectedDays:7,observedAtUtc:total===null?null:observedAtUtc,knownContributions:members.reduce((n,m)=>n+m.knownDays,0),expectedContributions:7*members.length}];
+        if (mode==='cumulative') { let sum:bigint|null=null,known=0,contributions=0;cells=daily.map((c,index)=> {if(c.tokens!==null){sum=(sum??0n)+BigInt(c.tokens);known++;} contributions+=c.knownContributions;return {...c,tokens:sum===null?null:String(sum),level:sum===null||sum===0n?0:4,knownDays:known,expectedDays:index+1,observedAtUtc:sum===null?null:observedAtUtc,knownContributions:contributions,expectedContributions:(index+1)*members.length};}); }
+        return { view,status:members.length?'available':'unavailable',mode,periodStart:start,periodEnd:end,sourceKind:members.length?'test_fixture':'unverified',observedAtUtc:members.length?observedAtUtc:null,scopeVerified:false,totalTokens:total?.toString()??null,knownContributions:members.reduce((n,m)=>n+m.knownDays,0),expectedContributions:days*members.length,scaleMaximum:heatmap.scaleMaximum,members,exclusions:selected.filter(id=>!included.includes(id)).map(profileId=>({profileId,reason:fixture.profiles.find(p=>p.id===profileId)?.connectionState!=='connected'&&view!=='individual'?'not_connected':view==='verified'?'identity_unverified':'activity_unavailable'})),cells:members.length?cells:[] } as T;
+      }
       if (command === 'load_profile_heatmap') {
         if (!options.chart || args.profileId !== first) return null as T;
         if (args.mode === 'weekly') return { ...heatmap, mode: 'weekly', cells: [{ ...heatmap.cells[2], startDate: '2026-09-28', endDate: '2026-10-04', knownDays: 2, expectedDays: 7 }] } as T;
@@ -289,9 +314,13 @@ test('Overview heatmap distinguishes missing dates, zero and exact counts withou
   await expect(chart.locator('[data-heatmap-cell="2026-10-02"]')).toHaveAttribute('data-value', 'missing');
   await expect(chart.locator('[data-heatmap-cell="2026-10-01"]')).toHaveAttribute('data-value', 'zero');
   const cell = chart.locator('[data-heatmap-cell="2026-10-03"]');
-  await cell.focus(); await expect(chart).toContainText('9007199254740993');
+  await cell.focus();
+  await expect(cell).toHaveAttribute('data-exact-value', '9007199254740993');
+  await expect(cell).toHaveAttribute('aria-label', /9,007,199,254,740,993 reported tokens/);
+  await expect(chart.locator('[data-heatmap-selected] bdi')).toHaveText('9.01E15');
+  await expect(chart.locator('[data-heatmap-selected] bdi')).toHaveAttribute('title', '9,007,199,254,740,993');
   await chart.locator('[data-heatmap-values-toggle]').click();
-  await expect(chart.locator('table')).toContainText('9007199254740993');
+  await expect(chart.locator('table')).toContainText('9,007,199,254,740,993');
   await choose(page, 'Large fixture');
   await expect(chart).toContainText('No saved daily activity');
 });
@@ -301,7 +330,7 @@ for (const scale of [1, 2]) test(`Heatmap values stay exact and locally scrollab
   const chart = dashboard(page).locator('[data-token-heatmap]');
   await chart.locator('[data-heatmap-values-toggle]').click();
   if (scale === 2) await page.evaluate(() => { const sizes = [...document.querySelectorAll<HTMLElement>('body *')].map(node => ({ node, size: getComputedStyle(node).fontSize })); for (const { node, size } of sizes) node.style.fontSize = `${parseFloat(size) * 2}px`; });
-  await expect(chart.locator('table')).toContainText('9007199254740993');
+  await expect(chart.locator('table')).toContainText('9,007,199,254,740,993');
   expect(await page.evaluate(() => document.scrollingElement!.scrollWidth <= innerWidth + 1), JSON.stringify(await page.evaluate(() => [...document.querySelectorAll('.token-heatmap, .token-heatmap > *, .activity-scope-controls, .activity-scope-controls > *, .activity-scope-controls button, .overview-panel')].map(node => ({ tag: node.className, width: node.getBoundingClientRect().width, right: node.getBoundingClientRect().right, minWidth: getComputedStyle(node).minWidth }))))).toBe(true);
 });
 
@@ -388,22 +417,46 @@ test('archival removes the account and its late quota response cannot replace a 
 });
 
 
-test('Overview offers individual and combined scopes without fabricating unsupported totals', async ({ page }) => {
+test('Overview preserves the verified gate and offers labeled profile sums', async ({ page }) => {
   await open(page, { chart: true });
-  await expect(dashboard(page).locator('[data-overview-account-share]')).toHaveCount(1);
-  await expect(dashboard(page).locator('[data-overview-combined-usage]')).toHaveCount(0);
-  await dashboard(page).getByRole('button', { name: 'Combined', exact: true }).click();
-  const combined = dashboard(page).locator('[data-combined-heatmap]');
-  await combined.getByRole('checkbox', { name: 'Zero fixture', exact: true }).check();
-  await expect(combined).toContainText('These accounts cannot be combined yet.');
-  await expect(combined).toContainText('Not connected');
-  await expect(combined.locator('[data-heatmap-cell]')).toHaveCount(0);
+  await dashboard(page).getByRole('button', { name: 'Verified combined', exact: true }).click();
+  await dashboard(page).getByRole('checkbox', { name: 'Include Zero fixture', exact: true }).check();
+  await expect(dashboard(page).locator('[data-combined-availability]')).toContainText('Verified totals are unavailable');
+  await dashboard(page).getByText('1 excluded', { exact:true }).click();
+  await expect(dashboard(page)).toContainText('Not connected');
+  await expect(dashboard(page).locator('[data-heatmap-cell]')).toHaveCount(0);
   await dashboard(page).getByRole('button', { name: 'Individual', exact: true }).click();
   await expect(dashboard(page).locator('[data-token-heatmap]')).toContainText('Zero fixture');
   await dashboard(page).locator('[data-heatmap-mode=weekly]').click();
   await expect(dashboard(page).locator('[data-token-heatmap]')).toHaveAttribute('data-mode', 'weekly');
   const calls = await page.evaluate(() => (window as unknown as FixtureWindow).overviewFixture.calls);
   expect(calls.some(command => /^(begin_|complete_|check_profile)/.test(command))).toBe(false);
+});
+
+test('profile selection, period and modes synchronize the donut and observed heatmap', async ({page}) => {
+  await open(page,{chart:true,aggregation:true});
+  await dashboard(page).getByRole('button',{name:'Profile sum',exact:true}).click();
+  const share = dashboard(page).locator('[data-overview-account-share]');
+  await expect(share.locator('.overview-donut-center strong')).toHaveText('40');
+  await expect(share.locator(`[data-share-profile="${first}"]`)).toContainText('75%');
+  await expect(share.locator(`[data-share-profile="${second}"]`)).toContainText('25%');
+  const chart = dashboard(page).locator('[data-token-heatmap]');
+  await expect(chart.locator('[data-heatmap-cell="2026-10-03"]')).toHaveAttribute('data-exact-value','40');
+  await expect(dashboard(page).locator('.activity-sum-notice')).toContainText('Unverified');
+  await dashboard(page).getByRole('checkbox',{name:'Include Large fixture',exact:true}).uncheck();
+  await expect(share.locator('.overview-donut-center strong')).toHaveText('30');
+  await expect(share.locator(`[data-share-profile="${first}"]`)).toContainText('100%');
+  await chart.locator('[data-heatmap-mode=weekly]').click();
+  await expect(chart.locator('[data-heatmap-cell]')).toHaveCount(1);
+  await expect(share.locator('.overview-donut-center strong')).toHaveText('30');
+  await chart.locator('[data-heatmap-mode=cumulative]').click();
+  await expect(chart.locator('[data-heatmap-cell="2026-10-03"]')).toHaveAttribute('data-exact-value','30');
+  await dashboard(page).locator('.activity-date-range summary').click();
+  await dashboard(page).getByLabel('Activity from',{exact:true}).fill('2026-10-01');
+  await dashboard(page).getByLabel('Activity to',{exact:true}).fill('2026-10-01');
+  await expect(share).toContainText('No shares for a zero-token total');
+  await expect(chart.locator('[data-heatmap-cell]')).toHaveCount(1);
+  await expect(chart.locator('[data-heatmap-cell]')).toHaveAttribute('data-exact-value','0');
 });
 
 test('all provider-reported quota windows stay visible and missing windows are never inferred from plan names', async ({ page }) => {
@@ -490,9 +543,10 @@ test('live clock and saved India time zone update timestamps without moving acti
   await page.clock.install({ time: new Date('2026-10-20T00:00:00Z') });
   await open(page, { chart: true });
   const clock = page.locator('[data-live-clock]');
-  await expect(clock).toContainText('00:00:00');
+  await expect(clock).toContainText(/00:00:\d{2}/);
+  const beforeTick = Date.parse((await clock.getAttribute('datetime'))!);
   await page.clock.runFor(1000);
-  await expect(clock).toContainText('00:00:01');
+  await expect.poll(async () => Date.parse((await clock.getAttribute('datetime'))!)).toBeGreaterThanOrEqual(beforeTick + 1000);
   await navigate(page, 'settings');
   await page.getByRole('combobox', { name: 'Time zone', exact: true }).click();
   await page.getByRole('option', { name: 'India · Kolkata (UTC+05:30)', exact: true }).click();

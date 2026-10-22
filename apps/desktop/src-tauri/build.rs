@@ -51,6 +51,7 @@ fn main() {
             "load_profile_activity_history",
             "load_profile_heatmap",
             "load_combined_heatmap",
+            "load_activity_dashboard",
             "begin_profile_activity_read",
             "begin_profile_activity_reassociation",
             "review_profile_activity_association",

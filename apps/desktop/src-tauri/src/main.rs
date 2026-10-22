@@ -182,6 +182,16 @@ struct CombinedHeatmapArgs {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ActivityDashboardArgs {
+    profile_ids: Vec<String>,
+    view: String,
+    mode: String,
+    start_date: String,
+    end_date: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ProfileHeatmapArgs {
     profile_id: String,
     mode: String,
@@ -1732,6 +1742,20 @@ async fn load_profile_activity_history(
 }
 
 #[tauri::command]
+async fn load_activity_dashboard(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<workspace::ActivityDashboard, CommandError> {
+    let args: ActivityDashboardArgs = arguments(&request)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        service.lock().map_err(|_| CommandError::StorageUnavailable)?
+            .as_ref().ok_or(CommandError::WorkspaceLocked)?
+            .load_activity_dashboard(&args.profile_ids, &args.view, &args.mode, &args.start_date, &args.end_date)
+    }).await.map_err(|_| CommandError::StorageUnavailable)?
+}
+
+#[tauri::command]
 async fn load_combined_heatmap(
     request: tauri::ipc::Request<'_>,
     service: State<'_, WorkspaceService>,
@@ -2055,6 +2079,7 @@ fn main() {
             load_profile_activity,
             load_profile_heatmap,
             load_combined_heatmap,
+            load_activity_dashboard,
             begin_profile_activity_read,
             begin_profile_activity_reassociation,
             review_profile_activity_association,

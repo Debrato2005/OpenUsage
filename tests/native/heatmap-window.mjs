@@ -68,6 +68,11 @@ try {
   assert.equal(grid.interactivePadding, 0);
   evidence.calendar = grid;
   assert.match(await driver.execute('return document.querySelector("[data-workspace-view=usage] [data-heatmap-coverage]").textContent;'), /7 of 365 days reported/);
+  const displayed = await driver.execute('const n=document.querySelector("[data-workspace-view=usage] [data-heatmap-selected]");return {count:n.querySelector("bdi").textContent,exact:n.querySelector("bdi").title,label:n.querySelector("strong").textContent};');
+  assert.equal(displayed.count, '2.22M');
+  assert.equal(displayed.exact, '2,220,000');
+  assert.match(displayed.label, /reported tokens/);
+  evidence.displayedCount = displayed;
   const queue = [driver.child.pid]; let owned;
   for (let n = 0; queue.length && n < 64; n++) {
     const pid = queue.shift();

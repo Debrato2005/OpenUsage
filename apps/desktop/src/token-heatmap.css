@@ -105,3 +105,13 @@
 .overview-share-unavailable { margin-block: auto; padding-block: 2rem; line-height: 1.6; color: var(--muted); }
 .overview-share-unavailable h3 { margin: 0 0 .5rem; font-size: 1.125rem; font-weight: 550; color: var(--text); }
 .overview-share-unavailable p { margin: 0; }
+.activity-sum-notice, .activity-date-range { color: var(--muted); font-size: .8125rem; line-height: 1.5; }
+.activity-sum-notice summary, .activity-date-range summary { cursor: pointer; width: fit-content; padding-block: .35rem; }
+.activity-sum-notice p { margin-block: .4rem; max-width: 60ch; }
+.activity-date-range > div { display: flex; flex-wrap: wrap; align-items: end; gap: .75rem; padding-block: .5rem; }
+.activity-date-range label { display: grid; gap: .25rem; }
+.activity-date-range input { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--line); border-radius: .5rem; padding: .4rem .5rem; min-width: 0; }
+.overview-share-legend li > i { width: .625rem; height: .625rem; border-radius: 2px; flex-shrink: 0; }
+.overview-share-legend li > bdi { flex: 1; }
+.activity-share-values { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.activity-share-values th, .activity-share-values td { text-align: left; padding: .35rem .25rem; overflow-wrap: anywhere; }

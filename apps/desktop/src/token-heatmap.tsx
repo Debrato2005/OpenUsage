@@ -5,22 +5,27 @@ import { Button } from './components/ui/button';
 import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from './components/ui/collapsible';
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from './components/ui/select';
 import { invoke, type SavedProfileHeatmap } from './contracts';
+import type { ActivityDashboardState } from './activity-dashboard';
 import './token-heatmap.css';
 
-type Props = { profileId: string | null; profileLabel: string; revision: number; compact?: boolean };
+type Props = { profileId: string | null; profileLabel: string; revision: number; compact?: boolean; controller?: ActivityDashboardState };
 type Mode = 'daily' | 'weekly' | 'cumulative';
 type Period = 30 | 90 | 180 | 365;
-type Cell = SavedProfileHeatmap['cells'][number];
+type Cell = SavedProfileHeatmap['cells'][number] & { knownContributions?: number; expectedContributions?: number };
 const modes: Record<Mode, string> = { daily: 'Daily', weekly: 'Weekly', cumulative: 'Cumulative' };
 const freshness = { fresh: 'Fresh', stale: 'Stale', unknown: 'Freshness unknown' };
+const exactCounts = new Intl.NumberFormat('en-US');
+const compactCounts = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 2 });
+const scientificCounts = new Intl.NumberFormat('en-US', { notation: 'scientific', maximumFractionDigits: 2 });
 
 function description(cell: Cell, mode: Mode): string {
   const period = cell.startDate === cell.endDate ? cell.startDate : `${cell.startDate} to ${cell.endDate}`;
   if (cell.tokens === null) return `${period}: no saved reading`;
-  return `${period}: ${cell.tokens} ${mode === 'daily' ? 'tokens' : mode === 'weekly' ? 'observed token subtotal' : 'cumulative observed tokens'}; ${cell.knownDays} of ${cell.expectedDays} days known${cell.knownDays < cell.expectedDays ? '; Incomplete' : ''}; ${freshness[cell.freshness]}`;
+  const known = cell.knownContributions ?? cell.knownDays, expected = cell.expectedContributions ?? cell.expectedDays;
+  return `${period}: ${exactCounts.format(BigInt(cell.tokens))} ${mode === 'daily' ? 'reported tokens' : mode === 'weekly' ? 'observed token subtotal' : 'cumulative observed tokens'}; ${known} of ${expected} ${cell.knownContributions === undefined ? 'days known' : 'profile-days reported'}${known < expected ? '; Incomplete' : ''}; ${freshness[cell.freshness]}`;
 }
 
-export function TokenHeatmap({ profileId, profileLabel, revision, compact = false }: Props) {
+export function TokenHeatmap({ profileId, profileLabel, revision, compact = false, controller }: Props) {
   const observedDates = useDateFormat();
   const calendar = useRef<HTMLDivElement>(null);
   const [calendarWidth, setCalendarWidth] = useState(300);
@@ -33,8 +38,12 @@ export function TokenHeatmap({ profileId, profileLabel, revision, compact = fals
   }, []);
   const headingId = useId();
   const detailId = useId();
-  const [mode, setMode] = useState<Mode>('daily');
-  const [periodDays, setPeriodDays] = useState<Period>(compact ? 90 : 365);
+  const [localMode, setLocalMode] = useState<Mode>('daily');
+  const [localPeriodDays, setLocalPeriodDays] = useState<Period>(compact ? 90 : 365);
+  const mode = controller?.mode ?? localMode;
+  const periodDays = controller?.periodDays ?? localPeriodDays;
+  const setMode = controller?.setMode ?? setLocalMode;
+  const setPeriodDays = controller?.setPeriodDays ?? setLocalPeriodDays;
   const [retry, setRetry] = useState(0);
   const [result, setResult] = useState<{ key: string; value: SavedProfileHeatmap | null; failed: boolean } | null>(null);
   const [focused, setFocused] = useState(0);
@@ -45,8 +54,8 @@ export function TokenHeatmap({ profileId, profileLabel, revision, compact = fals
     let cancelled = false;
     setFocused(0);
     setPreview(0);
-    if (!profileId) return;
-    void invoke('load_profile_heatmap', { profileId, mode, periodDays }).then(value => {
+    if (!profileId || controller) return;
+    void invoke('load_profile_heatmap', { profileId, mode, periodDays: periodDays as Period }).then(value => {
       if (cancelled) return;
       if (value && (value.profileId !== profileId || value.mode !== mode)) throw new Error('Mismatched saved activity');
       const lastKnown = value?.cells.reduce((last, cell, index) => cell.tokens !== null ? index : last, 0) ?? 0;
@@ -57,11 +66,17 @@ export function TokenHeatmap({ profileId, profileLabel, revision, compact = fals
       if (!cancelled) setResult({ key: requestKey, value: null, failed: true });
     });
     return () => { cancelled = true; };
-  }, [profileId, mode, periodDays, revision, retry, requestKey]);
+  }, [profileId, mode, periodDays, revision, retry, requestKey, Boolean(controller)]);
   const current = result?.key === requestKey ? result : null;
-  const value = current?.value ?? null;
-  const cells = value?.cells ?? [];
-  const loading = profileId !== null && current === null;
+  const value = controller ? controller.data : current?.value ?? null;
+  const cells: Cell[] = value?.cells ?? [];
+  useEffect(() => {
+    if (!controller?.data) return;
+    const lastKnown = controller.data.cells.reduce((last, cell, index) => cell.tokens !== null ? index : last, 0);
+    setFocused(lastKnown); setPreview(lastKnown);
+  }, [controller?.data]);
+  const loading = controller ? controller.loading : profileId !== null && current === null;
+  const failed = controller ? controller.failed : current?.failed;
   const selected = cells[preview] ?? cells[0];
   const weekly = mode === 'weekly';
   const byDate = new Map(cells.map((cell, index) => [cell.startDate, { cell, index }]));
@@ -96,22 +111,22 @@ export function TokenHeatmap({ profileId, profileLabel, revision, compact = fals
   }
   return <section ref={calendar} className="token-heatmap" data-token-heatmap data-profile-id={profileId ?? ''} data-mode={mode} data-period-days={periodDays} data-compact={compact || undefined} aria-labelledby={headingId} aria-busy={loading}>
     <header className="token-heatmap-header">
-      <div><h2 id={headingId}>Token activity</h2><p><bdi>{profileLabel || 'No account selected'}</bdi>{value && <span> · {cells.some(cell => cell.knownDays < cell.expectedDays) ? 'Partial history' : 'Saved dates'}</span>}</p></div>
+      <div><h2 id={headingId}>Token activity</h2><p><bdi>{profileLabel || 'No account selected'}</bdi>{value && <span> · {cells.some(cell => (cell.knownContributions ?? cell.knownDays) < (cell.expectedContributions ?? cell.expectedDays)) ? 'Partial history' : 'Saved dates'}</span>}</p></div>
       <div className="token-heatmap-controls">
         <div className="token-heatmap-modes" role="group" aria-label="Activity view">{(Object.keys(modes) as Mode[]).map(item => <Button key={item} variant="ghost" type="button" data-heatmap-mode={item} aria-pressed={mode === item} onClick={() => setMode(item)}>{modes[item]}</Button>)}</div>
-        <Select modal={false} value={String(periodDays)} items={{ '30': '30 days', '90': '90 days', '180': '180 days', '365': '365 days' }} onValueChange={next => { if (next === '30' || next === '90' || next === '180' || next === '365') setPeriodDays(Number(next) as Period); }}>
+        <Select modal={false} value={[30,90,180,365].includes(periodDays) ? String(periodDays) : 'custom'} items={{ '30': '30 days', '90': '90 days', '180': '180 days', '365': '365 days', custom: 'Custom range' }} onValueChange={next => { if (next === '30' || next === '90' || next === '180' || next === '365') setPeriodDays(Number(next) as Period); }}>
           <SelectTrigger aria-label="Activity history range"><SelectValue /></SelectTrigger>
-          <SelectPopup alignItemWithTrigger={false}>{([30, 90, 180, 365] as const).map(days => <SelectItem key={days} value={String(days)}>{days} days</SelectItem>)}</SelectPopup>
+          <SelectPopup alignItemWithTrigger={false}>{([30, 90, 180, 365] as const).map(days => <SelectItem key={days} value={String(days)}>{days} days</SelectItem>)}<SelectItem value="custom" disabled>Custom range</SelectItem></SelectPopup>
         </Select>
       </div>
     </header>
     {!profileId ? <p className="token-heatmap-empty">Connect an account to view activity.</p>
       : loading ? <p className="token-heatmap-empty" role="status">Loading saved activity…</p>
-      : current?.failed ? <div className="token-heatmap-empty" role="alert"><p>Saved activity could not be loaded.</p><Button variant="outline" onClick={() => setRetry(value => value + 1)}>Retry</Button></div>
+      : failed ? <div className="token-heatmap-empty" role="alert"><p>Saved activity could not be loaded.</p><Button variant="outline" onClick={controller?.retry ?? (() => setRetry(value => value + 1))}>Retry</Button></div>
       : !value || cells.length === 0 ? <p className="token-heatmap-empty">No saved daily activity yet.</p>
       : <>
         {value.sourceKind === 'test_fixture' && <p className="token-heatmap-fixture">Synthetic test data</p>}
-        <p className="token-heatmap-range" data-heatmap-coverage><time dateTime={value.periodStart}>{value.periodStart}</time> – <time dateTime={value.periodEnd}>{value.periodEnd}</time><span>{knownDays} of {periodDays} days reported</span></p>
+        <p className="token-heatmap-range" data-heatmap-coverage><time dateTime={value.periodStart}>{value.periodStart}</time> – <time dateTime={value.periodEnd}>{value.periodEnd}</time><span>{controller?.data ? `${controller.data.knownContributions} of ${controller.data.expectedContributions} profile-days reported` : `${knownDays} of ${periodDays} days reported`}</span></p>
         <div className="token-heatmap-calendar-scroll" data-heatmap-grid role="group" aria-label={`${modes[mode]} token activity. Use arrow keys to explore dates.`}>
           <ActivityCalendar data={calendarData} weekStart={1} blockSize={blockSize} blockMargin={3} blockRadius={3} fontSize={13}
             showTotalCount={false} showColorLegend={false} showWeekdayLabels={weekly ? false : ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']}
@@ -141,17 +156,18 @@ export function TokenHeatmap({ profileId, profileLabel, revision, compact = fals
         <div className="token-heatmap-legend" aria-label="Heatmap legend"><span><i data-value="missing" />Missing</span><span><i data-value="zero" />Zero</span><span className="token-heatmap-scale">Less{[1, 2, 3, 4].map(level => <i key={level} data-level={level} />)}More</span></div>
         {selected && <div className="token-heatmap-selected" id={detailId} data-heatmap-selected>
           <span><time dateTime={selected.startDate}>{selected.startDate}</time>{selected.startDate !== selected.endDate && <> – <time dateTime={selected.endDate}>{selected.endDate}</time></>}</span>
-          <strong>{selected.tokens === null ? 'No saved reading' : <><bdi>{selected.tokens}</bdi> <span>{mode === 'daily' ? 'tokens' : mode === 'weekly' ? 'observed tokens' : 'cumulative observed tokens'}</span></>}</strong>
-          {selected.tokens !== null && <span>{selected.knownDays} of {selected.expectedDays} days known{selected.knownDays < selected.expectedDays && ' · Incomplete'} · {freshness[selected.freshness]}</span>}
+          <strong>{selected.tokens === null ? 'No saved reading' : <><bdi title={exactCounts.format(BigInt(selected.tokens))} aria-label={exactCounts.format(BigInt(selected.tokens))}>{(selected.tokens.length > 15 ? scientificCounts : compactCounts).format(BigInt(selected.tokens))}</bdi> <span>{mode === 'daily' ? 'reported tokens' : mode === 'weekly' ? 'observed tokens' : 'cumulative observed tokens'}</span></>}</strong>
+          {selected.tokens !== null && <span>{'knownContributions' in selected ? <>{selected.knownContributions} of {selected.expectedContributions} profile-days{selected.knownContributions! < selected.expectedContributions! && ' · Incomplete'} · </> : mode !== 'daily' && <>{selected.knownDays} of {selected.expectedDays} days known{selected.knownDays < selected.expectedDays && ' · Incomplete'} · </>}{freshness[selected.freshness]}</span>}
         </div>}
         <Collapsible className="token-heatmap-details">
           <CollapsibleTrigger render={<Button variant="ghost" />} type="button" data-heatmap-values-toggle>Values</CollapsibleTrigger>
           <CollapsiblePanel>
             <p>{mode === 'cumulative' ? 'Cumulative values sum known days within this selected period. Missing days remain unknown.' : mode === 'weekly' ? 'Weekly subtotals include known days only. Missing days remain unknown.' : 'Each cell shows the saved provider-reported count for that date. Missing dates are not zero.'} Dates follow provider-reported day buckets; changing the display time zone does not shift or split them. Provider activity scope and coverage are unknown.</p>
-            <p>Source: {value.sourceKind === 'official_artifact' ? 'Official OpenAI provider' : value.sourceKind === 'test_fixture' ? 'Synthetic test fixture' : 'Unverified'}. Last read: <time dateTime={value.observedAtUtc}>{observedDates.format(new Date(value.observedAtUtc))}</time>. Scale maximum: <bdi>{value.scaleMaximum ?? 'Not available'}</bdi>.</p>
+            <p>These are reported token counts, not quota remaining. The provider does not identify which applications or token categories this count covers.</p>
+            <p>Source: {value.sourceKind === 'official_artifact' ? 'Official OpenAI provider' : value.sourceKind === 'test_fixture' ? 'Synthetic test fixture' : 'Unverified'}. Last read: {value.observedAtUtc ? <time dateTime={value.observedAtUtc}>{observedDates.format(new Date(value.observedAtUtc))}</time> : 'Not available'}. Scale maximum: <bdi>{value.scaleMaximum === null ? 'Not available' : exactCounts.format(BigInt(value.scaleMaximum))}</bdi>.</p>
             <div className="token-heatmap-values" data-heatmap-values role="region" aria-label="Exact activity values" tabIndex={0}>
-              <table><thead><tr><th scope="col">Date</th><th scope="col">{mode === 'daily' ? 'Tokens' : mode === 'weekly' ? 'Observed subtotal' : 'Cumulative observed tokens'}</th><th scope="col">Known days</th><th scope="col">Freshness</th><th scope="col">Last read</th></tr></thead>
-                <tbody>{cells.map(cell => <tr key={cell.startDate}><th scope="row"><time dateTime={cell.startDate}>{cell.startDate}</time>{cell.startDate !== cell.endDate && <> – <time dateTime={cell.endDate}>{cell.endDate}</time></>}</th><td><bdi>{cell.tokens ?? 'Not available'}</bdi></td><td>{cell.knownDays}/{cell.expectedDays}</td><td>{freshness[cell.freshness]}</td><td>{cell.observedAtUtc ? <time dateTime={cell.observedAtUtc}>{observedDates.format(new Date(cell.observedAtUtc))}</time> : 'Not available'}</td></tr>)}</tbody>
+              <table><thead><tr><th scope="col">Date</th><th scope="col">{mode === 'daily' ? 'Tokens' : mode === 'weekly' ? 'Observed subtotal' : 'Cumulative observed tokens'}</th><th scope="col">{controller ? 'Profile-days reported' : 'Known days'}</th><th scope="col">Freshness</th><th scope="col">Last read</th></tr></thead>
+                <tbody>{cells.map(cell => <tr key={cell.startDate}><th scope="row"><time dateTime={cell.startDate}>{cell.startDate}</time>{cell.startDate !== cell.endDate && <> – <time dateTime={cell.endDate}>{cell.endDate}</time></>}</th><td><bdi>{cell.tokens === null ? 'Not available' : exactCounts.format(BigInt(cell.tokens))}</bdi></td><td>{cell.knownContributions ?? cell.knownDays}/{cell.expectedContributions ?? cell.expectedDays}</td><td>{freshness[cell.freshness]}</td><td>{cell.observedAtUtc ? <time dateTime={cell.observedAtUtc}>{observedDates.format(new Date(cell.observedAtUtc))}</time> : 'Not available'}</td></tr>)}</tbody>
               </table>
             </div>
           </CollapsiblePanel>

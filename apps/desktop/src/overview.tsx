@@ -7,6 +7,7 @@ import { Meter, MeterIndicator, MeterLabel, MeterTrack } from './components/ui/m
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from './components/ui/select';
 import { invoke, type ProfileRecord, type SavedProfileActivity, type SavedProfileQuota, type SavedQuotaWindow } from './contracts';
 import { ActivityPanel } from './activity-panel';
+import { useActivityDashboard } from './activity-dashboard';
 import './activity.css';
 import './overview.css';
 import { AccountDonut } from './account-donut';
@@ -63,6 +64,7 @@ export function Overview({ profiles, revision, onAccounts, onAccountAction, busy
   const [limitSelection, setLimitSelection] = useState<string | null>(null);
   const selected = activeProfiles.find(profile => profile.id === selection) ?? activeProfiles[0];
   const profileId = selected?.id;
+  const dashboard = useActivityDashboard(activeProfiles, profileId ?? null, revision, active);
   const [reading, setReading] = useState<Reading | null>(null);
   const [loading, setLoading] = useState(false);
   const [refresh, setRefresh] = useState(0);
@@ -193,9 +195,9 @@ export function Overview({ profiles, revision, onAccounts, onAccountAction, busy
         <div className="overview-account-footer">{quota && <Observed value={quota} />}{selected && <Button variant="ghost" onClick={() => act({ kind: 'usage', profileId: selected.id })}>View usage <span aria-hidden="true">↗</span></Button>}
         {(quota || activity) && <Collapsible className="overview-source-details"><CollapsibleTrigger render={<Button variant="ghost" />} type="button">Reading details</CollapsibleTrigger><CollapsiblePanel><p className="overview-meta">Unverified identity · Saved locally. Remaining quota is derived from provider-reported usage. Combined totals are not available.</p>{quota && <Observed value={quota} />}{activity && <p className="overview-meta">Lifetime tokens: <bdi>{lifetimeTokens ?? 'Not available'}</bdi>. Peak daily tokens: <bdi>{activity.summary.peakDailyTokens ?? 'Not available'}</bdi>. Account activity scope and coverage are unknown.</p>}</CollapsiblePanel></Collapsible>}</div>
       </section>
-      <AccountDonut profiles={activeProfiles} label={selected?.label ?? 'No account selected'} window={limit?.primary ?? limit?.secondary ?? null} />
+      <AccountDonut label={selected?.label ?? 'No account selected'} window={limit?.primary ?? limit?.secondary ?? null} dashboard={dashboard} />
       <section className="overview-panel overview-activity-panel" aria-label="Token activity" data-overview-activity>
-        <ActivityPanel profiles={activeProfiles} profileId={active ? profileId ?? null : null} revision={revision} onSelect={setSelection} />
+        <ActivityPanel profiles={activeProfiles} profileId={active ? profileId ?? null : null} revision={revision} onSelect={setSelection} dashboard={dashboard} />
 
       </section>
     </div>
