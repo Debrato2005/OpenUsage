@@ -2798,6 +2798,7 @@ dependencies = [
  "jiff",
  "libc",
  "rusqlite",
+ "serde_json",
  "tempfile",
  "uuid",
  "zeroize",

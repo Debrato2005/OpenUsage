@@ -30,6 +30,14 @@ The native notice inventory now maps all 486 locked registry packages to 288 exa
 
 ## Latest verified slice
 
+Settings exports all saved application records as JSON after explicit consent. One validated SQLCipher 4/WAL snapshot includes archived accounts, history, preferences, alerts and local references. Exact integers remain decimal strings. Null stays distinct from zero. Credentials, keys, provider-home files and device display calibration stay excluded. This plaintext export is separate from encrypted backup recovery.
+
+All 362 Rust tests passed, with one intentional child test ignored. Strict Clippy, 52 contracts and the final build passed. All 330 renderer cases passed across the broad run and 36 final focused cases. The initial run caught narrow export wrapping and two activity-history failures. The final run used frozen source and passed.
+
+The Linux native journey passed an empty workspace, two synthetic sign-ins, automatic collection, archived history and genuine restart. Five independent read-only checks compared all 30 table rowsets and every populated field. All 74 populated records matched. Database, WAL and wrapped-key bytes stayed unchanged. Export started no provider sessions. Private permissions, consent, exclusions and rejected arguments passed. The rendered receipt was inspected.
+
+Private evidence: application-export-native and application-export-production-refusal. The production build refused all five synthetic providers. Schema 8 and the normative SRS stay unchanged. The storage crate now uses the existing locked JSON serializer. No dependency version changed. The 5 GiB and two-minute limits refuse incomplete output. Other platforms, live-account export and power-loss durability remain unqualified.
+
 After confirmed deletion, OpenUsage checks the current credential store before presenting fresh setup. A store that became available during fallback use now permits setup without an app password. Nine focused deletion cases and strict Clippy passed after a regression first reproduced the old prompt. The default native Linux journey used a real private Secret Service. It confirmed deletion, setup without an app password, unrelated-key preservation and a genuine restart into the new OS-protected workspace. No provider session or existing credential home was used.
 
 Private evidence: `deletion-fresh-key-store-production-native`. This follow-up changes fresh onboarding only. The prior complete deletion journey retains its original executable scope.

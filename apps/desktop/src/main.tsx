@@ -10,6 +10,7 @@ import { DesktopUnavailable, invoke, type BackupReceipt, type Bootstrap, type Th
 import { ProfileManager } from './profiles';
 import { BackupInspection } from './backup-inspection';
 import { DataExport } from './data-export';
+import { ApplicationExport } from './application-export';
 import { LocalDataDeletion } from './local-data-deletion';
 import { CheckpointRecovery } from './checkpoint-recovery';
 import { AlertHistory } from './alert-history';
@@ -386,6 +387,7 @@ function App() {
         {ready && view === 'settings' && <ResetNotifications profiles={profiles} revision={String(profileRevision)} busy={busy} setBusy={setBusy} />}
         {ready && <AlertHistory revision={`${profileRevision}:${readingRevision}`} onViewUsage={profileId => requestAccountAction({ kind: 'usage', profileId })} onViewAccount={profileId => requestAccountAction({ kind: 'manage', profileId })} />}
         {ready && <DataExport key={profileRevision} profiles={profiles} busy={busy} setBusy={setBusy} />}
+        {ready && view === 'settings' && <ApplicationExport busy={busy} setBusy={setBusy} />}
         {ready && view === 'settings' && <LocalDataDeletion key="ready" busy={busy} setBusy={setBusy} onChanged={applyLocalDataState} />}
         </section>
       </main>

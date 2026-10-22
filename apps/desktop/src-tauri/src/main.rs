@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod application_export;
 mod backup;
 mod backup_inspection;
 mod display_scale;
@@ -65,6 +66,12 @@ fn optional_passphrase<'de, D: Deserializer<'de>>(
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct DeleteLocalDataArgs {
+    confirmed: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ExportApplicationArgs {
     confirmed: bool,
 }
 
@@ -666,6 +673,35 @@ async fn export_saved_readings(
         args.confirmed,
     )
     .await
+}
+
+#[tauri::command]
+async fn export_application_data(
+    request: tauri::ipc::Request<'_>,
+    app: AppHandle,
+    service: State<'_, WorkspaceService>,
+) -> Result<application_export::ApplicationExportReceipt, CommandError> {
+    let args: ExportApplicationArgs = arguments(&request)?;
+    if !args.confirmed {
+        return Err(CommandError::InvalidArguments);
+    }
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut state = service
+            .lock()
+            .map_err(|_| CommandError::ExportUnavailable)?;
+        let workspace = state.as_mut().ok_or(CommandError::WorkspaceLocked)?;
+        let when = restore::timestamp(std::time::SystemTime::now())
+            .ok_or(CommandError::ExportUnavailable)?;
+        let directory = app
+            .path()
+            .download_dir()
+            .map_err(|_| CommandError::ExportUnavailable)?
+            .join("OpenUsage");
+        application_export::create(&directory, workspace, when)
+    })
+    .await
+    .map_err(|_| CommandError::ExportUnavailable)?
 }
 
 #[tauri::command]
@@ -1915,6 +1951,7 @@ fn main() {
             export_saved_readings,
             export_quota_history,
             export_activity_history,
+            export_application_data,
             delete_all_local_data,
             list_profiles,
             create_profile,
@@ -1995,10 +2032,10 @@ mod tests {
     use super::{
         ApplyRestoreArgs, ApproveProviderArgs, ArchiveProfileArgs, BackupArgs, BeginLoginArgs,
         BeginReadArgs, CancelRestorePreviewArgs, CheckpointPreviewArgs, CreateProfileArgs,
-        DeleteLocalDataArgs, DisplayScaleArgs, ExportHistoryArgs, InspectBackupArgs,
-        InspectProviderArgs, ListProfilesArgs, LoginAttemptArgs, ProfileCheckArgs,
-        ProfileHistoryArgs, ProfilePlanArgs, ProfileReadArgs, RenameProfileArgs, SetupArgs,
-        ThemeArgs, UnlockArgs, is_bundled_url,
+        DeleteLocalDataArgs, DisplayScaleArgs, ExportApplicationArgs, ExportHistoryArgs,
+        InspectBackupArgs, InspectProviderArgs, ListProfilesArgs, LoginAttemptArgs,
+        ProfileCheckArgs, ProfileHistoryArgs, ProfilePlanArgs, ProfileReadArgs, RenameProfileArgs,
+        SetupArgs, ThemeArgs, UnlockArgs, is_bundled_url,
     };
 
     #[test]
@@ -2042,6 +2079,30 @@ mod tests {
             let mut invalid = valid.clone();
             invalid[field] = value;
             assert!(serde_json::from_value::<ExportHistoryArgs>(invalid).is_err());
+        }
+    }
+
+    #[test]
+    fn full_application_export_requires_consent_and_rejects_caller_scope() {
+        assert!(
+            serde_json::from_str::<ExportApplicationArgs>(r#"{"confirmed":true}"#)
+                .unwrap()
+                .confirmed
+        );
+        assert!(
+            !serde_json::from_str::<ExportApplicationArgs>(r#"{"confirmed":false}"#)
+                .unwrap()
+                .confirmed
+        );
+        for invalid in [
+            r#"{}"#,
+            r#"{"confirmed":"true"}"#,
+            r#"{"confirmed":true,"path":"/external"}"#,
+            r#"{"confirmed":true,"format":"csv"}"#,
+            r#"{"confirmed":true,"profileIds":[]}"#,
+            r#"{"confirmed":true,"limit":10}"#,
+        ] {
+            assert!(serde_json::from_str::<ExportApplicationArgs>(invalid).is_err());
         }
     }
 

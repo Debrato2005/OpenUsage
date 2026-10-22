@@ -60,6 +60,17 @@ export interface ReadingExportReceipt {
   exportedAt: string;
 }
 
+export interface ApplicationExportReceipt {
+  fileName: string;
+  directory: string;
+  format: 'json';
+  schemaVersion: number;
+  tableCount: number;
+  recordCount: string;
+  byteCount: string;
+  exportedAt: string;
+}
+
 export interface ProfileRecord {
   id: string;
   label: string;
@@ -351,6 +362,7 @@ interface Commands {
   export_saved_readings: { args: { profileIds: string[]; format: ReadingExportFormat; includeIdentifiers: boolean; confirmed: true }; result: ReadingExportReceipt };
   export_quota_history: { args: { profileId: string; format: ReadingExportFormat; includeIdentifiers: boolean; confirmed: true }; result: ReadingExportReceipt };
   export_activity_history: { args: { profileId: string; format: ReadingExportFormat; includeIdentifiers: boolean; confirmed: true }; result: ReadingExportReceipt };
+  export_application_data: { args: { confirmed: true }; result: ApplicationExportReceipt };
 }
 
 declare global {
@@ -415,6 +427,7 @@ export async function invoke<K extends keyof Commands>(
     : command === 'list_backups' ? isBackupList(response)
     : command === 'inspect_backup' ? isBackupInspection(response)
     : command === 'create_backup' ? isBackupReceipt(response)
+    : command === 'export_application_data' ? isApplicationExportReceipt(response)
     : command === 'export_saved_readings' || command === 'export_quota_history' || command === 'export_activity_history' ? isReadingExportReceipt(response) && (command === 'export_saved_readings' || response.profileCount === 1)
     : ['list_profiles', 'create_profile', 'rename_profile', 'set_profile_archived'].includes(command)
     ? isProfileView(response) : isBootstrap(response);
@@ -959,6 +972,21 @@ function isReadingExportReceipt(value: unknown): value is ReadingExportReceipt {
     && Number.isInteger(v.profileCount) && Number(v.profileCount) >= 1 && Number(v.profileCount) <= 10
     && Number.isInteger(v.rowCount) && Number(v.rowCount) >= 0 && Number(v.rowCount) <= 50000
     && typeof v.identifiersIncluded === 'boolean' && isUtcTimestamp(v.exportedAt);
+}
+
+function isApplicationExportReceipt(value: unknown): value is ApplicationExportReceipt {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  return Object.keys(v).length === 8
+    && Object.keys(v).every(key => ['fileName', 'directory', 'format', 'schemaVersion', 'tableCount', 'recordCount', 'byteCount', 'exportedAt'].includes(key))
+    && v.format === 'json'
+    && typeof v.fileName === 'string' && /^openusage-application-[A-Za-z0-9]{16}\.json$/.test(v.fileName)
+    && typeof v.directory === 'string' && v.directory.length > 0 && v.directory.length <= 32768 && !/[\u0000-\u001f\u007f]/.test(v.directory)
+    && Number.isSafeInteger(v.schemaVersion) && Number(v.schemaVersion) > 0
+    && Number.isSafeInteger(v.tableCount) && Number(v.tableCount) > 0 && Number(v.tableCount) <= 1000
+    && isWideCount(v.recordCount) && BigInt(v.recordCount) <= 18446744073709551615n
+    && isByteCount(v.byteCount) && BigInt(v.byteCount) > 0n && BigInt(v.byteCount) <= 5368709120n
+    && isUtcTimestamp(v.exportedAt);
 }
 
 function isBackupReceipt(value: unknown): value is BackupReceipt {

@@ -13,6 +13,20 @@ function desktopResponse(value) {
   globalThis.window = { __TAURI__: { core: { invoke: async () => value } } };
 }
 
+test('application export returns metadata only and keeps counts exact', async () => {
+  const receipt = { fileName: 'openusage-application-AbCd1234EfGh5678.json', directory: '/synthetic/Downloads/OpenUsage', format: 'json', schemaVersion: 8, tableCount: 30, recordCount: '9007199254740993', byteCount: '1048576', exportedAt: '2026-10-22T08:00:00.000Z' };
+  desktopResponse(receipt);
+  assert.deepEqual(await invoke('export_application_data', { confirmed: true }), receipt);
+  for (const fields of [{ recordCount: '0' }, { byteCount: '5368709120' }]) {
+    desktopResponse({ ...receipt, ...fields });
+    assert.deepEqual(await invoke('export_application_data', { confirmed: true }), { ...receipt, ...fields });
+  }
+  for (const fields of [{ recordCount: 9007199254740992 }, { recordCount: '18446744073709551616' }, { recordCount: '01' }, { byteCount: '5368709121' }, { byteCount: '0' }, { format: 'csv' }, { tableCount: 0 }, { tableCount: 30.5 }, { schemaVersion: 0 }, { fileName: '../private.json' }, { directory: 'private\nlocation' }, { exportedAt: '2026-02-30T08:00:00.000Z' }, { records: [] }, { credentials: 'synthetic-only' }]) {
+    desktopResponse({ ...receipt, ...fields });
+    await assert.rejects(invoke('export_application_data', { confirmed: true }), /desktop response is incompatible/);
+  }
+});
+
 test('local deletion accepts only an empty setup result and keeps pending recovery explicit', async () => {
   const fresh = { ...ready, storage: 'setup_required', schemaVersion: null, activeProfiles: null };
   desktopResponse(fresh); assert.deepEqual(await invoke('delete_all_local_data', { confirmed: true }), fresh);

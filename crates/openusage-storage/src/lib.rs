@@ -42,6 +42,8 @@ mod activity_history;
 pub use activity_history::ActivityHistoryPage;
 mod readings_export;
 pub use readings_export::{ExportError, ReadingsExport};
+mod application_export;
+pub use application_export::{ApplicationExportError, ApplicationExportSummary};
 mod restore_apply;
 pub use restore_apply::{
     CheckpointRestoreMetadata, RestoreError, RestoreHomeMapping, RestoreInputMetadata,

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-export-application-data"
+description = "Enables the export_application_data command without any pre-configured scope."
+commands.allow = ["export_application_data"]
+
+[[permission]]
+identifier = "deny-export-application-data"
+description = "Denies the export_application_data command without any pre-configured scope."
+commands.deny = ["export_application_data"]

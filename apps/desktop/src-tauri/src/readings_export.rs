@@ -12,6 +12,7 @@ use std::{
     fs,
     io::{self, Write},
     path::Path,
+    time::{Duration, Instant},
 };
 
 const MAX_EXPORT_BYTES: u64 = 64 * 1024 * 1024;
@@ -86,10 +87,14 @@ struct LimitedWriter<'a> {
     writer: &'a mut fs::File,
     count: u64,
     exceeded: bool,
+    limit: u64,
+    deadline: Instant,
 }
 impl Write for LimitedWriter<'_> {
     fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
-        if bytes.len() as u64 > MAX_EXPORT_BYTES.saturating_sub(self.count) {
+        if Instant::now() >= self.deadline
+            || bytes.len() as u64 > self.limit.saturating_sub(self.count)
+        {
             self.exceeded = true;
             return Err(io::Error::new(
                 io::ErrorKind::FileTooLarge,
@@ -111,7 +116,7 @@ fn unsafe_spreadsheet_text(value: &str) -> bool {
             .trim_start_matches(|c: char| c.is_whitespace() || c == '\u{feff}')
             .starts_with(['=', '+', '-', '@', '＝', '＋', '－', '＠'])
 }
-fn csv_cell(writer: &mut impl Write, value: &str) -> io::Result<()> {
+fn csv_cell(writer: &mut (impl Write + ?Sized), value: &str) -> io::Result<()> {
     writer.write_all(b"\"")?;
     for part in value.split_inclusive('"') {
         writer.write_all(part.as_bytes())?;
@@ -121,7 +126,7 @@ fn csv_cell(writer: &mut impl Write, value: &str) -> io::Result<()> {
     }
     writer.write_all(b"\"")
 }
-fn csv(writer: &mut impl Write, data: &ReadingsExport) -> io::Result<()> {
+fn csv(writer: &mut (impl Write + ?Sized), data: &ReadingsExport) -> io::Result<()> {
     for (index, column) in data.columns.iter().enumerate() {
         if index != 0 {
             writer.write_all(b",")?;
@@ -172,6 +177,63 @@ pub fn create(
     {
         return Err(CommandError::ExportUnsafeText);
     }
+    let (saved, ()) = publish(
+        directory,
+        "openusage-readings-",
+        format.extension(),
+        MAX_EXPORT_BYTES,
+        |writer| {
+            match format {
+                ExportFormat::Csv => csv(writer, &data),
+                ExportFormat::Json => serde_json::to_writer(
+                    writer,
+                    &Document {
+                        schema_version: 1,
+                        exported_at: &exported_at,
+                        selection: Selection {
+                            profile_count: data.profile_count,
+                            identifiers_included,
+                        },
+                        records: Records(&data),
+                    },
+                )
+                .map_err(io::Error::other),
+            }
+            .map_err(io_error)
+        },
+    )?;
+    Ok(ExportReceipt {
+        file_name: saved.file_name,
+        directory: saved.directory,
+        format,
+        profile_count: data.profile_count,
+        row_count: data.rows.len(),
+        identifiers_included,
+        exported_at,
+    })
+}
+
+pub(crate) struct PublishedExport {
+    pub file_name: String,
+    pub directory: String,
+    pub byte_count: u64,
+}
+
+pub(crate) fn io_error(error: io::Error) -> CommandError {
+    if error.kind() == io::ErrorKind::StorageFull {
+        CommandError::InsufficientSpace
+    } else {
+        CommandError::ExportUnavailable
+    }
+}
+
+pub(crate) fn publish<T>(
+    directory: &Path,
+    prefix: &str,
+    extension: &str,
+    limit: u64,
+    operation: impl FnOnce(&mut dyn Write) -> Result<T, CommandError>,
+) -> Result<(PublishedExport, T), CommandError> {
     prepare_directory(directory).map_err(|_| CommandError::ExportUnavailable)?;
     let directory_name = directory
         .to_str()
@@ -182,14 +244,14 @@ pub fn create(
     #[cfg(unix)]
     let held_directory = fs::File::open(directory).map_err(|_| CommandError::ExportUnavailable)?;
     if backup::available_space(directory).map_err(|_| CommandError::ExportUnavailable)?
-        < MAX_EXPORT_BYTES
+        < limit.min(MAX_EXPORT_BYTES)
     {
         return Err(CommandError::InsufficientSpace);
     }
     let mut pending = tempfile::Builder::new()
-        .prefix("openusage-readings-")
+        .prefix(prefix)
         .rand_bytes(16)
-        .suffix(&format!(".{}.pending", format.extension()))
+        .suffix(&format!(".{extension}.pending"))
         .tempfile_in(directory)
         .map_err(|_| CommandError::ExportUnavailable)?;
     let file_name = pending
@@ -204,30 +266,22 @@ pub fn create(
         writer: pending.as_file_mut(),
         count: 0,
         exceeded: false,
+        limit,
+        deadline: Instant::now() + Duration::from_secs(120),
     };
-    let written = match format {
-        ExportFormat::Csv => csv(&mut writer, &data),
-        ExportFormat::Json => serde_json::to_writer(
-            &mut writer,
-            &Document {
-                schema_version: 1,
-                exported_at: &exported_at,
-                selection: Selection {
-                    profile_count: data.profile_count,
-                    identifiers_included,
-                },
-                records: Records(&data),
-            },
-        )
-        .map_err(io::Error::other),
+    let result = {
+        let mut buffered = io::BufWriter::with_capacity(64 * 1024, &mut writer);
+        let result = operation(&mut buffered);
+        match result {
+            Ok(value) => buffered.flush().map(|()| value).map_err(io_error),
+            Err(error) => Err(error),
+        }
     };
-    if written.is_err() {
-        return Err(if writer.exceeded {
-            CommandError::ExportTooLarge
-        } else {
-            CommandError::ExportUnavailable
-        });
+    if writer.exceeded {
+        return Err(CommandError::ExportTooLarge);
     }
+    let result = result?;
+    let byte_count = writer.count;
     writer
         .flush()
         .map_err(|_| CommandError::ExportUnavailable)?;
@@ -262,15 +316,14 @@ pub fn create(
         let _ = backup::sync_directory(directory);
         return Err(CommandError::ExportUnavailable);
     }
-    Ok(ExportReceipt {
-        file_name,
-        directory: directory_name,
-        format,
-        profile_count: data.profile_count,
-        row_count: data.rows.len(),
-        identifiers_included,
-        exported_at,
-    })
+    Ok((
+        PublishedExport {
+            file_name,
+            directory: directory_name,
+            byte_count,
+        },
+        result,
+    ))
 }
 
 #[cfg(test)]
@@ -298,6 +351,26 @@ mod tests {
     }
     fn when() -> String {
         "2026-10-20T00:00:00.000Z".into()
+    }
+    #[test]
+    fn streamed_publication_removes_failed_and_oversized_pending_files() {
+        let dir = private_directory();
+        fs::write(dir.path().join("keep.json"), b"existing export").unwrap();
+        let failed: Result<(PublishedExport, ()), _> =
+            publish(dir.path(), "openusage-application-", "json", 32, |writer| {
+                writer.write_all(b"partial").unwrap();
+                Err(CommandError::ExportUnavailable)
+            });
+        assert!(matches!(failed, Err(CommandError::ExportUnavailable)));
+        let oversized = publish(dir.path(), "openusage-application-", "json", 4, |writer| {
+            writer.write_all(b"too large").map_err(io_error)
+        });
+        assert!(matches!(oversized, Err(CommandError::ExportTooLarge)));
+        assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
+        assert_eq!(
+            fs::read(dir.path().join("keep.json")).unwrap(),
+            b"existing export"
+        );
     }
     #[test]
     fn files_preserve_exact_values_nulls_and_csv_escaping() {

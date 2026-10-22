@@ -502,6 +502,24 @@ impl Workspace {
             .map_err(export_error)
     }
 
+    pub fn write_application_export(
+        &mut self,
+        writer: &mut dyn Write,
+        exported_at: &str,
+    ) -> Result<openusage_storage::ApplicationExportSummary, CommandError> {
+        self.storage
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .write_application_export(writer, exported_at)
+            .map_err(|error| match error {
+                openusage_storage::ApplicationExportError::TooLarge => CommandError::ExportTooLarge,
+                openusage_storage::ApplicationExportError::WriteFailed(
+                    std::io::ErrorKind::StorageFull,
+                ) => CommandError::InsufficientSpace,
+                _ => CommandError::ExportUnavailable,
+            })
+    }
+
     pub fn list_profiles(&self) -> Result<ProfileView, CommandError> {
         let profiles = self
             .storage
