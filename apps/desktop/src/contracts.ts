@@ -278,9 +278,18 @@ export interface SavedProfileActivity {
   dailyChart: { maxTokens: string | null; bars: { date: string; heightBasisPoints: number }[] };
 }
 
+export interface ActivityHistoryEntry {
+  profileId: string; bindingId: string; collectionRunId: string; observedAtUtc: string;
+  sourceKind: 'official_artifact' | 'test_fixture'; providerVersion: string;
+  sourceScope: 'account_activity_with_unknown_application_scope'; coverage: 'unknown';
+  summary: ProfileActivitySavedRead['summary']; dailyBucketsState: 'unavailable' | 'empty' | 'returned';
+}
+export interface ActivityHistoryPage { profileId: string; entries: ActivityHistoryEntry[]; nextBeforeRunId: string | null }
+
 interface Commands {
   load_combined_heatmap: { args: { profileIds: string[] }; result: CombinedHeatmapEligibility };
   load_profile_heatmap: { args: { profileId: string; mode: HeatmapMode; periodDays: 30 | 90 | 180 | 365 }; result: SavedProfileHeatmap | null };
+  load_profile_activity_history: { args: { profileId: string; beforeRunId: string | null }; result: ActivityHistoryPage };
   load_profile_quota_history: { args: { profileId: string; beforeRunId: string | null }; result: QuotaHistoryPage };
   load_alert_history: { args: undefined; result: SavedAlertHistory };
   load_notification_preferences: { args: undefined; result: NotificationPreferences };
@@ -362,6 +371,7 @@ export async function invoke<K extends keyof Commands>(
   const valid = command === 'load_notification_preferences' || command === 'save_notification_preferences' ? isNotificationPreferences(response)
     : command === 'load_reset_notification_preferences' || command === 'save_reset_notification_preferences' ? isResetNotificationPreferences(response)
     : command === 'load_alert_history' ? isSavedAlertHistory(response)
+    : command === 'load_profile_activity_history' ? isActivityHistoryPage(response)
     : command === 'load_profile_quota_history' ? isQuotaHistoryPage(response)
     : (command === 'get_display_scale' || command === 'set_display_scale') ? isDisplayScale(response)
     : command === 'load_profile_plan' ? isProfilePlan(response)
@@ -467,6 +477,29 @@ function isSavedAlertHistory(value: unknown): value is SavedAlertHistory {
     ids.add(event.id);
   }
   return true;
+}
+
+function isActivityHistoryPage(value: unknown): value is ActivityHistoryPage {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const page = value as Record<string, unknown>;
+  if (Object.keys(page).length !== 3 || !isUuid(page.profileId) || !Array.isArray(page.entries) || page.entries.length > 20
+    || !(page.nextBeforeRunId === null || isUuid(page.nextBeforeRunId))) return false;
+  const ids = new Set<string>();
+  let previous: { observedAtUtc: string; collectionRunId: string } | null = null;
+  for (const value of page.entries) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+    const row = value as Record<string, unknown>;
+    if (Object.keys(row).length !== 10 || row.profileId !== page.profileId || !isUuid(row.bindingId) || !isUuid(row.collectionRunId)
+      || ids.has(row.collectionRunId) || !isUtcTimestamp(row.observedAtUtc) || !quotaText(row.providerVersion, 80)
+      || (row.sourceKind !== 'official_artifact' && row.sourceKind !== 'test_fixture')
+      || row.sourceScope !== 'account_activity_with_unknown_application_scope' || row.coverage !== 'unknown'
+      || !isActivitySummary(row.summary) || !['unavailable', 'empty', 'returned'].includes(row.dailyBucketsState as string)) return false;
+    if (previous && (previous.observedAtUtc < row.observedAtUtc
+      || previous.observedAtUtc === row.observedAtUtc && previous.collectionRunId <= row.collectionRunId)) return false;
+    previous = { observedAtUtc: row.observedAtUtc as string, collectionRunId: row.collectionRunId as string };
+    ids.add(row.collectionRunId);
+  }
+  return page.nextBeforeRunId === null || page.entries.length === 20 && page.nextBeforeRunId === (page.entries.at(-1) as ActivityHistoryEntry).collectionRunId;
 }
 
 function isQuotaHistoryPage(value: unknown): value is QuotaHistoryPage {

@@ -9,7 +9,9 @@ use openusage_storage::{
 use std::time::{Duration, Instant, SystemTime};
 
 mod heatmap;
+mod history;
 pub(crate) use heatmap::{CombinedHeatmapEligibility, ProfileHeatmap};
+pub(crate) use history::ProfileActivityHistory;
 
 const FRESH_FOR: Duration = Duration::from_secs(30 * 60);
 

@@ -37,6 +37,7 @@ fn main() {
             "cancel_profile_login",
             "discover_provider_executables",
             "load_profile_activity",
+            "load_profile_activity_history",
             "load_profile_heatmap",
             "load_combined_heatmap",
             "begin_profile_activity_read",

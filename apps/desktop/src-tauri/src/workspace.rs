@@ -22,7 +22,8 @@ mod quota_history;
 mod quota_storage;
 mod reset_notifications;
 pub(crate) use activity_storage::{
-    CombinedHeatmapEligibility, ProfileHeatmap, ReadAssociationReview, SavedProfileActivity,
+    CombinedHeatmapEligibility, ProfileActivityHistory, ProfileHeatmap, ReadAssociationReview,
+    SavedProfileActivity,
 };
 pub(crate) use alert_history::SavedAlertHistory;
 #[cfg(test)]

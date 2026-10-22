@@ -4,6 +4,7 @@ import { Select, SelectTrigger, SelectValue, SelectPopup, SelectItem } from './c
 import type { ProfileRecord } from './contracts';
 import { ProfileActivity } from './activity';
 import { QuotaHistory } from './quota-history';
+import { ActivityHistory } from './activity-history';
 import { TokenHeatmap } from './token-heatmap';
 
 export function Usage({ profiles, revision, onAccounts, active, requestedProfileId }: { requestedProfileId?: string | null; active: boolean; profiles: ProfileRecord[]; revision: number; onAccounts: () => void }) {
@@ -19,6 +20,7 @@ export function Usage({ profiles, revision, onAccounts, active, requestedProfile
     </div>
     {profile && <TokenHeatmap profileId={profile.id} profileLabel={profile.label} revision={revision} />}
     {profile && <QuotaHistory key={`history:${profile.id}`} profile={profile} revision={revision} />}
+    {profile && <ActivityHistory key={`activity-history:${profile.id}`} profileId={profile.id} revision={revision} />}
     {profile ? <ProfileActivity key={profile.id} readingRevision={String(revision)} profileId={profile.id} profileLabel={profile.label} emptyContent={<div className="empty-state"><h3>No saved activity for this profile</h3><p>Refresh this account on Overview to save a reading.</p><Button variant="outline" onClick={onAccounts}>Manage accounts</Button></div>}>{() => null}</ProfileActivity>
       : <div className="empty-state"><h3>No saved activity yet</h3><p>Add an account profile, then read its activity.</p><Button variant="outline" onClick={onAccounts}>Manage accounts</Button></div>}
   </section>;

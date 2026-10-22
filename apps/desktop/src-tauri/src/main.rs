@@ -165,7 +165,7 @@ struct ProfileHeatmapArgs {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct ProfileQuotaHistoryArgs {
+struct ProfileHistoryArgs {
     profile_id: String,
     #[serde(deserialize_with = "Option::deserialize")]
     before_run_id: Option<String>,
@@ -1556,7 +1556,7 @@ async fn load_profile_quota_history(
     request: tauri::ipc::Request<'_>,
     service: State<'_, WorkspaceService>,
 ) -> Result<workspace::ProfileQuotaHistory, CommandError> {
-    let args: ProfileQuotaHistoryArgs = arguments(&request)?;
+    let args: ProfileHistoryArgs = arguments(&request)?;
     workspace::validate_profile_id(&args.profile_id)?;
     if let Some(cursor) = &args.before_run_id {
         restore::validate_preview_id(cursor)?;
@@ -1569,6 +1569,29 @@ async fn load_profile_quota_history(
             .as_mut()
             .ok_or(CommandError::WorkspaceLocked)?
             .load_profile_quota_history(&args.profile_id, args.before_run_id.as_deref())
+    })
+    .await
+    .map_err(|_| CommandError::StorageUnavailable)?
+}
+
+#[tauri::command]
+async fn load_profile_activity_history(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<workspace::ProfileActivityHistory, CommandError> {
+    let args: ProfileHistoryArgs = arguments(&request)?;
+    workspace::validate_profile_id(&args.profile_id)?;
+    if let Some(cursor) = &args.before_run_id {
+        restore::validate_preview_id(cursor)?;
+    }
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        service
+            .lock()
+            .map_err(|_| CommandError::StorageUnavailable)?
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .load_profile_activity_history(&args.profile_id, args.before_run_id.as_deref())
     })
     .await
     .map_err(|_| CommandError::StorageUnavailable)?
@@ -1876,6 +1899,7 @@ fn main() {
             cancel_profile_quota_read,
             load_profile_quota,
             load_profile_quota_history,
+            load_profile_activity_history,
             load_alert_history,
             load_notification_preferences,
             save_notification_preferences,
@@ -1919,9 +1943,8 @@ mod tests {
         ApplyRestoreArgs, ApproveProviderArgs, ArchiveProfileArgs, BackupArgs, BeginLoginArgs,
         BeginReadArgs, CancelRestorePreviewArgs, CheckpointPreviewArgs, CreateProfileArgs,
         DisplayScaleArgs, ExportQuotaHistoryArgs, InspectBackupArgs, InspectProviderArgs,
-        ListProfilesArgs, LoginAttemptArgs, ProfileCheckArgs, ProfilePlanArgs,
-        ProfileQuotaHistoryArgs, ProfileReadArgs, RenameProfileArgs, SetupArgs, ThemeArgs,
-        UnlockArgs, is_bundled_url,
+        ListProfilesArgs, LoginAttemptArgs, ProfileCheckArgs, ProfileHistoryArgs, ProfilePlanArgs,
+        ProfileReadArgs, RenameProfileArgs, SetupArgs, ThemeArgs, UnlockArgs, is_bundled_url,
     };
 
     #[test]
@@ -1975,10 +1998,10 @@ mod tests {
             r#"{"profileId":"synthetic","beforeRunId":null,"limit":1000}"#,
             r#"{"profileId":"synthetic","beforeRunId":null,"bindingId":"injected"}"#,
         ] {
-            assert!(serde_json::from_str::<ProfileQuotaHistoryArgs>(invalid).is_err());
+            assert!(serde_json::from_str::<ProfileHistoryArgs>(invalid).is_err());
         }
         assert!(
-            serde_json::from_str::<ProfileQuotaHistoryArgs>(
+            serde_json::from_str::<ProfileHistoryArgs>(
                 r#"{"profileId":"synthetic","beforeRunId":null}"#
             )
             .is_ok()

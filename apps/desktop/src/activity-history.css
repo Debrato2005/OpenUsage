@@ -1,0 +1,22 @@
+.activity-history { min-width: 0; margin-top: var(--space-5); padding-top: var(--space-5); border-top: 1px solid var(--line); }
+.activity-history-heading { margin-block: var(--space-4) var(--space-3); }
+.activity-history-heading h3 { margin: 0; font-size: var(--text-section); font-weight: 600; }
+.activity-history-heading p, .activity-history-meta { color: var(--muted); font-size: var(--text-sm); line-height: var(--leading-body); margin-block: var(--space-2); }
+.activity-history-entry { min-width: 0; border-bottom: 1px solid var(--line); }
+.activity-history-entry-trigger { display: flex; justify-content: space-between; flex-wrap: wrap; gap: var(--space-3); width: 100%; min-height: 3.5rem; height: auto; padding: var(--space-3) .25rem; text-align: left; font-size: var(--text-sm); white-space: normal; }
+.activity-history-entry-trigger > span:first-of-type { color: var(--muted); margin-left: auto; }
+.activity-history-entry-trigger > span:last-child { flex-shrink: 0; }
+.activity-history-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: var(--space-3) var(--space-4); margin-block: var(--space-3); }
+.activity-history-summary > div { min-width: 0; }
+.activity-history-summary dt, .activity-history-source dt { color: var(--muted); font-size: var(--text-sm); }
+.activity-history-summary dd { margin: var(--space-1) 0 0; font-variant-numeric: tabular-nums; }
+.activity-history-source > button { min-height: 2.5rem; padding-inline: 0; font-size: var(--text-sm); }
+.activity-history-source dl { display: grid; grid-template-columns: minmax(0, 11rem) minmax(0, 1fr); gap: var(--space-2) var(--space-3); font-size: var(--text-sm); }
+.activity-history-source dd { min-width: 0; margin: 0; }
+.activity-history time, .activity-history p, .activity-history dd, .activity-history bdi { overflow-wrap: anywhere; }
+.activity-history time { font-variant-numeric: tabular-nums; }
+.activity-history-navigation { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-3); padding-top: var(--space-3); }
+.activity-history-navigation > span { color: var(--muted); font-size: var(--text-sm); }
+.activity-history-error { color: var(--error); font-size: var(--text-sm); }
+.activity-history-error > button { margin: 0 var(--space-2) var(--space-2) 0; }
+@media (max-width: 760px) { .activity-history-source dl { grid-template-columns: minmax(0, 1fr); } .activity-history-entry-trigger > span:first-of-type { margin-left: 0; } }

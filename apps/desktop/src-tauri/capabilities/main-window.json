@@ -48,6 +48,7 @@
     "allow-cancel-profile-login",
     "allow-discover-provider-executables",
     "allow-load-profile-activity",
+    "allow-load-profile-activity-history",
     "allow-load-profile-heatmap",
     "allow-load-combined-heatmap",
     "allow-begin-profile-activity-read",

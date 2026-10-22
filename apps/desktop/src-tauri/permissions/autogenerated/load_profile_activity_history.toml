@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-load-profile-activity-history"
+description = "Enables the load_profile_activity_history command without any pre-configured scope."
+commands.allow = ["load_profile_activity_history"]
+
+[[permission]]
+identifier = "deny-load-profile-activity-history"
+description = "Denies the load_profile_activity_history command without any pre-configured scope."
+commands.deny = ["load_profile_activity_history"]

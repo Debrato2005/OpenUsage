@@ -44,6 +44,21 @@ test('operational alerts expose only the selected account and safe evidence', as
   }
 });
 
+test('activity history keeps nullable exact summaries, cursor scope and observation ordering', async () => {
+  const profileId = '11111111-1111-4111-8111-111111111111';
+  const entry = { profileId, bindingId: '22222222-2222-4222-8222-222222222222', collectionRunId: '33333333-3333-4333-8333-333333333333', observedAtUtc: '2026-10-22T08:00:00.000Z', sourceKind: 'official_artifact', providerVersion: '0.163.0', sourceScope: 'account_activity_with_unknown_application_scope', coverage: 'unknown', summary: { lifetimeTokens: '9223372036854775807', peakDailyTokens: '0', longestRunningTurnSec: null, currentStreakDays: null, longestStreakDays: '9007199254740993' }, dailyBucketsState: 'unavailable' };
+  const args = { profileId, beforeRunId: null };
+  const page = { profileId, entries: [entry], nextBeforeRunId: null };
+  desktopResponse(page); assert.deepEqual(await invoke('load_profile_activity_history', args), page);
+  for (const fields of [{ profileId: '44444444-4444-4444-8444-444444444444' }, { bindingId: 'bad' }, { collectionRunId: 'bad' }, { observedAtUtc: '2026-02-30T08:00:00.000Z' }, { sourceKind: 'unknown' }, { sourceScope: 'inference_requests' }, { coverage: 'complete' }, { email: 'private@example.test' }, { dailyBucketsState: 'missing' }, { dailyUsageBuckets: [] }, { summary: { ...entry.summary, lifetimeTokens: 9007199254740993 } }, { summary: { ...entry.summary, lifetimeTokens: '9223372036854775808' } }, { summary: { ...entry.summary, lifetimeTokens: '01' } }]) {
+    desktopResponse({ ...page, entries: [{ ...entry, ...fields }] });
+    await assert.rejects(invoke('load_profile_activity_history', args), /desktop response is incompatible/);
+  }
+  for (const invalid of [{ ...page, entries: [entry, entry] }, { ...page, nextBeforeRunId: entry.collectionRunId }, { ...page, token: 'private' }, { ...page, entries: [{ ...entry, observedAtUtc: '2026-10-21T08:00:00.000Z' }, entry] }]) {
+    desktopResponse(invalid); await assert.rejects(invoke('load_profile_activity_history', args), /desktop response is incompatible/);
+  }
+});
+
 afterEach(() => { delete globalThis.window; });
 
 test('accepts valid native bootstrap states without changing missing values', async () => {

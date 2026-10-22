@@ -10,7 +10,7 @@ Updated: October 22, 2026. OpenUsage remains in development. The normative [SRS]
 - The overview follows the supplied reference: selected account with quota/statistic tiles, account-share availability, combined-usage availability with explicitly selected-account activity, and a compact account list. DM Sans, accessible coss controls, both themes and persistent native display scaling are implemented. Unsupported data stays unavailable; no account-share totals or token quotas are invented.
 - Add creates isolated default-named profiles, up to 10 active accounts. Prominent per-account Sign in, Cancel, Retry/Reconnect and automatic initial collection use the selected profile. Routine onboarding uses a bundled pinned official companion without a manual path. Credentials remain provider-managed in separate homes.
 - Rust owns persistence, provider execution, authentication, scheduling, exact counts and IPC validation. SQLCipher 4/WAL protects application records. OS-backed database keys are used where available; the preserved WSL workspace uses its required fallback password because its session key store is unavailable. Provider keyring support remains incomplete.
-- Runtime monitoring, manual refresh cooldown, provider backoff, saved daily activity, current quota/reset assessments, saved reset-event history, opt-in quota threshold/reset, sign-in-required and repeated-failure notifications with quiet hours, current-reading CSV/JSON export, encrypted authenticated backups, confirmed restore and Undo are implemented within their recorded Linux scopes.
+- Runtime monitoring, manual refresh cooldown, provider backoff, saved daily activity, current quota/reset assessments, saved reset-event history, opt-in quota threshold/reset, sign-in-required and repeated-failure notifications with quiet hours, saved activity-summary history, current-reading CSV/JSON export, encrypted authenticated backups, confirmed restore and Undo are implemented within their recorded Linux scopes.
 
 ## Development storage and publication checks
 
@@ -30,6 +30,16 @@ The native notice inventory now maps all 486 locked registry packages to 288 exa
 
 ## Latest verified slice
 
+Activity history opens on demand in Usage. Rust reads 20 saved summaries per page from one consistent SQLCipher/WAL snapshot. Exact counts, missing values, original connections and source details remain separate for each reading. The app infers no events or usage deltas. Archived accounts remain available after restart. Schema 8 remains unchanged.
+
+All 337 Rust tests passed, with one intentional child test ignored. Strict Clippy, build/type checks, 49 contracts and 294 renderer cases passed. The explicit native-test build passed two synthetic sign-ins, automatic collection, 20/2 paging, exact values, cursor isolation and archived restart.
+
+Four independent checks compared all 30 tables and unchanged database/WAL/key bytes. Browsing started no provider sessions. I inspected the rendered history. The first native run caught a missing command permission. The fix granted that command only to the local main window.
+
+Private evidence: `activity-summary-history-native-acl`. Real-provider history, history export and other platforms remain separate.
+
+## Earlier verified slices
+
 Sign-in-required and repeated-collection-failure alerts now share the existing Notifications form, quiet hours and desktop delivery journal. All four alert types default to off and retain independent account overrides. Three accepted transient failures produce one alert. A fresh accepted live reading closes the incident in the same transaction.
 
 Schema 8 keeps immutable failure evidence separate from quota proof. Current incident state and submission receipts survive archive restore, Undo and checkpoint recovery. Ordinary successful polls add no operational history. Cancellation, unsupported capabilities, malformed data and unavailable identity do not count as transient failures.
@@ -39,8 +49,6 @@ The workspace passed 330 Rust tests, with one intentional child-only test ignore
 The default production build passed native authenticated backup-content, checkpoint recovery and fixture refusal. The explicit test build passed controlled supervised failures, actual retry delays, account isolation, quiet queues, two private desktop-service acknowledgements, genuine restart, archive restore and Undo. Five independent read-only checks covered all 30 tables without changing database, WAL or key bytes.
 
 These results cover synthetic Linux journeys. They do not establish real-provider invalid-credential detection, desktop visibility, notification click routing or other platforms. A supported authentication-required response permits an actionable sign-in alert after a prior accepted reading. It does not prove invalid credentials. OU-ALERT-007 remains open under [SC-009](srs-clarifications.md#sc-009-authentication-required-evidence). Provider polling is unchanged.
-
-## Earlier verified slices
 
 Usage alerts at 80%, 90% and 100% now share one Notifications form. Reset alerts, quiet hours and independent account overrides use the same form. Rust accepts crossings only from fresh readings in a confirmed quota window. A first reading at 95% queues only 90% and consumes 80% as Covered. Later crossings remain separate.
 

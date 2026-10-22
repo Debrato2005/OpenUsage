@@ -38,6 +38,8 @@ mod collection;
 pub use collection::CollectionCommit;
 mod activity;
 pub use activity::*;
+mod activity_history;
+pub use activity_history::ActivityHistoryPage;
 mod readings_export;
 pub use readings_export::{ExportError, ReadingsExport};
 mod restore_apply;
