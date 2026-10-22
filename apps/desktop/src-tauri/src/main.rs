@@ -64,6 +64,12 @@ fn optional_passphrase<'de, D: Deserializer<'de>>(
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct DeleteLocalDataArgs {
+    confirmed: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct UnlockArgs {
     passphrase: Passphrase,
 }
@@ -573,6 +579,28 @@ async fn set_theme(
     run_workspace(app, Arc::clone(&service.0), Operation::SetTheme(theme)).await
 }
 
+#[tauri::command]
+async fn delete_all_local_data(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<Bootstrap, CommandError> {
+    let args: DeleteLocalDataArgs = arguments(&request)?;
+    if !args.confirmed {
+        return Err(CommandError::InvalidArguments);
+    }
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut state = service
+            .lock()
+            .map_err(|_| CommandError::LocalDeletionFailed)?;
+        let workspace = state.as_mut().ok_or(CommandError::WorkspaceLocked)?;
+        let vault = OsVault::new();
+        workspace.delete_all_local_data(vault.as_ref().map_err(|error| *error), true)
+    })
+    .await
+    .map_err(|_| CommandError::LocalDeletionFailed)?
+}
+
 enum ExportSelection {
     Latest(Vec<String>),
     QuotaHistory(String),
@@ -591,10 +619,10 @@ async fn save_readings_export(
         return Err(CommandError::InvalidArguments);
     }
     tauri::async_runtime::spawn_blocking(move || {
+        let mut state = service
+            .lock()
+            .map_err(|_| CommandError::ExportUnavailable)?;
         let (snapshot, when) = {
-            let mut state = service
-                .lock()
-                .map_err(|_| CommandError::ExportUnavailable)?;
             let workspace = state.as_mut().ok_or(CommandError::WorkspaceLocked)?;
             let snapshot = match selection {
                 ExportSelection::Latest(ids) => {
@@ -1887,6 +1915,7 @@ fn main() {
             export_saved_readings,
             export_quota_history,
             export_activity_history,
+            delete_all_local_data,
             list_profiles,
             create_profile,
             rename_profile,
@@ -1966,10 +1995,34 @@ mod tests {
     use super::{
         ApplyRestoreArgs, ApproveProviderArgs, ArchiveProfileArgs, BackupArgs, BeginLoginArgs,
         BeginReadArgs, CancelRestorePreviewArgs, CheckpointPreviewArgs, CreateProfileArgs,
-        DisplayScaleArgs, ExportHistoryArgs, InspectBackupArgs, InspectProviderArgs,
-        ListProfilesArgs, LoginAttemptArgs, ProfileCheckArgs, ProfileHistoryArgs, ProfilePlanArgs,
-        ProfileReadArgs, RenameProfileArgs, SetupArgs, ThemeArgs, UnlockArgs, is_bundled_url,
+        DeleteLocalDataArgs, DisplayScaleArgs, ExportHistoryArgs, InspectBackupArgs,
+        InspectProviderArgs, ListProfilesArgs, LoginAttemptArgs, ProfileCheckArgs,
+        ProfileHistoryArgs, ProfilePlanArgs, ProfileReadArgs, RenameProfileArgs, SetupArgs,
+        ThemeArgs, UnlockArgs, is_bundled_url,
     };
+
+    #[test]
+    fn deletion_arguments_require_boolean_consent_and_refuse_caller_paths() {
+        for invalid in [
+            r#"{}"#,
+            r#"{"confirmed":"true"}"#,
+            r#"{"confirmed":null}"#,
+            r#"{"confirmed":true,"path":"/external"}"#,
+            r#"{"confirmed":true,"profileIds":[]}"#,
+        ] {
+            assert!(serde_json::from_str::<DeleteLocalDataArgs>(invalid).is_err());
+        }
+        assert!(
+            serde_json::from_str::<DeleteLocalDataArgs>(r#"{"confirmed":true}"#)
+                .unwrap()
+                .confirmed
+        );
+        assert!(
+            !serde_json::from_str::<DeleteLocalDataArgs>(r#"{"confirmed":false}"#)
+                .unwrap()
+                .confirmed
+        );
+    }
 
     #[test]
     fn history_export_requires_explicit_typed_consent_and_no_caller_path_or_limit() {

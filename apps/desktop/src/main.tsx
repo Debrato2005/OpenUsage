@@ -10,6 +10,7 @@ import { DesktopUnavailable, invoke, type BackupReceipt, type Bootstrap, type Th
 import { ProfileManager } from './profiles';
 import { BackupInspection } from './backup-inspection';
 import { DataExport } from './data-export';
+import { LocalDataDeletion } from './local-data-deletion';
 import { CheckpointRecovery } from './checkpoint-recovery';
 import { AlertHistory } from './alert-history';
 import { ResetNotifications } from './reset-notifications';
@@ -124,6 +125,21 @@ function App() {
     setReadingRevision(value => value + 1);
   }, []);
 
+  const applyLocalDataState = useCallback((updated: Bootstrap) => {
+    setStartup({ kind: 'desktop', data: updated });
+    setTheme(updated.theme);
+    if (updated.storage === 'ready') return;
+    connectionGeneration.current += 1;
+    preparedRequest.current = 0;
+    setConnectionRequest(0); setConnectionPreparing(false); setConnectionError(null); setProviderApproval(null);
+    setProfiles([]); setProfileRevision(value => value + 1); setReadingRevision(value => value + 1);
+    setAccountAction(null); setAccountPanelOpen(false); setAccountPanelProfile(null); setUsageProfile(null);
+    setRefreshingProfiles([]); setRefreshWaitSeconds({}); manualRefreshes.current.clear(); setAccountMessage(null);
+    setBackupAction(null); setBackupReceipt(null); setBackupRecords(false); setBackupError(null);
+    setBackupPassword(''); setBackupConfirmation(''); setPassphrase(''); setConfirmation('');
+    setOperationError(null); setPrivacy(false); setView('overview');
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     void invoke('bootstrap').then(data => {
@@ -162,6 +178,7 @@ function App() {
   const ready = data?.storage === 'ready';
   const monitoring = useMonitoring(ready, profileRevision, readingsChanged);
   const recovery = data?.storage === 'recovery_required';
+  const deletionPending = recovery && data?.storageIssue === 'local_deletion_incomplete';
   const needsPassphrase = data?.keyProtection === 'passphrase_required'
     || (data?.storage === 'locked' && data.keyProtection === 'passphrase');
 
@@ -246,9 +263,10 @@ function App() {
   const message = startup.kind === 'loading' ? 'Checking local storage…'
     : startup.kind === 'unavailable' ? 'OpenUsage needs its desktop application'
     : startup.kind === 'failed' ? 'OpenUsage could not read its local state'
-    : recovery ? 'Your local data needs recovery'
+    : deletionPending ? 'Finish deleting local data' : recovery ? 'Your local data needs recovery'
     : ready ? 'Workspace ready' : data?.storage === 'locked' ? 'Welcome back' : 'Welcome to OpenUsage';
-  const recoveryMessage = data?.storageIssue === 'workspace_in_use'
+  const recoveryMessage = deletionPending ? 'Local deletion did not finish. Confirm again to remove the remaining OpenUsage account data.'
+    : data?.storageIssue === 'workspace_in_use'
     ? 'Another OpenUsage window uses this workspace. Close that window, then check the workspace again.'
     : data?.storageIssue === 'missing_database'
     ? 'The protected key exists, but its database is missing. Keep your database and key files. Recover your original encrypted database before you try again.'
@@ -329,6 +347,7 @@ function App() {
             {operationError && <p id="workspace-error" className="operation-error" role="alert">{operationError}</p>}
           </div>
         </section>
+        {deletionPending && <LocalDataDeletion key="pending" pending busy={busy} setBusy={setBusy} onChanged={applyLocalDataState} />}
         {(!ready || view === 'settings') && <Button variant="ghost" className={`text-button ${ready ? 'settings-privacy' : 'onboarding-privacy'}`} onClick={() => setPrivacy(!privacy)} aria-expanded={privacy} aria-controls="privacy-details">{privacy ? 'Hide privacy details' : 'About your privacy'}</Button>}
         {privacy && (!ready || view === 'settings') && <section className="privacy-details" id="privacy-details" aria-labelledby="privacy-heading"><h2 id="privacy-heading">Privacy and local storage</h2><p>OpenUsage has no hosted account or telemetry. Account connections require your approval. Provider credentials stay with Codex.</p><p>Encrypted storage protects application records. It does not encrypt provider credential files or operating-system swap.</p><p>Codex handles approved sign-in requests, connection checks, and readings. Monitoring runs only while OpenUsage is open and your workspace is unlocked.</p></section>}
         {ready && view === 'overview' && connectionError && !accountPanelOpen && <div className="account-refresh-feedback" role="alert" data-overview-connection-error><p>{connectionError}</p><Button variant="outline" onClick={() => navigate('settings')}>Connection details</Button><Button variant="ghost" onClick={() => setConnectionError(null)}>Dismiss</Button></div>}
@@ -367,6 +386,7 @@ function App() {
         {ready && view === 'settings' && <ResetNotifications profiles={profiles} revision={String(profileRevision)} busy={busy} setBusy={setBusy} />}
         {ready && <AlertHistory revision={`${profileRevision}:${readingRevision}`} onViewUsage={profileId => requestAccountAction({ kind: 'usage', profileId })} onViewAccount={profileId => requestAccountAction({ kind: 'manage', profileId })} />}
         {ready && <DataExport key={profileRevision} profiles={profiles} busy={busy} setBusy={setBusy} />}
+        {ready && view === 'settings' && <LocalDataDeletion key="ready" busy={busy} setBusy={setBusy} onChanged={applyLocalDataState} />}
         </section>
       </main>
     </div>

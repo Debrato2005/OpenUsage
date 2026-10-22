@@ -25,3 +25,10 @@ zeroize = "=1.9.1"
 
 [features]
 native-test = ["openusage-storage/native-test"]
+
+# Optimize source verification without removing any executable checks.
+[profile.dev.package.sha2]
+opt-level = 3
+
+[profile.test.package.sha2]
+opt-level = 3

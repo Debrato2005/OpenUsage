@@ -13,6 +13,16 @@ function desktopResponse(value) {
   globalThis.window = { __TAURI__: { core: { invoke: async () => value } } };
 }
 
+test('local deletion accepts only an empty setup result and keeps pending recovery explicit', async () => {
+  const fresh = { ...ready, storage: 'setup_required', schemaVersion: null, activeProfiles: null };
+  desktopResponse(fresh); assert.deepEqual(await invoke('delete_all_local_data', { confirmed: true }), fresh);
+  const pending = { ...fresh, storage: 'recovery_required', keyProtection: 'unavailable', storageIssue: 'local_deletion_incomplete' };
+  desktopResponse(pending); assert.deepEqual(await invoke('bootstrap'), pending);
+  for (const value of [ready, pending, { ...fresh, activeProfiles: 1 }, { ...fresh, schemaVersion: 8 }, { ...fresh, monitoring: 'running' }, { ...fresh, secret: 'synthetic-private-value' }]) {
+    desktopResponse(value); await assert.rejects(invoke('delete_all_local_data', { confirmed: true }));
+  }
+});
+
 test('alert history accepts saved reset evidence and refuses leaked fields or false delivery claims', async () => {
   const event = { id: '11111111-1111-4111-8111-111111111111', profileId: '22222222-2222-4222-8222-222222222222', profileLabel: 'Account A', kind: 'quota_reset', thresholdPercent: null, evidenceRunId: '33333333-3333-4333-8333-333333333333', limitId: 'codex', windowRole: 'primary', windowDurationMins: 300, evidenceAtUtc: '2026-10-22T08:00:00.000Z', sourceKind: 'official_artifact', deliveryState: 'recorded' };
   const valid = { events: [event], truncated: false };

@@ -14,6 +14,15 @@ impl KeyVault for MemoryVault {
         *self.0.borrow_mut() = Some(Zeroizing::new(*key));
         Ok(())
     }
+
+    fn remove(&self, expected: &[u8; 32]) -> Result<(), VaultError> {
+        let mut key = self.0.borrow_mut();
+        if key.as_ref().is_some_and(|key| **key != *expected) {
+            return Err(VaultError::InvalidKey);
+        }
+        *key = None;
+        Ok(())
+    }
 }
 pub(super) struct Fixture {
     pub(super) temporary: tempfile::TempDir,

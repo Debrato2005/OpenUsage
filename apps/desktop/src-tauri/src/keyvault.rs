@@ -1,4 +1,4 @@
-#[cfg(not(target_os = "linux"))]
+#[cfg(any(not(target_os = "linux"), test))]
 use keyring_core::{Entry, api::CredentialStoreApi};
 use zeroize::Zeroizing;
 
@@ -19,6 +19,9 @@ pub enum VaultError {
 pub trait KeyVault {
     fn load(&self) -> Result<Option<DatabaseKey>, VaultError>;
     fn protect(&self, key: &[u8; 32]) -> Result<(), VaultError>;
+    /// Remove only this application's database key after verifying its value.
+    /// An absent entry is already removed; another key must remain untouched.
+    fn remove(&self, expected: &[u8; 32]) -> Result<(), VaultError>;
 }
 
 pub struct OsVault {
@@ -109,23 +112,52 @@ impl OsVault {
 
 impl KeyVault for OsVault {
     fn load(&self) -> Result<Option<DatabaseKey>, VaultError> {
-        let encoded = match self.secret()? {
-            Some(secret) => Zeroizing::new(secret),
-            None => return Ok(None),
-        };
-        if encoded.len() != 67 || &encoded[..3] != b"v1:" {
-            return Err(VaultError::InvalidKey);
+        self.secret()?.map(decode_key).transpose()
+    }
+
+    fn remove(&self, expected: &[u8; 32]) -> Result<(), VaultError> {
+        #[cfg(target_os = "linux")]
+        {
+            bounded(async {
+                let attributes =
+                    std::collections::HashMap::from([("service", SERVICE), ("username", ACCOUNT)]);
+                let found = self
+                    .service
+                    .search_items(attributes)
+                    .await
+                    .map_err(|_| VaultError::Unavailable)?;
+                if found.unlocked.len() + found.locked.len() > 1 {
+                    return Err(VaultError::InvalidKey);
+                }
+                if !found.locked.is_empty() {
+                    return Err(VaultError::Unavailable);
+                }
+                let Some(item) = found.unlocked.first() else {
+                    return Ok(());
+                };
+                // Search results and deletion retain this exact item object. Do
+                // not enumerate or delete a collection, or unlock any entry.
+                let attributes = item
+                    .get_attributes()
+                    .await
+                    .map_err(|_| VaultError::Unavailable)?;
+                if attributes.get("service").map(String::as_str) != Some(SERVICE)
+                    || attributes.get("username").map(String::as_str) != Some(ACCOUNT)
+                {
+                    return Err(VaultError::InvalidKey);
+                }
+                verify_expected(
+                    item.get_secret()
+                        .await
+                        .map_err(|_| VaultError::Unavailable)?,
+                    expected,
+                )?;
+                // Item::delete rechecks its locked property before deletion.
+                item.delete().await.map_err(|_| VaultError::Unavailable)
+            })
         }
-        let mut key = Zeroizing::new([0_u8; 32]);
-        for (target, pair) in key.iter_mut().zip(encoded[3..].as_chunks::<2>().0) {
-            let digit = |byte: u8| match byte {
-                b'0'..=b'9' => Ok(byte - b'0'),
-                b'a'..=b'f' => Ok(byte - b'a' + 10),
-                _ => Err(VaultError::InvalidKey),
-            };
-            *target = digit(pair[0])? * 16 + digit(pair[1])?;
-        }
-        Ok(Some(key))
+        #[cfg(not(target_os = "linux"))]
+        remove_entry(&self.entry, expected)
     }
 
     fn protect(&self, key: &[u8; 32]) -> Result<(), VaultError> {
@@ -174,6 +206,49 @@ impl KeyVault for OsVault {
     }
 }
 
+fn decode_key(encoded: Vec<u8>) -> Result<DatabaseKey, VaultError> {
+    let encoded = Zeroizing::new(encoded);
+    if encoded.len() != 67 || &encoded[..3] != b"v1:" {
+        return Err(VaultError::InvalidKey);
+    }
+    let mut key = Zeroizing::new([0_u8; 32]);
+    for (target, pair) in key.iter_mut().zip(encoded[3..].as_chunks::<2>().0) {
+        let digit = |byte: u8| match byte {
+            b'0'..=b'9' => Ok(byte - b'0'),
+            b'a'..=b'f' => Ok(byte - b'a' + 10),
+            _ => Err(VaultError::InvalidKey),
+        };
+        *target = digit(pair[0])? * 16 + digit(pair[1])?;
+    }
+    Ok(key)
+}
+fn verify_expected(encoded: Vec<u8>, expected: &[u8; 32]) -> Result<(), VaultError> {
+    let actual = decode_key(encoded)?;
+    let difference = actual
+        .iter()
+        .zip(expected)
+        .fold(0_u8, |difference, (actual, expected)| {
+            difference | (actual ^ expected)
+        });
+    if difference != 0 {
+        return Err(VaultError::InvalidKey);
+    }
+    Ok(())
+}
+#[cfg(any(not(target_os = "linux"), test))]
+fn remove_entry(entry: &Entry, expected: &[u8; 32]) -> Result<(), VaultError> {
+    let encoded = match entry.get_secret() {
+        Ok(secret) => secret,
+        Err(keyring_core::Error::NoEntry) => return Ok(()),
+        Err(error) => return Err(map_error(error)),
+    };
+    verify_expected(encoded, expected)?;
+    match entry.delete_credential() {
+        Ok(()) | Err(keyring_core::Error::NoEntry) => Ok(()),
+        Err(error) => Err(map_error(error)),
+    }
+}
+
 #[cfg(target_os = "linux")]
 fn bounded<T>(
     future: impl std::future::Future<Output = Result<T, VaultError>>,
@@ -185,12 +260,83 @@ fn bounded<T>(
     })
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(any(not(target_os = "linux"), test))]
 fn map_error(error: keyring_core::Error) -> VaultError {
     match error {
         keyring_core::Error::NoStorageAccess(_) | keyring_core::Error::PlatformFailure(_) => {
             VaultError::Unavailable
         }
         _ => VaultError::InvalidKey,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn removal_is_idempotent_and_deletes_only_the_exact_private_mock_entry() {
+        let store = keyring_core::mock::Store::new().unwrap();
+        let entry = store.build(SERVICE, ACCOUNT, None).unwrap();
+        let other_account = store.build(SERVICE, "unrelated-account", None).unwrap();
+        let other_service = store.build("unrelated-service", ACCOUNT, None).unwrap();
+        let encoded = format!("v1:{}", "31".repeat(32));
+        other_account
+            .set_secret(b"unrelated account fixture")
+            .unwrap();
+        other_service
+            .set_secret(b"unrelated service fixture")
+            .unwrap();
+        assert_eq!(remove_entry(&entry, &[0x31; 32]), Ok(()));
+        entry.set_secret(encoded.as_bytes()).unwrap();
+        assert_eq!(remove_entry(&entry, &[0x31; 32]), Ok(()));
+        assert!(matches!(
+            entry.get_secret(),
+            Err(keyring_core::Error::NoEntry)
+        ));
+        assert_eq!(remove_entry(&entry, &[0x31; 32]), Ok(()));
+        assert_eq!(
+            other_account.get_secret().unwrap(),
+            b"unrelated account fixture"
+        );
+        assert_eq!(
+            other_service.get_secret().unwrap(),
+            b"unrelated service fixture"
+        );
+    }
+
+    #[test]
+    fn expected_key_mismatch_preserves_the_private_mock_entry() {
+        let store = keyring_core::mock::Store::new().unwrap();
+        let entry = store.build(SERVICE, ACCOUNT, None).unwrap();
+        let encoded = format!("v1:{}", "31".repeat(32));
+        entry.set_secret(encoded.as_bytes()).unwrap();
+        assert_eq!(
+            remove_entry(&entry, &[0x32; 32]),
+            Err(VaultError::InvalidKey)
+        );
+        assert_eq!(entry.get_secret().unwrap(), encoded.as_bytes());
+        assert_eq!(remove_entry(&entry, &[0x31; 32]), Ok(()));
+    }
+
+    #[test]
+    fn malformed_stored_keys_are_refused_without_deleting_the_private_mock_entry() {
+        let store = keyring_core::mock::Store::new().unwrap();
+        let entry = store.build(SERVICE, ACCOUNT, None).unwrap();
+        for encoded in [
+            String::new(),
+            format!("v2:{}", "31".repeat(32)),
+            format!("v1:{}", "31".repeat(31)),
+            format!("v1:{}", "AA".repeat(32)),
+            format!("v1:{}", "gg".repeat(32)),
+            format!("v1:{}0", "31".repeat(32)),
+        ] {
+            entry.set_secret(encoded.as_bytes()).unwrap();
+            assert_eq!(
+                remove_entry(&entry, &[0x31; 32]),
+                Err(VaultError::InvalidKey)
+            );
+            assert_eq!(entry.get_secret().unwrap(), encoded.as_bytes());
+        }
     }
 }

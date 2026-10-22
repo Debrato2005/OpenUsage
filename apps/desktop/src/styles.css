@@ -21,7 +21,7 @@
   --color-popover: var(--surface);
   --color-accent: var(--hover);
   --color-ring: var(--focus);
-  --color-destructive: var(--error);
+  --color-destructive: #b42318;
   --color-destructive-foreground: var(--error);
   --radius-lg: var(--radius-panel);
   --radius-md: var(--radius-control);

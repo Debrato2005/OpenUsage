@@ -30,6 +30,19 @@ The native notice inventory now maps all 486 locked registry packages to 288 exa
 
 ## Latest verified slice
 
+Settings offers confirmed deletion of managed OpenUsage account data. Rust stops owned provider work, clears grants, closes SQLCipher and removes managed homes and recovery files. It removes only the matching application key. A private marker binds each retry to the original database and wrapped-key file identities. Startup blocks new setup during incomplete deletion. Every retry requires confirmation. The instance lease, external exports, external backups, other Codex installations and device display scale remain.
+
+All 354 workspace tests passed, with one intentional child test ignored. Strict Clippy, 51 contracts and 318 renderer cases passed. Twelve final renderer cases and the final build passed. The Linux native journey used fresh synthetic account homes and a real private Secret Service. It checked saved readings, unsafe-path refusal, confirmed deletion, pending restart, new setup, exact key removal and preservation of unrelated credentials and external files.
+
+The test measured a WebDriver mouse coordinate error at 125% scale. Real keyboard actions completed the affected forms. No application authentication or security rule changed. Windows refuses deletion until equivalent ownership checks exist. macOS, live-account deletion, physical secure erasure and power-loss durability remain unqualified. Complete application export remains open.
+
+The development profiles optimize SHA-2 in both workspaces. One measured hash of the pinned 296.9 MB companion decreased from 4,626 to 136 ms with an identical digest. All four approval checks remain. The default native build refused all five synthetic providers before execution.
+
+Private evidence: `local-data-deletion-optimized-native` and `local-data-deletion-optimized-production-refusal`. The default executable returned byte-identically after the test. Schema 8, SQLCipher 4/WAL, the normative SRS and dependency locks remain unchanged.
+
+## Earlier verified slices
+
+
 Usage now exports saved activity history as CSV or JSON from the existing history panel. Each file keeps separate summary snapshots and daily accepted/prior values. It calculates no events, deltas or totals. One SQLCipher/WAL snapshot covers the selected profile, including archived profiles and earlier connections. Aliases are the default. Explicit consent permits local names and references, but never email or credentials.
 
 All 341 Rust tests passed, with one intentional child test ignored. Four final storage cases, strict Clippy, build/type checks, 50 contracts and 306 renderer cases passed. A privacy test denies reads of email, plan and managed-home references. Closing an export panel now releases only its own busy state and ignores stale replies.
@@ -38,7 +51,6 @@ The explicit native-test build passed two synthetic sign-ins and automatic colle
 
 Private evidence: `activity-summary-history-export-native-receipt`. The production executable compiled and returned with the same hash after the test. Schema 8 and dependency locks remain unchanged. The existing 50,000-row/64 MiB limit refuses oversized exports without a partial file. Complete application export, local deletion, real-provider history and other platforms remain open.
 
-## Earlier verified slices
 
 Activity history opens on demand in Usage. Rust reads 20 saved summaries per page from one consistent SQLCipher/WAL snapshot. Exact counts, missing values, original connections and source details remain separate for each reading. The app infers no events or usage deltas. Archived accounts remain available after restart. Schema 8 remains unchanged.
 
@@ -97,7 +109,7 @@ Confirmed archive restore and checkpoint recovery are implemented. Earlier nativ
 ## Still incomplete
 
 - Deadline notifications and confirmed invalid-credential detection. The four implemented alert types have opt-in, per-profile overrides and quiet hours. Real-provider-triggered and installed-platform delivery remain open.
-- Full activity-summary/history browsing, full activity-history/application export, retention and complete local deletion.
+- Complete application export, explicit retention rules and platform acceptance for local deletion. Selected quota/activity history browsing and exports now have scoped acceptance evidence.
 - Subscription, promotion, billing, deadline and verified account-comparison requirements.
 - Real credential renewal/revocation acceptance, provider OS credential storage, safe browser callback isolation, and SIWC compatibility with both official usage operations.
 - Sleep/wake acceptance, release-scale performance, packaging/signing, Windows/macOS execution and the complete SRS acceptance matrix.

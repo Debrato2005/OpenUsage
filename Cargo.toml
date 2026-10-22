@@ -10,3 +10,10 @@ incremental = false
 [profile.test]
 debug = 1
 incremental = false
+
+# Optimize source verification without removing any executable checks.
+[profile.dev.package.sha2]
+opt-level = 3
+
+[profile.test.package.sha2]
+opt-level = 3

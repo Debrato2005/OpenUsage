@@ -597,6 +597,20 @@ impl ProviderCoordinator {
         reset(&mut state)
     }
 
+    pub fn reset_for_local_deletion(&self) -> Result<(), CommandError> {
+        let mut state = self
+            .0
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?;
+        require_open(&state)?;
+        reset(&mut state)?;
+        state.candidate = None;
+        state.approved = None;
+        state.refresh_starts.clear();
+        state.refresh_backoff.clear();
+        Ok(())
+    }
+
     pub fn close(&self) -> Result<(), CommandError> {
         let mut state = self
             .0
@@ -2321,6 +2335,51 @@ pub(crate) mod tests {
             fixture.provider.inspect(link.to_str().unwrap()).err(),
             Some(CommandError::InvalidProviderExecutable)
         );
+    }
+
+    #[test]
+    fn deletion_reset_reaps_workers_forgets_approval_and_allows_new_approval() {
+        let mut fixture = Fixture::new(true);
+        fixture.approve();
+        let pending = fixture.start(0).unwrap();
+        let child = fixture.child(0);
+        {
+            let mut state = fixture.provider.0.lock().unwrap();
+            state
+                .refresh_starts
+                .insert(fixture.homes[0].0.clone(), Instant::now());
+            state.refresh_backoff.insert(
+                fixture.homes[0].0.clone(),
+                RetryState {
+                    failures: 2,
+                    not_before: Instant::now() + Duration::from_secs(60),
+                },
+            );
+        }
+        fixture.provider.reset_for_local_deletion().unwrap();
+        {
+            let state = fixture.provider.0.lock().unwrap();
+            assert!(state.refresh_starts.is_empty());
+            assert!(state.refresh_backoff.is_empty());
+        }
+        assert_eq!(
+            pending.wait().err(),
+            Some(CommandError::ProviderCheckCancelled)
+        );
+        gone(child);
+        assert_eq!(
+            fixture.start(0).err(),
+            Some(CommandError::ProviderExecutableNotApproved)
+        );
+        fixture.approve();
+        let replacement = fixture.start(0).unwrap();
+        let replacement_child = fixture.child(0);
+        fixture.provider.cancel(&fixture.homes[0].0).unwrap();
+        assert_eq!(
+            replacement.wait().err(),
+            Some(CommandError::ProviderCheckCancelled)
+        );
+        gone(replacement_child);
     }
 
     #[test]

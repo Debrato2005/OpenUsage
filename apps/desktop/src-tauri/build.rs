@@ -15,6 +15,7 @@ fn main() {
             "export_saved_readings",
             "export_quota_history",
             "export_activity_history",
+            "delete_all_local_data",
             "list_profiles",
             "create_profile",
             "rename_profile",

@@ -32,7 +32,7 @@ export interface MonitoringStatus {
 export type Theme = 'system' | 'light' | 'dark';
 export type StorageState = 'setup_required' | 'locked' | 'ready' | 'recovery_required';
 export type KeyProtection = 'os_store' | 'passphrase' | 'passphrase_required' | 'unavailable';
-export type StorageIssue = 'key_store_unavailable' | 'missing_key' | 'missing_database' | 'invalid_key' | 'storage_unavailable' | 'workspace_in_use';
+export type StorageIssue = 'key_store_unavailable' | 'missing_key' | 'missing_database' | 'invalid_key' | 'storage_unavailable' | 'workspace_in_use' | 'local_deletion_incomplete';
 export interface Bootstrap {
   storage: StorageState;
   theme: Theme;
@@ -342,6 +342,7 @@ interface Commands {
   create_profile: { args: { label: string }; result: ProfileView };
   rename_profile: { args: { id: string; label: string }; result: ProfileView };
   set_profile_archived: { args: { id: string; archived: boolean }; result: ProfileView };
+  delete_all_local_data: { args: { confirmed: true }; result: Bootstrap };
   bootstrap: { args: undefined; result: Bootstrap };
   setup_workspace: { args: { passphrase: string | null }; result: Bootstrap };
   unlock_workspace: { args: { passphrase: string }; result: Bootstrap };
@@ -369,7 +370,8 @@ export async function invoke<K extends keyof Commands>(
   const core = window.__TAURI__?.core;
   if (!core) throw new DesktopUnavailable('Open the installed OpenUsage desktop application.');
   const response = await core.invoke<unknown>(command, args[0]);
-  const valid = command === 'load_notification_preferences' || command === 'save_notification_preferences' ? isNotificationPreferences(response)
+  const valid = command === 'delete_all_local_data' ? isDeletionResult(response)
+    : command === 'load_notification_preferences' || command === 'save_notification_preferences' ? isNotificationPreferences(response)
     : command === 'load_reset_notification_preferences' || command === 'save_reset_notification_preferences' ? isResetNotificationPreferences(response)
     : command === 'load_alert_history' ? isSavedAlertHistory(response)
     : command === 'load_profile_activity_history' ? isActivityHistoryPage(response)
@@ -968,6 +970,13 @@ function isBackupReceipt(value: unknown): value is BackupReceipt {
     && receipt.directory.length <= 32768 && !receipt.directory.includes('\0');
 }
 
+function isDeletionResult(value: unknown): value is Bootstrap {
+  return isBootstrap(value) && Object.keys(value).length === 8
+    && value.storage === 'setup_required' && value.schemaVersion === null && value.activeProfiles === null
+    && value.monitoring === 'stopped' && value.theme === 'system'
+    && (value.storageIssue === null || value.storageIssue === 'key_store_unavailable');
+}
+
 function isBootstrap(value: unknown): value is Bootstrap {
   if (typeof value !== 'object' || value === null) return false;
   const v = value as Record<string, unknown>;
@@ -979,7 +988,7 @@ function isBootstrap(value: unknown): value is Bootstrap {
     && typeof v.keyProtection === 'string'
     && ['os_store', 'passphrase', 'passphrase_required', 'unavailable'].includes(v.keyProtection)
     && (v.storageIssue === null || (typeof v.storageIssue === 'string'
-      && ['key_store_unavailable', 'missing_key', 'missing_database', 'invalid_key', 'storage_unavailable', 'workspace_in_use'].includes(v.storageIssue)))
+      && ['key_store_unavailable', 'missing_key', 'missing_database', 'invalid_key', 'storage_unavailable', 'workspace_in_use', 'local_deletion_incomplete'].includes(v.storageIssue)))
     && (v.storage !== 'ready' || (v.activeProfiles !== null && v.schemaVersion !== null));
 }
 

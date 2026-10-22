@@ -15,6 +15,7 @@ use zeroize::Zeroizing;
 mod activity_storage;
 mod alert_history;
 mod collection_storage;
+mod local_deletion;
 mod monitoring;
 mod operational_alerts;
 mod profile_plan;
@@ -64,11 +65,16 @@ pub enum StorageIssue {
     InvalidKey,
     StorageUnavailable,
     WorkspaceInUse,
+    LocalDeletionIncomplete,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CommandError {
+    LocalDeletionFailed,
+    LocalDeletionUnsafe,
+    LocalDeletionUnsupported,
+    KeyStoreUnavailable,
     InvalidArguments,
     DisplayScaleUnavailable,
     ProviderPlanUnavailable,
@@ -225,6 +231,7 @@ pub struct Workspace {
     _lock: File,
     storage: Option<Storage>,
     protection: KeyProtection,
+    local_deletion_pending: bool,
     restore_preview: RestoreCache,
     provider: ProviderCoordinator,
     activity_sessions: std::collections::BTreeMap<String, (String, Option<std::time::Instant>)>,
@@ -274,6 +281,7 @@ impl Workspace {
             _lock: lock,
             storage: None,
             protection: KeyProtection::Unavailable,
+            local_deletion_pending: false,
             monitoring: monitoring::RuntimeMonitoring::new()?,
             restore_preview,
             provider,
@@ -286,6 +294,9 @@ impl Workspace {
     }
 
     pub fn bootstrap(&mut self, vault: Result<&impl KeyVault, VaultError>) -> Bootstrap {
+        if self.local_deletion_pending || local_deletion::pending(&self.directory) {
+            return self.recovery(StorageIssue::LocalDeletionIncomplete);
+        }
         if self.storage.is_some() {
             return self.ready();
         }
@@ -354,6 +365,9 @@ impl Workspace {
         vault: Result<&impl KeyVault, VaultError>,
         passphrase: Option<Zeroizing<String>>,
     ) -> Result<Bootstrap, CommandError> {
+        if self.local_deletion_pending || local_deletion::pending(&self.directory) {
+            return Err(CommandError::LocalDeletionFailed);
+        }
         if let Some(passphrase) = &passphrase {
             validate_passphrase(passphrase)?;
         }
@@ -414,6 +428,9 @@ impl Workspace {
     }
 
     pub fn unlock(&mut self, passphrase: Zeroizing<String>) -> Result<Bootstrap, CommandError> {
+        if self.local_deletion_pending || local_deletion::pending(&self.directory) {
+            return Err(CommandError::LocalDeletionFailed);
+        }
         validate_unlock_passphrase(&passphrase)?;
         if self.storage.is_some() {
             return Ok(self.ready());
@@ -1484,6 +1501,18 @@ mod tests {
                 "Key protection must precede database creation"
             );
             *self.key.borrow_mut() = Some(Zeroizing::new(*key));
+            Ok(())
+        }
+
+        fn remove(&self, expected: &[u8; 32]) -> Result<(), VaultError> {
+            if !self.available.get() {
+                return Err(VaultError::Unavailable);
+            }
+            let mut key = self.key.borrow_mut();
+            if key.as_ref().is_some_and(|key| **key != *expected) {
+                return Err(VaultError::InvalidKey);
+            }
+            *key = None;
             Ok(())
         }
     }
