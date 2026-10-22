@@ -4,6 +4,14 @@
 
 Updated: October 22, 2026. OpenUsage remains in development. The normative [SRS](SRS.md) is unchanged. Only local commits are permitted. Remote branch deletion requires separate owner approval. Agents must not push or publish.
 
+## Current recovery regression: schema 9
+
+The backup-content and checkpoint-recovery native harnesses now expect schema 9. Both passed against production executable 6c6672bbcfe27df9e54aa828fc8b65b80c797f4056aaa8b79b28053f0d1bf708. The journeys used private synthetic workspaces on an isolated X11 display. The active desktop first failed its exact-window focus gate. No security or focus assertion was removed.
+
+Confirmed archive restore, explicit checkpoint recovery, two genuine window closes, stale-preview refusal, four checkpoint checks and preserved original home mappings passed. Independent read-only SQLCipher checks verified encryption, WAL records, the protected key and selected semantic fields. They do not compare every column or prove power-loss durability. Both current-schema oracle tests and the owned-process interruption test passed. No real provider session or other-platform acceptance ran.
+
+The artifact audit found 17 provenance receipts, no retained executables associated with them and no malformed receipts. It followed no links and deleted nothing. Source, history and recovery evidence remain preserved. Private evidence: recovery-goal-current-backup-isolated and recovery-goal-current-checkpoint. The normative SRS and application storage behavior are unchanged.
+
 ## Completed assignment: heatmap layout and Linux window controls
 
 Usage opens a full-year calendar. Overview keeps its compact 90-day view. All seven weekday labels are visible. Neutral padding completes the first and last weeks without creating saved readings, zero counts or interactive dates. Missing days use solid cells and remain distinct from confirmed zero. The selected range and reported-day count stay visible.
