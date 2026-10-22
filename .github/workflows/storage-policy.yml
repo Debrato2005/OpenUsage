@@ -10,6 +10,8 @@ on:
       - '.github/workflows/storage-policy.yml'
       - 'docs/artifact-retention.md'
       - 'CONTRIBUTING.md'
+      - 'AGENTS.md'
+      - 'docs/engineering-workflow.md'
   workflow_dispatch:
 
 permissions:
@@ -29,11 +31,16 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6; official ref verified
         with:
           persist-credentials: false
+          fetch-depth: 2
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6; official ref verified
         with:
           python-version: '3.12'
-      - name: Test storage policy
-        run: python -m unittest discover -s tests/tools -p "test_storage.py"
+      - name: Test engineering and storage tools
+        run: python -m unittest discover -s tests/tools -p "test_*.py"
+      - name: Check whitespace
+        run: git diff --check HEAD^
+      - name: Refuse tracked ignored artifacts
+        run: python -c "import subprocess,sys; sys.exit(bool(subprocess.check_output(['git','ls-files','-ci','--exclude-standard','-z'])))"
       - name: Check repository storage
         run: python scripts/storage.py check --warn-gib 10

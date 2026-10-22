@@ -41,6 +41,10 @@ node --test tests/tools/git-safety.test.mjs
 
 Tests use disposable local repositories and nonfunctional synthetic tokens. They do not contact a remote or validate credentials.
 
+## Bounded development checks
+
+Use one primary agent and one assignment with a clear stopping condition. Follow the [engineering workflow](docs/engineering-workflow.md). Run `python3 scripts/engineering.py doctor` when the environment changes. Use `verify` to inspect the changed-file plan, then `verify --run` for bounded checks. Select relevant renderer specs explicitly. Full native and security acceptance remain required at the affected integration milestone. Stop after the verified local commit and report.
+
 ## Keep build storage bounded
 
 Follow the [artifact retention policy](docs/artifact-retention.md). Before a large build, check repository storage:

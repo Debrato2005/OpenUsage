@@ -4,6 +4,12 @@
 
 Updated: October 22, 2026. OpenUsage remains in development. The normative [SRS](SRS.md) is unchanged. Only local commits are permitted. Remote branch deletion requires separate owner approval. Agents must not push or publish.
 
+## Engineering workflow optimization
+
+The bounded tooling task adds offline environment diagnostics, changed-file verification plans and content-free trace analysis. Existing cleanup and Git secret checks remain. All 26 local Python tool tests passed. Documentation-only cycles stabilized at three logs totaling 2,112 bytes. No application build, provider session or native acceptance ran. Windows/macOS CI is configured but unexecuted. See the [commands and measured results](engineering-workflow.md).
+
+Unfinished subscription drafts remain preserved in local checkpoint `6e11336`; this tooling task does not integrate or qualify them. Further feature work requires a new bounded assignment.
+
 ## Current product
 
 - Two authorized OpenAI profiles have completed official sign-in and saved quota/activity collection. The first profile's readings and connection stayed unchanged when the second connected. Genuine cache restart passed. The user also confirmed both saved accounts and readings in the redesigned production overview. See real-account evidence (private evidence omitted) and production overview review (private evidence omitted).
