@@ -30,6 +30,10 @@ The native notice inventory now maps all 486 locked registry packages to 288 exa
 
 ## Latest verified slice
 
+After confirmed deletion, OpenUsage checks the current credential store before presenting fresh setup. A store that became available during fallback use now permits setup without an app password. Nine focused deletion cases and strict Clippy passed after a regression first reproduced the old prompt. The default native Linux journey used a real private Secret Service. It confirmed deletion, setup without an app password, unrelated-key preservation and a genuine restart into the new OS-protected workspace. No provider session or existing credential home was used.
+
+Private evidence: `deletion-fresh-key-store-production-native`. This follow-up changes fresh onboarding only. The prior complete deletion journey retains its original executable scope.
+
 Settings offers confirmed deletion of managed OpenUsage account data. Rust stops owned provider work, clears grants, closes SQLCipher and removes managed homes and recovery files. It removes only the matching application key. A private marker binds each retry to the original database and wrapped-key file identities. Startup blocks new setup during incomplete deletion. Every retry requires confirmation. The instance lease, external exports, external backups, other Codex installations and device display scale remain.
 
 All 354 workspace tests passed, with one intentional child test ignored. Strict Clippy, 51 contracts and 318 renderer cases passed. Twelve final renderer cases and the final build passed. The Linux native journey used fresh synthetic account homes and a real private Secret Service. It checked saved readings, unsafe-path refusal, confirmed deletion, pending restart, new setup, exact key removal and preservation of unrelated credentials and external files.

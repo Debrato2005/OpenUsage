@@ -215,16 +215,8 @@ impl Workspace {
             let _ = write_intent(&root, &intent);
             return Err(CommandError::LocalDeletionFailed);
         }
-        self.protection = match intent.mode {
-            Mode::Passphrase => KeyProtection::PassphraseRequired,
-            Mode::OsStore => KeyProtection::OsStore,
-        };
         self.local_deletion_pending = false;
-        Ok(Bootstrap::unavailable(
-            StorageState::SetupRequired,
-            self.protection,
-            None,
-        ))
+        Ok(self.bootstrap(vault))
     }
 }
 
@@ -716,6 +708,26 @@ mod tests {
         *vault.key.borrow_mut() = Some(Zeroizing::new(expected));
         workspace.delete_all_local_data(Ok(&vault), true).unwrap();
         assert_eq!(vault.removals.get(), 1);
+    }
+
+    #[test]
+    fn deletion_rechecks_os_store_instead_of_requiring_the_previous_fallback_password() {
+        let temp = tempfile::tempdir().unwrap();
+        let directory = temp.path().join("workspace");
+        let vault = Vault::new();
+        vault.available.set(false);
+        let mut workspace = Workspace::new(directory).unwrap();
+        fallback_setup(&mut workspace, &vault);
+        vault.available.set(true);
+        let fresh = workspace.delete_all_local_data(Ok(&vault), true).unwrap();
+        assert_eq!(fresh.storage, StorageState::SetupRequired);
+        assert_eq!(fresh.key_protection, KeyProtection::OsStore);
+        assert_eq!(fresh.storage_issue, None);
+        assert_eq!(vault.removals.get(), 0);
+        assert_eq!(
+            workspace.setup(Ok(&vault), None).unwrap().storage,
+            StorageState::Ready
+        );
     }
 
     #[test]
