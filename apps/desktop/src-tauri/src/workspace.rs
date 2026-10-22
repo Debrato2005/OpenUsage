@@ -124,6 +124,7 @@ pub enum CommandError {
     ProviderProtocolFailed,
     ProviderCleanupFailed,
     ProviderHomeUnavailable,
+    ProviderCredentialStoreUnavailable,
     ProviderProfileArchived,
     ProviderShuttingDown,
     ProviderLoginNotFound,

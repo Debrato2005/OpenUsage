@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::{collections::BTreeSet, fmt, path::Path};
 use url::Url;
 
+#[cfg(unix)]
+mod credential_bus;
 mod quota;
 pub mod session;
 pub mod supervisor;

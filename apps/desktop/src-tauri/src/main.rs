@@ -8,6 +8,7 @@ mod keyvault;
 mod monitoring;
 mod notifications;
 mod provider;
+mod provider_credentials;
 mod readings_export;
 mod restore;
 mod workspace;

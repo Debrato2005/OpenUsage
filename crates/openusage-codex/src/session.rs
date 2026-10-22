@@ -12,6 +12,7 @@ pub enum SessionError {
     UnsupportedPlatform,
     InvalidExecutable,
     InvalidManagedDirectory,
+    CredentialStoreUnavailable,
     UnsupportedVersion,
     StartFailed,
     TransportFailed,
@@ -33,6 +34,9 @@ impl fmt::Display for SessionError {
             Self::InvalidExecutable => "Approve a regular absolute provider executable.",
             Self::InvalidManagedDirectory => {
                 "Use a private managed directory for the provider probe."
+            }
+            Self::CredentialStoreUnavailable => {
+                "The selected protected credential store is unavailable."
             }
             Self::UnsupportedVersion => {
                 "The provider executable version does not match the tested version."
@@ -171,6 +175,7 @@ pub fn probe_account(
 #[cfg(unix)]
 pub(crate) mod unix {
     use super::*;
+    use crate::credential_bus::LinuxCredentialBus;
     use crate::{
         MAX_MESSAGE_BYTES, Request, initialized_notification, parse_account, parse_initialize,
     };
@@ -194,6 +199,8 @@ pub(crate) mod unix {
     const READY_TIMEOUT: Duration = Duration::from_secs(15);
     const READ_TIMEOUT: Duration = Duration::from_secs(30);
     const CANCEL_TIMEOUT: Duration = Duration::from_secs(1);
+    const EOF_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(1);
+    const FORCED_REAP_TIMEOUT: Duration = Duration::from_secs(1);
 
     #[derive(Clone, Copy)]
     pub(crate) struct Timeouts {
@@ -214,7 +221,6 @@ pub(crate) mod unix {
     const MAX_NOTIFICATIONS: usize = 32;
     const MAX_RESPONSE_BYTES: usize = 4 * MAX_MESSAGE_BYTES;
     const CONFIG_OVERRIDES: &[&str] = &[
-        "cli_auth_credentials_store=\"file\"",
         "analytics.enabled=false",
         "feedback.enabled=false",
         "otel.exporter=\"none\"",
@@ -226,14 +232,19 @@ pub(crate) mod unix {
         root: tempfile::TempDir,
         codex_home: PathBuf,
         environment: Vec<(&'static str, PathBuf)>,
+        credentials: Option<LinuxCredentialBus>,
     }
 
     impl Sandbox {
         fn new(parent: &Path) -> Result<Self, SessionError> {
-            Self::with_home(parent, None)
+            Self::with_home(parent, None, None)
         }
 
-        fn with_home(parent: &Path, managed_home: Option<&Path>) -> Result<Self, SessionError> {
+        fn with_home(
+            parent: &Path,
+            managed_home: Option<&Path>,
+            credentials: Option<&LinuxCredentialBus>,
+        ) -> Result<Self, SessionError> {
             if !absolute_normal_path(parent) {
                 return Err(SessionError::InvalidManagedDirectory);
             }
@@ -283,10 +294,11 @@ pub(crate) mod unix {
                     .unwrap_or_else(|| root.path().join("codex")),
                 root,
                 environment,
+                credentials: credentials.cloned(),
             })
         }
 
-        fn command(&self, executable: &Path) -> Command {
+        fn command(&self, executable: &Path) -> Result<Command, SessionError> {
             let mut command = Command::new(executable);
             command
                 .env_clear()
@@ -297,7 +309,11 @@ pub(crate) mod unix {
             for (name, value) in &self.environment {
                 command.env(name, value);
             }
-            command
+            if let Some(bus) = &self.credentials {
+                bus.recheck()?;
+                command.env("DBUS_SESSION_BUS_ADDRESS", bus.address());
+            }
+            Ok(command)
         }
     }
 
@@ -329,6 +345,38 @@ pub(crate) mod unix {
                 .is_some()
         }
 
+        fn exit_observed(&self) -> Result<bool, SessionError> {
+            let owned = self
+                .child
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            let Some(child) = owned.as_ref() else {
+                return Ok(true);
+            };
+            Self::child_exit_observed(child)
+        }
+
+        fn child_exit_observed(child: &Child) -> Result<bool, SessionError> {
+            let mut status: libc::siginfo_t = unsafe { std::mem::zeroed() };
+            // WNOWAIT observes exit without releasing the PID. The existing group
+            // kill must still run before wait reaps this child, even after clean EOF.
+            let result = unsafe {
+                libc::waitid(
+                    libc::P_PID,
+                    child.id() as libc::id_t,
+                    &mut status,
+                    libc::WEXITED | libc::WNOHANG | libc::WNOWAIT,
+                )
+            };
+            if result == 0 {
+                return Ok(unsafe { status.si_pid() } != 0);
+            }
+            if std::io::Error::last_os_error().kind() == std::io::ErrorKind::Interrupted {
+                return Ok(false);
+            }
+            Err(SessionError::TerminationFailed)
+        }
+
         pub(crate) fn stop_child(&self) -> Result<(), SessionError> {
             let mut owned = self
                 .child
@@ -342,10 +390,24 @@ pub(crate) mod unix {
             let group_failed = group_killed != 0
                 && std::io::Error::last_os_error().raw_os_error() != Some(libc::ESRCH);
             let _ = child.kill();
+            let deadline = Instant::now() + FORCED_REAP_TIMEOUT;
+            while !Self::child_exit_observed(child)? {
+                if Instant::now() >= deadline {
+                    return Err(SessionError::TerminationFailed);
+                }
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            // Exit was observed without reaping under this same ownership lock.
+            // wait now consumes a known terminal status rather than awaiting exit.
             loop {
                 match child.wait() {
                     Ok(_) => break,
-                    Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+                    Err(error)
+                        if error.kind() == std::io::ErrorKind::Interrupted
+                            && Instant::now() < deadline =>
+                    {
+                        continue;
+                    }
                     Err(_) => return Err(SessionError::TerminationFailed),
                 }
             }
@@ -530,8 +592,31 @@ pub(crate) mod unix {
         }
 
         fn stop(&mut self) -> Result<(), SessionError> {
-            self.reader_stop.store(true, Ordering::Release);
+            // Stdio EOF lets the official provider return normally and drop its
+            // temporary helper guards. A signal would skip those destructors.
             self.input.take();
+            let deadline = Instant::now() + EOF_SHUTDOWN_TIMEOUT;
+            while self.control.check_cancelled().is_ok() && Instant::now() < deadline {
+                // Keep the reader live while the provider flushes shutdown output.
+                // Values remain zeroizing buffers and are never logged or retained.
+                let mut drained = false;
+                for _ in 0..MAX_NOTIFICATIONS {
+                    if self
+                        .lines
+                        .as_ref()
+                        .is_none_or(|lines| lines.try_recv().is_err())
+                    {
+                        break;
+                    }
+                    drained = true;
+                }
+                match self.control.exit_observed() {
+                    Ok(true) | Err(_) => break,
+                    Ok(false) if drained => std::thread::yield_now(),
+                    Ok(false) => std::thread::sleep(Duration::from_millis(5)),
+                }
+            }
+            self.reader_stop.store(true, Ordering::Release);
             self.lines.take();
             let stopped = self.control.stop_child();
             let joined = self
@@ -665,12 +750,13 @@ pub(crate) mod unix {
     pub(crate) fn check_managed(
         executable: &Path,
         home: &Path,
+        credentials: Option<&LinuxCredentialBus>,
         control: Arc<ProcessControl>,
         timeouts: Timeouts,
         before_start: impl Fn() -> Result<(), SessionError>,
     ) -> Result<ProviderProbe, SessionError> {
         control.check_cancelled()?;
-        let sandbox = Sandbox::with_home(home, Some(home))?;
+        let sandbox = Sandbox::with_home(home, Some(home), credentials)?;
         let result = run_session(executable, &sandbox, control, timeouts, before_start);
         sandbox
             .root
@@ -682,12 +768,13 @@ pub(crate) mod unix {
     pub(crate) fn logout_managed(
         executable: &Path,
         home: &Path,
+        credentials: Option<&LinuxCredentialBus>,
         control: Arc<ProcessControl>,
         timeouts: Timeouts,
         before_start: impl Fn() -> Result<(), SessionError>,
     ) -> Result<ProviderProbe, SessionError> {
         control.check_cancelled()?;
-        let sandbox = Sandbox::with_home(home, Some(home))?;
+        let sandbox = Sandbox::with_home(home, Some(home), credentials)?;
         let result = run_logout(executable, &sandbox, control, timeouts, before_start);
         sandbox
             .root
@@ -699,12 +786,13 @@ pub(crate) mod unix {
     pub(crate) fn quota_managed(
         executable: &Path,
         home: &Path,
+        credentials: Option<&LinuxCredentialBus>,
         control: Arc<ProcessControl>,
         timeouts: Timeouts,
         before_start: impl Fn() -> Result<(), SessionError>,
     ) -> Result<QuotaProbe, SessionError> {
         control.check_cancelled()?;
-        let sandbox = Sandbox::with_home(home, Some(home))?;
+        let sandbox = Sandbox::with_home(home, Some(home), credentials)?;
         let result = run_quota(executable, &sandbox, control, timeouts, before_start);
         sandbox
             .root
@@ -719,12 +807,13 @@ pub(crate) mod unix {
     pub(crate) fn activity_managed(
         executable: &Path,
         home: &Path,
+        credentials: Option<&LinuxCredentialBus>,
         control: Arc<ProcessControl>,
         timeouts: Timeouts,
         before_start: impl Fn() -> Result<(), SessionError>,
     ) -> Result<ActivityProbe, SessionError> {
         control.check_cancelled()?;
-        let sandbox = Sandbox::with_home(home, Some(home))?;
+        let sandbox = Sandbox::with_home(home, Some(home), credentials)?;
         let result = run_activity(executable, &sandbox, control, timeouts, before_start);
         sandbox
             .root
@@ -739,12 +828,13 @@ pub(crate) mod unix {
     pub(crate) fn collection_managed(
         executable: &Path,
         home: &Path,
+        credentials: Option<&LinuxCredentialBus>,
         control: Arc<ProcessControl>,
         timeouts: Timeouts,
         before_start: impl Fn() -> Result<(), SessionError>,
     ) -> Result<CollectionProbe, SessionError> {
         control.check_cancelled()?;
-        let sandbox = Sandbox::with_home(home, Some(home))?;
+        let sandbox = Sandbox::with_home(home, Some(home), credentials)?;
         let result = run_collection(executable, &sandbox, control, timeouts, before_start);
         sandbox
             .root
@@ -759,13 +849,14 @@ pub(crate) mod unix {
     pub(crate) fn login_managed(
         executable: &Path,
         home: &Path,
+        credentials: Option<&LinuxCredentialBus>,
         control: Arc<ProcessControl>,
         timeouts: Timeouts,
         before_start: impl Fn() -> Result<(), SessionError>,
         prompt: impl FnOnce(crate::DeviceLoginPrompt) -> Result<(), SessionError>,
     ) -> Result<ProviderProbe, SessionError> {
         control.check_cancelled()?;
-        let sandbox = Sandbox::with_home(home, Some(home))?;
+        let sandbox = Sandbox::with_home(home, Some(home), credentials)?;
         let result = run_device_login(
             executable,
             &sandbox,
@@ -1235,7 +1326,7 @@ pub(crate) mod unix {
     ) -> Result<(OwnedProcess, ServerInfo), SessionError> {
         control.check_cancelled()?;
         before_start()?;
-        let mut version = sandbox.command(executable);
+        let mut version = sandbox.command(executable)?;
         version.arg("--version");
         let mut version = OwnedProcess::start_controlled(&mut version, Arc::clone(&control))?;
         let version_result = version.line(Instant::now() + timeouts.ready);
@@ -1247,8 +1338,18 @@ pub(crate) mod unix {
         }
         control.check_cancelled()?;
         before_start()?;
-        let mut command = sandbox.command(executable);
+        let mut command = sandbox.command(executable)?;
         command.args(["app-server", "--listen", "stdio://"]);
+        if sandbox.credentials.is_some() {
+            command.args([
+                "-c",
+                "cli_auth_credentials_store=\"keyring\"",
+                "-c",
+                "features.secret_auth_storage=false",
+            ]);
+        } else {
+            command.args(["-c", "cli_auth_credentials_store=\"file\""]);
+        }
         for setting in CONFIG_OVERRIDES {
             command.args(["-c", setting]);
         }
@@ -1453,6 +1554,62 @@ pub(crate) mod unix {
                 process.response(2, READY_TIMEOUT).unwrap().as_slice(),
                 response
             );
+        }
+
+        #[test]
+        fn stdio_eof_allows_cleanup_and_drains_shutdown_output_before_reaping() {
+            let temporary = tempfile::tempdir().unwrap();
+            let marker = temporary.path().join("clean-exit");
+            let mut command = Command::new("/usr/bin/python3");
+            command
+                .args([
+                    "-c",
+                    r#"import pathlib,sys
+print('ready', flush=True)
+sys.stdin.read()
+for _ in range(256):
+    print('shutdown output'*200, flush=True)
+pathlib.Path(sys.argv[1]).write_text('clean')
+"#,
+                ])
+                .arg(&marker)
+                .env_clear()
+                .process_group(0);
+            let mut process = OwnedProcess::start(command).unwrap();
+            let id = process.id().unwrap() as libc::pid_t;
+            assert_eq!(
+                process
+                    .line(Instant::now() + Duration::from_secs(5))
+                    .unwrap()
+                    .as_slice(),
+                b"ready\n"
+            );
+            process.stop().unwrap();
+            assert_eq!(fs::read_to_string(marker).unwrap(), "clean");
+            assert_eq!(unsafe { libc::kill(id, 0) }, -1);
+            assert!(!process.control.has_child());
+        }
+
+        #[test]
+        fn stdio_eof_hang_is_bounded_and_cancellation_skips_the_grace_period() {
+            for cancelled in [false, true] {
+                let mut command = Command::new("/bin/sleep");
+                command.arg("60").env_clear().process_group(0);
+                let mut process = OwnedProcess::start(command).unwrap();
+                let id = process.id().unwrap() as libc::pid_t;
+                if cancelled {
+                    process.control.request_cancel();
+                }
+                let started = Instant::now();
+                process.stop().unwrap();
+                assert!(started.elapsed() < Duration::from_secs(3));
+                if cancelled {
+                    assert!(started.elapsed() < EOF_SHUTDOWN_TIMEOUT);
+                }
+                assert_eq!(unsafe { libc::kill(id, 0) }, -1);
+                assert_eq!(unsafe { libc::killpg(id, 0) }, -1);
+                assert!(!process.control.has_child());
+            }
         }
 
         #[test]

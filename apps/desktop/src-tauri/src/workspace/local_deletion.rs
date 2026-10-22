@@ -183,6 +183,9 @@ impl Workspace {
         for name in MANAGED_DIRS {
             if let Some(directory) = optional_held(&self.directory.join(name), true)? {
                 inspect_tree(&directory, &root, name == "profiles", 0)?;
+                if name == "profiles" {
+                    crate::provider::credentials::remove_marked(&directory.path)?;
+                }
                 directory.check()?;
                 root.check()?;
                 fs::remove_dir_all(&directory.path).map_err(failed)?;

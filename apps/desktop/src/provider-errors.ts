@@ -55,6 +55,7 @@ export function providerFailure(error: unknown): string {
     provider_unsupported: 'This Codex version or environment is not supported by the connection check.',
     provider_check_timed_out: 'Codex did not finish the connection check in time. Try again.',
     provider_protocol_failed: 'Codex returned an unsupported response. Review its version before you try again.',
+    provider_credential_store_unavailable: 'Your system credential store is unavailable or changed. Unlock it and try again. Your saved readings are still available.',
     provider_home_unavailable: 'The private profile home is unavailable or changed. Keep your workspace files and reload profiles.',
     provider_profile_archived: 'Restore this archived profile before you check its connection.',
     provider_cleanup_failed: 'OpenUsage could not confirm that the provider process stopped. Restart OpenUsage before another check.',

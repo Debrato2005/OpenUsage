@@ -155,6 +155,7 @@ impl ProviderCoordinator {
         approved.held.recheck()?;
         let executable = approved.executable.clone();
         let source_kind = approved.metadata.source_kind;
+        let home = super::credentials::apply(home, path, source_kind)?;
         if manual_refresh {
             require_refresh_ready(&mut state, profile_id)?;
         } else {

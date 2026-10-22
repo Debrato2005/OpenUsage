@@ -5,6 +5,8 @@
 //! <https://doc.rust-lang.org/std/os/unix/process/trait.CommandExt.html#tymethod.process_group>
 //! <https://doc.rust-lang.org/std/process/struct.Child.html#method.wait>
 
+#[cfg(unix)]
+pub use crate::credential_bus::LinuxCredentialBus;
 use crate::session::{ActivityProbe, CollectionProbe, ProviderProbe, QuotaProbe, SessionError};
 use std::{fmt, path::Path};
 
@@ -344,6 +346,8 @@ pub struct ManagedProfileHome {
     directory: PathBuf,
     #[cfg(unix)]
     identity: (u64, u64),
+    #[cfg(unix)]
+    credentials: Option<LinuxCredentialBus>,
 }
 
 impl ManagedProfileHome {
@@ -363,6 +367,7 @@ impl ManagedProfileHome {
                 profile_id,
                 directory: directory.to_owned(),
                 identity: home_identity(directory)?,
+                credentials: None,
             })
         }
         #[cfg(not(unix))]
@@ -372,10 +377,30 @@ impl ManagedProfileHome {
         }
     }
 
+    /// Opt a selected managed home into a reviewed Linux desktop credential store.
+    /// The caller must permit this only for a verified official provider and persist the choice.
+    pub fn with_linux_keyring(self, address: &str) -> Result<Self, SupervisorError> {
+        #[cfg(unix)]
+        {
+            let mut value = self;
+            value.recheck()?;
+            value.credentials = Some(LinuxCredentialBus::new(address)?);
+            Ok(value)
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = address;
+            Err(SessionError::UnsupportedPlatform.into())
+        }
+    }
+
     #[cfg(unix)]
     fn recheck(&self) -> Result<(), SessionError> {
         if home_identity(&self.directory)? != self.identity {
             return Err(SessionError::InvalidManagedDirectory);
+        }
+        if let Some(bus) = &self.credentials {
+            bus.recheck()?;
         }
         Ok(())
     }
@@ -712,6 +737,7 @@ impl Supervisor {
                             Operation::DeviceLogin(sender) => crate::session::unix::login_managed(
                                 &executable.path,
                                 &home.directory,
+                                home.credentials.as_ref(),
                                 Arc::clone(&worker_job.control),
                                 timeouts,
                                 before_start,
@@ -726,6 +752,7 @@ impl Supervisor {
                             Operation::Check => crate::session::unix::check_managed(
                                 &executable.path,
                                 &home.directory,
+                                home.credentials.as_ref(),
                                 Arc::clone(&worker_job.control),
                                 timeouts,
                                 before_start,
@@ -734,6 +761,7 @@ impl Supervisor {
                             Operation::Logout => crate::session::unix::logout_managed(
                                 &executable.path,
                                 &home.directory,
+                                home.credentials.as_ref(),
                                 Arc::clone(&worker_job.control),
                                 timeouts,
                                 before_start,
@@ -742,6 +770,7 @@ impl Supervisor {
                             Operation::QuotaDiagnostic => crate::session::unix::quota_managed(
                                 &executable.path,
                                 &home.directory,
+                                home.credentials.as_ref(),
                                 Arc::clone(&worker_job.control),
                                 timeouts,
                                 before_start,
@@ -751,6 +780,7 @@ impl Supervisor {
                                 crate::session::unix::collection_managed(
                                     &executable.path,
                                     &home.directory,
+                                    home.credentials.as_ref(),
                                     Arc::clone(&worker_job.control),
                                     timeouts,
                                     before_start,
@@ -761,6 +791,7 @@ impl Supervisor {
                                 crate::session::unix::activity_managed(
                                     &executable.path,
                                     &home.directory,
+                                    home.credentials.as_ref(),
                                     Arc::clone(&worker_job.control),
                                     timeouts,
                                     before_start,
@@ -1262,6 +1293,75 @@ IFS= read -r request
         fixture
     }
 
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn selected_keyring_home_passes_only_its_bus_and_never_falls_back_after_bus_loss() {
+        use std::os::unix::net::UnixListener;
+        let fixture = script_fixture(
+            "success",
+            r##"#!/bin/sh
+if [ -n "${OPENAI_API_KEY-}" ] || [ -n "${OPENAI_ACCESS_TOKEN-}" ] || [ -n "${DBUS_STARTER_ADDRESS-}" ]; then exit 42; fi
+if [ "$1" = "--version" ]; then printf 'codex-cli 0.163.0\n'; exit 0; fi
+case "${DBUS_SESSION_BUS_ADDRESS-}" in
+  unix:path=*)
+    case "$*" in *'cli_auth_credentials_store="keyring"'*'features.secret_auth_storage=false'*) ;; *) exit 43;; esac
+    printf 'keyring' > "$CODEX_HOME/synthetic-credential-access";;
+  '')
+    case "$*" in *'cli_auth_credentials_store="file"'*) ;; *) exit 44;; esac
+    printf 'file' > "$CODEX_HOME/synthetic-credential-access";;
+  *) exit 45;;
+esac
+IFS= read -r request
+printf '{"id":1,"result":{"userAgent":"synthetic credential environment fixture","codexHome":"%s","platformFamily":"unix","platformOs":"linux"}}\n' "$CODEX_HOME"
+IFS= read -r notification
+IFS= read -r request
+printf '{"id":2,"result":{"account":null,"requiresOpenaiAuth":true}}\n'
+exec /bin/sleep 60
+"##,
+            "Owned synthetic credential transport fixture. No provider credentials or network.",
+        );
+        let path = fixture.temporary.path().join("bus");
+        let bus = UnixListener::bind(&path).unwrap();
+        let home = fixture.homes[0]
+            .clone()
+            .with_linux_keyring(&format!("unix:path={}", path.display()))
+            .unwrap();
+        let supervisor = Supervisor::new();
+        supervisor
+            .start_check(&fixture.executable, &home)
+            .unwrap()
+            .wait()
+            .unwrap();
+        supervisor
+            .start_check(&fixture.executable, &fixture.homes[1])
+            .unwrap()
+            .wait()
+            .unwrap();
+        assert_eq!(
+            fs::read_to_string(home.directory.join("synthetic-credential-access")).unwrap(),
+            "keyring"
+        );
+        assert_eq!(
+            fs::read_to_string(
+                fixture.homes[1]
+                    .directory
+                    .join("synthetic-credential-access")
+            )
+            .unwrap(),
+            "file"
+        );
+        fs::remove_file(home.directory.join("synthetic-credential-access")).unwrap();
+        drop(bus);
+        assert!(
+            supervisor
+                .start_check(&fixture.executable, &home)
+                .unwrap()
+                .wait()
+                .is_err()
+        );
+        assert!(!home.directory.join("synthetic-credential-access").exists());
+    }
+
     fn login_fixture(mode: &str) -> Fixture {
         script_fixture(
             mode,
@@ -1419,16 +1519,34 @@ IFS= read -r request
         fixture
     }
 
+    fn completed_observations(value: &str) -> Vec<serde_json::Value> {
+        // A live writer can expose a partial final record before its newline is flushed.
+        value
+            .split_inclusive('\n')
+            .filter(|line| line.ends_with('\n'))
+            .map(|line| serde_json::from_str(line).unwrap())
+            .collect()
+    }
+
+    #[test]
+    fn live_observations_wait_for_record_boundaries_without_ignoring_corruption() {
+        assert_eq!(
+            completed_observations("{\"kind\":\"ready\"}\n{\"kind\":\"pend"),
+            vec![serde_json::json!({"kind":"ready"})]
+        );
+        assert!(completed_observations("{\"kind\":\"ready\"}").is_empty());
+        assert!(std::panic::catch_unwind(|| completed_observations("{invalid}\n")).is_err());
+    }
+
     fn collection_rows(fixture: &Fixture, index: usize) -> Vec<serde_json::Value> {
-        fs::read_to_string(
-            fixture.homes[index]
-                .directory
-                .join("synthetic-collection-observations.jsonl"),
+        completed_observations(
+            &fs::read_to_string(
+                fixture.homes[index]
+                    .directory
+                    .join("synthetic-collection-observations.jsonl"),
+            )
+            .unwrap(),
         )
-        .unwrap()
-        .lines()
-        .map(|line| serde_json::from_str(line).unwrap())
-        .collect()
     }
 
     #[test]
@@ -2178,10 +2296,7 @@ IFS= read -r request
                 .path()
                 .join("synthetic-activity-observations.jsonl"),
         ) {
-            Ok(value) => value
-                .lines()
-                .map(|line| serde_json::from_str(line).unwrap())
-                .collect(),
+            Ok(value) => completed_observations(&value),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
             Err(error) => panic!("Synthetic activity observations failed: {error}"),
         }
@@ -2618,15 +2733,14 @@ IFS= read -r request
     }
 
     fn login_requests(fixture: &Fixture, index: usize) -> Vec<serde_json::Value> {
-        fs::read_to_string(
-            fixture.homes[index]
-                .directory
-                .join("synthetic-login-requests.jsonl"),
+        completed_observations(
+            &fs::read_to_string(
+                fixture.homes[index]
+                    .directory
+                    .join("synthetic-login-requests.jsonl"),
+            )
+            .unwrap(),
         )
-        .unwrap()
-        .lines()
-        .map(|line| serde_json::from_str(line).unwrap())
-        .collect()
     }
 
     #[test]

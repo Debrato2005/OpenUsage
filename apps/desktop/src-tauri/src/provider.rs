@@ -22,6 +22,7 @@ use std::{
 
 mod collection;
 mod companion;
+pub(crate) mod credentials;
 pub(crate) use collection::*;
 mod activity;
 pub(crate) use activity::*;
@@ -534,6 +535,7 @@ impl ProviderCoordinator {
         let executable = approved.executable.clone();
         let approval_id = approved.metadata.approval_id.clone();
         let source_kind = approved.metadata.source_kind;
+        let home = credentials::apply(home, path, source_kind)?;
         let request_id = new_id()?;
         let handle = if logout_approval.is_some() {
             state.supervisor.start_logout(&executable, &home, true)
@@ -897,6 +899,9 @@ fn provider_error(error: SupervisorError) -> CommandError {
         SupervisorError::CapacityReached => CommandError::ProviderCapacityReached,
         SupervisorError::Cancelled | SupervisorError::Session(S::Cancelled) => {
             CommandError::ProviderCheckCancelled
+        }
+        SupervisorError::Session(S::CredentialStoreUnavailable) => {
+            CommandError::ProviderCredentialStoreUnavailable
         }
         SupervisorError::Session(S::TimedOut) => CommandError::ProviderCheckTimedOut,
         SupervisorError::Session(S::UnsupportedPlatform | S::UnsupportedVersion) => {

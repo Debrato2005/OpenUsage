@@ -147,6 +147,7 @@ impl ProviderCoordinator {
         approved.held.recheck()?;
         let executable = approved.executable.clone();
         let source_kind = approved.metadata.source_kind;
+        let home = super::credentials::apply(home, path, source_kind)?;
         require_refresh_ready(&mut state, profile_id)?;
         let request_id = new_id()?;
         let started = Instant::now();

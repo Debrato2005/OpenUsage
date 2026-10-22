@@ -158,6 +158,7 @@ impl ProviderCoordinator {
         if state.active_count() >= 2 {
             return Err(CommandError::ProviderCapacityReached);
         }
+        let home = super::credentials::apply(home, path, source_kind)?;
         let attempt_id = new_id()?;
         let handle = state
             .supervisor
