@@ -13,6 +13,7 @@ mod readings_export;
 mod restore;
 mod subscriptions;
 mod time_zone;
+mod window_chrome;
 mod workspace;
 
 use keyvault::OsVault;
@@ -2062,10 +2063,19 @@ fn main() {
         ])
         .setup(|app| {
             let window = &app.config().app.windows[0];
-            WebviewWindowBuilder::from_config(app, window)?
+            let native = WebviewWindowBuilder::from_config(app, window)?
+                .visible(false)
+                .title(if cfg!(feature = "native-test") {
+                    "OpenUsage — Test workspace"
+                } else {
+                    "OpenUsage"
+                })
                 .on_navigation(is_bundled_url)
                 .on_new_window(|_, _| NewWindowResponse::Deny)
                 .build()?;
+            #[cfg(target_os = "linux")]
+            window_chrome::install(&native)?;
+            native.show()?;
             Ok(())
         })
         .build(tauri::generate_context!())

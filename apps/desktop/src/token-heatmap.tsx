@@ -7,7 +7,7 @@ import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from './c
 import { invoke, type SavedProfileHeatmap } from './contracts';
 import './token-heatmap.css';
 
-type Props = { profileId: string | null; profileLabel: string; revision: number };
+type Props = { profileId: string | null; profileLabel: string; revision: number; compact?: boolean };
 type Mode = 'daily' | 'weekly' | 'cumulative';
 type Period = 30 | 90 | 180 | 365;
 type Cell = SavedProfileHeatmap['cells'][number];
@@ -20,7 +20,7 @@ function description(cell: Cell, mode: Mode): string {
   return `${period}: ${cell.tokens} ${mode === 'daily' ? 'tokens' : mode === 'weekly' ? 'observed token subtotal' : 'cumulative observed tokens'}; ${cell.knownDays} of ${cell.expectedDays} days known${cell.knownDays < cell.expectedDays ? '; Incomplete' : ''}; ${freshness[cell.freshness]}`;
 }
 
-export function TokenHeatmap({ profileId, profileLabel, revision }: Props) {
+export function TokenHeatmap({ profileId, profileLabel, revision, compact = false }: Props) {
   const observedDates = useDateFormat();
   const calendar = useRef<HTMLDivElement>(null);
   const [calendarWidth, setCalendarWidth] = useState(300);
@@ -34,7 +34,7 @@ export function TokenHeatmap({ profileId, profileLabel, revision }: Props) {
   const headingId = useId();
   const detailId = useId();
   const [mode, setMode] = useState<Mode>('daily');
-  const [periodDays, setPeriodDays] = useState<Period>(90);
+  const [periodDays, setPeriodDays] = useState<Period>(compact ? 90 : 365);
   const [retry, setRetry] = useState(0);
   const [result, setResult] = useState<{ key: string; value: SavedProfileHeatmap | null; failed: boolean } | null>(null);
   const [focused, setFocused] = useState(0);
@@ -69,8 +69,17 @@ export function TokenHeatmap({ profileId, profileLabel, revision }: Props) {
   const calendarData = cells.map(cell => ({ date: cell.startDate, count: 0, level: cell.level }));
   const firstWeekday = cells.length ? (new Date(`${cells[0]!.startDate}T00:00:00Z`).getUTCDay() + 6) % 7 : 0;
   const calendarDays = cells.length ? Math.round((Date.parse(cells.at(-1)!.startDate) - Date.parse(cells[0]!.startDate)) / 86400000) + 1 : 1;
+  if (!weekly && cells.length) {
+    const first = Date.parse(cells[0]!.startDate);
+    const last = Date.parse(cells.at(-1)!.startDate);
+    const padding = (offset: number, anchor: number) => ({ date: new Date(anchor + offset * 86400000).toISOString().slice(0, 10), count: 0, level: 0 });
+    // Layout-only dates complete Monday–Sunday columns. They never enter saved values.
+    calendarData.unshift(...Array.from({ length: firstWeekday }, (_, index) => padding(index - firstWeekday, first)));
+    calendarData.push(...Array.from({ length: (7 - (calendarDays + firstWeekday) % 7) % 7 }, (_, index) => padding(index + 1, last)));
+  }
   const columns = Math.ceil((calendarDays + firstWeekday) / 7);
   const blockSize = Math.max(11, Math.min(20, Math.floor((calendarWidth - 36 - (columns - 1) * 3) / columns)));
+  const knownDays = mode === 'daily' ? cells.filter(cell => cell.tokens !== null).length : mode === 'weekly' ? cells.reduce((sum, cell) => sum + cell.knownDays, 0) : cells.at(-1)?.knownDays ?? 0;
   const calendarColors = ['var(--heatmap-zero)', ...[1, 2, 3, 4].map(level => `var(--heatmap-level-${level})`)];
   function move(event: KeyboardEvent<SVGRectElement>, index: number) {
     if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setFocused(index); setPreview(index); return; }
@@ -85,7 +94,7 @@ export function TokenHeatmap({ profileId, profileLabel, revision }: Props) {
     setPreview(target);
     buttons.current[target]?.focus();
   }
-  return <section ref={calendar} className="token-heatmap" data-token-heatmap data-profile-id={profileId ?? ''} data-mode={mode} data-period-days={periodDays} aria-labelledby={headingId} aria-busy={loading}>
+  return <section ref={calendar} className="token-heatmap" data-token-heatmap data-profile-id={profileId ?? ''} data-mode={mode} data-period-days={periodDays} data-compact={compact || undefined} aria-labelledby={headingId} aria-busy={loading}>
     <header className="token-heatmap-header">
       <div><h2 id={headingId}>Token activity</h2><p><bdi>{profileLabel || 'No account selected'}</bdi>{value && <span> · {cells.some(cell => cell.knownDays < cell.expectedDays) ? 'Partial history' : 'Saved dates'}</span>}</p></div>
       <div className="token-heatmap-controls">
@@ -102,14 +111,15 @@ export function TokenHeatmap({ profileId, profileLabel, revision }: Props) {
       : !value || cells.length === 0 ? <p className="token-heatmap-empty">No saved daily activity yet.</p>
       : <>
         {value.sourceKind === 'test_fixture' && <p className="token-heatmap-fixture">Synthetic test data</p>}
+        <p className="token-heatmap-range" data-heatmap-coverage><time dateTime={value.periodStart}>{value.periodStart}</time> – <time dateTime={value.periodEnd}>{value.periodEnd}</time><span>{knownDays} of {periodDays} days reported</span></p>
         <div className="token-heatmap-calendar-scroll" data-heatmap-grid role="group" aria-label={`${modes[mode]} token activity. Use arrow keys to explore dates.`}>
           <ActivityCalendar data={calendarData} weekStart={1} blockSize={blockSize} blockMargin={3} blockRadius={3} fontSize={13}
-            showTotalCount={false} showColorLegend={false} showWeekdayLabels={weekly ? false : ['mon', 'wed', 'fri']}
+            showTotalCount={false} showColorLegend={false} showWeekdayLabels={weekly ? false : ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']}
             theme={{ light: calendarColors, dark: calendarColors }}
             renderBlock={(block, activity) => {
               const saved = byDate.get(activity.date);
-              // Weekly gaps generated by the calendar are layout only, never saved zeroes.
-              if (!saved) return <g aria-hidden="true" />;
+              // Outside-period cells complete the grid, but are not readings or zeroes.
+              if (!saved) return weekly ? <g aria-hidden="true" /> : cloneElement(block as ReactElement<SVGProps<SVGRectElement>>, { ...{ 'data-heatmap-padding': true }, 'aria-hidden': true, style: { fill: 'var(--heatmap-unknown-surface)', stroke: 'none', pointerEvents: 'none' } });
               const { cell, index } = saved;
               const attributes = {
                 'data-heatmap-cell': cell.startDate, 'data-start-date': cell.startDate, 'data-end-date': cell.endDate,
@@ -123,8 +133,7 @@ export function TokenHeatmap({ profileId, profileLabel, revision }: Props) {
                 children: <title>{description(cell, mode)}</title>,
                 onFocus: () => { setFocused(index); setPreview(index); }, onPointerEnter: () => setPreview(index),
                 onClick: () => { setFocused(index); setPreview(index); }, onKeyDown: event => move(event, index),
-                style: { ...block.props.style, stroke: cell.tokens === null ? 'var(--heatmap-missing)' : 'var(--line)',
-                  strokeDasharray: cell.tokens === null ? '2 2' : undefined, strokeWidth: cell.tokens === null ? .45 : .4,
+                style: { ...block.props.style, stroke: 'none', strokeWidth: 0,
                   fill: cell.tokens === null ? 'var(--heatmap-unknown-surface)' : calendarColors[cell.level] },
               });
             }} />

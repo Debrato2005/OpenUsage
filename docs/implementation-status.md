@@ -4,6 +4,20 @@
 
 Updated: October 22, 2026. OpenUsage remains in development. The normative [SRS](SRS.md) is unchanged. Only local commits are permitted. Remote branch deletion requires separate owner approval. Agents must not push or publish.
 
+## Completed assignment: heatmap layout and Linux window controls
+
+Usage opens a full-year calendar. Overview keeps its compact 90-day view. All seven weekday labels are visible. Neutral padding completes the first and last weeks without creating saved readings, zero counts or interactive dates. Missing days use solid cells and remain distinct from confirmed zero. The selected range and reported-day count stay visible.
+
+Linux uses native GTK window controls. GTK retains dragging, resizing and accessible buttons. Windows and macOS keep their existing decorations. Test windows carry an explicit Test workspace title.
+
+Build/type checks, 54 contracts, strict Clippy and the external-navigation rejection test passed. All 44 affected renderer cases passed across the recorded runs. Both browser engines then passed the new corner-padding regression. The actual Linux native-test window passed full-year layout, complete week columns, seven labels, exact saved dates, compact Overview and maximize/restore/close actions. Its rendered interface was inspected. Production compiled separately.
+
+WSLg/Weston kept WM_STATE Normal after both the minimize button and a direct GDK iconify request. Host taskbar minimization remains unqualified. This is a recorded platform limitation, not a passing minimize check.
+
+Combined totals remain unavailable. The current managed account interface does not establish distinct verified identities and compatible activity coverage. Presentation now explains this restriction compactly and links to individual activity. Provider operations, protected storage and aggregation safeguards are unchanged.
+
+Private evidence: heatmap-window-native. No executable copies were retained. This bounded assignment stops after its local commit.
+
 ## Completed assignment: clock, time zones and heatmap
 
 The header clock updates each second. Settings → Date and time saves a recognized IANA time zone, including India, UTC and system time. Overview, quota readings, history and alert timestamps use that choice with zone labels. Exact source timestamps remain UTC. Notification quiet hours keep their separate time-zone setting.

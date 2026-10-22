@@ -27,6 +27,7 @@ uuid = { version = "=1.28.0", default-features = false }
 zeroize = "=1.9.1"
 
 [target.'cfg(target_os = "linux")'.dependencies]
+gtk = "=0.18.2"
 zbus = { version = "=5.19.0", default-features = false, features = ["tokio"] }
 secret-service = { version = "=5.2.0", default-features = false, features = ["rt-tokio-crypto-rust"] }
 tokio = { version = "=1.53.3", features = ["time", "sync"] }

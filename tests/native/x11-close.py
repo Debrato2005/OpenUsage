@@ -77,8 +77,16 @@ try:
         if x.XFetchName(display, window, c.byref(name_pointer)) and name_pointer:
             title = c.string_at(name_pointer).decode('utf8', errors='replace')
             x.XFree(name_pointer)
+        if not title:
+            name_atom = x.XInternAtom(display, b'_NET_WM_NAME', 1)
+            name_data = c.POINTER(c.c_ubyte)()
+            status = x.XGetWindowProperty(display, window, name_atom, 0, 256, 0, 0, c.byref(actual), c.byref(fmt), c.byref(items), c.byref(remaining), c.byref(name_data))
+            if status == 0 and fmt.value == 8 and items.value <= 1024 and name_data:
+                title = c.string_at(name_data, items.value).decode('utf8', errors='replace')
+            if name_data:
+                x.XFree(name_data)
         owned_windows.append({'windowId': window, 'title': title, 'mapState': attributes.map_state})
-        if attributes.map_state != 2 or title != 'OpenUsage':
+        if attributes.map_state != 2 or title not in {'OpenUsage', 'OpenUsage — Test workspace'}:
             continue
         values, length = c.POINTER(Atom)(), c.c_int()
         if x.XGetWMProtocols(display, window, c.byref(values), c.byref(length)):

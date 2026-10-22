@@ -25,7 +25,7 @@ type Pending = { profileId: string; kind: string; resolve: (value: unknown) => v
 type Fixture = { calls: string[]; deferFirst: boolean; mismatchFirst: boolean; pending: Pending[]; profiles: ProfileRecord[]; quotas: Record<string, SavedProfileQuota | null>; rejectQuota: string[]; mismatchQuota: string[]; deferQuota: string[] };
 type FixtureWindow = Window & { overviewFixture: Fixture };
 
-async function open(page: Page, options: { empty?: boolean; deferFirst?: boolean; chart?: boolean; count?: number; freshQuotas?: boolean; deferSecond?: boolean } = {}) {
+async function open(page: Page, options: { empty?: boolean; deferFirst?: boolean; chart?: boolean; count?: number; freshQuotas?: boolean; deferSecond?: boolean; year?: boolean } = {}) {
   const chartActivity = activity(first, '0');
   if (options.chart) {
     chartActivity.dailyState = 'returned';
@@ -47,6 +47,13 @@ async function open(page: Page, options: { empty?: boolean; deferFirst?: boolean
     { startDate: '2026-10-02', endDate: '2026-10-02', tokens: null, level: 0, knownDays: 0, expectedDays: 1, observedAtUtc: null, freshness: 'unknown' },
     { startDate: '2026-10-03', endDate: '2026-10-03', tokens: '9007199254740993', level: 4, knownDays: 1, expectedDays: 1, observedAtUtc, freshness: 'fresh' },
   ] };
+  if (options.year) {
+    heatmap.periodStart = '2025-10-23'; heatmap.periodEnd = '2026-10-22'; heatmap.scaleMaximum = '364';
+    heatmap.cells = Array.from({ length: 365 }, (_, index) => {
+      const date = new Date(Date.UTC(2025, 9, 23 + index)).toISOString().slice(0, 10);
+      return { startDate: date, endDate: date, tokens: index % 10 === 0 ? null : String(index), level: index % 10 === 0 ? 0 : 3, knownDays: index % 10 === 0 ? 0 : 1, expectedDays: 1, observedAtUtc: index % 10 === 0 ? null : observedAtUtc, freshness: 'unknown' as const };
+    });
+  }
   await page.addInitScript(({ first, second, ids, readings, quotas, options, heatmap }) => {
     const fixture: Fixture = { calls: [], deferFirst: options.deferFirst ?? false, mismatchFirst: false, pending: [], profiles: ids.map((id, index) => ({ id, label: index === 0 ? 'Zero fixture' : index === 1 ? 'Large fixture' : `Fixture ${index + 1}`, environment: 'native', archived: false, connectionState: 'authentication_required' })), quotas, rejectQuota: [], mismatchQuota: [], deferQuota: options.deferSecond ? [second] : [] };
     Object.assign(window, { overviewFixture: fixture });
@@ -506,4 +513,25 @@ test('live clock and saved India time zone update timestamps without moving acti
   await page.getByRole('button', { name: 'Use system time', exact: true }).click();
   await expect.poll(() => page.evaluate(() => localStorage.getItem('fixture-zone'))).toBe(await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone));
 
+});
+
+
+test('wide Usage opens a full-year calendar that fills its panel without changing missing days', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await open(page, { chart: true, year: true });
+  await dashboard(page).getByRole('button', { name: 'View usage', exact: true }).click();
+  const calendar = page.locator('[data-workspace-view="usage"] [data-token-heatmap]');
+  await expect(calendar).toHaveAttribute('data-period-days', '365');
+  await expect(calendar.locator('[data-heatmap-cell]')).toHaveCount(365);
+  await expect(calendar.locator('[data-heatmap-padding]')).toHaveCount(6);
+  expect(await calendar.locator('.react-activity-calendar svg rect').count()).toBe(371);
+  await expect(calendar.locator('[data-heatmap-padding][role="button"]')).toHaveCount(0);
+  const weekdayLabels = await calendar.locator('.react-activity-calendar svg text').allTextContents();
+  for (const day of ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']) expect(weekdayLabels).toContain(day);
+  await expect(calendar.locator('[data-heatmap-coverage]')).toContainText('328 of 365 days reported');
+  const sizes = await calendar.evaluate(node => ({ panel: node.clientWidth, plot: node.querySelector('.react-activity-calendar svg')!.getBoundingClientRect().width }));
+  expect(sizes.plot).toBeGreaterThan(sizes.panel * .75);
+  await expect(calendar.locator('[data-heatmap-cell][data-value="missing"]')).toHaveCount(37);
+  await page.setViewportSize({ width: 360, height: 800 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
 });

@@ -2753,6 +2753,7 @@ version = "0.1.0"
 dependencies = [
  "apple-native-keyring-store",
  "getrandom 0.4.3",
+ "gtk",
  "jiff",
  "keyring-core",
  "libc",
