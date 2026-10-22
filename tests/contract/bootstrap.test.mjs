@@ -850,3 +850,15 @@ test('subscription responses preserve exact money and refuse cross-account, inva
   desktopResponse({deleted:true,profileId,subscriptionId:id}); await invoke('delete_subscription',{profileId,subscriptionId:id,expectedRevision:id,confirmed:true});
   desktopResponse({deleted:true,profileId:id,subscriptionId:id}); await assert.rejects(invoke('delete_subscription',{profileId,subscriptionId:id,expectedRevision:id,confirmed:true}));
 });
+
+
+test('time-zone IPC accepts recognized zones and refuses extra or malformed fields', async () => {
+  for (const timeZone of ['UTC', 'Asia/Kolkata', 'America/New_York']) {
+    desktopResponse({ timeZone });
+    assert.deepEqual(await invoke('load_time_zone'), { timeZone });
+    assert.deepEqual(await invoke('set_time_zone', { timeZone }), { timeZone });
+  }
+  for (const value of [{ timeZone: '../UTC' }, { timeZone: 'Invalid/Zone' }, { timeZone: 5 }, { timeZone: 'UTC', secret: 'disallowed' }]) {
+    desktopResponse(value); await assert.rejects(invoke('load_time_zone'), /desktop response is incompatible/);
+  }
+});

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-time-zone"
+description = "Enables the set_time_zone command without any pre-configured scope."
+commands.allow = ["set_time_zone"]
+
+[[permission]]
+identifier = "deny-set-time-zone"
+description = "Denies the set_time_zone command without any pre-configured scope."
+commands.deny = ["set_time_zone"]

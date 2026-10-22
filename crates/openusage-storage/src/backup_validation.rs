@@ -3,7 +3,7 @@
 //! The caller must authenticate the archive before supplying its database image.
 //! Validation copies the image into RAM; legacy normalization needs another private database.
 //! The 5 GiB format limit is not a memory guarantee.
-//! Future time-zone or locale writers must extend the current UTC/en-US settings guard.
+//! Settings accept recognized IANA time zones and the supported en-US locale.
 //! Stored identity confidence is checked for consistency, not treated as fresh provider verification.
 
 use crate::{CURRENT_SCHEMA_VERSION, MAX_BACKUP_SNAPSHOT_SIZE, MIGRATIONS};
@@ -929,7 +929,7 @@ fn validate_settings(connection: &Connection, schema: &str) -> Result<bool> {
     require(matches!(text(row, 4)?, "stopped" | "paused" | "active"))?;
     require(text(row, 5)? == "unlimited")?;
     require(utc_timestamp(text(row, 6)?) && utc_timestamp(text(row, 7)?))?;
-    supported &= timezone == "UTC" && locale == "en-US";
+    supported &= crate::valid_time_zone(timezone) && locale == "en-US";
     require(rows.next().map_err(sql_error)?.is_none())?;
     Ok(supported)
 }
@@ -1321,7 +1321,7 @@ mod tests {
             .pragma_update(None, "user_version", CURRENT_SCHEMA_VERSION)
             .unwrap();
         for sql in [
-            "UPDATE settings SET timezone='Asia/Kolkata'",
+            "UPDATE settings SET timezone='Invalid/Zone'",
             "UPDATE settings SET timezone='UTC',locale='fr-FR'",
             "UPDATE settings SET locale='en-US',timezone=replace(hex(zeroblob(513)),'0','x')",
         ] {

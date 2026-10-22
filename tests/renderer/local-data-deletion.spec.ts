@@ -16,6 +16,7 @@ async function open(page: Page, pending = false) {
   await page.addInitScript(({ profileId, initial }) => {
     const state: Fixture = { calls: [], deletions: [], value: initial }; Object.assign(window, { deletionFixture: state });
     window.__TAURI__ = { core: { invoke: async <T>(command: string, args: Record<string, unknown> = {}) => {
+      if (command === 'load_time_zone') return { timeZone: 'UTC' } as T;
       state.calls.push({ command, args });
       if (command === 'bootstrap') return state.value as T;
       if (command === 'set_theme') { state.value = { ...state.value, theme: args.theme as Bootstrap['theme'] }; return state.value as T; }

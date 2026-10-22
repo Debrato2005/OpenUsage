@@ -12,6 +12,7 @@ mod provider_credentials;
 mod readings_export;
 mod restore;
 mod subscriptions;
+mod time_zone;
 mod workspace;
 
 use keyvault::OsVault;
@@ -1997,6 +1998,8 @@ fn main() {
             setup_workspace,
             unlock_workspace,
             set_theme,
+            time_zone::load_time_zone,
+            time_zone::set_time_zone,
             create_backup,
             export_saved_readings,
             export_quota_history,

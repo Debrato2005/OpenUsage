@@ -1,3 +1,4 @@
+import { useDateFormat } from './time-display';
 import type { AccountAction } from './account-actions';
 import { useEffect, useState } from 'react';
 import { Button } from './components/ui/button';
@@ -9,11 +10,11 @@ import { ActivityPanel } from './activity-panel';
 import './activity.css';
 import './overview.css';
 import { AccountDonut } from './account-donut';
+import { ResetCountdown } from './reset-countdown';
 
 type Props = { profiles: ProfileRecord[]; revision: number; onAccounts: () => void; onAccountAction?: (action: AccountAction) => void; busy?: boolean; active?: boolean; refreshingProfileIds?: string[]; refreshWaitSeconds?: Record<string, number> };
 type AccountQuota = { quota: SavedProfileQuota | null; loading: boolean; failed: boolean };
 type Reading = { profileId: string; activity: SavedProfileActivity | null; quota: SavedProfileQuota | null; activityFailed: boolean; quotaFailed: boolean };
-const dates = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' });
 const scientificNumbers = new Intl.NumberFormat('en-US', { notation: 'scientific', maximumFractionDigits: 0 });
 const compactNumbers = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 2 });
 function CompactCount({ value }: { value: string | null }) {
@@ -27,10 +28,12 @@ function Avatar({ label }: { label: string }) { const initial = /^Account ([A-J]
 const freshness = { fresh: 'Fresh', stale: 'Stale', unknown: 'Freshness unknown' };
 
 function Observed({ value }: { value: SavedProfileActivity | SavedProfileQuota }) {
+  const dates = useDateFormat();
   return <p className="overview-meta">{freshness[value.freshness]} · <time dateTime={value.observedAtUtc}>{dates.format(new Date(value.observedAtUtc))}</time></p>;
 }
 
 function QuotaWindow({ value, role }: { value: SavedQuotaWindow | null; role: string }) {
+  const dates = useDateFormat();
   if (!value) return null;
   const reset = value.resetsAtUnix === null ? null : new Date(value.resetsAtUnix * 1000);
   const resetState = { expected: null, due: 'Reset due; awaiting confirmation', unconfirmed: 'Reset status not confirmed', confirmed: 'Reset confirmed' }[value.resetState];
@@ -39,7 +42,7 @@ function QuotaWindow({ value, role }: { value: SavedQuotaWindow | null; role: st
       <div className="overview-meter-heading"><MeterLabel>{value.label} quota</MeterLabel><strong>{value.derivedRemainingPercent}% left</strong></div>
       <MeterTrack><MeterIndicator /></MeterTrack>
     </Meter>
-    <div className="overview-quota-footnote"><p><strong>{value.usedPercent}% used</strong><span>Derived from provider data</span></p><p className="overview-reset"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M8 3v4m8-4v4M4 11h16"/></svg><span>Expected reset<time dateTime={reset?.toISOString()}>{reset ? dates.format(reset) : 'Not supplied'}</time></span></p></div>
+    <div className="overview-quota-footnote"><p><strong>{value.usedPercent}% used</strong><span>Derived from provider data</span></p><p className="overview-reset"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M8 3v4m8-4v4M4 11h16"/></svg><span>Expected reset<time dateTime={reset?.toISOString()}>{reset ? dates.format(reset) : 'Not supplied'}</time><ResetCountdown resetsAtUnix={value.resetsAtUnix} /></span></p></div>
     {resetState && <p className="overview-meta" data-overview-reset-state={value.resetState}>{resetState}</p>}
   </div>;
 }
@@ -51,6 +54,7 @@ function StatIcon({ kind }: { kind: 'tokens' | 'peak' | 'current' | 'longest' })
 }
 
 export function Overview({ profiles, revision, onAccounts, onAccountAction, busy = false, active = true, refreshingProfileIds = [], refreshWaitSeconds = {} }: Props) {
+  const dates = useDateFormat();
   const activeProfiles = profiles.filter(profile => !profile.archived);
   const tableProfileIds = activeProfiles.map(profile => profile.id).join(',');
   const [accountQuotas, setAccountQuotas] = useState<Record<string, AccountQuota>>({});

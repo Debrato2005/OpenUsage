@@ -324,6 +324,7 @@ main { max-width: 1280px; padding: var(--space-6); margin: 0 auto; }
 .quota-values > div { flex: 1 1 8em; min-width: 0; }
 .quota-values dt { color: var(--muted); font-size: var(--text-sm); }
 .quota-values dd { margin: var(--space-1) 0 0; }
+.quota-reset-countdown { display: block; font-variant-numeric: tabular-nums; }
 .quota-source-details { color: var(--muted); font-size: var(--text-sm); }
 
 .coss-button { min-width: 0; max-width: 100%; min-height: 48px; height: auto; font-size: var(--text-body); white-space: normal; box-shadow: none; transition: none; }
@@ -372,3 +373,12 @@ time[datetime] { font-variant-numeric: tabular-nums; }
 .subscription-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: var(--space-3); }
 .subscription-form { width: 100%; max-width: none; }
 @media (max-width: 600px) { .subscription-records article { align-items: start; flex-direction: column; } }
+
+.live-clock { display: block; max-width: 17rem; color: var(--muted); font-size: .8125rem; line-height: 1.5; font-variant-numeric: tabular-nums; text-align: end; }
+.time-settings { display: flex; flex-wrap: wrap; align-items: start; justify-content: space-between; gap: 1rem 2rem; padding-block: 1.5rem; border-bottom: 1px solid var(--line); }
+.time-settings h2 { margin: 0 0 .35rem; font-size: 1.125rem; }
+.time-settings p { margin: 0; max-width: 40rem; color: var(--muted); line-height: 1.5; }
+.time-settings-controls { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; min-width: 0; max-width: 100%; }
+.time-settings-controls label { font-size: .875rem; }
+.time-settings-controls [data-slot='select-trigger'] { width: auto; max-width: 100%; }
+@media (max-width: 900px) { .live-clock { flex-basis: 100%; max-width: none; text-align: center; } .workspace-appearance { flex-wrap: wrap; } }

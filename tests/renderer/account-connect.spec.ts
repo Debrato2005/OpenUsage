@@ -11,6 +11,7 @@ for (const verified of [true, false]) test(`Add OpenAI account prepares the comp
     const profiles = () => ({ activeProfiles: created ? 1 : 0, profiles: created ? [{ id, label: 'Account A', environment: 'native', archived: false, connectionState: 'authentication_required' }] : [] });
     const metadata = { path: '/synthetic/reviewed-codex', fileBytes: '100', sha256: 'a'.repeat(64), testedVersion: '0.163.0', versionChecked: false, sourceVerified: true, sourceKind: 'official_artifact', sourceUrl: 'https://github.com/openai/codex/releases/tag/rust-v0.163.0' };
     window.__TAURI__ = { core: { invoke: async <T>(command: string, args: Record<string, unknown> = {}) => {
+      if (command === 'load_time_zone') return { timeZone: 'UTC' } as T;
       requests.push({ command, args });
       if (command === 'bootstrap') return { storage: 'ready', theme: 'light', schemaVersion: 4, activeProfiles: 0, monitoring: 'stopped', provider: 'not_configured', keyProtection: 'os_store', storageIssue: null } as T;
       if (command === 'load_monitoring') return { state: 'stopped', readingRevision: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', profiles: [] } as T;

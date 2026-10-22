@@ -16,6 +16,8 @@ fn main() {
             "setup_workspace",
             "unlock_workspace",
             "set_theme",
+            "load_time_zone",
+            "set_time_zone",
             "create_backup",
             "export_saved_readings",
             "export_quota_history",

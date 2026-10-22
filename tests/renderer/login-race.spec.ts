@@ -36,6 +36,7 @@ async function openSyntheticProfile(page: Page, newAccount = false) {
       sourceKind: 'test_fixture', sourceUrl: null,
     };
     window.__TAURI__ = { core: { invoke: async <T>(command: string, args: Record<string, unknown> = {}) => {
+      if (command === 'load_time_zone') return { timeZone: 'UTC' } as T;
       fixture.requests.push({ command, args });
       let value: unknown;
       switch (command) {

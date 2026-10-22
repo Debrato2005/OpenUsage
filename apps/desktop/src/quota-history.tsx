@@ -1,3 +1,4 @@
+import { DisplayTime } from './time-display';
 import { useEffect, useState } from 'react';
 import { DataExport } from './data-export';
 import { Button } from './components/ui/button';
@@ -5,18 +6,16 @@ import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from './components/
 import { invoke, type QuotaHistoryEntry, type QuotaHistoryPage, type QuotaWindow, type ProfileRecord } from './contracts';
 import './quota-history.css';
 
-const dates = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', timeZoneName: 'short' });
-const displayTime = (value: string) => dates.format(new Date(value));
 function WindowRow({ limit, role, value }: { limit: string; role: string; value: QuotaWindow }) {
   const reset = value.resetsAtUnix === null ? null : new Date(value.resetsAtUnix * 1000).toISOString();
-  return <tr><th scope="row"><bdi>{limit}</bdi><small>{role}</small></th><td>{value.label}{value.windowDurationMins !== null && <small>{value.windowDurationMins} minutes</small>}</td><td>{value.usedPercent}%</td><td>{value.derivedRemainingPercent}%</td><td>{reset ? <time dateTime={reset}>{displayTime(reset)}</time> : 'Not reported'}</td></tr>;
+  return <tr><th scope="row"><bdi>{limit}</bdi><small>{role}</small></th><td>{value.label}{value.windowDurationMins !== null && <small>{value.windowDurationMins} minutes</small>}</td><td>{value.usedPercent}%</td><td>{value.derivedRemainingPercent}%</td><td>{reset ? <DisplayTime value={reset} /> : 'Not reported'}</td></tr>;
 }
 function Snapshot({ value }: { value: QuotaHistoryEntry }) {
   const first = value.limits.find(limit => limit.primary || limit.secondary);
   const window = first?.primary ?? first?.secondary;
   return <Collapsible className="quota-history-entry" data-quota-history-run={value.collectionRunId}>
     <CollapsibleTrigger render={<Button variant="ghost" />} className="quota-history-entry-trigger">
-      <time dateTime={value.observedAtUtc}>{displayTime(value.observedAtUtc)}</time>
+      <DisplayTime value={value.observedAtUtc} />
       <span>{window ? `${window.derivedRemainingPercent}% left · ${window.label}` : 'No quota windows'}</span><span aria-hidden="true">⌄</span>
     </CollapsibleTrigger>
     <CollapsiblePanel>

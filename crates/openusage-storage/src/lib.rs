@@ -10,6 +10,8 @@ pub use backup_validation::{
     validate_native_restore_snapshot,
 };
 pub use checkpoint::{CheckpointError, CheckpointMetadata, CheckpointVerification};
+mod time_zone;
+pub use time_zone::valid_time_zone;
 mod currency_scales;
 mod profiles;
 mod subscriptions;

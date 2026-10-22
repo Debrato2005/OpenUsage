@@ -420,6 +420,8 @@ interface Commands {
   bootstrap: { args: undefined; result: Bootstrap };
   setup_workspace: { args: { passphrase: string | null }; result: Bootstrap };
   unlock_workspace: { args: { passphrase: string }; result: Bootstrap };
+  load_time_zone: { args: undefined; result: { timeZone: string } };
+  set_time_zone: { args: { timeZone: string }; result: { timeZone: string } };
   set_theme: { args: { theme: Theme }; result: Bootstrap };
   create_backup: { args: { password: string }; result: BackupReceipt };
   export_saved_readings: { args: { profileIds: string[]; format: ReadingExportFormat; includeIdentifiers: boolean; confirmed: true }; result: ReadingExportReceipt };
@@ -449,6 +451,7 @@ export async function invoke<K extends keyof Commands>(
   const valid = command === 'list_subscriptions' ? isSubscriptionsView(response) && response.profileId === selected?.profileId
     : command === 'create_subscription' || command === 'update_subscription' || command === 'set_subscription_archived' ? isSubscription(response) && response.profileId === selected?.profileId && (command === 'create_subscription' || response.id === selected?.subscriptionId)
     : command === 'delete_subscription' ? isSubscriptionDeletion(response) && (response as Record<string,unknown>).profileId === selected?.profileId && (response as Record<string,unknown>).subscriptionId === selected?.subscriptionId
+    : command === 'load_time_zone' || command === 'set_time_zone' ? isTimeZone(response)
     : command === 'delete_all_local_data' ? isDeletionResult(response)
     : command === 'load_notification_preferences' || command === 'save_notification_preferences' ? isNotificationPreferences(response)
     : command === 'load_reset_notification_preferences' || command === 'save_reset_notification_preferences' ? isResetNotificationPreferences(response)
@@ -1156,4 +1159,11 @@ function isBackupInspection(value: unknown): value is BackupInspectionResult {
     names.add(e.name);
   }
   return true;
+}
+
+function isTimeZone(value: unknown): value is { timeZone: string } {
+  if (!value || typeof value !== 'object' || Object.keys(value).length !== 1) return false;
+  const zone = (value as { timeZone?: unknown }).timeZone;
+  if (typeof zone !== 'string' || zone.length > 128 || !/^[A-Za-z0-9_+\/-]+$/.test(zone)) return false;
+  try { new Intl.DateTimeFormat('en-US', { timeZone: zone }); return true; } catch { return false; }
 }

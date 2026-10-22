@@ -40,6 +40,7 @@ async function open(page: Page, reconnect = false) {
     Object.assign(window, { collectionFixture: fixture }); let started = 0;
     const metadata = { path: '/synthetic/reviewed-codex', fileBytes: '100', sha256: 'a'.repeat(64), testedVersion: '0.163.0', versionChecked: false, sourceVerified: true, sourceKind: reconnect ? 'official_artifact' : 'test_fixture', sourceUrl: reconnect ? 'https://github.com/openai/codex/releases/tag/rust-v0.163.0' : null };
     window.__TAURI__ = { core: { invoke: async <T>(command: string, args: Record<string, unknown> = {}) => {
+      if (command === 'load_time_zone') return { timeZone: 'UTC' } as T;
       fixture.calls.push({ command, args: { ...args } }); let result: unknown;
       switch (command) {
         case 'list_backups': result = { backups: [{ fileName: 'openusage-backup-synthetic0000000.oubackup', fileBytes: '100' }], truncated: false }; break;

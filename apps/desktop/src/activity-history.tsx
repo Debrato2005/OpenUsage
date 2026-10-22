@@ -1,3 +1,4 @@
+import { useDateFormat } from './time-display';
 import { useEffect, useState } from 'react';
 import { DataExport } from './data-export';
 import { Button } from './components/ui/button';
@@ -5,11 +6,11 @@ import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from './components/
 import { invoke, type ActivityHistoryEntry, type ActivityHistoryPage, type ProfileRecord } from './contracts';
 import './activity-history.css';
 
-const dates = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', timeZoneName: 'short' });
 const labels = { lifetimeTokens: 'Lifetime tokens', peakDailyTokens: 'Peak daily tokens', longestRunningTurnSec: 'Longest turn (seconds)', currentStreakDays: 'Current streak (days)', longestStreakDays: 'Longest streak (days)' };
 const dailyLabels = { unavailable: 'Daily totals were not supplied.', empty: 'The provider returned no daily totals.', returned: 'Daily totals were supplied with this reading.' };
 
 function Snapshot({ value }: { value: ActivityHistoryEntry }) {
+  const dates = useDateFormat({ second: '2-digit' });
   return <Collapsible className="activity-history-entry" data-activity-history-run={value.collectionRunId}>
     <CollapsibleTrigger render={<Button variant="ghost" />} className="activity-history-entry-trigger"><time dateTime={value.observedAtUtc} title={value.observedAtUtc}>{dates.format(new Date(value.observedAtUtc))}</time><span>Saved summary</span><span aria-hidden="true">⌄</span></CollapsibleTrigger>
     <CollapsiblePanel>

@@ -21,6 +21,7 @@ async function open(page: Page, empty = false) {
     const fixture: ExportFixture = { calls: [] }; Object.assign(window, { exportFixture: fixture });
     const profiles = empty ? [] : ids.map((id, index) => ({ id, label: ['Synthetic first', 'Synthetic second', 'Synthetic archived'][index], environment: 'native', connectionState: 'authentication_required', archived: index === 2 }));
     window.__TAURI__ = { core: { invoke: async <T>(command: string, args: Record<string, unknown> = {}) => {
+      if (command === 'load_time_zone') return { timeZone: 'UTC' } as T;
       let value: unknown;
       switch (command) {
         case 'bootstrap': value = { storage: 'ready', theme: 'light', schemaVersion: 4, activeProfiles: empty ? 0 : 2, monitoring: 'stopped', provider: 'not_configured', keyProtection: 'passphrase', storageIssue: null }; break;

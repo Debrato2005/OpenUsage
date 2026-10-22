@@ -22,6 +22,8 @@
     "allow-setup-workspace",
     "allow-unlock-workspace",
     "allow-set-theme",
+    "allow-load-time-zone",
+    "allow-set-time-zone",
     "allow-create-backup",
     "allow-export-saved-readings",
     "allow-export-quota-history",

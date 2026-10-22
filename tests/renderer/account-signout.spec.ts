@@ -16,6 +16,7 @@ async function open(page: Page, approved = true) {
     const state: Fixture = { profiles: initial, calls: [], signouts: [], checks: [] }; Object.assign(window, { accountSignoutFixture: state });
     const metadata = { path: '/synthetic/reviewed-codex', fileBytes: '100', sha256: 'a'.repeat(64), testedVersion: '0.163.0', versionChecked: false, sourceVerified: true, sourceKind: 'test_fixture', sourceUrl: null };
     window.__TAURI__ = { core: { invoke: async <T>(command: string, args: Record<string, unknown> = {}) => {
+      if (command === 'load_time_zone') return { timeZone: 'UTC' } as T;
       state.calls.push({ command, args });
       if (command === 'bootstrap') return { storage: 'ready', theme: 'light', schemaVersion: 8, activeProfiles: 2, monitoring: 'stopped', provider: 'not_configured', keyProtection: 'os_store', storageIssue: null } as T;
       if (command === 'get_display_scale') return { percent: 100 } as T;

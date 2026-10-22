@@ -1,3 +1,4 @@
+import { DisplayTime } from './time-display';
 import { createPortal } from 'react-dom';
 import { useAccountSlot } from './account-slots';
 import { Button } from './components/ui/button';
@@ -8,6 +9,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { invoke, type ProviderExecutableApproval, type ProfileReadingReference, type SavedProfileQuota as SavedQuota, type ProfileActivityAssociationReview, type SavedQuotaWindow } from './contracts';
 import { AssociationReview } from './association-review';
 import { providerFailure } from './provider-errors';
+import { ResetCountdown } from './reset-countdown';
 
 type Props = {
   profileId: string;
@@ -23,8 +25,6 @@ type Props = {
   onFailed: () => Promise<void>;
 };
 type Outcome = { kind: 'error' | 'cancelled'; message: string; reassociationAvailable?: boolean };
-const dateFormat = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' });
-function date(value: string) { return dateFormat.format(new Date(value)); }
 function QuotaDisclosure({ label, className, defaultOpen = false, children }: { label: ReactNode; className: string; defaultOpen?: boolean; children: ReactNode }) {
   return <Collapsible className={className} defaultOpen={defaultOpen}>
     <CollapsibleTrigger render={<Button variant="ghost" className="quota-disclosure-trigger" />} type="button">
@@ -36,7 +36,7 @@ function QuotaDisclosure({ label, className, defaultOpen = false, children }: { 
 }
 function CreditTime({ seconds }: { seconds: number }) {
   const value = new Date(seconds * 1000).toISOString();
-  return <time dateTime={value}>{date(value)}</time>;
+  return <DisplayTime value={value} />;
 }
 function CreditDetails({ rows }: { rows: SavedQuota['resetCreditDetails'] }) {
   if (rows === null) return <p data-credit-detail-state="unavailable">Credit details were not supplied.</p>;
@@ -59,7 +59,7 @@ function WindowValues({ value }: { value: SavedQuotaWindow }) {
       <div className="quota-meter-heading"><MeterLabel><span className="sr-only">{value.label}: </span>Remaining (derived)</MeterLabel><MeterValue>{(_formatted, remaining) => `${remaining}%`}</MeterValue></div>
       <MeterTrack><MeterIndicator /></MeterTrack>
     </Meter>
-    <dl className="quota-values"><div><dt>Used</dt><dd>{value.usedPercent}%</dd></div><div><dt>Expected reset</dt><dd>{reset ? <time dateTime={reset}>{date(reset)}</time> : 'Not available'}{resetStatus && <p className="provider-help" data-quota-reset-state={value.resetState} data-quota-reset-due={value.resetState === 'due' ? '' : undefined}>{resetStatus}</p>}</dd></div></dl>
+    <dl className="quota-values"><div><dt>Used</dt><dd>{value.usedPercent}%</dd></div><div><dt>Expected reset</dt><dd>{reset ? <DisplayTime value={reset} /> : 'Not available'}<ResetCountdown resetsAtUnix={value.resetsAtUnix} />{resetStatus && <p className="provider-help" data-quota-reset-state={value.resetState} data-quota-reset-due={value.resetState === 'due' ? '' : undefined}>{resetStatus}</p>}</dd></div></dl>
   </div>;
 }
 
@@ -129,9 +129,9 @@ export function SavedProfileQuota({ profileId, profileLabel, children, readingRe
           <div className="quota-meter-heading"><MeterLabel>Remaining (derived)</MeterLabel><MeterValue>{(_formatted, remaining) => `${remaining}%`}</MeterValue></div>
           <MeterTrack><MeterIndicator /></MeterTrack>
         </Meter>
-        {reset && <small>{quotaWindow.resetState === 'due' ? 'Reset due' : 'Expected reset'} · <time dateTime={reset}>{date(reset)}</time></small>}
+        {reset && <small>{quotaWindow.resetState === 'due' ? 'Reset due' : 'Expected reset'} · <DisplayTime value={reset} /></small>}
       </> : <span>{loading ? 'Loading saved usage…' : 'No quota data'}</span>}
-      {value && <small>{value.sourceKind === 'test_fixture' ? 'Synthetic data · ' : ''}{freshnessLabels[value.freshness]} · <time dateTime={value.observedAtUtc}>{date(value.observedAtUtc)}</time></small>}
+      {value && <small>{value.sourceKind === 'test_fixture' ? 'Synthetic data · ' : ''}{freshnessLabels[value.freshness]} · <DisplayTime value={value.observedAtUtc} /></small>}
       {error && <small role="alert">Saved quota could not be reloaded.</small>}
     </div>, summaryContainer)}
     {children((receipt, focusResult = true) => load(receipt, focusResult), () => load())}
@@ -139,7 +139,7 @@ export function SavedProfileQuota({ profileId, profileLabel, children, readingRe
       <div className="quota-preview-heading"><h3>Saved quotas</h3>{value?.sourceKind === 'test_fixture' && <span className="quota-fixture-label" data-provider-fixture>Synthetic test data</span>}</div>
       {error && <div><p role="alert" data-quota-cache-error>{error}</p><Button type="button" variant="outline" disabled={loading} onClick={() => { void load(undefined, true); }}>Reload saved quotas</Button></div>}
       {value && <>
-        <div className="quota-preview-meta"><p>Unverified identity · Saved locally</p><p className="quota-observed"><span data-quota-freshness={value.freshness}>{freshnessLabels[value.freshness]}</span> · Last read <time dateTime={value.observedAtUtc}>{date(value.observedAtUtc)}</time></p></div>
+        <div className="quota-preview-meta"><p>Unverified identity · Saved locally</p><p className="quota-observed"><span data-quota-freshness={value.freshness}>{freshnessLabels[value.freshness]}</span> · Last read <DisplayTime value={value.observedAtUtc} /></p></div>
         <QuotaValues key={`${value.bindingId}:${value.collectionRunId}`} value={value} />
       </>}
     </div>}

@@ -1,3 +1,4 @@
+import { DisplayTime } from './time-display';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Button } from './components/ui/button';
 import { AssociationReview } from './association-review';
@@ -10,8 +11,6 @@ type Props = { profileId: string; profileLabel: string; approval: ProviderExecut
 type Outcome = { kind: 'error' | 'cancelled'; message: string; reassociationAvailable?: boolean };
 const labels = { lifetimeTokens: 'Lifetime tokens', peakDailyTokens: 'Peak daily tokens', currentStreakDays: 'Current streak (days)', longestStreakDays: 'Longest streak (days)', longestRunningTurnSec: 'Longest turn (seconds)' };
 const freshnessLabels = { unknown: 'Freshness unknown', fresh: 'Current', stale: 'Stale' };
-const observedDate = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' });
-const observed = (value: string) => observedDate.format(new Date(value));
 function Metric({ name, value, freshness }: { name: keyof typeof labels; value: string | null; freshness: ActivityFreshness }) {
   return <div><dt>{labels[name]}</dt><dd data-activity-metric={name} data-activity-state={value === null ? 'not_available' : freshness} className="activity-count" tabIndex={0} aria-label={labels[name]}><bdi>{value ?? 'Not available'}</bdi></dd></div>;
 }
@@ -30,7 +29,7 @@ function ActivityValues({ value }: { value: SavedProfileActivity }) {
         {value.dailyState !== 'returned' && <p data-activity-daily-state={value.dailyState}>{value.dailyState === 'unavailable' ? 'The latest read did not supply daily usage.' : 'The latest read returned no daily rows.'}</p>}
         {value.dailyTruncated && <p className="provider-help" data-activity-daily-truncated>Only part of the saved daily data is shown.</p>}
         {buckets.length > 0 && <>
-          <ol className="activity-days" aria-label="Saved daily totals">{buckets.slice(start, start + 50).map(row => <li data-activity-day data-activity-day-freshness={row.freshness} key={row.date}><time dateTime={row.date}>{row.date}</time><span className="activity-count" tabIndex={0} aria-label={`Tokens for ${row.date}`}><bdi>{row.tokens}</bdi></span><span className="provider-help activity-day-observed">{freshnessLabels[row.freshness]} · Observed <time data-activity-observed dateTime={row.observedAtUtc}>{observed(row.observedAtUtc)}</time></span></li>)}</ol>
+          <ol className="activity-days" aria-label="Saved daily totals">{buckets.slice(start, start + 50).map(row => <li data-activity-day data-activity-day-freshness={row.freshness} key={row.date}><time dateTime={row.date}>{row.date}</time><span className="activity-count" tabIndex={0} aria-label={`Tokens for ${row.date}`}><bdi>{row.tokens}</bdi></span><span className="provider-help activity-day-observed">{freshnessLabels[row.freshness]} · Observed <DisplayTime data-activity-observed value={row.observedAtUtc} /></span></li>)}</ol>
           {buckets.length > 50 && <nav className="activity-pagination" aria-label="Daily usage pages"><p role="status">Rows {start + 1}–{Math.min(start + 50, buckets.length)} of {buckets.length} shown</p><Button type="button" variant="outline" disabled={page === 0} onClick={() => setPage(current => current - 1)}>Previous</Button><Button type="button" variant="outline" disabled={start + 50 >= buckets.length} onClick={() => setPage(current => current + 1)}>Next</Button></nav>}
         </>}
       </CollapsiblePanel>
@@ -88,7 +87,7 @@ export function ProfileActivity({ profileId, profileLabel, children, emptyConten
       {value && <>
         {value.sourceKind === 'test_fixture' && <p className="provider-fixture-note" data-provider-fixture>Synthetic test data</p>}
         <p className="provider-help">Unverified identity · Saved locally</p>
-        <p className="provider-help"><span data-activity-freshness={value.freshness}>{freshnessLabels[value.freshness]}</span> · Last read <time dateTime={value.observedAtUtc}>{observed(value.observedAtUtc)}</time></p>
+        <p className="provider-help"><span data-activity-freshness={value.freshness}>{freshnessLabels[value.freshness]}</span> · Last read <DisplayTime value={value.observedAtUtc} /></p>
         <p className="provider-help">Account activity; application scope and coverage are unknown.</p>
         <ActivityValues key={`${value.bindingId}:${value.collectionRunId}`} value={value} />
       </>}

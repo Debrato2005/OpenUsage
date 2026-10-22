@@ -24,6 +24,7 @@ async function open(page: Page, options: { deferFirst?: boolean; failOlder?: boo
     const profiles = [first, second].map((id, index) => ({ id, label: `History account ${index + 1}`, environment: 'native', archived: !!options.archivedSecond && index === 1, connectionState: 'authentication_required' }));
     const bootstrap = () => ({ storage: 'ready', theme, schemaVersion: 8, activeProfiles: options.archivedSecond ? 1 : 2, monitoring: 'stopped', provider: 'not_configured', keyProtection: 'os_store', storageIssue: null });
     window.__TAURI__ = { core: { invoke: async <T>(command: string, args: Record<string, unknown> = {}) => {
+      if (command === 'load_time_zone') return { timeZone: 'UTC' } as T;
       state.calls.push({ command, args });
       if (command === 'bootstrap') return bootstrap() as T;
       if (command === 'set_theme') { theme = String(args.theme); return bootstrap() as T; }

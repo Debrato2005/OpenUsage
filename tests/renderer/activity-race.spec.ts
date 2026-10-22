@@ -31,6 +31,7 @@ async function openProfile(page: Page, options: { approve?: boolean; cached?: Sa
     Object.assign(window, { activityFixture: fixture }); let started = 0;
     const metadata = { path: '/synthetic/reviewed-codex', fileBytes: '100', sha256: 'a'.repeat(64), testedVersion: '0.163.0', versionChecked: false, sourceVerified: true, sourceKind: 'test_fixture', sourceUrl: null };
     window.__TAURI__ = { core: { invoke: async <T>(command: string, args: Record<string, unknown> = {}) => {
+      if (command === 'load_time_zone') return { timeZone: 'UTC' } as T;
       fixture.requests.push(command); fixture.requestCalls.push({ command, args: { ...args } }); let value: unknown;
       switch (command) {
         case 'load_monitoring': value = { state: 'stopped', readingRevision: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', profiles: [] }; break;

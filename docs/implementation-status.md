@@ -4,6 +4,18 @@
 
 Updated: October 22, 2026. OpenUsage remains in development. The normative [SRS](SRS.md) is unchanged. Only local commits are permitted. Remote branch deletion requires separate owner approval. Agents must not push or publish.
 
+## Completed assignment: clock, time zones and heatmap
+
+The header clock updates each second. Settings → Date and time saves a recognized IANA time zone, including India, UTC and system time. Overview, quota readings, history and alert timestamps use that choice with zone labels. Exact source timestamps remain UTC. Notification quiet hours keep their separate time-zone setting.
+
+Overview and account details show live expected-reset countdowns. Elapsed time never restores quota or confirms a reset. The blue calendar heatmap now fills its available width with larger cells and smaller gaps. Native tooltips and keyboard details retain exact counts. Missing days stay distinct from confirmed zero. Provider-reported dates never shift when the display time zone changes.
+
+SQLCipher 4/WAL and schema 9 remain unchanged. The existing encrypted settings field stores the choice. Authenticated backups accept recognized zones and preserve them through restore. Unknown zones and extra IPC fields are refused. No dependency or provider endpoint was added.
+
+The Linux native-test journey passed clock ticks, both quota windows, selected-account isolation, India time, invalid-input refusal, backup/restore and genuine restart. It used approved synthetic-provider readings and a controlled renderer clock, not real-provider reset or OAuth acceptance. The actual rendered window was inspected. The production configuration compiled. All 153 storage tests and 11 workspace tests passed; strict Clippy and 54 contract checks passed. The renderer milestone passed 360 cases initially. Six failures exposed missing fixture support and a lost timestamp attribute. After those corrections, all 12 selected cases passed in Chromium and WebKit, covering all 366 cases across the recorded runs.
+
+Private evidence: `time-zone-heatmap-native`. No executable copies were retained. This bounded assignment stops after its local commit.
+
 ## Completed assignment: manual subscriptions
 
 Settings → Subscriptions now supports create, edit, archive, unarchive and confirmed delete for each account. User-confirmed terms stay separate from provider plans and payments. Rust stores exact nonnegative i64 minor units with ISO currency scales. Unknown prices remain null. Date-only terms remain date-only. Revision checks refuse stale and cross-account edits.

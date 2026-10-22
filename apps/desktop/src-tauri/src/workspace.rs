@@ -479,6 +479,19 @@ impl Workspace {
         Ok(self.ready())
     }
 
+    pub fn time_zone(&mut self, value: Option<&str>) -> Result<String, CommandError> {
+        let storage = self.storage.as_mut().ok_or(CommandError::WorkspaceLocked)?;
+        if let Some(value) = value {
+            storage
+                .set_time_zone(value)
+                .map_err(|_| CommandError::StorageUnavailable)?;
+            self.restore_preview.clear();
+        }
+        storage
+            .time_zone()
+            .map_err(|_| CommandError::StorageUnavailable)
+    }
+
     pub fn set_theme(&mut self, theme: Theme) -> Result<Bootstrap, CommandError> {
         self.storage
             .as_mut()

@@ -40,6 +40,7 @@ test('app password setup keeps consent local, rejects mismatched confirmation, a
     const calls: { command: string; args: Record<string, unknown> }[] = [];
     Object.assign(window, { startupCalls: calls });
     window.__TAURI__ = { core: { invoke: async <T>(command: string, args: Record<string, unknown> = {}) => {
+      if (command === 'load_time_zone') return { timeZone: 'UTC' } as T;
       calls.push({ command, args });
       const state = { theme: 'light', monitoring: 'stopped', provider: 'not_configured', storageIssue: null };
       let value: unknown;

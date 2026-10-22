@@ -28,6 +28,7 @@ async function setup(page: Page, records: SubscriptionRecord[] = [initial], them
     Object.assign(window, { subscriptionFixture: state });
     const bootstrap: Bootstrap = { storage: 'ready', theme, schemaVersion: 9, activeProfiles: profiles.length, monitoring: 'stopped', provider: 'not_configured', keyProtection: 'os_store', storageIssue: null };
     window.__TAURI__ = { core: { invoke: async <T>(command: string, args: Record<string, unknown> = {}) => {
+      if (command === 'load_time_zone') return { timeZone: 'UTC' } as T;
       state.calls.push({ command, args });
       if (command === 'bootstrap') return bootstrap as T;
       if (command === 'get_display_scale') return { percent: 100 } as T;

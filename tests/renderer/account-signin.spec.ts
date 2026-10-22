@@ -12,6 +12,7 @@ test('collapsed account rows expose independent sign-in and keep another account
     Object.assign(window, { accountSignInCalls: calls });
     const profiles = ids.map((id, i) => ({ id, label: `Fixture account ${i + 1}`, environment: 'native', archived: false, connectionState: 'authentication_required' }));
     window.__TAURI__ = { core: { invoke: async <T>(command: string, args: Record<string, unknown> = {}) => {
+      if (command === 'load_time_zone') return { timeZone: 'UTC' } as T;
       calls.push({ command, args });
       const index = ids.indexOf(String(args.profileId));
       let value: unknown;

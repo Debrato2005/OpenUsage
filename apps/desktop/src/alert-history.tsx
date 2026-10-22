@@ -1,3 +1,4 @@
+import { useDateFormat } from './time-display';
 import { useEffect, useState } from 'react';
 import { Button } from './components/ui/button';
 import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from './components/ui/collapsible';
@@ -11,13 +12,13 @@ const delivery = {
   covered: 'A higher threshold was recorded. No separate desktop notification sent.',
 };
 
-const dates = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' });
 
 function windowLabel(minutes: number) {
   return minutes === 300 ? '5-hour window' : minutes === 10080 ? '7-day window' : `${minutes}-minute window`;
 }
 
 export function AlertHistory({ revision = '', onViewUsage, onViewAccount }: { revision?: string; onViewUsage: (profileId: string) => void; onViewAccount?: (profileId: string) => void }) {
+  const dates = useDateFormat();
   const [open, setOpen] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [result, setResult] = useState<{ key: string; history: SavedAlertHistory | null; failed: boolean } | null>(null);
@@ -46,7 +47,7 @@ export function AlertHistory({ revision = '', onViewUsage, onViewAccount }: { re
               : event.kind === 'quota_reset' ? 'Reset confirmed'
               : event.kind === 'authentication_required' ? 'Sign-in required' : 'Three readings failed';
             return <li key={event.id} data-alert-history-event={event.id}>
-              <div className="alert-history-event"><div><strong>{title}</strong><p><bdi>{event.profileLabel}</bdi>{quota && <> · {windowLabel(quota.windowDurationMins)}</>}</p><time dateTime={event.evidenceAtUtc} title={event.evidenceAtUtc}>{dates.format(new Date(event.evidenceAtUtc))} UTC</time></div>{quota ? <Button variant="outline" onClick={() => onViewUsage(event.profileId)}>View usage<span className="sr-only"> for {event.profileLabel}</span></Button> : onViewAccount && <Button variant="outline" onClick={() => onViewAccount(event.profileId)}>View account<span className="sr-only"> for {event.profileLabel}</span></Button>}</div>
+              <div className="alert-history-event"><div><strong>{title}</strong><p><bdi>{event.profileLabel}</bdi>{quota && <> · {windowLabel(quota.windowDurationMins)}</>}</p><time dateTime={event.evidenceAtUtc} title={event.evidenceAtUtc}>{dates.format(new Date(event.evidenceAtUtc))}</time></div>{quota ? <Button variant="outline" onClick={() => onViewUsage(event.profileId)}>View usage<span className="sr-only"> for {event.profileLabel}</span></Button> : onViewAccount && <Button variant="outline" onClick={() => onViewAccount(event.profileId)}>View account<span className="sr-only"> for {event.profileLabel}</span></Button>}</div>
               <Collapsible className="alert-history-source"><CollapsibleTrigger render={<Button variant="ghost" />}>Source details</CollapsibleTrigger><CollapsiblePanel><dl><dt>Source</dt><dd>{event.sourceKind === 'test_fixture' ? 'Synthetic test data' : 'Official OpenAI companion'}</dd>{quota && <><dt>Quota limit</dt><dd><bdi>{quota.limitId}</bdi></dd><dt>Window</dt><dd>{quota.windowRole === 'primary' ? 'Primary' : 'Secondary'} · {quota.windowDurationMins} minutes</dd></>}<dt>Evidence time (UTC)</dt><dd><time dateTime={event.evidenceAtUtc}>{event.evidenceAtUtc}</time></dd><dt>Delivery</dt><dd>{delivery[event.deliveryState]}</dd></dl></CollapsiblePanel></Collapsible>
             </li>;
           })}

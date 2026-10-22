@@ -1,3 +1,4 @@
+import { TimeDisplay, TimeSettings, LiveClock } from './time-display';
 import openusageLogo from './assets/openusage-logo.png';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
@@ -301,12 +302,12 @@ function App() {
     usage: 'Token activity saved on this device.',
     settings: 'Appearance, Codex connection, and encrypted backups.',
   };
-  return <div className={`app-shell${ready ? '' : ' onboarding-shell'}`}>
+  return <TimeDisplay ready={ready} revision={profileRevision}><div className={`app-shell${ready ? '' : ' onboarding-shell'}`}>
     <a className="skip-link" href="#main">Skip to dashboard</a>
     <header className="workspace-header" hidden={!ready}>
       <a className="brand" href="#main" onClick={() => navigate('overview')} aria-label="OpenUsage dashboard"><span className="brand-wordmark"><img src={openusageLogo} alt="OpenUsage" /></span></a>
       <nav className="workspace-nav" aria-label="Main">{(Object.keys(titles) as WorkspaceView[]).map(name => <a key={name} href={`#${name}`} data-workspace-nav={name} aria-current={view === name ? 'page' : undefined} onClick={event => { event.preventDefault(); navigate(name); }}><NavIcon view={name} /><span>{titles[name]}</span></a>)}</nav>
-      {ready && <div className="workspace-appearance"><div className="header-appearance">{appearance}</div>{scaleControl}</div>}
+      {ready && <div className="workspace-appearance"><LiveClock /><div className="header-appearance">{appearance}</div>{scaleControl}</div>}
     </header>
     <div className="workspace">
       {!ready && <header className="onboarding-header"><a className="brand" href="#main" aria-label="OpenUsage"><span className="brand-wordmark"><img src={openusageLogo} alt="OpenUsage" /></span></a>{appearance}</header>}
@@ -364,6 +365,7 @@ function App() {
         </dialog>}
         {ready && <section data-workspace-view="usage" hidden={view !== 'usage'} inert={view !== 'usage'} aria-label="Saved usage"><Usage requestedProfileId={usageProfile} active={view === 'usage'} profiles={profiles} revision={readingRevision} onAccounts={() => { setAccountPanelProfile(null); setAccountPanelOpen(true); }} /></section>}
         <section data-workspace-view="settings" hidden={!ready || view !== 'settings'} inert={!ready || view !== 'settings'} aria-label="Workspace settings">
+        {ready && <TimeSettings />}
 
         {ready && <section className="account-settings"><h2>Accounts</h2><p>Rename accounts or restore an archived profile.</p><Button data-account-manager-open variant="outline" onClick={() => { setAccountPanelProfile(null); setAccountPanelOpen(true); }}>Manage accounts</Button></section>}
         {ready && <section className="backup-panel" aria-labelledby="backup-heading">
@@ -394,7 +396,7 @@ function App() {
         </section>
       </main>
     </div>
-  </div>;
+  </div></TimeDisplay>;
 }
 
 type WorkspaceView = 'overview' | 'usage' | 'settings';

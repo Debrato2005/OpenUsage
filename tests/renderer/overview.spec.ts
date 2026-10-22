@@ -53,6 +53,8 @@ async function open(page: Page, options: { empty?: boolean; deferFirst?: boolean
     let theme = 'light';
     window.__TAURI__ = { core: { invoke: async <T>(command: string, args: Record<string, unknown> = {}) => {
       fixture.calls.push(command);
+      if (command === 'load_time_zone') return { timeZone: localStorage.getItem('fixture-zone') ?? 'UTC' } as T;
+      if (command === 'set_time_zone') { localStorage.setItem('fixture-zone', String(args.timeZone)); return { timeZone: args.timeZone } as T; }
       if (command === 'load_combined_heatmap') return { status: 'unavailable', includedProfileIds: [], exclusions: (args.profileIds as string[]).map(profileId => ({ profileId, reason: 'not_connected' })) } as T;
       if (command === 'load_profile_heatmap') {
         if (!options.chart || args.profileId !== first) return null as T;
@@ -89,6 +91,52 @@ async function choose(page: Page, label: string) {
   await dashboard(page).getByRole('combobox', { name: 'Profile', exact: true }).click();
   await page.getByRole('option', { name: label, exact: true }).click();
 }
+
+test('reset countdowns update locally and never treat elapsed time as a quota reset', async ({ page }) => {
+  await page.clock.install({ time: new Date(observedAtUtc) });
+  await open(page);
+  await page.evaluate(({ first }) => {
+    const fixture = (window as unknown as FixtureWindow).overviewFixture;
+    const primary = fixture.quotas[first]!.limits[0]!.primary!;
+    primary.resetsAtUnix = Math.floor(Date.now() / 1000) + 90;
+    fixture.quotas[first]!.limits[0]!.secondary = { ...primary, label: 'Seven-day', windowDurationMins: 10080, resetsAtUnix: Math.floor(Date.now() / 1000) + 2 * 86400 + 3600 };
+  }, { first });
+  await choose(page, 'Large fixture');
+  await choose(page, 'Zero fixture');
+  const countdowns = dashboard(page).locator('[data-reset-countdown]');
+  await expect(countdowns).toHaveText(['In 2m', 'In 2d 1h']);
+  await expect(dashboard(page).locator('.overview-reset time').first()).toHaveText(/UTC/);
+  await page.clock.runFor(30_000);
+  await expect(countdowns.first()).toHaveText('In 1m');
+  await page.clock.runFor(60_000);
+  await expect(countdowns.first()).toHaveText('Awaiting reset confirmation');
+  await expect(dashboard(page).getByRole('meter').first()).toHaveAttribute('aria-valuenow', '0');
+  await navigate(page, 'accounts');
+  await openReadings(page, first);
+  await expect(page.locator('[data-quota-saved] [data-reset-countdown]').first()).toHaveText('Awaiting reset confirmation');
+  await expect(page.locator('[data-quota-saved]').getByRole('meter').first()).toHaveAttribute('aria-valuenow', '0');
+  const saved = await page.evaluate(({ first }) => {
+    const fixture = (window as unknown as FixtureWindow).overviewFixture;
+    return { window: fixture.quotas[first]!.limits[0]!.primary, operations: fixture.calls.filter(command => /^(begin_|collect_|start_)/.test(command)) };
+  }, { first });
+  expect(saved.window?.resetState).toBe('expected');
+  expect(saved.window?.usedPercent).toBe(100);
+  expect(saved.operations).toEqual([]);
+});
+
+test('reset countdowns stay account-specific and missing timestamps stay unavailable', async ({ page }) => {
+  await page.clock.install({ time: new Date(observedAtUtc) });
+  await open(page);
+  await expect(dashboard(page).locator('[data-reset-countdown]')).toHaveCount(0);
+  await page.evaluate(({ first }) => { (window as unknown as FixtureWindow).overviewFixture.quotas[first]!.limits[0]!.primary!.resetsAtUnix = 0; }, { first });
+  await choose(page, 'Large fixture');
+  await expect(dashboard(page).locator('[data-reset-countdown]')).toHaveCount(0);
+  await choose(page, 'Zero fixture');
+  await expect(dashboard(page).locator('[data-reset-countdown]')).toHaveText('Awaiting reset confirmation');
+  await choose(page, 'Large fixture');
+  await expect(dashboard(page).locator('[data-reset-countdown]')).toHaveCount(0);
+  await expect(dashboard(page).locator('.overview-reset')).toContainText('Not supplied');
+});
 
 test('renderer Overview keeps missing values unavailable and navigates through real Accounts controls', async ({ page }) => {
   await open(page, { empty: true });
@@ -428,4 +476,34 @@ test('top navigation keeps all three pages reachable without reserving a sidebar
     await page.getByRole('button', { name: 'Hide privacy details', exact: true }).click();
     await navigate(page, 'overview');
   }
+});
+
+
+test('live clock and saved India time zone update timestamps without moving activity dates', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-20T00:00:00Z') });
+  await open(page, { chart: true });
+  const clock = page.locator('[data-live-clock]');
+  await expect(clock).toContainText('00:00:00');
+  await page.clock.runFor(1000);
+  await expect(clock).toContainText('00:00:01');
+  await navigate(page, 'settings');
+  await page.getByRole('combobox', { name: 'Time zone', exact: true }).click();
+  await page.getByRole('option', { name: 'India · Kolkata (UTC+05:30)', exact: true }).click();
+  await expect(clock).toContainText(/05:30:\d{2}/);
+  await expect(clock).toContainText(/GMT\+5:30|GMT\+05:30|IST/);
+  await navigate(page, 'overview');
+  await expect(dashboard(page).locator('.overview-account-footer time')).toContainText('05:30');
+  const counts = await page.locator('[data-heatmap-cell]').evaluateAll(nodes => nodes.map(n => [n.getAttribute('data-start-date'), n.getAttribute('data-exact-value')]));
+  await page.reload();
+  await expect(clock).toContainText(/05:30:\d{2}/);
+  await expect(page.locator('[data-heatmap-cell]')).toHaveCount(counts.length);
+  expect(await page.locator('[data-heatmap-cell]').evaluateAll(nodes => nodes.map(n => [n.getAttribute('data-start-date'), n.getAttribute('data-exact-value')]))).toEqual(counts);
+  await navigate(page, 'settings');
+  await page.getByRole('combobox', { name: 'Time zone', exact: true }).click();
+  await page.getByRole('option', { name: 'New York', exact: true }).click();
+  await expect(clock).toContainText(/20:00:\d{2}/);
+  await expect(clock).toContainText(/EDT|GMT-4|GMT−4/);
+  await page.getByRole('button', { name: 'Use system time', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('fixture-zone'))).toBe(await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone));
+
 });

@@ -1,6 +1,7 @@
 .token-heatmap {
+  --heatmap-unknown-surface: color-mix(in srgb, var(--surface) 94%, var(--muted));
   --heatmap-zero: #e5e7eb;
-  --heatmap-missing: #a8afb8;
+  --heatmap-missing: #c0c8d1;
   --heatmap-level-1: #a8d5ff;
   --heatmap-level-2: #65b3fa;
   --heatmap-level-3: #2385db;
@@ -17,7 +18,7 @@
 }
 :root[data-theme='dark'] .token-heatmap {
   --heatmap-zero: #23252a;
-  --heatmap-missing: #474d55;
+  --heatmap-missing: #545b65;
   --heatmap-level-1: #153b5c;
   --heatmap-level-2: #155c91;
   --heatmap-level-3: #1684d0;
@@ -26,7 +27,7 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) .token-heatmap {
     --heatmap-zero: #23252a;
-    --heatmap-missing: #474d55;
+    --heatmap-missing: #545b65;
     --heatmap-level-1: #153b5c;
     --heatmap-level-2: #155c91;
     --heatmap-level-3: #1684d0;
@@ -50,7 +51,7 @@
 .token-heatmap .token-heatmap-cell { cursor: pointer; }
 .token-heatmap .token-heatmap-cell:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .token-heatmap .token-heatmap-cell:hover { stroke: var(--text) !important; stroke-width: 1.5px !important; }
-.token-heatmap-legend i[data-value='missing'] { background: transparent; border: 1px dashed var(--heatmap-missing); }
+.token-heatmap-legend i[data-value='missing'] { background: var(--heatmap-unknown-surface); border: 1px dashed var(--heatmap-missing); }
 .token-heatmap-legend i[data-level='1'] { background: var(--heatmap-level-1); }
 .token-heatmap-legend i[data-level='2'] { background: var(--heatmap-level-2); }
 .token-heatmap-legend i[data-level='3'] { background: var(--heatmap-level-3); }
