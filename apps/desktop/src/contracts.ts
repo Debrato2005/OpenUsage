@@ -297,7 +297,69 @@ export interface ActivityHistoryEntry {
 }
 export interface ActivityHistoryPage { profileId: string; entries: ActivityHistoryEntry[]; nextBeforeRunId: string | null }
 
+export interface SubscriptionInput {
+  plan: string; tier: string | null; currency: string; price: string | null;
+  intervalUnit: 'day' | 'week' | 'month' | 'year' | 'once' | null;
+  intervalCount: number | null; startDate: string | null; renewalDate: string | null;
+  endDate: string | null; cancellationDate: string | null; autoRenew: boolean | null;
+}
+export interface SubscriptionRecord extends SubscriptionInput {
+  id: string; profileId: string; provider: 'openai'; amountMinor: string | null;
+  currencyScale: number; archived: boolean; revision: string; source: 'user_confirmed';
+  createdAtUtc: string; confirmedAtUtc: string; updatedAtUtc: string;
+}
+export interface SubscriptionsView {
+  profileId: string; records: SubscriptionRecord[]; nextCursor: string | null;
+  currencies: { code: string; scale: number }[];
+}
+function isSubscription(value: unknown): value is SubscriptionRecord {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const v = value as SubscriptionRecord;
+  const keys = ['plan','tier','currency','price','intervalUnit','intervalCount','startDate','renewalDate','endDate','cancellationDate','autoRenew','id','profileId','provider','amountMinor','currencyScale','archived','revision','source','createdAtUtc','confirmedAtUtc','updatedAtUtc'];
+  if (Object.keys(v).length !== keys.length || !Object.keys(v).every(key => keys.includes(key))
+    || !isUuid(v.id) || !isUuid(v.profileId) || !isUuid(v.revision) || v.provider !== 'openai' || v.source !== 'user_confirmed'
+    || !quotaText(v.plan,100) || v.plan.trim().length === 0 || !(v.tier === null || quotaText(v.tier,100) && v.tier.trim().length > 0)
+    || typeof v.currency !== 'string' || !/^[A-Z]{3}$/.test(v.currency) || !Number.isInteger(v.currencyScale) || v.currencyScale < 0 || v.currencyScale > 4
+    || !isResetCreditCount(v.amountMinor) || typeof v.archived !== 'boolean' || !(v.autoRenew === null || typeof v.autoRenew === 'boolean')) return false;
+  if (v.amountMinor === null) { if (v.price !== null) return false; }
+  else {
+    const digits = v.amountMinor.padStart(v.currencyScale + 1, '0');
+    const expected = v.currencyScale ? digits.slice(0,-v.currencyScale) + '.' + digits.slice(-v.currencyScale) : digits;
+    if (v.price !== expected) return false;
+  }
+  if (v.intervalUnit === null || v.intervalUnit === 'once') { if (v.intervalCount !== null) return false; }
+  else if (!['day','week','month','year'].includes(v.intervalUnit) || !Number.isInteger(v.intervalCount) || Number(v.intervalCount) < 1 || Number(v.intervalCount) > 120) return false;
+  if (![v.startDate,v.renewalDate,v.endDate,v.cancellationDate].every(date => date === null || isProviderDate(date))) return false;
+  if (v.startDate && (v.endDate && v.startDate > v.endDate || v.renewalDate && v.startDate > v.renewalDate)) return false;
+  return [v.createdAtUtc,v.confirmedAtUtc,v.updatedAtUtc].every(isUtcTimestamp)
+    && v.createdAtUtc <= v.confirmedAtUtc && v.confirmedAtUtc <= v.updatedAtUtc;
+}
+function isSubscriptionsView(value: unknown): value is SubscriptionsView {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const v = value as SubscriptionsView;
+  if (Object.keys(v).length !== 4 || !isUuid(v.profileId) || !Array.isArray(v.records) || v.records.length > 50
+    || !v.records.every(record => isSubscription(record) && record.profileId === v.profileId) || new Set(v.records.map(r => r.id)).size !== v.records.length
+    || !(v.nextCursor === null || v.records.length === 50 && v.nextCursor === v.records.at(-1)?.id)
+    || !Array.isArray(v.currencies) || v.currencies.length < 1 || v.currencies.length > 256) return false;
+  const codes = new Set<string>();
+  return v.currencies.every(c => {
+    if (!c || typeof c !== 'object' || Object.keys(c).length !== 2 || typeof c.code !== 'string' || !/^[A-Z]{3}$/.test(c.code)
+      || codes.has(c.code) || !Number.isInteger(c.scale) || c.scale < 0 || c.scale > 4) return false;
+    codes.add(c.code); return true;
+  }) && v.records.every(r => v.currencies.some(c => c.code === r.currency && c.scale === r.currencyScale));
+}
+function isSubscriptionDeletion(value: unknown): boolean {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  return Object.keys(v).length === 3 && v.deleted === true && isUuid(v.subscriptionId) && isUuid(v.profileId);
+}
+
 interface Commands {
+  list_subscriptions: { args: { profileId: string; afterId: string | null }; result: SubscriptionsView };
+  create_subscription: { args: { profileId: string; input: SubscriptionInput }; result: SubscriptionRecord };
+  update_subscription: { args: { profileId: string; subscriptionId: string; expectedRevision: string; input: SubscriptionInput }; result: SubscriptionRecord };
+  set_subscription_archived: { args: { profileId: string; subscriptionId: string; expectedRevision: string; archived: boolean }; result: SubscriptionRecord };
+  delete_subscription: { args: { profileId: string; subscriptionId: string; expectedRevision: string; confirmed: true }; result: { deleted: true; subscriptionId: string; profileId: string } };
   load_combined_heatmap: { args: { profileIds: string[] }; result: CombinedHeatmapEligibility };
   load_profile_heatmap: { args: { profileId: string; mode: HeatmapMode; periodDays: 30 | 90 | 180 | 365 }; result: SavedProfileHeatmap | null };
   load_profile_activity_history: { args: { profileId: string; beforeRunId: string | null }; result: ActivityHistoryPage };
@@ -383,7 +445,11 @@ export async function invoke<K extends keyof Commands>(
   const core = window.__TAURI__?.core;
   if (!core) throw new DesktopUnavailable('Open the installed OpenUsage desktop application.');
   const response = await core.invoke<unknown>(command, args[0]);
-  const valid = command === 'delete_all_local_data' ? isDeletionResult(response)
+  const selected = args[0] as { profileId?: string; subscriptionId?: string } | undefined;
+  const valid = command === 'list_subscriptions' ? isSubscriptionsView(response) && response.profileId === selected?.profileId
+    : command === 'create_subscription' || command === 'update_subscription' || command === 'set_subscription_archived' ? isSubscription(response) && response.profileId === selected?.profileId && (command === 'create_subscription' || response.id === selected?.subscriptionId)
+    : command === 'delete_subscription' ? isSubscriptionDeletion(response) && (response as Record<string,unknown>).profileId === selected?.profileId && (response as Record<string,unknown>).subscriptionId === selected?.subscriptionId
+    : command === 'delete_all_local_data' ? isDeletionResult(response)
     : command === 'load_notification_preferences' || command === 'save_notification_preferences' ? isNotificationPreferences(response)
     : command === 'load_reset_notification_preferences' || command === 'save_reset_notification_preferences' ? isResetNotificationPreferences(response)
     : command === 'load_alert_history' ? isSavedAlertHistory(response)

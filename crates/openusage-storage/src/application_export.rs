@@ -311,10 +311,10 @@ mod tests {
         let (summary, document) = exported(&mut storage);
         assert_eq!(document["format"], "openusage.application-records");
         assert_eq!(document["formatVersion"], 1);
-        assert_eq!(document["schemaVersion"], 8);
+        assert_eq!(document["schemaVersion"], crate::CURRENT_SCHEMA_VERSION);
         assert_eq!(document["exportedAt"], WHEN);
         assert_eq!(document["integerEncoding"], "decimal-string");
-        assert_eq!(summary.table_count, 30);
+        assert_eq!(summary.table_count, 31);
         let mut records = 0;
         for table in document["tables"].as_array().unwrap() {
             let name = table["name"].as_str().unwrap();
@@ -506,7 +506,10 @@ mod tests {
         assert!(output.is_empty());
         storage
             .connection
-            .execute_batch("DROP TABLE unexpected; PRAGMA user_version=9;")
+            .execute_batch(&format!(
+                "DROP TABLE unexpected; PRAGMA user_version={};",
+                CURRENT_SCHEMA_VERSION + 1
+            ))
             .unwrap();
         assert_eq!(
             storage.write_application_export(&mut output, WHEN),
@@ -530,7 +533,7 @@ mod tests {
         let summary = storage
             .write_application_export(&mut io::sink(), WHEN)
             .unwrap();
-        assert_eq!(summary.table_count, 30);
+        assert_eq!(summary.table_count, 31);
         assert_eq!(summary.record_count, 50_002);
     }
 }

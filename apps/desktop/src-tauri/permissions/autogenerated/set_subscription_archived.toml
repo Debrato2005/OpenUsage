@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-subscription-archived"
+description = "Enables the set_subscription_archived command without any pre-configured scope."
+commands.allow = ["set_subscription_archived"]
+
+[[permission]]
+identifier = "deny-set-subscription-archived"
+description = "Denies the set_subscription_archived command without any pre-configured scope."
+commands.deny = ["set_subscription_archived"]

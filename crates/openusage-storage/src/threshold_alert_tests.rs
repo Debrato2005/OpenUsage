@@ -554,7 +554,7 @@ fn schema_six_receipts_migrate_with_proof_backfill_but_orphans_keep_unknown_anch
             NotificationOutcome::Submitted,
         )
         .unwrap();
-    storage.connection.execute_batch("DROP TABLE operational_alert_events;DROP TABLE operational_alert_outcomes;DROP TABLE operational_alert_state;DROP TABLE operational_alert_preferences;DROP TABLE operational_alert_overrides;DROP TABLE threshold_alert_events;DROP TABLE threshold_alert_preferences;DROP TABLE threshold_alert_overrides;CREATE TEMP TABLE saved_alerts AS SELECT * FROM alert_events;CREATE TEMP TABLE saved_outbox AS SELECT * FROM reset_notification_outbox;DROP TABLE reset_notification_outbox;DROP TABLE alert_events;DROP TABLE notification_event_ids;").unwrap();
+    storage.connection.execute_batch("DROP TABLE subscriptions;DROP TABLE operational_alert_events;DROP TABLE operational_alert_outcomes;DROP TABLE operational_alert_state;DROP TABLE operational_alert_preferences;DROP TABLE operational_alert_overrides;DROP TABLE threshold_alert_events;DROP TABLE threshold_alert_preferences;DROP TABLE threshold_alert_overrides;CREATE TEMP TABLE saved_alerts AS SELECT * FROM alert_events;CREATE TEMP TABLE saved_outbox AS SELECT * FROM reset_notification_outbox;DROP TABLE reset_notification_outbox;DROP TABLE alert_events;DROP TABLE notification_event_ids;").unwrap();
     storage
         .connection
         .execute_batch(include_str!("schema_v5.sql"))

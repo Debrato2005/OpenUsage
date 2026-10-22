@@ -7,6 +7,11 @@
   ],
   "local": true,
   "permissions": [
+    "allow-list-subscriptions",
+    "allow-create-subscription",
+    "allow-update-subscription",
+    "allow-set-subscription-archived",
+    "allow-delete-subscription",
     "allow-bootstrap",
     "allow-get-display-scale",
     "allow-set-display-scale",

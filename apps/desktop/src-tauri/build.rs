@@ -1,6 +1,11 @@
 fn main() {
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
         tauri_build::AppManifest::new().commands(&[
+            "list_subscriptions",
+            "create_subscription",
+            "update_subscription",
+            "set_subscription_archived",
+            "delete_subscription",
             "bootstrap",
             "get_display_scale",
             "set_display_scale",

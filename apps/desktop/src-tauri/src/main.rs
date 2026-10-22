@@ -11,6 +11,7 @@ mod provider;
 mod provider_credentials;
 mod readings_export;
 mod restore;
+mod subscriptions;
 mod workspace;
 
 use keyvault::OsVault;
@@ -1984,6 +1985,11 @@ fn main() {
         .manage(WorkspaceService::default())
         .manage(display_scale::DisplayScaleService::default())
         .invoke_handler(tauri::generate_handler![
+            subscriptions::list_subscriptions,
+            subscriptions::create_subscription,
+            subscriptions::update_subscription,
+            subscriptions::set_subscription_archived,
+            subscriptions::delete_subscription,
             bootstrap,
             get_display_scale,
             set_display_scale,

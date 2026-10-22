@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-list-subscriptions"
+description = "Enables the list_subscriptions command without any pre-configured scope."
+commands.allow = ["list_subscriptions"]
+
+[[permission]]
+identifier = "deny-list-subscriptions"
+description = "Denies the list_subscriptions command without any pre-configured scope."
+commands.deny = ["list_subscriptions"]

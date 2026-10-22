@@ -4,11 +4,21 @@
 
 Updated: October 22, 2026. OpenUsage remains in development. The normative [SRS](SRS.md) is unchanged. Only local commits are permitted. Remote branch deletion requires separate owner approval. Agents must not push or publish.
 
+## Completed assignment: manual subscriptions
+
+Settings → Subscriptions now supports create, edit, archive, unarchive and confirmed delete for each account. User-confirmed terms stay separate from provider plans and payments. Rust stores exact nonnegative i64 minor units with ISO currency scales. Unknown prices remain null. Date-only terms remain date-only. Revision checks refuse stale and cross-account edits.
+
+Schema 9 migrates transactionally and preserves subscription records through encrypted backups, restore, Undo and restart. The SRS, SQLCipher 4/WAL and authentication boundaries remain unchanged. Earlier saved drafts are now integrated.
+
+The full Rust workspace passed 384 tests, with one intentional child test ignored. Strict Clippy, 53 contracts, 360 renderer cases and the current-schema oracle test passed. The final production Linux native journey passed GUI CRUD/archive, cancellation, invalid-input refusal, account isolation and genuine restart. Seven independent checks covered SQLCipher snapshots, exact large amounts and authenticated backup contents across 31 tables. Restore and Undo preserved subscription fields. Native recovery used typed IPC consent with synthetic profiles, not real-provider sessions. The subscription panel was inspected in the actual window.
+
+Private evidence: `subscriptions-native`. Production SHA-256: `3a7eca31e890b5d0999462f9f43daf5b8e7f1df3f9e7e7c95bbebc5b155d4d95`. No executable copies were retained. Windows/macOS and broader billing features remain outside this assignment. Execution stops after the local commit.
+
 ## Engineering workflow optimization
 
 The bounded tooling task adds offline environment diagnostics, changed-file verification plans and content-free trace analysis. Existing cleanup and Git secret checks remain. All 26 local Python tool tests passed. Documentation-only cycles stabilized at three logs totaling 2,112 bytes. No application build, provider session or native acceptance ran. Windows/macOS CI is configured but unexecuted. See the [commands and measured results](engineering-workflow.md).
 
-Unfinished subscription drafts remain preserved in local checkpoint `6e11336`; this tooling task does not integrate or qualify them. Further feature work requires a new bounded assignment.
+At the tooling checkpoint, subscription drafts remained preserved and unintegrated in `6e11336`. The completed subscription assignment above supersedes that pending state.
 
 ## Current product
 

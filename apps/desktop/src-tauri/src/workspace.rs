@@ -23,6 +23,7 @@ mod quota_history;
 mod quota_storage;
 mod reset_notifications;
 mod sign_out;
+pub(crate) mod subscriptions;
 pub(crate) use activity_storage::{
     CombinedHeatmapEligibility, ProfileActivityHistory, ProfileHeatmap, ReadAssociationReview,
     SavedProfileActivity,
@@ -72,6 +73,9 @@ pub enum StorageIssue {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CommandError {
+    InvalidSubscription,
+    SubscriptionChanged,
+    SubscriptionUnavailable,
     LocalDeletionFailed,
     LocalDeletionUnsafe,
     LocalDeletionUnsupported,

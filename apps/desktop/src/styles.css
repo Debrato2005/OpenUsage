@@ -365,3 +365,10 @@ main { max-width: 1280px; padding: var(--space-6); margin: 0 auto; }
 }
 code, kbd, input[readonly], textarea[readonly] { font-family: var(--font-ui); }
 time[datetime] { font-variant-numeric: tabular-nums; }
+
+.subscriptions-panel > [data-slot] { min-width: 0; }
+.subscription-records article { display: flex; justify-content: space-between; align-items: center; gap: var(--space-4); padding-block: var(--space-3); border-bottom: 1px solid var(--line); }
+.subscription-records article p { margin: 0; font-variant-numeric: tabular-nums; }
+.subscription-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: var(--space-3); }
+.subscription-form { width: 100%; max-width: none; }
+@media (max-width: 600px) { .subscription-records article { align-items: start; flex-direction: column; } }

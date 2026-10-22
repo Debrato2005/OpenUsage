@@ -10,8 +10,14 @@ pub use backup_validation::{
     validate_native_restore_snapshot,
 };
 pub use checkpoint::{CheckpointError, CheckpointMetadata, CheckpointVerification};
+mod currency_scales;
 mod profiles;
+mod subscriptions;
 pub use profiles::{ProfileConnectionState, ProfileEnvironment, ProfileError, ProfileSummary};
+pub use subscriptions::{
+    SubscriptionError, SubscriptionInput, SubscriptionInterval, SubscriptionPage,
+    SubscriptionRecord, subscription_currencies,
+};
 mod quota;
 mod quota_history;
 pub use quota_history::QuotaHistoryPage;
@@ -63,6 +69,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("schema_v6.sql"),
     include_str!("schema_v7.sql"),
     include_str!("schema_v8.sql"),
+    include_str!("schema_v9.sql"),
 ];
 pub const CURRENT_SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
 const MAX_BACKUP_SNAPSHOT_SIZE: u64 = 5 * 1024 * 1024 * 1024;

@@ -829,3 +829,24 @@ test('combined notification preferences reject malformed usage settings and priv
     }
   }
 });
+
+test('subscription responses preserve exact money and refuse cross-account, invalid dates and leaked fields', async () => {
+  const profileId = '11111111-1111-4111-8111-111111111111';
+  const id = '22222222-2222-4222-8222-222222222222';
+  const record = { id, profileId, provider:'openai', plan:'User-entered Plus', tier:null, currency:'USD', price:'92233720368547758.07', amountMinor:'9223372036854775807', currencyScale:2, intervalUnit:'month', intervalCount:1, startDate:'2026-10-22', renewalDate:'2026-11-22', endDate:null, cancellationDate:null, autoRenew:null, archived:false, revision:id, source:'user_confirmed', createdAtUtc:'2026-10-22T08:00:00.000Z', confirmedAtUtc:'2026-10-22T08:00:00.000Z', updatedAtUtc:'2026-10-22T08:00:00.000Z' };
+  const args={profileId,input:{}};
+  desktopResponse(record); assert.deepEqual(await invoke('create_subscription',args),record);
+  for (const fields of [{amountMinor:9223372036854775807},{amountMinor:'9223372036854775808'},{amountMinor:'01'},{price:'20.00'},{currencyScale:5},{source:'provider'},{tokens:'private'},{profileId:id},{startDate:'2026-02-30'},{intervalCount:0},{autoRenew:1}]) {
+    desktopResponse({...record,...fields}); await assert.rejects(invoke('create_subscription',args));
+  }
+  for (const fields of [{amountMinor:null,price:null},{amountMinor:'0',price:'0.00'}]) {
+    desktopResponse({...record,...fields}); await invoke('create_subscription',args);
+  }
+  const page={profileId,records:[record],nextCursor:null,currencies:[{code:'USD',scale:2}]};
+  desktopResponse(page); assert.deepEqual(await invoke('list_subscriptions',{profileId,afterId:null}),page);
+  for (const fields of [{records:[record,record]},{nextCursor:id},{currencies:[{code:'USD',scale:3}]},{profileId:id},{credentials:'private'}]) {
+    desktopResponse({...page,...fields}); await assert.rejects(invoke('list_subscriptions',{profileId,afterId:null}));
+  }
+  desktopResponse({deleted:true,profileId,subscriptionId:id}); await invoke('delete_subscription',{profileId,subscriptionId:id,expectedRevision:id,confirmed:true});
+  desktopResponse({deleted:true,profileId:id,subscriptionId:id}); await assert.rejects(invoke('delete_subscription',{profileId,subscriptionId:id,expectedRevision:id,confirmed:true}));
+});
