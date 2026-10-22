@@ -22,6 +22,7 @@ mod profile_plan;
 mod quota_history;
 mod quota_storage;
 mod reset_notifications;
+mod sign_out;
 pub(crate) use activity_storage::{
     CombinedHeatmapEligibility, ProfileActivityHistory, ProfileHeatmap, ReadAssociationReview,
     SavedProfileActivity,
@@ -156,6 +157,7 @@ pub enum CommandError {
     ProviderCollectionInProgress,
     ProviderCollectionCancelled,
     ProviderCollectionSaveFailed,
+    ProviderSignOutSaveFailed,
     ProviderCollectionAssociationChanged,
     ProviderCollectionReviewUnavailable,
     ProviderAccountChanged,
@@ -750,6 +752,14 @@ impl Workspace {
         &mut self,
         id: &str,
     ) -> Result<(String, openusage_storage::StorageRevision, PathBuf), CommandError> {
+        self.selected_provider_home_for(id, false)
+    }
+
+    fn selected_provider_home_for(
+        &mut self,
+        id: &str,
+        allow_archived: bool,
+    ) -> Result<(String, openusage_storage::StorageRevision, PathBuf), CommandError> {
         validate_profile_id(id)?;
         let storage = self.storage.as_mut().ok_or(CommandError::WorkspaceLocked)?;
         let state = storage
@@ -761,7 +771,7 @@ impl Workspace {
             .into_iter()
             .find(|profile| profile.id == id)
             .ok_or(CommandError::ProfileNotFound)?;
-        if profile.archived {
+        if profile.archived && !allow_archived {
             return Err(CommandError::ProviderProfileArchived);
         }
         if profile.environment != ProfileEnvironment::Native {
@@ -917,6 +927,17 @@ impl Workspace {
         revision: &openusage_storage::StorageRevision,
         cancelled: CommandError,
     ) -> Result<(), CommandError> {
+        self.require_provider_binding_for(profile_id, home_reference, revision, cancelled, false)
+    }
+
+    fn require_provider_binding_for(
+        &mut self,
+        profile_id: &str,
+        home_reference: &str,
+        revision: &openusage_storage::StorageRevision,
+        cancelled: CommandError,
+        allow_archived: bool,
+    ) -> Result<(), CommandError> {
         let storage = self.storage.as_mut().ok_or(CommandError::WorkspaceLocked)?;
         let state = storage
             .restore_state()
@@ -928,7 +949,9 @@ impl Workspace {
                 .into_iter()
                 .find(|profile| profile.id == profile_id)
                 .ok_or(cancelled)?;
-            if profile.archived || profile.environment != ProfileEnvironment::Native {
+            if (profile.archived && !allow_archived)
+                || profile.environment != ProfileEnvironment::Native
+            {
                 return Err(cancelled);
             }
             let homes = storage

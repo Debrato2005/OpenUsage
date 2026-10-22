@@ -354,6 +354,7 @@ interface Commands {
   rename_profile: { args: { id: string; label: string }; result: ProfileView };
   set_profile_archived: { args: { id: string; archived: boolean }; result: ProfileView };
   delete_all_local_data: { args: { confirmed: true }; result: Bootstrap };
+  sign_out_profile: { args: { profileId: string; approvalId: string; confirmed: true }; result: ProfileView };
   bootstrap: { args: undefined; result: Bootstrap };
   setup_workspace: { args: { passphrase: string | null }; result: Bootstrap };
   unlock_workspace: { args: { passphrase: string }; result: Bootstrap };
@@ -429,7 +430,7 @@ export async function invoke<K extends keyof Commands>(
     : command === 'create_backup' ? isBackupReceipt(response)
     : command === 'export_application_data' ? isApplicationExportReceipt(response)
     : command === 'export_saved_readings' || command === 'export_quota_history' || command === 'export_activity_history' ? isReadingExportReceipt(response) && (command === 'export_saved_readings' || response.profileCount === 1)
-    : ['list_profiles', 'create_profile', 'rename_profile', 'set_profile_archived'].includes(command)
+    : ['list_profiles', 'create_profile', 'rename_profile', 'set_profile_archived', 'sign_out_profile'].includes(command)
     ? isProfileView(response) : isBootstrap(response);
   if (!valid) {
     throw new Error('The desktop response is incompatible. Restart OpenUsage after updating the application.');

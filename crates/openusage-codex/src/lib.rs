@@ -372,6 +372,14 @@ pub fn parse_account(bytes: &[u8], id: u32) -> Result<AccountSnapshot, ProtocolE
     Ok(snapshot)
 }
 
+/// Logout acknowledgement contains no data. Additional fields are not proof of success.
+pub fn parse_logout(bytes: &[u8], id: u32) -> Result<(), ProtocolError> {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Empty {}
+    decode::<Empty>(bytes, id).map(|_| ())
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LoginState {
     Pending,

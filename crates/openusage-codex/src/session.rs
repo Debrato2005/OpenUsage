@@ -679,6 +679,23 @@ pub(crate) mod unix {
         result
     }
 
+    pub(crate) fn logout_managed(
+        executable: &Path,
+        home: &Path,
+        control: Arc<ProcessControl>,
+        timeouts: Timeouts,
+        before_start: impl Fn() -> Result<(), SessionError>,
+    ) -> Result<ProviderProbe, SessionError> {
+        control.check_cancelled()?;
+        let sandbox = Sandbox::with_home(home, Some(home))?;
+        let result = run_logout(executable, &sandbox, control, timeouts, before_start);
+        sandbox
+            .root
+            .close()
+            .map_err(|_| SessionError::CleanupFailed)?;
+        result
+    }
+
     pub(crate) fn quota_managed(
         executable: &Path,
         home: &Path,
@@ -786,6 +803,85 @@ pub(crate) mod unix {
         })();
         process.stop()?;
         result
+    }
+
+    fn run_logout(
+        executable: &Path,
+        sandbox: &Sandbox,
+        control: Arc<ProcessControl>,
+        timeouts: Timeouts,
+        before_start: impl Fn() -> Result<(), SessionError>,
+    ) -> Result<ProviderProbe, SessionError> {
+        let (mut process, server) =
+            start_initialized(executable, sandbox, control, timeouts, before_start)?;
+        let process_id = process.id()?;
+        let result = (|| {
+            // The pinned provider may attempt bounded server revocation before local
+            // cleanup. No OpenUsage code reads or deletes provider credentials.
+            let deadline = Instant::now() + timeouts.read;
+            process.send(&Request::logout(3, true)?.to_line()?)?;
+            let reply = process.response_routed(3, deadline, true, |bytes| {
+                logout_notification(&bytes, false)
+            })?;
+            crate::parse_logout(&reply, 3)?;
+            process.send(&Request::account_read(4).to_line()?)?;
+            let reply = process
+                .response_routed(4, deadline, true, |bytes| logout_notification(&bytes, true))?;
+            let account = parse_account(&reply, 4)?;
+            if account.authentication != crate::AccountAuth::AuthenticationRequired {
+                return Err(ProtocolError::AccountChanged.into());
+            }
+            Ok(ProviderProbe {
+                server,
+                account,
+                version: TESTED_PROVIDER_VERSION,
+                process_id,
+            })
+        })();
+        process.stop()?;
+        result
+    }
+
+    fn logout_notification(bytes: &[u8], acknowledged: bool) -> Result<(), SessionError> {
+        #[derive(Deserialize)]
+        struct Route {
+            method: String,
+        }
+        let route: Route =
+            serde_json::from_slice(bytes).map_err(|_| ProtocolError::InvalidMessage)?;
+        if route.method != "account/updated" {
+            return Ok(());
+        }
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Notice {
+            method: String,
+            params: Params,
+            #[serde(rename = "emittedAtMs")]
+            _emitted_at_ms: Option<i64>,
+        }
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields, rename_all = "camelCase")]
+        struct Params {
+            auth_mode: Option<String>,
+            plan_type: Option<String>,
+        }
+        let notice: Notice =
+            serde_json::from_slice(bytes).map_err(|_| ProtocolError::InvalidMessage)?;
+        if notice.method != "account/updated" {
+            return Err(ProtocolError::InvalidMessage.into());
+        }
+        if let Some(mode) = &notice.params.auth_mode {
+            crate::validate_text(mode, 64)?;
+        }
+        if let Some(plan) = &notice.params.plan_type {
+            crate::validate_text(plan, 64)?;
+        }
+        if acknowledged && (notice.params.auth_mode.is_some() || notice.params.plan_type.is_some())
+        {
+            return Err(ProtocolError::AccountChanged.into());
+        }
+        Ok(())
     }
 
     fn run_quota(

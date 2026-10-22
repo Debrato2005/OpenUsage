@@ -209,6 +209,25 @@ impl Storage {
         Ok(profile)
     }
 
+    /// The caller must confirm provider logout for the held selected home first.
+    pub fn record_profile_sign_out(&mut self, id: &str) -> Result<ProfileSummary, ProfileError> {
+        validate_uuid(id).map_err(|()| ProfileError::InvalidId)?;
+        let tx = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|_| ProfileError::WriteFailed)?;
+        let mut profile = profile_by_id(&tx, id)?;
+        if profile.environment != ProfileEnvironment::Native {
+            return Err(ProfileError::StaleConnectionTarget);
+        }
+        if profile.connection_state != ProfileConnectionState::AuthenticationRequired {
+            tx.execute("UPDATE profiles SET connection_state='authentication_required', updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?1", [id]).map_err(|_| ProfileError::WriteFailed)?;
+            profile.connection_state = ProfileConnectionState::AuthenticationRequired;
+        }
+        tx.commit().map_err(|_| ProfileError::WriteFailed)?;
+        Ok(profile)
+    }
+
     /// Archiving preserves the UUID, account association, and stored records.
     pub fn set_profile_archived(
         &mut self,
@@ -346,6 +365,69 @@ mod tests {
                 (name, rows)
             })
             .collect()
+    }
+
+    #[test]
+    fn confirmed_sign_out_keeps_archived_history_other_profiles_and_repeated_status_exact() {
+        let directory = crate::tests::private_directory();
+        let path = directory.path().join("signout.db");
+        let mut storage = Storage::create(&path, &KEY).unwrap();
+        storage
+            .create_profile(&id(1), "First account", &id(10))
+            .unwrap();
+        storage
+            .create_profile(&id(2), "Second account", &id(20))
+            .unwrap();
+        storage
+            .record_profile_connection(&id(1), &id(10), ProfileConnectionState::Connected)
+            .unwrap();
+        crate::backup_validation::activity_fixture(&mut storage, &id(1), &id(10), 100);
+        storage.set_profile_archived(&id(1), true).unwrap();
+        let mut expected = records(&storage);
+        let signed_out = storage.record_profile_sign_out(&id(1)).unwrap();
+        assert!(signed_out.archived);
+        assert_eq!(
+            signed_out.connection_state,
+            ProfileConnectionState::AuthenticationRequired
+        );
+        let actual = records(&storage);
+        let after = actual["profiles"]
+            .iter()
+            .find(|row| row[0] == rusqlite::types::Value::Text(id(1)))
+            .unwrap();
+        let row = expected
+            .get_mut("profiles")
+            .unwrap()
+            .iter_mut()
+            .find(|row| row[0] == rusqlite::types::Value::Text(id(1)))
+            .unwrap();
+        row[5] = rusqlite::types::Value::Text("authentication_required".into());
+        row[8] = after[8].clone();
+        assert_eq!(actual, expected);
+        storage.record_profile_sign_out(&id(1)).unwrap();
+        assert_eq!(records(&storage), expected);
+        drop(storage);
+        assert_eq!(records(&Storage::open(&path, &KEY).unwrap()), expected);
+    }
+
+    #[test]
+    fn failed_sign_out_status_write_rolls_back_without_changing_saved_records() {
+        let directory = crate::tests::private_directory();
+        let mut storage =
+            Storage::create(&directory.path().join("signout-failure.db"), &KEY).unwrap();
+        storage
+            .create_profile(&id(1), "First account", &id(10))
+            .unwrap();
+        storage
+            .record_profile_connection(&id(1), &id(10), ProfileConnectionState::Connected)
+            .unwrap();
+        storage.connection.execute_batch("CREATE TRIGGER sign_out_fault BEFORE UPDATE ON profiles BEGIN SELECT RAISE(ABORT,'synthetic write failure'); END;").unwrap();
+        let expected = records(&storage);
+        assert_eq!(
+            storage.record_profile_sign_out(&id(1)),
+            Err(ProfileError::WriteFailed)
+        );
+        assert_eq!(records(&storage), expected);
     }
 
     #[test]

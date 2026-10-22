@@ -11,6 +11,7 @@ import { ProfileProviderCheck } from './provider';
 import { SavedProfileQuota } from './quota';
 import { ProfileActivity } from './activity';
 import { ProfileMonitoringControls, type MonitoringAction } from './monitoring';
+import { AccountSignout } from './account-signout';
 
 type Props = {
   busy: boolean;
@@ -74,6 +75,8 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval, onPro
   const [readings, setReadings] = useState<Record<string, boolean>>({});
   const [reconnectProfile, setReconnectProfile] = useState<string | null>(null);
   const [managed, setManaged] = useState<string | null>(null);
+  const [providerWorking, setProviderWorking] = useState<Record<string, boolean>>({});
+  const [providerRevision, setProviderRevision] = useState<Record<string, number>>({});
   const [editing, setEditing] = useState<{ id: string; label: string } | null>(null);
   const [failure, setFailure] = useState<Failure | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -300,6 +303,27 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval, onPro
     return failure && <p id="profiles-error" className="operation-error profile-error" role="alert" tabIndex={-1}>{failure.message}</p>;
   }
 
+  function startSignout(profileId: string) {
+    viewRequest.current += 1;
+    if (connectingProfile.current === profileId) connectingProfile.current = null;
+    if (startRequestedProfile.current === profileId) startRequestedProfile.current = null;
+    setReconnectProfile(value => value === profileId ? null : value);
+    setFailure(null); setStatus(null);
+  }
+
+  function signedOut(profileId: string, next: ProfileView) {
+    if (!mounted.current) return;
+    viewRequest.current += 1;
+    setView(next); reportCount.current(next.activeProfiles); reportProfiles.current?.(next.profiles);
+    reportReading.current?.(); reportRefresh.current?.(profileId, false, 0);
+    setProviderRevision(value => ({ ...value, [profileId]: (value[profileId] ?? 0) + 1 }));
+    setManaged(null); setStatus('Signed out. Saved readings and history remain available.');
+    if (!next.profiles.find(profile => profile.id === profileId)?.archived) {
+      connectingProfile.current = profileId;
+      setFocusIntent(value => value + 1);
+    }
+  }
+
   function row(profile: ProfileRecord) {
     const monitoringStatus = monitoring?.profiles.find(value => value.profileId === profile.id) ?? null;
     const current = editing?.id === profile.id;
@@ -320,6 +344,7 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval, onPro
     </Field> : <div className="profile-actions">
       <Button className="text-button" variant="ghost" type="button" data-profile-action="rename" aria-label="Rename profile" aria-describedby={nameId} disabled={busy || loading} onClick={() => { setManaged(profile.id); setEditing({ id: profile.id, label: profile.label }); setFailure(null); setFocusTarget('rename'); }}>Rename</Button>
       <Button className="text-button" variant="ghost" type="button" data-profile-action={profile.archived ? 'restore' : 'archive'} aria-label={profile.archived ? 'Restore profile' : 'Archive profile'} aria-describedby={nameId} disabled={busy || loading} onClick={() => archive(profile)}>{profile.archived ? 'Restore' : 'Archive'}</Button>
+      {profile.connectionState === 'connected' && providerApproval && !rowHidden && (focused || !!readings[profile.id]) && (profile.archived || managed === profile.id) && <AccountSignout key={`${profile.id}:${providerApproval.approvalId}`} profile={profile} approval={providerApproval} busy={busy || loading || !!providerWorking[profile.id] || !!monitoringStatus?.readingActive} setBusy={setBusy} onStarted={() => startSignout(profile.id)} onSignedOut={next => signedOut(profile.id, next)} onRechecked={next => { if (mounted.current) { viewRequest.current += 1; setView(next); reportCount.current(next.activeProfiles); reportProfiles.current?.(next.profiles); reportReading.current?.(); } }} />}
     </div>;
     const managementTrigger = <CollapsibleTrigger render={<Button variant="ghost" className="text-button" />} type="button" data-profile-action="options" aria-describedby={nameId} disabled={busy || loading || current}>Manage profile</CollapsibleTrigger>;
     return <Collapsible render={<li />} className="profile-row" id={`managed-profile-${profile.id}`} data-profile-id={profile.id} key={profile.id} hidden={rowHidden} inert={rowHidden} open={focused && selectedProfileId === profile.id || !!readings[profile.id]} onOpenChange={open => setReadings(previous => ({ ...previous, [profile.id]: open }))}>
@@ -336,7 +361,7 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval, onPro
       <CollapsiblePanel keepMounted className="profile-reading-panel">
       <Collapsible className="profile-management-root" open={managed === profile.id || current} onOpenChange={open => setManaged(open ? profile.id : null)}>
       <ProfileActivity profileId={profile.id} profileLabel={profile.label} readingRevision={monitoring?.readingRevision}>{(onActivitySaved, onActivityFailed) => <SavedProfileQuota summaryContainerId={`profile-quota-summary-${profile.id}`} profileId={profile.id} profileLabel={profile.label} readingRevision={monitoring?.readingRevision}>{(onQuotaSaved, onQuotaFailed) => profile.archived ? managementActions : providerApproval
-        ? <ProfileProviderCheck onRefreshState={(working, waitSeconds) => reportRefresh.current?.(profile.id, working, waitSeconds)} reconnectRequested={reconnectProfile === profile.id} onReconnectRequested={() => setReconnectProfile(null)} loginContainerId={loginContainerId} connected={!needsSignIn} loginActionLabel={profile.connectionState === 'unauthorized' ? 'Reconnect' : 'Sign in'} monitoring={monitoringStatus} monitoringUnavailable={monitoringUnavailable} onMonitoringAction={onMonitoringAction} onConnectionChanged={() => refreshConnection(profile.id)} key={`${profile.id}:${providerApproval.approvalId}`} profileId={profile.id} profileLabel={profile.label} approval={providerApproval} busy={busy || loading || current || !!monitoringStatus?.readingActive} managementActions={managementActions} managementTrigger={managementTrigger} onActivitySaved={async value => { await Promise.all([onActivitySaved(value), onQuotaFailed()]); reportReading.current?.(); reportOperation.current?.({ profileId: profile.id, outcome: 'saved' }); }} onActivityFailed={async () => { await onActivityFailed(); reportReading.current?.(); reportOperation.current?.({ profileId: profile.id, outcome: 'failed' }); }} onQuotaSaved={async value => { await Promise.all([onQuotaSaved(value), onActivityFailed()]); reportReading.current?.(); reportOperation.current?.({ profileId: profile.id, outcome: 'saved' }); }} onQuotaFailed={async () => { await onQuotaFailed(); reportReading.current?.(); reportOperation.current?.({ profileId: profile.id, outcome: 'failed' }); }} onCollectionSaved={async value => {
+        ? <ProfileProviderCheck onRefreshState={(working, waitSeconds) => { setProviderWorking(value => value[profile.id] === working ? value : { ...value, [profile.id]: working }); reportRefresh.current?.(profile.id, working, waitSeconds); }} reconnectRequested={reconnectProfile === profile.id} onReconnectRequested={() => setReconnectProfile(null)} loginContainerId={loginContainerId} connected={!needsSignIn} loginActionLabel={profile.connectionState === 'unauthorized' ? 'Reconnect' : 'Sign in'} monitoring={monitoringStatus} monitoringUnavailable={monitoringUnavailable} onMonitoringAction={onMonitoringAction} onConnectionChanged={() => refreshConnection(profile.id)} key={`${profile.id}:${providerApproval.approvalId}:${providerRevision[profile.id] ?? 0}`} profileId={profile.id} profileLabel={profile.label} approval={providerApproval} busy={busy || loading || current || !!monitoringStatus?.readingActive} managementActions={managementActions} managementTrigger={managementTrigger} onActivitySaved={async value => { await Promise.all([onActivitySaved(value), onQuotaFailed()]); reportReading.current?.(); reportOperation.current?.({ profileId: profile.id, outcome: 'saved' }); }} onActivityFailed={async () => { await onActivityFailed(); reportReading.current?.(); reportOperation.current?.({ profileId: profile.id, outcome: 'failed' }); }} onQuotaSaved={async value => { await Promise.all([onQuotaSaved(value), onActivityFailed()]); reportReading.current?.(); reportOperation.current?.({ profileId: profile.id, outcome: 'saved' }); }} onQuotaFailed={async () => { await onQuotaFailed(); reportReading.current?.(); reportOperation.current?.({ profileId: profile.id, outcome: 'failed' }); }} onCollectionSaved={async value => {
           await Promise.all([value.quota ? onQuotaSaved({ profileId: profile.id, ...value.quota }, false) : onQuotaFailed(), value.activity ? onActivitySaved({ profileId: profile.id, ...value.activity }, false) : onActivityFailed()]);
           reportReading.current?.();
           reportOperation.current?.({ profileId: profile.id, outcome: value.accepted ? 'saved' : 'failed' });

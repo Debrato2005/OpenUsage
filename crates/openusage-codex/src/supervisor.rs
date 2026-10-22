@@ -497,6 +497,7 @@ fn retire(registry: &Mutex<Registry>, job: &Arc<Job>) {
 
 enum Operation {
     Check,
+    Logout,
     QuotaDiagnostic,
     ActivityDiagnostic,
     CollectionDiagnostic,
@@ -540,6 +541,24 @@ impl Supervisor {
         home: &ManagedProfileHome,
     ) -> Result<CheckHandle, SupervisorError> {
         self.start_operation(executable, home, Operation::Check)
+    }
+
+    /// Explicitly sign out only the selected managed profile, then prove account:null.
+    /// Waiting and cancellation must run outside application and storage locks.
+    pub fn start_logout(
+        &self,
+        executable: &ApprovedExecutable,
+        home: &ManagedProfileHome,
+        user_confirmed: bool,
+    ) -> Result<CheckHandle, SupervisorError> {
+        if !user_confirmed {
+            return Err(SessionError::Protocol(crate::ProtocolError::ConfirmationRequired).into());
+        }
+        #[cfg(unix)]
+        if executable.pinned.is_none() {
+            return Err(SupervisorError::InvalidApproval);
+        }
+        self.start_operation(executable, home, Operation::Logout)
     }
 
     /// Start only after explicit consent for this selected profile's managed sign-in.
@@ -705,6 +724,14 @@ impl Supervisor {
                             )
                             .map(OperationResult::Check),
                             Operation::Check => crate::session::unix::check_managed(
+                                &executable.path,
+                                &home.directory,
+                                Arc::clone(&worker_job.control),
+                                timeouts,
+                                before_start,
+                            )
+                            .map(OperationResult::Check),
+                            Operation::Logout => crate::session::unix::logout_managed(
                                 &executable.path,
                                 &home.directory,
                                 Arc::clone(&worker_job.control),
@@ -1241,6 +1268,139 @@ IFS= read -r request
             include_str!("../tests/fixtures/synthetic-device-login.py"),
             "Owned synthetic device-code login fixture. No real authentication.",
         )
+    }
+
+    fn logout_fixture(mode: &str) -> Fixture {
+        let fixture = script_fixture(
+            "",
+            include_str!("../tests/fixtures/synthetic-logout-provider.py"),
+            "Owned synthetic logout fixture; no real authentication.",
+        );
+        for home in &fixture.homes {
+            fs::write(
+                home.directory.join("synthetic-monitored-login-completed"),
+                b"synthetic",
+            )
+            .unwrap();
+            fs::write(
+                home.directory.join("synthetic-logout-config.json"),
+                format!("{{\"mode\":\"{mode}\"}}"),
+            )
+            .unwrap();
+        }
+        fixture
+    }
+
+    #[test]
+    fn explicit_logout_proves_signed_out_and_preserves_another_profile() {
+        for mode in ["success", "notice_before"] {
+            let fixture = logout_fixture(mode);
+            let supervisor = Supervisor::new();
+            assert!(
+                supervisor
+                    .start_logout(&fixture.executable, &fixture.homes[0], false)
+                    .is_err()
+            );
+            assert!(
+                !fixture.homes[0]
+                    .directory
+                    .join("synthetic-child-pid")
+                    .exists()
+            );
+            let result = supervisor
+                .start_logout(&fixture.executable, &fixture.homes[0], true)
+                .unwrap()
+                .wait()
+                .unwrap();
+            assert_eq!(
+                result.account.authentication,
+                crate::AccountAuth::AuthenticationRequired
+            );
+            assert_eq!(result.account.identity, crate::IdentityConfidence::Unknown);
+            assert!(result.account.requires_openai_auth);
+            assert!(
+                !fixture.homes[0]
+                    .directory
+                    .join("synthetic-monitored-login-completed")
+                    .exists()
+            );
+            assert!(
+                fixture.homes[1]
+                    .directory
+                    .join("synthetic-monitored-login-completed")
+                    .exists()
+            );
+            gone(result.process_id as libc::pid_t);
+            fixture.runtime_removed(0);
+        }
+    }
+
+    #[test]
+    fn logout_rejects_malformed_acknowledgements_errors_and_still_connected_state() {
+        for mode in [
+            "malformed_ack",
+            "rpc_error",
+            "still_connected",
+            "invalid_notice",
+        ] {
+            let fixture = logout_fixture(mode);
+            let supervisor = Supervisor::new();
+            assert!(
+                supervisor
+                    .start_logout(&fixture.executable, &fixture.homes[0], true)
+                    .unwrap()
+                    .wait()
+                    .is_err(),
+                "{mode}"
+            );
+            assert!(
+                fixture.homes[0]
+                    .directory
+                    .join("synthetic-monitored-login-completed")
+                    .exists()
+            );
+            gone(fixture.child(0));
+            fixture.runtime_removed(0);
+        }
+    }
+
+    #[test]
+    fn logout_timeout_cancellation_and_selected_slot_exclusion_reap_workers() {
+        let fixture = logout_fixture("hang");
+        let mut supervisor = Supervisor::new();
+        supervisor.timeouts.read = Duration::from_millis(150);
+        let logout = supervisor
+            .start_logout(&fixture.executable, &fixture.homes[0], true)
+            .unwrap();
+        let pid = fixture.child(0);
+        assert!(matches!(
+            supervisor.start_check(&fixture.executable, &fixture.homes[0]),
+            Err(SupervisorError::DuplicateProfile)
+        ));
+        let other = supervisor
+            .start_check(&fixture.executable, &fixture.homes[1])
+            .unwrap();
+        assert_eq!(
+            other.wait().unwrap().account.authentication,
+            crate::AccountAuth::Chatgpt
+        );
+        assert!(logout.wait().is_err());
+        gone(pid);
+        fixture.runtime_removed(0);
+        let next = supervisor
+            .start_logout(&fixture.executable, &fixture.homes[0], true)
+            .unwrap();
+        let pid = fixture.child(0);
+        supervisor.cancel(&fixture.homes[0].profile_id).unwrap();
+        assert!(next.wait().is_err());
+        gone(pid);
+        fixture.runtime_removed(0);
+        assert!(
+            fixture.homes[0]
+                .directory
+                .join("synthetic-monitored-login-completed")
+                .exists()
+        );
     }
 
     fn collection_fixture(mode: &str) -> Fixture {

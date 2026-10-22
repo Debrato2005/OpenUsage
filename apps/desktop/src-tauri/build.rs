@@ -32,6 +32,7 @@ fn main() {
             "prepare_provider_connection",
             "approve_provider_executable",
             "check_profile_connection",
+            "sign_out_profile",
             "cancel_profile_check",
             "begin_profile_login",
             "await_profile_login_prompt",

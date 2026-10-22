@@ -43,6 +43,7 @@
     "allow-prepare-provider-connection",
     "allow-approve-provider-executable",
     "allow-check-profile-connection",
+    "allow-sign-out-profile",
     "allow-cancel-profile-check",
     "allow-begin-profile-login",
     "allow-await-profile-login-prompt",

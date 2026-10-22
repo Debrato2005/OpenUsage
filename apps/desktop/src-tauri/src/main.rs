@@ -70,6 +70,14 @@ struct DeleteLocalDataArgs {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SignOutArgs {
+    profile_id: String,
+    approval_id: String,
+    confirmed: bool,
+}
+
+#[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ExportApplicationArgs {
     confirmed: bool,
@@ -1230,6 +1238,41 @@ async fn cancel_profile_check(
 }
 
 #[tauri::command]
+async fn sign_out_profile(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<ProfileView, CommandError> {
+    let args: SignOutArgs = arguments(&request)?;
+    if !args.confirmed {
+        return Err(CommandError::InvalidArguments);
+    }
+    workspace::validate_profile_id(&args.profile_id)?;
+    restore::validate_preview_id(&args.approval_id)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let pending = {
+            let mut state = service
+                .lock()
+                .map_err(|_| CommandError::ProviderUnavailable)?;
+            state
+                .as_mut()
+                .ok_or(CommandError::WorkspaceLocked)?
+                .begin_profile_sign_out(&args.profile_id, &args.approval_id)?
+        };
+        let joined = pending.wait()?;
+        let mut state = service
+            .lock()
+            .map_err(|_| CommandError::ProviderUnavailable)?;
+        state
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .finish_profile_sign_out(joined)
+    })
+    .await
+    .map_err(|_| CommandError::ProviderUnavailable)?
+}
+
+#[tauri::command]
 async fn discover_provider_executables(
     request: tauri::ipc::Request<'_>,
     service: State<'_, WorkspaceService>,
@@ -1968,6 +2011,7 @@ fn main() {
             inspect_provider_executable,
             approve_provider_executable,
             check_profile_connection,
+            sign_out_profile,
             cancel_profile_check,
             begin_profile_login,
             await_profile_login_prompt,
@@ -2035,8 +2079,33 @@ mod tests {
         DeleteLocalDataArgs, DisplayScaleArgs, ExportApplicationArgs, ExportHistoryArgs,
         InspectBackupArgs, InspectProviderArgs, ListProfilesArgs, LoginAttemptArgs,
         ProfileCheckArgs, ProfileHistoryArgs, ProfilePlanArgs, ProfileReadArgs, RenameProfileArgs,
-        SetupArgs, ThemeArgs, UnlockArgs, is_bundled_url,
+        SetupArgs, SignOutArgs, ThemeArgs, UnlockArgs, is_bundled_url,
     };
+
+    #[test]
+    fn sign_out_requires_selected_approval_explicit_consent_and_no_injected_scope() {
+        let value =
+            serde_json::json!({"profileId":"selected", "approvalId":"reviewed", "confirmed":true});
+        assert!(
+            serde_json::from_value::<SignOutArgs>(value.clone())
+                .unwrap()
+                .confirmed
+        );
+        for field in ["profileId", "approvalId", "confirmed"] {
+            let mut invalid = value.clone();
+            invalid.as_object_mut().unwrap().remove(field);
+            assert!(serde_json::from_value::<SignOutArgs>(invalid).is_err());
+        }
+        for (field, content) in [
+            ("path", serde_json::json!("/external")),
+            ("allProfiles", serde_json::json!(true)),
+            ("confirmed", serde_json::json!("true")),
+        ] {
+            let mut invalid = value.clone();
+            invalid[field] = content;
+            assert!(serde_json::from_value::<SignOutArgs>(invalid).is_err());
+        }
+    }
 
     #[test]
     fn deletion_arguments_require_boolean_consent_and_refuse_caller_paths() {

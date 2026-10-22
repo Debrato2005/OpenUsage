@@ -30,6 +30,14 @@ The native notice inventory now maps all 486 locked registry packages to 288 exa
 
 ## Latest verified slice
 
+Per-account Sign out uses the official account/logout method after explicit consent. Rust reserves only the selected profile, checks the approved source and held home, and waits outside the workspace lock. A strict empty acknowledgement and a signed-out account read precede the saved status change. Cached readings and history remain. Other profiles retain their authorization and records. OpenAI can attempt session revocation. OpenUsage does not promise that revocation succeeded.
+
+The Linux native journey passed two synthetic account sign-ins, automatic collection, confirmed sign-out, failure refusal, restart, second-account refresh and selected-account reconnect. Six independent checks compared all 30 stored tables. Only the selected connection status and update time changed on sign-out. The confirmation dialog was inspected. Production refused all six synthetic providers before execution. Private evidence: account-signout-native-current and account-signout-production-refusal. Real OAuth revocation and other platforms remain unqualified.
+
+Strict Clippy, 52 contracts and both final builds passed. All 342 renderer cases passed across the bounded broad run and final focused runs. The first run caught a dialog event bubbling defect. Cancel and Escape now leave the parent account panel open. The broad command reached its deadline. The remaining cases passed separately. All 368 Rust cases passed across the workspace and focused runs, with one intentional child test ignored. Two activity tests failed initially and passed in the focused run. Their intermittent cause remains unresolved.
+
+The pinned Linux companion passed a separate local keyring probe with internet sockets blocked. Two fresh synthetic credentials stayed isolated across child restarts. Exact deletion preserved the second and unrelated entries. This proves local keyring feasibility only. Product provider storage still uses isolated provider-managed files. Protected provider storage, real token renewal and revocation remain open.
+
 Settings exports all saved application records as JSON after explicit consent. One validated SQLCipher 4/WAL snapshot includes archived accounts, history, preferences, alerts and local references. Exact integers remain decimal strings. Null stays distinct from zero. Credentials, keys, provider-home files and device display calibration stay excluded. This plaintext export is separate from encrypted backup recovery.
 
 All 362 Rust tests passed, with one intentional child test ignored. Strict Clippy, 52 contracts and the final build passed. All 330 renderer cases passed across the broad run and 36 final focused cases. The initial run caught narrow export wrapping and two activity-history failures. The final run used frozen source and passed.
@@ -121,9 +129,9 @@ Confirmed archive restore and checkpoint recovery are implemented. Earlier nativ
 ## Still incomplete
 
 - Deadline notifications and confirmed invalid-credential detection. The four implemented alert types have opt-in, per-profile overrides and quiet hours. Real-provider-triggered and installed-platform delivery remain open.
-- Complete application export, explicit retention rules and platform acceptance for local deletion. Selected quota/activity history browsing and exports now have scoped acceptance evidence.
+- Complete application export and selected quota/activity history have scoped Linux acceptance evidence. Local deletion still requires platform acceptance. History remains unlimited by default, without silent pruning.
 - Subscription, promotion, billing, deadline and verified account-comparison requirements.
 - Real credential renewal/revocation acceptance, provider OS credential storage, safe browser callback isolation, and SIWC compatibility with both official usage operations.
 - Sleep/wake acceptance, release-scale performance, packaging/signing, Windows/macOS execution and the complete SRS acceptance matrix.
 
-The three-view Overview revision is locally verified within the recorded synthetic Linux scope. Deadline alerts and remaining activity-history/export journeys remain open. Real authorized-account verification remains separate from synthetic-provider evidence. Current file-level status and the exact working checkpoint are retained in the local `.recovery/active-checkpoint.json`; historical execution details remain in their linked evidence and local commits.
+The three-view Overview revision is locally verified within the recorded synthetic Linux scope. Deadline alerts and the remaining platform and live-provider journeys remain open. Real authorized-account verification remains separate from synthetic-provider evidence. Current file-level status and the exact working checkpoint are retained in the local `.recovery/active-checkpoint.json`; historical execution details remain in their linked evidence and local commits.

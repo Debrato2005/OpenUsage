@@ -88,6 +88,7 @@ fn reviewed_source(digest: &[u8; 32]) -> SourceProof {
             | "ffceb4436e3ddbaf93548e36aa057232fc62bbda7138e00f90f250480d17e25c"
             | "91e780f49518a25ffa75963b2856f5951c5fe6f4d1e1c9040b41a4231d0750ae"
             | "53a853b737ceca311649e9f1d9ebd1341154a5f782efd8e915f7f834c819a6dc"
+            | "3f3f22fb2617d79e73bde3a1c3386f28302215f5f997326782d3d35a7f952b88"
     ) {
         return SourceProof {
             kind: ExecutableSourceKind::TestFixture,
@@ -480,6 +481,35 @@ impl ProviderCoordinator {
         revision: openusage_storage::StorageRevision,
         path: &Path,
     ) -> Result<PendingCheck, CommandError> {
+        self.start_owned_probe(profile_id, home_reference, revision, path, None)
+    }
+
+    pub fn start_logout(
+        &self,
+        profile_id: &str,
+        approval_id: &str,
+        home_reference: &str,
+        revision: openusage_storage::StorageRevision,
+        path: &Path,
+    ) -> Result<PendingCheck, CommandError> {
+        self.start_owned_probe(
+            profile_id,
+            home_reference,
+            revision,
+            path,
+            Some(approval_id),
+        )
+    }
+
+    // Logout uses the same held home, source checks, per-profile lease and joined result.
+    fn start_owned_probe(
+        &self,
+        profile_id: &str,
+        home_reference: &str,
+        revision: openusage_storage::StorageRevision,
+        path: &Path,
+        logout_approval: Option<&str>,
+    ) -> Result<PendingCheck, CommandError> {
         let held_home = HeldHome::open(path)?;
         let home = ManagedProfileHome::new(
             ProfileId::parse(profile_id).map_err(provider_error)?,
@@ -497,15 +527,20 @@ impl ProviderCoordinator {
             .approved
             .as_mut()
             .ok_or(CommandError::ProviderExecutableNotApproved)?;
+        if logout_approval.is_some_and(|expected| expected != approved.metadata.approval_id) {
+            return Err(CommandError::StaleProviderApproval);
+        }
         approved.held.recheck()?;
         let executable = approved.executable.clone();
         let approval_id = approved.metadata.approval_id.clone();
         let source_kind = approved.metadata.source_kind;
         let request_id = new_id()?;
-        let handle = state
-            .supervisor
-            .start_check(&executable, &home)
-            .map_err(provider_error)?;
+        let handle = if logout_approval.is_some() {
+            state.supervisor.start_logout(&executable, &home, true)
+        } else {
+            state.supervisor.start_check(&executable, &home)
+        }
+        .map_err(provider_error)?;
         state.checks.insert(profile_id.into(), request_id.clone());
         Ok(PendingCheck {
             ownership: CheckOwnership {

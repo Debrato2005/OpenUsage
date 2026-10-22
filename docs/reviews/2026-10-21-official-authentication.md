@@ -39,3 +39,12 @@ October 21 follow-up: the user completed official login. The next real collectio
 The post-code failure investigation found a concrete protocol mismatch: the pinned provider's [outgoing notification serializer](https://github.com/openai/codex/blob/83086188ae0614bd882818ff1aa23f3194962012/codex-rs/app-server/src/outgoing_message.rs#L904) adds `emittedAtMs`. OpenUsage rejected that envelope. The correction explicitly accepts an optional unsigned timestamp while retaining strict fields and selected-attempt matching. The RED/GREEN regression, official anonymous notification shape, production challenge/cancellation, and synthetic two-account native journeys passed. See the bounded evidence (private evidence omitted). That earlier slice did not establish real OAuth; the follow-up above records the successful real-account check.
 
 Complete second-account isolation and the remaining authorized-session lifecycle checks. Then check renewal, cancellation, and revocation with authorized sessions. Never retain passwords, challenges, tokens, or raw authentication responses as evidence. Browser isolation, protected provider storage, and sign-out remain open. SQLCipher 4/WAL and the normative SRS are unchanged.
+
+
+## October 22: selected-account sign-out
+
+The user confirmed two real accounts and their saved readings after restart. This supersedes the earlier second-account pending note. The new sign-out journey uses synthetic accounts. It does not establish real OAuth revocation. Protected provider storage, renewal, revocation and safe browser callback isolation remain open.
+
+Per-account Sign out uses the official [account/logout method](https://developers.openai.com/codex/app-server) after explicit consent. Rust reserves only the selected profile, checks the approved source and held home, and waits outside the workspace lock. A strict empty acknowledgement and a signed-out account read precede the saved status change. Cached readings and history remain. Other profiles retain their authorization and records. OpenAI can attempt session revocation. OpenUsage does not promise that revocation succeeded.
+
+The pinned Linux companion passed a separate local keyring probe with internet sockets blocked. Two fresh synthetic credentials stayed isolated across child restarts. Exact deletion preserved the second and unrelated entries. This proves local keyring feasibility only. Product provider storage still uses isolated provider-managed files. Protected provider storage, real token renewal and revocation remain open.
