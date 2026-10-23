@@ -4,6 +4,14 @@
 
 Updated: October 22, 2026. OpenUsage remains in development. The normative [SRS](SRS.md) is unchanged. Only local commits are permitted. Remote branch deletion requires separate owner approval. Agents must not push or publish.
 
+## Copy and layout refinement: acceptance incomplete
+
+Overview, Usage and Settings no longer show page taglines. Settings pairs headings with controls and omits the redundant workspace-ready summary. Usage starts with its account selector. Empty states use one heading and an action. Redundant account and connection instructions and their unused styles were removed.
+
+Data states, timestamps, coverage, source disclosures, consent, errors and accessible names remain. Theme errors stay visible after the startup panel closes. Native harnesses now wait for the current page heading. The storage harness expects schema 9 and current password text.
+
+The renderer build, TypeScript and 55 IPC contract checks passed on Linux. The engineering milestone stopped before browser tests because Vite could not bind its local port: EPERM. A direct Chromium launch also failed with EPERM. The alternate Node executor failed before startup. The native build reached its 300-second deadline without completion. No screenshot review or native acceptance ran. This change remains unverified for rendering, native behavior and other platforms. The normative SRS is unchanged. Git staging failed because the sandbox exposes `.git` as read-only. No local commit occurred.
+
 ## Completed assignment: synchronized profile activity
 
 The owner approved the narrow [selected-profile aggregation amendment](proposals/user-curated-profile-activity.md). Overview now has Individual, Profile sum and Verified combined views. One Rust response supplies the heatmap, observed total, contribution shares, exclusions and coverage for one selection and date range. Daily, ISO-week and cumulative projections reuse the existing calendar calculation.

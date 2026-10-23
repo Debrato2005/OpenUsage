@@ -267,7 +267,7 @@ function App() {
     : startup.kind === 'unavailable' ? 'OpenUsage needs its desktop application'
     : startup.kind === 'failed' ? 'OpenUsage could not read its local state'
     : deletionPending ? 'Finish deleting local data' : recovery ? 'Your local data needs recovery'
-    : ready ? 'Workspace ready' : data?.storage === 'locked' ? 'Welcome back' : 'Welcome to OpenUsage';
+    : data?.storage === 'locked' ? 'Welcome back' : 'Welcome to OpenUsage';
   const recoveryMessage = deletionPending ? 'Local deletion did not finish. Confirm again to remove the remaining OpenUsage account data.'
     : data?.storageIssue === 'workspace_in_use'
     ? 'Another OpenUsage window uses this workspace. Close that window, then check the workspace again.'
@@ -297,11 +297,6 @@ function App() {
   }
   const scaleControl = <div className="display-scale-control"><label htmlFor="display-scale" className="sr-only">Display scale</label><Select modal={false} value={displayScale} disabled={scaleBusy} items={Object.fromEntries([90, 100, 110, 125, 150, 175, 200].map(value => [value, `${value}%`]))} onValueChange={value => { if (value !== null) void changeScale(value); }}><SelectTrigger id="display-scale" aria-label="Display scale"><SelectValue /></SelectTrigger><SelectPopup alignItemWithTrigger={false}>{[90, 100, 110, 125, 150, 175, 200].map(value => <SelectItem key={value} value={value}>{value}%</SelectItem>)}</SelectPopup></Select></div>;
   const titles = { overview: 'Overview', usage: 'Usage', settings: 'Settings' };
-  const descriptions = {
-    overview: 'Monitor your OpenAI usage and available quotas.',
-    usage: 'Token activity saved on this device.',
-    settings: 'Appearance, Codex connection, and encrypted backups.',
-  };
   return <TimeDisplay ready={ready} revision={profileRevision}><div className={`app-shell${ready ? '' : ' onboarding-shell'}`}>
     <a className="skip-link" href="#main">Skip to dashboard</a>
     <header className="workspace-header" hidden={!ready}>
@@ -312,16 +307,14 @@ function App() {
     <div className="workspace">
       {!ready && <header className="onboarding-header"><a className="brand" href="#main" aria-label="OpenUsage"><span className="brand-wordmark"><img src={openusageLogo} alt="OpenUsage" /></span></a>{appearance}</header>}
       <main id="main" tabIndex={-1}>
-        {ready && <div className="page-heading"><div><h1>{titles[view]}</h1><p className="subtitle">{descriptions[view]}</p></div><div className="page-controls"><span className="status-pill" data-global-monitoring={ready && !monitoring.unavailable ? monitoring.status?.state : undefined}><span className="status-dot" aria-hidden="true" />{!ready ? 'Monitoring stopped' : monitoring.unavailable ? 'Monitoring status unavailable' : monitoring.status ? `Monitoring ${monitoring.status.state}` : 'Loading monitoring status…'}</span></div></div>}
+        {ready && <div className="page-heading"><h1>{titles[view]}</h1><div className="page-controls"><span className="status-pill" data-global-monitoring={!monitoring.unavailable ? monitoring.status?.state : undefined}><span className="status-dot" aria-hidden="true" />{monitoring.unavailable ? 'Monitoring status unavailable' : monitoring.status ? `Monitoring ${monitoring.status.state}` : 'Loading monitoring status…'}</span></div></div>}
         {scaleError && <p role="alert" className="operation-error">Display size could not be saved. Try again.</p>}
-        <section hidden={ready && view !== 'settings'} inert={ready && view !== 'settings'} className="startup-panel" data-storage={data?.storage ?? startup.kind} aria-labelledby="startup-heading" aria-busy={startup.kind === 'loading' || busy}>
-          <div className="startup-content">{ready ? <h2 id="startup-heading" role="status">{message}</h2> : <h1 id="startup-heading" role="status">{message}</h1>}
-            {!ready && <p>{startup.kind === 'unavailable' ? 'This browser view cannot access encrypted storage or connect an account. Open the desktop application to continue.'
+        {!ready && <section className="startup-panel" data-storage={data?.storage ?? startup.kind} aria-labelledby="startup-heading" aria-busy={startup.kind === 'loading' || busy}>
+          <div className="startup-content"><h1 id="startup-heading" role="status">{message}</h1>
+            {(startup.kind === 'unavailable' || startup.kind === 'failed' || recovery || (needsPassphrase && data?.storage === 'setup_required')) && <p>{startup.kind === 'unavailable' ? 'This browser view cannot access encrypted storage or connect an account. Open the desktop application to continue.'
               : startup.kind === 'failed' ? 'Restart the desktop application, then try again. Your existing database stays unchanged.'
               : recovery ? recoveryMessage
-              : needsPassphrase && data?.storage === 'setup_required' ? 'Your desktop key store is unavailable. An app password protects saved account data.'
-              : data?.storage === 'locked' ? 'Unlock to return to your saved accounts and readings.'
-              : 'Keep your accounts and usage together, on this device.'}</p>}
+              : 'Your desktop key store is unavailable. An app password protects saved account data.'}</p>}
             {(startup.kind === 'failed' || startup.kind === 'unavailable') && <Button className="primary-button" onClick={() => { setStartup({ kind: 'loading' }); setAttempt(n => n + 1); }}>Check desktop connection</Button>}
             {startup.kind === 'desktop' && data?.storage === 'setup_required' && !needsPassphrase && <Button className="primary-button" disabled={busy} onClick={() => { void updateWorkspace(() => invoke('setup_workspace', { passphrase: null })); }}>{busy ? 'Creating workspace…' : 'Create private workspace'}</Button>}
             {startup.kind === 'desktop' && !recovery && needsPassphrase && <form className="unlock-form" onSubmit={event => {
@@ -345,11 +338,10 @@ function App() {
             </form>}
             {data?.storage === 'locked' && !needsPassphrase && <p className="development-note">Unlock your system key store, then check the workspace again.</p>}
             {(recovery || (data?.storage === 'locked' && !needsPassphrase)) && <Button className="primary-button" disabled={busy} onClick={() => { setOperationError(null); setStartup({ kind: 'loading' }); setAttempt(n => n + 1); }}>Check workspace</Button>}
-            {ready && data?.keyProtection === 'os_store' && <p className="protection-note">Encrypted storage · Key protected by your system key store</p>}
-            {ready && data?.keyProtection === 'passphrase' && <p className="protection-note">Encrypted storage · Key protected by your app password</p>}
             {operationError && <p id="workspace-error" className="operation-error" role="alert">{operationError}</p>}
           </div>
-        </section>
+        </section>}
+        {ready && operationError && <p id="workspace-error" className="operation-error" role="alert">{operationError}</p>}
         {deletionPending && <LocalDataDeletion key="pending" pending busy={busy} setBusy={setBusy} onChanged={applyLocalDataState} />}
         {(!ready || view === 'settings') && <Button variant="ghost" className={`text-button ${ready ? 'settings-privacy' : 'onboarding-privacy'}`} onClick={() => setPrivacy(!privacy)} aria-expanded={privacy} aria-controls="privacy-details">{privacy ? 'Hide privacy details' : 'About your privacy'}</Button>}
         {privacy && (!ready || view === 'settings') && <section className="privacy-details" id="privacy-details" aria-labelledby="privacy-heading"><h2 id="privacy-heading">Privacy and local storage</h2><p>OpenUsage has no hosted account or telemetry. Account connections require your approval. Provider credentials stay with Codex.</p><p>Encrypted storage protects application records. It does not encrypt provider credential files or operating-system swap.</p><p>Codex handles approved sign-in requests, connection checks, and readings. Monitoring runs only while OpenUsage is open and your workspace is unlocked.</p></section>}
@@ -367,9 +359,9 @@ function App() {
         <section data-workspace-view="settings" hidden={!ready || view !== 'settings'} inert={!ready || view !== 'settings'} aria-label="Workspace settings">
         {ready && <TimeSettings />}
 
-        {ready && <section className="account-settings"><h2>Accounts</h2><p>Rename accounts or restore an archived profile.</p><Button data-account-manager-open variant="outline" onClick={() => { setAccountPanelProfile(null); setAccountPanelOpen(true); }}>Manage accounts</Button></section>}
+        {ready && <section className="account-settings"><h2>Accounts</h2><Button data-account-manager-open variant="outline" onClick={() => { setAccountPanelProfile(null); setAccountPanelOpen(true); }}>Manage accounts</Button></section>}
         {ready && <section className="backup-panel" aria-labelledby="backup-heading">
-          <div className="section-heading"><div><h2 id="backup-heading">Encrypted backups</h2><p>Save a password-protected copy of your application records.</p></div><div className="backup-actions"><Button ref={backupToggle} variant="outline" className="secondary-button" disabled={busy} onClick={() => toggleBackup('create')} aria-expanded={backupOpen} aria-controls="backup-form">{backupOpen ? 'Hide backup form' : 'Create a backup'}</Button><Button variant="outline" className="secondary-button" disabled={busy} onClick={() => toggleBackup('inspect')} aria-expanded={backupAction === 'inspect'} aria-controls="backup-inspection">{backupAction === 'inspect' ? 'Hide backup inspection' : 'Inspect a backup'}</Button><Button variant="outline" className="secondary-button" disabled={busy} onClick={() => toggleBackup('recover')} aria-expanded={backupAction === 'recover'} aria-controls="checkpoint-recovery">{backupAction === 'recover' ? 'Hide saved copies' : 'Undo a restore'}</Button></div></div>
+          <div className="section-heading"><h2 id="backup-heading">Encrypted backups</h2><div className="backup-actions"><Button ref={backupToggle} variant="outline" className="secondary-button" disabled={busy} onClick={() => toggleBackup('create')} aria-expanded={backupOpen} aria-controls="backup-form">{backupOpen ? 'Hide backup form' : 'Create a backup'}</Button><Button variant="outline" className="secondary-button" disabled={busy} onClick={() => toggleBackup('inspect')} aria-expanded={backupAction === 'inspect'} aria-controls="backup-inspection">{backupAction === 'inspect' ? 'Hide backup inspection' : 'Inspect a backup'}</Button><Button variant="outline" className="secondary-button" disabled={busy} onClick={() => toggleBackup('recover')} aria-expanded={backupAction === 'recover'} aria-controls="checkpoint-recovery">{backupAction === 'recover' ? 'Hide saved copies' : 'Undo a restore'}</Button></div></div>
           {backupOpen && <form id="backup-form" className="unlock-form backup-form" onSubmit={event => { event.preventDefault(); void saveBackup(); }}>
             <p id="backup-records-help">Application records can include account names, email addresses, and activity. Provider credentials and local evidence are excluded.</p>
             <Field disabled={busy}><FieldLabel className="backup-selection"><Checkbox nativeButton render={<button type="button" />} id="backup-records" name="backup-records" required checked={backupRecords} disabled={busy} aria-describedby="backup-records-help" onCheckedChange={checked => setBackupRecords(checked === true)} />Application records</FieldLabel></Field>
@@ -383,9 +375,6 @@ function App() {
           {backupReceipt && <div className="backup-receipt" role="status"><p>Backup saved and authenticated.</p><p><strong>{backupReceipt.fileName}</strong><br />{backupReceipt.directory}</p></div>}
           {backupAction === 'inspect' && <section id="backup-inspection" className="backup-inspection" aria-labelledby="backup-inspection-heading"><h3 id="backup-inspection-heading">Inspect a backup</h3><BackupInspection busy={busy} setBusy={setBusy} onRestored={refreshRestoredWorkspace} /></section>}
           {backupAction === 'recover' && <CheckpointRecovery busy={busy} setBusy={setBusy} onRestored={refreshRestoredWorkspace} />}
-          <p className="backup-note">{backupAction === 'recover'
-            ? 'Undoing a restore requires a preview and your confirmation.'
-            : 'Inspect a backup before you prepare a restore. Replacing records requires confirmation.'}</p>
         </section>}
         {ready && view === 'settings' && <Subscriptions profiles={profiles} revision={String(profileRevision)} busy={busy} setBusy={setBusy} />}
         {ready && view === 'settings' && <ResetNotifications profiles={profiles} revision={String(profileRevision)} busy={busy} setBusy={setBusy} />}

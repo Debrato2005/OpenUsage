@@ -32,7 +32,7 @@ let driverNumber = 0;
 async function openApp() {
   driver = new NativeDriver(application, fixture.environment, join(output, `driver-${++driverNumber}.log`));
   await driver.start();
-  await waitFor(async () => (await driver.execute('return document.querySelector("#startup-heading")?.textContent;')) !== 'Checking local storage…', 'native startup state');
+  await waitFor(async () => (await driver.execute('return document.querySelector("h1")?.textContent;')) !== 'Checking local storage…', 'native startup state');
 }
 
 async function closeApp() {
@@ -70,17 +70,17 @@ async function state(expected) {
 }
 
 async function heading(text) {
-  await waitFor(async () => (await driver.execute('return document.querySelector("#startup-heading")?.textContent;')) === text, text);
+  await waitFor(async () => (await driver.execute('return document.querySelector("h1")?.textContent;')) === text, text);
 }
 
 async function ready(theme, protection) {
-  await heading('Workspace ready');
-  await state({ storage: 'ready', theme, keyProtection: protection, schemaVersion: 6, activeProfiles: 0, storageIssue: null });
+  await heading('Overview');
+  await state({ storage: 'ready', theme, keyProtection: protection, schemaVersion: 9, activeProfiles: 0, storageIssue: null });
   await driver.navigate('accounts');
   await waitFor(async () => driver.execute('const count=document.querySelector(".accounts-section .muted-tag");return Boolean(count&&count.textContent.trim()==="0 of 10 active"&&count.getClientRects().length);'), 'visible Accounts active count');
   await driver.navigate('overview');
   const summary = await driver.execute('const root=document.querySelector("[data-overview]");return {lifetime:root.querySelector("[data-overview-lifetime]").textContent.trim(),quotaHeading:root.querySelector(".overview-quota-empty h3").textContent.trim(),meterCount:root.querySelectorAll("[role=meter]").length,profileCount:root.querySelectorAll("[data-overview-account]").length};');
-  assert.deepEqual(summary, { lifetime: 'Not available', quotaHeading: 'Your accounts, in one place', meterCount: 0, profileCount: 0 });
+  assert.deepEqual(summary, { lifetime: 'Not available', quotaHeading: 'No accounts', meterCount: 0, profileCount: 0 });
   evidence.steps.push({ readyWorkspaceSummary: summary });
 }
 
@@ -209,7 +209,7 @@ try {
   const wrappedHash = await hash(wrappedPath);
   await openApp();
   await state({ storage: 'locked', keyProtection: 'passphrase' });
-  await heading('Unlock your local workspace');
+  await heading('Welcome back');
   await driver.type('#workspace-passphrase', 'Wrong synthetic passphrase');
   await driver.click('.unlock-form button[type="submit"]');
   await waitFor(async () => Boolean(await driver.execute('return document.querySelector("[role=alert]")?.textContent.includes("passphrase could not unlock");')), 'wrong passphrase guidance');

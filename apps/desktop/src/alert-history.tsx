@@ -36,7 +36,7 @@ export function AlertHistory({ revision = '', onViewUsage, onViewAccount }: { re
   return <Collapsible className="alert-history" data-alert-history open={open} onOpenChange={next => { setResult(null); setOpen(next); }}>
     <CollapsibleTrigger render={<Button variant="outline" />} aria-expanded={open}>Alert history</CollapsibleTrigger>
     <CollapsiblePanel>
-      <div className="alert-history-heading"><p>Alerts saved on this device.</p><Button variant="outline" disabled={loading} onClick={() => setAttempt(value => value + 1)}>Refresh list</Button></div>
+      <div className="alert-history-heading"><Button variant="outline" disabled={loading} onClick={() => setAttempt(value => value + 1)}>Refresh list</Button></div>
       {loading && <p className="alert-history-note" role="status">Loading alert history…</p>}
       {current?.failed && <div role="alert"><p>Alert history could not be loaded.</p><Button variant="outline" onClick={() => setAttempt(value => value + 1)}>Retry alert history</Button></div>}
       {current?.history && <>

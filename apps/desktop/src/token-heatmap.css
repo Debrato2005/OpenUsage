@@ -104,7 +104,6 @@
 .combined-explanation summary { cursor: pointer; padding-block: .5rem; }
 .overview-share-unavailable { margin-block: auto; padding-block: 2rem; line-height: 1.6; color: var(--muted); }
 .overview-share-unavailable h3 { margin: 0 0 .5rem; font-size: 1.125rem; font-weight: 550; color: var(--text); }
-.overview-share-unavailable p { margin: 0; }
 .activity-sum-notice, .activity-date-range { color: var(--muted); font-size: .8125rem; line-height: 1.5; }
 .activity-sum-notice summary, .activity-date-range summary { cursor: pointer; width: fit-content; padding-block: .35rem; }
 .activity-sum-notice p { margin-block: .4rem; max-width: 60ch; }

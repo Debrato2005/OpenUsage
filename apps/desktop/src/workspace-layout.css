@@ -19,7 +19,6 @@
 .workspace > main { max-width: none; padding: 30px 30px 32px; }
 .page-heading { align-items: center; gap: 24px; margin-bottom: 22px; }
 .page-heading h1 { font-size: 2.5rem; font-weight: 650; line-height: 1.2; letter-spacing: -.04em; }
-.page-heading .subtitle { font-size: 1rem; margin-top: 4px; max-width: 72ch; }
 .page-controls { display: flex; align-items: center; justify-content: flex-end; gap: 18px; flex-wrap: wrap; }
 .page-controls .status-pill { border: 0; padding: 0; font-size: .875rem; white-space: nowrap; }
 .status-pill[data-global-monitoring='running'] .status-dot { background: var(--chart); }
@@ -30,9 +29,9 @@
 .appearance-icon { display: block; width: 21px; height: 21px; flex: 0 0 auto; }
 .display-scale-control [data-slot='select-trigger'] { min-width: 100px; }
 .appearance-settings { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; padding: 24px 0; margin-top: 8px; border-bottom: 1px solid var(--line); }
-.appearance-settings > div > p, .usage-content .section-heading p { color: var(--muted); font-size: var(--text-sm); margin-top: 6px; }
 .usage-content { padding: 24px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-panel); }
-.usage-content .section-heading { flex-wrap: wrap; }
+.usage-controls { display: flex; flex-wrap: wrap; gap: 1rem; }
+.usage-controls:empty { display: none; }
 .usage-content .profile-activity { border-top: 1px solid var(--line); margin-top: 20px; }
 .usage-content .empty-state { margin-top: 20px; }
 .usage-content .empty-state button { margin-top: 16px; }
@@ -98,6 +97,5 @@
 .account-panel-heading button { flex-shrink: 0; }
 .account-refresh-feedback { display: flex; align-items: center; flex-wrap: wrap; gap: .75rem; padding: .75rem 1rem; margin-bottom: 1rem; border: 1px solid var(--line); border-radius: .75rem; font-size: var(--text-sm); }
 .account-refresh-feedback p { flex: 1; }
-.account-settings { padding-block: 1.5rem; border-bottom: 1px solid var(--line); }
-.account-settings p { color: var(--muted); margin-block: .5rem 1rem; }
+.account-settings { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; padding-block: 1.5rem; border-bottom: 1px solid var(--line); }
 @media (max-width: 760px) { [data-account-panel] { width: calc(100vw - 1rem); max-height: calc(100dvh - 1rem); padding: 1rem; } }

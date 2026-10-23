@@ -71,7 +71,6 @@
 .overview-accounts-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .125rem .125rem 1.125rem; }
 .overview-accounts-heading h2 { margin: 0; font-size: 1.375rem; line-height: 1.4; font-weight: 650; letter-spacing: -.025em; }
 .overview-accounts-heading h2 > span { color: var(--muted); font-size: .8125rem; font-weight: 400; margin-left: .375rem; }
-.overview-accounts-heading p { margin: .125rem 0 0; color: var(--muted); font-size: .875rem; line-height: 1.5; }
 .overview-accounts-heading button { height: 2.75rem; min-height: 2.75rem; font-size: .875rem; border-radius: .625rem; padding-inline: 1.125rem; flex-shrink: 0; }
 .overview-table-scroll { position: relative; overflow-x: auto; border: 1px solid var(--line); border-radius: .75rem; }
 .overview-accounts table { width: 100%; border-collapse: collapse; text-align: left; font-size: .875rem; }
@@ -116,7 +115,6 @@
   .overview-account-footer { align-items: flex-start; }
   .overview-accounts { padding: .875rem; }
   .overview-accounts-heading { align-items: flex-start; flex-wrap: wrap; }
-  .overview-accounts-heading p { max-width: 22rem; }
   .overview-accounts th, .overview-accounts td { padding-inline: .75rem; }
 }
 

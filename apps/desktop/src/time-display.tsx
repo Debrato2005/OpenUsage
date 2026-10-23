@@ -62,7 +62,7 @@ export function TimeSettings() {
     return { ...common, ...Object.fromEntries([...new Set([zone, systemZone, ...supported])].filter(value => !common[value]).map(value => [value, value.replaceAll('_', ' ')])) };
   }, [zone, systemZone]);
   return <section className="time-settings" aria-labelledby="time-settings-heading">
-    <div><h2 id="time-settings-heading">Date and time</h2><p>Choose how clock times and reset dates appear. Activity dates stay as reported by OpenAI.</p></div>
+    <h2 id="time-settings-heading">Date and time</h2>
     <div className="time-settings-controls"><label id="time-zone-label" htmlFor="time-zone">Time zone</label>
       <Select modal={false} value={zone} items={zones} disabled={pending} onValueChange={value => { if (value) void save(value); }}>
         <SelectTrigger id="time-zone" aria-labelledby="time-zone-label"><SelectValue /></SelectTrigger>

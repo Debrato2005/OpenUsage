@@ -168,7 +168,7 @@ export function Overview({ profiles, revision, onAccounts, onAccountAction, busy
                 <SelectPopup alignItemWithTrigger={false}>{activeProfiles.map(profile => <SelectItem key={profile.id} value={profile.id}>{profile.label}</SelectItem>)}</SelectPopup>
               </Select>
             </div>
-            <p className="overview-meta">{selected ? planFor(selected.id, quota?.bindingId) : 'Add your first OpenAI account'}</p>
+            {selected && <p className="overview-meta">{planFor(selected.id, quota?.bindingId)}</p>}
           </div>
           <div className="overview-account-state">{selected && <Connection profile={selected} />}{quota && <span className="overview-meta">{freshness[quota.freshness]}</span>}</div>
           <div className="overview-account-actions">{selected && <><Button variant={needsSignIn ? 'default' : 'outline'} disabled={busy || selectedRefreshing || (!needsSignIn && selectedWait > 0)} aria-busy={selectedRefreshing} data-overview-refresh={needsSignIn ? undefined : selected.id} onClick={() => act({ kind: needsSignIn ? 'signin' : 'refresh', profileId: selected.id })}>{selectedRefreshing ? 'Refreshing…' : needsSignIn ? selected.connectionState === 'unauthorized' ? 'Reconnect' : 'Sign in' : selectedWait > 0 ? `Refresh in ${selectedWait}s` : 'Refresh'}</Button><Button variant="outline" className="overview-more" aria-label={`Manage ${selected.label}`} disabled={busy} onClick={() => act({ kind: 'manage', profileId: selected.id })}>•••</Button></>}</div>
@@ -183,7 +183,7 @@ export function Overview({ profiles, revision, onAccounts, onAccountAction, busy
             </div> : <span className="sr-only"><bdi>{limit.limitName ?? limit.limitId}</bdi></span>}
           </div>
           <QuotaWindow value={limit.primary} role="Primary window" /><QuotaWindow value={limit.secondary} role="Secondary window" />
-        </div> : <div className="overview-quota-empty"><h3>{selected ? needsSignIn ? 'Connect to view usage' : 'No saved quota yet' : 'Your accounts, in one place'}</h3><p className="overview-meta">{selected ? needsSignIn ? 'Sign in with your OpenAI account.' : quota ? 'No quota windows were supplied.' : 'Refresh to retrieve available readings.' : 'Connect an authorized OpenAI account to get started.'}</p>{!selected && <Button onClick={() => act({ kind: 'add' })}>Add OpenAI account</Button>}</div>}
+        </div> : <div className="overview-quota-empty"><h3>{selected ? needsSignIn ? 'Connect to view usage' : quota ? 'No quota windows reported' : 'No saved quota yet' : 'No accounts'}</h3>{!selected && <Button onClick={() => act({ kind: 'add' })}>Add OpenAI account</Button>}</div>}
         {saved?.quotaFailed && <p className="overview-error">Saved quotas could not be loaded. Try Refresh.</p>}
         <dl className="overview-summary" aria-label="Selected profile activity summary">
           <div><dt><StatIcon kind="tokens"/>Lifetime tokens</dt><dd><span data-overview-lifetime data-exact-value={lifetimeTokens ?? undefined}>{pending && lifetimeTokens === null ? 'Loading…' : <CompactCount value={lifetimeTokens} />}</span></dd></div>
@@ -202,7 +202,7 @@ export function Overview({ profiles, revision, onAccounts, onAccountAction, busy
       </section>
     </div>
     <section className="overview-accounts" aria-labelledby="overview-accounts-heading" data-overview-accounts-table>
-      <div className="overview-accounts-heading"><div><h2 id="overview-accounts-heading">Accounts <span>{activeProfiles.length}</span></h2><p>Manage your OpenAI accounts and view their usage.</p></div><Button type="button" variant="default" disabled={busy || activeProfiles.length >= 10} onClick={() => act({ kind: 'add' })} data-overview-add-account><span aria-hidden="true">＋</span> Add account</Button></div>
+      <div className="overview-accounts-heading"><h2 id="overview-accounts-heading">Accounts <span>{activeProfiles.length}</span></h2><Button type="button" variant="default" disabled={busy || activeProfiles.length >= 10} onClick={() => act({ kind: 'add' })} data-overview-add-account><span aria-hidden="true">＋</span> Add account</Button></div>
       {activeProfiles.length > 0 ? <div className="overview-table-scroll" tabIndex={0} role="region" aria-label="Account readings"><table><thead><tr><th scope="col">Account</th><th scope="col">Status</th><th scope="col">Plan</th><th scope="col">Quota remaining</th><th scope="col">Last updated</th><th scope="col">Actions</th></tr></thead>
         <tbody>{activeProfiles.map(profile => {
           const selectedRow = profile.id === profileId;
@@ -224,7 +224,7 @@ export function Overview({ profiles, revision, onAccounts, onAccountAction, busy
             <td><div className="overview-row-actions"><Button variant={signin ? 'default' : 'outline'} disabled={busy} onClick={() => act({ kind: signin ? 'signin' : 'usage', profileId: profile.id })}>{signin ? profile.connectionState === 'unauthorized' ? 'Reconnect' : 'Sign in' : 'View usage'}</Button>{profile.connectionState === 'connected' && <Button variant="ghost" disabled={busy || refreshing || refreshWait > 0} aria-label={`${refreshing ? 'Refreshing' : refreshWait > 0 ? `Refresh in ${refreshWait}s` : 'Refresh'} ${profile.label}`} aria-busy={refreshing} data-overview-row-refresh={profile.id} onClick={() => act({ kind: 'refresh', profileId: profile.id })}>{refreshing ? 'Refreshing…' : refreshWait > 0 ? `Refresh in ${refreshWait}s` : 'Refresh'}</Button>}<Button variant="outline" className="overview-more" disabled={busy} aria-label={`Manage ${profile.label}`} onClick={() => act({ kind: 'manage', profileId: profile.id })}>•••</Button></div></td>
           </tr>;
         })}</tbody>
-      </table></div> : <p className="overview-meta">Your connected accounts will appear here.</p>}
+      </table></div> : null}
     </section>
   </section>;
 }

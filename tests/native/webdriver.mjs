@@ -63,7 +63,7 @@ export class NativeDriver {
     this.capabilities = created.capabilities;
     if (typeof this.session !== 'string') throw new Error('The native driver did not create a session.');
     await this.request('POST', `/session/${this.session}/timeouts`, { script: 15000, pageLoad: 30000, implicit: 0 });
-    await waitFor(async () => Boolean(await this.execute('return window.__TAURI__?.core?.invoke && document.querySelector("#startup-heading");')), 'native bridge and startup view');
+    await waitFor(async () => Boolean(await this.execute('return window.__TAURI__?.core?.invoke && document.querySelector("h1");')), 'native bridge and current view');
   }
 
   execute(script, args = []) { return this.request('POST', `/session/${this.session}/execute/sync`, { script, args }); }

@@ -114,8 +114,7 @@ export function ProviderSettings({ busy, setBusy, approval, onApproved }: Settin
   }
 
   const searchControls = <>
-      <p className="provider-help" id="provider-find-help">Find your installed Codex to sign in and read usage.</p>
-      <Button className="secondary-button" variant="outline" type="button" data-provider-find disabled={busy} aria-describedby="provider-find-help" onClick={() => { void find(); }}>{operation === 'find' ? 'Finding Codex…' : 'Find Codex'}</Button>
+      <Button className="secondary-button" variant="outline" type="button" data-provider-find disabled={busy} onClick={() => { void find(); }}>{operation === 'find' ? 'Finding Codex…' : 'Find Codex'}</Button>
       {discovery && !candidate && <div ref={foundPanel} className="provider-discovery" tabIndex={-1} role="region" aria-label="Codex search results">
         <p role="status">{discovery.candidates.length === 0 ? 'Codex was not found. Enter its path under Advanced.' : discovery.candidates.length === 1 ? 'Codex found.' : `${discovery.candidates.length} installations found. Choose one.`}</p>
         {discovery.truncated && <p className="provider-help">More installations may be available under Advanced.</p>}
@@ -132,7 +131,6 @@ export function ProviderSettings({ busy, setBusy, approval, onApproved }: Settin
       {!candidate && !approval && searchControls}
       {approval && !candidate && <div ref={approvalPanel} className="provider-approval-result" role="status" tabIndex={-1}>
         <h3>Ready to sign in</h3>
-        <p className="provider-help">Open Accounts and sign in to a profile.</p>
         {approval.sourceKind === 'test_fixture' && <p className="provider-fixture-note" data-provider-fixture>Synthetic test data</p>}
         <details className="provider-advanced"><summary>Codex details</summary><p className="provider-path"><bdi>{approval.path}</bdi></p></details>
       </div>}

@@ -27,7 +27,7 @@ let sequence = 0;
 const hash = async path => createHash('sha256').update(await readFile(path)).digest('hex');
 
 async function heading(text) {
-  await waitFor(async () => (await driver.execute('return document.querySelector("#startup-heading")?.textContent;')) === text, text);
+  await waitFor(async () => (await driver.execute('return document.querySelector("h1")?.textContent;')) === text, text);
 }
 
 async function bootstrap(storage, protection) {
@@ -46,7 +46,7 @@ async function openApp() {
   await driver.start();
   evidence.capabilities ??= driver.capabilities;
   assert.equal(driver.capabilities.setWindowRect, true, 'The native driver must support real window resizing.');
-  await waitFor(async () => !['Checking local storage…', undefined].includes(await driver.execute('return document.querySelector("#startup-heading")?.textContent;')), 'native startup state');
+  await waitFor(async () => !['Checking local storage…', undefined].includes(await driver.execute('return document.querySelector("h1")?.textContent;')), 'native startup state');
   const renderer = await driver.execute('const nav=performance.getEntriesByType("navigation")[0]; return {domContentLoadedMs:nav?.domContentLoadedEventEnd || null,loadMs:nav?.loadEventEnd || null,paintEntries:performance.getEntriesByType("paint").map(entry=>({name:entry.name,startMs:entry.startTime}))};');
   evidence.startupTimings.push({ fixture: fixture.name, nativeDriverAndStartupMs: Math.round(performance.now() - started), renderer, scope: 'One synthetic lab launch. Driver creation and polling are included. No percentile or NFR claim.' });
 }
@@ -257,10 +257,10 @@ try {
   await bootstrap('setup_required', 'os_store');
   await captureState('setup-os', '.startup-panel');
   await driver.click('.startup-content .primary-button');
-  await heading('Workspace ready');
+  await heading('Overview');
   await bootstrap('ready', 'os_store');
   await driver.navigate('settings');
-  await captureState('ready-os', '.startup-panel', true);
+  await captureState('ready-os', '.time-settings', true);
   await keyboardFocus();
   await driver.navigate('settings'); await clickButton('Create a backup');
   await captureState('backup-form', '.backup-form', true);
@@ -305,22 +305,22 @@ try {
   assert.equal(await driver.execute('return document.querySelector("#workspace-passphrase").value.length;'), 600, 'The native Unicode text must reach the field.');
   await driver.click('.unlock-form button[type="submit"]');
   await validation('workspace-passphrase', 'workspace-confirmation', 'workspace-error', 'workspace-server-passphrase-validation');
-  assert.match(evidence.validationChecks.at(-1).message, /shorter passphrase/);
+  assert.match(evidence.validationChecks.at(-1).message, /shorter app password/);
   await driver.type('#workspace-passphrase', passphrase);
   await driver.type('#workspace-confirmation', passphrase);
   await driver.click('.unlock-form button[type="submit"]');
-  await heading('Workspace ready');
+  await heading('Overview');
   await bootstrap('ready', 'passphrase');
   await closeApp();
   await openApp();
   await bootstrap('locked', 'passphrase');
-  await heading('Unlock your local workspace');
+  await heading('Welcome back');
   await captureState('locked-fallback', '.unlock-form');
   await driver.type('#workspace-passphrase', passphrase);
   await driver.click('.unlock-form button[type="submit"]');
-  await heading('Workspace ready');
+  await heading('Overview');
   await driver.navigate('settings');
-  await captureState('ready-fallback', '.startup-panel');
+  await captureState('ready-fallback', '.time-settings');
   await disposeFixture();
   assert.deepEqual(evidence.violations, [], 'Native visual checks found layout or font failures.');
   assert.equal(await hash(application), evidence.application.sha256, 'The native binary changed during the run.');
