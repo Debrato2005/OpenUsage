@@ -1,3 +1,4 @@
+import { useOpenDetail } from './detail-panel';
 import { useDateFormat } from './time-display';
 import { useEffect, useState } from 'react';
 import { DataExport } from './data-export';
@@ -11,21 +12,24 @@ const dailyLabels = { unavailable: 'Daily totals were not supplied.', empty: 'Th
 
 function Snapshot({ value }: { value: ActivityHistoryEntry }) {
   const dates = useDateFormat({ second: '2-digit' });
-  return <Collapsible className="activity-history-entry" data-activity-history-run={value.collectionRunId}>
-    <CollapsibleTrigger render={<Button variant="ghost" />} className="activity-history-entry-trigger"><time dateTime={value.observedAtUtc} title={value.observedAtUtc}>{dates.format(new Date(value.observedAtUtc))}</time><span>Saved summary</span><span aria-hidden="true">⌄</span></CollapsibleTrigger>
-    <CollapsiblePanel>
+  const openDetail = useOpenDetail();
+  return <div className="activity-history-entry" data-activity-history-run={value.collectionRunId}>
+    <Button variant="ghost" className="activity-history-entry-trigger" aria-haspopup="dialog" onClick={() => openDetail({ label: 'Activity snapshot', title: 'Activity snapshot', content: <SnapshotDetails value={value} /> })}><time dateTime={value.observedAtUtc} title={value.observedAtUtc}>{dates.format(new Date(value.observedAtUtc))}</time><span>Saved summary</span><span aria-hidden="true">›</span></Button>
+  </div>;
+}
+function SnapshotDetails({ value }: { value: ActivityHistoryEntry }) {
+  return <>
       {value.sourceKind === 'test_fixture' && <p className="activity-history-meta">Synthetic test data</p>}
       <dl className="activity-history-summary">{(Object.keys(labels) as (keyof typeof labels)[]).map(name => <div key={name}><dt>{labels[name]}</dt><dd data-activity-history-metric={name}><bdi>{value.summary[name] ?? 'Not available'}</bdi></dd></div>)}</dl>
       <p className="activity-history-meta" data-activity-history-daily-state={value.dailyBucketsState}>{dailyLabels[value.dailyBucketsState]}</p>
-      <Collapsible className="activity-history-source"><CollapsibleTrigger render={<Button variant="ghost" />}>Source details</CollapsibleTrigger><CollapsiblePanel><dl>
+      <div className="activity-history-source"><dl>
         <dt>Source</dt><dd>{value.sourceKind === 'test_fixture' ? 'Synthetic provider' : 'Official OpenAI companion'}</dd>
         <dt>Provider version</dt><dd><bdi>{value.providerVersion}</bdi></dd>
         <dt>Observed (UTC)</dt><dd><time dateTime={value.observedAtUtc}>{value.observedAtUtc}</time></dd>
         <dt>Application scope</dt><dd>Unknown</dd><dt>Coverage</dt><dd>Unknown</dd>
         <dt>Local connection reference</dt><dd><bdi>{value.bindingId}</bdi></dd><dt>Reading reference</dt><dd><bdi>{value.collectionRunId}</bdi></dd>
-      </dl></CollapsiblePanel></Collapsible>
-    </CollapsiblePanel>
-  </Collapsible>;
+      </dl></div><p>Snapshots are separate observations, not individual usage events.</p>
+  </>;
 }
 
 export function ActivityHistory({ profile, revision }: { profile: ProfileRecord; revision: number }) {
@@ -54,9 +58,9 @@ export function ActivityHistory({ profile, revision }: { profile: ProfileRecord;
     return () => { active = false; };
   }, [open, key, profileId, cursor]);
   return <Collapsible className="activity-history" data-activity-history={profileId} open={open} onOpenChange={next => { setDisclosure({ profileId, open: next }); setNavigation({ scope, cursors: [null] }); setResult(null); setAttempt(value => value + 1); }}>
-    <CollapsibleTrigger render={<Button variant="outline" className="row-disclosure" />} data-activity-history-open aria-expanded={open}>{open ? 'Hide activity history' : 'View activity history'}</CollapsibleTrigger>
+    <CollapsibleTrigger render={<Button variant="outline" className="row-disclosure" />} data-activity-history-open aria-expanded={open}>Activity history</CollapsibleTrigger>
     <CollapsiblePanel>
-      <div className="activity-history-heading"><h3>Activity history</h3><p>Saved account summaries, newest first. Snapshots are separate observations, not individual usage events.</p></div>
+      <h3 className="sr-only">Activity history</h3>
       <DataExport profiles={[profile]} busy={exportBusy} setBusy={setExportBusy} activityHistory />
       {loading && <p className="activity-history-meta" role="status">Loading saved activity history…</p>}
       {current?.failed && <div className="activity-history-error" role="alert"><p>{cursor ? 'This activity history page could not be loaded.' : 'Saved activity history could not be loaded.'}</p><Button variant="outline" onClick={() => setAttempt(value => value + 1)}>Retry activity history</Button>{cursor && <Button variant="ghost" onClick={() => setNavigation({ scope, cursors: [null] })}>Back to latest readings</Button>}</div>}

@@ -1,3 +1,4 @@
+import { DetailProvider } from './detail-panel';
 import { TimeDisplay, TimeSettings } from './time-display';
 import openusageLogo from './assets/openusage-logo.png';
 import { Button } from './components/ui/button';
@@ -305,10 +306,10 @@ function App() {
   </>;
   const titles = { overview: 'Overview', usage: 'Usage', settings: 'Settings' };
   const privacyControls = <>
-    <Button variant="ghost" className={`text-button ${ready ? 'settings-privacy' : 'onboarding-privacy'}`} onClick={() => setPrivacy(!privacy)} aria-expanded={privacy} aria-controls="privacy-details">{privacy ? 'Hide privacy details' : 'About your privacy'}</Button>
+    <Button variant="ghost" className={`row-disclosure ${ready ? 'settings-privacy' : 'onboarding-privacy'}`} onClick={() => setPrivacy(!privacy)} aria-expanded={privacy} aria-controls="privacy-details">Privacy details</Button>
     {privacy && <section className="privacy-details" id="privacy-details" aria-labelledby="privacy-heading"><h2 id="privacy-heading">Privacy and local storage</h2><p>OpenUsage has no hosted account or telemetry. Account connections require your approval. Provider credentials stay with Codex.</p><p>Encrypted storage protects application records. It does not encrypt provider credential files or operating-system swap.</p><p>Codex handles approved sign-in requests, connection checks, and readings. Monitoring runs only while OpenUsage is open and your workspace is unlocked.</p></section>}
   </>;
-  return <TimeDisplay ready={ready} revision={profileRevision}><div className={`app-shell${ready ? '' : ' onboarding-shell'}`}>
+  return <TimeDisplay ready={ready} revision={profileRevision}><DetailProvider><div className={`app-shell${ready ? '' : ' onboarding-shell'}`}>
     <a className="skip-link" href="#main">Skip to dashboard</a>
     <header className="workspace-header" hidden={!ready}>
       <a className="brand" href="#main" onClick={() => navigate('overview')} aria-label="OpenUsage dashboard"><span className="brand-wordmark"><img src={openusageLogo} alt="OpenUsage" /></span></a>
@@ -397,7 +398,6 @@ function App() {
                     <Field><FieldLabel htmlFor="backup-password">Backup password</FieldLabel><Input nativeInput id="backup-password" name="backup-password" type="password" autoComplete="new-password" required minLength={12} maxLength={1024} disabled={busy} aria-invalid={!!backupError && backupErrorField === 'backup-password'} aria-describedby={`backup-password-help${backupError && backupErrorField === 'backup-password' ? ' backup-error' : ''}`} value={backupPassword} onChange={event => { setBackupPassword(event.target.value); setBackupError(null); }} /></Field>
                     <Field><FieldLabel htmlFor="backup-confirmation">Confirm backup password</FieldLabel><Input nativeInput id="backup-confirmation" name="backup-confirmation" type="password" autoComplete="new-password" required minLength={12} maxLength={1024} disabled={busy} aria-invalid={!!backupError && backupErrorField === 'backup-confirmation'} aria-describedby={backupError && backupErrorField === 'backup-confirmation' ? 'backup-error' : undefined} value={backupConfirmation} onChange={event => { setBackupConfirmation(event.target.value); setBackupError(null); }} /></Field>
                     <p id="backup-password-help">Use at least 12 characters. Keep this password. OpenUsage cannot recover it.</p>
-                    <p>The encrypted file will save in Downloads/OpenUsage.</p>
                     <Button className="primary-button" type="submit" disabled={busy || !backupRecords}>{busy ? 'Encrypting backup…' : 'Save encrypted backup'}</Button>
                     {backupError && <p id="backup-error" className="operation-error" role="alert">{backupError}</p>}
                   </form>}
@@ -410,7 +410,7 @@ function App() {
               </div>
             </section>
             <section id={settingsSections.connection.id} className="settings-group" tabIndex={-1} aria-labelledby="settings-connection-title">
-              <h2 id="settings-connection-title" className="settings-group-title">{settingsSections.connection.title}</h2>
+              <h2 id="settings-connection-title" className="sr-only">{settingsSections.connection.title}</h2>
               <div className="settings-card"><ProviderSettings busy={busy} setBusy={setBusy} approval={providerApproval} onApproved={setProviderApproval} /></div>
             </section>
             <section id={settingsSections.privacy.id} className="settings-group" tabIndex={-1} aria-labelledby="settings-privacy-title">
@@ -425,7 +425,7 @@ function App() {
         </section>
       </main>
     </div>
-  </div></TimeDisplay>;
+  </div></DetailProvider></TimeDisplay>;
 }
 
 type WorkspaceView = 'overview' | 'usage' | 'settings';

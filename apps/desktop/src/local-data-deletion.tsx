@@ -80,8 +80,7 @@ export function LocalDataDeletion({ busy, setBusy, onChanged, pending = false }:
   }
 
   return <section className="backup-panel" data-local-data-deletion aria-label="Local data">
-    <h2>Local data</h2>
-    <p className="provider-help">{pending ? 'Deletion is incomplete. Some local data may remain. Finish deleting it before creating another workspace.' : 'Disconnect accounts and remove data saved by OpenUsage.'}</p>
+    {pending && <p role="alert">Deletion is incomplete. Some local data may remain. Finish deleting it before creating another workspace.</p>}
     <Button ref={trigger} variant="destructive-outline" disabled={busy} data-local-data-deletion-open onClick={() => { setConfirmed(false); setError(null); setOpen(true); }}>{title}</Button>
     <dialog ref={dialog} role="alertdialog" aria-modal="true" aria-labelledby={`${id}-title`} aria-describedby={`${id}-scope ${id}-retained`} data-local-data-deletion-dialog onCancel={event => { event.preventDefault(); dismiss(); }} onClose={dismiss} style={{ position: 'fixed', inset: 0, width: 'min(32rem, calc(100vw - 2rem))', maxHeight: 'calc(100dvh - 2rem)', margin: 'auto', padding: 'var(--space-5)', border: '1px solid var(--line)', borderRadius: 'var(--radius-panel)', background: 'var(--surface)', color: 'var(--text)', font: 'inherit', overflow: 'auto', overflowWrap: 'anywhere' }}>
       <h2 id={`${id}-title`} style={{ fontSize: 'var(--text-section)' }}>{title}</h2>

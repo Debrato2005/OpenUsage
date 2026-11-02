@@ -121,7 +121,15 @@
   .overview-accounts-heading { align-items: stretch; }
   .overview-accounts-tools, .overview-search { flex: 1 1 100%; min-width: 0; }
   .overview-search input { flex: 1; width: auto; }
-  .overview-accounts th, .overview-accounts td { padding-inline: .625rem; }
+  .overview-accounts thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .overview-accounts table, .overview-accounts tbody { display: block; }
+  .overview-accounts tbody tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .5rem .75rem; padding: .625rem; }
+  .overview-accounts tbody th, .overview-accounts tbody td { padding: 0; }
+  .overview-accounts tbody th { grid-column: 1; grid-row: 1; }
+  .overview-accounts tbody td:last-child { grid-column: 2; grid-row: 1; }
+  .overview-accounts tbody td[data-overview-account-quota] { grid-column: 1 / -1; }
+  .overview-accounts td[data-window]::before { content: attr(data-window); display: block; margin-bottom: .125rem; color: var(--muted); font-size: .75rem; }
+  .overview-table-quota { max-width: none; }
 }
 
 /* Donut */

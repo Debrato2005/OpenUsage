@@ -24,11 +24,13 @@ Overview answers one question: what have I used, and what is left? It shows the 
 
 The accounts table uses one column per window, under the same match rule as Compare. A connected account shows no status. Any other state shows one mark and its one action. A row with a connection problem shows that mark ahead of a freshness mark.
 
-The share donut appears beside token activity in Profile sum and Verified combined, so it follows the same accounts and dates. The quota donut is on Usage. Theme and display scale are in Settings. The active page in the header names the view, so the page heading is for screen readers only.
+The share donut appears beside token activity in Profile sum and Verified combined, so it follows the same accounts and dates, and it appears only when it has shares to show. The quota donut is on Usage. Theme and display scale are in Settings. The active page in the header names the view, so the page heading is for screen readers only.
+
+`DetailProvider` hosts the panel for the whole app. `useOpenDetail` opens it from a control, and `DetailLink` makes a number open it. Compare cells, history snapshots, and heatmap values use it. Below 620 pixels the accounts table stacks each row and keeps its table roles.
 
 Saved numbers and selection rules are unchanged. Connected profiles alone supply the quota and reset summaries; percentages from separate windows are never added. Unknown freshness keeps its existing wording under [SC-012](../srs-clarifications.md#sc-012-unknown-freshness-in-summary-marks).
 
-Usage, Settings and Manage accounts still need the Section 2.3 review.
+Manage accounts keeps its own list and shows a reading through View usage in the row, because that list owns sign-in, focus and provider actions.
 
 ## Current workspace design — November 2, 2026
 

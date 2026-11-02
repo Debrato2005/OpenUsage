@@ -8,4 +8,7 @@
 .detail-rows { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: .625rem 1rem; margin: 0; font-size: .8125rem; line-height: 1.45; }
 .detail-rows dt { color: var(--muted); overflow-wrap: anywhere; }
 .detail-rows dd { margin: 0; color: var(--text-strong); overflow-wrap: anywhere; }
+.detail-link { padding: 0; border: 0; border-radius: .25rem; background: none; color: inherit; font: inherit; text-align: start; cursor: pointer; }
+.detail-link:hover { text-decoration: underline; }
+.detail-link:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .mark { display: inline-block; color: var(--warning); font-size: .75rem; font-weight: 500; line-height: 1.4; }
