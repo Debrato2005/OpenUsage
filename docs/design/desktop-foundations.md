@@ -2,7 +2,19 @@
 
 # Desktop design foundations
 
-Updated: October 20, 2026. These foundations cover the native workspace, account overview, backup controls, and provisional quota preview. The user selected coss/ui for all components. The [adoption record](coss-ui-adoption.md) controls the incremental migration. Charts and accepted history need further native qualification.
+Updated: November 2, 2026. These foundations cover the native workspace, account overview, backup controls, and provisional quota preview. The user selected coss/ui for all components. The [adoption record](coss-ui-adoption.md) controls the incremental migration. Charts and accepted history need further native qualification.
+
+## Design rules
+
+[SRS Section 2.3](../SRS.md) controls every screen. In practice:
+
+- Remove text first. If a screen then stops making sense, change the layout.
+- A normal number shows its name and value. An abnormal one adds one mark. A missing one shows Not available.
+- Put source, time, scope and reasons in the one detail panel that opens from the number. It must work by keyboard, not only on hover.
+- Set scope once with a page or a control, such as Provider or This device.
+- Keep errors, consent, destructive confirmations and accessible names.
+
+The sections below are dated records. Where they describe explanatory text or repeated labels, these rules win.
 
 ## Current workspace design — November 2, 2026
 

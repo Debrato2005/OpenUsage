@@ -31,7 +31,7 @@ Run the example with reviewed absolute paths:
 cargo run --manifest-path crates/openusage-codex/Cargo.toml --example isolated_probe -- /approved/codex /private/managed-parent
 ```
 
-The real Linux probe passed with Codex CLI 0.163.0 on October 18, 2026. It returned an unauthenticated account and unknown identity. The child, process group, and temporary homes were absent afterward. Unit transport fixtures remain synthetic. Native integration, authenticated collection, and a persistent process supervisor remain unimplemented.
+The real Linux probe passed with Codex CLI 0.163.0 on October 18, 2026. It returned an unauthenticated account and unknown identity. The child, process group, and temporary homes were absent afterward. Unit transport fixtures remain synthetic. This paragraph covers the probe only. `src/supervisor.rs` runs approved provider checks, and the desktop app schedules collection.
 
 Additional pinned sources:
 

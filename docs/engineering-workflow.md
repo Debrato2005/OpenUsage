@@ -26,14 +26,3 @@ Logs retain commands, timing, exit codes and fixed diagnostic counters. They dis
 `trace` reads only the selected regular JSONL file. It emits counts and owner-scoped token high-water marks without messages, arguments, identifiers or raw outputs. Copied parent history is flagged. Do not add token snapshots or interpret them as billing. Repeats and category matches indicate review candidates, not proven waste.
 
 Reuse `scripts/storage.py check` and `clean` for storage measurement and bounded cleanup. Cleanup previews by default. Existing secret hooks remain mandatory. CI runs Python tool tests, whitespace and tracked-ignore checks with a five-minute deadline. Hosted Windows/macOS results remain unverified until CI runs.
-## Local results: October 22, 2026
-
-The selected historical root trace contained 6,873 tool-call records, 87 exact repeats and 95,223,470 bytes of tool output. Heuristics found 211 calls mentioning broad tests and 494 mentioning core documentation reads. These counts describe stored records. They do not prove that each command ran or was redundant. Four recent agent traces also passed analysis. Two contained copied parent history, so their call counts cannot establish independent agent work.
-
-The private summary retains exact cumulative token counters, including cached inputs. These metadata fields are not billing measurements. The utilities make no model calls. We claim no percentage reduction in model tokens.
-
-The same 26 local tool tests passed through manual checks in 1.87 seconds and the new entry point in 1.81 seconds. That difference does not establish a test speedup. Two operator commands became one, with deterministic selection, deadlines and fail-fast behavior.
-
-Five documentation-only fixture cycles took 14 to 16 ms each. Retention reached three runs and then stayed at 2,112 bytes. Tests also covered secret-output exclusion, token snapshot handling, unsafe-link refusal, tracked private artifacts and timeout cleanup of child processes. This tooling-only change needed no application build or native acceptance run.
-
-A mid-task disk comparison measured 86,016 additional allocated bytes. The shared `.tools` allocation stayed unchanged. No build cache or executable copy was created. Existing storage cleanup remains the single cleanup implementation.

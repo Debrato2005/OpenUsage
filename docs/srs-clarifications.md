@@ -2,6 +2,22 @@
 
 # SRS clarification record
 
+This is the record of how requirements were read. Entries keep their original date and wording, so "the normative SRS" in an entry means the baseline at that date. [Baseline 3.0](SRS.md) is current.
+
+| ID | Topic | Status under baseline 3.0 |
+|---|---|---|
+| SC-001 | Reset confirmation with rapid new-window use | Proposed, not approved |
+| SC-002 | Restore interruption | In force; acceptance open |
+| SC-003 | Device-code challenge display | In force |
+| SC-004 | Companion preparation through Add | In force |
+| SC-005 | Browser callback isolation | Unresolved |
+| SC-006 | Initial account snapshot | In force |
+| SC-007 | Three primary pages | Folded into OU-UI-001 |
+| SC-008 | Consumed lower thresholds | In force |
+| SC-009 | Authentication-required evidence | In force; OU-ALERT-007 open |
+| SC-010 | Selected-profile activity | In force |
+| SC-011 | Baseline 3.0 replaces baseline 2.0 | Adopted |
+
 ## SC-001: reset confirmation with rapid new-window use
 
 Status: proposed, not approved. No normative text or runtime reset rule changed.
@@ -80,3 +96,9 @@ OU-ALERT-007 remains open for confirmed invalid-credential evidence through a su
 ## SC-010: approved unverified selected-profile activity
 
 The owner approved [the narrow amendment](proposals/user-curated-profile-activity.md) on October 22, 2026. An explicit Profile sum view may calculate observed subtotals and shares from the same pinned provider contract and matching provider dates. Its visible Unverified label and details retain unknown identity, application scope and day-definition limits. This does not certify compatibility or distinct accounts. Known duplicate identities and known contract differences are excluded. Verified combined totals retain every existing identity, scope and live-contract gate. The normative SRS file remains unchanged.
+
+## SC-011: baseline 3.0 replaces baseline 2.0
+
+Status: adopted November 2, 2026.
+
+The owner's November 2 decisions conflicted with baseline 2.0. They widen the product to many tools, permit local logs and auditable Unofficial sources, add an opt-in hosted leaderboard, remove promotions, payments and receipt import, make paid code signing optional and cut secondary labels. [Baseline 3.0](SRS.md) records them, and its Section 22.1 lists every change. Baseline 2.0 remains in Git history at commit `5f1c2c7`.

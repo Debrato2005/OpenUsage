@@ -1,39 +1,34 @@
 # OpenUsage
 
-A local desktop application for account usage and quota readings. Development uses Tauri 2, Rust, React, and SQLCipher 4 with WAL. See [implementation status](docs/implementation-status.md) for the current scope and executed checks.
+OpenUsage shows what you have used and what you have left across your AI coding tools.
 
-This is development source, not a production release. See [security limits](SECURITY.md) and [unfinished requirements](docs/implementation-status.md#still-incomplete). Raw account data, test databases and diagnostic captures remain private. Historical test results apply to their recorded builds.
+It is free and open source. It runs on your machine, with no OpenUsage account and no telemetry.
 
-The repository retains privacy-filtered development history. `Original-Commit` trailers link filtered commits to their local originals. Work from the repository root with ordinary Git commands. Recovery copies are private backups, not separate development checkouts. See [contributor instructions](CONTRIBUTING.md) for storage limits and verification commands.
+## Status
 
-## Linux build with LLD
+OpenUsage is in development, and there is no release yet.
 
-With native prerequisites installed and dependencies cached, build the frontend and desktop binary:
+| | Today | Planned |
+|---|---|---|
+| Tools | Codex | Many tools, through provider sources and local logs |
+| Platforms | Linux development builds | Windows, macOS, and Linux |
+| Interface | Desktop app | Desktop app and `openusage` CLI |
+| Install | Build from source | `npm install -g openusage` |
 
-```sh
-npm run build
-CARGO_BUILD_JOBS=1 cargo rustc --locked --offline -p openusage-desktop --bin openusage-desktop -- -C link-arg=-Wl,--threads=1
-```
+Testing so far mostly uses synthetic data. [Implementation status](docs/implementation-status.md) shows what works and how far each result reaches.
 
-This Linux/LLD command limits linker workers as well as Cargo jobs. Cargo applies the additional flag only to the selected binary. See the [Cargo command documentation](https://doc.rust-lang.org/cargo/commands/cargo-rustc.html) and [LLD options](https://github.com/llvm/llvm-project/blob/main/lld/docs/ld.lld.1).
+## Build
 
-The observed build took 39 seconds and produced the same bytes as the native-tested default binary. This is one shared-host observation, not a performance benchmark. See the build record (private evidence omitted).
-## Linux companion build
+See [Build from source](CONTRIBUTING.md#build-from-source).
 
-A provisioned build includes the pinned official Codex companion and its license notices. Rust checks the companion before execution. Account sign-in keeps its own consent. Manual paths remain in Settings for troubleshooting.
+## Documentation
 
-Prepare the reviewed archive, then enable the companion configuration:
+- [Documentation map](docs/README.md)
+- [Requirements](docs/SRS.md)
+- [Architecture](docs/architecture.md)
+- [Contributing](CONTRIBUTING.md)
+- [Security](SECURITY.md)
 
-```sh
-npm run build
-npm run prepare:companion -- --offline
-TAURI_CONFIG="$(cat apps/desktop/src-tauri/tauri.companion.conf.json)" \
-  CARGO_BUILD_JOBS=1 cargo rustc --locked --offline \
-  -p openusage-desktop --bin openusage-desktop -- -C link-arg=-Wl,--threads=1
-```
+## License
 
-The archive cache defaults to `.tools` in this checkout. Use `--cache-dir /absolute/cache` for a shared cache. Omit `--offline` only to download the exact pinned archive during build preparation. The script checks archive and executable hashes without launching the executable. It refuses unsupported targets.
-
-The Tauri override stages `openusage-codex` beside the application and copies LICENSE and NOTICE under `licenses/codex`. Keep those files together. The ordinary development build can instead discover a supported installed version. It does not produce a companion bundle by default.
-
-This path currently covers Linux x86_64 only. A native build does not prove an installer or another platform. See the [source review and architecture decision](docs/reviews/2026-10-21-onboarding-sources.md).
+[Apache License 2.0](LICENSE)

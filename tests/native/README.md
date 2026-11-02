@@ -1,5 +1,7 @@
 # Native startup smoke
 
+See [implementation status](../../docs/implementation-status.md#failing-or-stale-tests) for which journeys currently pass.
+
 Run `node tests/native/smoke.mjs` after the native binary build.
 
 This Linux test uses the real Tauri binary, `tauri-driver`, and `WebKitWebDriver`.
