@@ -58,7 +58,7 @@ Renderer tests, native journeys, and the local commit therefore need approval to
 
 - The slice's tests pass, or the report names each one that did not run and why.
 - The [workflow](engineering-workflow.md) checks pass. UI changes also need the full renderer suite in Chromium and WebKit. Rust changes also need the full workspace tests.
-- UI changes are checked by eye in screenshots: light, dark, a 720-pixel window, empty, and error states. Each screen answers one question, its main action is obvious, and nothing is clipped or repeated.
+- UI changes are checked by eye in screenshots: light, dark, a 720-pixel window, and empty, populated, and error states. Empty fixtures hide layout problems, so always check real-looking data. Each screen answers one question, its main action is obvious, and nothing is clipped or repeated.
 - Docs are updated as the [documentation map](README.md) lists, and the slice is marked Done below.
 - The slice has one local commit. Then report and stop.
 

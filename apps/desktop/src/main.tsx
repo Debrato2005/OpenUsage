@@ -25,7 +25,7 @@ import { Usage } from './usage';
 import { useMonitoring } from './monitoring';
 import { providerFailure } from './provider-errors';
 import { SettingsNav, settingsSections } from './settings-nav';
-import { CloseIcon, EyeOffIcon, LockIcon, ShieldIcon } from './icons';
+import { CloseIcon } from './icons';
 import './styles.css';
 import './workspace-layout.css';
 
@@ -317,7 +317,7 @@ function App() {
       {ready && <div className="workspace-appearance"><span className={monitoringQuiet ? 'sr-only' : 'status-pill'} data-global-monitoring={!monitoring.unavailable ? monitoring.status?.state : undefined}><span className="status-dot" aria-hidden="true" />{monitoring.unavailable ? 'Monitoring status unavailable' : monitoring.status ? `Monitoring ${monitoring.status.state}` : 'Loading monitoring status…'}</span></div>}
     </header>
     <div className="workspace">
-      {!ready && <header className="onboarding-header"><a className="brand" href="#main" aria-label="OpenUsage"><span className="brand-wordmark"><img src={openusageLogo} alt="OpenUsage" /></span></a>{appearance}</header>}
+      {!ready && <header className="onboarding-header"><a className="brand" href="#main" aria-label="OpenUsage"><span className="brand-wordmark"><img src={openusageLogo} alt="OpenUsage" /></span></a></header>}
       <main id="main" tabIndex={-1}>
         {ready && <div className="page-heading"><h1>{titles[view]}</h1></div>}
         {scaleError && <p role="alert" className="operation-error">Display size could not be saved. Try again.</p>}
@@ -351,7 +351,6 @@ function App() {
             {data?.storage === 'locked' && !needsPassphrase && <p className="development-note">Unlock your system key store, then check the workspace again.</p>}
             {(recovery || (data?.storage === 'locked' && !needsPassphrase)) && <Button className="primary-button" disabled={busy} onClick={() => { setOperationError(null); setStartup({ kind: 'loading' }); setAttempt(n => n + 1); }}>Check workspace</Button>}
             {operationError && <p id="workspace-error" className="operation-error" role="alert">{operationError}</p>}
-            {data?.storage === 'setup_required' && <ul className="onboarding-promises"><li><LockIcon />Saved readings stay encrypted on this device</li><li><ShieldIcon />Provider credentials stay with Codex</li><li><EyeOffIcon />No hosted account or telemetry</li></ul>}
           </div>
         </section>}
         {ready && operationError && <p id="workspace-error" className="operation-error" role="alert">{operationError}</p>}

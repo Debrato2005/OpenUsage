@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Button } from './components/ui/button';
 import { AssociationReview } from './association-review';
 import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from './components/ui/collapsible';
+import { useOpenDetail } from './detail-panel';
 import { invoke, type ProfileActivityAssociationReview, type ActivityFreshness, type ProfileReadingReference, type SavedProfileActivity, type ProviderExecutableApproval } from './contracts';
 import { providerFailure } from './provider-errors';
 import './activity.css';
@@ -14,15 +15,11 @@ const freshnessLabels = { unknown: 'Freshness unknown', fresh: 'Current', stale:
 function Metric({ name, value, freshness }: { name: keyof typeof labels; value: string | null; freshness: ActivityFreshness }) {
   return <div><dt>{labels[name]}</dt><dd data-activity-metric={name} data-activity-state={value === null ? 'not_available' : freshness} className="activity-count" tabIndex={0} aria-label={labels[name]}><bdi>{value ?? 'Not available'}</bdi></dd></div>;
 }
-function ActivityValues({ value }: { value: SavedProfileActivity }) {
+function DailyDetails({ value }: { value: SavedProfileActivity }) {
   const [page, setPage] = useState(0);
   const buckets = value.dailyUsageBuckets;
   const start = page * 50;
   return <>
-    <dl className="activity-summary">{(['lifetimeTokens', 'peakDailyTokens', 'currentStreakDays'] as const).map(name => <Metric key={name} name={name} value={value.summary[name]} freshness={value.freshness} />)}</dl>
-    <Collapsible className="activity-details">
-      <CollapsibleTrigger render={<Button variant="ghost" className="text-button" />} type="button">Activity details</CollapsibleTrigger>
-      <CollapsiblePanel>
         <dl className="activity-summary activity-secondary">{(['longestRunningTurnSec', 'longestStreakDays'] as const).map(name => <Metric key={name} name={name} value={value.summary[name]} freshness={value.freshness} />)}</dl>
         <h4>Saved daily totals</h4>
         <p className="provider-help">Dates are shown as returned. Missing dates do not mean zero usage.</p>
@@ -32,13 +29,26 @@ function ActivityValues({ value }: { value: SavedProfileActivity }) {
           <ol className="activity-days" aria-label="Saved daily totals">{buckets.slice(start, start + 50).map(row => <li data-activity-day data-activity-day-freshness={row.freshness} key={row.date}><time dateTime={row.date}>{row.date}</time><span className="activity-count" tabIndex={0} aria-label={`Tokens for ${row.date}`}><bdi>{row.tokens}</bdi></span><span className="provider-help activity-day-observed">{freshnessLabels[row.freshness]} · Observed <DisplayTime data-activity-observed value={row.observedAtUtc} /></span></li>)}</ol>
           {buckets.length > 50 && <nav className="activity-pagination" aria-label="Daily usage pages"><p role="status">Rows {start + 1}–{Math.min(start + 50, buckets.length)} of {buckets.length} shown</p><Button type="button" variant="outline" disabled={page === 0} onClick={() => setPage(current => current - 1)}>Previous</Button><Button type="button" variant="outline" disabled={start + 50 >= buckets.length} onClick={() => setPage(current => current + 1)}>Next</Button></nav>}
         </>}
-      </CollapsiblePanel>
+  </>;
+}
+function ActivityValues({ value, summaryOnly }: { value: SavedProfileActivity; summaryOnly: boolean }) {
+  const openDetail = useOpenDetail();
+  const summary = <dl className="activity-summary">{(['lifetimeTokens', 'peakDailyTokens', 'currentStreakDays'] as const).map(name => <Metric key={name} name={name} value={value.summary[name]} freshness={value.freshness} />)}</dl>;
+  if (summaryOnly) return <>{summary}<Button variant="ghost" className="text-button" aria-haspopup="dialog" data-activity-details-open onClick={() => openDetail({ label: 'Saved activity details', title: 'Saved activity', content: <>
+    <dl className="detail-rows"><dt>Source</dt><dd>{value.sourceKind === 'test_fixture' ? 'Synthetic test data' : 'Codex app-server'}</dd><dt>Observed</dt><dd><DisplayTime value={value.observedAtUtc} /></dd><dt>Freshness</dt><dd>{freshnessLabels[value.freshness]}</dd><dt>Scope</dt><dd>Unknown</dd><dt>Coverage</dt><dd>Unknown</dd><dt>Identity</dt><dd>Unverified</dd></dl>
+    <DailyDetails value={value} />
+  </> })}>Details</Button></>;
+  return <>
+    {summary}
+    <Collapsible className="activity-details">
+      <CollapsibleTrigger render={<Button variant="ghost" className="text-button" />} type="button">Activity details</CollapsibleTrigger>
+      <CollapsiblePanel><DailyDetails value={value} /></CollapsiblePanel>
     </Collapsible>
   </>;
 }
 
 // Cache reads do not require an approved executable or execute the provider.
-export function ProfileActivity({ profileId, profileLabel, children, emptyContent, readingRevision }: { profileId: string; profileLabel: string; readingRevision?: string | undefined; emptyContent?: ReactNode; children: (onSaved: (receipt: ProfileReadingReference, focusResult?: boolean) => Promise<void>, onFailed: () => Promise<void>) => ReactNode }) {
+export function ProfileActivity({ profileId, profileLabel, children, emptyContent, readingRevision, summaryOnly = false }: { profileId: string; profileLabel: string; readingRevision?: string | undefined; emptyContent?: ReactNode; summaryOnly?: boolean; children: (onSaved: (receipt: ProfileReadingReference, focusResult?: boolean) => Promise<void>, onFailed: () => Promise<void>) => ReactNode }) {
   const [value, setValue] = useState<SavedProfileActivity | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -85,11 +95,13 @@ export function ProfileActivity({ profileId, profileLabel, children, emptyConten
       <h3>Saved activity</h3>
       {error && <div><p role="alert" data-activity-cache-error>{error}</p><Button type="button" variant="outline" disabled={loading} onClick={() => { void load(undefined, true); }}>Reload saved activity</Button></div>}
       {value && <>
-        {value.sourceKind === 'test_fixture' && <p className="provider-fixture-note" data-provider-fixture>Synthetic test data</p>}
-        <p className="provider-help">Unverified identity · Saved locally</p>
-        <p className="provider-help"><span data-activity-freshness={value.freshness}>{freshnessLabels[value.freshness]}</span> · Last read <DisplayTime value={value.observedAtUtc} /></p>
-        <p className="provider-help">Account activity; application scope and coverage are unknown.</p>
-        <ActivityValues key={`${value.bindingId}:${value.collectionRunId}`} value={value} />
+        {!summaryOnly && <>
+          {value.sourceKind === 'test_fixture' && <p className="provider-fixture-note" data-provider-fixture>Synthetic test data</p>}
+          <p className="provider-help">Unverified identity · Saved locally</p>
+          <p className="provider-help"><span data-activity-freshness={value.freshness}>{freshnessLabels[value.freshness]}</span> · Last read <DisplayTime value={value.observedAtUtc} /></p>
+          <p className="provider-help">Account activity; application scope and coverage are unknown.</p>
+        </>}
+        <ActivityValues key={`${value.bindingId}:${value.collectionRunId}`} value={value} summaryOnly={summaryOnly} />
       </>}
     </div>}
   </>;

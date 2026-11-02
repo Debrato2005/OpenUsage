@@ -588,7 +588,11 @@ test('wide Usage opens a full-year calendar that fills its panel without changin
   await expect(calendar.locator('[data-heatmap-padding][role="button"]')).toHaveCount(0);
   const weekdayLabels = await calendar.locator('.react-activity-calendar svg text').allTextContents();
   for (const day of ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']) expect(weekdayLabels).toContain(day);
-  await expect(calendar.locator('[data-heatmap-coverage]')).toContainText('328 of 365 days reported');
+  await calendar.locator('[data-heatmap-values-toggle]').click();
+  const values = page.locator('[data-detail-panel][open]');
+  await expect(values.locator('[data-heatmap-coverage]')).toContainText('328 of 365 days reported');
+  expect(await values.evaluate(node => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
+  await closeDetail(page);
   const sizes = await calendar.evaluate(node => ({ panel: node.clientWidth, plot: node.querySelector('.react-activity-calendar svg')!.getBoundingClientRect().width }));
   expect(sizes.plot).toBeGreaterThan(sizes.panel * .75);
   await expect(calendar.locator('[data-heatmap-cell][data-value="missing"]')).toHaveCount(37);

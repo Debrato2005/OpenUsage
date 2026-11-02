@@ -3,7 +3,7 @@
 .detail-panel::backdrop { background: rgb(0 0 0 / .32); }
 .detail-panel-heading { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .75rem 1.125rem; border-bottom: 1px solid var(--line); background: var(--surface); }
 .detail-panel-heading h2 { display: flex; align-items: center; gap: .625rem; min-width: 0; margin: 0; font-size: 1rem; line-height: 1.4; font-weight: 600; letter-spacing: -.012em; overflow-wrap: anywhere; }
-.detail-panel-body { display: grid; gap: 1.125rem; padding: 1.125rem; }
+.detail-panel-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.125rem; padding: 1.125rem; }
 .detail-panel-value { margin: 0; color: var(--text-strong); font-size: 1.75rem; font-weight: 600; line-height: 1.2; letter-spacing: -.02em; }
 .detail-rows { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: .625rem 1rem; margin: 0; font-size: .8125rem; line-height: 1.45; }
 .detail-rows dt { color: var(--muted); overflow-wrap: anywhere; }

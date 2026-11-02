@@ -33,10 +33,10 @@ export function Usage({ profiles, revision, onAccounts, active, requestedProfile
       </Select>}
     </div>
     {profile && <div className="usage-activity"><div className="usage-card"><TokenHeatmap profileId={profile.id} profileLabel={profile.label} revision={revision} emptyAction={<Button variant="outline" onClick={onAccounts}>Manage accounts</Button>} /></div><UsageDonut profile={profile} revision={revision} /></div>}
-    {profile && <QuotaHistory key={`history:${profile.id}`} profile={profile} revision={revision} />}
-    {profile && <ActivityHistory key={`activity-history:${profile.id}`} profile={profile} revision={revision} />}
-    {profile ? <ProfileActivity key={profile.id} readingRevision={String(revision)} profileId={profile.id} profileLabel={profile.label}>{() => null}</ProfileActivity>
+    {profile ? <ProfileActivity key={profile.id} readingRevision={String(revision)} profileId={profile.id} profileLabel={profile.label} summaryOnly>{() => null}</ProfileActivity>
       : <div className="empty-state"><h3>No saved activity yet</h3><Button variant="outline" onClick={onAccounts}>Manage accounts</Button></div>}
     <QuotaCompare profiles={profiles} revision={revision} />
+    {profile && <QuotaHistory key={`history:${profile.id}`} profile={profile} revision={revision} />}
+    {profile && <ActivityHistory key={`activity-history:${profile.id}`} profile={profile} revision={revision} />}
   </section>;
 }
