@@ -54,8 +54,6 @@
 .onboarding-shell .workspace { display: flex; flex: 1; flex-direction: column; }
 .onboarding-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; padding: 20px 28px; }
 .onboarding-header .brand { padding: 0; }
-.onboarding-header .theme-control { flex-wrap: wrap; gap: 8px; font-size: var(--text-sm); color: var(--muted); }
-.onboarding-header [data-slot='select-trigger'] { min-height: var(--control-height); font-size: var(--text-sm); }
 .onboarding-shell .workspace > main { width: 100%; max-width: 480px; padding: 16px 24px 12vh; margin: auto; }
 .onboarding-shell .startup-panel { padding: 32px; border-radius: 1rem; box-shadow: var(--elevation-panel); }
 .onboarding-shell #startup-heading { font-size: 1.5rem; line-height: 1.25; }
@@ -64,8 +62,6 @@
 .onboarding-shell .unlock-form > p { margin: 0; font-size: var(--text-sm); }
 .onboarding-shell .unlock-form label { margin-top: 8px; font-size: var(--text-sm); }
 .onboarding-shell .startup-content .primary-button { width: 100%; align-self: stretch; margin-top: 16px; }
-.onboarding-promises { list-style: none; display: grid; gap: 10px; margin: 20px 0 0; padding: 18px 0 0; border-top: 1px solid var(--line); color: var(--muted); font-size: var(--text-xs); }
-.onboarding-promises li { display: flex; align-items: center; gap: 10px; }
 .onboarding-shell .onboarding-privacy { display: block; margin: 12px auto 0; color: var(--muted); font-size: var(--text-xs); }
 .onboarding-shell .privacy-details { padding: 20px; font-size: var(--text-sm); }
 @media (max-width: 540px) {
@@ -152,6 +148,10 @@
 .usage-controls { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; }
 .usage-controls:empty { display: none; }
 .usage-controls [data-slot='select-trigger'] { width: auto; min-width: 12rem; max-width: 100%; min-height: var(--control-height); height: auto; background: var(--surface); font-size: var(--text-sm); font-weight: 500; }
+.usage-content .activity-saved { padding-top: 1rem; }
+.usage-content .activity-summary { margin-block: .5rem .25rem; }
+.usage-content .activity-summary dt { font-size: .8125rem; }
+.usage-content .activity-summary dd { margin: .125rem 0 0; color: var(--text-strong); font-size: 1.25rem; font-weight: 600; }
 .usage-content .empty-state { margin: 0; }
 .usage-content .empty-state button { margin-top: 12px; justify-self: center; }
 @media (max-width: 760px) { .usage-card, .usage-content .activity-saved { padding: .875rem; } }

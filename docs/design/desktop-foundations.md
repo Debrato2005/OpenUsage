@@ -30,6 +30,8 @@ The share donut appears beside token activity in Profile sum and Verified combin
 
 Saved numbers and selection rules are unchanged. Connected profiles alone supply the quota and reset summaries; percentages from separate windows are never added. Unknown freshness keeps its existing wording under [SC-012](../srs-clarifications.md#sc-012-unknown-freshness-in-summary-marks).
 
+Token activity shows a full year, so the heatmap fills Overview. Period and coverage are in the Values panel, and the page keeps only abnormal states such as Partial history and Incomplete. Usage reads top-down: activity, saved numbers, Compare, then history. First run has one action and Privacy details. Theme follows the system until Settings is reachable.
+
 Manage accounts keeps its own list and shows a reading through View usage in the row, because that list owns sign-in, focus and provider actions.
 
 ## Current workspace design — November 2, 2026

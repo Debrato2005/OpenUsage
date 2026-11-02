@@ -9,7 +9,7 @@ export function useActivityDashboard(profiles: ProfileRecord[], profileId: strin
   const [view, setView] = useState<ActivityView>('individual');
   const [mode, setMode] = useState<HeatmapMode>('daily');
   const [selection, setSelection] = useState<string[] | null>(null);
-  const [range, setRange] = useState(() => { const end = new Date().toISOString().slice(0,10); return { start: priorDate(end,90), end }; });
+  const [range, setRange] = useState(() => { const end = new Date().toISOString().slice(0,10); return { start: priorDate(end,365), end }; });
   const [attempt, setAttempt] = useState(0);
   const [result, setResult] = useState<{ key: string; data: ActivityDashboard | null; failed: boolean } | null>(null);
   const periodDays = Math.round((Date.parse(range.end) - Date.parse(range.start)) / 86400000) + 1;
