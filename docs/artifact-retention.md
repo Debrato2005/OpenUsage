@@ -9,6 +9,7 @@ Git commits preserve source history. Small verification receipts record the prod
 - Keep screenshots for changed workflows and essential acceptance results. Keep concise results linked to commits; do not recopy entire previous evidence trees. Temporary workspaces and partial outputs must be removed in the runner's final cleanup.
 - CI uses temporary build outputs. Any explicitly uploaded debug/release-candidate binary expires within seven days; routine receipts expire within fourteen days unless selected as essential acceptance evidence. Final releases and non-reproducible security evidence use an explicit retention exception. Never upload credentials, user databases, keys or private backups.
 - Run relevant acceptance tests against each current build. Clean disposable outputs after the milestone; do not immediately rebuild merely to prove a cache can be regenerated.
+- The owner's standing rule: remove `.tools/build-target` after each push, with `rm -rf .tools/build-target`. Keep `.tools/cargo-home`, because offline builds need it. Git has no post-push hook, so this step stays manual.
 
 These rules apply on Windows, macOS and Linux through Git and the platform's build tools. The current recovery freeze helper is for the Linux/WSL build workflow; it does not establish Windows/macOS build acceptance. No remote publication is permitted by this policy.
 
