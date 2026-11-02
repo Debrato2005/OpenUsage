@@ -8,8 +8,8 @@ type Column = { key: string; title: string };
 type Loaded = { key: string; quotas: Record<string, SavedProfileQuota | null>; failed: string[] };
 
 // Windows align only when limit ID, role and duration all match. Percentages are never summed.
-function windows(quota: SavedProfileQuota | null | undefined) {
-  return (quota?.limits ?? []).flatMap(limit => ([['primary', limit.primary], ['secondary', limit.secondary]] as const).flatMap(([role, window]) => window ? [{ key: `${limit.limitId}\u0000${role}\u0000${window.windowDurationMins ?? 'unknown'}`, title: `${limit.limitName ?? limit.limitId} · ${window.label}`, window }] : []));
+export function comparableWindows(limits: SavedProfileQuota['limits']) {
+  return limits.flatMap(limit => ([['primary', limit.primary], ['secondary', limit.secondary]] as const).flatMap(([role, window]) => window ? [{ key: `${limit.limitId}\u0000${role}\u0000${window.windowDurationMins ?? 'unknown'}`, title: `${limit.limitName ?? limit.limitId} · ${window.label}`, window }] : []));
 }
 
 function Reading({ label, value }: { label: string; value: SavedQuotaWindow }) {
@@ -42,7 +42,7 @@ export function QuotaCompare({ profiles, revision }: { profiles: ProfileRecord[]
   if (active.length < 2) return null;
   const data = loaded?.key === key ? loaded : null;
   const columns = new Map<string, Column>();
-  for (const profile of active) for (const { key: column, title } of windows(data?.quotas[profile.id])) if (!columns.has(column)) columns.set(column, { key: column, title });
+  for (const profile of active) for (const { key: column, title } of comparableWindows(data?.quotas[profile.id]?.limits ?? [])) if (!columns.has(column)) columns.set(column, { key: column, title });
   return <section className="usage-card quota-compare" aria-labelledby="quota-compare-heading" aria-busy={!data} data-quota-compare>
     <h2 id="quota-compare-heading">Compare accounts</h2>
     {!data ? <p className="quota-compare-note" role="status">Loading saved quotas…</p>
@@ -51,7 +51,7 @@ export function QuotaCompare({ profiles, revision }: { profiles: ProfileRecord[]
         <div className="quota-compare-scroll" tabIndex={0} role="region" aria-label="Quota comparison"><table>
           <thead><tr><th scope="col">Account</th>{[...columns.values()].map(column => <th scope="col" key={column.key}>{column.title}</th>)}</tr></thead>
           <tbody>{active.map(profile => {
-            const saved = new Map(windows(data.quotas[profile.id]).map(entry => [entry.key, entry.window]));
+            const saved = new Map(comparableWindows(data.quotas[profile.id]?.limits ?? []).map(entry => [entry.key, entry.window]));
             return <tr key={profile.id} data-quota-compare-account={profile.id}><th scope="row"><bdi>{profile.label}</bdi>{data.quotas[profile.id] && data.quotas[profile.id]!.freshness !== 'fresh' && <small>{data.quotas[profile.id]!.freshness === 'stale' ? 'Stale' : 'Freshness unknown'}</small>}{data.failed.includes(profile.id) && <small className="quota-compare-error">Could not load saved quota</small>}</th>
               {[...columns.values()].map(column => { const value = saved.get(column.key); return <td key={column.key}>{value ? <Reading label={`${profile.label}, ${column.title}`} value={value} /> : <span className="quota-compare-missing">Not available</span>}</td>; })}
             </tr>;

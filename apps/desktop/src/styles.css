@@ -98,7 +98,7 @@
   --bg: #000000; --surface: #0c0c0c; --surface-2: #141414;
   --text: #cccccc; --text-strong: #f0f0f0; --muted: #9d9d9d; --line: #282828;
   --control-border: #6b6b6b; --hover: #181818; --selected: #202020;
-  --button: #0078d4; --button-hover: #026ec1; --on-button: #ffffff;
+  --button: #f0f0f0; --button-hover: #ffffff; --on-button: #0c0c0c;
   --accent: #89d185; --accent-soft: #14231a; --chart: #2ea043;
   --warning: #e3b341; --warning-chart: #d29922;
   --focus: #4daafc; --error: #f85149; --error-soft: #2c1312;
@@ -110,7 +110,7 @@
     --bg: #000000; --surface: #0c0c0c; --surface-2: #141414;
     --text: #cccccc; --text-strong: #f0f0f0; --muted: #9d9d9d; --line: #282828;
     --control-border: #6b6b6b; --hover: #181818; --selected: #202020;
-    --button: #0078d4; --button-hover: #026ec1; --on-button: #ffffff;
+    --button: #f0f0f0; --button-hover: #ffffff; --on-button: #0c0c0c;
     --accent: #89d185; --accent-soft: #14231a; --chart: #2ea043;
     --warning: #e3b341; --warning-chart: #d29922;
     --focus: #4daafc; --error: #f85149; --error-soft: #2c1312;
@@ -372,7 +372,6 @@ main { max-width: 1280px; padding: var(--space-6); margin: 0 auto; }
 
 /* Tabular numerals keep exact readings aligned in the shared UI face. */
 .activity-count, .overview-total-value:not(.overview-unavailable),
-.overview-summary dd bdi, [data-overview-lifetime], .overview-meter-heading strong,
 .quota-values > div:first-child dd, .quota-credit-count, [data-slot='meter-value'], .tabular-digits {
   font-family: var(--font-ui);
   font-variant-ligatures: none;
@@ -388,7 +387,6 @@ code, kbd, input[readonly], textarea[readonly] { font-family: var(--font-ui); }
 .subscription-form { width: 100%; max-width: none; }
 @media (max-width: 600px) { .subscription-records article { align-items: start; flex-direction: column; } }
 
-.live-clock { display: block; max-width: 17rem; color: var(--muted); font-size: .75rem; line-height: 1.4; text-align: end; }
 .time-settings p { margin: 0; max-width: 40rem; color: var(--muted); line-height: 1.5; }
 .time-settings-controls { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; min-width: 0; max-width: 100%; }
 .time-settings-controls label { font-size: .875rem; }

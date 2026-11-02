@@ -4,11 +4,11 @@ Updated: November 2, 2026. Native startup, encrypted persistence, backups, resto
 
 ## Baseline 3.0 coverage
 
-This work has no evidence yet.
+Only OU-DES has evidence so far. See the log.
 
 | Requirements | Tests | State |
 |---|---|---|
-| OU-DES | AT-85 | Not started |
+| OU-DES | AT-85 | In progress |
 | OU-SRC, OU-ACCT-020 | AT-61, AT-62, AT-84 | Not started |
 | OU-AUD, OU-ALERT-019, OU-STATE-010, OU-STATE-011, OU-RESET-005, OU-RESET-006 | AT-56 to AT-61 | Not started |
 | OU-LOG, OU-SEC-021, OU-HEAT-026, OU-HEAT-027 | AT-65 to AT-74, AT-93 | Not started |
@@ -30,6 +30,7 @@ Newest first. Rows keep the requirement text of their date. [SRS Section 22.1](S
 
 | Requirement or check | Implementation and executed evidence | Status |
 |---|---|---|
+| Simple Overview (S-01); partial OU-DES-003 to OU-DES-008 | One side panel and one mark. Overview shows summary, accounts, and token activity. Account Detail moved to the panel, the share donut stays with activity selection, and the quota donut moved to Usage. Theme and display scale moved to Settings, and the clock was removed. Renderer only, with synthetic IPC, on Linux: 210 cases each in Chromium and WebKit and 55 contract checks passed on November 3, 2026. Screens were reviewed by eye in light, dark, 720-pixel, 360-pixel, and empty states. No native journey ran on this build. Usage, Settings, and Manage accounts remain. | Partial |
 | Workspace redesign; OU-UI-004, partial OU-UI-002/003/005/006, OU-ACT-004, OU-ACC | Top-down Overview with connected-account summary, label search and filters, grouped Settings, flat Usage cards and aligned Compare accounts. Tabular digits no longer widen spaces. No IPC, storage or provider change. All 205 renderer cases passed in Chromium and in WebKit, 410 in total, with axe checks in both themes. Build, TypeScript and 55 contracts passed. Synthetic renderer IPC only. | Renderer scope passed. See the next row for native scope. Owner review open. Tags remain absent, so OU-UI-005 is partial. |
 | Redesign native regression; NATIVE-STORAGE-001, NATIVE-BACKUP-001, NATIVE-BACKUP-CONTENT-001, NATIVE-TOP-NAVIGATION-001 and account, subscription, deletion, activity-dashboard, notification and alert-history journeys | Final native-test build on system WebKitGTK 2.54.2 and a private X display. Eleven journeys passed with synthetic data. Workspace: 389 Rust tests, one child ignored, including 164 desktop tests and the glib regression; strict Clippy and formatting passed. `profiles` and `restore-checkpoint` fail identically on the pre-redesign frontend. Account sign-out used a temporary local verifier pin; the committed pin is unchanged. | Scoped synthetic native Linux passed. Stale harnesses, monitoring, collection, device login, production refusal, real providers and other platforms remain unverified on this build. |
 | GLib iterator security backport | Checksum-verified glib 0.18.5 archive with exactly two upstream safety changes. Optimized synthetic Linux probe aborted before the fix and passed afterward. Every consumer resolves to the local source. Source notices and MIT license remain included. See the current security review for all check results. | Iterator regression passed. Native desktop acceptance, full audits and environment-dependent gates remain unverified. No release clearance. |

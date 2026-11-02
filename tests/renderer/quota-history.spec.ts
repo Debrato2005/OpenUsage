@@ -101,8 +101,7 @@ test('history details stay accessible in both themes at a narrow viewport with e
   await history(page).locator('[data-quota-history-run]').first().getByRole('button').first().click();
   await page.setViewportSize({ width: 360, height: 800 });
   for (const theme of ['light', 'dark']) {
-    await page.getByRole('combobox', { name: 'Appearance', exact: true }).click();
-    await page.getByRole('option', { name: theme === 'light' ? 'Light' : 'Dark', exact: true }).click();
+    await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
     for (const scale of [1, 2]) {
       await page.evaluate(scale => { for (const node of document.querySelectorAll<HTMLElement>('body *')) { const baseline = node.dataset.historyTestSize ?? getComputedStyle(node).fontSize; node.dataset.historyTestSize = baseline; node.style.fontSize = `${parseFloat(baseline) * scale}px`; } }, scale);

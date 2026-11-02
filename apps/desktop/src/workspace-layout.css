@@ -20,16 +20,11 @@
 .status-pill[data-global-monitoring='running'] { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 30%, var(--line)); background: var(--accent-soft); }
 .status-pill[data-global-monitoring='running'] .status-dot { background: var(--chart); box-shadow: 0 0 0 0 color-mix(in srgb, var(--chart) 55%, transparent); animation: status-pulse 2.4s ease-out infinite; }
 @keyframes status-pulse { 70%, 100% { box-shadow: 0 0 0 6px transparent; } }
-.header-appearance .theme-control > label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-.header-appearance [data-slot='select-trigger'], .display-scale-control [data-slot='select-trigger'] { min-height: var(--control-height); height: auto; border-color: var(--line); border-radius: var(--radius-control); background: var(--surface); font-size: var(--text-xs); }
-.header-appearance [data-slot='select-trigger']:hover, .display-scale-control [data-slot='select-trigger']:hover { background: var(--hover); transition: background-color var(--ease-ui); }
-.header-appearance [data-slot='select-trigger'] { position: relative; width: var(--control-height); padding: 9px; justify-content: center; }
-.header-appearance [data-slot='select-icon'] { display: none; }
-.appearance-icon { display: block; width: 18px; height: 18px; flex: 0 0 auto; }
 .display-scale-control [data-slot='select-trigger'] { min-width: 82px; }
 .workspace > main { max-width: none; padding: 22px 28px 40px; }
-.page-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
-.page-heading h1 { font-size: var(--text-title); line-height: 1.25; }
+/* The active page in the header names the view; the heading stays for screen readers. */
+.page-heading { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.page-heading h1 { margin: 0; }
 
 /* Fixed chrome is reserved for windows with room to spare at normal text sizes. */
 @media (min-width: 761px) and (min-height: 600px) {
@@ -37,27 +32,21 @@
   html { scroll-padding-top: 76px; }
 }
 @media (max-width: 1000px) {
+  .usage-activity { grid-template-columns: minmax(0, 1fr); }
   .workspace-header { padding-inline: 20px; }
   .workspace > main { padding: 20px; }
-}
-@media (max-width: 900px) {
-  .workspace-nav { order: 3; flex-basis: 100%; }
-  .workspace-nav a { flex: 1; }
-  .live-clock { order: 3; flex-basis: 100%; max-width: none; text-align: end; }
 }
 @media (max-width: 760px) {
   .workspace-header { padding: 10px 16px; }
   .workspace-nav a { flex-wrap: wrap; gap: 6px; padding: 8px; }
   .workspace > main { padding: 20px 16px 32px; }
-  .page-heading { flex-wrap: wrap; gap: 8px; }
 }
 @media (max-width: 540px) {
   .workspace-appearance { gap: 8px; }
   .workspace-header .brand-wordmark { width: 112px; height: 28px; }
-  .workspace-nav { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+  .workspace-nav { display: grid; order: 3; flex-basis: 100%; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
   .workspace-nav a { min-width: 0; overflow-wrap: anywhere; padding-inline: 4px; }
   .workspace-nav .nav-icon { display: none; }
-  .live-clock { text-align: start; }
 }
 
 /* Setup has one task. The account workspace appears after unlock. */
@@ -113,6 +102,11 @@
 .settings-card > [hidden] + * { border-top: 0; }
 .settings-card h2 { font-size: .9375rem; font-weight: 600; letter-spacing: 0; }
 .settings-card > .provider-panel { padding: 0; }
+.settings-card > .theme-control, .settings-card > .display-scale-control { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
+.settings-card > .theme-control label, .settings-card > .display-scale-control label { color: var(--text-strong); font-size: .9375rem; font-weight: 600; }
+.settings-card > .theme-control [data-slot='select-trigger'], .settings-card > .display-scale-control [data-slot='select-trigger'] { width: auto; min-width: 8rem; }
+.usage-activity { display: grid; grid-template-columns: minmax(0, 1fr) 20rem; gap: .75rem; align-items: stretch; min-width: 0; }
+.usage-activity > .usage-card { min-width: 0; }
 .settings-card [data-slot='select-trigger'] { min-height: var(--control-height); height: auto; font-size: var(--text-sm); }
 .time-settings-controls label { color: var(--muted); }
 .provider-panel > details > :not(summary) { margin-inline: 1.125rem; font-size: var(--text-sm); }

@@ -1,6 +1,22 @@
 import { expect, type Page } from '@playwright/test';
 
+export async function closeDetail(page: Page) {
+  const detail = page.locator('[data-detail-panel][open]');
+  if (await detail.count()) {
+    await detail.locator('[data-detail-panel-close]').click();
+    await expect(detail).toHaveCount(0);
+  }
+}
+
+// Opens the side panel that holds one account's detail.
+export async function openAccount(page: Page, profileId: string) {
+  await closeDetail(page);
+  await page.locator(`[data-overview-account="${profileId}"] .overview-account-link`).click();
+  await expect(page.locator('[data-detail-panel][open] [data-overview-quota]')).toBeVisible();
+}
+
 export async function navigate(page: Page, view: 'overview' | 'accounts' | 'usage' | 'settings') {
+  await closeDetail(page);
   // Legacy test requests open account management from Settings; Accounts is not a route.
   const dialog = page.locator('[data-account-panel]');
   if (await dialog.isVisible()) {

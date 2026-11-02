@@ -137,7 +137,7 @@ test('saved summaries remain readable and keyboard accessible in both themes at 
   await rows(page).first().getByRole('button', { name: 'Source details', exact: true }).focus(); await page.keyboard.press('Enter');
   await page.setViewportSize({ width: 360, height: 800 });
   for (const theme of ['light', 'dark']) {
-    await page.getByRole('combobox', { name: 'Appearance', exact: true }).click(); await page.getByRole('option', { name: theme === 'light' ? 'Light' : 'Dark', exact: true }).click();
+    await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
     for (const scale of [1, 2]) {
       await page.evaluate(scale => { for (const node of document.querySelectorAll<HTMLElement>('body *')) { const base = node.dataset.activityHistoryTestSize ?? getComputedStyle(node).fontSize; node.dataset.activityHistoryTestSize = base; node.style.fontSize = `${parseFloat(base) * scale}px`; } }, scale);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
@@ -241,7 +241,7 @@ test('closing pending activity history releases only its export busy flag and fe
 test('activity history export remains readable and keyboard accessible in narrow light and dark views', async ({ page }) => {
   await open(page); await openExport(page); await page.setViewportSize({ width: 360, height: 800 });
   for (const theme of ['light', 'dark']) {
-    await page.getByRole('combobox', { name: 'Appearance', exact: true }).click(); await page.getByRole('option', { name: theme === 'light' ? 'Light' : 'Dark', exact: true }).click();
+    await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
     for (const scale of [1, 2]) {
       await page.evaluate(scale => { for (const node of document.querySelectorAll<HTMLElement>('body *')) { const base = node.dataset.activityExportTestSize ?? getComputedStyle(node).fontSize; node.dataset.activityExportTestSize = base; node.style.fontSize = `${parseFloat(base) * scale}px`; } }, scale);
       await exportConsent(page).focus(); await expect(exportConsent(page)).toBeFocused(); await page.keyboard.press('Space');

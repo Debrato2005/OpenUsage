@@ -1,12 +1,25 @@
 import { useEffect, useState } from 'react';
 import { Button } from './components/ui/button';
 import { Select, SelectTrigger, SelectValue, SelectPopup, SelectItem } from './components/ui/select';
-import type { ProfileRecord } from './contracts';
+import { invoke, type ProfileRecord, type SavedProfileQuota } from './contracts';
+import { AccountDonut } from './account-donut';
 import { ProfileActivity } from './activity';
 import { QuotaHistory } from './quota-history';
 import { ActivityHistory } from './activity-history';
 import { TokenHeatmap } from './token-heatmap';
 import { QuotaCompare } from './quota-compare';
+
+function UsageDonut({ profile, revision }: { profile: ProfileRecord; revision: number }) {
+  const [quota, setQuota] = useState<SavedProfileQuota | null>(null);
+  useEffect(() => {
+    let current = true;
+    setQuota(null);
+    void invoke('load_profile_quota', { profileId: profile.id }).then(value => { if (current && value?.profileId === profile.id) setQuota(value); }).catch(() => {});
+    return () => { current = false; };
+  }, [profile.id, revision]);
+  const limit = quota?.limits[0];
+  return <AccountDonut mode="quota" label={profile.label} window={limit?.primary ?? limit?.secondary ?? null} />;
+}
 
 export function Usage({ profiles, revision, onAccounts, active, requestedProfileId }: { requestedProfileId?: string | null; active: boolean; profiles: ProfileRecord[]; revision: number; onAccounts: () => void }) {
   const [selected, setSelected] = useState<string | null>(null);
@@ -19,7 +32,7 @@ export function Usage({ profiles, revision, onAccounts, active, requestedProfile
         <SelectTrigger aria-label="Usage profile"><SelectValue /></SelectTrigger><SelectPopup>{profiles.map(value => <SelectItem key={value.id} value={value.id}>{value.label}{value.archived ? ' (archived)' : ''}</SelectItem>)}</SelectPopup>
       </Select>}
     </div>
-    {profile && <div className="usage-card"><TokenHeatmap profileId={profile.id} profileLabel={profile.label} revision={revision} /></div>}
+    {profile && <div className="usage-activity"><div className="usage-card"><TokenHeatmap profileId={profile.id} profileLabel={profile.label} revision={revision} /></div><UsageDonut profile={profile} revision={revision} /></div>}
     {profile && <QuotaHistory key={`history:${profile.id}`} profile={profile} revision={revision} />}
     {profile && <ActivityHistory key={`activity-history:${profile.id}`} profile={profile} revision={revision} />}
     {profile ? <ProfileActivity key={profile.id} readingRevision={String(revision)} profileId={profile.id} profileLabel={profile.label} emptyContent={<div className="empty-state"><h3>No saved activity for this profile</h3><Button variant="outline" onClick={onAccounts}>Manage accounts</Button></div>}>{() => null}</ProfileActivity>

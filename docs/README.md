@@ -9,7 +9,8 @@ One fact has one home. Change it there, and link to it from anywhere else.
 | What is OpenUsage? | [README](../README.md) |
 | What must it do? | [SRS](SRS.md) |
 | How is it built? | [Architecture](architecture.md) |
-| What works today, and what is next? | [Implementation status](implementation-status.md) |
+| What works today? | [Implementation status](implementation-status.md) |
+| What is next? | [Implementation slices](implementation-slices.md) |
 | What proves it? | [Acceptance traceability](acceptance-traceability.md) |
 | Why was a requirement read this way? | [SRS clarifications](srs-clarifications.md) |
 | How should it look? | [Design foundations](design/desktop-foundations.md) |
@@ -38,7 +39,8 @@ Update docs in the same change as the work.
 | You changed | Update |
 |---|---|
 | Scope or required behavior | [SRS](SRS.md), with owner approval, then [status](implementation-status.md) |
-| What works or what is next | [Status](implementation-status.md) |
+| What works | [Status](implementation-status.md) |
+| The state or order of a slice | [Slices](implementation-slices.md) |
 | Evidence for a requirement | New top row in [traceability](acceptance-traceability.md) |
 | A reading of a requirement | [SRS clarifications](srs-clarifications.md) |
 | Code layout or a boundary | [Architecture](architecture.md) |

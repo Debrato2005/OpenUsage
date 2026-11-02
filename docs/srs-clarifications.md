@@ -17,6 +17,15 @@ This is the record of how requirements were read. Entries keep their original da
 | SC-009 | Authentication-required evidence | In force; OU-ALERT-007 open |
 | SC-010 | Selected-profile activity | In force |
 | SC-011 | Baseline 3.0 replaces baseline 2.0 | Adopted |
+| SC-012 | Unknown freshness in summary marks | Unresolved; existing state preserved |
+
+## SC-012: unknown freshness in summary marks
+
+Recorded November 3, 2026 against baseline 3.0. Status: unresolved; no normative or Rust freshness rule changed.
+
+OU-DES-006 asks for one mark using the SRS name for the state. Saved quota IPC also has `freshness: unknown`, including after restart and a failed cache reload. Section 3.1 does not name that freshness state. Calling it Current, Stale, or Unverified would assert evidence the state does not supply; Unverified describes source matching under Section 3.2.
+
+The Overview summary keeps the existing wording Freshness unknown as its single mark. Details retain the observation time and each connected profile's freshness. Incomplete takes precedence when a connected profile has no saved quota; Stale takes precedence over unknown freshness when all profiles have quota. The panel keeps every underlying state. Choosing a normative name for unknown freshness remains an owner decision. This does not approve an identity or source-audit contract.
 
 ## SC-001: reset confirmation with rapid new-window use
 

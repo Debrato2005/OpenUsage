@@ -31,6 +31,12 @@ Set `OPENUSAGE_NATIVE_EVIDENCE` to select the evidence directory.
 
 This test uses the [official external-driver setup](https://v2.tauri.app/develop/tests/webdriver/manual-setup/).
 
+## Native summary details
+
+After the renderer build, build the desktop with `--features native-test` in the shared Cargo target. Run `node tests/native/summary-details.mjs` on a private Xvfb display with `OPENUSAGE_NATIVE_BINARY` and `OPENUSAGE_NATIVE_EVIDENCE` set to absolute paths. Use the driver variables above when needed. Restore the production build afterward and run `provider-source-gate.mjs` against it.
+
+`NATIVE-SUMMARY-DETAILS-001` creates a private home, D-Bus session and SQLCipher workspace. An approved synthetic provider supplies one account's saved readings. The journey checks summary disclosure with real keyboard input, focus, source details, missing-value behavior, both themes and narrow text layout. It verifies unchanged saved quota, protected key and synthetic provider-request evidence. It saves screenshots and source hashes, then removes its private fixture. It does not qualify real accounts, OS text scaling, screen readers, other platforms or the complete AT-85 review.
+
 ## Native persistence
 
 Build the application with the `native-test` Cargo feature before `node tests/native/persistence.mjs`.
