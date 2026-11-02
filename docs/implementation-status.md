@@ -14,7 +14,14 @@ Overview now shows Longest task and Reset credits for the selected account. A co
 
 Verification ran on November 2, 2026 with synthetic renderer IPC. All 204 cases passed in Chromium and all 204 passed in WebKit: 408 in total, including 19 new cases per engine. The build, TypeScript and 55 contract checks passed. Screens were reviewed in both themes at desktop and 390-pixel widths. The first run caught invalid description-list markup, a missing test hook, a lost tabular reading and theme-change transitions, all corrected. Two prior failures were stale expectations from the unverified copy change, and those expectations were updated.
 
-Native harnesses for the Overview selector and empty workspace changed with the interface and did not run for that commit. This host needed private test libraries for Playwright WebKit and for the desktop crate. Those stay under ignored `.tools` directories.
+After that commit, the full Rust workspace passed 389 tests with one intentional child test ignored, including all 164 desktop tests and the glib iterator regression. Strict Clippy and formatting passed.
+
+A real native-test binary then ran in WebKitGTK 2.54.2 on a private X display. NATIVE-BACKUP-001 passed through the moved Settings form, including independent archive verification, wrong-password and tamper refusal. The persistence journey passed OS-store setup, malformed-command refusal, the new empty workspace, saved dark theme, encrypted database and WAL, unkeyed SQLite refusal and private modes. It stalled twice at the same step, reopening the app after a keyring restart. The cause is not established, so restart, recovery and fallback unlock remain unverified on this build. One backup run stalled at session creation before any application step, and the next run passed.
+
+Those runs used a user namespace that mounts a private WebKitGTK sysroot over `/usr`. Root-owned paths appear as uid 65534 there, so the provider ownership check correctly refuses fixture executables. The Overview journey reached that refusal through the moved Codex connection controls. No provider-bound journey ran, so sign-in, collection, monitoring and account dialogs have renderer evidence only. Real system WebKitGTK packages are required to remove this limit.
+
+`tests/native/smoke.mjs` has been stale since `eeb565f`: it expects startup content that no longer exists. `restore-preview.mjs` and `restore-apply.mjs` still expect schema 6. `backup.mjs` was updated to schema 9. Windows and macOS did not run.
+
 
 ## Security repair: native qualification incomplete
 
@@ -24,7 +31,7 @@ An optimized synthetic Linux iterator probe aborted before the fix and passed af
 
 The renderer build, 55 IPC checks, 26 Python tool tests, strict workspace Clippy, formatting and source/history scans passed within their stated scopes. The current report records the complete results. Browser/native acceptance, complete dependency audits and Git-hook behavior remain unverified because of environment restrictions. No production or other-platform qualification is claimed. The normative SRS remains unchanged.
 
-See the [security review](../security_best_practices_report.md) and [backport provenance](../vendor/glib-0.18.5/OPENUSAGE-PATCH.md). The original sandbox exposed `.git` as read-only, so this repair stayed uncommitted until November 2, 2026. That later local commit rechecked only Cargo resolution to the single vendored glib, formatting and the secret hook. The host then lacked webkit2gtk-4.1, so the desktop crate and its iterator regression did not run again. No remote write occurred.
+See the [security review](../security_best_practices_report.md) and [backport provenance](../vendor/glib-0.18.5/OPENUSAGE-PATCH.md). The original sandbox exposed `.git` as read-only, so this repair stayed uncommitted until November 2, 2026. That later local commit rechecked Cargo resolution to the single vendored glib, formatting and the secret hook. The desktop crate and its iterator regression then passed on the same day; see the workspace redesign section above. No remote write occurred.
 
 ## Copy and layout refinement: acceptance incomplete
 

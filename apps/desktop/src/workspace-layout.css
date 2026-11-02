@@ -114,7 +114,9 @@
 .settings-card > .provider-panel { padding: 0; }
 .settings-card [data-slot='select-trigger'] { min-height: var(--control-height); height: auto; font-size: var(--text-sm); }
 .time-settings-controls label { color: var(--muted); }
-.provider-panel > details > :not(summary) { margin-inline: 1.125rem; }
+.provider-panel > details > :not(summary) { margin-inline: 1.125rem; font-size: var(--text-sm); }
+.settings-card .unlock-form { font-size: var(--text-sm); }
+.settings-card .unlock-form > .coss-button { align-self: flex-start; }
 .provider-panel > details[open] { padding-bottom: 1rem; }
 .settings-card .section-heading { gap: .75rem; }
 
