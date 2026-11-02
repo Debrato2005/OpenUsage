@@ -2,9 +2,44 @@
 
 Keep changes small and verify the affected workflow. Preserve existing local data, unrelated work and the normative [SRS](docs/SRS.md). This development session permits local commits only: do not push, publish, open pull requests or change a remote.
 
+The [documentation map](docs/README.md) shows which doc owns each fact and what to update. Update docs in the same change as the work.
+
+## Build from source
+
+With native prerequisites installed and dependencies cached, build the frontend and desktop binary:
+
+```sh
+npm run build
+CARGO_BUILD_JOBS=1 cargo rustc --locked --offline -p openusage-desktop --bin openusage-desktop -- -C link-arg=-Wl,--threads=1
+```
+
+This Linux/LLD command limits linker workers as well as Cargo jobs. Cargo applies the additional flag only to the selected binary. See the [Cargo command documentation](https://doc.rust-lang.org/cargo/commands/cargo-rustc.html) and [LLD options](https://github.com/llvm/llvm-project/blob/main/lld/docs/ld.lld.1).
+
+### Linux companion build
+
+A provisioned build includes the pinned official Codex companion and its license notices. Rust checks the companion before execution. Account sign-in keeps its own consent. Manual paths remain in Settings for troubleshooting.
+
+Prepare the reviewed archive, then enable the companion configuration:
+
+```sh
+npm run build
+npm run prepare:companion -- --offline
+TAURI_CONFIG="$(cat apps/desktop/src-tauri/tauri.companion.conf.json)" \
+  CARGO_BUILD_JOBS=1 cargo rustc --locked --offline \
+  -p openusage-desktop --bin openusage-desktop -- -C link-arg=-Wl,--threads=1
+```
+
+The archive cache defaults to `.tools` in this checkout. Use `--cache-dir /absolute/cache` for a shared cache. Omit `--offline` only to download the exact pinned archive during build preparation. The script checks archive and executable hashes without launching the executable. It refuses unsupported targets.
+
+The Tauri override stages `openusage-codex` beside the application and copies LICENSE and NOTICE under `licenses/codex`. Keep those files together. The ordinary development build can instead discover a supported installed version. It does not produce a companion bundle by default.
+
+This path currently covers Linux x86_64 only. A native build does not prove an installer or another platform. See the [source review and architecture decision](docs/reviews/2026-10-21-onboarding-sources.md).
+
 ## Normal Git workflow
 
-Use the project root. Do not create a second publication checkout or develop inside recovery copies.
+Use the project root. Do not create a second publication checkout or develop inside recovery copies. Recovery copies are private backups.
+
+The repository retains privacy-filtered development history. `Original-Commit` trailers link filtered commits to their local originals. Raw account data, test databases and diagnostic captures remain private.
 
 Install [Gitleaks](https://github.com/gitleaks/gitleaks/releases) once from its official releases. The reviewed local version is 8.30.1. Make `gitleaks` available on `PATH`, or set `GITLEAKS_BIN` to its executable. The hook also recognizes the project-local copy under `.tools/security`. No package dependency or background service is added.
 

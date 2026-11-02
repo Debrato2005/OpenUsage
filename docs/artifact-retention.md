@@ -11,7 +11,7 @@ Git commits preserve source history. Small verification receipts record the prod
 - Run relevant acceptance tests against each current build. Clean disposable outputs after the milestone; do not immediately rebuild merely to prove a cache can be regenerated.
 - The owner's standing rule: remove `.tools/build-target` after each push, with `rm -rf .tools/build-target`. Keep `.tools/cargo-home`, because offline builds need it. Git has no post-push hook, so this step stays manual.
 
-These rules apply on Windows, macOS and Linux through Git and the platform's build tools. The current recovery freeze helper is for the Linux/WSL build workflow; it does not establish Windows/macOS build acceptance. No remote publication is permitted by this policy.
+These rules apply on Windows, macOS and Linux through Git and the platform's build tools. The current recovery freeze helper is for the Linux build workflow; it does not establish Windows/macOS build acceptance. No remote publication is permitted by this policy.
 
 The October 21 cleanup retired obsolete desktop binaries, duplicate installer/package staging, redundant Git bundles and 94 clean worktrees. Their commits remain in local Git; required database/backup evidence remains in the canonical checkout. Dirty worktrees and current/rollback binaries were preserved. Exact local measurements are in `.recovery/audit/p0-*.json`.
 

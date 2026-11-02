@@ -2,6 +2,32 @@
 
 Updated: November 2, 2026. Native startup, encrypted persistence, backups, restore and undo, profile activity, saved quota, overdue expectations, and conservative reset confirmation passed within their recorded Linux scopes. The full mandatory acceptance suite remains incomplete. Rows record their original artifact scopes; newer rows supersede earlier pending states.
 
+## Baseline 3.0 coverage
+
+This work has no evidence yet.
+
+| Requirements | Tests | State |
+|---|---|---|
+| OU-DES | AT-85 | Not started |
+| OU-SRC, OU-ACCT-020 | AT-61, AT-62, AT-84 | Not started |
+| OU-AUD, OU-ALERT-019, OU-STATE-010, OU-STATE-011, OU-RESET-005, OU-RESET-006 | AT-56 to AT-61 | Not started |
+| OU-LOG, OU-SEC-021, OU-HEAT-026, OU-HEAT-027 | AT-65 to AT-74, AT-93 | Not started |
+| OU-DUP, OU-ID-013 | AT-63, AT-64, AT-75, AT-76 | Not started |
+| OU-SHARE | AT-82 | Not started |
+| OU-CLI | AT-77 to AT-79 | Not started |
+| OU-DIST | AT-80, AT-81 | Not started |
+| OU-UI-024 to OU-UI-027, OU-MON-017, OU-CAP-008 | AT-83, AT-90 to AT-92 | Not started |
+| OU-ALERT-005 | AT-89 | Not started |
+| OU-DATA-027, OU-DATA-028 | AT-94 | Not started |
+| OU-NFR-019 to OU-NFR-021 | Measurements in SRS Section 15 | Not started |
+| OU-ENG-011 | Review of each adapter pull request | Not started |
+| OU-SEC-022, OU-ENG-012 | Review of SECURITY.md and AGENTS.md | Stated |
+| OU-BOARD | AT-86 to AT-88 | Stage 2 |
+
+## Evidence log
+
+Newest first. Rows keep the requirement text of their date. [SRS Section 22.1](SRS.md) lists removed requirements.
+
 | Requirement or check | Implementation and executed evidence | Status |
 |---|---|---|
 | Workspace redesign; OU-UI-004, partial OU-UI-002/003/005/006, OU-ACT-004, OU-ACC | Top-down Overview with connected-account summary, label search and filters, grouped Settings, flat Usage cards and aligned Compare accounts. Tabular digits no longer widen spaces. No IPC, storage or provider change. All 205 renderer cases passed in Chromium and in WebKit, 410 in total, with axe checks in both themes. Build, TypeScript and 55 contracts passed. Synthetic renderer IPC only. | Renderer scope passed. See the next row for native scope. Owner review open. Tags remain absent, so OU-UI-005 is partial. |

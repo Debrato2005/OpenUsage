@@ -1,16 +1,16 @@
 # OpenUsage — Software Requirements Specification
 
 **Document ID:** OU-SRS-001  
-**Baseline:** 2.0  
-**Date:** 17 October 2026  
-**Status:** Final product and engineering requirements baseline; release is subject to validation  
+**Baseline:** 3.0  
+**Date:** 2 November 2026  
+**Status:** Adopted 2 November 2026. Normative product and engineering requirements; release is subject to validation.  
 **Product:** OpenUsage  
 **License:** Apache License 2.0  
-**Replaces:** OU-SRS-001, baseline 1.0  
-**Supported workload:** 10 active account profiles  
+**Replaces:** OU-SRS-001, baseline 2.0  
+**Supported workload:** 10 active account profiles, plus tools read only from local logs  
 **Document style:** Short, direct technical English based on ASD-STE100, Issue 9. This document has **not** received a formal STE vocabulary or conformity audit.
 
-> **Product statement.** OpenUsage is an open-source desktop application. It observes authorized ChatGPT-plan accounts through documented Codex interfaces. It displays provider-reported quota, credit, and token-activity data. It keeps local billing records and history. It sends local alerts. It does not invent usage data, read browser sessions, or bypass provider limits.
+> **Product statement.** OpenUsage shows what you have used and what you have left across your AI coding tools. It is free and open source. Every number has a source. It never invents usage data or bypasses provider limits.
 
 ---
 
@@ -29,7 +29,7 @@ All requirements with an `OU-` identifier are mandatory for the complete release
 
 ### 0.2 Authority and interpretation
 
-1. Official authenticated provider responses are the authority for provider identity, quota, credits, and token activity.
+1. Official authenticated provider responses are the authority for provider identity, quota, credits, and token activity. An Unofficial source is never the authority. A local log is the authority only for what that log recorded on this device.
 2. User-confirmed records are the authority for local billing data.
 3. Local calculations are the authority only for derived display values.
 4. An absent provider value is not zero. An absent limit is not proof of unlimited access.
@@ -37,12 +37,56 @@ All requirements with an `OU-` identifier are mandatory for the complete release
 6. A subscription record does not prove that the provider received a payment.
 7. A test fixture does not prove that a capability works with a live provider account.
 8. This document does not grant access to any provider field or interface.
+9. Agreement between two sources shows agreement. It does not prove that a value is true.
+10. A leaderboard value is self-reported. It is never evidence of provider usage.
 
 ### 0.3 Scope control
 
-Baseline 2.0 changes the supported workload from at least 50 profiles to **10 active profiles**. It keeps the complete feature scope of baseline 1.0. Archived profiles do not count toward the active limit. A future change to the limit requires a new SRS baseline and new performance tests.
+Baseline 3.0 keeps the limit of **10 active profiles** from baseline 2.0. It widens the product from Codex to many AI coding tools. It removes promotions, payments, and receipt import. Archived profiles and tools read only from local logs do not count toward the active limit. A future change to the limit requires a new SRS baseline and new performance tests.
 
 A release is not complete because a screen exists. A release is complete only when its mandatory behavior passes the acceptance tests.
+
+### 0.4 Release stages (Normative)
+
+| Stage | Content |
+|---|---|
+| 1. First public release | CLI and desktop app on Windows, macOS, and Linux. All requirements except Section 14A |
+| 2. Leaderboard | Section 14A, except OU-BOARD-012 |
+| 3. Public website | OU-BOARD-012 |
+
+### 0.5 Owner decisions, 2 November 2026
+
+1. The product is an everyday tracker for developers across many AI coding tools. The goal is wide adoption.
+2. The name stays OpenUsage.
+3. Unofficial sources are permitted only when they are auditable. It must be possible to know that a reading is accurate and not duplicated.
+4. Promotions, payments, and receipt import are removed.
+5. Quotas shall cover as many tools as possible.
+6. Real-account testing covers Codex and Claude Code. The owner tests on a real Windows PC and a real Mac.
+7. Stage 1 covers Windows, macOS, and Linux at once.
+8. One install supplies the CLI and the desktop app. A public website follows later.
+9. First launch uses one consent screen with one action.
+10. An opt-in leaderboard follows soon after Stage 1.
+11. WSL profiles stay. The CLI, statusline output, and customizable dashboard are in Stage 1.
+12. Tools stay separate by default. A sum across tools is optional and carries a May overlap mark.
+13. The product follows the simplicity rules in Section 2.3.
+14. Permitted access is sign-in inside OpenUsage and local logs. Pasted keys and the saved credentials of other tools are excluded.
+15. Paid code signing is optional, because anyone must be able to install and run the product for free.
+16. The limit stays at 10 active profiles. Tools read only from local logs do not count.
+17. Start at login exists and is off by default.
+18. An Unofficial adapter with no real-account test can ship. It stays off by default and stays Unverified.
+19. Customizable dashboard means reorder and hide. Moving a card to the top is pinning.
+20. A Matched reading shows no mark. The leaderboard states Self-reported once, in its title.
+21. `openusage report` works on a machine with no desktop app.
+22. Subscriptions keep one renewal alert. The subscription calendar is removed.
+23. Profile tags and browser shortcuts are removed.
+24. There is no floating widget. Editor plugins stay outside Stage 1.
+
+### 0.6 Open items
+
+- **OQ-1:** Choose how to split logs by account. The `ccusage` Codex adapter has no account handling. On the owner's Linux host on 2 November 2026, `creator_account_id` was filled in all 86 readable logs since October 2026 and absent from 7 older logs. 1,323 compressed logs were not read.
+- **OQ-2:** Claim the npm name `openusage`. The registry reports it as unpublished since 14 June 2026.
+- **OQ-3:** List the providers with documented quota interfaces, and complete a terms review for each other provider.
+- **OQ-4:** Run the pinned `ccusage` binary. Its arguments, offline behavior, and per-folder use are not yet executed by this project.
 
 ---
 
@@ -51,14 +95,17 @@ A release is not complete because a screen exists. A release is complete only wh
 ### 1.1 Objectives
 
 - Observe up to 10 independently configured account profiles.
+- Track many AI coding tools through source adapters and local logs.
+- Show the source and status of every number.
+- Keep token history after tools delete their local logs.
+- Give developers a free one-command install and a useful first launch.
 - Support a test set with three Plus accounts and two Pro accounts.
 - Display each quota bucket only when the official interface supplies it.
 - Display quota use, derived remaining quota, expected reset time, and credits when available.
 - Display token statistics and daily token activity when available.
 - Display per-account and combined activity heatmaps.
-- Keep local subscription, promotion, and payment records.
-- Import local billing evidence after user review.
-- Send local quota, connection, renewal, and promotion alerts.
+- Keep local subscription records.
+- Send local quota, connection, and renewal alerts.
 - Support Windows, macOS, and Linux desktop installations.
 - Keep prior accepted data available without network access.
 
@@ -66,19 +113,27 @@ A release is not complete because a screen exists. A release is complete only wh
 
 1. Account profile registration, authentication, and identity checking.
 2. Separate Codex environments for native profiles and approved Windows Subsystem for Linux (WSL) profiles.
-3. Official Codex app-server reads and supported notifications.
-4. Quota history, token activity, statistics, and account comparison.
-5. Subscription and payment records, promotions, reminders, and receipt import.
+3. Source adapters at Official, Local log, and Unofficial levels, including official Codex app-server reads and supported notifications.
+4. Quota history, token activity, statistics, account comparison, and audit evidence for each reading.
+5. Subscription records and one renewal alert.
 6. System tray, local notification service, CSV/JSON export, encrypted backup, and restore.
 7. Local settings, privacy controls, and complete local data deletion.
-8. Browser-profile shortcuts for account navigation.
+8. Local log analytics by tool, model, session, and project, with estimated API-equivalent value.
+9. A command-line interface with statusline output.
+10. Shareable Wrapped summaries and heatmap images.
+11. A customizable dashboard.
+12. An opt-in public leaderboard and, later, public web profiles.
 
 ### 1.3 Excluded features
 
-- ChatGPT web message counts, conversation history, page scraping, and cookie access.
+- Web message counts, stored conversation content, page scraping, and cookie access for any provider.
+- Use of credentials that another tool saved, and user-pasted provider keys or tokens.
+- Promotions, discount periods, payment records, paid-spend reports, projections, trial history, and receipt import.
+- Profile tags, browser-profile shortcuts, a subscription calendar, and a floating widget.
+- Editor plugins in Stage 1. They can use `openusage status --json` later.
 - OpenAI Platform API-key usage, organization billing, and API credit purchases.
 - Work-only usage attribution when the provider supplies only shared account data.
-- A hosted service, cloud sync, remote telemetry, or a shared OpenUsage account.
+- Cloud sync of the local database, remote telemetry, and any hosted service other than the opt-in Leaderboard Service in Section 14A.
 - Automatic account rotation, quota evasion, or workload submission to test a limit.
 - Spending earned reset credits or changing provider quota settings.
 - Automated purchases, cancellation of subscriptions, or bank-mandate changes.
@@ -87,7 +142,7 @@ A release is not complete because a screen exists. A release is complete only wh
 
 ### 1.4 Product boundary
 
-OpenUsage is an observer and a local record manager. It does not control the service limits of an OpenAI account. It shall use only interfaces that the provider documents and authorizes for the selected account mode.
+OpenUsage is an observer and a local record manager. It does not control the service limits of a provider account. It shall use only interfaces at the source levels in Section 5A. An interface that a provider does not document is permitted only at the Unofficial level, with every safeguard in Sections 5A and 5B.
 
 ---
 
@@ -104,16 +159,18 @@ OpenUsage is an observer and a local record manager. It does not control the ser
 | Database mode | Write-ahead log (WAL), local disk only | Responsive reads during collection |
 | Token arithmetic | Rust `u128` where valid; decimal strings at UI boundary | No JavaScript precision loss |
 | Money arithmetic | Signed 64-bit integer minor units, with checked operations | Exact amounts for supported currencies |
-| Usage source | Documented Codex app-server JSON-RPC over local stdio | No undocumented requests |
+| Usage sources | Rust source adapters (Section 5A). The Codex adapter uses documented Codex app-server JSON-RPC over local stdio | Every number has a declared source |
+| Token analytics | Pinned, bundled `ccusage` binary run by the Rust supervisor (Section 5C) | Reuse maintained log parsers for many tools |
+| Command line | Rust `openusage` binary with no webview dependency (Section 11A) | Terminal use on any supported machine |
 | Codex login | Provider-managed ChatGPT browser and device-code login | Avoid a custom token service |
 | Account collection | Rust process supervisor; maximum two active collections | Controlled memory and request load |
 | Collection cycle | 300 seconds per eligible profile, subject to backoff | Cautious provider access |
 | Charts | Accessible SVG/HTML heatmaps and time-series components | Clear data labels and keyboard access |
 | Notifications | OS notification interfaces through approved Tauri commands | Local alerts |
 | Backup | Locally encrypted, authenticated, versioned archive | Safe portable history |
-| Update distribution | Signed release artifacts; updater only after signed-update tests | Supply-chain safety |
+| Distribution | One-command npm package with published hashes and build provenance (Section 16A); in-app updater only after update-signature tests | Free installation and supply-chain safety |
 
-**Decision boundary:** Do not add PostgreSQL, Redis, DuckDB, Electron, CEF, FastAPI, a hosted backend, or application telemetry without a new approved architecture decision.
+**Decision boundary:** Do not add PostgreSQL, Redis, DuckDB, Electron, CEF, FastAPI, a hosted backend, or application telemetry without a new approved architecture decision. The opt-in Leaderboard Service in Section 14A is the only planned hosted backend. It still needs its own approved architecture decision before construction.
 
 ### 2.1 Rendering engines
 
@@ -155,14 +212,50 @@ OpenUsage is an observer and a local record manager. It does not control the ser
 
 **OU-CAP-007:** The complete acceptance tests shall operate with 10 active profiles, including at least two provider plans.
 
+**OU-CAP-008:** A tool that OpenUsage reads only from local logs shall not count as an active profile.
+
+### 2.3 Simplicity rules (Normative)
+
+**Purpose:** OpenUsage shows what you have used and what you have left.
+
+**Standard:** The quality bar is the simplicity of Linear's website and Apple Notes.
+
+**OU-DES-001:** Every decision shall improve user, developer, and agent experience together. A choice that helps one and harms another shall be redesigned.
+
+**OU-DES-002:** A change shall not break existing behavior, stored data, or a safety rule.
+
+**OU-DES-003:** The UI shall have no taglines, helper text, or secondary labels.
+
+**OU-DES-004:** If a screen needs such text to make sense, the layout shall change.
+
+**OU-DES-005:** A number in its normal state shall show only the number and its name.
+
+**OU-DES-006:** A number in an abnormal state shall show one mark, using the word that this document gives that state, such as Stale, Incomplete, Unverified, Disputed, Duplicate?, or May overlap. A missing number shall show Not available.
+
+**OU-DES-007:** Every number shall open one detail panel. Source, time, scope, coverage, derivation, and reasons belong there. Where another requirement says to show or label these facts, the detail panel satisfies it for a number in its normal state.
+
+**OU-DES-008:** Errors, consent, destructive confirmations, accessible names, and required notices are not secondary labels. They shall remain.
+
+**OU-DES-009:** All data shall follow one path: adapter, checks, reading, store, view. A feature shall not add a second path.
+
+**OU-DES-010:** Each job shall have one way: one reading contract, one detail panel, one binary for the CLI, and one verification command.
+
+**OU-DES-011:** Adding a tool shall need one adapter module, its fixtures, and its declaration. It shall not need a change to UI or storage code.
+
+**OU-DES-012:** People, scripts, and agents shall use the same commands and receive the same data.
+
+**OU-DES-013:** A new setting, screen, state, or dependency shall exist only when a good default cannot replace it.
+
 ---
 
 ## 3. Definitions and data states
 
 | Term | Exact meaning |
 |---|---|
-| Provider account | An authenticated ChatGPT-plan account as reported through an official interface. |
-| Profile | A local UUID, settings, and one isolated Codex home. |
+| Provider | The company or service that operates an AI coding tool or its quota. |
+| Tool | An AI coding product, such as Codex or Claude Code. |
+| Provider account | An authenticated account with a provider, as reported by a source adapter. |
+| Profile | A local UUID, settings, and one isolated credential environment for one provider account. For Codex, this is one isolated Codex home. |
 | Verified identity key | A stable account/workspace identity value from an approved official interface, when supplied. |
 | Provisional identity | An account description, such as email, that does not prove a stable account/workspace key. |
 | Quota bucket | One provider limit ID and window role, with duration and optional reset time. |
@@ -173,8 +266,16 @@ OpenUsage is an observer and a local record manager. It does not control the ser
 | Observed time | UTC time when OpenUsage accepted a response. |
 | Current state | The most recent accepted value within the freshness threshold. |
 | History | Prior accepted readings. History samples are not an event log of all provider activity. |
-| Confirmed payment | A local payment record that the user explicitly marked as paid. |
 | Earned reset credit | A provider credit for a possible quota reset. OpenUsage only observes it. |
+| Source adapter | One Rust module that reads one source and returns readings. |
+| Source level | Official, Local log, or Unofficial. See Section 5A. |
+| Reading status | Official, Matched, Unverified, or Disputed. See Section 3.2. |
+| Local log | A file that a tool writes on this device. |
+| Format fingerprint | A hash of the field names and value types that an adapter uses. It contains no values. |
+| Evidence record | The stored record of how a reading was accepted. See Section 5B. |
+| Estimated value | Token use priced at public API rates. It is not money that the user paid. |
+| Detail panel | The one view that opens from a number. See OU-DES-007. |
+| Mark | One short word beside a number in an abnormal state. See OU-DES-006. |
 
 ### 3.1 Metric states (Normative)
 
@@ -206,6 +307,21 @@ OpenUsage is an observer and a local record manager. It does not control the ser
 
 **OU-STATE-009:** Offline status shall override the Current label for remote metrics and show the last accepted timestamp.
 
+### 3.2 Reading status (Normative)
+
+| Status | When it applies | UI behavior |
+|---|---|---|
+| `official` | An Official adapter supplied the reading | No mark |
+| `matched` | An Unofficial reading agreed with an independent source under OU-AUD-004 | No mark |
+| `unverified` | An Unofficial reading passed its checks and has no match | Unverified mark |
+| `disputed` | Two sources disagree beyond tolerance | Disputed mark, under OU-AUD-005 |
+
+A reading that fails its checks is not accepted. Its metric state is `not_available`.
+
+**OU-STATE-010:** Every accepted reading shall have one reading status.
+
+**OU-STATE-011:** The UI shall not call a reading true, accurate, or verified.
+
 ---
 
 ## 4. Profile, identity, and authentication
@@ -216,13 +332,13 @@ OpenUsage is an observer and a local record manager. It does not control the ser
 
 **OU-ACCT-002:** The app shall support 10 active profiles. This replaces the 50-profile requirement in baseline 1.0.
 
-**OU-ACCT-003:** Each profile shall have an immutable UUID, editable label, environment type, and optional tags.
+**OU-ACCT-003:** Each profile shall have an immutable UUID, editable label, and environment type.
 
 **OU-ACCT-004:** The UI shall show provider-returned email and plan when available.
 
-**OU-ACCT-005:** The app shall support documented browser and device-code ChatGPT login flows.
+**OU-ACCT-005:** The app shall support documented browser and device-code ChatGPT login flows for Codex profiles.
 
-**OU-ACCT-006:** Each profile shall use a different managed `CODEX_HOME` directory.
+**OU-ACCT-006:** Each Codex profile shall use a different managed `CODEX_HOME` directory.
 
 **OU-ACCT-007:** The app shall check account identity after login, reconnect, profile switch, and detected credential change.
 
@@ -230,11 +346,9 @@ OpenUsage is an observer and a local record manager. It does not control the ser
 
 **OU-ACCT-009:** The user shall manually select the profile to inspect or open.
 
-**OU-ACCT-010:** The app shall open a configured external browser profile without reading cookies or passwords.
-
 **OU-ACCT-011:** Windows users shall be able to configure an independent WSL profile after explicit approval.
 
-**OU-ACCT-012:** Each profile shall offer Connect, Reconnect, Disconnect, Refresh Now, and Open Browser actions.
+**OU-ACCT-012:** Each profile shall offer Connect, Reconnect, Disconnect, and Refresh Now actions.
 
 **OU-ACCT-013:** Removing a profile shall offer Archive History and Delete History as separate choices.
 
@@ -249,6 +363,8 @@ OpenUsage is an observer and a local record manager. It does not control the ser
 **OU-ACCT-018:** The app shall not copy tokens or auth files between profile homes.
 
 **OU-ACCT-019:** A profile cannot start normal monitoring before login completion and account-state validation.
+
+**OU-ACCT-020:** A profile for a provider other than OpenAI shall use a sign-in method that OU-SRC-007 permits.
 
 ### 4.2 Identity-confidence rules
 
@@ -281,13 +397,17 @@ Official `account/read` examples can return an email and plan without a stable a
 
 **OU-ID-010:** If no documented stable identity is available, verified aggregate metrics shall show Not available with the reason.
 
-**OU-ID-011:** The app shall not read provider token files or undocumented endpoints to obtain an identity key.
+**OU-ID-011:** The app shall not read provider token files or undocumented endpoints to obtain a verified identity key.
 
 **OU-ID-012:** A release claiming verified multi-account aggregation shall pass a live identity-contract test.
+
+**OU-ID-013:** An account ID from an Unofficial adapter or a local log is not a verified identity key. It can support only the duplicate rules in Section 5D.
 
 **Release gate ID-G1:** Do not ship verified multi-account totals unless a supported official identity contract proves distinct account/workspace attribution. When this is not possible, the UI must provide the documented Not available state. The feature remains in the product.
 
 ### 4.3 Login and logout
+
+This section applies to the Codex adapter.
 
 **OU-AUTH-001:** Login shall use `account/login/start` with an official supported ChatGPT login type.
 
@@ -305,13 +425,15 @@ Official `account/read` examples can return an email and plan without a stable a
 
 **OU-AUTH-008:** API-key-only and unsupported auth modes shall not be treated as ChatGPT-plan usage modes.
 
-**OU-AUTH-009:** The app shall not implement experimental external-token login in baseline 2.0.
+**OU-AUTH-009:** The app shall not implement experimental external-token login in baseline 3.0.
 
 **OU-AUTH-010:** The provider-managed login system shall own token refresh and token persistence.
 
 ---
 
 ## 5. Codex app-server integration
+
+This section applies to the Codex adapter. Section 5A applies to every adapter.
 
 ### 5.1 Allowed methods
 
@@ -406,7 +528,164 @@ Official `account/read` examples can return an email and plan without a stable a
 
 ---
 
+## 5A. Source adapters
+
+### 5A.1 Source levels (Normative)
+
+| Level | Meaning | Default |
+|---|---|---|
+| Official | An interface that the provider documents for this use | On when the user connects the account |
+| Local log | Files that a tool writes on this device | On after first-launch consent |
+| Unofficial | An interface that the provider does not document for this use | Off |
+
+### 5A.2 Rules
+
+**OU-SRC-001:** Each source shall have one Rust adapter. An adapter shall return only readings in the contract of Section 17.
+
+**OU-SRC-002:** Each adapter shall declare its provider, tool, level, metrics, sign-in method, allowed hosts or folders, format fingerprints, and tolerances.
+
+**OU-SRC-003:** An Official adapter shall cite the provider document that describes its interface.
+
+**OU-SRC-004:** An Unofficial adapter shall stay off until the user enables it for that provider.
+
+**OU-SRC-005:** An Unofficial adapter shall not ship before a recorded review of the provider's terms. It shall not ship when those terms forbid it.
+
+**OU-SRC-006:** The project shall disable an adapter when the provider asks.
+
+**OU-SRC-007:** Permitted access is sign-in inside OpenUsage through the provider's login page. Local logs need no sign-in. Browser cookies, browser-session extraction, page scraping, the saved credentials of another tool, and pasted keys or tokens are prohibited.
+
+**OU-SRC-008:** A session from sign-in inside OpenUsage shall stay in Rust. It shall use the OS credential store, or the passphrase fallback in Section 12.2 when no store is available.
+
+**OU-SRC-009:** An adapter shall contact only its declared hosts. It shall not hide its client identity or bypass a provider control.
+
+**OU-SRC-010:** Every adapter shall obey the collection limits in Section 10.1. A failure shall affect only that adapter's metrics.
+
+### 5A.3 Claude Code adapter
+
+**OU-SRC-011:** The adapter shall read the documented `rate_limits` status-line fields. Its level is Official.
+
+**OU-SRC-012:** Installation shall show the exact Claude Code setting change and require consent. It shall preserve an existing status line and shall offer Undo.
+
+**OU-SRC-013:** Capture shall keep only quota fields.
+
+**OU-SRC-014:** These fields exist only during a session, after its first response, and for some plans. An absent window shall stay Not available or Stale. It shall not become zero.
+
+**OU-SRC-015:** The documented fields carry no account ID. These readings shall keep `identity_unverified`.
+
+### 5A.4 Stage 1 sources (Normative)
+
+| Source | Level | Real-account test required for Stage 1 |
+|---|---|---|
+| Codex app-server | Official | Yes |
+| Claude Code status line | Official | Yes |
+| Local logs through `ccusage` | Local log | Yes, for Codex and Claude Code |
+| Other providers | Official when documented, otherwise Unofficial | No |
+
+---
+
+## 5B. Audit
+
+**OU-AUD-001:** Each accepted reading shall have one evidence record: adapter and version, source level, observation time, format fingerprint, check results, reading status, comparison result, and a hash of the redacted response.
+
+**OU-AUD-002:** Evidence shall never contain tokens, cookies, email addresses, prompts, code, or full paths. The app shall not edit evidence after it writes it.
+
+**OU-AUD-003:** A change in a field that an adapter uses shall give `not_available`. A new field that the adapter does not use shall not fail the reading. The app shall record it.
+
+**OU-AUD-004:** An Unofficial reading is Matched only when all of these are true:
+
+1. Its adapter version has a passing real-account test.
+2. The second source uses a different interface or data store.
+3. Both readings cover the same account and window.
+4. Both readings were observed within 300 seconds.
+5. Both values are within the declared tolerance. The default is 1 percentage point and 60 seconds for a reset time.
+
+**OU-AUD-005:** A difference beyond tolerance shall give `disputed`. An Official value stays primary. Two Unofficial values shall both show.
+
+**OU-AUD-006:** A real-account test shall compare at least five readings with the provider's own usage display, at two or more usage levels. It shall record adapter version, tool version, date, operating system, and largest difference.
+
+**OU-AUD-007:** Raw test captures shall stay private. A summary shall be published in `docs/provider-evidence.md`. Anyone can submit a summary that contains no account IDs and no raw responses.
+
+**OU-AUD-008:** A change to a used field or its parser shall void the test for that field.
+
+**OU-AUD-009:** Official and Matched readings shall alert normally. An alert from an Unverified reading shall say Unverified. A Disputed reading shall send no alert.
+
+**OU-AUD-010:** Exports shall include each reading's status and source.
+
+---
+
+## 5C. Local logs
+
+### 5C.1 Consent and privacy
+
+**OU-LOG-001:** First launch shall show one consent screen. It shall list detected tools, all selected, with one action. The app shall open no log before consent. Detection shall check only whether known folders exist.
+
+**OU-LOG-002:** The user shall be able to change this selection in Settings.
+
+**OU-LOG-003:** The app shall store only date, tool, model, token counts by type, estimated value, session key, project name, and log account key. It shall never store a prompt, response, tool output, or code.
+
+**OU-LOG-004:** Project names shall stay in the encrypted database, backups, and exports that the user requests. The app shall not upload them.
+
+### 5C.2 Running ccusage
+
+**OU-LOG-005:** The package shall bundle one pinned `ccusage` binary for each platform. Rust shall check its hash before each run. The app shall not run another copy or download one.
+
+**OU-LOG-006:** Each run shall use fixed arguments, no shell, JSON output, offline mode, a minimal environment, time and output limits, and one run at a time.
+
+**OU-LOG-007:** Rust shall parse the output strictly and record the `ccusage` version in the evidence record. An unknown shape shall give Not available for that scan.
+
+**OU-LOG-008:** A `ccusage` failure shall affect only local log data.
+
+**OU-LOG-009:** A `ccusage` upgrade shall pass the fixture comparison in AT-65 before release.
+
+### 5C.3 Totals
+
+**OU-LOG-010:** The first scan shall pin the time zone for day boundaries. A later change to the display time zone shall not move saved days.
+
+**OU-LOG-011:** Saved totals shall survive log deletion. A scan can raise a day total. A lower result shall not replace a saved total. The app shall save it as a difference, and the detail panel shall show it.
+
+**OU-LOG-012:** A repeated scan of the same logs shall give the same totals.
+
+**OU-LOG-013:** An unknown model shall keep its tokens and show Not available for estimated value.
+
+**OU-LOG-014:** Estimated value shall not appear as spend. It shall not be added to money amounts.
+
+**OU-LOG-015:** The app shall group logs by account only when a log records an account ID. A profile link needs a provider-issued ID or an explicit user link. Other logs shall appear under Unknown account. The app shall never infer an account from time, email, or folder name.
+
+### 5C.4 Views
+
+**OU-LOG-016:** Usage shall have one source control: Provider or This device. The control sets the scope, so numbers need no source label.
+
+**OU-LOG-017:** This device shall offer hourly, daily, weekly, monthly, and custom ranges. It shall break down tokens by input, output, cached, reasoning, and total, and by model, session, and project.
+
+**OU-LOG-018:** A session shall show its quota movement when saved readings exist for its start and end. The app shall not convert a quota percentage to tokens.
+
+**OU-LOG-019:** WSL logs shall use the folder of an approved WSL profile.
+
+---
+
+## 5D. Duplicates
+
+**OU-DUP-001:** Two readings describe one account only when both carry the same provider-issued account ID from the same provider. The app shall then show one account with two sources.
+
+**OU-DUP-002:** Email, label, folder, and matching numbers are not proof. Without a shared ID, both accounts stay, with a Duplicate? mark.
+
+**OU-DUP-003:** The app shall never add provider token totals to local log totals.
+
+**OU-DUP-004:** Within one tool, the app shall rely on the replay and fork handling in `ccusage`. AT-65 shall qualify this handling.
+
+**OU-DUP-005:** The app shall compare weekly totals when one log account matches one provider account. A local total above the provider total shall give a Disputed mark. A local total below it is normal, because other devices can also use the account.
+
+**OU-DUP-006:** Tools shall stay separate by default. An optional sum shall carry a May overlap mark and shall never be called a total.
+
+**OU-DUP-007:** The app shall never add quota percentages or credits across accounts or tools.
+
+**OU-DUP-008:** The app shall scan one folder once, by resolved path, whatever links lead to it.
+
+---
+
 ## 6. Quota, reset, and credit data
+
+Sections 6.1 and 6.3 name Codex fields. Other adapters shall apply the same validation, display, and history rules to the fields that they supply.
 
 ### 6.1 Quota collection
 
@@ -428,7 +707,7 @@ Official `account/read` examples can return an email and plan without a stable a
 
 **OU-QUOTA-009:** The app shall show the provider-used percentage unchanged when it is valid.
 
-**OU-QUOTA-010:** The app shall label `100 - usedPercent` as Derived remaining percentage.
+**OU-QUOTA-010:** The UI shall call `100 - usedPercent` Remaining. The detail panel shall state that it is derived.
 
 **OU-QUOTA-011:** The app shall reject invalid, non-finite, or out-of-range percentages from the current display.
 
@@ -438,7 +717,7 @@ Official `account/read` examples can return an email and plan without a stable a
 
 **OU-QUOTA-014:** The UI shall show reset timestamps with the selected time-zone name or UTC offset.
 
-**OU-QUOTA-015:** After the reset time passes, the app shall show “Reset due; awaiting confirmation” until a new accepted reading confirms a new window.
+**OU-QUOTA-015:** After the reset time passes, the app shall show a Reset due mark until a new accepted reading confirms a new window.
 
 **OU-QUOTA-016:** A sparse `account/rateLimits/updated` event shall never delete an omitted field.
 
@@ -476,11 +755,15 @@ If any condition is missing, the app shall not announce reset completion. It sha
 
 **OU-RESET-004:** The app shall not repeat an earlier reset-completion alert after restart.
 
+**OU-RESET-005:** Only an Official or Matched reading can confirm a reset.
+
+**OU-RESET-006:** A window that a source stops reporting after its reset time is not reset evidence, and it is not zero.
+
 ### 6.3 Provider credits
 
 **OU-CREDIT-001:** The UI shall display provider-returned workspace credit details only when supplied.
 
-**OU-CREDIT-002:** The UI shall label provider credits separately from payments and OpenAI Platform API billing.
+**OU-CREDIT-002:** The UI shall label provider credits separately from subscription prices and API billing.
 
 **OU-CREDIT-003:** The authoritative earned reset-credit count shall be `availableCount` when returned.
 
@@ -502,6 +785,8 @@ If any condition is missing, the app shall not announce reset completion. It sha
 
 ## 7. Token activity and statistics
 
+This section applies to provider-reported activity. Section 5C applies to local log activity.
+
 **OU-ACT-001:** The collector shall use `account/usage/read` when the authentication mode supports it.
 
 **OU-ACT-002:** The UI shall display `summary.lifetimeTokens` when present.
@@ -522,7 +807,7 @@ If any condition is missing, the app shall not announce reset completion. It sha
 
 **OU-ACT-010:** If the provider gives shared Codex/Work activity, the UI shall label it Shared account activity.
 
-**OU-ACT-011:** The app shall not invent separate Work, Codex, model, request, or message counts.
+**OU-ACT-011:** The app shall not invent separate Work, Codex, model, request, or message counts. Model values from local logs shall stay in the This device scope under OU-LOG-016.
 
 **OU-ACT-012:** Null summary fields and null daily buckets shall be handled independently.
 
@@ -602,6 +887,10 @@ If any condition is missing, the app shall not announce reset completion. It sha
 
 **OU-HEAT-025:** Activity export shall include provider date, profile, identity confidence, scope, observation time, and inclusion rule.
 
+**OU-HEAT-026:** A heatmap shall show either provider-reported activity or local log activity. It shall not add the two.
+
+**OU-HEAT-027:** A local log heatmap shall keep the day boundary from OU-LOG-010.
+
 ### 8.2 Aggregation algorithm (Normative)
 
 1. Take the latest accepted daily bucket for each profile, provider date, and scope.
@@ -619,7 +908,23 @@ Selection of a representative profile for duplicate identities shall use the new
 
 ---
 
-## 9. Subscriptions, promotions, and payments
+## 8A. Sharing
+
+**OU-SHARE-001:** The app shall create Wrapped summaries and heatmap images locally, as PNG and SVG, with no network access.
+
+**OU-SHARE-002:** An image shall contain no email address, account label, project name, path, or device name.
+
+**OU-SHARE-003:** The app shall show a preview. Saving shall be an explicit action.
+
+**OU-SHARE-004:** Missing days shall stay distinct from zero. Estimated value shall say Estimated.
+
+**OU-SHARE-005:** An image shall show the OpenUsage name and repository address. The user can remove them.
+
+**OU-SHARE-006:** The SVG shall render in a GitHub README.
+
+---
+
+## 9. Subscriptions
 
 ### 9.1 Data entry
 
@@ -627,75 +932,17 @@ Selection of a representative profile for duplicate identities shall use the new
 
 **OU-BILL-002:** Each subscription shall support provider, plan, tier, currency, price, interval, start, renewal, end, and auto-renew state.
 
-**OU-BILL-003:** Promotion records shall store claim-by, activation, and benefit-end dates separately.
-
-**OU-BILL-004:** A subscription shall support multiple discount or trial periods.
-
 **OU-BILL-005:** Manually entered billing data shall have source `user_confirmed`.
-
-**OU-BILL-006:** The app shall import a user-selected PDF, text, or EML billing document into a preview.
-
-**OU-BILL-007:** The app shall parse receipt files locally.
-
-**OU-BILL-008:** Parsed fields shall not enter confirmed billing tables before user approval.
-
-**OU-BILL-009:** Imported dates with no time component shall remain date-only values.
-
-**OU-BILL-010:** The app shall separately store paid, due, discount, and authorization amounts.
-
-**OU-BILL-011:** A bank authorization or mandate amount shall not become a paid transaction.
-
-**OU-BILL-012:** The app shall show paid transactions and projected recurring commitments separately.
 
 **OU-BILL-013:** Currency totals shall remain separate. The app shall not perform automatic exchange conversion.
 
-**OU-BILL-014:** The app shall show whether each deadline is user-confirmed, imported-and-confirmed, or unknown.
+**OU-BILL-014:** The app shall show whether each deadline is user-confirmed or unknown.
 
-**OU-BILL-015:** The app shall not infer auto-renew from a bank mandate.
-
-**OU-BILL-016:** The app shall include subscription calendar, paid-spend views, projection views, trial history, and upcoming deadlines.
-
-**OU-BILL-017:** Deleting a local receipt shall not cancel a remote subscription.
+**OU-BILL-016:** The app shall show upcoming subscription deadlines.
 
 **OU-BILL-018:** Financial displays shall show currency codes and exact decimal amounts.
 
-**OU-BILL-019:** A payment shall have an explicit `paid`, `due`, `refunded`, or `void` state.
-
-**OU-BILL-020:** Paid-spend reports shall count only confirmed paid transactions, less separately confirmed refunds.
-
-**OU-BILL-021:** Paid-spend reports shall support monthly and calendar-year groupings by payment date.
-
-**OU-BILL-022:** Projected commitment reports shall support monthly and calendar-year groupings by scheduled date.
-
-**OU-BILL-023:** The subscription calendar shall show a cancellation deadline when the user enters one.
-
-**OU-BILL-024:** A promotional claim date shall never substitute for a benefit-end or cancellation date.
-
-### 9.2 Receipt import protection
-
-**OU-IMPORT-001:** The importer shall reject files larger than 20 MiB.
-
-**OU-IMPORT-002:** The importer shall check file contents, not only the extension.
-
-**OU-IMPORT-003:** The importer shall reject encrypted or malformed files that it cannot parse safely.
-
-**OU-IMPORT-004:** The importer shall never execute scripts, macros, PDF actions, or attachments.
-
-**OU-IMPORT-005:** The importer shall not fetch network resources referenced by a document.
-
-**OU-IMPORT-006:** The importer shall limit parsing time to 15 seconds per file.
-
-**OU-IMPORT-007:** The app shall not use a cloud OCR or document-analysis service.
-
-**OU-IMPORT-008:** Scanned documents without local text shall show Manual entry required.
-
-**OU-IMPORT-009:** The import preview shall show field evidence and source filename.
-
-**OU-IMPORT-010:** Raw receipt bytes shall not be retained by default.
-
-**OU-IMPORT-011:** A user can choose to retain an encrypted local copy of a receipt.
-
-**OU-IMPORT-012:** Deleting retained evidence shall not silently delete a confirmed payment record.
+Section 22.1 lists the billing requirements that baseline 3.0 removes. The former Section 9.2, receipt import protection, is removed.
 
 ---
 
@@ -735,6 +982,8 @@ Selection of a representative profile for duplicate identities shall use the new
 
 **OU-MON-016:** The tray shall not claim that monitoring continues after application exit.
 
+**OU-MON-017:** The app shall offer Start at login as a setting. The default shall be off.
+
 ### 10.2 Notification events
 
 **OU-ALERT-001:** The app shall support usage alerts at 80%, 90%, and 100% used.
@@ -745,9 +994,7 @@ Selection of a representative profile for duplicate identities shall use the new
 
 **OU-ALERT-004:** The app shall send a reset-completed alert only after reset confirmation under Section 6.2.
 
-**OU-ALERT-005:** Default subscription expiry and renewal reminders shall be seven days and one day before the deadline.
-
-**OU-ALERT-006:** Default promotion claim reminders shall be seven days and one day before the deadline.
+**OU-ALERT-005:** The app shall send one renewal alert, one day before a subscription renews or expires.
 
 **OU-ALERT-007:** Confirmed invalid credentials shall produce one actionable authentication alert.
 
@@ -773,6 +1020,8 @@ Selection of a representative profile for duplicate identities shall use the new
 
 **OU-ALERT-018:** After that first alert, lower satisfied thresholds shall be marked delivered for the window to prevent later duplicate alerts.
 
+**OU-ALERT-019:** Alert behavior shall follow the reading status under OU-AUD-009.
+
 ### 10.3 Alert identity and quiet hours
 
 Quota threshold event keys shall include: local profile UUID, verified identity key if available, limit ID, window role, duration, confirmed window generation, and threshold. A change in expected reset time shall not create a new window generation without reset confirmation.
@@ -787,17 +1036,17 @@ The default quiet period shall be **22:00–08:00** in the selected local time z
 
 ### 11.1 Required screens
 
-**OU-UI-001:** The app shall provide Dashboard, Accounts, Account Detail, Compare, Token Activity, Subscriptions, Calendar, Notifications, and Settings.
+**OU-UI-001:** The app shall provide three primary pages: Overview, Usage, and Settings. These pages or their dialogs shall provide accounts, account detail, tools, compare, token activity, subscriptions, notifications, and sharing.
 
 **OU-UI-002:** The dashboard shall show active account count, plan breakdown, quota summary, data freshness, deadlines, activity statistics, and combined heatmap.
 
-**OU-UI-003:** Account Detail shall show identity state, plan, quota buckets, reset credits, activity, individual heatmap, billing, and errors.
+**OU-UI-003:** Account Detail shall show identity state, plan, quota buckets, reset credits, activity, individual heatmap, subscription, and errors.
 
 **OU-UI-004:** Compare shall align quotas only when limit ID and window duration are compatible.
 
-**OU-UI-005:** The UI shall support search by profile label, returned email, and tag.
+**OU-UI-005:** The UI shall support search by profile label and returned email.
 
-**OU-UI-006:** The UI shall support filters by plan, connection, quota state, deadline, and reporting period.
+**OU-UI-006:** The UI shall support filters by tool, plan, connection, quota state, reading status, deadline, and reporting period.
 
 **OU-UI-007:** The app shall provide Light, Dark, and System themes.
 
@@ -833,6 +1082,14 @@ The default quiet period shall be **22:00–08:00** in the selected local time z
 
 **OU-UI-023:** The Settings view shall include a guarded Delete All Local OpenUsage Data action.
 
+**OU-UI-024:** The tray shall show the lowest remaining quota and any mark on it.
+
+**OU-UI-025:** When logs exist, first launch shall reach local history with no account sign-in.
+
+**OU-UI-026:** The user shall be able to reorder and hide Overview cards, and to reset the layout. A mark, Not available, and an error shall stay visible on any shown card.
+
+**OU-UI-027:** Quota history graphs shall use saved readings for any range. Provider token graphs shall start at daily, because the provider supplies daily buckets.
+
 ### 11.2 Accessibility target
 
 **OU-ACC-001:** Core UI behavior shall meet WCAG 2.2 AA intent.
@@ -844,6 +1101,35 @@ The default quiet period shall be **22:00–08:00** in the selected local time z
 **OU-ACC-004:** A provider error shall not move keyboard focus without an announced reason.
 
 **OU-ACC-005:** Heatmap date details shall be available without hover.
+
+---
+
+## 11A. Command line
+
+| Command | Result |
+|---|---|
+| `openusage` | Current quotas and today's usage |
+| `openusage status --json` | The same data as versioned JSON |
+| `openusage statusline` | One line for tmux and shell prompts |
+| `openusage report` | Local log totals, with no database needed |
+| `openusage app` | Opens the desktop app |
+| `openusage doctor` | Checks the environment and prints each fix |
+
+**OU-CLI-001:** The CLI shall have no webview dependency.
+
+**OU-CLI-002:** Except for `openusage report` and the Stage 2 `openusage board` commands, the CLI shall read saved data only. It shall not write the database, start collection, or use the network.
+
+**OU-CLI-003:** `openusage report` shall ask once for consent, accept `--yes` for scripts, and save nothing.
+
+**OU-CLI-004:** JSON output shall give each value with its state, status, source, and observation time. A missing value shall be null with its state, never zero. The schema shall be versioned.
+
+**OU-CLI-005:** Each failure shall have one line of text, a stable code, and a documented exit code. JSON mode shall return the same code as JSON.
+
+**OU-CLI-006:** A locked database shall give Locked and an exit code. `openusage statusline` shall never prompt.
+
+**OU-CLI-007:** Output shall contain no secrets, prompts, or code.
+
+**OU-CLI-008:** `--help` shall be complete for every command.
 
 ---
 
@@ -877,13 +1163,13 @@ The default quiet period shall be **22:00–08:00** in the selected local time z
 
 **OU-DATA-013:** The app shall not silently compact, delete, or aggregate away raw accepted quota history.
 
-**OU-DATA-014:** The app shall never store access tokens, refresh tokens, browser cookies, or Codex auth-file contents in SQLite.
+**OU-DATA-014:** The app shall never store access tokens, refresh tokens, browser cookies, or provider auth-file contents in SQLite.
 
 **OU-DATA-015:** The app shall not sync the live database to cloud folders.
 
 **OU-DATA-016:** The app shall provide complete local export and explicit local data deletion.
 
-**OU-DATA-017:** Deleting local data shall not claim to delete OpenAI-side records.
+**OU-DATA-017:** Deleting local data shall not claim to delete provider-side or Leaderboard Service records.
 
 **OU-DATA-018:** Database reads used by the dashboard shall not scan full historical snapshots when a current-state index is available.
 
@@ -902,6 +1188,10 @@ The default quiet period shall be **22:00–08:00** in the selected local time z
 **OU-DATA-025:** Delete All Local Data shall remove managed OpenUsage records and managed profile homes only after explicit confirmation.
 
 **OU-DATA-026:** Delete All Local Data shall not delete an external or WSL Codex home without separate explicit approval.
+
+**OU-DATA-027:** Local log summaries and reading evidence shall follow the same encryption, backup, export, and deletion rules as other application records.
+
+**OU-DATA-028:** Delete All Local Data shall not delete the logs of another tool.
 
 ### 12.2 Encryption and unlock behavior
 
@@ -963,8 +1253,6 @@ The default quiet period shall be **22:00–08:00** in the selected local time z
 
 **OU-BACKUP-010:** A failed or interrupted restore shall preserve the previous valid database.
 
-**OU-BACKUP-011:** Backups shall not contain raw retained receipts unless the user selects Include local evidence.
-
 **OU-BACKUP-012:** The app shall verify a restored database before marking restore complete.
 
 **OU-BACKUP-013:** Archive version 1 shall use authenticated chunks of at most 1 MiB each.
@@ -983,7 +1271,7 @@ The default quiet period shall be **22:00–08:00** in the selected local time z
 
 ## 13. Required database schema
 
-All tables shall have explicit primary keys. Mutable business records shall store creation and update times in UTC. Foreign keys shall be enabled. Money shall be stored in integer minor units. All stored money amounts shall be nonnegative signed 64-bit integers. Payment and refund fields shall be separate. Token totals shall be stored as decimal text with checked parsing.
+All tables shall have explicit primary keys. Mutable business records shall store creation and update times in UTC. Foreign keys shall be enabled. Money shall be stored in integer minor units. All stored money amounts shall be nonnegative signed 64-bit integers. Token totals shall be stored as decimal text with checked parsing. An estimated API-equivalent value is not money under this rule. It shall be stored as labeled decimal text.
 
 | Table | Required fields and rules |
 |---|---|
@@ -997,14 +1285,17 @@ All tables shall have explicit primary keys. Mutable business records shall stor
 | `current_activity_days` | Profile UUID; provider date; scope; exact token text; observed UTC; unique profile/date/scope |
 | `activity_day_history` | UUID; profile/date/scope; prior and accepted exact token text; observed UTC; collection run |
 | `subscriptions` | UUID; profile/account association; plan; amount; currency; interval; dates; auto-renew; evidence |
-| `promotions` | UUID; subscription UUID; distinct claim, activation, benefit end; terms; evidence |
-| `discount_periods` | UUID; subscription UUID; start/end; discount amount or rule; evidence |
-| `payment_records` | UUID; subscription UUID; currency; paid/due/discount/refund amounts; state; date; confirmation |
-| `receipt_imports` | UUID; filename; hash; parser state; confirmation state; optional encrypted evidence reference |
 | `alert_policies` | UUID; event type; profile override nullable; threshold/offset; enabled; quiet-hours data |
 | `alert_events` | UUID; unique event key; evidence; delivery state; scheduled and delivered times |
 | `collection_runs` | UUID; profile UUID; method; start/end; outcome; redacted error code |
-| `settings` | Schema version; time zone; locale; theme; monitoring state; retention policy |
+| `settings` | Schema version; time zone; locale; theme; monitoring state; retention policy; dashboard layout; start-at-login state |
+| `source_adapters` | Adapter ID; version; provider; tool; level; enabled state; consent time |
+| `reading_evidence` | UUID; reading reference; adapter version; level; format fingerprint; check results; reading status; comparison result; redacted response hash; observed UTC |
+| `log_sources` | UUID; tool; resolved folder reference; consent state; pinned time zone; last scan UTC |
+| `local_usage_days` | UUID; log source; tool; model; local date; token text by type; estimated value text nullable; scanner version; coverage; unique source/date/model |
+| `local_usage_sessions` | Session key; log source; project name nullable; log account key nullable; start and end UTC; token text by type; estimated value text nullable |
+| `local_usage_differences` | UUID; log source; date; model; saved and new token text; scan UTC |
+| `log_accounts` | UUID; tool; log account key; linked profile nullable; link kind |
 
 ### 13.1 Database constraints (Normative)
 
@@ -1025,13 +1316,13 @@ All tables shall have explicit primary keys. Mutable business records shall stor
 
 ## 14. Security and privacy
 
-**OU-SEC-001:** The product shall have no OpenUsage-hosted account service, telemetry endpoint, or hidden network call.
+**OU-SEC-001:** The desktop app and CLI shall have no telemetry endpoint or hidden network call. The opt-in Leaderboard Service is the only OpenUsage-hosted service.
 
-**OU-SEC-002:** Only official Codex provider operations needed for authorized login and collection may contact OpenAI.
+**OU-SEC-002:** Only declared adapter operations for authorized sign-in and collection may contact a provider. Only a joined Leaderboard client may contact the Leaderboard Service.
 
 **OU-SEC-003:** The frontend shall not receive tokens, auth-file contents, browser cookies, or the database encryption key.
 
-**OU-SEC-004:** Provider credentials shall remain in the supported provider-managed credential environment.
+**OU-SEC-004:** Provider credentials shall remain in the supported provider-managed credential environment. A session from sign-in inside OpenUsage shall follow OU-SRC-008.
 
 **OU-SEC-005:** The app shall isolate managed home directories by profile and file permission.
 
@@ -1065,11 +1356,43 @@ All tables shall have explicit primary keys. Mutable business records shall stor
 
 **OU-SEC-020:** The app shall not accept provider web pages as commands or application instructions.
 
+**OU-SEC-021:** The app shall treat log contents as untrusted data. Log text shall never become a command, a path to open, or rendered markup.
+
+**OU-SEC-022:** The documentation shall state that the bundled `ccusage` process runs with the rights of the user and is not sandboxed. The app shall not claim otherwise.
+
 ### 14.1 Threat-model minimum
 
-The release threat model shall cover: malicious local files; compromised browser content; malicious path links; poisoned JSON-RPC data; substituted Codex binaries; stolen backup archives; lost encryption keys; account switching; duplicate identities; corrupted updates; log leakage; and unauthorized filesystem access.
+The release threat model shall cover: malicious local files; compromised browser content; malicious path links; poisoned JSON-RPC data; poisoned adapter responses; malicious log content; substituted Codex or `ccusage` binaries; a compromised npm package; fake leaderboard submissions; stolen backup archives; lost encryption keys; account switching; duplicate identities; corrupted updates; log leakage; and unauthorized filesystem access.
 
 The release shall not claim protection against an attacker with full control of the user's unlocked operating-system account. It shall still use reasonable OS access controls.
+
+---
+
+## 14A. Opt-in leaderboard
+
+**OU-BOARD-001:** The leaderboard shall be off by default. The app and CLI shall not contact the service before the user joins.
+
+**OU-BOARD-002:** Joining shall use GitHub sign-in. The client token shall stay in the OS credential store, and the user shall be able to revoke it.
+
+**OU-BOARD-003:** An upload shall contain only date, tool, model, token counts, estimated value, and a random device ID.
+
+**OU-BOARD-004:** An upload shall never contain prompts, code, paths, project names, session content, email addresses, provider account IDs, or device names.
+
+**OU-BOARD-005:** `openusage board sync --dry-run` shall print the exact upload through the same code path as a real sync.
+
+**OU-BOARD-006:** Only local log totals shall upload. Provider readings shall not upload.
+
+**OU-BOARD-007:** The leaderboard title shall say Self-reported. Leaderboard values shall never become readings in the app.
+
+**OU-BOARD-008:** The leaderboard shall rank tokens and estimated value over 7 days, 30 days, and all time.
+
+**OU-BOARD-009:** A repeated sync shall replace the same device, date, tool, and model. A profile shall sum its devices.
+
+**OU-BOARD-010:** Leaving shall remove the user's data from public view at once and from storage within 30 days.
+
+**OU-BOARD-011:** The service source shall be public, with a published moderation policy. The service can flag implausible totals but cannot prove any total. The app shall work fully without the service. The service needs an approved architecture decision before construction.
+
+**OU-BOARD-012:** In Stage 3, a joined user can have a public web profile. It shall show only the data that OU-BOARD-003 permits.
 
 ---
 
@@ -1098,8 +1421,11 @@ The reference computer shall have: four CPU cores, 8 GiB RAM, a local SSD, a cur
 | OU-NFR-015 | The app shall not keep more than two active collecting child processes | Process test |
 | OU-NFR-016 | A failed backup or update shall not corrupt the previous valid database | Recovery tests |
 
-| OU-NFR-017 | At most 450 MiB resident memory for OpenUsage app processes, excluding Codex children, after idle stabilization | Peak sampled across five idle minutes with ten cached profiles |
+| OU-NFR-017 | At most 450 MiB resident memory for OpenUsage app processes, excluding Codex and `ccusage` children, after idle stabilization | Peak sampled across five idle minutes with ten cached profiles |
 | OU-NFR-018 | Mean idle CPU below 5% of one logical core, excluding collection periods | Five-minute trace after warm startup |
+| OU-NFR-019 | `openusage statusline` completes in ≤ 200 ms at the 95th percentile | 100 runs with a cached database; proposed target |
+| OU-NFR-020 | First local history appears in ≤ 60 seconds after consent | Reference machine with 1 GiB of synthetic logs; proposed target |
+| OU-NFR-021 | A local log scan does not make the UI miss OU-NFR-002 | Interaction trace during a scan; proposed target |
 
 **Performance measurement rule:** Run the benchmark on each release platform. Report the machine, operating-system release, app commit, schema version, and observed distribution. A test passes only if all specified limits pass on each reference platform.
 
@@ -1114,8 +1440,6 @@ The reference computer shall have: four CPU cores, 8 GiB RAM, a local SSD, a cur
 **OU-REL-004:** A failed database write shall not partially publish a new quota state.
 
 **OU-REL-005:** A full disk shall produce an actionable error without deleting accepted records.
-
-**OU-REL-006:** A corrupt import shall not alter confirmed billing records.
 
 **OU-REL-007:** The app shall preserve its database during an interrupted application update.
 
@@ -1135,15 +1459,17 @@ The reference computer shall have: four CPU cores, 8 GiB RAM, a local SSD, a cur
 
 Other Linux distributions are not release-verified until a published test matrix names them. Release notes shall list exact tested versions and architectures. The app shall show Unsupported environment when a required runtime is missing.
 
+Stage 1 shall run on all three operating systems. Acceptance on Windows and macOS shall use real machines. CI does not replace these runs.
+
 **OU-PLAT-001:** Windows packaging shall handle missing or damaged WebView2 installations with a documented recovery action.
 
 **OU-PLAT-002:** Linux packaging shall list exact WebKitGTK runtime dependencies.
 
-**OU-PLAT-003:** macOS packages shall use the platform's supported signing and notarization process for distributed builds.
+**OU-PLAT-003:** Paid macOS signing and notarization are optional. Release notes shall state whether a macOS build has them.
 
-**OU-PLAT-004:** Windows packages shall be signed before general public distribution.
+**OU-PLAT-004:** Paid Windows code signing is optional. Release notes shall state whether a Windows build has it.
 
-**OU-PLAT-005:** Linux releases shall publish package hashes and installation dependencies.
+**OU-PLAT-005:** Every release shall publish package hashes. Linux releases shall also publish installation dependencies.
 
 **OU-PLAT-006:** Release binaries shall use a reproducible, locked dependency build process where supported.
 
@@ -1151,9 +1477,31 @@ Other Linux distributions are not release-verified until a published test matrix
 
 **OU-PLAT-008:** The app shall not replace an existing user Codex installation without approval.
 
-**OU-PLAT-009:** A built-in update check shall be opt-in and shall only read signed release metadata from a documented source.
+**OU-PLAT-009:** A built-in update check shall be opt-in and shall only read verified release metadata from a documented source.
 
 **OU-PLAT-010:** An application update shall not add telemetry or alter the privacy boundary.
+
+---
+
+## 16A. Distribution
+
+**OU-DIST-001:** `npm install -g openusage` shall install the CLI and the desktop app.
+
+**OU-DIST-002:** Installation and use shall need no payment and no OpenUsage account.
+
+**OU-DIST-003:** The package shall use per-platform packages with no install scripts and no runtime downloads. It shall contain the CLI, the desktop app, the pinned Codex companion, `ccusage`, and notices. Each platform needs its own pinned and qualified copies.
+
+**OU-DIST-004:** The CLI shall work when desktop libraries are missing. `openusage app` shall then print the fix.
+
+**OU-DIST-005:** Each release shall publish hashes, npm provenance, a build attestation, and an SBOM.
+
+**OU-DIST-006:** The documentation shall state what an unsigned build does on each operating system.
+
+**OU-DIST-007:** A real Mac test shall cover the tray, notifications, and Keychain. If a plain binary fails, the package shall ship an ad-hoc-signed app bundle.
+
+**OU-DIST-008:** Uninstalling shall keep user data. The documentation shall state how to delete it.
+
+**OU-DIST-009:** One documented command shall build the product from source.
 
 ---
 
@@ -1171,7 +1519,11 @@ type MetricState =
 
 type IdentityConfidence = "verified" | "provisional" | "unknown" | "conflict";
 
-type DataSource = "codex_app_server" | "user_confirmed" | "local_receipt_import";
+type SourceLevel = "official" | "local_log" | "unofficial";
+
+type ReadingStatus = "official" | "matched" | "unverified" | "disputed";
+
+type DataSource = string;                // registered adapter ID, or "user_confirmed"
 
 type QuotaWindow = {
   profileId: string;                   // immutable local UUID
@@ -1186,7 +1538,10 @@ type QuotaWindow = {
   reachedType: string | null;
   observedAtUtc: string;
   state: MetricState;
-  source: "codex_app_server";
+  source: DataSource;
+  sourceLevel: SourceLevel;
+  readingStatus: ReadingStatus;
+  evidenceId: string;
 };
 
 type ActivityBucket = {
@@ -1210,17 +1565,23 @@ type SummaryStats = {
   observedAtUtc: string;
 };
 
-type BillingRecord = {
-  subscriptionId: string;
-  source: "user_confirmed" | "local_receipt_import";
-  confirmedAtUtc: string;
-  currency: string;                    // ISO 4217
-  amountMinor: string | null;          // signed exact integer
-  paymentStatus: "paid" | "due" | "refunded" | "void";
+type LocalUsageDay = {
+  logSourceId: string;
+  tool: string;
+  model: string;
+  localDate: string;                   // YYYY-MM-DD in the pinned time zone
+  inputTokens: string | null;
+  cachedInputTokens: string | null;
+  outputTokens: string | null;
+  reasoningTokens: string | null;
+  totalTokens: string;
+  estimatedValueUsd: string | null;    // decimal text, never money
+  scannerVersion: string;
+  coverage: "complete" | "logs_gone" | "partial";
 };
 ```
 
-**OU-NUM-001:** A valid quota percentage is finite and within `0` through `100`, inclusive.
+**OU-NUM-001:** A valid quota percentage is finite and within `0` through `100`, inclusive. An adapter can declare a higher limit only for a documented over-limit measure, such as a spend limit.
 
 **OU-NUM-002:** Derived remaining percentage is `100 - usedPercent` for a valid value only.
 
@@ -1233,10 +1594,6 @@ type BillingRecord = {
 **OU-NUM-006:** Reset times shall be interpreted as Unix seconds and stored as UTC timestamps.
 
 **OU-NUM-007:** Monetary arithmetic shall use checked integer operations and the currency's stated scale.
-
-**OU-NUM-010:** A money field shall not use a negative minor-unit value to encode a refund.
-
-**OU-NUM-011:** Payment and refund values shall keep separate explicit state and transaction dates.
 
 **OU-NUM-008:** No automatic rounding shall change the stored provider token or quota measurement.
 
@@ -1251,8 +1608,8 @@ type BillingRecord = {
 1. **Load:** Unlock the database. Load cached state. Show prior data with its age.
 2. **Prepare:** Select an eligible profile. Confirm its approved home and executable.
 3. **Authenticate:** Read supported account state. Apply the identity-confidence rules.
-4. **Collect:** Read supported quota and activity methods. Validate each response independently.
-5. **Persist:** Write accepted current state and history in one transaction.
+4. **Collect:** Read supported quota and activity methods. Validate each response independently. Run the checks in Section 5B.
+5. **Persist:** Write accepted current state, history, and evidence in one transaction.
 6. **Evaluate:** Check thresholds, reset evidence, deadline policies, and duplicate event keys.
 7. **Wait:** Schedule the next 300-second cycle, subject to provider backoff.
 8. **Recover:** Keep old data on failure. Show the error. Do not replay missed cycles.
@@ -1265,15 +1622,15 @@ type BillingRecord = {
 4. Let the user reconnect, create a new profile, or keep the profile disconnected.
 5. Resume collection only when the new binding is valid under Section 4.
 
-### 18.3 Local receipt workflow
+### 18.3 Local log workflow
 
-1. The user selects a local file.
-2. Rust validates type, path, size, and content.
-3. The local parser extracts candidate fields without network access.
-4. The UI shows candidates and their evidence.
-5. The user edits and confirms each record.
-6. Rust stores the confirmed record in one transaction.
-7. The app keeps or deletes the raw evidence according to user choice.
+1. Check which known folders exist. Open no file.
+2. Show one consent screen.
+3. Check the `ccusage` hash and run it with fixed arguments.
+4. Validate the output.
+5. Store summaries in one transaction under OU-LOG-011.
+6. Show history.
+
 
 ### 18.4 Backup workflow
 
@@ -1285,6 +1642,22 @@ type BillingRecord = {
 6. Restore creates a pre-restore checkpoint and shows a preview.
 7. A successful restore replaces selected records atomically.
 8. Failure leaves the original records usable.
+
+### 18.5 Unofficial adapter workflow
+
+1. The user enables one provider.
+2. The app shows the access method and the risk, and requires consent.
+3. The user signs in inside OpenUsage.
+4. Rust reads the source and runs the checks in Section 5B.
+5. The app shows the reading with its mark.
+
+### 18.6 Leaderboard workflow
+
+1. The user joins with GitHub.
+2. The app shows the exact upload.
+3. The user confirms.
+4. Later syncs replace the same rows.
+5. Leaving removes the user's data.
 
 ---
 
@@ -1313,11 +1686,6 @@ Every test shall record: build version, platform, fixture or account type, steps
 | AT-17 | Put account peaks on different dates | Combined daily peak equals max of combined days |
 | AT-18 | Remove one middle daily bucket | Coverage warning appears; missing day is not zero |
 | AT-19 | Supply incompatible provider date scopes | Incompatible accounts are excluded with reason |
-| AT-20 | Enter claim, benefit-end, and renewal dates | Three distinct calendar events appear |
-| AT-21 | Import a local receipt | Parsed fields are previewed and need confirmation |
-| AT-22 | Import a scanned or malicious document | No scripts run; unsupported scan requires manual entry |
-| AT-23 | Import a bank mandate amount | It is not recorded as a paid amount |
-| AT-24 | Report confirmed transactions in two currencies | Totals remain separate; projections remain separate |
 | AT-25 | Cross 80%, then repeat polls | One threshold alert for that confirmed window |
 | AT-26 | Move reset time but give no full confirmation | No reset-complete alert; no new alert generation |
 | AT-27 | Disable alerts and test quiet hours | Disabled events do not deliver; quiet events queue |
@@ -1331,25 +1699,62 @@ Every test shall record: build version, platform, fixture or account type, steps
 | AT-35 | Run a 2.1-million-row quota history fixture | Dashboard uses current-state path; latency targets pass |
 | AT-36 | Run keyboard and screen-reader tests | All main functions and chart alternatives work |
 | AT-37 | Inspect protocol requests | Only approved methods are used; no inference or credit use |
-| AT-38 | Run Windows, macOS, and Ubuntu builds | Required OS/webview functionality passes |
+| AT-38 | Run Windows, macOS, and Ubuntu builds on real machines | Required OS/webview functionality passes |
 | AT-39 | Configure and inspect an approved WSL home | WSL/native data and credentials stay isolated |
 | AT-40 | Install, upgrade, and interrupt a migration | Existing valid user data remains recoverable |
 | AT-41 | Attempt path traversal and symlink escapes | Unsafe access is blocked |
 | AT-42 | Scan DB, logs, backup, and export | No tokens, auth files, or browser secrets appear |
-| AT-43 | Test signed release artifacts and dependencies | Signing, hashes, license notices, and SBOM pass |
+| AT-43 | Test release artifacts and dependencies | Hashes, build provenance, license notices, and SBOM pass; signing state matches release notes |
 | AT-44 | Test sleep, wake, offline, and restart | No catch-up burst; old state remains visible |
 | AT-45 | Run live account identity contract validation | Stable identity behavior is documented or verified totals stay unavailable |
 | AT-46 | Test a provider method missing in pinned version | Capability shows Unsupported; app remains usable |
 | AT-47 | Check Work attribution and provider credits | Shared scope and credit types are labeled correctly |
-| AT-48 | Test paid refunds and date-only terms | Money and calendar values remain correct |
 
-| AT-49 | Test cancellation deadlines and monthly/yearly reports | Date and currency grouping are correct |
 | AT-50 | Test SQLCipher with WAL and power-loss faults | Encrypted DB and transactional history remain recoverable |
 | AT-51 | Attempt malformed or reordered encrypted backup chunks | Restore refuses the archive without altering live state |
 | AT-52 | Measure idle application RAM and CPU at ten accounts | OU-NFR-017 and OU-NFR-018 pass |
 | AT-53 | Backup a database with 2.1 million quota rows | Valid encrypted backup and restore completes; entry limits do not reject SQL rows |
 | AT-54 | First accepted window reading has 95% usage | Only the 90% threshold alert appears; lower levels do not repeat |
 | AT-55 | Delete all application data with an external WSL home | Managed data is deleted after approval; external home is not deleted without separate approval |
+| AT-56 | Give fixtures for each reading status | Status, mark, alerts, and reset confirmation follow Section 3.2, OU-AUD-009, and OU-RESET-005 |
+| AT-57 | Change a field that an adapter uses | Not available; no guessed value; the real-account test for that field is void |
+| AT-58 | Add a field that an adapter does not use | Reading stays; change is recorded |
+| AT-59 | Scan evidence records | No tokens, cookies, emails, prompts, code, or full paths |
+| AT-60 | Run a real-account test on Codex and Claude Code | Results and largest difference are recorded |
+| AT-61 | Use an Unofficial adapter with no test | It stays Unverified and off by default |
+| AT-62 | Trace file and network access during collection | No cookie store or other tool's credentials are read; only declared hosts are contacted |
+| AT-63 | Read one account through two adapters | One account with two sources |
+| AT-64 | Use two accounts with one email and no shared ID | Both stay, with a Duplicate? mark |
+| AT-65 | Run forked, replayed, compacted, and copied log fixtures | Tokens count once; results match the recorded `ccusage` outputs |
+| AT-66 | Scan the same logs twice | Totals are identical |
+| AT-67 | Delete logs and rescan | Saved totals stay; the difference is saved |
+| AT-68 | Change the display time zone | Saved days do not move |
+| AT-69 | Use an unknown model | Tokens stay; estimated value is Not available |
+| AT-70 | Change the `ccusage` binary | It does not run; the rest of the app works |
+| AT-71 | Run `ccusage` with the network blocked; give oversized and malformed output | Results are unchanged, or the scan fails safely with limits applied |
+| AT-72 | Trace first launch | No log opens before consent; an unselected tool is never read |
+| AT-73 | Plant marker strings and markup in log prompts | Markers appear in no database, export, image, or upload; no markup renders |
+| AT-74 | Scan logs with and without an account ID | Unknown account appears; no inferred account |
+| AT-75 | Compare provider and local totals | They are never added; a higher local total gives Disputed |
+| AT-76 | Sum two tools | May overlap appears; the word total does not |
+| AT-77 | Run the CLI without desktop libraries | All CLI commands work; `openusage app` prints the fix |
+| AT-78 | Run CLI commands on locked and missing data | Exit codes are correct; null stays null; statusline never prompts |
+| AT-79 | Compare JSON output with the UI | Both show the same values, states, and statuses |
+| AT-80 | Install with npm on Ubuntu and on a real Windows PC and Mac | The CLI, app, tray, notifications, and key store work |
+| AT-81 | Inspect the package | No install scripts; hashes, provenance, and SBOM pass |
+| AT-82 | Create and preview a share image | No private fields; no network use; missing days stay distinct |
+| AT-83 | Reorder and hide cards, then restart | Layout stays; marks and errors stay visible |
+| AT-84 | Install, keep, and undo the Claude Code status line | The user's own status line survives; an absent window is not zero |
+| AT-85 | Review every screen against Section 2.3 | No tagline, helper text, or secondary label; each number opens one detail panel |
+| AT-86 | Keep the leaderboard off and trace network use | The service is never contacted |
+| AT-87 | Compare dry run with a real upload | Identical bytes; only permitted fields |
+| AT-88 | Sync twice, then leave | Rows are replaced, not added; leaving removes the data |
+| AT-89 | Set a renewal for tomorrow; restart and wake the app | One renewal alert; no repeat |
+| AT-90 | Use the tray and Start at login | The tray shows the lowest remaining quota and its mark; Start at login is off by default and works when enabled |
+| AT-91 | Launch for the first time with logs and no account | History appears with no sign-in; log-only tools use no profile slot |
+| AT-92 | Open quota and token graphs at each range | Quota history covers any range; provider tokens start at daily; gaps are not zero |
+| AT-93 | Switch between Provider and This device | Scope changes with no per-number label; ranges, breakdowns, and session quota movement are correct |
+| AT-94 | Back up, restore, export, and delete local usage data | Summaries and evidence follow the same rules; the logs of other tools stay untouched |
 
 ### 19.1 Release blockers
 
@@ -1361,9 +1766,15 @@ Any of these failures shall block release:
 4. A quota reset is claimed without accepted provider evidence.
 5. A missing measurement becomes a false zero or unlimited value.
 6. A transaction, migration, or restore damages the previous valid database.
-7. The collector uses an undocumented endpoint, inference call, or credit-consumption method.
+7. A collector uses an undocumented interface outside the Unofficial level and its safeguards, or uses an inference call or credit-consumption method.
 8. A mandatory acceptance test fails on a declared supported platform.
 9. A release artifact lacks the required integrity and supply-chain checks.
+10. A number in an abnormal state appears without its mark.
+11. The app reads browser cookies or the saved credentials of another tool.
+12. Prompt, response, or code text enters the database, a share image, an export, or an upload.
+13. Usage data leaves the device without the opt-in in Section 14A.
+14. Provider token totals and local log totals are added together.
+15. A cross-tool sum appears without its May overlap mark.
 
 ---
 
@@ -1376,13 +1787,17 @@ openusage/
 │       ├── src/                    # React frontend
 │       └── src-tauri/              # Tauri entry point and capabilities
 ├── crates/
-│   ├── openusage-core/            # Types, validation, aggregation
 │   ├── openusage-codex/           # Official app-server protocol adapter
-│   ├── openusage-storage/         # SQLCipher SQLite and migrations
-│   ├── openusage-alerts/          # Scheduler and durable alerts
-│   └── openusage-import/          # Local receipts and secure backup
+│   ├── openusage-storage/         # SQLCipher SQLite, migrations, and alerts
+│   ├── openusage-import/          # Secure backup
+│   ├── openusage-sources/         # Planned: source adapters, checks, and evidence
+│   └── openusage-cli/             # Planned: command-line binary
+├── services/
+│   └── leaderboard/               # Planned for Stage 2
 ├── docs/
+│   ├── README.md                  # Map of all documentation
 │   ├── SRS.md
+│   ├── implementation-status.md
 │   ├── architecture.md
 │   ├── data-contracts.md
 │   ├── identity-contract.md
@@ -1391,13 +1806,13 @@ openusage/
 │   ├── security-and-privacy.md
 │   ├── compatibility-matrix.md
 │   ├── performance-report.md
+│   ├── provider-evidence.md
 │   └── acceptance-traceability.md
 ├── tests/
-│   ├── fixtures/
 │   ├── contract/
-│   ├── integration/
-│   ├── security/
-│   └── accessibility/
+│   ├── native/
+│   ├── renderer/
+│   └── tools/
 ├── AGENTS.md
 ├── LICENSE
 ├── SECURITY.md
@@ -1423,7 +1838,11 @@ openusage/
 
 **OU-ENG-009:** Users shall be able to build the application without a proprietary OpenUsage service.
 
-**OU-ENG-010:** The public product name shall receive a separate trademark/name conflict review.
+**OU-ENG-011:** A pull request that adds an adapter shall include synthetic fixtures, format fingerprints, declared tolerances, allowed hosts, and a terms review.
+
+**OU-ENG-012:** No agent shall push, publish, or call a GitHub write API. Publication stays with the owner.
+
+**OU-ENG-010:** The public product name is OpenUsage. The owner approved this name on 2 November 2026.
 
 ---
 
@@ -1443,12 +1862,41 @@ OpenUsage cannot require the provider to publish a specific metric or identifier
 | Stable account/workspace key | Enable verified aggregation for distinct keys | Exclude from verified aggregate; explain why |
 | Unsupported auth mode | Do not send an invalid usage read | Unsupported |
 | Provider protocol change | Use tested compatible contract only | Unsupported until tested |
+| Claude Code quota | Show documented status-line values during a session | Keep the last reading as Stale; never show zero |
+| Account ID in a local log | Group by account under OU-LOG-015 | Show Unknown account |
+| Token data for a tool | Show local log estimates | Not available |
+| Quota for a tool with no accepted source | Show the reading with its status | Not available |
 
 The app shall not substitute guessed amounts, scraped values, or requests that consume a quota merely to make a screen complete.
 
 ---
 
-## 22. Changes from baseline 1.0
+## 22. Baseline changes
+
+### 22.1 Changes from baseline 2.0
+
+| Item | Baseline 2.0 | Baseline 3.0 |
+|---|---|---|
+| Purpose | Observe ChatGPT-plan Codex accounts | Show what developers used and have left across many tools |
+| Sources | Documented Codex app-server only | Official, Local log, and Unofficial levels |
+| Trust | Provider authority | Same, plus a status and evidence for each reading |
+| Duplicates | Identity rules for Codex | Same, plus rules for accounts, logs, and tools |
+| Token analytics | Provider daily buckets | Same, plus local logs through bundled `ccusage` |
+| Interface | Desktop app | Desktop app and CLI from one install |
+| Design | Labels on each value | No secondary labels; one mark; one detail panel |
+| Sharing | Export and backup | Same, plus Wrapped and share images |
+| Hosted service | None | Opt-in leaderboard only, from Stage 2 |
+| Distribution | Paid signing required | Free npm install; hashes and provenance; paid signing optional |
+| Billing | Subscriptions, promotions, payments, receipts, calendar | Subscriptions and one renewal alert |
+| Accounts | Profile tags and browser shortcuts | Removed |
+
+**Removed requirements:** OU-ACCT-010, OU-BILL-003, OU-BILL-004, OU-BILL-006, OU-BILL-007, OU-BILL-008, OU-BILL-009, OU-BILL-010, OU-BILL-011, OU-BILL-012, OU-BILL-015, OU-BILL-017, OU-BILL-019, OU-BILL-020, OU-BILL-021, OU-BILL-022, OU-BILL-023, OU-BILL-024, OU-IMPORT-001 through OU-IMPORT-012, OU-ALERT-006, OU-BACKUP-011, OU-REL-006, OU-NUM-010, OU-NUM-011.
+
+**Removed tests:** AT-20, AT-21, AT-22, AT-23, AT-24, AT-48, AT-49.
+
+Baseline 2.0 remains in Git history at commit `5f1c2c7`. No other baseline 2.0 requirement is removed. All retained requirement IDs keep their meaning, except where this baseline amends their text.
+
+### 22.2 Changes from baseline 1.0
 
 | Item | Baseline 1.0 | Baseline 2.0 |
 |---|---|---|
@@ -1481,13 +1929,17 @@ No other baseline 1.0 feature is removed. A provider limitation shall produce an
 7. ASD Simplified Technical English Maintenance Group, **ASD-STE100**, Issue 9, 15 January 2025: https://asd-ste100.org/ — writing principles; this document makes no formal conformity claim.
 8. W3C, **WCAG 2.2**: https://www.w3.org/TR/WCAG22/ — accessibility target.
 9. ISO/IEC/IEEE 29148: requirements-engineering organization guide. This document does not claim certification.
+10. Anthropic, **Customize your status line**: https://code.claude.com/docs/en/statusline — documented `rate_limits` fields. Checked 2 November 2026.
+11. ccusage: https://github.com/ccusage/ccusage — MIT-licensed local log analysis. Version 20.0.47 was current on 2 November 2026. The release pin remains mandatory.
+12. tokenmaxxing: https://tokenmaxxing.sh — studied for dry-run preview and aggregate-only upload. Checked 2 November 2026.
+13. tokscale: https://github.com/junhoyeo/tokscale — studied for day-total and pricing rules. Checked 2 November 2026.
 
 ---
 
 ## 24. Final release rule
 
-**The complete OpenUsage release shall implement and test every mandatory requirement in this baseline.** The application shall preserve provider truth, account isolation, local privacy, and data recovery.
+**Each release stage in Section 0.4 shall implement and test every mandatory requirement in that stage.** The application shall preserve provider truth, account isolation, local privacy, and data recovery.
 
-If the provider does not expose a required measurement, OpenUsage shall report the documented Not available or Unsupported state. It shall not guess, scrape, or send workload requests to fill that gap.
+If the provider does not expose a required measurement, OpenUsage shall report the documented Not available or Unsupported state. It shall not guess, scrape pages, or send workload requests to fill that gap.
 
 **This is a final SRS baseline, not a statement that the application has passed release tests.**
