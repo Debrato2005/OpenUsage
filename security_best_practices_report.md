@@ -1,64 +1,79 @@
 # OpenUsage security and push review
 
-Date: October 23, 2026. Reviewed HEAD: `199f618093a2173cdf0e9fb1a9a6235eca87e2cb` plus the 17 existing modified files.
+Date: October 24, 2026. Base: `e4984f1` with a clean worktree before this assignment.
 
-No secret or private-file blocker was detected for a normal source push. The repository is **not fully security-cleared**. A known dependency advisory and incomplete checks remain. This report does not qualify a production release.
+The known glib iterator flaw now has a local upstream backport. Its optimized regression failed before the fix and passed afterward. **Push readiness remains blocked** until the required environment-dependent checks pass. This review does not qualify a production release.
 
-## Scope and method
+## 1. Medium: GLib iterator memory safety
 
-The review covered all 631 commits reachable from local refs, including 630 reachable from main. The cached origin/main is 21 commits behind main. Git history is not shallow. Git integrity checks found no corruption. Unreachable scratch objects remain local and were not deleted.
+The original `glib 0.18.5` source passed an immutable reference to a C function that changes the referenced pointer. Optimization can then leave a null pointer for the string conversion. [RUSTSEC-2024-0429](https://rustsec.org/advisories/RUSTSEC-2024-0429.html) describes the defect.
 
-Gitleaks 8.30.1 scanned all refs and reported 609 commits with scanned patches. To cover historical snapshots independently, both scanners also examined all 2,128 reachable blobs and exported commit messages. These blobs total 51,946,229 bytes. Both scanners examined a separate snapshot of all 443 tracked working files. No existing provider credential home was inspected. TruffleHog 3.99.0 ran with credential verification and automatic updates disabled.
+The root [Cargo patch](Cargo.toml#L8) now selects the local source for every glib consumer. The [iterator](vendor/glib-0.18.5/src/variant_iter.rs#L118) contains exactly the upstream two-line fix. The original version, API and MIT license remain intact. No advisory suppression or version disguise is added.
 
-Gitleaks reported no secrets. TruffleHog reported one current URI and two historical versions of that URI. Each belongs to the synthetic rejected-login-URL test in [boundary.rs](crates/openusage-codex/tests/boundary.rs#L192). None is a real credential. No scanner allowlist was added.
+The source archive SHA-256 matches the former lockfile checksum. Comparison covered all 121 archive files. Only the iterator differs. [Patch provenance](vendor/glib-0.18.5/OPENUSAGE-PATCH.md) records the archive, upstream revision, fixed-file hash and removal condition.
 
-Historical path checks found no private or generated paths in either main or all reachable refs. Current tracked-ignore checks found none. Historical media paths contain fonts, application icons and the logo. Automated scans cannot prove the absence of every secret, including secrets embedded in arbitrary binary content.
+The [regression](apps/desktop/src-tauri/tests/glib_variant.rs#L8) covers all affected iterator entry points, Unicode, empty values, exhaustion, mixed directions and type refusal. The test profile compiles glib at optimization level 2. An isolated Linux probe with the same test aborted against the original source, then passed against the fixed source. Full application and native acceptance remain separate gates.
 
-Manual review focused on the existing diff, renderer sinks, Tauri permissions and navigation, typed IPC, provider process isolation, credential storage, key wrapping and export publication. This is not a line-by-line audit of every historical revision.
+## 2. Publication and secret boundaries
 
-## Security finding
+Gitleaks 8.30.1 scanned all reachable local refs and reported 610 commits with scanned patches and no leaks. Git integrity checks passed. The current source snapshot also passed Gitleaks. TruffleHog 3.99.0 scanned that snapshot with credential verification and updates disabled. No existing provider credential home was inspected.
 
-### 1. Medium: known glib dependency advisory remains unresolved
+The final snapshot contained 567 files. TruffleHog reported only the synthetic rejected-login URI in `crates/openusage-codex/tests/boundary.rs`. An earlier snapshot also flagged a Git commit hash in the previous review's Cloudflare skill URL. That value matched the cited commit exactly. The current review replaces that obsolete section. No real credential was detected, and no scanner allowlist was added.
 
-[Cargo.lock:1475](Cargo.lock#L1475) locks glib 0.18.5. [RUSTSEC-2024-0429](https://rustsec.org/advisories/RUSTSEC-2024-0429.html) affects versions from 0.15.0 through versions below 0.20.0. Its iterator implementation can cause undefined behavior and crashes. Patched versions start at 0.20.0.
+Source review found the existing renderer without raw HTML, dynamic evaluation, browser credential storage or direct network calls. Tauri retains its restrictive CSP, local capability list, typed commands, external-navigation refusal and new-window refusal. Rust continues to own credentials, processes, keys and persistence. These observations do not establish the absence of every vulnerability.
 
-The source search found no affected API caller outside glib's own implementation, documentation and tests. This limits the evidence of application reachability. It does not patch the dependency or establish that every binary is unaffected. [SECURITY.md:22](SECURITY.md#L22) already records this release gate. Review a compatible upstream update or backport before release. Do not suppress the advisory merely to clear a scanner.
+The notice inventories match all 509 remaining registry package checksums and both notice-text hashes. The local glib source includes its original MIT license. Two pre-existing Rust formatting defects were corrected. The normative SRS is unchanged.
 
-## Executed checks and remaining gates
+## 3. Executed checks
 
-| Check | Result in this review |
+| Check | Current result |
 | --- | --- |
-| Engineering doctor | Linux native packages available. Pinned Node 22.23.2 selected after the initial Node mismatch. |
-| Whitespace and tracked-ignore checks | Passed. Normative SRS unchanged from cached origin/main. |
-| Renderer production build and TypeScript | Passed. |
-| Typed IPC contract checks | All 55 passed. |
+| Doctor with pinned Node 22.23.2 | Passed toolchain and Linux package checks. |
+| Optimized iterator probe | Original aborted. Patched source passed. Synthetic Linux scope. |
+| Cargo metadata | One glib resolution, from the patched local manifest. Vendor excluded from workspace membership. |
+| Renderer build and TypeScript | Passed. |
+| IPC contracts | All 55 passed. |
 | Python engineering/storage tools | All 26 passed. |
-| Rust protocol boundary tests | All 8 passed with synthetic inputs. |
-| Rust provider library tests | 9 passed, 36 failed. Thirty-five fixtures failed executable approval. One Unix socket fixture returned EPERM. |
-| Rust backup/import tests | All 4 passed with synthetic archives, including wrong-password and tampering rejection. |
-| Changed native harness syntax | All three files passed Node syntax checks. |
-| Full renderer milestone | Blocked before browser tests. Vite cannot bind 127.0.0.1:1420: EPERM. |
-| Git safety hook behavior tests | Blocked. Node spawnSync cannot start git: EPERM. Hook configuration and source were checked. |
-| Full Rust workspace | The bounded 180-second attempt produced compilation output without a completed test result. Unverified. |
-| Current native application journeys | Not executed. Existing copy/layout acceptance remains incomplete. |
-| npm vulnerability audit | Blocked by EAI_AGAIN for registry.npmjs.org. No current clean audit result. |
-| Complete Rust vulnerability audit | cargo-audit is unavailable. The specific glib advisory was checked against RustSec. |
-| Live remote main | git ls-remote failed. Cached origin/main does not prove the current remote tip. |
+| Rust formatting and whitespace | Passed after formatting corrections. |
+| Strict workspace Clippy, all targets | Passed with `-D warnings`. |
+| History and source secret scans | No real secret detected within the stated scope. |
+| Full Rust milestone | Compiled, then failed in the provider test suite. Diagnostic run: 9 passed, 36 failed. |
+| Backup/import tests | All 4 passed with synthetic archives. |
+| Storage suite | Incomplete: reached its 150-second deadline. No complete suite result. |
+| Desktop package iterator regression | Passed with the workspace glib patch and optimized test profile. |
+| Current native acceptance | Smoke attempted against the current binary. Blocked before app launch by Node Git spawning. |
+| Local staging and commit | Staging failed: `.git/index.lock` is on a read-only filesystem. Nothing was staged or committed. |
 
-The provider fixture failures occur before the intended supervised operations. Sandbox-visible system ancestors, including / and /tmp, have unmapped owner UID 65534. The source-path guard explicitly refuses unmapped owners. These failures do not prove an application vulnerability, but they prevent a passing isolation claim. No guard was relaxed.
+## 4. Remaining environment gates
 
-The baseline and notification notice inventories together cover all 510 current registry name/version pairs. Their package checksums match Cargo.lock. Both notice text hashes and all recorded text slices match. These are source notice checks, not legal or linked-binary qualification. SECURITY.md still describes only the 486-package baseline.
+The renderer milestone cannot start its web server. A direct check confirmed `listen EPERM` on 127.0.0.1:1420. Browser checks and rendered acceptance remain unverified.
 
-The renderer search found no direct raw-HTML sink, dynamic evaluation, browser credential storage or direct network request. Tauri has a restrictive CSP, local command capabilities, disabled developer tools and denied new windows. Rust validates IPC and owns the sensitive operations. These source observations do not replace native acceptance.
+All four Git-hook behavior cases fail before their assertions because Node cannot spawn Git: `spawnSync git EPERM`. No hook or executable approval guard was relaxed.
 
-## Cloudflare skill applicability
+The npm audit failed because this environment cannot resolve `registry.npmjs.org`. Cargo-audit is unavailable, so a complete current Rust advisory scan remains unverified. The specific glib advisory and upstream fix were read through the web tool. Firecrawl could not run because its account had no credits.
 
-The requested Cloudflare skill is not installed locally. The official [Cloudflare skill](https://github.com/cloudflare/skills/blob/86505e44f87d801aa1864a3c4109e9a8ae5c409f/skills/cloudflare/SKILL.md) and [catalog](https://github.com/cloudflare/skills) describe Cloudflare platform workflows. This repository is a Rust/Tauri desktop app without a Cloudflare runtime. No Cloudflare security test was claimed or run. No external skill or dependency was installed. React/general frontend security guidance and the repository's native tests supplied the applicable checks.
+A live remote read failed because this environment cannot resolve `github.com`. Cached `origin/main` equals the base commit. That cache does not prove the live remote tip. Refresh the remote and require a fast-forward before an owner push.
 
-## Owner-controlled next action
+The provider diagnostic run reproduced 35 executable-approval failures and one Unix-socket EPERM failure. The sandbox maps the filesystem root and `/tmp` to UID 65534. The source-path guard refuses unmapped owners before the fixture operations. This prevents an isolation pass. No guard was relaxed.
 
-Complete the blocked checks in a suitable local environment before treating this as a clean security review. Preserve the existing hooks. Stage only the reviewed tracked edits and this report, then inspect the staged diff. A normal main-only push must remain a fast-forward. Never use force, all-refs, mirror publication or hook bypasses.
+## Owner commands after the gates pass
 
-No product source, normative SRS, credential home or Git configuration changed during the review. The only added non-ignored file is this report. No staging, commit, push, publication, pull request or GitHub write API occurred.
+Keep the existing hooks enabled. Review and commit only the named source, test, vendor and documentation paths. Then fetch `origin/main` and require it to be an ancestor of local `main`. Use an explicit main-to-main push without tags. Do not use force, all-refs publication, mirror publication or hook bypasses.
 
-Writing lint: 1.52 findings per 100 words. This checks wording only.
+After the required checks pass outside this sandbox, use the project root:
+
+```sh
+git add -- Cargo.toml Cargo.lock SECURITY.md security_best_practices_report.md \
+  docs/implementation-status.md docs/acceptance-traceability.md \
+  apps/desktop/src-tauri/src/main.rs apps/desktop/src-tauri/src/workspace.rs \
+  apps/desktop/src-tauri/tests/glib_variant.rs vendor/glib-0.18.5
+git diff --cached --check && git diff --cached --stat
+git commit -m "Backport GLib iterator memory-safety fix"
+git fetch origin main &&
+  git merge-base --is-ancestor origin/main main &&
+  git -c push.followTags=false push origin refs/heads/main:refs/heads/main
+```
+
+No push, publication, pull request or GitHub write API occurred.
+
+Writing lint: 1.42 findings per 100 words before this score line. This checks wording only.

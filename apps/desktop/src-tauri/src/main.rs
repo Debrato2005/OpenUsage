@@ -1749,10 +1749,21 @@ async fn load_activity_dashboard(
     let args: ActivityDashboardArgs = arguments(&request)?;
     let service = Arc::clone(&service.0);
     tauri::async_runtime::spawn_blocking(move || {
-        service.lock().map_err(|_| CommandError::StorageUnavailable)?
-            .as_ref().ok_or(CommandError::WorkspaceLocked)?
-            .load_activity_dashboard(&args.profile_ids, &args.view, &args.mode, &args.start_date, &args.end_date)
-    }).await.map_err(|_| CommandError::StorageUnavailable)?
+        service
+            .lock()
+            .map_err(|_| CommandError::StorageUnavailable)?
+            .as_ref()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .load_activity_dashboard(
+                &args.profile_ids,
+                &args.view,
+                &args.mode,
+                &args.start_date,
+                &args.end_date,
+            )
+    })
+    .await
+    .map_err(|_| CommandError::StorageUnavailable)?
 }
 
 #[tauri::command]

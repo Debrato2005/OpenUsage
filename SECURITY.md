@@ -19,7 +19,7 @@ Describe the affected commit, operating system, expected and observed behavior, 
 
 ## Known dependency qualification
 
-The locked Linux GTK chain includes `glib 0.18.5`, affected by [RUSTSEC-2024-0429](https://rustsec.org/advisories/RUSTSEC-2024-0429.html). The inspected OpenUsage and dependency sources had no caller of the affected `Variant::array_iter_str` entry point. That scoped result is not a fix or proof about every binary. A compatible upstream update or reviewed backport remains a release requirement; do not suppress the advisory or replace the dependency with an incompatible version just to clear a scanner.
+The Linux GTK chain requires `glib 0.18.5`. The root Cargo patch selects a [local source backport](vendor/glib-0.18.5/OPENUSAGE-PATCH.md) of the upstream fix for [RUSTSEC-2024-0429](https://rustsec.org/advisories/RUSTSEC-2024-0429.html). The source archive checksum matches the previous lockfile. Only the two upstream pointer-mutability changes differ from that archive. An optimized synthetic iterator regression reproduced the original abort and passed after the fix. The version stays 0.18.5, and no advisory suppression is added. Full dependency scanning and native desktop acceptance remain separate gates.
 
 The locked `proc-macro-error`, `zvariant`, `zbus_names` and `zvariant_derive` versions also have maintenance notices. Maintenance notices are not, by themselves, confirmed exploits. Recheck the exact lockfiles and review upstream migrations before release.
 
@@ -27,4 +27,4 @@ Vulnerability scans are point-in-time checks. Native system libraries, the separ
 
 ## Dependency notices
 
-[Native source notices](apps/desktop/public/licenses/rust-dependencies.txt) cover all 486 locked registry packages, including optional and build dependencies. The [inventory](apps/desktop/public/licenses/rust-dependencies.json) maps exact package and text hashes. This is not an inventory of packages linked into a released binary. Artifact-specific attribution, MPL source availability and system-library qualification remain release gates.
+The [baseline notices](apps/desktop/public/licenses/rust-dependencies.txt) cover 486 original registry packages. The [notification supplement](apps/desktop/public/licenses/notification-dependencies.json) covers 24 additional packages. These inventories retain the original archive and license hashes. The glib backport includes its original MIT [license](vendor/glib-0.18.5/LICENSE) and separate patch provenance. It replaces one registry source without adding a new package version. These source inventories do not identify packages linked into a released binary. Artifact-specific attribution, MPL source availability and system-library qualification remain release gates.

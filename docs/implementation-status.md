@@ -2,7 +2,17 @@
 
 # Implementation status
 
-Updated: October 22, 2026. OpenUsage remains in development. The normative [SRS](SRS.md) is unchanged. Only local commits are permitted. Remote branch deletion requires separate owner approval. Agents must not push or publish.
+Updated: October 24, 2026. OpenUsage remains in development. The normative [SRS](SRS.md) is unchanged. Only local commits are permitted. Remote branch deletion requires separate owner approval. Agents must not push or publish.
+
+## Security repair: native qualification incomplete
+
+The root Cargo patch selects a local glib 0.18.5 source backport for RUSTSEC-2024-0429. All original source files and the MIT license remain included. Only the two upstream pointer-mutability changes differ from the checksum-verified archive. The package version remains unchanged, and no advisory suppression is added.
+
+An optimized synthetic Linux iterator probe aborted before the fix and passed afterward. The checked-in desktop regression covers all affected iterator entry points, bounds, empty values and Unicode. Cargo metadata confirms one glib resolution from the local source. Two existing Rust formatting defects were corrected.
+
+The renderer build, 55 IPC checks, 26 Python tool tests, strict workspace Clippy, formatting and source/history scans passed within their stated scopes. The current report records the complete results. Browser/native acceptance, complete dependency audits and Git-hook behavior remain unverified because of environment restrictions. No production or other-platform qualification is claimed. The normative SRS remains unchanged.
+
+See the [security review](../security_best_practices_report.md) and [backport provenance](../vendor/glib-0.18.5/OPENUSAGE-PATCH.md). The original sandbox exposed `.git` as read-only, so this repair stayed uncommitted until November 2, 2026. That later local commit rechecked only Cargo resolution to the single vendored glib, formatting and the secret hook. The host then lacked webkit2gtk-4.1, so the desktop crate and its iterator regression did not run again. No remote write occurred.
 
 ## Copy and layout refinement: acceptance incomplete
 
