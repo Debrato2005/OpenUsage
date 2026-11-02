@@ -2,7 +2,7 @@
 
 # Desktop design foundations
 
-Updated: November 2, 2026. These foundations cover the native workspace, account overview, backup controls, and provisional quota preview. The user selected coss/ui for all components. The [adoption record](coss-ui-adoption.md) controls the incremental migration. Charts and accepted history need further native qualification.
+Updated: November 3, 2026. These foundations cover the native workspace, account overview, backup controls, and provisional quota preview. The user selected coss/ui for all components. The [adoption record](coss-ui-adoption.md) controls the incremental migration. Charts and accepted history need further native qualification.
 
 ## Design rules
 
@@ -15,6 +15,20 @@ Updated: November 2, 2026. These foundations cover the native workspace, account
 - Keep errors, consent, destructive confirmations and accessible names.
 
 The sections below are dated records. Where they describe explanatory text or repeated labels, these rules win.
+
+## Overview and the detail panel
+
+Overview answers one question: what have I used, and what is left? It shows the summary, the accounts, and token activity. Each number appears once.
+
+`detail-panel.tsx` holds the one side panel and the one mark. Every number uses them, and new screens reuse them. The panel opens beside the page, so nothing moves. Enter, Space or a click opens it. Escape, the close button or the backdrop closes it, and focus returns to what opened it. It fills a narrow window. Source, time, scope, coverage, derivation, plan and Account Detail belong here. Results of a refresh appear in the panel while it is open.
+
+The accounts table uses one column per window, under the same match rule as Compare. A connected account shows no status. Any other state shows one mark and its one action. A row with a connection problem shows that mark ahead of a freshness mark.
+
+The share donut appears beside token activity in Profile sum and Verified combined, so it follows the same accounts and dates. The quota donut is on Usage. Theme and display scale are in Settings. The active page in the header names the view, so the page heading is for screen readers only.
+
+Saved numbers and selection rules are unchanged. Connected profiles alone supply the quota and reset summaries; percentages from separate windows are never added. Unknown freshness keeps its existing wording under [SC-012](../srs-clarifications.md#sc-012-unknown-freshness-in-summary-marks).
+
+Usage, Settings and Manage accounts still need the Section 2.3 review.
 
 ## Current workspace design — November 2, 2026
 

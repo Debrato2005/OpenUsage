@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import type { ProfileRecord, SavedProfileActivity, SavedProfileQuota, SavedQuotaWindow } from '../../apps/desktop/src/contracts';
+import { closeDetail, openAccount } from './navigation';
 
 // Synthetic renderer fixtures. Native rendering and provider sessions are separate acceptance checks.
 const ids = ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222', '33333333-3333-4333-8333-333333333333', '44444444-4444-4444-8444-444444444444'];
@@ -65,6 +66,7 @@ async function open(page: Page, scenario: Scenario = standard) {
 }
 const glance = (page: Page) => page.locator('[data-overview-glance]');
 const rows = (page: Page) => page.locator('[data-overview-account]');
+const detail = (page: Page) => page.locator('[data-detail-panel][open]');
 async function chooseFilter(page: Page, name: string) {
   await page.getByRole('combobox', { name: 'Filter accounts', exact: true }).click();
   await page.getByRole('option', { name, exact: true }).click();
@@ -80,41 +82,121 @@ test('tabular figures stay on digit runs so spaces and punctuation keep their no
     const width = (text: string) => { probe.textContent = text; return probe.getBoundingClientRect().width; };
     const space = width('a b') - width('ab');
     probe.remove();
-    return { space, root: getComputedStyle(document.documentElement).fontVariantNumeric, clock: getComputedStyle(document.querySelector('[data-live-clock]')!).fontVariantNumeric, digits: getComputedStyle(document.querySelector('[data-live-clock] .tabular-digits')!).fontVariantNumeric };
+    return { space, root: getComputedStyle(document.documentElement).fontVariantNumeric, value: getComputedStyle(document.querySelector('.overview-glance-value')!).fontVariantNumeric, row: getComputedStyle(document.querySelector('.overview-table-quota span')!).fontVariantNumeric };
   });
   expect(measured.root).toBe('normal');
-  expect(measured.clock).toBe('normal');
-  expect(measured.digits).toContain('tabular-nums');
+  expect(measured.value).toBe('normal');
+  expect(measured.row).toBe('normal');
   // DM Sans uses about 0.19em for a space. Its tnum feature widens that to about 0.6em.
   expect(measured.space).toBeLessThan(35);
 });
 
-test('summary reports connected accounts only and never combines quota windows', async ({ page }) => {
+test('summary keeps only names and values visible and opens one keyboard detail panel', async ({ page }) => {
   await open(page);
-  await expect(glance(page).locator('dd').first()).toHaveText('2 of 4');
-  await expect(glance(page)).toContainText('2 need sign-in');
-  const lowest = glance(page).locator('> div').nth(1);
-  await expect(lowest.locator('dd').first()).toHaveText('8%');
-  await expect(lowest).toContainText('Bravo · Five-hour · derived');
-  await expect(lowest).toHaveAttribute('data-attention', 'low');
-  await expect(glance(page).locator('> div').nth(2)).toContainText('Not available');
-  await expect(glance(page).locator('> div').nth(2)).toContainText('No reset time reported');
+  const cards = glance(page).locator('[data-overview-summary]');
+  const account = cards.nth(0).getByRole('button');
+  await expect(account).toHaveText('Connected accounts2');
+  await expect(cards.nth(1).getByRole('button')).toHaveText('Lowest quota left8%');
+  await expect(cards.nth(1)).toHaveAttribute('data-attention', 'low');
+  await expect(detail(page)).toHaveCount(0);
+  await account.focus();
+  await page.keyboard.press('Enter');
+  const accounts = page.getByRole('dialog', { name: 'Connected accounts details' });
+  await expect(accounts).toContainText('Active accounts4');
+  await expect(accounts).toContainText('Needs sign-in2');
+  await expect(accounts).toContainText('3 ChatGPT Plus');
+  await page.keyboard.press('Escape');
+  await expect(detail(page)).toHaveCount(0);
+  await expect(account).toBeFocused();
+  await page.keyboard.press('Tab');
+  const quota = cards.nth(1).getByRole('button');
+  await expect(quota).toBeFocused();
+  expect(await quota.evaluate(node => getComputedStyle(node).outlineStyle)).not.toBe('none');
+  await page.keyboard.press('Space');
+  const details = page.getByRole('dialog', { name: 'Lowest quota left details' });
+  await expect(detail(page)).toHaveCount(1);
+  await expect(details).toContainText('AccountBravo');
+  await expect(details).toContainText('WindowFive-hour');
+  await expect(details).toContainText('Calculation100% − 92% used');
+  await expect(details).toContainText('Synthetic test data');
+  await expect(details.locator('time')).toHaveAttribute('datetime', observedAtUtc);
+  await expect(details).toContainText('ScopeAccount quota; application scope unknown');
+  await expect(details).toContainText('CoverageUnknown');
+  await expect(details).toContainText('IdentityProvisional');
+  await page.keyboard.press('Escape');
+  await expect(detail(page)).toHaveCount(0);
+  await expect(quota).toBeFocused();
+  expect(await page.evaluate(() => (window as unknown as { designCalls: string[] }).designCalls.filter(command => /^(begin_|collect_|start_)/.test(command)))).toEqual([]);
 });
 
 test('summary shows Not available instead of inventing a value without saved readings', async ({ page }) => {
   await open(page, { profiles: [profile(0), profile(1)], quotas: { [ids[0]!]: null, [ids[1]!]: null } });
-  await expect(glance(page).locator('> div').nth(1).locator('dd').first()).toHaveText('Not available');
-  await expect(glance(page).locator('> div').nth(3).locator('dd').first()).toHaveText('Not available');
+  const cards = glance(page).locator('[data-overview-summary]');
+  await expect(cards.nth(1).getByRole('button')).toHaveText('Lowest quota leftNot available');
+  await expect(cards.nth(3).getByRole('button')).toHaveText('Latest readingNot available');
   await expect(glance(page)).not.toContainText('0%');
+  await cards.nth(1).getByRole('button').click();
+  await expect(detail(page)).toContainText('No saved quota windows for connected accounts');
 });
 
-test('next expected reset names the earliest upcoming window', async ({ page }) => {
-  const soon = Math.floor(Date.now() / 1000) + 3600, later = soon + 86400;
+for (const freshness of ['stale', 'unknown'] as const) test(`summary retains zero and a single ${freshness} mark with its evidence`, async ({ page }) => {
+  await open(page, { profiles: [profile(0)], quotas: { [ids[0]!]: quota(ids[0]!, windowOf(100, 300, 'Five-hour'), null, { freshness }) } });
+  const tile = glance(page).locator('[data-overview-summary="quota"]');
+  await expect(tile.locator('.overview-glance-value')).toHaveText('0%');
+  await expect(tile.locator('.mark')).toHaveText(freshness === 'stale' ? 'Stale' : 'Freshness unknown');
+  await tile.getByRole('button').click();
+  await expect(detail(page)).toContainText(`Freshness${freshness === 'stale' ? 'Stale' : 'Freshness unknown'}`);
+});
+
+test('summary marks partial account coverage without hiding stale reading evidence', async ({ page }) => {
+  await open(page, { profiles: [profile(0), profile(1)], quotas: { [ids[0]!]: quota(ids[0]!, windowOf(40, 300, 'Five-hour'), null, { freshness: 'stale' }), [ids[1]!]: null } });
+  const tile = glance(page).locator('[data-overview-summary="quota"]');
+  await expect(tile.locator('.mark')).toHaveText('Incomplete');
+  await tile.getByRole('button').click();
+  await expect(detail(page)).toContainText('Accounts with saved quota1 of 2 connected');
+  await expect(detail(page)).toContainText('FreshnessStale');
+  await closeDetail(page);
+  await glance(page).locator('[data-overview-summary="latest"]').getByRole('button').click();
+  await expect(detail(page)).toContainText('BravoNot available');
+});
+
+test('next expected reset exposes its account and never confirms a reset on elapsed time', async ({ page }) => {
+  await page.clock.install({ time: new Date(observedAtUtc) });
+  const soon = Date.parse(observedAtUtc) / 1000 + 30, later = soon + 86400;
   await open(page, { profiles: [profile(0), profile(1)], quotas: { [ids[0]!]: quota(ids[0]!, windowOf(10, 10080, 'Seven-day', later)), [ids[1]!]: quota(ids[1]!, windowOf(10, 300, 'Five-hour', soon)) } });
-  const tile = glance(page).locator('> div').nth(2);
-  await expect(tile.locator('dd').first()).toHaveText(/^In (1h|\d+m)$/);
-  await expect(tile).toContainText('Bravo · Five-hour');
+  const tile = glance(page).locator('[data-overview-summary="reset"]');
+  await expect(tile.locator('.overview-glance-value')).toHaveText('In 1m');
+  await tile.getByRole('button').click();
+  await expect(detail(page)).toContainText('AccountBravo');
+  await expect(detail(page)).toContainText('WindowFive-hour');
+  await expect(detail(page)).toContainText('Time alone does not confirm a reset');
   await expect(tile.locator('[data-reset-countdown]')).toHaveCount(0);
+  await page.clock.runFor(30_000);
+  await expect(tile.locator('.overview-glance-value')).toHaveText('In 1d');
+  await expect(detail(page)).toContainText('AccountAlpha');
+  await expect(page.locator(`[data-overview-account="${ids[1]}"]`)).toContainText('90%');
+  await openAccount(page, ids[1]!);
+  await expect(page.locator('[data-overview-window] [data-reset-countdown]').first()).toBeVisible();
+  await expect(page.locator('[data-overview-window] [data-reset-countdown]').first()).not.toHaveText('Reset confirmed');
+});
+
+for (const theme of ['light', 'dark'] as const) test(`summary detail reflows and stays accessible at 360 pixels in ${theme}`, async ({ page }) => {
+  await open(page);
+  await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
+  await page.setViewportSize({ width: 360, height: 800 });
+  await glance(page).locator('[data-overview-summary="quota"]').getByRole('button').click();
+  await page.evaluate(() => {
+    const sizes = [...document.querySelectorAll<HTMLElement>('body *')].map(node => ({ node, size: getComputedStyle(node).fontSize }));
+    for (const { node, size } of sizes) node.style.fontSize = `${parseFloat(size) * 2}px`;
+  });
+  const layout = await page.evaluate(() => ({ width: innerWidth, scrollWidth: document.scrollingElement!.scrollWidth,
+    overflow: [...document.querySelectorAll('body *')].filter(node => { const r = node.getBoundingClientRect(); return r.width > 0 && r.right > innerWidth + 1 && !node.closest('.overview-table-scroll'); }).map(node => ({ tag: node.tagName, className: node.className, width: node.getBoundingClientRect().width })).slice(0, 15) }));
+  expect(layout.scrollWidth, JSON.stringify(layout)).toBeLessThanOrEqual(layout.width + 1);
+  const bounds = await detail(page).boundingBox();
+  expect(bounds!.x).toBeGreaterThanOrEqual(0);
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(361);
+  const audit = await new AxeBuilder({ page }).include('[data-detail-panel][open]').withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+  expect(audit.violations).toEqual([]);
 });
 
 test('search and filters narrow the account list and can be cleared', async ({ page }) => {
@@ -144,31 +226,35 @@ test('short account lists skip search until it would help', async ({ page }) => 
   await expect(page.getByRole('searchbox', { name: 'Search accounts', exact: true })).toHaveCount(0);
 });
 
-test('choosing a table row selects the account without hijacking its controls', async ({ page }) => {
+test('choosing a table row opens its detail without hijacking its controls', async ({ page }) => {
   await open(page);
   const overview = page.locator('[data-overview]');
   await expect(overview).toHaveAttribute('data-overview-profile', ids[0]!);
-  await page.locator(`[data-overview-account="${ids[1]}"] [data-overview-account-observed]`).click();
+  await expect(detail(page)).toHaveCount(0);
+  await page.locator(`[data-overview-account="${ids[1]}"] [data-overview-account-quota]`).first().click();
   await expect(overview).toHaveAttribute('data-overview-profile', ids[1]!);
   await expect(page.locator(`[data-overview-account="${ids[1]}"]`)).toHaveAttribute('data-selected', 'true');
-  await page.locator(`[data-overview-account="${ids[0]}"]`).getByRole('button', { name: 'View usage', exact: true }).click();
-  await expect(page.locator('[data-workspace-view="usage"]')).toBeVisible();
+  await expect(detail(page)).toContainText('Bravo');
+  await page.keyboard.press('Escape');
+  await page.locator(`[data-overview-account="${ids[0]}"]`).getByRole('button', { name: 'Manage Alpha', exact: true }).click();
+  await expect(page.locator('[data-account-panel]')).toBeVisible();
+  await expect(detail(page)).toHaveCount(0);
   await expect(overview).toHaveAttribute('data-overview-profile', ids[1]!);
 });
 
 test('selected account shows longest task and reset credits, and keeps missing values distinct from zero', async ({ page }) => {
   const reading = quota(ids[0]!, windowOf(40, 300, 'Five-hour'), null, { availableResetCredits: '0' });
   await open(page, { profiles: [profile(0)], quotas: { [ids[0]!]: reading }, activity: activity(ids[0]!, { longestRunningTurnSec: '3725' }) });
-  const stats = page.getByRole('region', { name: 'Usage overview', exact: true }).locator('.overview-summary');
-  await expect(stats.locator('div', { hasText: 'Longest task' }).locator('dd')).toHaveText('1h 2m');
-  await expect(stats.locator('div', { hasText: 'Reset credits' }).locator('dd')).toHaveText('0');
+  await openAccount(page, ids[0]!);
+  await expect(detail(page)).toContainText('Longest task1h 2m');
+  await expect(detail(page)).toContainText('Reset credits0');
 });
 
 test('a reset credit count that the provider did not report stays unknown', async ({ page }) => {
   await open(page, { profiles: [profile(0)], quotas: { [ids[0]!]: quota(ids[0]!, windowOf(40, 300, 'Five-hour')) }, activity: activity(ids[0]!) });
-  const stats = page.getByRole('region', { name: 'Usage overview', exact: true }).locator('.overview-summary');
-  await expect(stats.locator('div', { hasText: 'Reset credits' }).locator('dd')).toHaveText('—');
-  await expect(stats.locator('div', { hasText: 'Longest task' }).locator('dd')).toHaveText('—');
+  await openAccount(page, ids[0]!);
+  await expect(detail(page)).toContainText('Reset creditsNot available');
+  await expect(detail(page)).toContainText('Longest taskNot available');
 });
 
 test('an empty workspace offers one action instead of unavailable tiles', async ({ page }) => {

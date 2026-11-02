@@ -1,4 +1,4 @@
-import { navigate, openReadings, openOptions } from './navigation';
+import { navigate, openAccount, openReadings, openOptions } from './navigation';
 import { expect, test, type Page } from '@playwright/test';
 import type { ProfileQuotaSavedRead } from '../../apps/desktop/src/contracts';
 
@@ -318,7 +318,9 @@ test('an existing account refreshes its Connected row and automatically reads af
   expect(await collectionStarts(page)).toBe(1);
   expect(await page.evaluate(() => (window as unknown as FixtureWindow).loginFixture.requests.filter(request => request.command === 'cancel_profile_login'))).toEqual([]);
   await navigate(page, 'overview');
-  await expect(page.locator(`[data-overview-account="${profileId}"]`)).toContainText('Connected');
+  await expect(page.locator(`[data-overview-account="${profileId}"]`)).not.toContainText('Not connected');
+  await openAccount(page, profileId);
+  await expect(page.locator('[data-overview-quota]')).toContainText('ConnectionConnected');
 });
 
 test('renderer shows durable Error for a completed login with unknown identity', async ({ page }) => {

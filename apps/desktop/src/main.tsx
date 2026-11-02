@@ -1,4 +1,4 @@
-import { TimeDisplay, TimeSettings, LiveClock } from './time-display';
+import { TimeDisplay, TimeSettings } from './time-display';
 import openusageLogo from './assets/openusage-logo.png';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
@@ -277,7 +277,7 @@ function App() {
     ? 'The protected key exists, but its database is missing. Keep your database and key files. Recover your original encrypted database before you try again.'
     : 'OpenUsage cannot open the existing database. Keep your database and key files. Recover the original database and its protected key before you try again.';
 
-  const appearance = <div className="theme-control"><label id="theme-label" htmlFor="theme">Appearance</label><Select modal={false} value={theme} disabled={busy} items={{ system: 'System', light: 'Light', dark: 'Dark' }} onValueChange={next => { if (next === 'system' || next === 'light' || next === 'dark') changeTheme(next); }}><SelectTrigger ref={themeControl} id="theme" aria-labelledby="theme-label">{ready && <svg className="appearance-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.4 1.4m11.2 11.2L19 19M5 19l1.4-1.4M17.6 6.4 19 5"/></svg>}<SelectValue className={ready ? 'sr-only' : undefined} /></SelectTrigger><SelectPopup alignItemWithTrigger={false}><SelectItem value="system">System</SelectItem><SelectItem value="light">Light</SelectItem><SelectItem value="dark">Dark</SelectItem></SelectPopup></Select></div>;
+  const appearance = <div className="theme-control"><label id="theme-label" htmlFor="theme">Appearance</label><Select modal={false} value={theme} disabled={busy} items={{ system: 'System', light: 'Light', dark: 'Dark' }} onValueChange={next => { if (next === 'system' || next === 'light' || next === 'dark') changeTheme(next); }}><SelectTrigger ref={themeControl} id="theme" aria-labelledby="theme-label"><SelectValue /></SelectTrigger><SelectPopup alignItemWithTrigger={false}><SelectItem value="system">System</SelectItem><SelectItem value="light">Light</SelectItem><SelectItem value="dark">Dark</SelectItem></SelectPopup></Select></div>;
   function navigate(next: WorkspaceView) {
     setAccountPanelOpen(false);
     setView(next);
@@ -297,7 +297,12 @@ function App() {
     catch { setScaleError(true); }
     finally { setScaleBusy(false); }
   }
-  const scaleControl = <div className="display-scale-control"><label htmlFor="display-scale" className="sr-only">Display scale</label><Select modal={false} value={displayScale} disabled={scaleBusy} items={Object.fromEntries([90, 100, 110, 125, 150, 175, 200].map(value => [value, `${value}%`]))} onValueChange={value => { if (value !== null) void changeScale(value); }}><SelectTrigger id="display-scale" aria-label="Display scale"><SelectValue /></SelectTrigger><SelectPopup alignItemWithTrigger={false}>{[90, 100, 110, 125, 150, 175, 200].map(value => <SelectItem key={value} value={value}>{value}%</SelectItem>)}</SelectPopup></Select></div>;
+  const scaleControl = <div className="display-scale-control"><label htmlFor="display-scale">Display scale</label><Select modal={false} value={displayScale} disabled={scaleBusy} items={Object.fromEntries([90, 100, 110, 125, 150, 175, 200].map(value => [value, `${value}%`]))} onValueChange={value => { if (value !== null) void changeScale(value); }}><SelectTrigger id="display-scale" aria-label="Display scale"><SelectValue /></SelectTrigger><SelectPopup alignItemWithTrigger={false}>{[90, 100, 110, 125, 150, 175, 200].map(value => <SelectItem key={value} value={value}>{value}%</SelectItem>)}</SelectPopup></Select></div>;
+  const monitoringQuiet = !monitoring.unavailable && (!monitoring.status || monitoring.status.state === 'running');
+  const overviewNotices = <>
+    {ready && view === 'overview' && connectionError && !accountPanelOpen && <div className="account-refresh-feedback" role="alert" data-overview-connection-error><p>{connectionError}</p><Button variant="outline" onClick={() => navigate('settings')}>Connection details</Button><Button variant="ghost" onClick={() => setConnectionError(null)}>Dismiss</Button></div>}
+    {ready && view === 'overview' && accountMessage && <div className="account-refresh-feedback" role={accountMessage.outcome === 'failed' ? 'alert' : 'status'} data-account-refresh-message><p>{profiles.find(profile => profile.id === accountMessage.profileId)?.label ?? 'Account'}: {accountMessage.outcome === 'saved' ? 'Readings updated.' : 'Could not finish refreshing. Saved readings are still available.'}</p>{accountMessage.outcome === 'failed' && <Button variant="outline" onClick={() => requestAccountAction({ kind: 'manage', profileId: accountMessage.profileId })}>View account details</Button>}<Button variant="ghost" aria-label="Dismiss account update" onClick={() => setAccountMessage(null)}>Dismiss</Button></div>}
+  </>;
   const titles = { overview: 'Overview', usage: 'Usage', settings: 'Settings' };
   const privacyControls = <>
     <Button variant="ghost" className={`text-button ${ready ? 'settings-privacy' : 'onboarding-privacy'}`} onClick={() => setPrivacy(!privacy)} aria-expanded={privacy} aria-controls="privacy-details">{privacy ? 'Hide privacy details' : 'About your privacy'}</Button>
@@ -308,7 +313,7 @@ function App() {
     <header className="workspace-header" hidden={!ready}>
       <a className="brand" href="#main" onClick={() => navigate('overview')} aria-label="OpenUsage dashboard"><span className="brand-wordmark"><img src={openusageLogo} alt="OpenUsage" /></span></a>
       <nav className="workspace-nav" aria-label="Main">{(Object.keys(titles) as WorkspaceView[]).map(name => <a key={name} href={`#${name}`} data-workspace-nav={name} aria-current={view === name ? 'page' : undefined} onClick={event => { event.preventDefault(); navigate(name); }}><NavIcon view={name} /><span>{titles[name]}</span></a>)}</nav>
-      {ready && <div className="workspace-appearance"><span className="status-pill" data-global-monitoring={!monitoring.unavailable ? monitoring.status?.state : undefined}><span className="status-dot" aria-hidden="true" />{monitoring.unavailable ? 'Monitoring status unavailable' : monitoring.status ? `Monitoring ${monitoring.status.state}` : 'Loading monitoring status…'}</span><LiveClock /><div className="header-appearance">{appearance}</div>{scaleControl}</div>}
+      {ready && <div className="workspace-appearance"><span className={monitoringQuiet ? 'sr-only' : 'status-pill'} data-global-monitoring={!monitoring.unavailable ? monitoring.status?.state : undefined}><span className="status-dot" aria-hidden="true" />{monitoring.unavailable ? 'Monitoring status unavailable' : monitoring.status ? `Monitoring ${monitoring.status.state}` : 'Loading monitoring status…'}</span></div>}
     </header>
     <div className="workspace">
       {!ready && <header className="onboarding-header"><a className="brand" href="#main" aria-label="OpenUsage"><span className="brand-wordmark"><img src={openusageLogo} alt="OpenUsage" /></span></a>{appearance}</header>}
@@ -351,9 +356,7 @@ function App() {
         {ready && operationError && <p id="workspace-error" className="operation-error" role="alert">{operationError}</p>}
         {deletionPending && <LocalDataDeletion key="pending" pending busy={busy} setBusy={setBusy} onChanged={applyLocalDataState} />}
         {!ready && privacyControls}
-        {ready && view === 'overview' && connectionError && !accountPanelOpen && <div className="account-refresh-feedback" role="alert" data-overview-connection-error><p>{connectionError}</p><Button variant="outline" onClick={() => navigate('settings')}>Connection details</Button><Button variant="ghost" onClick={() => setConnectionError(null)}>Dismiss</Button></div>}
-        {ready && view === 'overview' && accountMessage && <div className="account-refresh-feedback" role={accountMessage.outcome === 'failed' ? 'alert' : 'status'} data-account-refresh-message><p>{profiles.find(profile => profile.id === accountMessage.profileId)?.label ?? 'Account'}: {accountMessage.outcome === 'saved' ? 'Readings updated.' : 'Could not finish refreshing. Saved readings are still available.'}</p>{accountMessage.outcome === 'failed' && <Button variant="outline" onClick={() => requestAccountAction({ kind: 'manage', profileId: accountMessage.profileId })}>View account details</Button>}<Button variant="ghost" aria-label="Dismiss account update" onClick={() => setAccountMessage(null)}>Dismiss</Button></div>}
-        {ready && <section data-workspace-view="overview" hidden={view !== 'overview'} inert={view !== 'overview'} aria-label="Overview"><Overview key={profileRevision} active={view === 'overview'} profiles={profiles} revision={readingRevision} onAccounts={() => { setAccountPanelProfile(null); setAccountPanelOpen(true); }} onAccountAction={requestAccountAction} busy={busy} refreshingProfileIds={refreshingProfiles} refreshWaitSeconds={refreshWaitSeconds} expectedProfiles={data?.activeProfiles ?? 0} /></section>}
+        {ready && <section data-workspace-view="overview" hidden={view !== 'overview'} inert={view !== 'overview'} aria-label="Overview"><Overview key={profileRevision} notices={overviewNotices} active={view === 'overview'} profiles={profiles} revision={readingRevision} onAccounts={() => { setAccountPanelProfile(null); setAccountPanelOpen(true); }} onAccountAction={requestAccountAction} busy={busy} refreshingProfileIds={refreshingProfiles} refreshWaitSeconds={refreshWaitSeconds} expectedProfiles={data?.activeProfiles ?? 0} /></section>}
         {ready && <dialog ref={accountPanel} data-account-panel aria-modal="true" data-workspace-view="accounts" hidden={!accountPanelOpen} aria-labelledby="account-panel-heading" onCancel={event => { event.preventDefault(); setAccountPanelOpen(false); }} onClose={() => setAccountPanelOpen(false)}>
           <div className="account-panel-heading"><h2 id="account-panel-heading">{profiles.find(profile => profile.id === accountPanelProfile)?.label ?? 'Manage accounts'}</h2><Button data-account-panel-close variant="ghost" className="icon-button" aria-label="Close account details" title="Close" onClick={() => setAccountPanelOpen(false)}><CloseIcon /></Button></div>
           {connectionPreparing && <p role="status">Preparing OpenAI sign-in…</p>}
@@ -367,7 +370,7 @@ function App() {
           <div className="settings-groups">
             <section id={settingsSections.general.id} className="settings-group" tabIndex={-1} aria-labelledby="settings-general-title">
               <h2 id="settings-general-title" className="settings-group-title">{settingsSections.general.title}</h2>
-              <div className="settings-card"><TimeSettings /></div>
+              <div className="settings-card"><TimeSettings />{appearance}{scaleControl}</div>
             </section>
             <section id={settingsSections.accounts.id} className="settings-group" tabIndex={-1} aria-labelledby="settings-accounts-title">
               <h2 id="settings-accounts-title" className="settings-group-title">{settingsSections.accounts.title}</h2>

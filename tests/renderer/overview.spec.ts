@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import type { ProfileRecord, SavedProfileActivity, SavedProfileQuota, SavedProfileHeatmap } from '../../apps/desktop/src/contracts';
-import { navigate, openOptions, openReadings } from './navigation';
+import { closeDetail, navigate, openOptions, openReadings } from './navigation';
 
 // Synthetic renderer fixtures. Native provider processes and encrypted storage are separate acceptance checks.
 const first = '11111111-1111-4111-8111-111111111111';
@@ -120,9 +120,11 @@ async function open(page: Page, options: { empty?: boolean; deferFirst?: boolean
 }
 const dashboard = (page: Page) => page.getByRole('region', { name: 'Usage overview', exact: true });
 async function choose(page: Page, label: string) {
-  await dashboard(page).getByRole('combobox', { name: 'Profile', exact: true }).click();
-  await page.getByRole('option', { name: label, exact: true }).click();
+  await closeDetail(page);
+  await dashboard(page).locator('[data-overview-account]').filter({ hasText: label }).locator('.overview-account-link').click();
+  await expect(dashboard(page).locator('[data-overview-quota]')).toBeVisible();
 }
+const exactLarge = '9,223,372,036,854,775,807';
 
 test('reset countdowns update locally and never treat elapsed time as a quota reset', async ({ page }) => {
   await page.clock.install({ time: new Date(observedAtUtc) });
@@ -135,14 +137,14 @@ test('reset countdowns update locally and never treat elapsed time as a quota re
   }, { first });
   await choose(page, 'Large fixture');
   await choose(page, 'Zero fixture');
-  const countdowns = dashboard(page).locator('[data-reset-countdown]');
+  const countdowns = dashboard(page).locator('[data-overview-window] [data-reset-countdown]');
   await expect(countdowns).toHaveText(['In 2m', 'In 2d 1h']);
-  await expect(dashboard(page).locator('.overview-reset time').first()).toHaveText(/UTC/);
+  await expect(dashboard(page).locator('[data-overview-window] time').first()).toHaveText(/UTC/);
   await page.clock.runFor(30_000);
   await expect(countdowns.first()).toHaveText('In 1m');
   await page.clock.runFor(60_000);
   await expect(countdowns.first()).toHaveText('Awaiting reset confirmation');
-  await expect(dashboard(page).getByRole('meter').first()).toHaveAttribute('aria-valuenow', '0');
+  await expect(dashboard(page).locator('[data-overview-quota]').getByRole('meter').first()).toHaveAttribute('aria-valuenow', '0');
   await navigate(page, 'accounts');
   await openReadings(page, first);
   await expect(page.locator('[data-quota-saved] [data-reset-countdown]').first()).toHaveText('Awaiting reset confirmation');
@@ -167,11 +169,12 @@ test('reset countdowns stay account-specific and missing timestamps stay unavail
   await expect(dashboard(page).locator('[data-reset-countdown]')).toHaveText('Awaiting reset confirmation');
   await choose(page, 'Large fixture');
   await expect(dashboard(page).locator('[data-reset-countdown]')).toHaveCount(0);
-  await expect(dashboard(page).locator('.overview-reset')).toContainText('Not supplied');
+  await expect(dashboard(page).locator('[data-overview-window]')).toContainText('Expected resetNot available');
 });
 
 test('renderer Overview keeps missing values unavailable and navigates through real Accounts controls', async ({ page }) => {
   await open(page, { empty: true });
+  await choose(page, 'Zero fixture');
   await expect(dashboard(page).locator('[data-overview-lifetime]')).toHaveText('Not available');
   await expect(dashboard(page).locator('[data-overview-quota]').getByRole('meter')).toHaveCount(0);
   await expect(dashboard(page).locator('[data-overview-quota-chart]')).toHaveCount(0);
@@ -188,23 +191,29 @@ test('renderer Overview keeps missing values unavailable and navigates through r
 
 test('renderer Overview preserves exact zero and large values and rejects stale or mismatched profile readings', async ({ page }) => {
   await open(page);
-  await expect(dashboard(page).locator('[data-overview-account-share]')).toHaveCount(1);
-  await expect(dashboard(page).locator('[data-overview-quota-donut]')).toHaveAttribute('data-remaining', '0');
-  await dashboard(page).getByRole('button', { name: 'Account share', exact: true }).click();
-  await expect(dashboard(page).locator('.overview-share-panel')).toContainText('No eligible reported activity');
+  await expect(dashboard(page).locator('[data-overview-account-share]')).toHaveCount(0);
+  await navigate(page, 'usage');
+  await expect(page.locator('[data-workspace-view="usage"] [data-overview-quota-donut]')).toHaveAttribute('data-remaining', '0');
+  await navigate(page, 'overview');
+  await dashboard(page).getByRole('button', { name: 'Profile sum', exact: true }).click();
+  await expect(dashboard(page).getByText('Select at least one account.', { exact: true })).toBeVisible();
+  await expect(dashboard(page).locator('[data-overview-account-share]')).toHaveCount(0);
+  await dashboard(page).getByRole('button', { name: 'Individual', exact: true }).click();
+  await expect(dashboard(page).locator('[data-overview-account-share]')).toHaveCount(0);
+  await choose(page, 'Zero fixture');
   await expect(dashboard(page).locator('[data-overview-lifetime]')).toHaveText('0');
   await expect(dashboard(page).locator('[data-overview-quota]').getByRole('meter')).toHaveAttribute('aria-valuenow', '0');
   await choose(page, 'Large fixture');
-  await expect(dashboard(page).locator('[data-overview-lifetime] bdi')).toHaveAttribute('title', '9223372036854775807');
+  await expect(dashboard(page).locator('[data-overview-lifetime]')).toHaveText(exactLarge);
   await page.evaluate(() => { const fixture = (window as unknown as FixtureWindow).overviewFixture; fixture.deferFirst = true; });
   await choose(page, 'Zero fixture');
   await expect(dashboard(page).locator('[data-overview-lifetime]')).toHaveText('Loading…');
   await expect(dashboard(page).locator('[data-overview-lifetime]')).not.toContainText('9223372036854775807');
   await expect.poll(() => page.evaluate(() => (window as unknown as FixtureWindow).overviewFixture.pending.length)).toBeGreaterThan(0);
   await choose(page, 'Large fixture');
-  await expect(dashboard(page).locator('[data-overview-lifetime] bdi')).toHaveAttribute('title', '9223372036854775807');
+  await expect(dashboard(page).locator('[data-overview-lifetime]')).toHaveText(exactLarge);
   await page.evaluate(({ reading, savedQuota }) => { const fixture = (window as unknown as FixtureWindow).overviewFixture; fixture.deferFirst = false; fixture.mismatchFirst = true; for (const pending of fixture.pending.splice(0)) pending.resolve(pending.kind === 'activity' ? reading : savedQuota); }, { reading: activity(first, '0'), savedQuota: quota(first) });
-  await expect(dashboard(page).locator('[data-overview-lifetime] bdi')).toHaveAttribute('title', '9223372036854775807');
+  await expect(dashboard(page).locator('[data-overview-lifetime]')).toHaveText(exactLarge);
   await choose(page, 'Zero fixture');
   await expect(dashboard(page).getByText('Saved activity could not be loaded. Try Refresh.', { exact: true })).toBeVisible();
   await expect(dashboard(page).locator('[data-overview-lifetime]')).toHaveText('Not available');
@@ -218,7 +227,7 @@ test('bundled DM Sans serves interface and exact readings with tabular digits', 
   const rendered = await page.evaluate(async () => {
     const faces = await Promise.all([400, 500, 600].map(weight => document.fonts.load(`${weight} 14px "DM Sans"`)));
     await document.fonts.ready;
-    const ui = getComputedStyle(document.body), reading = document.querySelector<HTMLElement>('[data-overview-lifetime]')!;
+    const ui = getComputedStyle(document.body), reading = document.querySelector<HTMLElement>('[data-overview-lifetime] bdi')!;
     const numeric = getComputedStyle(reading);
     const probe = document.createElement('span');
     probe.style.cssText = `position:absolute;visibility:hidden;font-family:${numeric.fontFamily};font-size:${numeric.fontSize};font-weight:${numeric.fontWeight};font-variant-numeric:tabular-nums;white-space:pre`;
@@ -235,32 +244,30 @@ test('bundled DM Sans serves interface and exact readings with tabular digits', 
   expect(requestedFonts.length).toBeGreaterThan(0);
   expect(requestedFonts).toContain(new URL('/fonts/DMSans-Variable.ttf', page.url()).href);
   expect(requestedFonts.every(url => url === new URL('/fonts/DMSans-Variable.ttf', page.url()).href)).toBe(true);
-  await expect(dashboard(page).locator('[data-overview-lifetime] bdi')).toHaveAttribute('title', '9223372036854775807');
+  await expect(dashboard(page).locator('[data-overview-lifetime]')).toHaveText(exactLarge);
 });
 
-for (const scale of [1, 2]) test(`Overview compact count keeps exact values keyboard-accessible at 360px and ${scale * 100}% text`, async ({ page }) => {
-  await open(page); await choose(page, 'Large fixture');
+for (const scale of [1, 2]) test(`Overview account detail shows exact values by keyboard at 360px and ${scale * 100}% text`, async ({ page }) => {
+  await open(page);
   await page.setViewportSize({ width: 360, height: 800 });
+  const link = accountRow(page, second).locator('.overview-account-link');
+  await link.focus();
+  expect(await link.evaluate(node => getComputedStyle(node).outlineStyle !== 'none')).toBe(true);
+  await page.keyboard.press('Enter');
+  const detail = page.locator('[data-detail-panel][open]');
+  await expect(detail.locator('[data-overview-quota]')).toBeVisible();
   if (scale === 2) await page.evaluate(() => {
     const sizes = [...document.querySelectorAll<HTMLElement>('body *')].map(node => ({ node, size: getComputedStyle(node).fontSize }));
     for (const { node, size } of sizes) node.style.fontSize = `${parseFloat(size) * 2}px`;
   });
-  const total = dashboard(page).locator('[data-overview-lifetime]');
-  await expect(total.locator('bdi')).toHaveAttribute('title', '9223372036854775807');
-  await expect(total).not.toHaveText('9223372036854775807');
-  expect(await page.evaluate(() => document.scrollingElement!.scrollWidth <= innerWidth + 1), JSON.stringify(await page.evaluate(() => [...document.querySelectorAll('.token-heatmap, .token-heatmap > *, .activity-scope-controls, .activity-scope-controls > *, .activity-scope-controls button, .overview-panel')].map(node => ({ tag: node.className, width: node.getBoundingClientRect().width, right: node.getBoundingClientRect().right, minWidth: getComputedStyle(node).minWidth }))))).toBe(true);
-  const disclosure = dashboard(page).getByRole('button', { name: 'Reading details', exact: true });
-  await dashboard(page).getByRole('button', { name: 'View usage', exact: true }).focus();
-  await page.keyboard.press('Tab'); await expect(disclosure).toBeFocused();
-  expect(await disclosure.evaluate(node => node.matches(':focus-visible') && getComputedStyle(node).outlineStyle !== 'none')).toBe(true);
-  await page.keyboard.press('Enter');
-  await expect(disclosure).toHaveAttribute('aria-expanded', 'true');
-  const details = dashboard(page).locator('.overview-source-details');
-  const exactValues = details.locator('bdi').filter({ hasText: /^9223372036854775807$/ });
-  await expect(exactValues).toHaveCount(2);
-  for (const value of await exactValues.all()) await expect(value).toBeVisible();
-  await expect(details).toContainText('Account activity scope and coverage are unknown.');
-  expect(await page.evaluate(() => document.scrollingElement!.scrollWidth <= innerWidth + 1), JSON.stringify(await page.evaluate(() => [...document.querySelectorAll('.token-heatmap, .token-heatmap > *, .activity-scope-controls, .activity-scope-controls > *, .activity-scope-controls button, .overview-panel')].map(node => ({ tag: node.className, width: node.getBoundingClientRect().width, right: node.getBoundingClientRect().right, minWidth: getComputedStyle(node).minWidth }))))).toBe(true);
+  await expect(detail.locator('[data-overview-lifetime]')).toHaveText(exactLarge);
+  await expect(detail).toContainText(`Peak daily tokens${exactLarge}`);
+  await expect(detail).toContainText('Activity coverageUnknown');
+  expect(await page.evaluate(() => document.scrollingElement!.scrollWidth <= innerWidth + 1)).toBe(true);
+  expect(await detail.evaluate(node => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
+  await page.keyboard.press('Escape');
+  await expect(detail).toHaveCount(0);
+  await expect(link).toBeFocused();
 });
 
 test('renderer Overview remains accessible in both themes at 360 pixels and enlarged text', async ({ page }) => {
@@ -274,10 +281,11 @@ test('renderer Overview remains accessible in both themes at 360 pixels and enla
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
     if (theme === 'dark') expect(await page.evaluate(() => ({ background: getComputedStyle(document.documentElement).backgroundColor, header: getComputedStyle(document.querySelector('.workspace-header')!).backgroundColor }))).toEqual({ background: 'rgb(0, 0, 0)', header: 'rgb(0, 0, 0)' });
     await navigate(page, 'overview');
+    await choose(page, 'Large fixture');
     for (const scale of [1, 2]) {
       await page.evaluate(scale => { for (const node of document.querySelectorAll<HTMLElement>('body *')) { const baseline = node.dataset.testFontSize ?? getComputedStyle(node).fontSize; node.dataset.testFontSize = baseline; node.style.fontSize = `${parseFloat(baseline) * scale}px`; } }, scale);
       expect(await page.evaluate(() => document.scrollingElement!.scrollWidth <= innerWidth + 1), JSON.stringify(await page.evaluate(() => [...document.querySelectorAll('.token-heatmap, .token-heatmap > *, .activity-scope-controls, .activity-scope-controls > *, .activity-scope-controls button, .overview-panel')].map(node => ({ tag: node.className, width: node.getBoundingClientRect().width, right: node.getBoundingClientRect().right, minWidth: getComputedStyle(node).minWidth }))))).toBe(true);
-      await expect(dashboard(page).locator('[data-overview-lifetime] bdi')).toHaveAttribute('title', '9223372036854775807');
+      await expect(dashboard(page).locator('[data-overview-lifetime]')).toHaveText(exactLarge);
       const audit = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
       expect(audit.violations, `${theme}, ${scale * 100}% test text`).toEqual([]);
       if (scale === 2) {
@@ -300,7 +308,6 @@ test('renderer Overview remains accessible in both themes at 360 pixels and enla
         expect(word?.text).toBe('connected');
         expect(word?.rectangles).toBeGreaterThan(0);
         expect(word?.lines, `${theme}: Connection status must remain one rendered word at 360px and 200% text`).toBe(1);
-        await navigate(page, 'overview');
       }
     }
   }
@@ -322,7 +329,7 @@ test('Overview heatmap distinguishes missing dates, zero and exact counts withou
   await chart.locator('[data-heatmap-values-toggle]').click();
   await expect(chart.locator('table')).toContainText('9,007,199,254,740,993');
   await choose(page, 'Large fixture');
-  await expect(chart).toContainText('No saved daily activity');
+  await expect(chart).toContainText('No eligible saved activity for this selection.');
 });
 
 for (const scale of [1, 2]) test(`Heatmap values stay exact and locally scrollable at 360px and ${scale * 100}% text`, async ({ page }) => {
@@ -345,23 +352,22 @@ test('Overview shows saved quota and freshness for all ten accounts without sele
   for (const [index, id] of ids.entries()) {
     const row = accountRow(page, id);
     await expect(row.locator('[data-overview-account-quota]')).toContainText(`${index === 0 ? 0 : index === 1 ? 75 : index * 10}% left`);
-    await expect(row.locator('[data-overview-account-quota]')).toContainText('Five-hour');
-    await expect(row.getByRole('rowheader')).toContainText('Synthetic test data');
-    await expect(row.locator('[data-overview-account-observed] time')).toHaveAttribute('datetime', observedAtUtc);
     await expect(row.locator('[data-overview-account-quota] [role=meter]')).toHaveAttribute('aria-valuenow', String(index === 0 ? 0 : index === 1 ? 75 : index * 10));
     await expect(row.locator('[data-overview-account-quota] [role=meter]')).toHaveAttribute('aria-label', /remaining \(derived\)/);
-    await expect(row.locator('[data-overview-account-observed]')).not.toContainText('Freshness unknown');
+    await expect(row).not.toContainText('Freshness unknown');
   }
-  await expect(accountRow(page, first).locator('button[aria-pressed]')).toHaveAttribute('aria-pressed', 'true');
-  await expect(accountRow(page, second).locator('button[aria-pressed]')).toHaveAttribute('aria-pressed', 'false');
+  await expect(dashboard(page).locator('.overview-accounts thead')).toContainText('Five-hour');
+  await expect(dashboard(page).locator('.overview-fixture-label')).toHaveText('Synthetic test data');
+  await choose(page, 'Large fixture');
+  await expect(dashboard(page).locator(`[data-overview-quota] time[datetime="${observedAtUtc}"]`)).toBeVisible();
   expect(await page.evaluate(() => (window as unknown as FixtureWindow).overviewFixture.calls.some(command => /^(begin_|complete_|check_profile|inspect_provider|approve_provider)/.test(command)))).toBe(false);
 });
 
 for (const failure of ['rejected', 'mismatched'] as const) test(`Overview retains only the same account saved quota with unknown freshness after a ${failure} reload`, async ({ page }) => {
-  await open(page, { freshQuotas: true });
+  await open(page, { freshQuotas: true, aggregation: true });
   const row = accountRow(page, second);
   await expect(row.locator('[data-overview-account-quota]')).toContainText('75% left');
-  await expect(row.locator('[data-overview-account-observed]')).not.toContainText('Freshness unknown');
+  await expect(row).not.toContainText('Could not reload saved quota');
   await navigate(page, 'accounts');
   await page.evaluate(({ second, failure }) => {
     const f = (window as unknown as FixtureWindow).overviewFixture;
@@ -369,9 +375,8 @@ for (const failure of ['rejected', 'mismatched'] as const) test(`Overview retain
   }, { second, failure });
   await navigate(page, 'overview');
   await expect(row.locator('[data-overview-account-quota]')).toContainText('75% left');
-  await expect(row.locator('[data-overview-account-observed]')).toContainText('Freshness unknown');
-  await expect(row.locator('[data-overview-account-observed]')).toContainText('Could not reload saved quota');
-  await expect(row.locator('[data-overview-account-observed] time')).toHaveAttribute('datetime', observedAtUtc);
+  await expect(row).toContainText('Freshness unknown');
+  await expect(row).toContainText('Could not reload saved quota');
   await expect(accountRow(page, first).locator('[data-overview-account-quota]')).toContainText('0% left');
 });
 
@@ -382,7 +387,9 @@ test('a successful missing-cache result clears the prior row instead of showing 
   await page.evaluate(second => { (window as unknown as FixtureWindow).overviewFixture.quotas[second] = null; }, second);
   await navigate(page, 'overview');
   await expect(accountRow(page, second).locator('[data-overview-account-quota]')).toHaveText('Not available');
-  await expect(accountRow(page, second).locator('[data-overview-account-observed]')).toHaveText('Never');
+  await choose(page, 'Large fixture');
+  await expect(dashboard(page).locator('[data-overview-quota]')).toContainText('ObservedNot available');
+  await expect(dashboard(page).locator('[data-overview-quota]').getByRole('meter')).toHaveCount(0);
   await expect(accountRow(page, first).locator('[data-overview-account-quota]')).toContainText('0% left');
 });
 
@@ -466,18 +473,20 @@ test('all provider-reported quota windows stay visible and missing windows are n
     fixture.quotas[first]!.limits[0]!.secondary = { usedPercent: 40, derivedRemainingPercent: 60, windowDurationMins: 10080, resetsAtUnix: null, label: 'Seven-day', resetState: 'expected' };
   }, first);
   await navigate(page, 'usage'); await navigate(page, 'overview');
+  await choose(page, 'Zero fixture');
   const selected = dashboard(page).locator('[data-overview-quota]');
   await expect(selected.getByRole('meter')).toHaveCount(2);
   await expect(selected.getByRole('meter').nth(0)).toHaveAttribute('aria-label', 'Five-hour: 0% remaining (derived)');
   await expect(selected.getByRole('meter').nth(1)).toHaveAttribute('aria-label', 'Seven-day: 60% remaining (derived)');
-  await expect(selected.locator('[data-overview-window="Primary window"]')).toContainText('100% used');
-  await expect(selected.locator('[data-overview-window="Secondary window"]')).toContainText('40% used');
+  await expect(selected.locator('[data-overview-window="Primary window"]')).toContainText('Used100%');
+  await expect(selected.locator('[data-overview-window="Secondary window"]')).toContainText('Used40%');
   await expect(selected.getByRole('combobox', { name: 'Quota window', exact: true })).toHaveCount(0);
   await page.evaluate(first => {
     const fixture = (window as unknown as FixtureWindow).overviewFixture;
     fixture.quotas[first]!.limits[0]!.primary = null;
   }, first);
   await navigate(page, 'usage'); await navigate(page, 'overview');
+  await choose(page, 'Zero fixture');
   await expect(selected.getByRole('meter')).toHaveCount(1);
   await expect(selected.getByRole('meter')).toHaveAttribute('aria-label', 'Seven-day: 60% remaining (derived)');
   await expect(selected.locator('[data-overview-window="Primary window"]')).toHaveCount(0);
@@ -485,14 +494,15 @@ test('all provider-reported quota windows stay visible and missing windows are n
 
 test('View usage returns to its account after choosing another account in Usage', async ({ page }) => {
   await open(page);
-  const view = dashboard(page).getByRole('button', { name: 'View usage', exact: true }).first();
+  const view = dashboard(page).locator('[data-overview-quota]').getByRole('button', { name: 'View usage', exact: true });
+  await choose(page, 'Zero fixture');
   await view.click();
   const picker = page.getByRole('combobox', { name: 'Usage profile', exact: true });
   await expect(picker).toContainText('Zero fixture');
   await picker.click();
   await page.getByRole('option', { name: 'Large fixture', exact: true }).click();
   await expect(picker).toContainText('Large fixture');
-  await navigate(page, 'overview'); await view.click();
+  await navigate(page, 'overview'); await choose(page, 'Zero fixture'); await view.click();
   await expect(picker).toContainText('Zero fixture');
 });
 
@@ -539,31 +549,26 @@ test('top navigation keeps all three pages reachable without reserving a sidebar
 });
 
 
-test('live clock and saved India time zone update timestamps without moving activity dates', async ({ page }) => {
+test('saved India time zone updates timestamps without moving activity dates', async ({ page }) => {
   await page.clock.install({ time: new Date('2026-10-20T00:00:00Z') });
   await open(page, { chart: true });
-  const clock = page.locator('[data-live-clock]');
-  await expect(clock).toContainText(/00:00:\d{2}/);
-  const beforeTick = Date.parse((await clock.getAttribute('datetime'))!);
-  await page.clock.runFor(1000);
-  await expect.poll(async () => Date.parse((await clock.getAttribute('datetime'))!)).toBeGreaterThanOrEqual(beforeTick + 1000);
   await navigate(page, 'settings');
   await page.getByRole('combobox', { name: 'Time zone', exact: true }).click();
   await page.getByRole('option', { name: 'India · Kolkata (UTC+05:30)', exact: true }).click();
-  await expect(clock).toContainText(/05:30:\d{2}/);
-  await expect(clock).toContainText(/GMT\+5:30|GMT\+05:30|IST/);
   await navigate(page, 'overview');
-  await expect(dashboard(page).locator('.overview-account-footer time')).toContainText('05:30');
+  await choose(page, 'Zero fixture');
+  await expect(dashboard(page).locator('[data-overview-quota] time').first()).toContainText('05:30');
   const counts = await page.locator('[data-heatmap-cell]').evaluateAll(nodes => nodes.map(n => [n.getAttribute('data-start-date'), n.getAttribute('data-exact-value')]));
   await page.reload();
-  await expect(clock).toContainText(/05:30:\d{2}/);
   await expect(page.locator('[data-heatmap-cell]')).toHaveCount(counts.length);
   expect(await page.locator('[data-heatmap-cell]').evaluateAll(nodes => nodes.map(n => [n.getAttribute('data-start-date'), n.getAttribute('data-exact-value')]))).toEqual(counts);
   await navigate(page, 'settings');
   await page.getByRole('combobox', { name: 'Time zone', exact: true }).click();
   await page.getByRole('option', { name: 'New York', exact: true }).click();
-  await expect(clock).toContainText(/20:00:\d{2}/);
-  await expect(clock).toContainText(/EDT|GMT-4|GMT−4/);
+  await navigate(page, 'overview');
+  await choose(page, 'Zero fixture');
+  await expect(dashboard(page).locator('[data-overview-quota] time').first()).toContainText('8:00');
+  await navigate(page, 'settings');
   await page.getByRole('button', { name: 'Use system time', exact: true }).click();
   await expect.poll(() => page.evaluate(() => localStorage.getItem('fixture-zone'))).toBe(await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone));
 
@@ -573,7 +578,8 @@ test('live clock and saved India time zone update timestamps without moving acti
 test('wide Usage opens a full-year calendar that fills its panel without changing missing days', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await open(page, { chart: true, year: true });
-  await dashboard(page).getByRole('button', { name: 'View usage', exact: true }).click();
+  await choose(page, 'Zero fixture');
+  await dashboard(page).locator('[data-overview-quota]').getByRole('button', { name: 'View usage', exact: true }).click();
   const calendar = page.locator('[data-workspace-view="usage"] [data-token-heatmap]');
   await expect(calendar).toHaveAttribute('data-period-days', '365');
   await expect(calendar.locator('[data-heatmap-cell]')).toHaveCount(365);

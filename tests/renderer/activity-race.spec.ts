@@ -1,4 +1,4 @@
-import { navigate, openReadings, openOptions } from './navigation';
+import { navigate, openAccount, openReadings, openOptions } from './navigation';
 import { expect, test, type Page } from '@playwright/test';
 import type { ProfileActivitySavedRead, ProfileQuotaSavedRead, SavedProfileActivity } from '../../apps/desktop/src/contracts';
 
@@ -100,8 +100,8 @@ test('renderer saves activity outside Manage and pages exact cached rows after c
   await expect(metric(page, 'currentStreakDays')).toHaveText('Not available');
   await expect(accounts(page).getByText('Unverified identity · Saved locally')).toBeVisible();
   await navigate(page, 'overview');
-  await page.getByRole('button', { name: 'Reading details', exact: true }).click();
-  await expect(page.locator('.overview-source-details')).toContainText('Combined totals are not available.');
+  await openAccount(page, profileId);
+  await expect(page.locator('[data-overview-quota]')).toContainText('Combined totalsNot available');
   await navigate(page, 'accounts');
   for (const misleading of ['No accepted provider reading', 'Saved readings: Not available', 'Last saved reading: Not available']) await expect(accounts(page).getByText(misleading, { exact: true })).toHaveCount(0);
   await expect(accounts(page).locator('[data-activity-day]')).toHaveCount(0);

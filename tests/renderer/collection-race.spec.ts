@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { navigate, openReadings } from './navigation';
+import { navigate, openAccount, openReadings } from './navigation';
 import type { MonitoringStatus, ProfileCollectionOutcome, SavedProfileActivity, SavedProfileQuota } from '../../apps/desktop/src/contracts';
 
 // Synthetic renderer IPC only. Atomic storage and owned provider execution require native acceptance.
@@ -303,7 +303,7 @@ test('one global status poll reloads caches only on changed reading revision and
   await expect(page.locator('[data-activity-saved] [data-activity-metric="lifetimeTokens"]')).toHaveText('9223372036854775807');
   await expect(pause).toBeFocused(); await expect(pause).toBeEnabled();
   await expect(page.getByRole('button', { name: 'Refresh readings', exact: true })).toBeDisabled();
-  await navigate(page, 'overview'); await expect(page.locator('[data-overview-lifetime] bdi')).toHaveAttribute('title', '9223372036854775807');
+  await navigate(page, 'overview'); await openAccount(page, profileId); await expect(page.locator('[data-overview-lifetime]')).toHaveText('9,223,372,036,854,775,807');
   const calls = await page.evaluate(() => (window as unknown as FixtureWindow).collectionFixture.calls.filter(call => call.command === 'load_monitoring'));
   expect(calls.every(call => Object.keys(call.args).length === 0)).toBe(true);
 });
@@ -349,8 +349,9 @@ test('a pre-restore status reply cannot restart or repaint the new workspace mon
   await navigate(page, 'overview');
   const account = page.locator(`[data-overview-account="${profileId}"]`);
   await expect(account.locator('[data-overview-account-quota]')).toContainText('75% left');
-  await expect(account.locator('[data-overview-account-observed] time')).toHaveAttribute('datetime', observedAtUtc);
-  await expect(page.locator('[data-overview-lifetime] bdi')).toHaveAttribute('title', '9007199254740993');
+  await openAccount(page, profileId);
+  await expect(page.locator(`[data-overview-quota] time[datetime="${observedAtUtc}"]`)).toBeVisible();
+  await expect(page.locator('[data-overview-lifetime]')).toHaveText('9,007,199,254,740,993');
   await navigate(page, 'accounts');
   await page.getByRole('button', { name: 'Manage profile', exact: true }).click(); await eligibleMonitoring(page);
   await page.locator(`[data-monitoring-start="${profileId}"]`).click();
@@ -372,10 +373,11 @@ test('a pre-restore status reply cannot restart or repaint the new workspace mon
   await navigate(page, 'accounts'); await openReadings(page, profileId); await page.getByRole('button', { name: 'Manage profile', exact: true }).click();
   await expect(page.locator(`[data-monitoring-start="${profileId}"]`)).toBeDisabled();
   await navigate(page, 'overview');
+  await openAccount(page, profileId);
   await expect(page.locator('[data-overview-quota] .overview-error').filter({ hasText: 'Saved quotas could not be loaded.' })).toBeVisible();
   await expect(account.locator('[data-overview-account-quota]')).toHaveText('Not available');
-  await expect(account.locator('[data-overview-account-observed]')).toContainText('Unavailable');
-  await expect(account.locator('[data-overview-account-observed] time')).toHaveCount(0);
+  await expect(account).toContainText('Could not reload saved quota');
+  await expect(page.locator('[data-overview-quota] time')).toHaveCount(0);
   await expect(page.locator('[data-overview-lifetime]')).toHaveText('Not available');
   await expect(page.locator('[data-global-monitoring]')).toHaveText('Monitoring stopped');
 });
@@ -446,6 +448,7 @@ test('Overview refresh stays on the same page, updates its account row and prese
   const navigation = page.getByRole('navigation', { name: 'Main', exact: true });
   await expect(navigation.getByRole('link')).toHaveCount(3);
   await expect(navigation.locator('[data-workspace-nav="accounts"]')).toHaveCount(0);
+  await openAccount(page, profileId);
   const selected = page.locator('[data-overview-quota]');
   await selected.getByRole('button', { name: 'Refresh', exact: true }).click();
   await expect.poll(() => page.evaluate(id => Boolean((window as unknown as FixtureWindow).collectionFixture.completions[id]), requests[0]!)).toBe(true);
@@ -471,7 +474,7 @@ test('Overview refresh stays on the same page, updates its account row and prese
 
 test('Overview refresh exposes its cooldown and never queues a provider request', async ({ page }) => {
   await page.clock.install();
-  await open(page, true); await navigate(page, 'overview');
+  await open(page, true); await navigate(page, 'overview'); await openAccount(page, profileId);
   const refresh = page.locator(`[data-overview-refresh="${profileId}"]`);
   await refresh.click();
   await expect.poll(() => page.evaluate(id => Boolean((window as unknown as FixtureWindow).collectionFixture.completions[id]), requests[0]!)).toBe(true);
@@ -479,7 +482,6 @@ test('Overview refresh exposes its cooldown and never queues a provider request'
   await publish(page, { ...committed(), sourceKind: 'official_artifact' });
   await expect(refresh).toHaveText('Refresh in 30s');
   await expect(refresh).toBeDisabled();
-  await expect(page.locator(`[data-overview-row-refresh="${profileId}"]`)).toBeDisabled();
   await refresh.evaluate(node => (node as HTMLButtonElement).click());
   await page.clock.runFor(31_000);
   await expect(refresh).toHaveText('Refresh');
@@ -490,7 +492,7 @@ test('Overview refresh exposes its cooldown and never queues a provider request'
 });
 
 test('Overview reports a refused companion without navigating or starting a provider', async ({ page }) => {
-  await open(page, true); await navigate(page, 'overview');
+  await open(page, true); await navigate(page, 'overview'); await openAccount(page, profileId);
   await page.evaluate(() => { (window as unknown as FixtureWindow).collectionFixture.failPrepare = true; });
   await page.locator(`[data-overview-refresh="${profileId}"]`).click();
   await expect(page.locator('[data-overview-connection-error]')).toContainText('could not verify');

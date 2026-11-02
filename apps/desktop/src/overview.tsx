@@ -1,8 +1,6 @@
-import { useDateFormat } from './time-display';
 import type { AccountAction } from './account-actions';
-import { useEffect, useState, type MouseEvent } from 'react';
+import { useEffect, useState, type MouseEvent, type ReactNode } from 'react';
 import { Button } from './components/ui/button';
-import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from './components/ui/collapsible';
 import { Meter, MeterIndicator, MeterLabel, MeterTrack } from './components/ui/meter';
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from './components/ui/select';
 import { invoke, type ProfileRecord, type SavedProfileActivity, type SavedProfileQuota, type SavedQuotaWindow } from './contracts';
@@ -11,32 +9,27 @@ import { useActivityDashboard } from './activity-dashboard';
 import './activity.css';
 import './overview.css';
 import { AccountDonut } from './account-donut';
+import { DetailPanel, Mark } from './detail-panel';
+import { OverviewGlance, ReadingDetails } from './overview-glance';
+import { comparableWindows } from './quota-compare';
 import { ResetCountdown } from './reset-countdown';
-import { ArrowIcon, ClockIcon, GaugeIcon, MoreIcon, PlusIcon, PulseIcon, RefreshIcon, SearchIcon, UsersIcon } from './icons';
+import { useDateFormat } from './time-display';
+import { GaugeIcon, MoreIcon, PlusIcon, RefreshIcon, SearchIcon } from './icons';
 
-type Props = { profiles: ProfileRecord[]; revision: number; onAccounts: () => void; onAccountAction?: (action: AccountAction) => void; busy?: boolean; active?: boolean; refreshingProfileIds?: string[]; refreshWaitSeconds?: Record<string, number>; expectedProfiles?: number };
+type Props = { profiles: ProfileRecord[]; revision: number; onAccounts: () => void; onAccountAction?: (action: AccountAction) => void; busy?: boolean; active?: boolean; refreshingProfileIds?: string[]; refreshWaitSeconds?: Record<string, number>; expectedProfiles?: number; notices?: ReactNode };
 type AccountQuota = { quota: SavedProfileQuota | null; loading: boolean; failed: boolean };
 type Reading = { profileId: string; activity: SavedProfileActivity | null; quota: SavedProfileQuota | null; activityFailed: boolean; quotaFailed: boolean };
-const scientificNumbers = new Intl.NumberFormat('en-US', { notation: 'scientific', maximumFractionDigits: 0 });
-const compactNumbers = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 2 });
-function CompactCount({ value }: { value: string | null }) {
-  return <bdi title={value ?? undefined}>{value === null ? 'Not available' : (value.length > 15 ? scientificNumbers : compactNumbers).format(BigInt(value))}</bdi>;
+const exactNumbers = new Intl.NumberFormat('en-US');
+function ExactCount({ value }: { value: string | null }) {
+  return value === null ? <bdi>Not available</bdi> : <bdi className="tabular-digits">{exactNumbers.format(BigInt(value))}</bdi>;
 }
 const connectionLabels = { connected: 'Connected', authentication_required: 'Not connected', unauthorized: 'Session expired', offline: 'Offline', unsupported: 'Unavailable', error: 'Needs attention' };
-function Connection({ profile }: { profile: ProfileRecord }) {
-  return <span className="overview-connection" data-connected={profile.connectionState === 'connected'}><i aria-hidden="true" />{connectionLabels[profile.connectionState]}</span>;
-}
 function Avatar({ label }: { label: string }) {
   const initial = /^Account ([A-J])$/.exec(label)?.[1] ?? Array.from(label)[0]?.toUpperCase() ?? 'A';
   const tint = Array.from(label).reduce((sum, character) => sum + character.codePointAt(0)!, 0) % 6;
   return <span className="overview-avatar" data-tint={tint} aria-hidden="true">{initial}</span>;
 }
 const freshness = { fresh: 'Fresh', stale: 'Stale', unknown: 'Freshness unknown' };
-
-function Observed({ value }: { value: SavedProfileActivity | SavedProfileQuota }) {
-  const dates = useDateFormat();
-  return <p className="overview-meta">{freshness[value.freshness]} · <time dateTime={value.observedAtUtc}>{dates.format(new Date(value.observedAtUtc))}</time></p>;
-}
 
 function QuotaWindow({ value, role }: { value: SavedQuotaWindow | null; role: string }) {
   const dates = useDateFormat();
@@ -48,8 +41,8 @@ function QuotaWindow({ value, role }: { value: SavedQuotaWindow | null; role: st
       <div className="overview-meter-heading"><MeterLabel>{value.label} quota</MeterLabel><strong>{value.derivedRemainingPercent}% left</strong></div>
       <MeterTrack><MeterIndicator /></MeterTrack>
     </Meter>
-    <div className="overview-quota-footnote"><p><strong>{value.usedPercent}% used</strong><span>Derived from provider data</span></p><p className="overview-reset"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M8 3v4m8-4v4M4 11h16"/></svg><span>Expected reset<time dateTime={reset?.toISOString()}>{reset ? dates.format(reset) : 'Not supplied'}</time><ResetCountdown resetsAtUnix={value.resetsAtUnix} /></span></p></div>
-    {resetState && <p className="overview-meta" data-overview-reset-state={value.resetState}>{resetState}</p>}
+    <dl className="detail-rows"><dt>Used</dt><dd>{value.usedPercent}%</dd><dt>Expected reset</dt><dd>{reset ? <time dateTime={reset.toISOString()}>{dates.format(reset)}</time> : 'Not available'}<ResetCountdown resetsAtUnix={value.resetsAtUnix} /></dd></dl>
+    {resetState && <p data-overview-reset-state={value.resetState}><Mark>{resetState}</Mark></p>}
   </div>;
 }
 
@@ -58,58 +51,22 @@ const attention = (remaining: number) => remaining <= 10 ? 'low' : remaining <= 
 function quotaWindows(quota: SavedProfileQuota | null | undefined) {
   return (quota?.limits ?? []).flatMap(limit => [limit.primary, limit.secondary]).filter((window): window is SavedQuotaWindow => window !== null);
 }
-function age(observedAtUtc: string) {
-  const minutes = Math.floor((Date.now() - Date.parse(observedAtUtc)) / 60_000);
-  if (minutes < 1) return 'Just now';
-  if (minutes < 60) return `${minutes} min ago`;
-  return minutes < 1440 ? `${Math.floor(minutes / 60)} hr ago` : `${Math.floor(minutes / 1440)} d ago`;
-}
-
-// Totals never cross windows: each tile reports one account's own reading, or a count of accounts.
-function OverviewGlance({ profiles, quotas, plans }: { profiles: ProfileRecord[]; quotas: Record<string, SavedProfileQuota | null | undefined>; plans: string[] }) {
-  const connected = profiles.filter(profile => profile.connectionState === 'connected');
-  const signIn = profiles.length - connected.length;
-  const readings = connected.flatMap(profile => quotaWindows(quotas[profile.id]).map(window => ({ profile, window })));
-  const lowest = readings.reduce<(typeof readings)[number] | null>((best, entry) => !best || entry.window.derivedRemainingPercent < best.window.derivedRemainingPercent ? entry : best, null);
-  const now = Date.now();
-  const upcoming = readings.filter(({ window }) => window.resetState === 'expected' && window.resetsAtUnix !== null && window.resetsAtUnix * 1000 > now);
-  const reset = upcoming.reduce<(typeof readings)[number] | null>((best, entry) => !best || entry.window.resetsAtUnix! < best.window.resetsAtUnix! ? entry : best, null);
-  const saved = connected.map(profile => quotas[profile.id]).filter((quota): quota is SavedProfileQuota => !!quota);
-  const latest = saved.reduce<string | null>((value, quota) => value === null || Date.parse(quota.observedAtUtc) > Date.parse(value) ? quota.observedAtUtc : value, null);
-  const outdated = saved.filter(quota => quota.freshness !== 'fresh').length;
-  const counts = new Map<string, number>();
-  for (const plan of plans) counts.set(plan, (counts.get(plan) ?? 0) + 1);
-  const breakdown = [...counts].map(([plan, count]) => `${count} ${plan}`).join(' · ');
-  return <dl className="overview-glance" aria-label="Summary across accounts" data-overview-glance>
-    <div><dt><UsersIcon />Connected accounts</dt><dd>{connected.length}<small> of {profiles.length}</small></dd><dd className="overview-glance-note" data-attention={signIn > 0 ? 'warn' : undefined}>{signIn > 0 ? `${signIn} need${signIn === 1 ? 's' : ''} sign-in` : breakdown || 'All connected'}</dd></div>
-    <div data-attention={lowest ? attention(lowest.window.derivedRemainingPercent) : undefined}><dt><GaugeIcon />Lowest quota left</dt><dd>{lowest ? `${lowest.window.derivedRemainingPercent}%` : <span className="overview-glance-empty">Not available</span>}</dd><dd className="overview-glance-note">{lowest ? <><bdi>{lowest.profile.label}</bdi> · {lowest.window.label} · derived</> : 'No saved quota yet'}</dd></div>
-    <div><dt><ClockIcon />Next expected reset</dt><dd>{reset ? <ResetCountdown detached resetsAtUnix={reset.window.resetsAtUnix} /> : <span className="overview-glance-empty">Not available</span>}</dd><dd className="overview-glance-note">{reset ? <><bdi>{reset.profile.label}</bdi> · {reset.window.label}</> : 'No reset time reported'}</dd></div>
-    <div><dt><PulseIcon />Latest reading</dt><dd>{latest ? <time dateTime={latest}>{age(latest)}</time> : <span className="overview-glance-empty">Not available</span>}</dd><dd className="overview-glance-note" data-attention={outdated > 0 ? 'warn' : undefined}>{!latest ? 'Nothing saved yet' : outdated > 0 ? `${outdated} not fresh` : 'All readings fresh'}</dd></div>
-  </dl>;
-}
-
 const accountFilters = { all: 'All accounts', connected: 'Connected', attention: 'Needs sign-in', low: 'Low quota' };
 type AccountFilter = keyof typeof accountFilters;
 
 function taskDuration(seconds: string | null | undefined) {
-  if (seconds === null || seconds === undefined) return '—';
+  if (seconds === null || seconds === undefined) return 'Not available';
   const total = BigInt(seconds), hours = total / 3600n, minutes = total % 3600n / 60n;
   return hours ? `${hours}h ${minutes}m` : minutes ? `${minutes}m ${total % 60n}s` : `${total}s`;
 }
 
-function StatIcon({ kind }: { kind: 'tokens' | 'peak' | 'current' | 'longest' | 'task' | 'credit' }) {
-  return <span className="overview-stat-icon" data-kind={kind} aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    {kind === 'task' ? <><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9 2h6"/></> : kind === 'credit' ? <><path d="M21 12a9 9 0 1 1-2.6-6.4L21 8"/><path d="M21 3v5h-5"/></> : kind === 'tokens' ? <><ellipse cx="12" cy="5" rx="7" ry="3"/><path d="M5 5v6c0 4 14 4 14 0V5M5 11v6c0 4 14 4 14 0v-6"/></> : kind === 'peak' ? <><rect x="4" y="12" width="3" height="8" rx=".5"/><rect x="10.5" y="5" width="3" height="15" rx=".5"/><rect x="17" y="9" width="3" height="11" rx=".5"/></> : kind === 'current' ? <path d="m13 3-8 11h6l-1 7 9-12h-6z"/> : <><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M8 3v4m8-4v4M4 11h16m-11 4h2m2 0h2m-6 3h2"/></>}
-  </svg></span>;
-}
-
-export function Overview({ profiles, revision, onAccounts, onAccountAction, busy = false, active = true, refreshingProfileIds = [], refreshWaitSeconds = {}, expectedProfiles = 0 }: Props) {
-  const dates = useDateFormat();
+export function Overview({ profiles, revision, onAccounts, onAccountAction, busy = false, active = true, refreshingProfileIds = [], refreshWaitSeconds = {}, expectedProfiles = 0, notices }: Props) {
   const activeProfiles = profiles.filter(profile => !profile.archived);
   const tableProfileIds = activeProfiles.map(profile => profile.id).join(',');
   const [accountQuotas, setAccountQuotas] = useState<Record<string, AccountQuota>>({});
   const [plans, setPlans] = useState<Record<string, { bindingId: string; plan: string | null }>>({});
   const [selection, setSelection] = useState<string | null>(null);
+  const [accountOpen, setAccountOpen] = useState(false);
   const [limitSelection, setLimitSelection] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [accountFilter, setAccountFilter] = useState<AccountFilter>('all');
@@ -119,6 +76,7 @@ export function Overview({ profiles, revision, onAccounts, onAccountAction, busy
   const [reading, setReading] = useState<Reading | null>(null);
   const [loading, setLoading] = useState(false);
   const [refresh, setRefresh] = useState(0);
+  useEffect(() => { if (!active) setAccountOpen(false); }, [active]);
   useEffect(() => {
     if (!active || !profileId) return;
     const timer = window.setInterval(() => setRefresh(value => value + 1), 60_000);
@@ -196,7 +154,7 @@ export function Overview({ profiles, revision, onAccounts, onAccountAction, busy
   const act = (action: AccountAction) => onAccountAction ? onAccountAction(action) : onAccounts();
   const planFor = (id: string, bindingId: string | undefined) => {
     const plan = plans[id];
-    if (!plan || plan.bindingId !== bindingId || !plan.plan) return 'Not reported';
+    if (!plan || plan.bindingId !== bindingId || !plan.plan) return 'Not available';
     const names: Record<string, string> = { plus: 'ChatGPT Plus', pro: 'ChatGPT Pro', free: 'ChatGPT Free', team: 'ChatGPT Team', business: 'ChatGPT Business', enterprise: 'ChatGPT Enterprise', edu: 'ChatGPT Edu' };
     return names[plan.plan] ?? plan.plan;
   };
@@ -209,18 +167,34 @@ export function Overview({ profiles, revision, onAccounts, onAccountAction, busy
     if (accountFilter === 'attention') return profile.connectionState !== 'connected';
     return accountFilter !== 'low' || quotaWindows(loadedQuotas[profile.id]).some(lowQuota);
   });
-  const selectRow = (event: MouseEvent<HTMLTableRowElement>, id: string) => { if (!(event.target as HTMLElement).closest('button')) setSelection(id); };
+  const openAccount = (id: string) => { setSelection(id); setAccountOpen(true); };
+  const openRow = (event: MouseEvent<HTMLTableRowElement>, id: string) => { if (!(event.target as HTMLElement).closest('button')) openAccount(id); };
+  const panelAct = (action: AccountAction) => { if (action.kind !== 'refresh') setAccountOpen(false); act(action); };
+  const tableRows = shownProfiles.map(profile => {
+    const selectedRow = profile.id === profileId;
+    const cached = accountQuotas[profile.id];
+    const rowQuota = selectedRow ? quota : cached?.quota;
+    const rowLimit = selectedRow ? limit : rowQuota?.limits.find(limit => limit.primary || limit.secondary);
+    return { profile, rowQuota, selectedRow, entries: rowLimit ? comparableWindows([rowLimit]) : [],
+      rowLoading: selectedRow ? pending : active && (!cached || cached.loading),
+      rowFailed: selectedRow ? saved?.quotaFailed : cached?.failed };
+  });
+  // Rows align under the same columns as Compare: limit, role and duration must all match.
+  const columns = new Map<string, { title: string; label: string }>();
+  for (const row of tableRows) for (const entry of row.entries) if (!columns.has(entry.key)) columns.set(entry.key, { title: entry.title, label: entry.window.label });
+  const showShare = dashboard.view !== 'individual' && !!dashboard.data?.members.length;
+  const oneLimit = new Set([...columns.keys()].map(key => key.split('\u0000')[0])).size === 1;
   const selectedRefreshing = !!profileId && refreshingProfileIds.includes(profileId);
   const selectedWait = profileId ? refreshWaitSeconds[profileId] ?? 0 : 0;
   const needsSignIn = selected && (selected.connectionState === 'authentication_required' || selected.connectionState === 'unauthorized');
   return <section className="overview-dashboard" aria-label="Usage overview" data-overview data-overview-profile={profileId} aria-busy={pending}>
-    {pending && <p className="overview-meta overview-loading" role="status" data-overview-loading>Loading saved readings…</p>}
+    {!accountOpen && notices}
     {synthetic && <p className="overview-fixture-label">Synthetic test data</p>}
     {activeProfiles.length === 0 ? expectedProfiles > 0 ? <p className="overview-meta overview-loading" role="status">Loading accounts…</p> : <section className="overview-welcome" aria-labelledby="overview-welcome-heading" data-overview-welcome>
       <span className="overview-welcome-mark" aria-hidden="true"><GaugeIcon /></span>
-      <div className="overview-quota-empty"><h2 id="overview-welcome-heading">No accounts</h2><p>Add an account to see its quota, resets and token activity here.</p><Button disabled={busy} onClick={() => act({ kind: 'add' })} data-overview-add-account><PlusIcon />Add OpenAI account</Button></div>
+      <div className="overview-quota-empty"><h2 id="overview-welcome-heading">No accounts</h2><Button disabled={busy} onClick={() => act({ kind: 'add' })} data-overview-add-account><PlusIcon />Add OpenAI account</Button></div>
     </section> : <>
-    <OverviewGlance profiles={activeProfiles} quotas={loadedQuotas} plans={activeProfiles.map(profile => planFor(profile.id, loadedQuotas[profile.id]?.bindingId)).filter(plan => plan !== 'Not reported')} />
+    <OverviewGlance profiles={activeProfiles} quotas={loadedQuotas} plans={activeProfiles.map(profile => planFor(profile.id, loadedQuotas[profile.id]?.bindingId)).filter(plan => plan !== 'Not available')} />
     <section className="overview-accounts" aria-labelledby="overview-accounts-heading" data-overview-accounts-table>
       <div className="overview-accounts-heading"><h2 id="overview-accounts-heading">Accounts <span>{activeProfiles.length}</span></h2>
         {activeProfiles.length > 2 && <div className="overview-accounts-tools" role="search" aria-label="Find accounts">
@@ -228,76 +202,61 @@ export function Overview({ profiles, revision, onAccounts, onAccountAction, busy
           <Select modal={false} value={accountFilter} items={accountFilters} onValueChange={value => { if (value) setAccountFilter(value); }}><SelectTrigger aria-label="Filter accounts"><SelectValue /></SelectTrigger><SelectPopup alignItemWithTrigger={false}>{(Object.keys(accountFilters) as AccountFilter[]).map(value => <SelectItem key={value} value={value}>{accountFilters[value]}</SelectItem>)}</SelectPopup></Select>
         </div>}
         <Button type="button" variant="default" disabled={busy || activeProfiles.length >= 10} onClick={() => act({ kind: 'add' })} data-overview-add-account><PlusIcon />Add account</Button></div>
-      {shownProfiles.length > 0 ? <div className="overview-table-scroll" tabIndex={0} role="region" aria-label="Account readings"><table><thead><tr><th scope="col">Account</th><th scope="col">Quota remaining</th><th scope="col">Status</th><th scope="col">Plan</th><th scope="col">Last updated</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
-        <tbody>{shownProfiles.map(profile => {
-          const selectedRow = profile.id === profileId;
-          const cached = accountQuotas[profile.id];
-          const rowQuota = selectedRow ? quota : cached?.quota;
-          const rowLimit = selectedRow ? limit : rowQuota?.limits.find(limit => limit.primary || limit.secondary);
-          const rowWindows = rowLimit ? [rowLimit.primary, rowLimit.secondary].filter((window): window is SavedQuotaWindow => window !== null) : [];
-          const rowLoading = selectedRow ? pending : active && (!cached || cached.loading);
-          const rowFailed = selectedRow ? saved?.quotaFailed : cached?.failed;
-          const refreshing = refreshingProfileIds.includes(profile.id);
-          const refreshWait = refreshWaitSeconds[profile.id] ?? 0;
+      {shownProfiles.length > 0 ? <div className="overview-table-scroll" tabIndex={0} role="region" aria-label="Account readings"><table><thead><tr><th scope="col">Account</th>{columns.size ? [...columns].map(([key, column]) => <th scope="col" key={key}>{oneLimit ? column.label : column.title}</th>) : <th scope="col">Quota remaining</th>}<th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
+        <tbody>{tableRows.map(({ profile, rowQuota, selectedRow, entries, rowLoading, rowFailed }) => {
+          const rowWindows = new Map(entries.map(entry => [entry.key, entry.window]));
           const signin = profile.connectionState === 'authentication_required' || profile.connectionState === 'unauthorized';
-          return <tr key={profile.id} data-overview-account={profile.id} data-selected={selectedRow} onClick={event => selectRow(event, profile.id)}>
-            <th scope="row"><Button type="button" variant="ghost" onClick={() => setSelection(profile.id)} aria-pressed={selectedRow} className="overview-account-link"><Avatar label={profile.label} /><span>{profile.label}{rowQuota?.sourceKind === 'test_fixture' && <small>Synthetic test data</small>}</span></Button></th>
-            <td data-overview-account-quota>{rowWindows.length ? <div className="overview-table-quotas">{rowWindows.map(window => <div className="overview-table-quota" key={window.label} data-attention={attention(window.derivedRemainingPercent)}><span title={`${window.usedPercent}% used; remaining is derived`}>{window.derivedRemainingPercent}% left <small>{window.label}</small></span><Meter min={0} max={100} value={window.derivedRemainingPercent} aria-label={`${profile.label}: ${window.derivedRemainingPercent}% remaining (derived)`}><MeterTrack><MeterIndicator /></MeterTrack></Meter></div>)}</div> : rowLoading ? 'Loading…' : 'Not available'}</td>
-            <td><Connection profile={profile} /></td>
-            <td className="overview-plan">{planFor(profile.id, rowQuota?.bindingId)}</td>
-            <td data-overview-account-observed>{rowQuota ? <><time dateTime={rowQuota.observedAtUtc}>{dates.format(new Date(rowQuota.observedAtUtc))}</time>{rowQuota.freshness !== 'fresh' && <small>{freshness[rowQuota.freshness]}</small>}</> : rowLoading ? 'Loading…' : rowFailed ? 'Unavailable' : 'Never'}{rowFailed && <small className="overview-error">Could not reload saved quota</small>}</td>
-            <td><div className="overview-row-actions"><Button variant={signin ? 'default' : 'outline'} disabled={busy} onClick={() => act({ kind: signin ? 'signin' : 'usage', profileId: profile.id })}>{signin ? profile.connectionState === 'unauthorized' ? 'Reconnect' : 'Sign in' : 'View usage'}</Button>{profile.connectionState === 'connected' && <Button variant="ghost" className="overview-row-refresh" disabled={busy || refreshing || refreshWait > 0} aria-label={`${refreshing ? 'Refreshing' : refreshWait > 0 ? `Refresh in ${refreshWait}s` : 'Refresh'} ${profile.label}`} title={refreshWait > 0 ? `Refresh in ${refreshWait}s` : 'Refresh'} aria-busy={refreshing} data-overview-row-refresh={profile.id} onClick={() => act({ kind: 'refresh', profileId: profile.id })}><RefreshIcon />{refreshing ? 'Refreshing…' : refreshWait > 0 ? `${refreshWait}s` : ''}</Button>}<Button variant="outline" className="overview-more" disabled={busy} aria-label={`Manage ${profile.label}`} title="Manage" onClick={() => act({ kind: 'manage', profileId: profile.id })}><MoreIcon /></Button></div></td>
+          const rowMark = profile.connectionState !== 'connected' ? connectionLabels[profile.connectionState] : rowQuota && rowQuota.freshness !== 'fresh' ? freshness[rowQuota.freshness] : null;
+          return <tr key={profile.id} data-overview-account={profile.id} data-selected={accountOpen && selectedRow} onClick={event => openRow(event, profile.id)}>
+            <th scope="row"><Button type="button" variant="ghost" aria-haspopup="dialog" onClick={() => openAccount(profile.id)} className="overview-account-link"><Avatar label={profile.label} /><span>{profile.label}{rowMark && <Mark>{rowMark}</Mark>}</span></Button>{rowFailed && <small className="overview-error">Could not reload saved quota</small>}</th>
+            {(columns.size ? [...columns.keys()] : ['none']).map(key => {
+              const window = rowWindows.get(key);
+              return <td key={key} data-overview-account-quota>{window ? <div className="overview-table-quota" data-attention={attention(window.derivedRemainingPercent)}><span title={`${window.usedPercent}% used; remaining is derived`}>{window.derivedRemainingPercent}% left</span><Meter min={0} max={100} value={window.derivedRemainingPercent} aria-label={`${profile.label}: ${window.derivedRemainingPercent}% remaining (derived)`}><MeterTrack><MeterIndicator /></MeterTrack></Meter></div> : rowLoading ? 'Loading…' : 'Not available'}</td>;
+            })}
+            <td><div className="overview-row-actions">{refreshingProfileIds.includes(profile.id) && <span className="overview-meta" data-overview-row-refreshing>Refreshing…</span>}{signin && <Button disabled={busy} onClick={() => act({ kind: 'signin', profileId: profile.id })}>{profile.connectionState === 'unauthorized' ? 'Reconnect' : 'Sign in'}</Button>}<Button variant="ghost" className="overview-more" disabled={busy} aria-label={`Manage ${profile.label}`} title="Manage" onClick={() => act({ kind: 'manage', profileId: profile.id })}><MoreIcon /></Button></div></td>
           </tr>;
         })}</tbody>
       </table></div> : <div className="overview-no-match"><p role="status">No accounts match.</p><Button variant="outline" onClick={() => { setQuery(''); setAccountFilter('all'); }}>Clear filters</Button></div>}
     </section>
-    <div className="overview-panels">
-      <section className="overview-panel overview-account-panel" aria-labelledby="overview-account-heading" data-overview-quota>
-        <div className="overview-account-heading">
-          <Avatar label={selected?.label ?? 'A'} />
-          <div className="overview-account-identity">
-            <h2 id="overview-account-heading" className="sr-only">Selected account</h2>
-            <div className="overview-profile-picker"><label id="overview-profile-label" htmlFor="overview-profile" className="sr-only">Profile</label>
-              <Select modal={false} value={profileId ?? null} disabled={!selected} items={Object.fromEntries(activeProfiles.map(profile => [profile.id, profile.label]))} onValueChange={value => { if (value && activeProfiles.some(profile => profile.id === value)) setSelection(value); }}>
-                <SelectTrigger id="overview-profile" aria-labelledby="overview-profile-label"><SelectValue placeholder="No accounts" /></SelectTrigger>
-                <SelectPopup alignItemWithTrigger={false}>{activeProfiles.map(profile => <SelectItem key={profile.id} value={profile.id}>{profile.label}</SelectItem>)}</SelectPopup>
-              </Select>
-            </div>
-            {selected && <p className="overview-meta">{planFor(selected.id, quota?.bindingId)}</p>}
-          </div>
-          <div className="overview-account-state">{selected && <Connection profile={selected} />}{quota && <span className="overview-meta">{freshness[quota.freshness]}</span>}</div>
-          <div className="overview-account-actions">{selected && <><Button variant={needsSignIn ? 'default' : 'outline'} disabled={busy || selectedRefreshing || (!needsSignIn && selectedWait > 0)} aria-busy={selectedRefreshing} data-overview-refresh={needsSignIn ? undefined : selected.id} onClick={() => act({ kind: needsSignIn ? 'signin' : 'refresh', profileId: selected.id })}>{!needsSignIn && <RefreshIcon />}{selectedRefreshing ? 'Refreshing…' : needsSignIn ? selected.connectionState === 'unauthorized' ? 'Reconnect' : 'Sign in' : selectedWait > 0 ? `Refresh in ${selectedWait}s` : 'Refresh'}</Button><Button variant="outline" className="overview-more" aria-label={`Manage ${selected.label}`} title="Manage" disabled={busy} onClick={() => act({ kind: 'manage', profileId: selected.id })}><MoreIcon /></Button></>}</div>
-        </div>
+    <div className="overview-activity" data-share={showShare || undefined}>
+      <section className="overview-activity-panel" aria-label="Token activity" data-overview-activity>
+        <ActivityPanel profiles={activeProfiles} profileId={active ? profileId ?? null : null} revision={revision} dashboard={dashboard} />
+      </section>
+      {showShare && <AccountDonut mode="share" dashboard={dashboard} />}
+    </div>
+    <DetailPanel open={accountOpen && !!selected} label="Selected account" title={selected && <><Avatar label={selected.label} /><bdi>{selected.label}</bdi></>} onClose={() => setAccountOpen(false)}>
+      {selected && <div className="overview-account-detail" data-overview-quota>
+        {notices}
+        {pending && <p className="overview-meta" role="status" data-overview-loading>Loading saved readings…</p>}
+        <div className="overview-account-actions"><Button variant={needsSignIn ? 'default' : 'outline'} disabled={busy || selectedRefreshing || (!needsSignIn && selectedWait > 0)} aria-busy={selectedRefreshing} data-overview-refresh={needsSignIn ? undefined : selected.id} onClick={() => panelAct({ kind: needsSignIn ? 'signin' : 'refresh', profileId: selected.id })}>{!needsSignIn && <RefreshIcon />}{selectedRefreshing ? 'Refreshing…' : needsSignIn ? selected.connectionState === 'unauthorized' ? 'Reconnect' : 'Sign in' : selectedWait > 0 ? `Refresh in ${selectedWait}s` : 'Refresh'}</Button><Button variant="outline" onClick={() => panelAct({ kind: 'usage', profileId: selected.id })}>View usage</Button><Button variant="outline" className="overview-more" aria-label={`Manage ${selected.label}`} title="Manage" disabled={busy} onClick={() => panelAct({ kind: 'manage', profileId: selected.id })}><MoreIcon /></Button></div>
         {limit ? <div className="overview-quota-block" data-window-count={Number(!!limit.primary) + Number(!!limit.secondary)}>
-          <div className="overview-block-title"><h3 className="sr-only">Quota remaining</h3>
-
-            {quota && quota.limits.length > 1 ? <div className="overview-limit-picker"><label id="overview-limit-label" htmlFor="overview-limit" className="sr-only">Quota limit</label>
-              <Select modal={false} value={limit.limitId} items={Object.fromEntries(quota.limits.map(limit => [limit.limitId, limit.limitName ?? limit.limitId]))} onValueChange={value => { if (value && quota.limits.some(limit => limit.limitId === value)) setLimitSelection(`${profileId}:${value}`); }}>
-                <SelectTrigger id="overview-limit" aria-labelledby="overview-limit-label"><SelectValue /></SelectTrigger><SelectPopup alignItemWithTrigger={false}>{quota.limits.map(limit => <SelectItem key={limit.limitId} value={limit.limitId}>{limit.limitName ?? limit.limitId}</SelectItem>)}</SelectPopup>
-              </Select>
-            </div> : <span className="sr-only"><bdi>{limit.limitName ?? limit.limitId}</bdi></span>}
-          </div>
+          <h3 className="sr-only">Quota remaining</h3>
+          {quota && quota.limits.length > 1 ? <div className="overview-limit-picker"><label id="overview-limit-label" htmlFor="overview-limit" className="sr-only">Quota limit</label>
+            <Select modal={false} value={limit.limitId} items={Object.fromEntries(quota.limits.map(limit => [limit.limitId, limit.limitName ?? limit.limitId]))} onValueChange={value => { if (value && quota.limits.some(limit => limit.limitId === value)) setLimitSelection(`${profileId}:${value}`); }}>
+              <SelectTrigger id="overview-limit" aria-labelledby="overview-limit-label"><SelectValue /></SelectTrigger><SelectPopup alignItemWithTrigger={false}>{quota.limits.map(limit => <SelectItem key={limit.limitId} value={limit.limitId}>{limit.limitName ?? limit.limitId}</SelectItem>)}</SelectPopup>
+            </Select>
+          </div> : <span className="sr-only"><bdi>{limit.limitName ?? limit.limitId}</bdi></span>}
           <QuotaWindow value={limit.primary} role="Primary window" /><QuotaWindow value={limit.secondary} role="Secondary window" />
-        </div> : <div className="overview-quota-empty"><h3>{selected ? needsSignIn ? 'Connect to view usage' : quota ? 'No quota windows reported' : 'No saved quota yet' : 'No accounts'}</h3>{!selected && <Button onClick={() => act({ kind: 'add' })}>Add OpenAI account</Button>}</div>}
+        </div> : <div className="overview-quota-empty"><h3>{needsSignIn ? 'Connect to view usage' : quota ? 'No quota windows reported' : 'No saved quota yet'}</h3></div>}
         {saved?.quotaFailed && <p className="overview-error">Saved quotas could not be loaded. Try Refresh.</p>}
-        <dl className="overview-summary" aria-label="Selected profile activity summary">
-          <div><dt><StatIcon kind="tokens"/>Lifetime tokens</dt><dd><span data-overview-lifetime data-exact-value={lifetimeTokens ?? undefined}>{pending && lifetimeTokens === null ? 'Loading…' : <CompactCount value={lifetimeTokens} />}</span></dd></div>
-          <div><dt><StatIcon kind="peak"/>Peak daily tokens</dt><dd><CompactCount value={activity?.summary.peakDailyTokens ?? null} /></dd></div>
-          <div><dt><StatIcon kind="current"/>Current streak</dt><dd>{activity?.summary.currentStreakDays ?? '—'}{activity?.summary.currentStreakDays != null && <span> days</span>}</dd></div>
-          <div><dt><StatIcon kind="longest"/>Longest streak</dt><dd>{activity?.summary.longestStreakDays ?? '—'}{activity?.summary.longestStreakDays != null && <span> days</span>}</dd></div>
-          <div><dt><StatIcon kind="task"/>Longest task</dt><dd>{taskDuration(activity?.summary.longestRunningTurnSec)}</dd></div>
-          <div><dt><StatIcon kind="credit"/>Reset credits</dt><dd>{quota?.availableResetCredits ?? '—'}</dd></div>
+        <dl className="detail-rows" aria-label="Selected profile activity summary">
+          <dt>Lifetime tokens</dt><dd><span data-overview-lifetime data-exact-value={lifetimeTokens ?? undefined}>{pending && lifetimeTokens === null ? 'Loading…' : <ExactCount value={lifetimeTokens} />}</span></dd>
+          <dt>Peak daily tokens</dt><dd><ExactCount value={activity?.summary.peakDailyTokens ?? null} /></dd>
+          <dt>Current streak</dt><dd>{activity?.summary.currentStreakDays != null ? `${activity.summary.currentStreakDays} days` : 'Not available'}</dd>
+          <dt>Longest streak</dt><dd>{activity?.summary.longestStreakDays != null ? `${activity.summary.longestStreakDays} days` : 'Not available'}</dd>
+          <dt>Longest task</dt><dd>{taskDuration(activity?.summary.longestRunningTurnSec)}</dd>
+          <dt>Reset credits</dt><dd>{quota?.availableResetCredits ?? 'Not available'}</dd>
+          <dt>Activity coverage</dt><dd>Unknown</dd>
         </dl>
         {saved?.activityFailed && <p className="overview-error" role="alert">Saved activity could not be loaded. Try Refresh.</p>}
-        <div className="overview-account-footer">{quota && <Observed value={quota} />}{selected && <Button variant="ghost" onClick={() => act({ kind: 'usage', profileId: selected.id })}>View usage<ArrowIcon /></Button>}
-        {(quota || activity) && <Collapsible className="overview-source-details"><CollapsibleTrigger render={<Button variant="ghost" />} type="button">Reading details</CollapsibleTrigger><CollapsiblePanel><p className="overview-meta">Unverified identity · Saved locally. Remaining quota is derived from provider-reported usage. Combined totals are not available.</p>{quota && <Observed value={quota} />}{activity && <p className="overview-meta">Lifetime tokens: <bdi>{lifetimeTokens ?? 'Not available'}</bdi>. Peak daily tokens: <bdi>{activity.summary.peakDailyTokens ?? 'Not available'}</bdi>. Account activity scope and coverage are unknown.</p>}</CollapsiblePanel></Collapsible>}</div>
-      </section>
-      <AccountDonut label={selected?.label ?? 'No account selected'} window={limit?.primary ?? limit?.secondary ?? null} dashboard={dashboard} />
-      <section className="overview-panel overview-activity-panel" aria-label="Token activity" data-overview-activity>
-        <ActivityPanel profiles={activeProfiles} profileId={active ? profileId ?? null : null} revision={revision} dashboard={dashboard} />
-
-      </section>
-    </div>
+        <dl className="detail-rows" aria-label="Reading details">
+          <dt>Plan</dt><dd>{planFor(selected.id, quota?.bindingId)}</dd>
+          <dt>Connection</dt><dd>{connectionLabels[selected.connectionState]}</dd>
+          <dt>Combined totals</dt><dd>Not available</dd>
+          {quota ? <ReadingDetails quota={quota} /> : <><dt>Observed</dt><dd>Not available</dd></>}
+        </dl>
+      </div>}
+    </DetailPanel>
     </>}
   </section>;
 }

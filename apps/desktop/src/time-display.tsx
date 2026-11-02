@@ -36,24 +36,6 @@ export function DisplayTime({ value, ...props }: { value: string } & ComponentPr
   const dates = useDateFormat();
   return <time {...props} dateTime={value}>{dates.format(new Date(value))}</time>;
 }
-export function LiveClock() {
-  const dates = useDateFormat({ hourCycle: 'h23', second: '2-digit' });
-  const [now, setNow] = useState(Date.now);
-  useEffect(() => {
-    let timer: number | undefined;
-    const update = () => {
-      window.clearTimeout(timer);
-      const current = Date.now(); setNow(current);
-      if (!document.hidden) timer = window.setTimeout(update, 1000 - current % 1000);
-    };
-    update();
-    document.addEventListener('visibilitychange', update);
-    window.addEventListener('focus', update);
-    return () => { window.clearTimeout(timer); document.removeEventListener('visibilitychange', update); window.removeEventListener('focus', update); };
-  }, []);
-  // Only digit runs use tabular figures; this face also widens punctuation under tnum.
-  return <time className="live-clock" data-live-clock dateTime={new Date(now).toISOString()}>{dates.format(new Date(now)).split(/(\d+)/).map((part, index) => index % 2 ? <span key={index} className="tabular-digits">{part}</span> : part)}</time>;
-}
 const common: Record<string, string> = { UTC: 'UTC', 'Asia/Kolkata': 'India · Kolkata (UTC+05:30)', 'America/New_York': 'New York', 'Europe/London': 'London', 'Asia/Tokyo': 'Tokyo', 'Australia/Sydney': 'Sydney' };
 export function TimeSettings() {
   const { zone, pending, failed, save } = useContext(TimeContext);

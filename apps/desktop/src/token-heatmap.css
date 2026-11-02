@@ -97,6 +97,9 @@
 .token-heatmap-range > span { margin-left: auto; }
 .token-heatmap[data-compact] .react-activity-calendar { width: fit-content; margin-inline: auto; }
 .token-heatmap-header .activity-scope-controls { flex: 0 1 auto; }
+.token-heatmap[data-compact] .token-heatmap-header { align-items: center; gap: .5rem .75rem; }
+.token-heatmap[data-compact] .token-heatmap-header > div:first-child { margin-right: auto; }
+.token-heatmap[data-compact] .token-heatmap-controls { width: auto; }
 .combined-explanation { color: var(--muted); font-size: .875rem; line-height: 1.5; }
 .combined-explanation summary { cursor: pointer; padding-block: .5rem; }
 .overview-share-unavailable { margin-block: auto; padding-block: 2rem; line-height: 1.6; color: var(--muted); }
