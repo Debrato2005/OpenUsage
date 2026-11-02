@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import type { ReadingExportReceipt, QuotaHistoryEntry } from '../../apps/desktop/src/contracts';
-import { navigate } from './navigation';
+import { closeDetail, navigate } from './navigation';
 
 // Synthetic renderer IPC. Native SQLCipher pagination and restart are verified separately.
 const first = '11111111-1111-4111-8111-111111111111';
@@ -48,26 +48,36 @@ async function open(page: Page, options: { deferFirst?: boolean; failSecond?: bo
   await navigate(page, 'usage');
 }
 const history = (page: Page) => page.locator('[data-quota-history]');
+const detail = (page: Page) => page.locator('[data-detail-panel][open]');
 const fixture = (page: Page) => page.evaluate(() => (window as unknown as { historyFixture: HistoryFixture }).historyFixture.calls);
 async function choose(page: Page, name: string) { await page.getByRole('combobox', { name: 'Usage profile' }).click(); await page.getByRole('option', { name, exact: true }).click(); }
 
 test('history loads only on request, pages saved snapshots, and preserves zero, missing windows and provenance', async ({ page }) => {
   await open(page);
   expect((await fixture(page)).some(value => value.command === 'load_profile_quota_history')).toBe(false);
-  await history(page).getByRole('button', { name: 'View quota history' }).click();
+  await history(page).getByRole('button', { name: 'Quota history', exact: true }).click();
   await expect(history(page).locator('[data-quota-history-run]')).toHaveCount(20);
   const firstRow = history(page).locator('[data-quota-history-run]').first();
-  await firstRow.getByRole('button').first().focus(); await page.keyboard.press('Enter');
-  await expect(firstRow.getByRole('cell', { name: '0%', exact: true })).toBeVisible();
-  await expect(firstRow.getByRole('cell', { name: '100%', exact: true })).toBeVisible();
-  await expect(firstRow.getByRole('cell', { name: 'Not reported', exact: true })).toBeVisible();
-  await expect(firstRow).toContainText('Synthetic test data');
-  await expect(firstRow).not.toContainText('Fresh');
+  await firstRow.getByRole('button').click();
+  await expect(detail(page)).toHaveAttribute('aria-label', 'Quota snapshot');
+  const snapshot = detail(page);
+  const table = snapshot.getByRole('table');
+  await expect(table.getByRole('columnheader', { name: 'Remaining', exact: true })).toBeVisible();
+  await expect(table.getByRole('cell', { name: '0%', exact: true })).toBeVisible();
+  await expect(table.getByRole('cell', { name: '100%', exact: true })).toBeVisible();
+  await expect(table.getByRole('cell', { name: 'Not available', exact: true })).toBeVisible();
+  await expect(snapshot).toContainText('Synthetic test data');
+  await expect(snapshot).not.toContainText('Fresh');
+  await expect(snapshot).toContainText('account/rateLimits/read');
+  await expect(snapshot).toContainText('Expected resets are recorded values, not reset confirmations.');
+  await expect(snapshot.getByRole('button', { name: 'Source details', exact: true })).toHaveCount(0);
+  await closeDetail(page);
   const missing = history(page).locator('[data-quota-history-run]').nth(1);
   await expect(missing.getByRole('button').first()).toContainText('No quota windows');
   await missing.getByRole('button').first().click();
-  await expect(missing).toContainText('This accepted reading supplied no quota windows.');
-  await expect(missing.getByRole('row')).toHaveCount(1);
+  await expect(detail(page)).toHaveAttribute('aria-label', 'Quota snapshot');
+  await expect(detail(page)).toContainText('This accepted reading supplied no quota windows.');
+  await closeDetail(page);
   await history(page).getByRole('button', { name: 'Older readings' }).click();
   await expect(history(page).locator('[data-quota-history-run]')).toHaveCount(2);
   await expect(history(page).locator('[data-quota-history-run]').first()).toHaveAttribute('data-quota-history-run', uuid(80));
@@ -80,10 +90,10 @@ test('history loads only on request, pages saved snapshots, and preserves zero, 
 
 test('history ignores a late previous-profile reply and recovers through the selected profile only', async ({ page }) => {
   await open(page, { deferFirst: true, failSecond: true });
-  await history(page).getByRole('button', { name: 'View quota history' }).click();
+  await history(page).getByRole('button', { name: 'Quota history', exact: true }).click();
   await expect(history(page).getByRole('status')).toHaveText('Loading saved history…');
   await choose(page, 'History account 2');
-  await history(page).getByRole('button', { name: 'View quota history' }).click();
+  await history(page).getByRole('button', { name: 'Quota history', exact: true }).click();
   await expect(history(page).getByRole('alert')).toContainText('could not be loaded');
   await page.evaluate(({ first, value }) => { const state = (window as unknown as { historyFixture: HistoryFixture }).historyFixture; for (const resolve of state.pending.splice(0)) resolve({ profileId: first, entries: [value], nextBeforeRunId: null }); state.failSecond = false; state.wrongSecond = true; }, { first, value: entry(first, 100) });
   await history(page).getByRole('button', { name: 'Retry history' }).click();
@@ -97,7 +107,7 @@ test('history ignores a late previous-profile reply and recovers through the sel
 });
 
 test('history details stay accessible in both themes at a narrow viewport with enlarged text', async ({ page }) => {
-  await open(page); await history(page).getByRole('button', { name: 'View quota history' }).click();
+  await open(page); await history(page).getByRole('button', { name: 'Quota history', exact: true }).click();
   await history(page).locator('[data-quota-history-run]').first().getByRole('button').first().click();
   await page.setViewportSize({ width: 360, height: 800 });
   for (const theme of ['light', 'dark']) {
@@ -106,7 +116,7 @@ test('history details stay accessible in both themes at a narrow viewport with e
     for (const scale of [1, 2]) {
       await page.evaluate(scale => { for (const node of document.querySelectorAll<HTMLElement>('body *')) { const baseline = node.dataset.historyTestSize ?? getComputedStyle(node).fontSize; node.dataset.historyTestSize = baseline; node.style.fontSize = `${parseFloat(baseline) * scale}px`; } }, scale);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
-      const table = history(page).getByRole('region', { name: 'Quota snapshot 2026-10-21T00:00:00.000Z', exact: true });
+      const table = detail(page).getByRole('region', { name: 'Quota snapshot 2026-10-21T00:00:00.000Z', exact: true });
       await table.focus(); await page.keyboard.press('ArrowRight');
       await expect.poll(() => table.evaluate(node => node.scrollLeft)).toBeGreaterThan(0);
       expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations).toEqual([]);
@@ -117,7 +127,7 @@ test('history details stay accessible in both themes at a narrow viewport with e
 
 test('history export requires consent, omits identifiers by default, and keeps failures and late replies scoped', async ({ page }) => {
   await open(page);
-  await history(page).getByRole('button', { name: 'View quota history' }).click();
+  await history(page).getByRole('button', { name: 'Quota history', exact: true }).click();
   await history(page).getByRole('button', { name: 'Export quota history', exact: true }).click();
   const form = history(page).getByRole('form', { name: 'Quota history export' });
   const save = form.locator('[data-export-save]');
@@ -149,7 +159,7 @@ test('history export requires consent, omits identifiers by default, and keeps f
   expect((await fixture(page)).filter(value => value.command === 'export_quota_history').at(-1)?.args).toEqual({ profileId: first, format: 'json', includeIdentifiers: true, confirmed: true });
   await choose(page, 'History account 2');
   await page.evaluate(value => (window as unknown as { historyFixture: HistoryFixture }).historyFixture.exportResolve!(value), { ...receipt, format: 'json', fileName: 'openusage-readings-0123456789abcdef.json', identifiersIncluded: true });
-  await history(page).getByRole('button', { name: 'View quota history' }).click();
+  await history(page).getByRole('button', { name: 'Quota history', exact: true }).click();
   await expect(history(page).locator('[data-export-result]')).toHaveCount(0);
   await expect(history(page)).toHaveAttribute('data-quota-history', second);
   expect((await fixture(page)).some(value => /^(begin_|complete_|check_profile)/.test(value.command))).toBe(false);

@@ -161,7 +161,7 @@ function AccountSubscriptions({ profile, busy, setBusy }: Pick<Props, 'busy' | '
   function textField(label: string, key: 'plan' | 'price' | 'tier' | 'startDate' | 'renewalDate' | 'endDate' | 'cancellationDate', type = 'text'): ReactNode {
     if (!draft) return null;
     return <Field disabled={disabled} key={key}><FieldLabel htmlFor={`${id}-${key}`}>{label}</FieldLabel>
-      <Input nativeInput ref={key === 'plan' ? plan : undefined} id={`${id}-${key}`} name={key} type={type} required={key === 'plan'} maxLength={key === 'plan' || key === 'tier' ? 100 : key === 'price' ? 32 : undefined} inputMode={key === 'price' ? 'decimal' : undefined} disabled={disabled} value={draft[key] ?? ''} aria-describedby={key === 'price' ? `${id}-price-help` : undefined} onChange={event => setDraft({ ...draft, [key]: event.target.value || (key === 'plan' ? '' : null) })} />
+      <Input nativeInput ref={key === 'plan' ? plan : undefined} id={`${id}-${key}`} name={key} type={type} required={key === 'plan'} maxLength={key === 'plan' || key === 'tier' ? 100 : key === 'price' ? 32 : undefined} inputMode={key === 'price' ? 'decimal' : undefined} disabled={disabled} value={draft[key] ?? ''} onChange={event => setDraft({ ...draft, [key]: event.target.value || (key === 'plan' ? '' : null) })} />
     </Field>;
   }
 
@@ -195,7 +195,6 @@ function AccountSubscriptions({ profile, busy, setBusy }: Pick<Props, 'busy' | '
         {draft.intervalUnit && draft.intervalUnit !== 'once' && <Field disabled={disabled}><FieldLabel htmlFor={`${id}-count`}>Interval count</FieldLabel><Input nativeInput id={`${id}-count`} name="intervalCount" type="number" min={1} max={120} step={1} required disabled={disabled} value={draft.intervalCount} onChange={event => setDraft({ ...draft, intervalCount: event.target.value })} /></Field>}
         {textField('Renewal date', 'renewalDate', 'date')}
       </div>
-      <p id={`${id}-price-help`}>Leave price blank when it is unknown.</p>
       <details data-subscription-details><summary>Dates and details</summary><div className="subscription-fields">
         {textField('Tier', 'tier')}{textField('Start date', 'startDate', 'date')}{textField('End date', 'endDate', 'date')}{textField('Cancellation deadline', 'cancellationDate', 'date')}
         <Choice label="Auto-renew" name="autoRenew" value={draft.autoRenew === null ? 'unknown' : draft.autoRenew ? 'yes' : 'no'} items={{ unknown: 'Not entered', yes: 'Yes', no: 'No' }} disabled={disabled} onChange={value => setDraft({ ...draft, autoRenew: value === 'unknown' ? null : value === 'yes' })} />

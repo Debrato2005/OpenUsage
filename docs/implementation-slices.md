@@ -66,7 +66,7 @@ Renderer tests, native journeys, and the local commit therefore need approval to
 
 | Slice | Goal | Before it starts | State |
 |---|---|---|---|
-| S-01 | Simple screens | | In progress |
+| S-01 | Simple screens | | Done, with one exception in [status](implementation-status.md#partial) |
 | S-02 | Native journeys | S-01 | Not started |
 | S-03 | CI | S-02 | Not started |
 | S-04 | Reading status and evidence | S-03 | Not started |
@@ -112,7 +112,7 @@ These layout decisions come from screenshots of the app on November 3, 2026. OU-
 - **Accounts table:** One column per window, as Compare does, so cells do not repeat window names. A connected account shows no status. Any other state shows one mark and its one action. Plan, last update, Refresh, and View usage move to the panel or the row menu. Selecting a row opens the panel.
 - **Usage:** One scope control. One empty state. No heading repeats the selected account. Compare loses its footnote.
 - **Settings:** No heading repeats its only row. Every row looks like what it does.
-- **Manage accounts:** Reuse the accounts table. Remove the loaded message and `Remaining (derived)`.
+- **Manage accounts:** Match the accounts table, and remove the loaded message and `Remaining (derived)`. It keeps its own list, because that list owns sign-in, focus, and provider actions.
 - **Everywhere:** A missing value says Not available, never a dash. One empty state per view, with one action. One primary color in both themes. Normal word spacing in values such as `60% left`.
 - **Narrow windows:** At 720 pixels, no action or column is clipped, the header keeps one row, and panels use the full width.
 

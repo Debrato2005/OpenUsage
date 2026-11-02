@@ -86,24 +86,20 @@ export function ResetNotifications({ profiles, revision, busy, setBusy }: Props)
         <Field disabled={busy}><FieldLabel className="reset-notifications-check"><Checkbox nativeButton render={<button type="button" />} id="usage-notifications-enabled" checked={preferences.usage.enabled} disabled={busy} onCheckedChange={checked => edit({ usage: { ...preferences.usage, enabled: checked === true } })} />Notify me at 80%, 90% and 100% quota used</FieldLabel></Field>
         <Field disabled={busy}><FieldLabel className="reset-notifications-check"><Checkbox nativeButton render={<button type="button" />} id="authentication-notifications-enabled" checked={preferences.authentication.enabled} disabled={busy} onCheckedChange={checked => edit({ authentication: { ...preferences.authentication, enabled: checked === true } })} />Sign-in is required</FieldLabel></Field>
         <Field disabled={busy}><FieldLabel className="reset-notifications-check"><Checkbox nativeButton render={<button type="button" />} id="collection-failure-notifications-enabled" checked={preferences.collectionFailure.enabled} disabled={busy} onCheckedChange={checked => edit({ collectionFailure: { ...preferences.collectionFailure, enabled: checked === true } })} />Three readings fail in a row</FieldLabel></Field>
-        <p className="reset-notifications-note">Usage alerts start after a confirmed reset. Saved events are not replayed.</p>
         <Collapsible className="reset-notifications-details">
           <CollapsibleTrigger render={<Button variant="ghost" />}>Quiet hours</CollapsibleTrigger>
           <CollapsiblePanel>
             <Field disabled={busy}><FieldLabel className="reset-notifications-check"><Checkbox nativeButton render={<button type="button" />} id="reset-notifications-quiet" checked={preferences.reset.quietEnabled} disabled={busy} onCheckedChange={checked => edit({ reset: { ...preferences.reset, quietEnabled: checked === true } })} />Use quiet hours</FieldLabel></Field>
-            <p className="reset-notifications-note">Notifications wait until quiet hours end, if the alert is still relevant.</p>
             <div className="reset-notifications-times">
               <Field disabled={busy || !preferences.reset.quietEnabled}><FieldLabel htmlFor="reset-notifications-start">Start time</FieldLabel><Input nativeInput id="reset-notifications-start" type="time" required step={60} value={preferences.reset.quietStart} disabled={busy || !preferences.reset.quietEnabled} onChange={event => edit({ reset: { ...preferences.reset, quietStart: event.target.value } })} /></Field>
               <Field disabled={busy || !preferences.reset.quietEnabled}><FieldLabel htmlFor="reset-notifications-end">End time</FieldLabel><Input nativeInput id="reset-notifications-end" type="time" required step={60} value={preferences.reset.quietEnd} disabled={busy || !preferences.reset.quietEnabled} onChange={event => edit({ reset: { ...preferences.reset, quietEnd: event.target.value } })} /></Field>
             </div>
-            <Field disabled={busy || !preferences.reset.quietEnabled}><FieldLabel htmlFor="reset-notifications-zone">Time zone</FieldLabel><Input nativeInput id="reset-notifications-zone" required maxLength={128} value={preferences.reset.timeZone} disabled={busy || !preferences.reset.quietEnabled} autoCapitalize="none" spellCheck={false} aria-describedby="reset-notifications-zone-help" onChange={event => edit({ reset: { ...preferences.reset, timeZone: event.target.value } })} /></Field>
-            <p className="reset-notifications-note" id="reset-notifications-zone-help">For example, Asia/Kolkata or Europe/London.</p>
+            <Field disabled={busy || !preferences.reset.quietEnabled}><FieldLabel htmlFor="reset-notifications-zone">Time zone</FieldLabel><Input nativeInput id="reset-notifications-zone" required maxLength={128} value={preferences.reset.timeZone} disabled={busy || !preferences.reset.quietEnabled} autoCapitalize="none" spellCheck={false} onChange={event => edit({ reset: { ...preferences.reset, timeZone: event.target.value } })} /></Field>
           </CollapsiblePanel>
         </Collapsible>
         {activeProfiles.length > 0 && <Collapsible className="reset-notifications-details">
           <CollapsibleTrigger render={<Button variant="ghost" />}>Account overrides</CollapsibleTrigger>
           <CollapsiblePanel>
-            <p className="reset-notifications-note">Default follows each setting above.</p>
             <ul className="reset-notifications-overrides">{activeProfiles.map(profile => <li key={profile.id}>
               <strong><bdi>{profile.label}</bdi></strong>
               <div className="reset-notifications-account-options">{(['reset', 'usage', 'authentication', 'collectionFailure'] as const).map(kind => {

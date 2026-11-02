@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
-import type { ProfileRecord, SavedProfileActivity, SavedProfileQuota, SavedQuotaWindow } from '../../apps/desktop/src/contracts';
+import type { ProfileRecord, SavedProfileActivity, SavedProfileHeatmap, SavedProfileQuota, SavedQuotaWindow } from '../../apps/desktop/src/contracts';
 import { closeDetail, openAccount } from './navigation';
 
 // Synthetic renderer fixtures. Native rendering and provider sessions are separate acceptance checks.
@@ -17,7 +17,7 @@ function activity(profileId: string, summary: Partial<SavedProfileActivity['summ
 const label = (index: number) => ['Alpha', 'Bravo', 'Charlie', 'Delta'][index]!;
 const profile = (index: number, connectionState: ProfileRecord['connectionState'] = 'connected'): ProfileRecord => ({ id: ids[index]!, label: label(index), environment: 'native', archived: false, connectionState });
 
-type Scenario = { profiles?: ProfileRecord[]; quotas?: Record<string, SavedProfileQuota | null>; activity?: SavedProfileActivity | null; rejectQuota?: string[]; mismatchQuota?: string[] };
+type Scenario = { profiles?: ProfileRecord[]; quotas?: Record<string, SavedProfileQuota | null>; activity?: SavedProfileActivity | null; heatmap?: SavedProfileHeatmap | null; rejectQuota?: string[]; mismatchQuota?: string[] };
 const standard: Scenario = {
   profiles: [profile(0), profile(1), profile(2, 'authentication_required'), profile(3, 'unauthorized')],
   quotas: {
@@ -45,7 +45,6 @@ async function open(page: Page, scenario: Scenario = standard) {
         load_monitoring: { state: 'stopped', readingRevision: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', profiles: [] },
         load_profile_refresh_status: { profileId: id, retryAfterSeconds: 0 },
         load_profile_plan: { profileId: id, bindingId: args.bindingId, plan: 'plus' },
-        load_profile_heatmap: null,
         list_subscriptions: { profileId: id, records: [], nextCursor: null, currencies: [{ code: 'USD', scale: 2 }] },
         load_alert_history: { events: [], truncated: false },
         load_notification_preferences: { reset: { enabled: false, timeZone: 'UTC', quietEnabled: true, quietStart: '22:00', quietEnd: '08:00', profileOverrides: [] }, usage: { enabled: false, profileOverrides: [] }, authentication: { enabled: false, profileOverrides: [] }, collectionFailure: { enabled: false, profileOverrides: [] } },
@@ -55,6 +54,7 @@ async function open(page: Page, scenario: Scenario = standard) {
         const reading = scenario.quotas?.[mismatched.includes(id) ? ids[0]! : id] ?? null;
         return reading as T;
       }
+      if (command === 'load_profile_heatmap') return (scenario.heatmap && scenario.heatmap.profileId === id && scenario.heatmap.mode === args.mode ? scenario.heatmap : null) as T;
       if (command === 'load_profile_activity') return (scenario.activity && scenario.activity.profileId === id ? scenario.activity : null) as T;
       if (command === 'load_activity_dashboard') return { view: args.view, status: 'unavailable', mode: args.mode, periodStart: args.startDate, periodEnd: args.endDate, sourceKind: 'unverified', observedAtUtc: null, scopeVerified: false, totalTokens: null, knownContributions: 0, expectedContributions: 0, scaleMaximum: null, members: [], exclusions: (args.profileIds as string[]).map(profileId => ({ profileId, reason: 'activity_unavailable' })), cells: [] } as T;
       if (command in answers) return answers[command] as T;

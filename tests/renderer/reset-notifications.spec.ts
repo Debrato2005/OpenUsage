@@ -64,7 +64,6 @@ test('notification preferences save all four alert types atomically and preserve
   await expect(usageEnabled(page)).not.toBeChecked();
   await expect(authenticationEnabled(page)).not.toBeChecked();
   await expect(collectionFailureEnabled(page)).not.toBeChecked();
-  await expect(panel(page)).toContainText('Saved events are not replayed.');
   await enabled(page).check(); await usageEnabled(page).check(); await authenticationEnabled(page).check(); await collectionFailureEnabled(page).check();
   expect(await calls(page, 'save_notification_preferences')).toHaveLength(0);
   await panel(page).getByRole('button', { name: 'Quiet hours', exact: true }).click();

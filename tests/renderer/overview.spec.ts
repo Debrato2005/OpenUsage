@@ -181,7 +181,7 @@ test('renderer Overview keeps missing values unavailable and navigates through r
   await navigate(page, 'accounts');
   await expect(page.locator('[data-workspace-view="accounts"]')).toBeVisible();
   await expect(page.locator('#profile-label')).toBeHidden();
-  await page.getByRole('button', { name: 'Choose a name', exact: true }).click();
+  await page.getByRole('button', { name: 'Add with a name', exact: true }).click();
   await expect(page.getByLabel('Profile label', { exact: true })).toBeVisible();
   await navigate(page, 'usage');
   await navigate(page, 'overview');
@@ -327,7 +327,7 @@ test('Overview heatmap distinguishes missing dates, zero and exact counts withou
   await expect(chart.locator('[data-heatmap-selected] bdi')).toHaveText('9.01E15');
   await expect(chart.locator('[data-heatmap-selected] bdi')).toHaveAttribute('title', '9,007,199,254,740,993');
   await chart.locator('[data-heatmap-values-toggle]').click();
-  await expect(chart.locator('table')).toContainText('9,007,199,254,740,993');
+  await expect(page.locator('[data-detail-panel][open] table')).toContainText('9,007,199,254,740,993');
   await choose(page, 'Large fixture');
   await expect(chart).toContainText('No eligible saved activity for this selection.');
 });
@@ -337,7 +337,7 @@ for (const scale of [1, 2]) test(`Heatmap values stay exact and locally scrollab
   const chart = dashboard(page).locator('[data-token-heatmap]');
   await chart.locator('[data-heatmap-values-toggle]').click();
   if (scale === 2) await page.evaluate(() => { const sizes = [...document.querySelectorAll<HTMLElement>('body *')].map(node => ({ node, size: getComputedStyle(node).fontSize })); for (const { node, size } of sizes) node.style.fontSize = `${parseFloat(size) * 2}px`; });
-  await expect(chart.locator('table')).toContainText('9,007,199,254,740,993');
+  await expect(page.locator('[data-detail-panel][open] table')).toContainText('9,007,199,254,740,993');
   expect(await page.evaluate(() => document.scrollingElement!.scrollWidth <= innerWidth + 1), JSON.stringify(await page.evaluate(() => [...document.querySelectorAll('.token-heatmap, .token-heatmap > *, .activity-scope-controls, .activity-scope-controls > *, .activity-scope-controls button, .overview-panel')].map(node => ({ tag: node.className, width: node.getBoundingClientRect().width, right: node.getBoundingClientRect().right, minWidth: getComputedStyle(node).minWidth }))))).toBe(true);
 });
 
@@ -531,7 +531,7 @@ test('top navigation keeps all three pages reachable without reserving a sidebar
     await page.keyboard.press('Enter');
     await expect(page.locator('[data-workspace-view="settings"]')).toBeVisible();
     await expect(navigation.getByRole('link', { name: 'Settings', exact: true })).toHaveAttribute('aria-current', 'page');
-    const privacy = page.getByRole('button', { name: /^(About your privacy|Hide privacy details)$/ });
+    const privacy = page.getByRole('button', { name: 'Privacy details', exact: true });
     await expect(privacy).toBeVisible();
     await privacy.click();
     await expect(page.getByRole('heading', { name: 'Privacy and local storage' })).toBeVisible();
@@ -543,7 +543,7 @@ test('top navigation keeps all three pages reachable without reserving a sidebar
     await expect(dashboard(page)).toBeVisible();
     // Close the remembered disclosure on the next Settings visit.
     await navigate(page, 'settings');
-    await page.getByRole('button', { name: 'Hide privacy details', exact: true }).click();
+    await page.getByRole('button', { name: 'Privacy details', exact: true }).click();
     await navigate(page, 'overview');
   }
 });

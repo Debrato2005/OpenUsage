@@ -132,7 +132,7 @@
 .provider-panel .settings-summary:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 .provider-panel .settings-summary h2 { display: block; margin: 0; font-size: .9375rem; font-weight: 600; }
 .account-settings, .time-settings { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .625rem 1.5rem; }
-.settings-privacy.coss-button { display: flex; justify-content: flex-start; width: 100%; min-height: 3.25rem; padding-inline: 1.125rem; border-radius: 0; font-size: .9375rem; font-weight: 600; color: var(--text-strong); }
+.settings-privacy.coss-button { display: flex; justify-content: space-between; width: 100%; min-height: 3.25rem; padding-inline: 1.125rem; border-radius: 0; font-size: .9375rem; font-weight: 600; color: var(--text-strong); }
 .settings-privacy-row { padding: 0; }
 .settings-privacy-row .privacy-details { margin: 0; padding: 0 1.125rem 1rem; border: 0; border-radius: 0; background: transparent; font-size: var(--text-sm); }
 .settings-privacy-row .privacy-details h2 { font-size: .875rem; }

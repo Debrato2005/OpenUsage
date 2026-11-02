@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import type { ActivityHistoryEntry, ActivityHistoryPage, ReadingExportReceipt } from '../../apps/desktop/src/contracts';
-import { navigate } from './navigation';
+import { closeDetail, navigate } from './navigation';
 
 // Synthetic renderer IPC only. These checks do not establish native persistence or provider support.
 const first = '11111111-1111-4111-8111-111111111111';
@@ -55,22 +55,28 @@ async function choose(page: Page, name: string) { await page.getByRole('combobox
 test('saved summary history loads on request, preserves exact values and pages without combining snapshots', async ({ page }) => {
   await open(page); expect(await calls(page)).toEqual([]);
   await trigger(page).focus(); await page.keyboard.press('Enter'); await expect(rows(page)).toHaveCount(20);
-  await expect(history(page)).toContainText('not individual usage events');
+  await expect(history(page)).toContainText('Activity history');
+  await expect(history(page)).not.toContainText('not individual usage events');
   const latest = rows(page).first(); await latest.getByRole('button').first().click();
-  for (const [name, value] of Object.entries({ lifetimeTokens: '9007199254740993', peakDailyTokens: '9223372036854775807', longestRunningTurnSec: 'Not available', currentStreakDays: '0', longestStreakDays: 'Not available' })) await expect(latest.locator(`[data-activity-history-metric="${name}"]`)).toHaveText(value);
-  await expect(latest.locator('[data-activity-history-daily-state]')).toHaveAttribute('data-activity-history-daily-state', 'returned');
-  await latest.getByRole('button', { name: 'Source details', exact: true }).click();
-  await expect(latest).toContainText('Synthetic provider'); await expect(latest).toContainText('0.163.0'); await expect(latest).toContainText('Application scope'); await expect(latest).toContainText('Coverage');
-  await expect(latest.locator('.activity-history-source dd').filter({ hasText: /^Unknown$/ })).toHaveCount(2);
-  await expect(latest.locator('.activity-history-source time')).toHaveText(entry(first, 100).observedAtUtc);
-  await expect(latest.locator('.activity-history-source')).toContainText(uuid(1)); await expect(latest.locator('.activity-history-source')).toContainText(uuid(100));
+  const detail = page.locator('[data-detail-panel][open]');
+  await expect(detail).toHaveAttribute('aria-label', 'Activity snapshot');
+  for (const [name, value] of Object.entries({ lifetimeTokens: '9007199254740993', peakDailyTokens: '9223372036854775807', longestRunningTurnSec: 'Not available', currentStreakDays: '0', longestStreakDays: 'Not available' })) await expect(detail.locator(`[data-activity-history-metric="${name}"]`)).toHaveText(value);
+  await expect(detail.locator('[data-activity-history-daily-state]')).toHaveAttribute('data-activity-history-daily-state', 'returned');
+  await expect(detail).toContainText('Synthetic provider'); await expect(detail).toContainText('0.163.0'); await expect(detail).toContainText('Application scope'); await expect(detail).toContainText('Coverage');
+  await expect(detail.locator('dd').filter({ hasText: /^Unknown$/ })).toHaveCount(2);
+  await expect(detail.locator('time')).toHaveText(entry(first, 100).observedAtUtc);
+  await expect(detail).toContainText(uuid(1)); await expect(detail).toContainText(uuid(100));
+  await expect(detail.getByRole('button', { name: 'Source details', exact: true })).toHaveCount(0);
+  await closeDetail(page);
   await rows(page).nth(1).getByRole('button').first().click();
-  await expect(rows(page).nth(1).locator('[data-activity-history-daily-state]')).toHaveAttribute('data-activity-history-daily-state', 'unavailable');
-  await rows(page).nth(1).getByRole('button', { name: 'Source details', exact: true }).click();
-  await expect(rows(page).nth(1)).toContainText('Official OpenAI companion'); await expect(rows(page).nth(1)).toContainText(uuid(9));
+  await expect(detail).toHaveAttribute('aria-label', 'Activity snapshot');
+  await expect(detail.locator('[data-activity-history-daily-state]')).toHaveAttribute('data-activity-history-daily-state', 'unavailable');
+  await expect(detail).toContainText('Official OpenAI companion'); await expect(detail).toContainText(uuid(9));
+  await closeDetail(page);
   await rows(page).nth(2).getByRole('button').first().click();
-  await expect(rows(page).nth(2).locator('[data-activity-history-metric]')).toHaveText(['0', '0', '0', '0', '0']);
-  await expect(rows(page).nth(2).locator('[data-activity-history-daily-state]')).toHaveAttribute('data-activity-history-daily-state', 'empty');
+  await expect(detail.locator('[data-activity-history-metric]')).toHaveText(['0', '0', '0', '0', '0']);
+  await expect(detail.locator('[data-activity-history-daily-state]')).toHaveAttribute('data-activity-history-daily-state', 'empty');
+  await closeDetail(page);
   await expect(history(page).locator('[data-activity-day]')).toHaveCount(0);
   await history(page).getByRole('button', { name: 'Older readings', exact: true }).click(); await expect(rows(page)).toHaveCount(2);
   await expect(rows(page).first()).toHaveAttribute('data-activity-history-run', uuid(80)); await expect(history(page)).toContainText('Page 2');
@@ -134,15 +140,16 @@ test('history rejects malformed and cross-profile responses and renders a real e
 test('saved summaries remain readable and keyboard accessible in both themes at 360 pixels and 200% text', async ({ page }) => {
   await open(page); await trigger(page).focus(); await page.keyboard.press('Enter'); await expect(rows(page)).toHaveCount(20);
   await rows(page).first().getByRole('button').first().focus(); await page.keyboard.press('Enter');
-  await rows(page).first().getByRole('button', { name: 'Source details', exact: true }).focus(); await page.keyboard.press('Enter');
+  await expect(page.locator('[data-detail-panel][open]')).toHaveAttribute('aria-label', 'Activity snapshot');
+  await expect(page.locator('[data-detail-panel][open] [data-activity-history-metric="peakDailyTokens"]')).toHaveText('9223372036854775807');
   await page.setViewportSize({ width: 360, height: 800 });
   for (const theme of ['light', 'dark']) {
     await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
     for (const scale of [1, 2]) {
       await page.evaluate(scale => { for (const node of document.querySelectorAll<HTMLElement>('body *')) { const base = node.dataset.activityHistoryTestSize ?? getComputedStyle(node).fontSize; node.dataset.activityHistoryTestSize = base; node.style.fontSize = `${parseFloat(base) * scale}px`; } }, scale);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
-      await expect(rows(page).first().locator('[data-activity-history-metric="peakDailyTokens"]')).toHaveText('9223372036854775807');
-      expect((await new AxeBuilder({ page }).include('[data-activity-history]').withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations).toEqual([]);
+      await expect(page.locator('[data-detail-panel][open] [data-activity-history-metric="peakDailyTokens"]')).toHaveText('9223372036854775807');
+      expect((await new AxeBuilder({ page }).include('[data-detail-panel][open]').withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations).toEqual([]);
     }
   }
 });

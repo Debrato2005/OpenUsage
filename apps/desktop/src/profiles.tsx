@@ -138,7 +138,7 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval, onPro
         setView(next);
         reportCount.current(next.activeProfiles);
         reportProfiles.current?.(next.profiles);
-        setStatus(`Profiles loaded. ${next.activeProfiles} of 10 active.`);
+        setStatus('');
         if (attempt > 0) setFocusTarget('create');
       }
     }).catch((error: unknown) => {
@@ -349,7 +349,7 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval, onPro
     const managementTrigger = <CollapsibleTrigger render={<Button variant="ghost" className="text-button row-disclosure" />} type="button" data-profile-action="options" aria-describedby={nameId} disabled={busy || loading || current}>Manage profile</CollapsibleTrigger>;
     return <Collapsible render={<li />} className="profile-row" id={`managed-profile-${profile.id}`} data-profile-id={profile.id} key={profile.id} hidden={rowHidden} inert={rowHidden} open={focused && selectedProfileId === profile.id || !!readings[profile.id]} onOpenChange={open => setReadings(previous => ({ ...previous, [profile.id]: open }))}>
       <div className="profile-row-summary">
-        <div className="profile-details"><bdi id={nameId} className="profile-label">{profile.label}</bdi><p className="profile-meta">{profile.environment === 'native' ? 'On this device' : 'WSL profile'}</p></div>
+        <div className="profile-details"><bdi id={nameId} className="profile-label">{profile.label}</bdi>{profile.environment !== 'native' && <p className="profile-meta">WSL profile</p>}</div>
         <span className="profile-connection-state">{profile.archived ? 'Archived' : connection}</span>
         <div id={`profile-quota-summary-${profile.id}`} />
         <div className="profile-row-actions profile-actions" hidden={focused}>
@@ -376,7 +376,7 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval, onPro
   const active = view?.profiles.filter(profile => !profile.archived) ?? [];
   const archived = view?.profiles.filter(profile => profile.archived) ?? [];
   return <section ref={section} className="accounts-section" data-embedded={focused || undefined} aria-labelledby={focused ? `profile-name-${selectedProfileId}` : 'accounts-heading'} aria-busy={busy || loading}>
-    <div className="section-heading" hidden={focused}><h2 id="accounts-heading" className="sr-only">Accounts</h2><div className="profile-heading-actions"><span className="muted-tag">{view ? `${view.activeProfiles} of 10 active` : loading ? 'Loading profiles…' : 'Profiles unavailable'}</span><Button type="button" className="primary-button" data-account-connect disabled={busy || loading || !view || view.activeProfiles >= 10} onClick={addAccount}>Add OpenAI account</Button><Button ref={createToggle} type="button" variant="ghost" className="text-button" data-profile-add aria-expanded={createOpen} aria-controls="profile-add-panel" disabled={busy || loading || !view} onClick={() => { setCreateOpen(open => !open); if (!createOpen) setFocusTarget('create'); }}>Choose a name</Button></div></div>
+    <div className="section-heading" hidden={focused}><h2 id="accounts-heading" className="sr-only">Accounts</h2><div className="profile-heading-actions"><span className="muted-tag">{view ? `${view.activeProfiles} of 10 active` : loading ? 'Loading profiles…' : 'Profiles unavailable'}</span><Button type="button" className="primary-button" data-account-connect disabled={busy || loading || !view || view.activeProfiles >= 10} onClick={addAccount}>Add OpenAI account</Button><Button ref={createToggle} type="button" variant="ghost" className="text-button" data-profile-add aria-expanded={createOpen} aria-controls="profile-add-panel" disabled={busy || loading || !view} onClick={() => { setCreateOpen(open => !open); if (!createOpen) setFocusTarget('create'); }}>Add with a name</Button></div></div>
     <p id="profile-capacity" hidden={focused} className={createOpen ? 'profile-capacity' : 'sr-only'}>Up to 10 profiles can be active. Archiving frees a slot and keeps local data.</p>
     <p className="profile-status" role="status" hidden={focused && !saving && !failure}>{loading ? 'Loading profiles…' : saving ? 'Saving profile changes…' : status}</p>
     {failure?.target === 'load' && error()}

@@ -77,7 +77,7 @@ test('desktop key-store setup offers one primary action without an app password 
   await expect(page.getByRole('button', { name: 'Create private workspace', exact: true })).toBeVisible();
   await expect(page.locator('.unlock-form')).toHaveCount(0);
   await expect(page.locator('[data-global-monitoring]')).toHaveCount(0);
-  await page.getByRole('button', { name: 'About your privacy', exact: true }).click();
+  await page.getByRole('button', { name: 'Privacy details', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Privacy and local storage', exact: true })).toBeVisible();
 });
 

@@ -56,7 +56,7 @@ function WindowValues({ value }: { value: SavedQuotaWindow }) {
   return <div className="quota-window">
     <h4>{value.label}</h4>
     <Meter min={0} max={100} value={value.derivedRemainingPercent} aria-label={`${value.label}: ${value.derivedRemainingPercent}% remaining (derived)`} aria-valuetext={`${value.derivedRemainingPercent}% remaining (derived)`}>
-      <div className="quota-meter-heading"><MeterLabel><span className="sr-only">{value.label}: </span>Remaining (derived)</MeterLabel><MeterValue>{(_formatted, remaining) => `${remaining}%`}</MeterValue></div>
+      <div className="quota-meter-heading"><MeterLabel><span className="sr-only">{value.label}: </span>Remaining<span className="sr-only"> (derived)</span></MeterLabel><MeterValue>{(_formatted, remaining) => `${remaining}%`}</MeterValue></div>
       <MeterTrack><MeterIndicator /></MeterTrack>
     </Meter>
     <dl className="quota-values"><div><dt>Used</dt><dd>{value.usedPercent}%</dd></div><div><dt>Expected reset</dt><dd>{reset ? <DisplayTime value={reset} /> : 'Not available'}<ResetCountdown resetsAtUnix={value.resetsAtUnix} />{resetStatus && <p className="provider-help" data-quota-reset-state={value.resetState} data-quota-reset-due={value.resetState === 'due' ? '' : undefined}>{resetStatus}</p>}</dd></div></dl>
@@ -122,16 +122,16 @@ export function SavedProfileQuota({ profileId, profileLabel, children, readingRe
   const quotaWindow = limit?.primary ?? limit?.secondary;
   const reset = quotaWindow?.resetsAtUnix == null ? null : new Date(quotaWindow.resetsAtUnix * 1000).toISOString();
   return <>
-    {summaryContainer && createPortal(<div className="account-quota-summary" data-account-quota={profileId}>
+    {summaryContainer && createPortal(<div className="account-quota-summary" data-account-quota={profileId} data-attention={quotaWindow ? quotaWindow.derivedRemainingPercent <= 10 ? 'low' : quotaWindow.derivedRemainingPercent <= 25 ? 'warn' : undefined : undefined}>
       {quotaWindow ? <>
         <span>{quotaWindow.label}</span>
         <Meter min={0} max={100} value={quotaWindow.derivedRemainingPercent} aria-label={`${profileLabel}, ${quotaWindow.label}: ${quotaWindow.derivedRemainingPercent}% remaining (derived)`}>
-          <div className="quota-meter-heading"><MeterLabel>Remaining (derived)</MeterLabel><MeterValue>{(_formatted, remaining) => `${remaining}%`}</MeterValue></div>
+          <div className="quota-meter-heading"><MeterLabel>Remaining<span className="sr-only"> (derived)</span></MeterLabel><MeterValue>{(_formatted, remaining) => `${remaining}%`}</MeterValue></div>
           <MeterTrack><MeterIndicator /></MeterTrack>
         </Meter>
         {reset && <small>{quotaWindow.resetState === 'due' ? 'Reset due' : 'Expected reset'} · <DisplayTime value={reset} /></small>}
       </> : <span>{loading ? 'Loading saved usage…' : 'No quota data'}</span>}
-      {value && <small>{value.sourceKind === 'test_fixture' ? 'Synthetic data · ' : ''}{freshnessLabels[value.freshness]} · <DisplayTime value={value.observedAtUtc} /></small>}
+      {value && value.freshness !== 'fresh' && <small>{freshnessLabels[value.freshness]} · <DisplayTime value={value.observedAtUtc} /></small>}
       {error && <small role="alert">Saved quota could not be reloaded.</small>}
     </div>, summaryContainer)}
     {children((receipt, focusResult = true) => load(receipt, focusResult), () => load())}

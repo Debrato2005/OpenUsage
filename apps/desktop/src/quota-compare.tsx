@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Meter, MeterIndicator, MeterTrack } from './components/ui/meter';
 import { invoke, type ProfileRecord, type SavedProfileQuota, type SavedQuotaWindow } from './contracts';
+import { DetailLink } from './detail-panel';
+import { ReadingDetails } from './overview-glance';
 import { ResetCountdown } from './reset-countdown';
+import { DisplayTime } from './time-display';
 import './quota-compare.css';
 
 type Column = { key: string; title: string };
@@ -12,10 +15,10 @@ export function comparableWindows(limits: SavedProfileQuota['limits']) {
   return limits.flatMap(limit => ([['primary', limit.primary], ['secondary', limit.secondary]] as const).flatMap(([role, window]) => window ? [{ key: `${limit.limitId}\u0000${role}\u0000${window.windowDurationMins ?? 'unknown'}`, title: `${limit.limitName ?? limit.limitId} · ${window.label}`, window }] : []));
 }
 
-function Reading({ label, value }: { label: string; value: SavedQuotaWindow }) {
+function Reading({ label, value, quota }: { label: string; value: SavedQuotaWindow; quota: SavedProfileQuota }) {
   const level = value.derivedRemainingPercent <= 10 ? 'low' : value.derivedRemainingPercent <= 25 ? 'warn' : undefined;
   return <div className="quota-compare-reading" data-attention={level}>
-    <strong title={`${value.usedPercent}% used; remaining is derived`}>{value.derivedRemainingPercent}% left</strong>
+    <DetailLink label={`${label} details`} details={<dl className="detail-rows"><dt>Window</dt><dd>{value.label}</dd><dt>Calculation</dt><dd>100% − {value.usedPercent}% used</dd><dt>Expected reset</dt><dd>{value.resetsAtUnix === null ? 'Not available' : <DisplayTime value={new Date(value.resetsAtUnix * 1000).toISOString()} />}</dd><ReadingDetails quota={quota} /></dl>}><strong>{value.derivedRemainingPercent}% left</strong></DetailLink>
     <Meter min={0} max={100} value={value.derivedRemainingPercent} aria-label={`${label}: ${value.derivedRemainingPercent}% remaining (derived)`}><MeterTrack><MeterIndicator /></MeterTrack></Meter>
     <ResetCountdown detached resetsAtUnix={value.resetsAtUnix} />
   </div>;
@@ -53,11 +56,10 @@ export function QuotaCompare({ profiles, revision }: { profiles: ProfileRecord[]
           <tbody>{active.map(profile => {
             const saved = new Map(comparableWindows(data.quotas[profile.id]?.limits ?? []).map(entry => [entry.key, entry.window]));
             return <tr key={profile.id} data-quota-compare-account={profile.id}><th scope="row"><bdi>{profile.label}</bdi>{data.quotas[profile.id] && data.quotas[profile.id]!.freshness !== 'fresh' && <small>{data.quotas[profile.id]!.freshness === 'stale' ? 'Stale' : 'Freshness unknown'}</small>}{data.failed.includes(profile.id) && <small className="quota-compare-error">Could not load saved quota</small>}</th>
-              {[...columns.values()].map(column => { const value = saved.get(column.key); return <td key={column.key}>{value ? <Reading label={`${profile.label}, ${column.title}`} value={value} /> : <span className="quota-compare-missing">Not available</span>}</td>; })}
+              {[...columns.values()].map(column => { const value = saved.get(column.key); return <td key={column.key}>{value ? <Reading label={`${profile.label}, ${column.title}`} value={value} quota={data.quotas[profile.id]!} /> : <span className="quota-compare-missing">Not available</span>}</td>; })}
             </tr>;
           })}</tbody>
         </table></div>
-        <p className="quota-compare-note">Windows line up only when their limit and duration match. Remaining quota is derived from provider-reported usage.</p>
       </>}
   </section>;
 }

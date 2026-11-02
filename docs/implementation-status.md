@@ -33,7 +33,7 @@ Last full results, all from November 2, 2026, before the docs update:
 - 55 contract checks passed.
 - 11 native journeys passed on a private display.
 
-On November 3, 2026, after the Overview work in S-01, all 420 renderer cases passed: 210 each in Chromium and WebKit. All 55 contract checks passed. Rust did not change, so Rust tests were not rerun. No native journey has run on this build.
+On November 3, 2026, after S-01, all 420 renderer cases passed: 210 each in Chromium and WebKit. All 55 contract checks passed. Rust did not change, so Rust tests were not rerun. No native journey has run on this build.
 
 ## Not built
 
@@ -54,7 +54,7 @@ Kept from baseline 2.0:
 
 ## Partial
 
-- Simplicity (S-01, Section 2.3): Overview, the header, the one detail panel, and the one mark are done. Usage, Settings, and Manage accounts remain. See SC-012 for unknown freshness.
+- Simplicity (S-01, Section 2.3): every screen has been reviewed. One exception to OU-DES-007 remains: quota numbers in Manage accounts open their reading through View usage in the row, not through the detail panel. See SC-012 for unknown freshness.
 - Confirmed invalid-credential detection: OU-ALERT-007, under SC-009.
 - Offline behavior: OU-MON-012, OU-STATE-009, OU-DATA-024.
 - Locale formatting: OU-UI-010. Interface numbers use `en-US`.
@@ -81,7 +81,7 @@ As of November 2, 2026, on Linux:
 - Stale: `overview-workspace`, `quota-history`, `activity-history`, `application-export`, `smoke`, `restore-preview`, `restore-apply`, and `theme-select`.
 - Needs a window manager: `heatmap-window`.
 - Not run on this build: monitoring, collection, device login, and production fixture refusal on the prior redesign build.
-- S-01 moved Overview content into the detail panel, removed the clock, and moved theme and display scale to Settings. Native journeys that drive these, including `summary-details`, need S-02.
+- S-01 moved Overview content, history snapshots, and heatmap values into the detail panel, renamed disclosures, removed the clock, and moved theme and display scale to Settings. Native journeys that drive these, including `summary-details`, need S-02.
 
 ## Missing release documents
 
@@ -93,6 +93,6 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 
 ## Current assignment
 
-S-01 is in progress. Usage, Settings, and Manage accounts remain. Later slices have not started. [Implementation slices](implementation-slices.md) hold the order.
+S-01 is done on the renderer. S-02 is next. [Implementation slices](implementation-slices.md) hold the order.
 
 The exact working checkpoint, if one exists, is in the local `.recovery/active-checkpoint.json`.
