@@ -77,7 +77,7 @@ export function ResetNotifications({ profiles, revision, busy, setBusy }: Props)
   }
 
   return <Collapsible className="reset-notifications" data-reset-notifications open={open} onOpenChange={next => { setLoaded(null); setOpen(next); }}>
-    <CollapsibleTrigger render={<Button variant="outline" />} disabled={saving}>Notifications</CollapsibleTrigger>
+    <CollapsibleTrigger render={<Button variant="outline" className="row-disclosure" />} disabled={saving}>Notifications</CollapsibleTrigger>
     <CollapsiblePanel>
       {loading && <p className="reset-notifications-note" role="status">Loading notification preferences…</p>}
       {current?.error && <div className="reset-notifications-error" role="alert"><p>Notification preferences could not be loaded.</p><Button variant="outline" onClick={() => setAttempt(value => value + 1)}>Retry notification preferences</Button></div>}

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
 // Display time only. A local clock never changes saved quotas or confirms a reset.
-export function ResetCountdown({ resetsAtUnix }: { resetsAtUnix: number | null }) {
+export function ResetCountdown({ resetsAtUnix, detached = false }: { resetsAtUnix: number | null; detached?: boolean }) {
   const deadline = resetsAtUnix === null ? NaN : resetsAtUnix * 1000;
   const valid = Number.isSafeInteger(resetsAtUnix) && Number.isFinite(new Date(deadline).getTime());
   const [now, setNow] = useState(Date.now);
@@ -33,7 +33,7 @@ export function ResetCountdown({ resetsAtUnix }: { resetsAtUnix: number | null }
   const hours = Math.floor(minutes % 1440 / 60);
   const remainder = minutes % 60;
   const duration = [days ? `${days}d` : '', hours ? `${hours}h` : '', remainder ? `${remainder}m` : ''].filter(Boolean).join(' ');
-  return <span className="quota-reset-countdown" data-reset-countdown={minutes > 0 ? 'expected' : 'due'}>
+  return <span className="quota-reset-countdown" data-reset-countdown={detached ? undefined : minutes > 0 ? 'expected' : 'due'}>
     {minutes > 0 ? `In ${duration}` : 'Awaiting reset confirmation'}
   </span>;
 }

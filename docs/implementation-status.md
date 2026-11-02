@@ -2,7 +2,19 @@
 
 # Implementation status
 
-Updated: October 24, 2026. OpenUsage remains in development. The normative [SRS](SRS.md) is unchanged. Only local commits are permitted. Remote branch deletion requires separate owner approval. Agents must not push or publish.
+Updated: November 2, 2026. OpenUsage remains in development. The normative [SRS](SRS.md) is unchanged. Only local commits are permitted. Remote branch deletion requires separate owner approval. Agents must not push or publish.
+
+## Workspace redesign and comparison: renderer acceptance passed
+
+The user requested a more intuitive and appealing interface. Overview now reads top-down: a four-tile summary, the searchable account list, then the selected account. Settings groups its rows into six topics with a section index. Usage uses flat cards. The three primary pages, DM Sans, both quota bars, same-page Refresh, the true-black dark theme and the blue heatmap remain.
+
+A root `tabular-nums` setting caused the wide word gaps across the app. DM Sans `tnum` widens the space, comma, colon and period to about 0.6 em. Tabular figures now apply only to digit-only values. See the [design rule](design/desktop-foundations.md).
+
+Overview now shows Longest task and Reset credits for the selected account. A connected-account summary covers plan breakdown, lowest remaining quota, the next expected reset and data freshness. Windows are never added, signed-out accounts do not lead the summary, and missing values stay Not available. Account search covers labels only, because profile tags do not exist. Usage adds Compare accounts for OU-UI-004. It aligns windows only when limit ID, role and duration match. No IPC, storage or provider behavior changed.
+
+Verification ran on November 2, 2026 with synthetic renderer IPC. All 204 cases passed in Chromium and all 204 passed in WebKit: 408 in total, including 19 new cases per engine. The build, TypeScript and 55 contract checks passed. Screens were reviewed in both themes at desktop and 390-pixel widths. The first run caught invalid description-list markup, a missing test hook, a lost tabular reading and theme-change transitions, all corrected. Two prior failures were stale expectations from the unverified copy change, and those expectations were updated.
+
+Native harnesses for the Overview selector and empty workspace changed with the interface and did not run for that commit. This host needed private test libraries for Playwright WebKit and for the desktop crate. Those stay under ignored `.tools` directories.
 
 ## Security repair: native qualification incomplete
 
@@ -218,10 +230,40 @@ Confirmed archive restore and checkpoint recovery are implemented. Earlier nativ
 
 ## Still incomplete
 
-- Deadline notifications and confirmed invalid-credential detection. The four implemented alert types have opt-in, per-profile overrides and quiet hours. Real-provider-triggered and installed-platform delivery remain open.
-- Complete application export and selected quota/activity history have scoped Linux acceptance evidence. Local deletion still requires platform acceptance. History remains unlimited by default, without silent pruning.
-- Subscription, promotion, billing, deadline and verified account-comparison requirements.
-- Real credential renewal/revocation acceptance, protected provider storage qualification across supported platforms, safe browser callback isolation, and SIWC compatibility with both official usage operations.
-- Sleep/wake acceptance, release-scale performance, packaging/signing, Windows/macOS execution and the complete SRS acceptance matrix.
+The November 2, 2026 inventory searched the Rust, TypeScript and schema sources for each area. The earlier version of this list understated the gaps, because several SRS features have no code at all.
+
+**Not implemented: no storage, IPC or interface exists**
+
+- Promotions, discount periods and payment records: OU-BILL-003/004/010–012/019–024, including paid-spend and projection reports, the subscription calendar and trial history. Subscriptions are the only billing records.
+- Receipt import and its protections: OU-BILL-006–008, OU-IMPORT-001–012. `crates/openusage-import` contains only the backup codec.
+- Subscription and promotion deadline reminders: OU-ALERT-005/006/014/015. These depend on the billing records above.
+- System tray: OU-UI-008/021, OU-MON-016.
+- Browser-profile shortcuts: OU-ACCT-010, and the Open Browser action in OU-ACCT-012.
+- WSL profile configuration: OU-ACCT-011, OU-ENV-006, AT-39. The type exists, but no approval or configuration path does.
+- Per-profile Delete History: OU-ACCT-013. Archive and confirmed deletion of all local data exist.
+- Profile tags: OU-ACCT-003. Search therefore covers labels only under OU-UI-005.
+- Wake handling: OU-PROC-013, OU-MON-013, OU-ALERT-014.
+- Demonstration mode is optional under OU-UI-020 and remains absent.
+
+**Partial**
+
+- Confirmed invalid-credential detection: OU-ALERT-007 under SC-009.
+- Offline behavior: OU-MON-012, OU-STATE-009, OU-DATA-024.
+- Locale formatting: OU-UI-010. Interface numbers use `en-US`.
+- Identity conflict and verified duplicates: OU-ACCT-008, OU-ID-*. These stay gated on an approved identity contract, so verified totals remain unavailable by design.
+- Screens required by OU-UI-001 are placed under the three pages in SC-007. Notification center delivery state, deadlines and the calendar remain gaps.
+
+**Blocked outside this repository**
+
+- Real credential renewal and revocation, SIWC compatibility with both usage operations, and live identity contract validation need authorized live accounts.
+- Browser sign-in stays out of the working build until callback isolation is resolved. See SC-005.
+- Windows and macOS execution, packaging, signing, notarization, sleep/wake and release-scale performance need those platforms and release infrastructure.
+- CI runs only the storage policy workflow. OU-NFR-012 and OU-ENG-002–004 are not met.
+
+**Documents and release artifacts**
+
+SRS section 20 lists eight documents that do not exist: architecture, data contracts, identity contract, provider capabilities, threat model, security and privacy, compatibility matrix and performance report. No SBOM exists. Dependency notices are not a substitute.
+
+Complete application export and selected quota/activity history have scoped Linux acceptance evidence. Local deletion still requires platform acceptance. History remains unlimited by default, without silent pruning.
 
 The three-view Overview revision is locally verified within the recorded synthetic Linux scope. Deadline alerts and the remaining platform and live-provider journeys remain open. Real authorized-account verification remains separate from synthetic-provider evidence. Current file-level status and the exact working checkpoint are retained in the local `.recovery/active-checkpoint.json`; historical execution details remain in their linked evidence and local commits.

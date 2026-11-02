@@ -127,7 +127,7 @@ export function ProviderSettings({ busy, setBusy, approval, onApproved }: Settin
 
   return <section className="provider-panel" aria-labelledby="provider-heading">
     <details>
-      <summary data-provider-settings><h2 id="provider-heading">Codex connection</h2></summary>
+      <summary className="settings-summary" data-provider-settings><h2 id="provider-heading">Codex connection</h2></summary>
       {!candidate && !approval && searchControls}
       {approval && !candidate && <div ref={approvalPanel} className="provider-approval-result" role="status" tabIndex={-1}>
         <h3>Ready to sign in</h3>

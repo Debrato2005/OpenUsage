@@ -66,7 +66,7 @@ export function ApplicationExport({ busy, setBusy }: Props) {
 
   return <section className="backup-panel" aria-label="Export all application data" data-application-export style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
     <Collapsible onOpenChange={() => setConfirmed(false)}>
-      <h2><CollapsibleTrigger render={<Button variant="outline" style={{ whiteSpace: 'normal', overflowWrap: 'anywhere' }} />} type="button" disabled={busy} data-application-export-toggle>Export all application data</CollapsibleTrigger></h2>
+      <h2><CollapsibleTrigger render={<Button variant="outline" className="row-disclosure" style={{ whiteSpace: 'normal', overflowWrap: 'anywhere' }} />} type="button" disabled={busy} data-application-export-toggle>Export all application data</CollapsibleTrigger></h2>
       <CollapsiblePanel keepMounted>
         <form className="unlock-form" aria-label="Application data export" aria-busy={saving} onSubmit={event => { event.preventDefault(); void save(); }}>
           <p>Save all application records as JSON, including archived accounts, names, email addresses, saved readings and history, settings, alerts and local references.</p>

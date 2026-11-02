@@ -54,7 +54,7 @@ export function ActivityHistory({ profile, revision }: { profile: ProfileRecord;
     return () => { active = false; };
   }, [open, key, profileId, cursor]);
   return <Collapsible className="activity-history" data-activity-history={profileId} open={open} onOpenChange={next => { setDisclosure({ profileId, open: next }); setNavigation({ scope, cursors: [null] }); setResult(null); setAttempt(value => value + 1); }}>
-    <CollapsibleTrigger render={<Button variant="outline" />} data-activity-history-open aria-expanded={open}>{open ? 'Hide activity history' : 'View activity history'}</CollapsibleTrigger>
+    <CollapsibleTrigger render={<Button variant="outline" className="row-disclosure" />} data-activity-history-open aria-expanded={open}>{open ? 'Hide activity history' : 'View activity history'}</CollapsibleTrigger>
     <CollapsiblePanel>
       <div className="activity-history-heading"><h3>Activity history</h3><p>Saved account summaries, newest first. Snapshots are separate observations, not individual usage events.</p></div>
       <DataExport profiles={[profile]} busy={exportBusy} setBusy={setExportBusy} activityHistory />

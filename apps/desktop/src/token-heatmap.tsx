@@ -1,5 +1,5 @@
 import { useDateFormat } from './time-display';
-import { cloneElement, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactElement, type SVGProps } from 'react';
+import { cloneElement, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactElement, type ReactNode, type SVGProps } from 'react';
 import { ActivityCalendar } from 'react-activity-calendar';
 import { Button } from './components/ui/button';
 import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from './components/ui/collapsible';
@@ -8,7 +8,7 @@ import { invoke, type SavedProfileHeatmap } from './contracts';
 import type { ActivityDashboardState } from './activity-dashboard';
 import './token-heatmap.css';
 
-type Props = { profileId: string | null; profileLabel: string; revision: number; compact?: boolean; controller?: ActivityDashboardState };
+type Props = { profileId: string | null; profileLabel: string; revision: number; compact?: boolean; controller?: ActivityDashboardState; headerControls?: ReactNode; headerRows?: ReactNode; extraControls?: ReactNode };
 type Mode = 'daily' | 'weekly' | 'cumulative';
 type Period = 30 | 90 | 180 | 365;
 type Cell = SavedProfileHeatmap['cells'][number] & { knownContributions?: number; expectedContributions?: number };
@@ -25,7 +25,7 @@ function description(cell: Cell, mode: Mode): string {
   return `${period}: ${exactCounts.format(BigInt(cell.tokens))} ${mode === 'daily' ? 'reported tokens' : mode === 'weekly' ? 'observed token subtotal' : 'cumulative observed tokens'}; ${known} of ${expected} ${cell.knownContributions === undefined ? 'days known' : 'profile-days reported'}${known < expected ? '; Incomplete' : ''}; ${freshness[cell.freshness]}`;
 }
 
-export function TokenHeatmap({ profileId, profileLabel, revision, compact = false, controller }: Props) {
+export function TokenHeatmap({ profileId, profileLabel, revision, compact = false, controller, headerControls, headerRows, extraControls }: Props) {
   const observedDates = useDateFormat();
   const calendar = useRef<HTMLDivElement>(null);
   const [calendarWidth, setCalendarWidth] = useState(300);
@@ -93,7 +93,7 @@ export function TokenHeatmap({ profileId, profileLabel, revision, compact = fals
     calendarData.push(...Array.from({ length: (7 - (calendarDays + firstWeekday) % 7) % 7 }, (_, index) => padding(index + 1, last)));
   }
   const columns = Math.ceil((calendarDays + firstWeekday) / 7);
-  const blockSize = Math.max(11, Math.min(20, Math.floor((calendarWidth - 36 - (columns - 1) * 3) / columns)));
+  const blockSize = Math.max(11, Math.min(compact ? 18 : 26, Math.floor((calendarWidth - 44 - (columns - 1) * 3) / columns)));
   const knownDays = mode === 'daily' ? cells.filter(cell => cell.tokens !== null).length : mode === 'weekly' ? cells.reduce((sum, cell) => sum + cell.knownDays, 0) : cells.at(-1)?.knownDays ?? 0;
   const calendarColors = ['var(--heatmap-zero)', ...[1, 2, 3, 4].map(level => `var(--heatmap-level-${level})`)];
   function move(event: KeyboardEvent<SVGRectElement>, index: number) {
@@ -112,14 +112,17 @@ export function TokenHeatmap({ profileId, profileLabel, revision, compact = fals
   return <section ref={calendar} className="token-heatmap" data-token-heatmap data-profile-id={profileId ?? ''} data-mode={mode} data-period-days={periodDays} data-compact={compact || undefined} aria-labelledby={headingId} aria-busy={loading}>
     <header className="token-heatmap-header">
       <div><h2 id={headingId}>Token activity</h2><p><bdi>{profileLabel || 'No account selected'}</bdi>{value && <span> · {cells.some(cell => (cell.knownContributions ?? cell.knownDays) < (cell.expectedContributions ?? cell.expectedDays)) ? 'Partial history' : 'Saved dates'}</span>}</p></div>
+      {headerControls}
       <div className="token-heatmap-controls">
         <div className="token-heatmap-modes" role="group" aria-label="Activity view">{(Object.keys(modes) as Mode[]).map(item => <Button key={item} variant="ghost" type="button" data-heatmap-mode={item} aria-pressed={mode === item} onClick={() => setMode(item)}>{modes[item]}</Button>)}</div>
         <Select modal={false} value={[30,90,180,365].includes(periodDays) ? String(periodDays) : 'custom'} items={{ '30': '30 days', '90': '90 days', '180': '180 days', '365': '365 days', custom: 'Custom range' }} onValueChange={next => { if (next === '30' || next === '90' || next === '180' || next === '365') setPeriodDays(Number(next) as Period); }}>
           <SelectTrigger aria-label="Activity history range"><SelectValue /></SelectTrigger>
           <SelectPopup alignItemWithTrigger={false}>{([30, 90, 180, 365] as const).map(days => <SelectItem key={days} value={String(days)}>{days} days</SelectItem>)}<SelectItem value="custom" disabled>Custom range</SelectItem></SelectPopup>
         </Select>
+        {extraControls}
       </div>
     </header>
+    {headerRows}
     {!profileId ? <p className="token-heatmap-empty">Connect an account to view activity.</p>
       : loading ? <p className="token-heatmap-empty" role="status">Loading saved activity…</p>
       : failed ? <div className="token-heatmap-empty" role="alert"><p>Saved activity could not be loaded.</p><Button variant="outline" onClick={controller?.retry ?? (() => setRetry(value => value + 1))}>Retry</Button></div>

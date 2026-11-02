@@ -167,7 +167,7 @@ try {
   assert.equal(await driver.execute('return [...document.querySelectorAll("[data-overview] [data-heatmap-cell]")].at(-1)?.getAttribute("data-exact-value");'), '11670000');
   await driver.click('[data-overview] [data-heatmap-mode=daily]');
   await visibleHeatmap(profiles[0].id);
-  await driver.selectVisibleOption('[data-overview] [aria-label="Activity account"]', profiles[1].label);
+  await driver.selectVisibleOption('[data-overview] #overview-profile', profiles[1].label);
   await visibleHeatmap(profiles[1].id);
   assert.equal(await driver.execute('return document.querySelector("[data-overview]").getAttribute("data-overview-profile");'), profiles[1].id, 'Activity account selects the shared Overview account.');
   const otherHeatmap = await heatmap(profiles[1].id);

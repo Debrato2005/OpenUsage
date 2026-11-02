@@ -34,7 +34,7 @@ export function AlertHistory({ revision = '', onViewUsage, onViewAccount }: { re
     return () => { active = false; };
   }, [open, key]);
   return <Collapsible className="alert-history" data-alert-history open={open} onOpenChange={next => { setResult(null); setOpen(next); }}>
-    <CollapsibleTrigger render={<Button variant="outline" />} aria-expanded={open}>Alert history</CollapsibleTrigger>
+    <CollapsibleTrigger render={<Button variant="outline" className="row-disclosure" />} aria-expanded={open}>Alert history</CollapsibleTrigger>
     <CollapsiblePanel>
       <div className="alert-history-heading"><Button variant="outline" disabled={loading} onClick={() => setAttempt(value => value + 1)}>Refresh list</Button></div>
       {loading && <p className="alert-history-note" role="status">Loading alert history…</p>}

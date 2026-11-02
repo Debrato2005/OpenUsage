@@ -4,6 +4,18 @@
 
 Updated: October 20, 2026. These foundations cover the native workspace, account overview, backup controls, and provisional quota preview. The user selected coss/ui for all components. The [adoption record](coss-ui-adoption.md) controls the incremental migration. Charts and accepted history need further native qualification.
 
+## Current workspace design — November 2, 2026
+
+The user asked for a more intuitive and appealing interface. This revision supersedes the Overview order and token values below. It keeps the three primary pages, DM Sans, both quota bars, same-page Refresh, the true-black dark theme and the blue heatmap.
+
+Overview now reads top-down: a four-tile summary, the account list, then the selected account's quota, donut and activity panels. Each summary tile reports one account's own reading or a count of accounts. Windows are never added, and signed-out accounts do not lead the live summary. The account list has search and filters from three accounts upward, and quota is the second column so narrow windows show it without scrolling. A whole table row selects its account. One selector now drives the selected-account and activity panels. An empty workspace shows one Add action instead of unavailable tiles.
+
+Settings groups its rows into six topics inside cards, with a section index that moves keyboard focus. Usage uses flat cards and adds Compare accounts, which aligns windows only when limit ID, role and duration all match.
+
+**Tabular digits:** DM Sans `tnum` widens the space, comma, colon and period to about 0.6 em. A root-level setting caused the wide word gaps seen across the app. Apply tabular figures only to digit-only values, or wrap digit runs in `.tabular-digits` as the live clock does. Do not apply them to dates, sentences or containers. Scan this rule before adding `font-variant-numeric`.
+
+Controls use a 40-pixel default and 34-pixel compact height. Coarse pointers receive 44 pixels. Main navigation stays at 44 pixels. Attention colors are paired with a percentage or text, so color never carries the state alone.
+
 ## Current reference dashboard — October 21, 2026
 
 The user's Image 2 controls the Overview composition. A 244-pixel rail and full-width workspace frame three upper areas: selected account, account-share availability and combined-usage availability. The selected account uses one quota window at a time, a thick capacity bar, used/reset context and four statistic tiles. An inset account table retains prominent Sign in and compact secondary actions. Supporting details remain secondary.
@@ -37,7 +49,7 @@ DM Sans serves interface text and exact values, following the user's latest font
 | Page title | DM Sans | 30 px | 500 | 1.3 |
 | Exact overview total | DM Sans | 32 px | 600 | 1.25 |
 
-Sizes use `rem` units. Numeric roles use tabular digits, no ligatures, and zero letter spacing. Dates also use tabular digits. OpenUsage bundles and preloads the variable font. `font-display: swap` keeps text available during loading. Synthetic font weights remain disabled. The app makes no font request to a remote server.
+Sizes use `rem` units. Digit-only numeric roles use tabular digits, no ligatures, and zero letter spacing. Dates use proportional figures; see the tabular digits rule above. OpenUsage bundles and preloads the variable font. `font-display: swap` keeps text available during loading. Synthetic font weights remain disabled. The app makes no font request to a remote server.
 
 [Vercel typography guidance](https://vercel.com/geist/typography) informed the original type hierarchy. The current sizes prioritize the user's readability feedback. Taste informed the restrained weights and spacing. The user's desktop requirements control the layout.
 

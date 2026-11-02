@@ -39,7 +39,7 @@
 .account-quota-summary { display: grid; gap: 6px; min-width: 0; font-size: var(--text-sm); }
 .account-quota-summary > span, .account-quota-summary small { color: var(--muted); font-size: var(--text-xs); }
 .account-quota-summary small { overflow-wrap: anywhere; }
-.account-quota-summary .quota-meter-heading { gap: var(--space-3); font-variant-numeric: tabular-nums; }
+.account-quota-summary .quota-meter-heading { gap: var(--space-3); }
 @media (max-width: 1050px) { .profile-row-summary { grid-template-columns: minmax(0, 1fr) auto; } .profile-row-summary > [id^="profile-quota-summary-"] { grid-row: 2; } .profile-table-heading { display: none; } }
 @media (max-width: 760px) { .profile-row-summary > [id^="profile-quota-summary-"] { flex-basis: 100%; } }
 
@@ -52,3 +52,18 @@
 .accounts-section[data-embedded] [id^="profile-quota-summary-"] { display: none; }
 .accounts-section[data-embedded] .account-sign-in { padding-inline: 0; }
 .accounts-section [hidden] { display: none !important; }
+
+/* The dialog title already names the account, so the row becomes a quiet status line. */
+.accounts-section[data-embedded] .profile-list { margin: 0; border: 0; border-radius: 0; background: transparent; }
+.accounts-section[data-embedded] .profile-row-summary { align-items: center; gap: .25rem .625rem; margin-bottom: .75rem; }
+.accounts-section[data-embedded] .profile-details { flex: 0 1 auto; }
+.accounts-section[data-embedded] .profile-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.accounts-section[data-embedded] .profile-meta { margin: 0; font-size: var(--text-sm); }
+.accounts-section[data-embedded] .profile-connection-state { padding: .125rem .5rem; border-radius: 999px; background: var(--surface-2); font-size: .75rem; font-weight: 500; }
+.accounts-section[data-embedded] .profile-management-root { display: grid; gap: .75rem; }
+.accounts-section[data-embedded] .row-disclosure.coss-button { min-height: 2.75rem; padding-inline: .875rem; border: 1px solid var(--line); border-radius: var(--radius-control); font-size: var(--text-sm); }
+.accounts-section[data-embedded] .profile-management { display: grid; gap: .75rem; padding-top: .25rem; border-top: 0; }
+.accounts-section[data-embedded] .profile-management .text-button { border-color: var(--line); background: var(--surface); }
+.accounts-section[data-embedded] .profile-management .text-button:hover:not(:disabled) { background: var(--hover); }
+.profile-monitoring { display: flex; align-items: center; flex-wrap: wrap; gap: .25rem .75rem; min-width: 0; }
+.profile-monitoring .provider-help { margin: 0; }

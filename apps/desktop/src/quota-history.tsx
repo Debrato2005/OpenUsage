@@ -53,7 +53,7 @@ export function QuotaHistory({ profile, revision }: { profile: ProfileRecord; re
     return () => { current = false; };
   }, [profileId, revision, cursor, open, attempt]);
   return <Collapsible className="quota-history" open={open} onOpenChange={setOpen} data-quota-history={profileId}>
-    <CollapsibleTrigger render={<Button variant="outline" />} data-quota-history-open aria-expanded={open}>{open ? 'Hide quota history' : 'View quota history'}</CollapsibleTrigger>
+    <CollapsibleTrigger render={<Button variant="outline" className="row-disclosure" />} data-quota-history-open aria-expanded={open}>{open ? 'Hide quota history' : 'View quota history'}</CollapsibleTrigger>
     <CollapsiblePanel>
       <div className="quota-history-heading"><h3>Quota history</h3><p>Saved readings for this profile, newest first. Earlier connections remain separate snapshots.</p></div>
       <DataExport profiles={[profile]} busy={exportBusy} setBusy={setExportBusy} quotaHistory />

@@ -99,7 +99,7 @@ export function DataExport({ profiles, busy, setBusy, quotaHistory = false, acti
 
   return <section className="backup-panel" aria-label={title} data-reading-export>
     <Collapsible>
-      <Heading><CollapsibleTrigger render={<Button variant="outline" />} type="button" disabled={busy} data-export-toggle>{title}</CollapsibleTrigger></Heading>
+      <Heading><CollapsibleTrigger render={<Button variant="outline" className="row-disclosure" />} type="button" disabled={busy} data-export-toggle>{title}</CollapsibleTrigger></Heading>
       <CollapsiblePanel keepMounted>
         <form className="unlock-form" aria-label={activityHistory ? 'Activity history export' : quotaHistory ? 'Quota history export' : 'Saved readings export'} aria-busy={saving} onSubmit={event => { event.preventDefault(); void save(); }}>
           <p>{activityHistory ? 'Export all saved activity summaries and retained daily observations for this profile. This includes all history pages and earlier connections. Snapshots are separate observations, not usage events or deltas.' : quotaHistory ? 'Export every saved quota snapshot for this profile, including earlier connections. This includes all history pages, with no aggregation.' : 'Export the latest saved quota and activity summaries and daily buckets for selected active profiles. This does not include reading history or all application records.'}</p>

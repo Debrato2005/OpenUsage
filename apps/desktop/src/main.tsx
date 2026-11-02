@@ -23,6 +23,8 @@ import type { AccountAction, AccountActionRequest } from './account-actions';
 import { Usage } from './usage';
 import { useMonitoring } from './monitoring';
 import { providerFailure } from './provider-errors';
+import { SettingsNav, settingsSections } from './settings-nav';
+import { CloseIcon, EyeOffIcon, LockIcon, ShieldIcon } from './icons';
 import './styles.css';
 import './workspace-layout.css';
 
@@ -297,17 +299,21 @@ function App() {
   }
   const scaleControl = <div className="display-scale-control"><label htmlFor="display-scale" className="sr-only">Display scale</label><Select modal={false} value={displayScale} disabled={scaleBusy} items={Object.fromEntries([90, 100, 110, 125, 150, 175, 200].map(value => [value, `${value}%`]))} onValueChange={value => { if (value !== null) void changeScale(value); }}><SelectTrigger id="display-scale" aria-label="Display scale"><SelectValue /></SelectTrigger><SelectPopup alignItemWithTrigger={false}>{[90, 100, 110, 125, 150, 175, 200].map(value => <SelectItem key={value} value={value}>{value}%</SelectItem>)}</SelectPopup></Select></div>;
   const titles = { overview: 'Overview', usage: 'Usage', settings: 'Settings' };
+  const privacyControls = <>
+    <Button variant="ghost" className={`text-button ${ready ? 'settings-privacy' : 'onboarding-privacy'}`} onClick={() => setPrivacy(!privacy)} aria-expanded={privacy} aria-controls="privacy-details">{privacy ? 'Hide privacy details' : 'About your privacy'}</Button>
+    {privacy && <section className="privacy-details" id="privacy-details" aria-labelledby="privacy-heading"><h2 id="privacy-heading">Privacy and local storage</h2><p>OpenUsage has no hosted account or telemetry. Account connections require your approval. Provider credentials stay with Codex.</p><p>Encrypted storage protects application records. It does not encrypt provider credential files or operating-system swap.</p><p>Codex handles approved sign-in requests, connection checks, and readings. Monitoring runs only while OpenUsage is open and your workspace is unlocked.</p></section>}
+  </>;
   return <TimeDisplay ready={ready} revision={profileRevision}><div className={`app-shell${ready ? '' : ' onboarding-shell'}`}>
     <a className="skip-link" href="#main">Skip to dashboard</a>
     <header className="workspace-header" hidden={!ready}>
       <a className="brand" href="#main" onClick={() => navigate('overview')} aria-label="OpenUsage dashboard"><span className="brand-wordmark"><img src={openusageLogo} alt="OpenUsage" /></span></a>
       <nav className="workspace-nav" aria-label="Main">{(Object.keys(titles) as WorkspaceView[]).map(name => <a key={name} href={`#${name}`} data-workspace-nav={name} aria-current={view === name ? 'page' : undefined} onClick={event => { event.preventDefault(); navigate(name); }}><NavIcon view={name} /><span>{titles[name]}</span></a>)}</nav>
-      {ready && <div className="workspace-appearance"><LiveClock /><div className="header-appearance">{appearance}</div>{scaleControl}</div>}
+      {ready && <div className="workspace-appearance"><span className="status-pill" data-global-monitoring={!monitoring.unavailable ? monitoring.status?.state : undefined}><span className="status-dot" aria-hidden="true" />{monitoring.unavailable ? 'Monitoring status unavailable' : monitoring.status ? `Monitoring ${monitoring.status.state}` : 'Loading monitoring status…'}</span><LiveClock /><div className="header-appearance">{appearance}</div>{scaleControl}</div>}
     </header>
     <div className="workspace">
       {!ready && <header className="onboarding-header"><a className="brand" href="#main" aria-label="OpenUsage"><span className="brand-wordmark"><img src={openusageLogo} alt="OpenUsage" /></span></a>{appearance}</header>}
       <main id="main" tabIndex={-1}>
-        {ready && <div className="page-heading"><h1>{titles[view]}</h1><div className="page-controls"><span className="status-pill" data-global-monitoring={!monitoring.unavailable ? monitoring.status?.state : undefined}><span className="status-dot" aria-hidden="true" />{monitoring.unavailable ? 'Monitoring status unavailable' : monitoring.status ? `Monitoring ${monitoring.status.state}` : 'Loading monitoring status…'}</span></div></div>}
+        {ready && <div className="page-heading"><h1>{titles[view]}</h1></div>}
         {scaleError && <p role="alert" className="operation-error">Display size could not be saved. Try again.</p>}
         {!ready && <section className="startup-panel" data-storage={data?.storage ?? startup.kind} aria-labelledby="startup-heading" aria-busy={startup.kind === 'loading' || busy}>
           <div className="startup-content"><h1 id="startup-heading" role="status">{message}</h1>
@@ -339,49 +345,80 @@ function App() {
             {data?.storage === 'locked' && !needsPassphrase && <p className="development-note">Unlock your system key store, then check the workspace again.</p>}
             {(recovery || (data?.storage === 'locked' && !needsPassphrase)) && <Button className="primary-button" disabled={busy} onClick={() => { setOperationError(null); setStartup({ kind: 'loading' }); setAttempt(n => n + 1); }}>Check workspace</Button>}
             {operationError && <p id="workspace-error" className="operation-error" role="alert">{operationError}</p>}
+            {data?.storage === 'setup_required' && <ul className="onboarding-promises"><li><LockIcon />Saved readings stay encrypted on this device</li><li><ShieldIcon />Provider credentials stay with Codex</li><li><EyeOffIcon />No hosted account or telemetry</li></ul>}
           </div>
         </section>}
         {ready && operationError && <p id="workspace-error" className="operation-error" role="alert">{operationError}</p>}
         {deletionPending && <LocalDataDeletion key="pending" pending busy={busy} setBusy={setBusy} onChanged={applyLocalDataState} />}
-        {(!ready || view === 'settings') && <Button variant="ghost" className={`text-button ${ready ? 'settings-privacy' : 'onboarding-privacy'}`} onClick={() => setPrivacy(!privacy)} aria-expanded={privacy} aria-controls="privacy-details">{privacy ? 'Hide privacy details' : 'About your privacy'}</Button>}
-        {privacy && (!ready || view === 'settings') && <section className="privacy-details" id="privacy-details" aria-labelledby="privacy-heading"><h2 id="privacy-heading">Privacy and local storage</h2><p>OpenUsage has no hosted account or telemetry. Account connections require your approval. Provider credentials stay with Codex.</p><p>Encrypted storage protects application records. It does not encrypt provider credential files or operating-system swap.</p><p>Codex handles approved sign-in requests, connection checks, and readings. Monitoring runs only while OpenUsage is open and your workspace is unlocked.</p></section>}
+        {!ready && privacyControls}
         {ready && view === 'overview' && connectionError && !accountPanelOpen && <div className="account-refresh-feedback" role="alert" data-overview-connection-error><p>{connectionError}</p><Button variant="outline" onClick={() => navigate('settings')}>Connection details</Button><Button variant="ghost" onClick={() => setConnectionError(null)}>Dismiss</Button></div>}
         {ready && view === 'overview' && accountMessage && <div className="account-refresh-feedback" role={accountMessage.outcome === 'failed' ? 'alert' : 'status'} data-account-refresh-message><p>{profiles.find(profile => profile.id === accountMessage.profileId)?.label ?? 'Account'}: {accountMessage.outcome === 'saved' ? 'Readings updated.' : 'Could not finish refreshing. Saved readings are still available.'}</p>{accountMessage.outcome === 'failed' && <Button variant="outline" onClick={() => requestAccountAction({ kind: 'manage', profileId: accountMessage.profileId })}>View account details</Button>}<Button variant="ghost" aria-label="Dismiss account update" onClick={() => setAccountMessage(null)}>Dismiss</Button></div>}
-        {ready && <section data-workspace-view="overview" hidden={view !== 'overview'} inert={view !== 'overview'} aria-label="Overview"><Overview key={profileRevision} active={view === 'overview'} profiles={profiles} revision={readingRevision} onAccounts={() => { setAccountPanelProfile(null); setAccountPanelOpen(true); }} onAccountAction={requestAccountAction} busy={busy} refreshingProfileIds={refreshingProfiles} refreshWaitSeconds={refreshWaitSeconds} /></section>}
-        {ready && <div hidden={view !== 'settings'} inert={view !== 'settings'}><ProviderSettings busy={busy} setBusy={setBusy} approval={providerApproval} onApproved={setProviderApproval} /></div>}
+        {ready && <section data-workspace-view="overview" hidden={view !== 'overview'} inert={view !== 'overview'} aria-label="Overview"><Overview key={profileRevision} active={view === 'overview'} profiles={profiles} revision={readingRevision} onAccounts={() => { setAccountPanelProfile(null); setAccountPanelOpen(true); }} onAccountAction={requestAccountAction} busy={busy} refreshingProfileIds={refreshingProfiles} refreshWaitSeconds={refreshWaitSeconds} expectedProfiles={data?.activeProfiles ?? 0} /></section>}
         {ready && <dialog ref={accountPanel} data-account-panel aria-modal="true" data-workspace-view="accounts" hidden={!accountPanelOpen} aria-labelledby="account-panel-heading" onCancel={event => { event.preventDefault(); setAccountPanelOpen(false); }} onClose={() => setAccountPanelOpen(false)}>
-          <div className="account-panel-heading"><h2 id="account-panel-heading">{profiles.find(profile => profile.id === accountPanelProfile)?.label ?? 'Manage accounts'}</h2><Button data-account-panel-close variant="ghost" aria-label="Close account details" onClick={() => setAccountPanelOpen(false)}>Close</Button></div>
+          <div className="account-panel-heading"><h2 id="account-panel-heading">{profiles.find(profile => profile.id === accountPanelProfile)?.label ?? 'Manage accounts'}</h2><Button data-account-panel-close variant="ghost" className="icon-button" aria-label="Close account details" title="Close" onClick={() => setAccountPanelOpen(false)}><CloseIcon /></Button></div>
           {connectionPreparing && <p role="status">Preparing OpenAI sign-in…</p>}
           {connectionError && <div role="alert"><p>{connectionError}</p><Button type="button" variant="outline" disabled={busy} onClick={() => setConnectionRequest(value => value + 1)}>Retry connection</Button><Button type="button" variant="ghost" onClick={() => navigate('settings')}>Connection details</Button></div>}
           <ProfileManager key={profileRevision} embedded selectedProfileId={accountPanelProfile} onSelectProfile={setAccountPanelProfile} onAccountOperation={reportAccountOperation} onRefreshState={refreshState} busy={busy} setBusy={setBusy} onCount={updateProfileCount} requestedAction={accountAction} onActionHandled={handledAccountAction} providerApproval={providerApproval} onProfilesChange={updateProfiles} onReadingsChanged={readingsChanged} monitoring={monitoring.status} monitoringUnavailable={monitoring.unavailable} onMonitoringAction={monitoring.action} onConnectAccount={() => setConnectionRequest(value => value + 1)} />
         </dialog>}
         {ready && <section data-workspace-view="usage" hidden={view !== 'usage'} inert={view !== 'usage'} aria-label="Saved usage"><Usage requestedProfileId={usageProfile} active={view === 'usage'} profiles={profiles} revision={readingRevision} onAccounts={() => { setAccountPanelProfile(null); setAccountPanelOpen(true); }} /></section>}
         <section data-workspace-view="settings" hidden={!ready || view !== 'settings'} inert={!ready || view !== 'settings'} aria-label="Workspace settings">
-        {ready && <TimeSettings />}
-
-        {ready && <section className="account-settings"><h2>Accounts</h2><Button data-account-manager-open variant="outline" onClick={() => { setAccountPanelProfile(null); setAccountPanelOpen(true); }}>Manage accounts</Button></section>}
-        {ready && <section className="backup-panel" aria-labelledby="backup-heading">
-          <div className="section-heading"><h2 id="backup-heading">Encrypted backups</h2><div className="backup-actions"><Button ref={backupToggle} variant="outline" className="secondary-button" disabled={busy} onClick={() => toggleBackup('create')} aria-expanded={backupOpen} aria-controls="backup-form">{backupOpen ? 'Hide backup form' : 'Create a backup'}</Button><Button variant="outline" className="secondary-button" disabled={busy} onClick={() => toggleBackup('inspect')} aria-expanded={backupAction === 'inspect'} aria-controls="backup-inspection">{backupAction === 'inspect' ? 'Hide backup inspection' : 'Inspect a backup'}</Button><Button variant="outline" className="secondary-button" disabled={busy} onClick={() => toggleBackup('recover')} aria-expanded={backupAction === 'recover'} aria-controls="checkpoint-recovery">{backupAction === 'recover' ? 'Hide saved copies' : 'Undo a restore'}</Button></div></div>
-          {backupOpen && <form id="backup-form" className="unlock-form backup-form" onSubmit={event => { event.preventDefault(); void saveBackup(); }}>
-            <p id="backup-records-help">Application records can include account names, email addresses, and activity. Provider credentials and local evidence are excluded.</p>
-            <Field disabled={busy}><FieldLabel className="backup-selection"><Checkbox nativeButton render={<button type="button" />} id="backup-records" name="backup-records" required checked={backupRecords} disabled={busy} aria-describedby="backup-records-help" onCheckedChange={checked => setBackupRecords(checked === true)} />Application records</FieldLabel></Field>
-            <Field><FieldLabel htmlFor="backup-password">Backup password</FieldLabel><Input nativeInput id="backup-password" name="backup-password" type="password" autoComplete="new-password" required minLength={12} maxLength={1024} disabled={busy} aria-invalid={!!backupError && backupErrorField === 'backup-password'} aria-describedby={`backup-password-help${backupError && backupErrorField === 'backup-password' ? ' backup-error' : ''}`} value={backupPassword} onChange={event => { setBackupPassword(event.target.value); setBackupError(null); }} /></Field>
-            <Field><FieldLabel htmlFor="backup-confirmation">Confirm backup password</FieldLabel><Input nativeInput id="backup-confirmation" name="backup-confirmation" type="password" autoComplete="new-password" required minLength={12} maxLength={1024} disabled={busy} aria-invalid={!!backupError && backupErrorField === 'backup-confirmation'} aria-describedby={backupError && backupErrorField === 'backup-confirmation' ? 'backup-error' : undefined} value={backupConfirmation} onChange={event => { setBackupConfirmation(event.target.value); setBackupError(null); }} /></Field>
-            <p id="backup-password-help">Use at least 12 characters. Keep this password. OpenUsage cannot recover it.</p>
-            <p>The encrypted file will save in Downloads/OpenUsage.</p>
-            <Button className="primary-button" type="submit" disabled={busy || !backupRecords}>{busy ? 'Encrypting backup…' : 'Save encrypted backup'}</Button>
-            {backupError && <p id="backup-error" className="operation-error" role="alert">{backupError}</p>}
-          </form>}
-          {backupReceipt && <div className="backup-receipt" role="status"><p>Backup saved and authenticated.</p><p><strong>{backupReceipt.fileName}</strong><br />{backupReceipt.directory}</p></div>}
-          {backupAction === 'inspect' && <section id="backup-inspection" className="backup-inspection" aria-labelledby="backup-inspection-heading"><h3 id="backup-inspection-heading">Inspect a backup</h3><BackupInspection busy={busy} setBusy={setBusy} onRestored={refreshRestoredWorkspace} /></section>}
-          {backupAction === 'recover' && <CheckpointRecovery busy={busy} setBusy={setBusy} onRestored={refreshRestoredWorkspace} />}
-        </section>}
-        {ready && view === 'settings' && <Subscriptions profiles={profiles} revision={String(profileRevision)} busy={busy} setBusy={setBusy} />}
-        {ready && view === 'settings' && <ResetNotifications profiles={profiles} revision={String(profileRevision)} busy={busy} setBusy={setBusy} />}
-        {ready && <AlertHistory revision={`${profileRevision}:${readingRevision}`} onViewUsage={profileId => requestAccountAction({ kind: 'usage', profileId })} onViewAccount={profileId => requestAccountAction({ kind: 'manage', profileId })} />}
-        {ready && <DataExport key={profileRevision} profiles={profiles} busy={busy} setBusy={setBusy} />}
-        {ready && view === 'settings' && <ApplicationExport busy={busy} setBusy={setBusy} />}
-        {ready && view === 'settings' && <LocalDataDeletion key="ready" busy={busy} setBusy={setBusy} onChanged={applyLocalDataState} />}
+        {ready && <div className="settings-layout">
+          <SettingsNav />
+          <div className="settings-groups">
+            <section id={settingsSections.general.id} className="settings-group" tabIndex={-1} aria-labelledby="settings-general-title">
+              <h2 id="settings-general-title" className="settings-group-title">{settingsSections.general.title}</h2>
+              <div className="settings-card"><TimeSettings /></div>
+            </section>
+            <section id={settingsSections.accounts.id} className="settings-group" tabIndex={-1} aria-labelledby="settings-accounts-title">
+              <h2 id="settings-accounts-title" className="settings-group-title">{settingsSections.accounts.title}</h2>
+              <div className="settings-card">
+                <section className="account-settings"><h2>Accounts</h2><Button data-account-manager-open variant="outline" onClick={() => { setAccountPanelProfile(null); setAccountPanelOpen(true); }}>Manage accounts</Button></section>
+                {view === 'settings' && <Subscriptions profiles={profiles} revision={String(profileRevision)} busy={busy} setBusy={setBusy} />}
+              </div>
+            </section>
+            <section id={settingsSections.notifications.id} className="settings-group" tabIndex={-1} aria-labelledby="settings-notifications-title">
+              <h2 id="settings-notifications-title" className="settings-group-title">{settingsSections.notifications.title}</h2>
+              <div className="settings-card">
+                {view === 'settings' && <ResetNotifications profiles={profiles} revision={String(profileRevision)} busy={busy} setBusy={setBusy} />}
+                <AlertHistory revision={`${profileRevision}:${readingRevision}`} onViewUsage={profileId => requestAccountAction({ kind: 'usage', profileId })} onViewAccount={profileId => requestAccountAction({ kind: 'manage', profileId })} />
+              </div>
+            </section>
+            <section id={settingsSections.data.id} className="settings-group" tabIndex={-1} aria-labelledby="settings-data-title">
+              <h2 id="settings-data-title" className="settings-group-title">{settingsSections.data.title}</h2>
+              <div className="settings-card">
+                <section className="backup-panel" aria-labelledby="backup-heading">
+                  <div className="section-heading"><h2 id="backup-heading">Encrypted backups</h2><div className="backup-actions"><Button ref={backupToggle} variant="outline" className="secondary-button" disabled={busy} onClick={() => toggleBackup('create')} aria-expanded={backupOpen} aria-controls="backup-form">{backupOpen ? 'Hide backup form' : 'Create a backup'}</Button><Button variant="outline" className="secondary-button" disabled={busy} onClick={() => toggleBackup('inspect')} aria-expanded={backupAction === 'inspect'} aria-controls="backup-inspection">{backupAction === 'inspect' ? 'Hide backup inspection' : 'Inspect a backup'}</Button><Button variant="outline" className="secondary-button" disabled={busy} onClick={() => toggleBackup('recover')} aria-expanded={backupAction === 'recover'} aria-controls="checkpoint-recovery">{backupAction === 'recover' ? 'Hide saved copies' : 'Undo a restore'}</Button></div></div>
+                  {backupOpen && <form id="backup-form" className="unlock-form backup-form" onSubmit={event => { event.preventDefault(); void saveBackup(); }}>
+                    <p id="backup-records-help">Application records can include account names, email addresses, and activity. Provider credentials and local evidence are excluded.</p>
+                    <Field disabled={busy}><FieldLabel className="backup-selection"><Checkbox nativeButton render={<button type="button" />} id="backup-records" name="backup-records" required checked={backupRecords} disabled={busy} aria-describedby="backup-records-help" onCheckedChange={checked => setBackupRecords(checked === true)} />Application records</FieldLabel></Field>
+                    <Field><FieldLabel htmlFor="backup-password">Backup password</FieldLabel><Input nativeInput id="backup-password" name="backup-password" type="password" autoComplete="new-password" required minLength={12} maxLength={1024} disabled={busy} aria-invalid={!!backupError && backupErrorField === 'backup-password'} aria-describedby={`backup-password-help${backupError && backupErrorField === 'backup-password' ? ' backup-error' : ''}`} value={backupPassword} onChange={event => { setBackupPassword(event.target.value); setBackupError(null); }} /></Field>
+                    <Field><FieldLabel htmlFor="backup-confirmation">Confirm backup password</FieldLabel><Input nativeInput id="backup-confirmation" name="backup-confirmation" type="password" autoComplete="new-password" required minLength={12} maxLength={1024} disabled={busy} aria-invalid={!!backupError && backupErrorField === 'backup-confirmation'} aria-describedby={backupError && backupErrorField === 'backup-confirmation' ? 'backup-error' : undefined} value={backupConfirmation} onChange={event => { setBackupConfirmation(event.target.value); setBackupError(null); }} /></Field>
+                    <p id="backup-password-help">Use at least 12 characters. Keep this password. OpenUsage cannot recover it.</p>
+                    <p>The encrypted file will save in Downloads/OpenUsage.</p>
+                    <Button className="primary-button" type="submit" disabled={busy || !backupRecords}>{busy ? 'Encrypting backup…' : 'Save encrypted backup'}</Button>
+                    {backupError && <p id="backup-error" className="operation-error" role="alert">{backupError}</p>}
+                  </form>}
+                  {backupReceipt && <div className="backup-receipt" role="status"><p>Backup saved and authenticated.</p><p><strong>{backupReceipt.fileName}</strong><br />{backupReceipt.directory}</p></div>}
+                  {backupAction === 'inspect' && <section id="backup-inspection" className="backup-inspection" aria-labelledby="backup-inspection-heading"><h3 id="backup-inspection-heading">Inspect a backup</h3><BackupInspection busy={busy} setBusy={setBusy} onRestored={refreshRestoredWorkspace} /></section>}
+                  {backupAction === 'recover' && <CheckpointRecovery busy={busy} setBusy={setBusy} onRestored={refreshRestoredWorkspace} />}
+                </section>
+                <DataExport key={profileRevision} profiles={profiles} busy={busy} setBusy={setBusy} />
+                {view === 'settings' && <ApplicationExport busy={busy} setBusy={setBusy} />}
+              </div>
+            </section>
+            <section id={settingsSections.connection.id} className="settings-group" tabIndex={-1} aria-labelledby="settings-connection-title">
+              <h2 id="settings-connection-title" className="settings-group-title">{settingsSections.connection.title}</h2>
+              <div className="settings-card"><ProviderSettings busy={busy} setBusy={setBusy} approval={providerApproval} onApproved={setProviderApproval} /></div>
+            </section>
+            <section id={settingsSections.privacy.id} className="settings-group" tabIndex={-1} aria-labelledby="settings-privacy-title">
+              <h2 id="settings-privacy-title" className="settings-group-title">{settingsSections.privacy.title}</h2>
+              <div className="settings-card">
+                <div className="settings-privacy-row">{privacyControls}</div>
+                {view === 'settings' && <LocalDataDeletion key="ready" busy={busy} setBusy={setBusy} onChanged={applyLocalDataState} />}
+              </div>
+            </section>
+          </div>
+        </div>}
         </section>
       </main>
     </div>

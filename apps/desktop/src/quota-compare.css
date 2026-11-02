@@ -1,0 +1,22 @@
+.quota-compare { display: grid; gap: .75rem; }
+.quota-compare h2 { font-size: 1rem; }
+.quota-compare-note { color: var(--muted); font-size: .8125rem; }
+.quota-compare-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius-inset); }
+.quota-compare table { width: 100%; border-collapse: collapse; font-size: .875rem; text-align: start; }
+.quota-compare thead { background: var(--surface-2); color: var(--muted); font-size: .75rem; }
+.quota-compare th, .quota-compare td { padding: .5rem .75rem; font-weight: 400; text-align: start; vertical-align: middle; }
+.quota-compare thead th { padding-block: .4375rem; font-weight: 500; white-space: nowrap; }
+.quota-compare tbody tr { border-top: 1px solid var(--line); }
+.quota-compare tbody th { min-width: 8rem; color: var(--text-strong); font-weight: 600; overflow-wrap: anywhere; }
+.quota-compare tbody th small { display: block; color: var(--muted); font-size: .75rem; font-weight: 400; }
+.quota-compare-error { color: var(--error) !important; }
+.quota-compare-missing { color: var(--muted); font-size: .8125rem; }
+.quota-compare-reading { display: grid; grid-template-columns: auto minmax(5rem, 1fr); align-items: center; gap: .125rem .625rem; min-width: 11rem; }
+.quota-compare-reading strong { color: var(--text-strong); font-size: .8125rem; font-weight: 600; white-space: nowrap; }
+.quota-compare-reading [data-slot='meter-track'] { height: .3125rem; border-radius: 999px; background: color-mix(in srgb, var(--line) 80%, var(--muted)); }
+.quota-compare-reading [data-slot='meter-indicator'] { border-radius: inherit; background: var(--chart); }
+.quota-compare-reading .quota-reset-countdown { grid-column: 1 / -1; color: var(--muted); font-size: .75rem; }
+.quota-compare-reading[data-attention='low'] strong { color: var(--error); }
+.quota-compare-reading[data-attention='low'] [data-slot='meter-indicator'] { background: var(--error); }
+.quota-compare-reading[data-attention='warn'] strong { color: var(--warning); }
+.quota-compare-reading[data-attention='warn'] [data-slot='meter-indicator'] { background: var(--warning-chart); }

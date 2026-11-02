@@ -36,7 +36,7 @@ export function Subscriptions({ profiles, revision, busy, setBusy }: Props) {
   const profile = profiles.find(item => item.id === selected) ?? profiles.find(item => !item.archived) ?? profiles[0];
   return <section className="backup-panel subscriptions-panel" aria-label="Subscriptions" data-subscriptions>
     <Collapsible open={open} onOpenChange={setOpen}>
-      <h2><CollapsibleTrigger render={<Button variant="outline" />} type="button" data-subscriptions-toggle>Subscriptions</CollapsibleTrigger></h2>
+      <h2><CollapsibleTrigger render={<Button variant="outline" className="row-disclosure" />} type="button" data-subscriptions-toggle>Subscriptions</CollapsibleTrigger></h2>
       <CollapsiblePanel>
         {open && <>
           <p>Local records you confirm. They do not prove payment or change a provider subscription.</p>

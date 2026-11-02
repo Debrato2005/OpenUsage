@@ -191,7 +191,7 @@ test('renderer Overview preserves exact zero and large values and rejects stale 
   await expect(dashboard(page).locator('[data-overview-account-share]')).toHaveCount(1);
   await expect(dashboard(page).locator('[data-overview-quota-donut]')).toHaveAttribute('data-remaining', '0');
   await dashboard(page).getByRole('button', { name: 'Account share', exact: true }).click();
-  await expect(dashboard(page).locator('.overview-share-panel')).toContainText('Unavailable');
+  await expect(dashboard(page).locator('.overview-share-panel')).toContainText('No eligible reported activity');
   await expect(dashboard(page).locator('[data-overview-lifetime]')).toHaveText('0');
   await expect(dashboard(page).locator('[data-overview-quota]').getByRole('meter')).toHaveAttribute('aria-valuenow', '0');
   await choose(page, 'Large fixture');

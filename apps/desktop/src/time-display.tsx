@@ -51,7 +51,8 @@ export function LiveClock() {
     window.addEventListener('focus', update);
     return () => { window.clearTimeout(timer); document.removeEventListener('visibilitychange', update); window.removeEventListener('focus', update); };
   }, []);
-  return <time className="live-clock" data-live-clock dateTime={new Date(now).toISOString()}>{dates.format(new Date(now))}</time>;
+  // Only digit runs use tabular figures; this face also widens punctuation under tnum.
+  return <time className="live-clock" data-live-clock dateTime={new Date(now).toISOString()}>{dates.format(new Date(now)).split(/(\d+)/).map((part, index) => index % 2 ? <span key={index} className="tabular-digits">{part}</span> : part)}</time>;
 }
 const common: Record<string, string> = { UTC: 'UTC', 'Asia/Kolkata': 'India · Kolkata (UTC+05:30)', 'America/New_York': 'New York', 'Europe/London': 'London', 'Asia/Tokyo': 'Tokyo', 'Australia/Sydney': 'Sydney' };
 export function TimeSettings() {

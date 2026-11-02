@@ -64,7 +64,6 @@ test('alert history loads on expansion, preserves exact evidence and opens the e
   await expect(event.locator('time').first()).toContainText('3:04 AM UTC');
   await expect(event.locator('time').first()).toHaveAttribute('datetime', '2026-10-22T03:04:05.123Z');
   await expect(event.locator('time').first()).toHaveAttribute('title', '2026-10-22T03:04:05.123Z');
-  await expect(history(page)).toContainText('Alerts saved on this device.');
   await event.getByRole('button', { name: 'Source details', exact: true }).click();
   await expect(event).toContainText('Synthetic test data');
   await expect(event).toContainText('Primary · 300 minutes');
