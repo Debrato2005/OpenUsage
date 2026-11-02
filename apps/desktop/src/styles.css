@@ -342,7 +342,7 @@ main { max-width: 1280px; padding: var(--space-6); margin: 0 auto; }
 .coss-button .ui-icon { width: 1rem; height: 1rem; flex: 0 0 auto; }
 .coss-button > * { pointer-events: none; }
 .ui-icon { display: block; width: 1.125rem; height: 1.125rem; flex: 0 0 auto; }
-[data-slot='input-control'], [data-slot='textarea-control'] { min-width: 0; border-color: var(--control-border); border-radius: var(--radius-control); background: var(--surface); color: var(--text); font-size: var(--text-sm); box-shadow: none; transition: border-color var(--ease-ui); }
+[data-slot='input-control'], [data-slot='textarea-control'] { min-width: 0; border-color: var(--control-border); border-radius: var(--radius-control); background: var(--surface); color: var(--text); font-size: var(--text-sm); box-shadow: none; transition: none; }
 [data-slot='input-control']::before, [data-slot='textarea-control']::before { box-shadow: none; }
 [data-slot='input'], [data-slot='textarea'] { width: 100%; min-width: 0; min-height: var(--control-height); padding: var(--space-2) var(--space-3); border: 0; font: inherit; line-height: var(--leading-body); }
 [data-slot='input-control']:has(:focus-visible), [data-slot='textarea-control']:has(:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; box-shadow: none; }

@@ -38,7 +38,7 @@ async function open(setup = false) {
   if (setup) await driver.type('#workspace-confirmation', passphrase);
   await driver.click('.unlock-form button[type=submit]');
   await waitFor(async () => (await call('bootstrap')).storage === 'ready', 'ready synthetic workspace');
-  assert.equal((await call('bootstrap')).schemaVersion, 7);
+  assert.equal((await call('bootstrap')).schemaVersion, 9);
 }
 async function close() {
   const queue = [driver.child.pid]; let pid;
@@ -84,8 +84,8 @@ async function oracle(mode, input, label, full = false) {
     }
     const report = JSON.parse(execFileSync(verifier, [mode, source, join(workspace, 'database-key.v1'), ...(full ? ['--profile-state'] : [])], { input: JSON.stringify({ passphrase, backupPassword }), encoding: 'utf8', timeout: 60000, maxBuffer: 16 * 1024 * 1024, env: fixture.environment }));
     for (const field of ['verified', 'readOnly', 'inputUnchanged', 'keyEnvelopeUnchanged', 'walRecordsUnchanged']) assert.equal(report[field], true, field);
-    assert.equal(report.schemaVersion, 7); assert.equal(report.plaintextDiskStaging, false);
-    assert.equal(Object.keys(report.state.tables).length, full ? 24 : 21);
+    assert.equal(report.schemaVersion, 9); assert.equal(report.plaintextDiskStaging, false);
+    assert.equal(Object.keys(report.state.tables).length, full ? 31 : 28);
     const rows = report.state.tables.alert_events; assert.equal(rows.length, 1); assert.equal(Object.keys(rows[0]).length, 12);
     assert.equal(rows[0].id, event.eventId); assert.equal(rows[0].generation_run_id, event.generationRunId);
     assert.deepEqual(await liveHashes(), before); assert.equal(await hash(input), original);
@@ -113,7 +113,7 @@ try {
   await driver.click('[data-alert-history-event] .alert-history-source > button');
   const visible = await driver.execute('const row=document.querySelector("[data-alert-history-event]");return {text:row.textContent,profile:row.querySelector("bdi").textContent,time:row.querySelector("time").dateTime};');
   assert.equal(visible.profile, selected.label); assert.equal(visible.time, expected.events[0].evidenceAtUtc);
-  assert.match(visible.text, /Synthetic test data/); assert.match(visible.text, event.deliveryState === 'suppressed' ? /Not sent because this reset is no longer eligible/ : /No desktop notification sent/);
+  assert.match(visible.text, /Synthetic test data/); assert.match(visible.text, event.deliveryState === 'suppressed' ? /Not sent because this alert is no longer eligible/ : /No desktop notification sent/);
   await driver.execute('document.querySelector("[data-alert-history-event]").scrollIntoView({block:"center"});return true;');
   await driver.screenshot(join(output, 'saved-reset-alert-history.png'));  evidence.screenshots.push('saved-reset-alert-history.png');
   await driver.execute('window.__alertNavigationClicks=[];document.addEventListener("click",event=>{const button=event.target.closest?.(".alert-history-event > button");if(button)window.__alertNavigationClicks.push({target:event.target.tagName,trusted:event.isTrusted,label:button.textContent});},true);return true;');

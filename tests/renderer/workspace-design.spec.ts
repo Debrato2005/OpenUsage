@@ -193,6 +193,21 @@ test('Settings groups every topic under a section index that moves keyboard focu
   await expect(page.locator('#settings-accounts [data-subscriptions]')).toBeVisible();
 });
 
+test('a control brought into view stays clear of the sticky header', async ({ page }) => {
+  await open(page);
+  await page.locator('[data-workspace-nav="settings"]').click();
+  await page.setViewportSize({ width: 1280, height: 600 });
+  const covered = await page.evaluate(() => {
+    const control = document.querySelector<HTMLElement>('[data-account-manager-open]')!;
+    window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' });
+    control.scrollIntoView({ behavior: 'instant' });
+    const bounds = control.getBoundingClientRect();
+    return { top: bounds.top, header: document.querySelector('.workspace-header')!.getBoundingClientRect().bottom, hit: document.elementFromPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2)?.closest('button')?.textContent };
+  });
+  expect(covered.top).toBeGreaterThanOrEqual(covered.header);
+  expect(covered.hit).toBe('Manage accounts');
+});
+
 for (const theme of ['light', 'dark'] as const) test(`Settings reflows at 360 pixels with no accessibility violations in ${theme} theme`, async ({ page }) => {
   await open(page);
   await page.locator('[data-workspace-nav="settings"]').click();

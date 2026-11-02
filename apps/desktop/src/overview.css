@@ -112,7 +112,7 @@
 .overview-accounts-heading > button { flex-shrink: 0; }
 .overview-accounts-tools { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; min-width: 0; }
 .overview-accounts-tools [data-slot='select-trigger'] { width: auto; min-width: 9rem; min-height: var(--control-height); height: auto; font-size: var(--text-sm); }
-.overview-search { display: flex; align-items: center; gap: .4375rem; min-height: var(--control-height); padding-inline: .625rem; border: 1px solid var(--control-border); border-radius: var(--radius-control); background: var(--surface); color: var(--muted); transition: border-color var(--ease-ui); }
+.overview-search { display: flex; align-items: center; gap: .4375rem; min-height: var(--control-height); padding-inline: .625rem; border: 1px solid var(--control-border); border-radius: var(--radius-control); background: var(--surface); color: var(--muted); }
 .overview-search:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
 .overview-search input { width: 11rem; min-width: 0; min-height: 0; padding: 0; border: 0; outline: none; background: transparent; color: var(--text); font-size: var(--text-sm); }
 .overview-search input::placeholder { color: var(--muted); opacity: 1; }

@@ -413,7 +413,7 @@ function App() {
             <section id={settingsSections.privacy.id} className="settings-group" tabIndex={-1} aria-labelledby="settings-privacy-title">
               <h2 id="settings-privacy-title" className="settings-group-title">{settingsSections.privacy.title}</h2>
               <div className="settings-card">
-                <div className="settings-privacy-row">{privacyControls}</div>
+                {view === 'settings' && <div className="settings-privacy-row">{privacyControls}</div>}
                 {view === 'settings' && <LocalDataDeletion key="ready" busy={busy} setBusy={setBusy} onChanged={applyLocalDataState} />}
               </div>
             </section>

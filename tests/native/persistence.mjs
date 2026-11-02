@@ -212,7 +212,7 @@ try {
   await heading('Welcome back');
   await driver.type('#workspace-passphrase', 'Wrong synthetic passphrase');
   await driver.click('.unlock-form button[type="submit"]');
-  await waitFor(async () => Boolean(await driver.execute('return document.querySelector("[role=alert]")?.textContent.includes("passphrase could not unlock");')), 'wrong passphrase guidance');
+  await waitFor(async () => Boolean(await driver.execute('return document.querySelector("[role=alert]")?.textContent.includes("did not unlock your data");')), 'wrong passphrase guidance');
   await state({ storage: 'locked', keyProtection: 'passphrase' });
   assert.equal(await hash(fixture.database), lockedHash);
   assert.equal(await hash(wrappedPath), wrappedHash);

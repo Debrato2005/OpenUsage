@@ -37,7 +37,7 @@ export class NativeDriver {
       signal: AbortSignal.timeout(30000),
     });
     const payload = await response.json();
-    if (!response.ok) throw new Error(`WebDriver ${method} ${path}: ${payload.value?.message ?? response.status}`);
+    if (!response.ok) throw new Error(`WebDriver ${method} ${path}: ${payload.value?.error ?? ''} ${payload.value?.message ?? response.status}`);
     return payload.value;
   }
 
@@ -141,6 +141,8 @@ export class NativeDriver {
 
   async click(selector) {
     const element = await this.element(selector);
+    // The driver skips scrolling for a partly visible target, which can leave it under the sticky header.
+    await this.execute('document.querySelector(arguments[0]).scrollIntoView({block:"center"});return true;', [selector]);
     await this.request('POST', `/session/${this.session}/element/${element}/click`, {});
   }
 
@@ -186,6 +188,8 @@ export class NativeDriver {
 
   async type(selector, text) {
     const element = await this.element(selector);
+    // WebKit's clear command does not scroll, unlike click.
+    await this.execute('document.querySelector(arguments[0]).scrollIntoView({block:"center"});return true;', [selector]);
     await this.request('POST', `/session/${this.session}/element/${element}/clear`, {});
     await this.request('POST', `/session/${this.session}/element/${element}/value`, { text });
   }

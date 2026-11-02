@@ -33,6 +33,7 @@ async function rejected(command, args, error) {
 async function clickButton(text) {
   const element = await driver.execute('return [...document.querySelectorAll("button")].find(node=>node.textContent.trim()===arguments[0]);', [text]);
   assert.ok(element, `Missing native button: ${text}`);
+  await driver.execute('arguments[0].scrollIntoView({block:"center"});return true;', [element]);
   await driver.request('POST', `/session/${driver.session}/element/${element['element-6066-11e4-a52e-4f735466cecf']}/click`, {});
 }
 

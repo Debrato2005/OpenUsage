@@ -136,12 +136,12 @@ try {
   assert.equal(await driver.execute('return document.querySelector(arguments[0])?.getAttribute("data-exact-value");', ['[data-overview] [data-heatmap-cell="2026-10-19"]']), '3100000');
   await driver.execute('document.querySelector(arguments[0]).focus();return true;', ['[data-overview] [data-heatmap-cell="2026-10-15"]']);
   await key('\uE015');
-  await waitFor(() => driver.execute('return document.activeElement?.getAttribute("data-heatmap-cell")==="2026-10-16"&&document.querySelector("[data-overview] [data-heatmap-selected]")?.textContent.includes("2450000");'), 'native arrow key explores the next exact daily cell');
+  await waitFor(() => driver.execute('return document.activeElement?.getAttribute("data-heatmap-cell")==="2026-10-16"&&document.querySelector("[data-overview] [data-heatmap-selected] bdi")?.title==="2,450,000";'), 'native arrow key explores the next exact daily cell');
   await driver.execute('document.querySelector("[data-overview] [data-heatmap-values-toggle]").focus();return true;');
   await key('\uE007');
   await waitFor(() => driver.execute('return Boolean(document.querySelector("[data-overview] [data-heatmap-values]")?.getClientRects().length);'), 'actual keyboard opens exact heatmap values');
   const exactValues = await driver.execute('return document.querySelector("[data-overview] [data-heatmap-values]").textContent;');
-  assert.match(exactValues, /3100000/);
+  assert.match(exactValues, /3,100,000/);
   assert.match(exactValues, /2026-10-17/);
   await key('\uE007');
   await waitFor(() => driver.execute('return !document.querySelector("[data-overview] [data-heatmap-values]")?.getClientRects().length;'), 'keyboard closes exact values');

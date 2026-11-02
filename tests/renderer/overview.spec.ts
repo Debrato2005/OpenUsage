@@ -527,7 +527,7 @@ test('top navigation keeps all three pages reachable without reserving a sidebar
     await expect(page.getByRole('heading', { name: 'Privacy and local storage' })).toBeVisible();
     await navigation.getByRole('link', { name: 'Usage', exact: true }).click();
     await expect(page.locator('[data-workspace-view="usage"]')).toBeVisible();
-    await expect(privacy).toHaveCount(0);
+    await expect(page.locator('.settings-privacy, #privacy-details')).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Privacy and local storage' })).toHaveCount(0);
     await navigation.getByRole('link', { name: 'Overview', exact: true }).click();
     await expect(dashboard(page)).toBeVisible();
