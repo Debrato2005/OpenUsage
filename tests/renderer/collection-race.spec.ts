@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { navigate, openAccount, openReadings } from './navigation';
+import { closeDetail, navigate, openAccount, openReadingDetails, openReadings } from './navigation';
 import type { MonitoringStatus, ProfileCollectionOutcome, SavedProfileActivity, SavedProfileQuota } from '../../apps/desktop/src/contracts';
 
 // Synthetic renderer IPC only. Atomic storage and owned provider execution require native acceptance.
@@ -350,7 +350,8 @@ test('a pre-restore status reply cannot restart or repaint the new workspace mon
   const account = page.locator(`[data-overview-account="${profileId}"]`);
   await expect(account.locator('[data-overview-account-quota]')).toContainText('75% left');
   await openAccount(page, profileId);
-  await expect(page.locator(`[data-overview-quota] time[datetime="${observedAtUtc}"]`)).toBeVisible();
+  await expect((await openReadingDetails(page)).locator(`time[datetime="${observedAtUtc}"]`)).toBeVisible();
+  await closeDetail(page);
   await expect(page.locator('[data-overview-lifetime]')).toHaveText('9,007,199,254,740,993');
   await navigate(page, 'accounts');
   await page.getByRole('button', { name: 'Manage profile', exact: true }).click(); await eligibleMonitoring(page);

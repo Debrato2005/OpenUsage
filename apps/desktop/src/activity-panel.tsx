@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Button } from './components/ui/button';
 import { Checkbox } from './components/ui/checkbox';
 import type { ProfileRecord } from './contracts';
@@ -9,8 +10,8 @@ const reasons = {
   truncated_history: 'Saved history exceeds the read limit', identity_unverified: 'Account identity is unverified',
   scope_unverified: 'Activity scope is unverified', incompatible_scope: 'Different activity definition', duplicate_identity: 'Duplicate account excluded',
 };
-type Props = { profiles: ProfileRecord[]; profileId: string | null; revision: number; dashboard: ActivityDashboardState };
-export function ActivityPanel({ profiles, profileId, revision, dashboard: d }: Props) {
+type Props = { profiles: ProfileRecord[]; profileId: string | null; revision: number; dashboard: ActivityDashboardState; footer?: ReactNode };
+export function ActivityPanel({ profiles, profileId, revision, dashboard: d, footer }: Props) {
   const dateRange = <details className="activity-date-range"><summary>Date range</summary><div><label>From<input aria-label="Activity from" type="date" value={d.range.start} max={d.range.end} onChange={e => d.setRange({ ...d.range,start:e.target.value })} /></label><label>To<input aria-label="Activity to" type="date" value={d.range.end} min={d.range.start} onChange={e => d.setRange({ ...d.range,end:e.target.value })} /></label><span>Up to 365 provider dates</span></div></details>;
   const shown = d.validRange && d.ids.length > 0;
   const unavailable = d.data?.status === 'unavailable' ? <span data-combined-availability>{d.view === 'verified' ? 'Verified totals are unavailable for this selection.' : 'No eligible saved activity for this selection.'}</span> : undefined;
@@ -29,6 +30,7 @@ export function ActivityPanel({ profiles, profileId, revision, dashboard: d }: P
     {!shown && <>{scope}{selection}</>}
     {!d.validRange ? <>{dateRange}<p role="alert">Choose a valid range of 1–365 provider dates.</p></> : !d.ids.length ? <p>Select at least one account.</p> : <TokenHeatmap compact profileId={profileId} profileLabel={d.view === 'individual' ? profiles.find(p => p.id === profileId)?.label ?? 'Account' : d.view === 'verified' ? 'Verified combined activity' : 'Selected-profile activity'} revision={revision} controller={d} headerControls={scope} headerRows={selection} extraControls={dateRange} emptyMessage={unavailable} />}
     {unavailable && !!d.data?.cells.length && <p>{unavailable}</p>}
+    {footer}
     {!!d.data?.exclusions.length && <details className="combined-explanation"><summary>{d.data.exclusions.length} excluded</summary><ul className="combined-exclusions">{d.data.exclusions.map(e => <li key={e.profileId}><bdi>{profiles.find(p => p.id === e.profileId)?.label ?? 'Account'}</bdi><span>{reasons[e.reason]}</span></li>)}</ul></details>}
   </div>;
 }

@@ -145,10 +145,10 @@ async function capture(name, view, theme, width = 1280, text = 1, target, prepar
   if (data.pageWidth > width + 1 || data.overflowing.length) evidence.violations.push({ screenshot: name, pageWidth: data.pageWidth, viewportWidth: width, overflowing: data.overflowing });
   // Account management is a dialog over Settings.
   assert.equal(data.currentView, view === 'accounts' ? 'settings' : view); assert.equal(data.visibleViewCount, view === 'accounts' ? 2 : 1); assert.equal(data.fontStatus, 'loaded'); assert.match(data.bodyFont, /DM Sans/); assert.equal(data.uiFontLoaded, true); if (data.numberFont) { assert.match(data.numberFont, /DM Sans/); assert.match(data.numberVariant, /tabular-nums/); assert.equal(data.numberFontLoaded, true); assert.ok(data.numberDigitWidths[0] > 0); if (Math.max(...data.numberDigitWidths) - Math.min(...data.numberDigitWidths) >= 0.1) evidence.violations.push({ screenshot: name, digitWidths: data.numberDigitWidths, message: 'Actual native DM Sans digits must have equal width.' }); }
-  if (data.lifetimeExact !== null) assert.equal(data.lifetimeText.replaceAll(',', ''), data.lifetimeExact, 'The panel shows the exact lifetime count.');
+  if (data.lifetimeExact !== null) assert.equal(data.lifetimeText.replaceAll(',', ''), data.lifetimeExact, 'The card shows the exact lifetime count.');
   await scale(1);
 }
-const panel = '[data-detail-panel][open]';
+const card = '[data-overview-quota]';
 async function overviewSet(profile) {
   await driver.openAccount(profile.id);
   await waitFor(async () => driver.execute('const node=document.querySelector("[data-overview]");return node?.getAttribute("data-overview-profile")===arguments[0]&&node.getAttribute("aria-busy")==="false";', [profile.id]), 'selected profile overview loaded');
@@ -159,22 +159,24 @@ async function key(value) {
 async function overviewCaptures(profile, kind) {
   await overviewSet(profile);
   if (kind === 'activity') {
-    assert.equal(await driver.execute('return document.querySelector(arguments[0]).getAttribute("data-exact-value");', [`${panel} [data-overview-lifetime]`]), '9007199254740993');
-    assert.equal(await driver.execute('return document.querySelector(arguments[0])?.textContent;', [`${panel} [data-overview-lifetime] bdi`]), '9,007,199,254,740,993', 'The panel shows the exact lifetime count.');
-    // Keyboard: Escape closes the panel and returns focus; Enter on the row opens it again.
-    await driver.closeDetail();
+    assert.equal(await driver.execute('return document.querySelector(arguments[0]).getAttribute("data-exact-value");', [`${card} [data-overview-lifetime]`]), '9007199254740993');
+    assert.equal(await driver.execute('return document.querySelector(arguments[0])?.textContent;', [`${card} [data-overview-lifetime] bdi`]), '9,007,199,254,740,993', 'The card shows the exact lifetime count.');
+    // Keyboard: Enter on the row selects the account; Enter on a number opens its detail, and Escape returns focus.
     await driver.execute('document.querySelector(arguments[0]).focus();return true;', [`[data-overview-account="${profile.id}"] .overview-account-link`]);
     await key('\uE007');
-    await waitFor(() => driver.execute('return Boolean(document.querySelector(arguments[0]));', [`${panel} [data-overview-lifetime]`]), 'keyboard opens the account panel');
+    await waitFor(() => driver.execute('return Boolean(document.querySelector(arguments[0]));', [`[data-overview-account-card="${profile.id}"]`]), 'keyboard selects the account card');
+    await driver.execute('document.querySelector(arguments[0]).focus();return true;', [`${card} [data-overview-stat="lifetime"]`]);
+    await key('\uE007');
+    await waitFor(() => driver.execute('return document.querySelector("[data-detail-panel][open]")?.textContent.includes("9,007,199,254,740,993");'), 'keyboard opens the exact lifetime count');
     await key('\uE00C');
-    await waitFor(() => driver.execute('return !document.querySelector(arguments[0])&&document.activeElement===document.querySelector(arguments[1]);', [panel, `[data-overview-account="${profile.id}"] .overview-account-link`]), 'Escape closes the account panel and returns focus');
+    await waitFor(() => driver.execute('return !document.querySelector("[data-detail-panel][open]")&&document.activeElement===document.querySelector(arguments[0]);', [`${card} [data-overview-stat="lifetime"]`]), 'Escape closes the detail and returns focus');
   }
-  else assert.deepEqual(await driver.execute('return [...document.querySelectorAll(arguments[0])].map(node=>node.getAttribute("aria-valuenow")).slice(0,2);', [`${panel} [data-overview-window] [role=meter]`]), ['75', '0']);
+  else assert.deepEqual(await driver.execute('return [...document.querySelectorAll(arguments[0])].map(node=>node.getAttribute("aria-valuenow")).slice(0,2);', [`${card} [data-overview-window] [role=meter]`]), ['75', '0']);
   const open = () => driver.openAccount(profile.id);
   for (const theme of ['light', 'dark']) {
     await capture(`overview-${kind}-${theme}-desktop.png`, 'overview', theme);
     await capture(`overview-${kind}-${theme}-360.png`, 'overview', theme, 360);
-    await capture(`overview-${kind}-${theme}-panel-text200-360.png`, 'overview', theme, 360, 2, `${panel} [data-overview-quota]`, open);
+    await capture(`overview-${kind}-${theme}-card-text200-360.png`, 'overview', theme, 360, 2, card, open);
   }
 }
 

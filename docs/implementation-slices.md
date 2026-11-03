@@ -69,7 +69,9 @@ Renderer tests, native journeys, and the local commit therefore need approval to
 | S-01 | Simple screens | | Done, with one exception in [status](implementation-status.md#partial) |
 | S-02 | Native journeys | S-01 | Done, with two recorded reasons in [status](implementation-status.md#failing-or-stale-tests) |
 | S-03 | CI | S-02 | Done; the hosted run waits for the owner's push |
-| S-04 | Reading status and evidence | S-03 | Not started |
+| S-03b | Rich dashboard | S-03 | Done |
+| S-03c | Keychain by default | S-03b | Not started |
+| S-04 | Reading status and evidence | S-03b | Not started |
 | S-05 | Adapter layer | S-04 | Not started |
 | G-1 | Owner: real-account test on Codex | S-05 | Not started |
 | S-06 | Tray and background | S-05 | Not started |
@@ -133,6 +135,22 @@ Later slices need a gate that nobody can forget.
 - **Requirements:** OU-ENG-002 to OU-ENG-004. OU-NFR-012 for Linux; S-15 adds Windows and macOS.
 - **Build:** Add workflows under `.github/workflows/` that run the same commands as `scripts/engineering.py`.
 - **Stop:** The commands pass locally. The hosted run is recorded as not run, because only the owner pushes.
+
+### S-03b Rich dashboard
+
+On November 3, 2026 the owner tested the S-01 build and said its UI was much worse than the approved reference dashboard. This slice restores that hierarchy without breaking Section 2.3. The mockups are in the owner's private canvas, artboards A and C.
+
+- **Requirements:** OU-DES-003 to OU-DES-008, OU-UI-001 to OU-UI-006. See SC-013.
+- **Build:** A left sidebar holds the brand, the three pages, a local-storage note and the version. Overview's top row holds the selected account's card, with its quota windows and stat tiles in place, then account share, then token activity with its peak, lowest and active days. Below it, the accounts table shows Status, Plan, Quota left, Last updated and one action per row. Choosing a row selects that account's card. Each number still opens the detail panel. The summary cards go, because the account card and the table show the same facts.
+- **Stop:** The renderer suite passes in both engines, the affected native journeys pass, and screens are checked by eye in light, dark, 720 and 360 pixels with populated and empty data.
+
+### S-03c Keychain by default
+
+The owner asked to replace the app password with OAuth. OAuth cannot protect the local encryption key, so this slice removes the password the right way. See SC-014.
+
+- **Requirements:** OU-CRYPT, OU-SEC as they apply to key protection.
+- **Build:** New workspaces use the system keychain without a prompt, as today. Settings gains one action that moves a password-protected workspace's key into the keychain. The app password stays only as the fallback when no keychain exists.
+- **Stop:** Rust tests cover the move, failure keeps the old protection, and a native journey moves a synthetic workspace.
 
 ### S-04 Reading status and evidence
 

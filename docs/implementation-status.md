@@ -20,18 +20,18 @@ The app runs on Linux only. Results below use synthetic data unless they say oth
 | Alerts | Threshold, reset, failure, and sign-in alerts, with quiet hours and history |
 | Subscriptions | User-entered records |
 | Data safety | CSV and JSON export, application export, encrypted backup, restore, checkpoints, and local deletion |
-| Interface | Overview, Usage, and Settings in light and dark themes |
+| Interface | A sidebar with Overview, Usage, and Settings in light and dark themes. Overview follows the approved reference dashboard. |
 
 Verified combined totals stay unavailable, because no approved identity contract exists.
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Last full results, from November 3, 2026, after S-02, on Linux with synthetic data:
+Last full results, from November 4, 2026, after S-03b, on Linux with synthetic data:
 
-- 46 of 48 native journeys passed on a private display. [Failing tests](#failing-or-stale-tests) names the other two.
+- 46 of 48 native journeys passed on a private display. [Failing tests](#failing-or-stale-tests) names the other two. `quota-read` failed once at a reset-confirmation read and passed when rerun alone.
 - All 422 renderer cases passed: 211 each in Chromium and WebKit.
 - 55 contract checks, 30 tool tests and the dependency policy passed.
-- 389 Rust tests passed, with one intentional child test ignored. Rust format, Clippy and the native verifier crate's tests passed.
+- On November 3, 389 Rust tests passed, with one intentional child test ignored, and Rust format, Clippy and the native verifier crate's tests passed. S-03b changed no Rust.
 
 ## Not built
 
@@ -90,6 +90,6 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 
 ## Current assignment
 
-S-03 is done. S-04 is next. [Implementation slices](implementation-slices.md) hold the order.
+S-03b is done. S-03c, the keychain by default, is next. [Implementation slices](implementation-slices.md) hold the order.
 
 The exact working checkpoint, if one exists, is in the local `.recovery/active-checkpoint.json`.

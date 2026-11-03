@@ -1,4 +1,5 @@
-/* Overview reads top-down: summary, accounts, then token activity. An account's detail opens in the side panel.
+/* Overview reads top-down: the summary, the selected account beside account share, token activity, then every account.
+   Each number opens the detail panel.
    All metric geometry is supplied by Rust. */
 .overview-dashboard { position: relative; display: grid; gap: .875rem; min-width: 0; container-type: inline-size; margin-block: 0; }
 .overview-loading { margin: 0; }
@@ -31,14 +32,40 @@
 /* Panels */
 .overview-panel { flex: 1 1 0; min-width: 0; padding: 1rem 1.125rem; border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--surface); box-shadow: var(--elevation-panel); }
 .overview-share-panel { display: flex; flex-direction: column; flex: .86 1 0; }
-.overview-activity { display: grid; gap: .75rem; min-width: 0; }
-.overview-activity[data-share] { grid-template-columns: minmax(0, 1fr) 20rem; }
 .overview-activity-panel { min-width: 0; }
 .overview-panel-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: nowrap; gap: .5rem; margin-bottom: .75rem; }
 .overview-panel h2 { margin: 0; font-size: 1rem; line-height: 1.4; font-weight: 600; letter-spacing: -.012em; }
 .overview-panel-heading [data-slot='select-trigger'] { flex-shrink: 0; min-height: 2rem; height: auto; font-size: .75rem; padding-inline: .5rem; border-radius: .5rem; }
 
-/* Account detail */
+/* Selected account */
+.overview-top { display: grid; grid-template-columns: minmax(0, 1fr); gap: .875rem; align-items: stretch; min-width: 0; }
+.overview-top[data-share] { grid-template-columns: minmax(0, 1.55fr) minmax(16rem, 1fr); }
+.overview-account-card { display: grid; align-content: start; gap: 1rem; container-type: inline-size; }
+.overview-account-head { display: flex; flex-wrap: wrap; align-items: center; gap: .625rem .75rem; }
+.overview-account-name { flex: 1 1 9rem; min-width: 0; }
+.overview-account-name h2 { margin: 0; font-size: 1.125rem; line-height: 1.35; font-weight: 600; letter-spacing: -.015em; overflow-wrap: anywhere; }
+.overview-connection { display: inline-flex; align-items: center; gap: .4375rem; color: var(--muted); font-size: .8125rem; font-weight: 500; white-space: nowrap; }
+.overview-connection[data-connection='connected'] { color: var(--accent); }
+.overview-connection[data-connection='unauthorized'], .overview-connection[data-connection='error'] { color: var(--warning); }
+.overview-account-card .overview-quota-block { grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); }
+.overview-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr)); gap: .5rem; }
+.overview-stat { display: flex; flex-direction: column; align-items: flex-start; gap: .1875rem; min-width: 0; padding: .6875rem .8125rem; border: 1px solid var(--line); border-radius: var(--radius-inset); background: var(--surface); color: var(--text-strong); font: inherit; text-align: start; cursor: pointer; }
+.overview-stat:hover { background: var(--hover); transition: background-color var(--ease-ui); }
+.overview-stat:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.overview-stat-name { color: var(--muted); font-size: .8125rem; font-weight: 500; }
+.overview-stat-value { max-width: 100%; font-size: 1.25rem; font-weight: 600; line-height: 1.3; letter-spacing: -.015em; overflow-wrap: anywhere; }
+.overview-reading-details { justify-self: start; }
+.overview-activity-stats { margin-top: .25rem; padding-top: .875rem; border-top: 1px solid var(--line); gap: 0; }
+.overview-activity-stats .overview-stat { padding: .25rem .875rem; border: 0; border-radius: var(--radius-control); background: transparent; }
+.overview-activity-stats .overview-stat + .overview-stat { border-left: 1px solid var(--line); border-radius: 0; }
+.overview-activity-stats .overview-stat-value { font-size: 1.0625rem; }
+.overview-share-panel > .detail-link { align-self: flex-start; color: var(--muted); font-size: .8125rem; }
+.overview-share-legend bdi { flex: 1; }
+.overview-share-tokens { min-width: 4.5rem; color: var(--muted); text-align: end; }
+.overview-share-compare { display: grid; justify-items: center; align-content: center; gap: 1rem; flex: 1; padding-block: .5rem 1rem; }
+.overview-share-compare .overview-donut-plot { width: 168px; height: 168px; }
+
+/* Avatars */
 .overview-account-detail { display: grid; gap: 1.125rem; }
 .overview-avatar { display: inline-flex; align-items: center; justify-content: center; width: 2.75rem; height: 2.75rem; flex: 0 0 auto; border-radius: 50%; background: var(--avatar-bg, var(--selected)); color: var(--avatar-fg, var(--text-strong)); font-size: 1.0625rem; font-weight: 600; }
 .overview-avatar[data-tint='0'] { --avatar-bg: #e2ecfb; --avatar-fg: #1d4f91; }
@@ -111,7 +138,7 @@
 
 @container (max-width: 880px) {
   .overview-glance { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .overview-activity[data-share] { grid-template-columns: minmax(0, 1fr); }
+  .overview-top[data-share] { grid-template-columns: minmax(0, 1fr); }
 }
 @container (max-width: 620px) {
   .overview-glance { grid-template-columns: 1fr; }
@@ -127,8 +154,8 @@
   .overview-accounts tbody th, .overview-accounts tbody td { padding: 0; }
   .overview-accounts tbody th { grid-column: 1; grid-row: 1; }
   .overview-accounts tbody td:last-child { grid-column: 2; grid-row: 1; }
-  .overview-accounts tbody td[data-overview-account-quota] { grid-column: 1 / -1; }
-  .overview-accounts td[data-window]::before { content: attr(data-window); display: block; margin-bottom: .125rem; color: var(--muted); font-size: .75rem; }
+  .overview-accounts tbody td[data-label] { grid-column: 1 / -1; }
+  .overview-accounts td[data-label]::before { content: attr(data-label); display: block; margin-bottom: .125rem; color: var(--muted); font-size: .75rem; }
   .overview-table-quota { max-width: none; }
 }
 

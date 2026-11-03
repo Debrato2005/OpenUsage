@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import type { ProfileRecord, SavedProfileActivity, SavedProfileQuota, SavedProfileHeatmap } from '../../apps/desktop/src/contracts';
-import { closeDetail, navigate, openOptions, openReadings } from './navigation';
+import { closeDetail, navigate, openOptions, openReadingDetails, openReadings } from './navigation';
 
 // Synthetic renderer fixtures. Native provider processes and encrypted storage are separate acceptance checks.
 const first = '11111111-1111-4111-8111-111111111111';
@@ -254,20 +254,27 @@ for (const scale of [1, 2]) test(`Overview account detail shows exact values by 
   await link.focus();
   expect(await link.evaluate(node => getComputedStyle(node).outlineStyle !== 'none')).toBe(true);
   await page.keyboard.press('Enter');
-  const detail = page.locator('[data-detail-panel][open]');
-  await expect(detail.locator('[data-overview-quota]')).toBeVisible();
+  // Enter selects the account; its card shows the exact numbers, and each number opens its detail.
+  const card = page.locator(`[data-overview-account-card="${second}"]`);
+  await expect(card).toBeVisible();
   if (scale === 2) await page.evaluate(() => {
     const sizes = [...document.querySelectorAll<HTMLElement>('body *')].map(node => ({ node, size: getComputedStyle(node).fontSize }));
     for (const { node, size } of sizes) node.style.fontSize = `${parseFloat(size) * 2}px`;
   });
-  await expect(detail.locator('[data-overview-lifetime]')).toHaveText(exactLarge);
-  await expect(detail).toContainText(`Peak daily tokens${exactLarge}`);
-  await expect(detail).toContainText('Activity coverageUnknown');
+  await expect(card.locator('[data-overview-lifetime]')).toHaveText(exactLarge);
+  await expect(card).toContainText(`Peak daily tokens${exactLarge}`);
   expect(await page.evaluate(() => document.scrollingElement!.scrollWidth <= innerWidth + 1)).toBe(true);
+  expect(await card.evaluate(node => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
+  const tile = card.locator('[data-overview-stat="lifetime"]');
+  await tile.focus();
+  await page.keyboard.press('Enter');
+  const detail = page.locator('[data-detail-panel][open]');
+  await expect(detail).toContainText(`Exact value${exactLarge}`);
+  await expect(detail).toContainText('Activity coverageUnknown');
   expect(await detail.evaluate(node => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
   await page.keyboard.press('Escape');
   await expect(detail).toHaveCount(0);
-  await expect(link).toBeFocused();
+  await expect(tile).toBeFocused();
 });
 
 test('renderer Overview remains accessible in both themes at 360 pixels and enlarged text', async ({ page }) => {
@@ -356,10 +363,12 @@ test('Overview shows saved quota and freshness for all ten accounts without sele
     await expect(row.locator('[data-overview-account-quota] [role=meter]')).toHaveAttribute('aria-label', /remaining \(derived\)/);
     await expect(row).not.toContainText('Freshness unknown');
   }
-  await expect(dashboard(page).locator('.overview-accounts thead')).toContainText('Five-hour');
+  await expect(dashboard(page).locator('.overview-accounts thead')).toContainText('Quota left');
+  await expect(accountRow(page, second).locator('[data-overview-account-quota]')).toHaveAttribute('data-window', /\S/);
   await expect(dashboard(page).locator('.overview-fixture-label')).toHaveText('Synthetic test data');
   await choose(page, 'Large fixture');
-  await expect(dashboard(page).locator(`[data-overview-quota] time[datetime="${observedAtUtc}"]`)).toBeVisible();
+  await expect((await openReadingDetails(page)).locator(`time[datetime="${observedAtUtc}"]`)).toBeVisible();
+  await closeDetail(page);
   expect(await page.evaluate(() => (window as unknown as FixtureWindow).overviewFixture.calls.some(command => /^(begin_|complete_|check_profile|inspect_provider|approve_provider)/.test(command)))).toBe(false);
 });
 
@@ -388,7 +397,8 @@ test('a successful missing-cache result clears the prior row instead of showing 
   await navigate(page, 'overview');
   await expect(accountRow(page, second).locator('[data-overview-account-quota]')).toHaveText('Not available');
   await choose(page, 'Large fixture');
-  await expect(dashboard(page).locator('[data-overview-quota]')).toContainText('ObservedNot available');
+  await expect(await openReadingDetails(page)).toContainText('ObservedNot available');
+  await closeDetail(page);
   await expect(dashboard(page).locator('[data-overview-quota]').getByRole('meter')).toHaveCount(0);
   await expect(accountRow(page, first).locator('[data-overview-account-quota]')).toContainText('0% left');
 });
@@ -507,7 +517,7 @@ test('View usage returns to its account after choosing another account in Usage'
 });
 
 
-test('top navigation keeps all three pages reachable without reserving a sidebar', async ({ page }) => {
+test('the sidebar keeps all three pages reachable, and narrow windows switch to a top bar', async ({ page }) => {
   await open(page);
   const navigation = page.getByRole('navigation', { name: 'Main', exact: true });
   await expect(navigation.getByRole('link')).toHaveText(['Overview', 'Usage', 'Settings']);
@@ -517,14 +527,21 @@ test('top navigation keeps all three pages reachable without reserving a sidebar
       const header = document.querySelector('.workspace-header')!.getBoundingClientRect();
       const main = document.querySelector('main')!.getBoundingClientRect();
       const links = [...document.querySelectorAll('[data-workspace-nav]')].map(node => node.getBoundingClientRect());
-      return { headerBottom: header.bottom, mainTop: main.top, mainLeft: main.left, mainWidth: main.width, viewport: innerWidth,
+      return { headerBottom: header.bottom, headerRight: header.right, mainTop: main.top, mainLeft: main.left, mainWidth: main.width, viewport: innerWidth,
         navTops: links.map(rect => Math.round(rect.top)), targets: links.map(rect => ({ width: rect.width, height: rect.height })),
         overflow: document.scrollingElement!.scrollWidth > innerWidth + 1 };
     });
-    expect(layout.mainTop).toBeGreaterThanOrEqual(layout.headerBottom);
-    expect(layout.mainLeft).toBe(0);
-    expect(layout.mainWidth).toBe(layout.viewport);
-    expect(new Set(layout.navTops).size).toBe(1);
+    if (width > 760) {
+      // Wide windows: the sidebar sits beside the page, with one link per row.
+      expect(layout.mainLeft).toBeGreaterThanOrEqual(layout.headerRight);
+      expect(layout.mainLeft + layout.mainWidth).toBeLessThanOrEqual(layout.viewport + 1);
+      expect(new Set(layout.navTops).size).toBe(3);
+    } else {
+      expect(layout.mainTop).toBeGreaterThanOrEqual(layout.headerBottom);
+      expect(layout.mainLeft).toBe(0);
+      expect(layout.mainWidth).toBe(layout.viewport);
+      expect(new Set(layout.navTops).size).toBe(1);
+    }
     expect(layout.targets.every(rect => rect.width >= 44 && rect.height >= 44)).toBe(true);
     expect(layout.overflow).toBe(false);
     await navigation.getByRole('link', { name: 'Settings', exact: true }).focus();
@@ -557,7 +574,8 @@ test('saved India time zone updates timestamps without moving activity dates', a
   await page.getByRole('option', { name: 'India · Kolkata (UTC+05:30)', exact: true }).click();
   await navigate(page, 'overview');
   await choose(page, 'Zero fixture');
-  await expect(dashboard(page).locator('[data-overview-quota] time').first()).toContainText('05:30');
+  await expect((await openReadingDetails(page)).locator('time').first()).toContainText('05:30');
+  await closeDetail(page);
   const counts = await page.locator('[data-heatmap-cell]').evaluateAll(nodes => nodes.map(n => [n.getAttribute('data-start-date'), n.getAttribute('data-exact-value')]));
   await page.reload();
   await expect(page.locator('[data-heatmap-cell]')).toHaveCount(counts.length);
@@ -567,7 +585,8 @@ test('saved India time zone updates timestamps without moving activity dates', a
   await page.getByRole('option', { name: 'New York', exact: true }).click();
   await navigate(page, 'overview');
   await choose(page, 'Zero fixture');
-  await expect(dashboard(page).locator('[data-overview-quota] time').first()).toContainText('8:00');
+  await expect((await openReadingDetails(page)).locator('time').first()).toContainText('8:00');
+  await closeDetail(page);
   await navigate(page, 'settings');
   await page.getByRole('button', { name: 'Use system time', exact: true }).click();
   await expect.poll(() => page.evaluate(() => localStorage.getItem('fixture-zone'))).toBe(await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone));

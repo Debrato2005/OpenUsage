@@ -110,21 +110,21 @@ try {
     await waitFor(async () => Boolean(await call('load_profile_quota', { profileId: profile.id })) && Boolean(await call('load_profile_activity', { profileId: profile.id })), 'selected GUI sign-in automatically saves paired fixture readings', 45000);
   }
   await driver.openAccount(profiles[0].id);
-  await waitFor(() => driver.execute('return document.querySelector("[data-detail-panel][open] [data-overview-lifetime]")?.getAttribute("data-exact-value")==="9007199254740993";'), 'selected saved count');
-  await waitFor(() => driver.execute('return [...document.querySelectorAll("[data-detail-panel][open] .detail-rows dt")].find(node=>node.textContent==="Plan")?.nextElementSibling?.textContent==="ChatGPT Plus";'), 'saved provider plan');
+  await waitFor(() => driver.execute('return document.querySelector("[data-overview-quota] [data-overview-lifetime]")?.getAttribute("data-exact-value")==="9007199254740993";'), 'selected saved count');
+  await waitFor(() => driver.execute('return document.querySelector("[data-overview-quota] .overview-account-name .overview-meta")?.textContent==="ChatGPT Plus";'), 'saved provider plan');
   assert.equal(await driver.execute('return document.querySelector("[data-account-panel]").open;'), false);
   assert.equal(await driver.execute('return document.querySelector("[data-account-refresh-message]");'), null, 'Automatic login collection does not add an Overview banner.');
-  assert.deepEqual(await driver.execute('return [...document.querySelectorAll("[data-detail-panel][open] [data-overview-window] [role=meter]")].map(node=>Number(node.getAttribute("aria-valuenow")));'), [75, 60]);
-  assert.deepEqual(await driver.execute('return [...document.querySelectorAll("[data-detail-panel][open] [data-overview-window]")].map(node=>node.getAttribute("data-overview-window"));'), ['Primary window', 'Secondary window']);
+  assert.deepEqual(await driver.execute('return [...document.querySelectorAll("[data-overview-quota] [data-overview-window] [role=meter]")].map(node=>Number(node.getAttribute("aria-valuenow")));'), [75, 60]);
+  assert.deepEqual(await driver.execute('return [...document.querySelectorAll("[data-overview-quota] [data-overview-window]")].map(node=>node.getAttribute("data-overview-window"));'), ['Primary window', 'Secondary window']);
   await driver.closeDetail();
   await visibleHeatmap(profiles[0].id);
   await resize(1586, 992); await capture('overview-reference-light.png');
   assert.equal(await driver.execute('return document.querySelectorAll("[data-overview-combined-usage],[data-overview-day]").length;'), 0, 'The bar chart is replaced without inventing combined totals.');
-  // Summary, accounts and activity each use the full width, one above the other.
-  const [glance, accounts, activityPanel] = evidence.views.at(-1).panels;
+  // Summary, activity and accounts each use the full width, one above the other.
+  const [glance, activityPanel, accounts] = evidence.views.at(-1).panels;
   assert.equal(evidence.views.at(-1).panels.length, 3);
   assert.ok([accounts, activityPanel].every(panel => Math.abs(panel.left - glance.left) < 1 && Math.abs(panel.width - glance.width) < 1));
-  assert.ok(glance.top < accounts.top && accounts.top < activityPanel.top);
+  assert.ok(glance.top < activityPanel.top && activityPanel.top < accounts.top);
   await visibleHeatmap(profiles[0].id);
   const beforeHeatmap = await liveHashes(), providersBeforeHeatmap = await providerHashes(profiles);
   const daily = await heatmap(profiles[0].id);
@@ -204,7 +204,7 @@ try {
   assert.deepEqual(await liveHashes(), beforeHeatmap, 'Calendar and combined-eligibility reads and controls must preserve encrypted database, WAL and key bytes.');
   assert.deepEqual(await providerHashes(profiles), providersBeforeHeatmap, 'History browsing must not make provider requests.');
   evidence.heatmap = { defaultDays: 365, knownDays: 7, missingDays: 358, explicitZeroDays: 1, dailyExactValues: expectedDays, weeklyExactTotals: ['5430000', '6240000'], cumulativeAvailableTotal: '11670000', coverageUnknown: true, keyboardExactValues: true, ranges: [30, 90, 180, 365], accountIsolation: true, individualAccountSelector: true, combinedSelectionControls: true, unverifiedCombinedRefused: true, databaseWalKeyUnchanged: true, noProviderRequests: true };
-  const viewUsage = '[data-detail-panel][open] .overview-account-actions > button:nth-child(2)';
+  const viewUsage = '[data-overview-quota] [data-overview-view-usage]';
   await driver.openAccount(profiles[0].id);
   assert.equal(await driver.execute('return document.querySelector(arguments[0])?.textContent;', [viewUsage]), 'View usage');
   await driver.click(viewUsage);
@@ -256,7 +256,8 @@ try {
   await driver.navigate('overview');
   await driver.setAppearance('dark'); await resize(1280); await capture('overview-laptop-dark.png');
   evidence.darkTheme = await driver.execute('return { background:getComputedStyle(document.documentElement).backgroundColor,header:getComputedStyle(document.querySelector(".workspace-header")).backgroundColor,foreground:getComputedStyle(document.body).color };');
-  assert.deepEqual(evidence.darkTheme, { background: 'rgb(0, 0, 0)', header: 'rgb(0, 0, 0)', foreground: 'rgb(204, 204, 204)' });
+  // The page stays true black; the sidebar uses the raised surface.
+  assert.deepEqual(evidence.darkTheme, { background: 'rgb(0, 0, 0)', header: 'rgb(20, 20, 20)', foreground: 'rgb(204, 204, 204)' });
   const beforeZoom = await driver.execute('return {width:innerWidth,dpr:devicePixelRatio};');
   await driver.navigate('settings');
   await driver.selectVisibleOption('#display-scale', '125%');

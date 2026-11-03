@@ -1,4 +1,4 @@
-import { navigate, openAccount, openReadings, openOptions } from './navigation';
+import { navigate, openAccount, openReadingDetails, openReadings, openOptions } from './navigation';
 import { expect, test, type Page } from '@playwright/test';
 import type { ProfileQuotaSavedRead } from '../../apps/desktop/src/contracts';
 
@@ -320,7 +320,7 @@ test('an existing account refreshes its Connected row and automatically reads af
   await navigate(page, 'overview');
   await expect(page.locator(`[data-overview-account="${profileId}"]`)).not.toContainText('Not connected');
   await openAccount(page, profileId);
-  await expect(page.locator('[data-overview-quota]')).toContainText('ConnectionConnected');
+  await expect(await openReadingDetails(page)).toContainText('ConnectionConnected');
 });
 
 test('renderer shows durable Error for a completed login with unknown identity', async ({ page }) => {

@@ -156,6 +156,7 @@ async function savedGui(profile) {
   await driver.openProfileReadings(profile.id);
   await waitFor(() => driver.execute('const quota=document.querySelector(arguments[0]),activity=document.querySelector(arguments[1]);return Boolean(quota?.getClientRects().length&&activity?.getClientRects().length&&quota.querySelector("[role=meter]")?.getAttribute("aria-valuenow")==="75"&&activity.querySelector("[data-activity-metric=lifetimeTokens]")?.textContent.trim()==="9007199254740993");', [`[data-quota-saved="${profile.id}"]`, `[data-activity-saved="${profile.id}"]`]), 'exact saved quota and activity visible');
 }
+// The table shows each account's lowest window; this fixture reports one Five-hour window.
 async function overviewRows(expectedFreshness) {
   await driver.navigate('overview');
   for (const profile of profiles) {
