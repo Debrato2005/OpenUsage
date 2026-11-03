@@ -1,0 +1,95 @@
+name: CI
+
+# The same commands as scripts/engineering.py, run in full on Linux (OU-ENG-002 to OU-ENG-004).
+# Windows and macOS join in S-15. Native GUI journeys stay a local gate.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    name: Linux checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      # The toolchain recorded in .tools/recovered-toolchain.json, from its official archive.
+      RUST_VERSION: 1.99.1
+      RUST_SHA256: 231fcae47ee950621374725b5fc3b5441d2fbda2955ac45dd7dc816d8876cfe7
+      # package.json engines and .nvmrc. The digest is the official bin/node binary.
+      NODE_VERSION: 22.23.2
+      NODE_BINARY_SHA256: 3517c2df0b2f8cd7f422b4b8450ef81c6889f08eb03e281d6de9079b15e6a327
+      CARGO_TERM_COLOR: never
+    steps:
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6; official ref verified
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6; official ref verified
+        with:
+          python-version: '3.12'
+      - name: Install pinned Rust
+        run: |
+          set -euo pipefail
+          name="rust-$RUST_VERSION-x86_64-unknown-linux-gnu"
+          curl --proto '=https' --tlsv1.2 -fsSLo "$RUNNER_TEMP/$name.tar.xz" "https://static.rust-lang.org/dist/$name.tar.xz"
+          echo "$RUST_SHA256  $RUNNER_TEMP/$name.tar.xz" | sha256sum -c -
+          tar -xJf "$RUNNER_TEMP/$name.tar.xz" -C "$RUNNER_TEMP"
+          "$RUNNER_TEMP/$name/install.sh" --prefix="$RUNNER_TEMP/rust" --disable-ldconfig \
+            --components=rustc,cargo,rust-std-x86_64-unknown-linux-gnu,clippy-preview,rustfmt-preview
+          echo "$RUNNER_TEMP/rust/bin" >> "$GITHUB_PATH"
+      - name: Install pinned Node
+        run: |
+          set -euo pipefail
+          name="node-v$NODE_VERSION-linux-x64"
+          curl --proto '=https' --tlsv1.2 -fsSLo "$RUNNER_TEMP/$name.tar.xz" "https://nodejs.org/dist/v$NODE_VERSION/$name.tar.xz"
+          curl --proto '=https' --tlsv1.2 -fsSLo "$RUNNER_TEMP/SHASUMS256.txt" "https://nodejs.org/dist/v$NODE_VERSION/SHASUMS256.txt"
+          (cd "$RUNNER_TEMP" && grep " $name.tar.xz\$" SHASUMS256.txt | sha256sum -c -)
+          tar -xJf "$RUNNER_TEMP/$name.tar.xz" -C "$RUNNER_TEMP"
+          echo "$NODE_BINARY_SHA256  $RUNNER_TEMP/$name/bin/node" | sha256sum -c -
+          echo "$RUNNER_TEMP/$name/bin" >> "$GITHUB_PATH"
+      - name: Install Linux build libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev libdbus-1-dev build-essential pkg-config perl
+      - name: Report the environment
+        run: python scripts/engineering.py doctor
+      - name: Check dependency policy
+        run: python scripts/dependency-policy.py
+      - name: Check whitespace
+        run: git diff --check HEAD^
+      - name: Test engineering and storage tools
+        run: python -m unittest discover -s tests/tools -p "test_*.py"
+      - name: Install frontend dependencies
+        run: npm ci
+      - name: Test Git safety
+        run: node --test tests/tools/git-safety.test.mjs
+      # TypeScript type check and the bundle that the desktop crate embeds.
+      - name: Build renderer
+        run: npm run build
+      - name: Check IPC contracts
+        run: npm run test:contract
+      - name: Check Rust format
+        run: cargo fmt --all --check
+      - name: Lint Rust
+        run: cargo clippy --locked --workspace --all-targets -- -D warnings
+      # Includes the storage migration tests and the Codex provider-contract tests.
+      - name: Test Rust workspace
+        run: cargo test --locked --workspace
+      - name: Test native oracles
+        run: cargo test --locked --manifest-path tests/native/backup-verifier/Cargo.toml
+      - name: Install renderer browsers
+        run: npx playwright install --with-deps chromium webkit
+      # Both engines, with axe accessibility checks in light and dark themes.
+      - name: Test renderer
+        run: npm run test:renderer
