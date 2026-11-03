@@ -105,12 +105,18 @@ def changed_paths(root, base=None, staged=False):
     return sorted(set(path for path in paths if path))
 
 
+DEPENDENCY_FILES = ('Cargo.toml', 'Cargo.lock', 'package.json', 'package-lock.json', 'tests/native/backup-verifier/Cargo.toml',
+                    'tests/native/backup-verifier/Cargo.lock', 'scripts/dependency-policy.py')
+
+
 def plan(paths, renderer_tests=(), milestone=False):
     commands = [{'id': 'whitespace', 'argv': ['git', 'diff', '--check']}]
     gates = []
     tooling = any(p.startswith(('scripts/', 'tests/tools/')) for p in paths)
     if tooling:
         commands.append({'id': 'python_tools', 'argv': [sys.executable, '-m', 'unittest', 'discover', '-s', 'tests/tools', '-p', 'test_*.py']})
+    if any(p in DEPENDENCY_FILES for p in paths):
+        commands.append({'id': 'dependency_policy', 'argv': [sys.executable, 'scripts/dependency-policy.py']})
     if any(p in ('scripts/git-safety.mjs', 'tests/tools/git-safety.test.mjs') for p in paths):
         commands.append({'id': 'git_safety', 'argv': ['node', '--test', 'tests/tools/git-safety.test.mjs']})
     shared_renderer = any(p in ('package.json', 'package-lock.json', 'playwright.config.ts', 'tsconfig.json') for p in paths)
@@ -132,7 +138,8 @@ def plan(paths, renderer_tests=(), milestone=False):
     workspace = any(p in ('Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml') or p.startswith('.cargo/') for p in paths)
     if packages or workspace:
         scope = ['--workspace'] if milestone or workspace else [arg for p in packages for arg in ('-p', p)]
-        commands += [{'id': 'rust_tests', 'argv': ['cargo', 'test', '--locked', *scope]},
+        commands += [{'id': 'rust_format', 'argv': ['cargo', 'fmt', '--all', '--check']},
+                     {'id': 'rust_tests', 'argv': ['cargo', 'test', '--locked', *scope]},
                      {'id': 'rust_clippy', 'argv': ['cargo', 'clippy', '--locked', *scope, '--all-targets', '--', '-D', 'warnings']}]
         gates.append('Run changed native acceptance journeys against the current build; include security/restore gates for affected boundaries')
     if any(p.startswith('tests/native/backup-verifier/') and p.endswith(('.rs', '.toml', '.lock')) for p in paths):

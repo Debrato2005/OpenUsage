@@ -30,8 +30,8 @@ Last full results, from November 3, 2026, after S-02, on Linux with synthetic da
 
 - 46 of 48 native journeys passed on a private display. [Failing tests](#failing-or-stale-tests) names the other two.
 - All 422 renderer cases passed: 211 each in Chromium and WebKit.
-- 55 contract checks and 27 tool tests passed.
-- Rust in the app did not change, so the 389 Rust tests from November 2 were not rerun. The native verifier crate's tests passed.
+- 55 contract checks, 30 tool tests and the dependency policy passed.
+- 389 Rust tests passed, with one intentional child test ignored. Rust format, Clippy and the native verifier crate's tests passed.
 
 ## Not built
 
@@ -63,10 +63,10 @@ Kept from baseline 2.0:
 
 - Real credential renewal and revocation, and live identity validation, need authorized live accounts.
 - Browser sign-in stays out of the working build until callback isolation is resolved. See SC-005.
-- Hosted CI runs only the storage policy workflow. OU-NFR-012 and OU-ENG-002 to OU-ENG-004 are not met.
 
 ## Not yet run
 
+- The Linux CI workflow has not run on GitHub, because only the owner pushes. Its commands passed locally on November 3, 2026. OU-NFR-012 also needs Windows and macOS, planned for S-15.
 - Windows and macOS have never run. The owner has a real Windows PC and Mac for this.
 - Windows and macOS need their own pinned Codex companion. Only Linux x86_64 is qualified.
 - Sleep and wake, packaging, and release-scale performance are unmeasured.
@@ -90,6 +90,6 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 
 ## Current assignment
 
-S-02 is done. S-03 is next. [Implementation slices](implementation-slices.md) hold the order.
+S-03 is done. S-04 is next. [Implementation slices](implementation-slices.md) hold the order.
 
 The exact working checkpoint, if one exists, is in the local `.recovery/active-checkpoint.json`.

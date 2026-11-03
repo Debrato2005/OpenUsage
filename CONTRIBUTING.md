@@ -111,7 +111,7 @@ The tooling uses the Python standard library:
 python3 -m unittest discover -s tests/tools -p 'test_storage.py'
 ```
 
-The storage-policy workflow runs these tests and a read-only storage check on Linux, Windows and macOS. It performs no native build, artifact upload or remote publication. A workflow definition is not evidence that those platforms have passed; retain the actual results when it runs.
+The `CI` workflow runs the full check set on Linux; see the [engineering workflow](docs/engineering-workflow.md). The storage-policy workflow runs these tests and a read-only storage check on Linux, Windows and macOS. It performs no native build, artifact upload or remote publication. A workflow definition is not evidence that those platforms have passed; retain the actual results when it runs.
 
 ## Native reset-notification checks
 
