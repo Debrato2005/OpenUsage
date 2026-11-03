@@ -18,13 +18,17 @@ The sections below are dated records. Where they describe explanatory text or re
 
 ## Overview and the detail panel
 
-Overview answers one question: what have I used, and what is left? It shows the summary, the accounts, and token activity. Each number appears once.
+Overview answers one question: what have I used, and what is left? Since S-03b it follows the approved reference dashboard (SC-013). Top to bottom: the summary cards; the selected account's card beside account share; token activity with its peak, lowest and active days; then the accounts table. Numbers sit in place with their names, and each one opens the detail panel.
 
 `detail-panel.tsx` holds the one side panel and the one mark. Every number uses them, and new screens reuse them. The panel opens beside the page, so nothing moves. Enter, Space or a click opens it. Escape, the close button or the backdrop closes it, and focus returns to what opened it. It fills a narrow window. Source, time, scope, coverage, derivation, plan and Account Detail belong here. Results of a refresh appear in the panel while it is open.
 
-The accounts table uses one column per window, under the same match rule as Compare. A connected account shows no status. Any other state shows one mark and its one action. A row with a connection problem shows that mark ahead of a freshness mark.
+The account card shows the plan, connection, Refresh or Sign in, View usage, the quota windows with their resets, and six tiles: lifetime and peak tokens as exact counts, both streaks, the longest task and reset credits. Reading details holds source, time, scope, identity and connection. Choosing a table row selects its card and opens no panel.
 
-The share donut appears beside token activity in Profile sum and Verified combined, so it follows the same accounts and dates, and it appears only when it has shares to show. The quota donut is on Usage. Theme and display scale are in Settings. The active page in the header names the view, so the page heading is for screen readers only.
+The accounts table has Account, Status, Plan, Quota left, Last updated and one action. Quota left is the account's lowest window, with its freshness mark. Compare on Usage keeps one column per window.
+
+Account share shows the donut with each account's percent and tokens in Profile sum and Verified combined, so it follows the same accounts and dates. In Individual it shows an empty ring and Compare accounts, which switches to Profile sum as an explicit choice (SC-010). The quota donut is on Usage. Theme and display scale are in Settings.
+
+Wider than 760 pixels, a left sidebar holds the brand, the three pages and the monitoring mark, and each page shows its title. Narrower windows use the top bar.
 
 `DetailProvider` hosts the panel for the whole app. `useOpenDetail` opens it from a control, and `DetailLink` makes a number open it. Compare cells, history snapshots, and heatmap values use it. Below 620 pixels the accounts table stacks each row and keeps its table roles.
 

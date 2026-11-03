@@ -77,9 +77,9 @@ async function connectionGui(profile, state) {
   await driver.navigate('accounts');
   await waitFor(async () => driver.execute('return document.querySelector(arguments[0])?.textContent.trim()===arguments[1];', [`[data-profile-id="${profile.id}"] .profile-connection-state`, accountLabel]), `Accounts shows committed ${state}`);
   await driver.navigate('overview');
-  // A connected row shows no mark; any other state shows one mark with its label.
-  const overviewMark = { connected: null, error: 'Needs attention', authentication_required: 'Not connected' }[state];
-  await waitFor(async () => driver.execute('const row=document.querySelector(arguments[0]);return Boolean(row)&&(row.querySelector("th [data-mark]")?.textContent.trim()??null)===arguments[1];', [`[data-overview-account="${profile.id}"]`, overviewMark]), `Overview shows committed ${state}`);
+  // The Status column names the connection for every account.
+  const overviewStatus = { connected: 'Connected', error: 'Needs attention', authentication_required: 'Not connected' }[state];
+  await waitFor(async () => driver.execute('return document.querySelector(arguments[0])?.textContent.trim()===arguments[1];', [`[data-overview-account="${profile.id}"] [data-overview-account-status]`, overviewStatus]), `Overview shows committed ${state}`);
   await driver.navigate('accounts');
 }
 async function files(home) {

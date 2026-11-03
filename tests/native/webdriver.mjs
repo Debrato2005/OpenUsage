@@ -166,7 +166,8 @@ export class NativeDriver {
   async openAccount(profileId) {
     await this.navigate('overview');
     await this.click(`[data-overview-account="${profileId}"] .overview-account-link`);
-    await waitFor(async () => this.execute('return Boolean(document.querySelector("[data-detail-panel][open] [data-overview-quota]"));'), 'open account detail');
+    // The selected account's card sits above the accounts table.
+    await waitFor(async () => this.execute('return Boolean(document.querySelector(arguments[0]));', [`[data-overview-account-card="${profileId}"]`]), 'selected account card');
   }
 
   async readProfileQuota(profileId) {

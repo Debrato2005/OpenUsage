@@ -18,6 +18,24 @@ This is the record of how requirements were read. Entries keep their original da
 | SC-010 | Selected-profile activity | In force |
 | SC-011 | Baseline 3.0 replaces baseline 2.0 | Adopted |
 | SC-012 | Unknown freshness in summary marks | Unresolved; existing state preserved |
+| SC-013 | Rich dashboard under Section 2.3 | In force; owner may change OU-DES-003 |
+| SC-014 | OAuth in place of the app password | Proposed; owner decision open |
+
+## SC-013: rich dashboard under Section 2.3
+
+Recorded November 3, 2026 against baseline 3.0. Status: in force until the owner changes OU-DES-003.
+
+The owner tested the S-01 build and said its UI was much worse than the approved reference dashboard. That reference shows more numbers in place, a selected-account card, a full accounts table, page subtitles and second lines under some numbers, such as an exact count under a compact one.
+
+OU-DES-005 allows a number with its name, and OU-DES-007 asks each number to open the detail panel. So the reference's density, cards, tiles and table columns meet Section 2.3. Page subtitles and second lines under numbers do not, because OU-DES-003 forbids taglines and secondary labels. S-03b leaves those two out and keeps exact values in the detail panel. If the owner wants them back, OU-DES-003 needs an owner change first.
+
+## SC-014: OAuth in place of the app password
+
+Recorded November 3, 2026 against baseline 3.0. Status: proposed; the owner decides.
+
+The owner asked to replace the local app password with OAuth. The app password does not sign anyone in. It protects the database key when no system keychain is available. OAuth proves an identity to a server, and OpenUsage has none, so it cannot protect a local key. A key derived from expiring OAuth tokens would also lock the owner out. Account sign-in already uses OAuth through Codex.
+
+S-03c removes the password instead: the system keychain holds the key by default, a password-protected workspace can move to the keychain, and the password stays only where no keychain exists.
 
 ## SC-012: unknown freshness in summary marks
 

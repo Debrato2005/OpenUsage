@@ -22,14 +22,21 @@
 @keyframes status-pulse { 70%, 100% { box-shadow: 0 0 0 6px transparent; } }
 .display-scale-control [data-slot='select-trigger'] { min-width: 82px; }
 .workspace > main { max-width: none; padding: 22px 28px 40px; }
-/* The active page in the header names the view; the heading stays for screen readers. */
-.page-heading { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.page-heading h1 { margin: 0; }
+.page-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .75rem; margin-bottom: 1.25rem; }
+.page-heading h1 { margin: 0; font-size: 1.875rem; font-weight: 700; line-height: 1.2; letter-spacing: -.025em; color: var(--text-strong); }
 
+/* Wide windows use a left sidebar, as in the approved reference. Narrow windows keep the top bar. */
+@media (min-width: 761px) {
+  .app-shell:not(.onboarding-shell) { display: grid; grid-template-columns: 15rem minmax(0, 1fr); align-items: start; }
+  .workspace-header { flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 1.75rem; min-height: 100dvh; box-sizing: border-box; padding: 1.5rem .875rem; border-bottom: 0; border-right: 1px solid var(--line); background: var(--surface-2); }
+  .workspace-header .brand { padding-inline: .625rem; }
+  .workspace-nav { flex-direction: column; flex-wrap: nowrap; gap: .25rem; }
+  .workspace-nav a { justify-content: flex-start; gap: .75rem; padding: .625rem .75rem; font-size: .9375rem; }
+  .workspace-appearance { margin: auto 0 0; padding-inline: .375rem; }
+}
 /* Fixed chrome is reserved for windows with room to spare at normal text sizes. */
 @media (min-width: 761px) and (min-height: 600px) {
-  .workspace-header:not([hidden]) { position: sticky; top: 0; z-index: 20; }
-  html { scroll-padding-top: 76px; }
+  .workspace-header:not([hidden]) { position: sticky; top: 0; z-index: 20; height: 100dvh; overflow-y: auto; }
 }
 @media (max-width: 1000px) {
   .workspace-header { padding-inline: 20px; }

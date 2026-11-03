@@ -226,7 +226,7 @@ test('short account lists skip search until it would help', async ({ page }) => 
   await expect(page.getByRole('searchbox', { name: 'Search accounts', exact: true })).toHaveCount(0);
 });
 
-test('choosing a table row opens its detail without hijacking its controls', async ({ page }) => {
+test('choosing a table row selects its account card without hijacking its controls', async ({ page }) => {
   await open(page);
   const overview = page.locator('[data-overview]');
   await expect(overview).toHaveAttribute('data-overview-profile', ids[0]!);
@@ -234,8 +234,8 @@ test('choosing a table row opens its detail without hijacking its controls', asy
   await page.locator(`[data-overview-account="${ids[1]}"] [data-overview-account-quota]`).first().click();
   await expect(overview).toHaveAttribute('data-overview-profile', ids[1]!);
   await expect(page.locator(`[data-overview-account="${ids[1]}"]`)).toHaveAttribute('data-selected', 'true');
-  await expect(detail(page)).toContainText('Bravo');
-  await page.keyboard.press('Escape');
+  await expect(page.locator(`[data-overview-account-card="${ids[1]}"]`)).toContainText('Bravo');
+  await expect(detail(page)).toHaveCount(0);
   await page.locator(`[data-overview-account="${ids[0]}"]`).getByRole('button', { name: 'Manage Alpha', exact: true }).click();
   await expect(page.locator('[data-account-panel]')).toBeVisible();
   await expect(detail(page)).toHaveCount(0);
@@ -246,15 +246,15 @@ test('selected account shows longest task and reset credits, and keeps missing v
   const reading = quota(ids[0]!, windowOf(40, 300, 'Five-hour'), null, { availableResetCredits: '0' });
   await open(page, { profiles: [profile(0)], quotas: { [ids[0]!]: reading }, activity: activity(ids[0]!, { longestRunningTurnSec: '3725' }) });
   await openAccount(page, ids[0]!);
-  await expect(detail(page)).toContainText('Longest task1h 2m');
-  await expect(detail(page)).toContainText('Reset credits0');
+  await expect(page.locator('[data-overview-quota]')).toContainText('Longest task1h 2m');
+  await expect(page.locator('[data-overview-quota]')).toContainText('Reset credits0');
 });
 
 test('a reset credit count that the provider did not report stays unknown', async ({ page }) => {
   await open(page, { profiles: [profile(0)], quotas: { [ids[0]!]: quota(ids[0]!, windowOf(40, 300, 'Five-hour')) }, activity: activity(ids[0]!) });
   await openAccount(page, ids[0]!);
-  await expect(detail(page)).toContainText('Reset creditsNot available');
-  await expect(detail(page)).toContainText('Longest taskNot available');
+  await expect(page.locator('[data-overview-quota]')).toContainText('Reset creditsNot available');
+  await expect(page.locator('[data-overview-quota]')).toContainText('Longest taskNot available');
 });
 
 test('an empty workspace offers one action instead of unavailable tiles', async ({ page }) => {
@@ -279,7 +279,7 @@ test('Settings groups every topic under a section index that moves keyboard focu
   await expect(page.locator('#settings-accounts [data-subscriptions]')).toBeVisible();
 });
 
-test('a control brought into view stays clear of the sticky header', async ({ page }) => {
+test('a control brought into view stays clear of the sticky sidebar', async ({ page }) => {
   await open(page);
   await page.locator('[data-workspace-nav="settings"]').click();
   await page.setViewportSize({ width: 1280, height: 600 });
@@ -288,9 +288,10 @@ test('a control brought into view stays clear of the sticky header', async ({ pa
     window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' });
     control.scrollIntoView({ behavior: 'instant' });
     const bounds = control.getBoundingClientRect();
-    return { top: bounds.top, header: document.querySelector('.workspace-header')!.getBoundingClientRect().bottom, hit: document.elementFromPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2)?.closest('button')?.textContent };
+    return { left: bounds.left, top: bounds.top, header: document.querySelector('.workspace-header')!.getBoundingClientRect().right, hit: document.elementFromPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2)?.closest('button')?.textContent };
   });
-  expect(covered.top).toBeGreaterThanOrEqual(covered.header);
+  expect(covered.left).toBeGreaterThanOrEqual(covered.header);
+  expect(covered.top).toBeGreaterThanOrEqual(-1);
   expect(covered.hit).toBe('Manage accounts');
 });
 

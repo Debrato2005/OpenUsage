@@ -12,7 +12,8 @@ const output = resolve(process.env.OPENUSAGE_NATIVE_EVIDENCE);
 const evidence = { result: 'failed', scope: 'Linux native-test Tauri countdown display with approved synthetic-provider saved readings and a controlled renderer clock. No real account, production-provider or other-platform qualification.' };
 let fixture, driver;
 let sequence = 0;
-const panel = '[data-detail-panel][open]';
+// The selected account's card holds its quota windows.
+const panel = '[data-overview-quota]';
 const india = /GMT\+5:30|GMT\+05:30|IST/;
 async function panelTime() { return driver.execute('return document.querySelector(arguments[0])?.textContent ?? null;', [`${panel} [data-overview-window] time`]); }
 try {

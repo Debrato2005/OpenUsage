@@ -8,11 +8,20 @@ export async function closeDetail(page: Page) {
   }
 }
 
-// Opens the side panel that holds one account's detail.
+// Selects one account; its card above the accounts table holds that account's numbers.
 export async function openAccount(page: Page, profileId: string) {
   await closeDetail(page);
   await page.locator(`[data-overview-account="${profileId}"] .overview-account-link`).click();
-  await expect(page.locator('[data-detail-panel][open] [data-overview-quota]')).toBeVisible();
+  await expect(page.locator(`[data-overview-account-card="${profileId}"]`)).toBeVisible();
+}
+
+// Source, time, connection and identity for the selected account live in its Reading details panel.
+export async function openReadingDetails(page: Page) {
+  await closeDetail(page);
+  await page.locator('[data-overview-reading-details]').click();
+  const panel = page.locator('[data-detail-panel][open]');
+  await expect(panel).toHaveAttribute('aria-label', 'Reading details');
+  return panel;
 }
 
 export async function navigate(page: Page, view: 'overview' | 'accounts' | 'usage' | 'settings') {

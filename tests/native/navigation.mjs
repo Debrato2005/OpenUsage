@@ -53,11 +53,12 @@ async function resize(width) {
   assert.equal(await driver.execute('return innerWidth;'), width);
 }
 async function layout() {
-  const value = await driver.execute('const header=document.querySelector(".workspace-header").getBoundingClientRect(),main=document.querySelector("main").getBoundingClientRect(),links=[...document.querySelectorAll("[data-workspace-nav]")];return {width:innerWidth,headerBottom:header.bottom,mainTop:main.top,mainLeft:main.left,mainWidth:main.width,overflow:document.scrollingElement.scrollWidth>innerWidth+1,links:links.map(node=>{const r=node.getBoundingClientRect();return {name:node.textContent,top:Math.round(r.top),width:r.width,height:r.height};})};');
+  const value = await driver.execute('const header=document.querySelector(".workspace-header").getBoundingClientRect(),main=document.querySelector("main").getBoundingClientRect(),links=[...document.querySelectorAll("[data-workspace-nav]")];return {width:innerWidth,headerBottom:header.bottom,headerRight:header.right,mainTop:main.top,mainLeft:main.left,mainWidth:main.width,overflow:document.scrollingElement.scrollWidth>innerWidth+1,links:links.map(node=>{const r=node.getBoundingClientRect();return {name:node.textContent,top:Math.round(r.top),width:r.width,height:r.height};})};');
   evidence.layouts.push(value);
-  assert.equal(value.mainLeft, 0); assert.equal(value.mainWidth, value.width); assert.ok(value.mainTop >= value.headerBottom);
+  // Wider than 760 pixels the sidebar sits beside the page; narrower windows use a top bar.
+  if (value.width > 760) { assert.ok(value.mainLeft >= value.headerRight - 1); assert.ok(value.mainLeft + value.mainWidth <= value.width + 1); assert.equal(new Set(value.links.map(item => item.top)).size, 3); }
+  else { assert.equal(value.mainLeft, 0); assert.equal(value.mainWidth, value.width); assert.ok(value.mainTop >= value.headerBottom); assert.equal(new Set(value.links.map(item => item.top)).size, 1); }
   assert.equal(value.overflow, false); assert.deepEqual(value.links.map(item => item.name), ['Overview', 'Usage', 'Settings']);
-  assert.equal(new Set(value.links.map(item => item.top)).size, 1);
   assert.ok(value.links.every(item => item.width >= 44 && item.height >= 44));
 }
 async function key(value) {
