@@ -98,7 +98,7 @@ try {
   assert.equal(await driver.execute('return document.activeElement?.dataset.workspaceNav;'), 'usage');
   await key('\uE007');
   await waitFor(() => driver.execute('return document.querySelector("[data-workspace-nav=usage]")?.getAttribute("aria-current")==="page";'), 'keyboard Usage navigation');
-  await driver.selectVisibleOption('#display-scale', '125%');
+  await driver.navigate('settings'); await driver.selectVisibleOption('#display-scale', '125%');
   await waitFor(async () => (await call('get_display_scale')).percent === 125, 'saved native scale');
   await close(); await open();
   assert.deepEqual(await call('list_profiles'), profiles); assert.equal((await call('get_display_scale')).percent, 125);

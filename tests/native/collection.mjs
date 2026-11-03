@@ -45,7 +45,7 @@ async function oracle(label) {
     const report = JSON.parse(execFileSync(verifier, ['database', database, join(workspace, 'database-key.v1'), '--profile-state'], { input: JSON.stringify({ passphrase }), env: fixture.environment, encoding: 'utf8', timeout: 60000, maxBuffer: 16 * 1024 * 1024 }));
     for (const key of ['verified', 'readOnly', 'encryptedPagesAuthenticated', 'originalProtectedKeyUsed', 'inputUnchanged', 'keyEnvelopeUnchanged', 'walRecordsUnchanged']) assert.equal(report[key], true, key);
     // This oracle reports the actual schema; this caller requires exactly schema 8.
-    assert.equal(report.schemaVersion, 8); assert.equal(report.plaintextDiskStaging, false); assert.equal(report.state.monitoring, 'stopped'); assert.equal(Object.keys(report.state.tables).length, 30);
+    assert.equal(report.schemaVersion, 9); assert.equal(report.plaintextDiskStaging, false); assert.equal(report.state.monitoring, 'stopped'); assert.equal(Object.keys(report.state.tables).length, 31);
     assert.deepEqual(await liveHashes(), before);
     evidence.oracles.push({ label, expectedSchemaVersion: 8, schemaExpectationEnforcedByCaller: true, actualSchemaVersion: report.schemaVersion, derivedEncryptedCopy: true, plaintextDiskStaging: false, tableHashes: Object.fromEntries(Object.entries(report.state.tables).map(([name, values]) => [name, { rows: values.length, sha256: createHash('sha256').update(JSON.stringify(values)).digest('hex') }])), verification: { ...report, state: undefined } });
     return report.state;
@@ -53,7 +53,9 @@ async function oracle(label) {
 }
 async function cached(profile) { return { quota: await call('load_profile_quota', { profileId: profile.id }), activity: await call('load_profile_activity', { profileId: profile.id }) }; }
 function metrics(value) { const copy = structuredClone(value); for (const item of Object.values(copy)) if (item) delete item.freshness; return copy; }
-function validatePair(value, profile) { assert.equal(value.quota.profileId, profile.id); assert.equal(value.activity.profileId, profile.id); assert.equal(value.quota.bindingId, value.activity.bindingId); assert.notEqual(value.quota.collectionRunId, value.activity.collectionRunId); assert.equal(value.activity.summary.lifetimeTokens, '9007199254740993'); assert.equal(value.activity.summary.peakDailyTokens, '9223372036854775807'); assert.equal(value.quota.limits[0].primary.usedPercent, 25); for (const item of [value.quota, value.activity]) { assert.equal(item.identityConfidence, 'provisional'); assert.equal(item.verifiedIdentityKey, null); assert.equal(item.sourceKind, 'test_fixture'); assert.equal(item.accepted, true); assert.equal(item.monitoring, 'stopped'); } }
+// The app-wide monitoring summary turns paused once the changed account pauses one profile.
+let expectedMonitoring = 'stopped';
+function validatePair(value, profile, monitoring = expectedMonitoring) { assert.equal(value.quota.profileId, profile.id); assert.equal(value.activity.profileId, profile.id); assert.equal(value.quota.bindingId, value.activity.bindingId); assert.notEqual(value.quota.collectionRunId, value.activity.collectionRunId); assert.equal(value.activity.summary.lifetimeTokens, '9007199254740993'); assert.equal(value.activity.summary.peakDailyTokens, '9223372036854775807'); assert.equal(value.quota.limits[0].primary.usedPercent, 25); for (const item of [value.quota, value.activity]) { assert.equal(item.identityConfidence, 'provisional'); assert.equal(item.verifiedIdentityKey, null); assert.equal(item.sourceKind, 'test_fixture'); assert.equal(item.accepted, true); assert.equal(item.monitoring, monitoring); } }
 function onlyCapabilityChanged(before, after, profile, capability) {
   const allowed = capability === 'activity' ? ['collection_runs', 'activity_summaries', 'current_activity', 'current_activity_days', 'activity_day_history'] : ['collection_runs', 'quota_snapshots', 'quota_limits', 'credit_snapshots', 'current_quota_readings', 'current_quota', 'quota_reset_assessments', 'alert_events'];
   const left = structuredClone(before), right = structuredClone(after);
@@ -74,7 +76,7 @@ async function open(setup = false) {
   await waitFor(async () => driver.execute('const a=document.querySelector("#workspace-passphrase"),b=document.querySelector("#workspace-confirmation");return Boolean(a&&!a.disabled&&(!arguments[0]||b&&!b.disabled));', [setup]), 'native unlock fields');
   await driver.type('#workspace-passphrase', passphrase); if (setup) await driver.type('#workspace-confirmation', passphrase); await driver.click('.unlock-form button[type=submit]');
   await waitFor(async () => (await driver.invoke('bootstrap')).value?.storage === 'ready', 'unlocked schema-8 collection workspace');
-  assert.equal((await call('bootstrap')).schemaVersion, 8);
+  assert.equal((await call('bootstrap')).schemaVersion, 9);
 }
 async function ownedDesktopPid() {
   const queue = [driver.child.pid]; let pid;
@@ -122,8 +124,16 @@ async function approveGui(profile) {
   await waitFor(async () => driver.execute('return Boolean(document.activeElement?.matches(".provider-approval-result"))&&document.querySelector("#provider-executable")?.value===""&&!document.querySelector("#provider-executable-approved");'), 'latest executable approval finishes and focuses its result');
   const probe = await call('check_profile_connection', { profileId: profile.id }); assert.equal(probe.persisted, false); assert.equal(probe.sourceKind, 'test_fixture'); approvalId = probe.approvalId;
 }
-async function begin(profile) { const receipt = await call('begin_profile_collection_read', { profileId: profile.id, approvalId }); assert.equal(receipt.accepted, false); assert.equal(receipt.monitoring, 'stopped'); assert.equal(receipt.sourceKind, 'test_fixture'); active.set(receipt.requestId, profile.id); return receipt; }
-async function readIpc(profile, selectedMode, error) { await mode(profile, selectedMode); const receipt = await begin(profile); const response = await driver.invoke('complete_profile_collection_read', args(receipt)); active.delete(receipt.requestId); if (error) { assert.deepEqual(response, { ok: false, error }); return; } assert.equal(response.ok, true, JSON.stringify(response)); const value = response.value; assert.equal(value.profileId, profile.id); assert.equal(value.requestId, receipt.requestId); assert.equal(value.approvalId, approvalId); assert.equal(value.monitoring, 'stopped'); assert.equal(value.identityConfidence, 'provisional'); assert.equal(value.verifiedIdentityKey, null); assert.equal(value.accepted, Boolean(value.quota || value.activity)); if (value.quota && value.activity) { assert.equal(value.quota.bindingId, value.activity.bindingId); assert.notEqual(value.quota.collectionRunId, value.activity.collectionRunId); } return value; }
+async function begin(profile) { const receipt = await call('begin_profile_collection_read', { profileId: profile.id, approvalId }); assert.equal(receipt.accepted, false); assert.equal(receipt.monitoring, expectedMonitoring); assert.equal(receipt.sourceKind, 'test_fixture'); active.set(receipt.requestId, profile.id); return receipt; }
+async function readIpc(profile, selectedMode, error) { await mode(profile, selectedMode); const receipt = await begin(profile); const response = await driver.invoke('complete_profile_collection_read', args(receipt)); active.delete(receipt.requestId); if (error) { assert.deepEqual(response, { ok: false, error }); return; } assert.equal(response.ok, true, JSON.stringify(response)); const value = response.value; assert.equal(value.profileId, profile.id); assert.equal(value.requestId, receipt.requestId); assert.equal(value.approvalId, approvalId); assert.equal(value.monitoring, expectedMonitoring); assert.equal(value.identityConfidence, 'provisional'); assert.equal(value.verifiedIdentityKey, null); assert.equal(value.accepted, Boolean(value.quota || value.activity)); if (value.quota && value.activity) { assert.equal(value.quota.bindingId, value.activity.bindingId); assert.notEqual(value.quota.collectionRunId, value.activity.collectionRunId); } return value; }
+// Only a completed sign-in connects an account, and the GUI offers Refresh readings only to connected accounts.
+async function signIn(profile) {
+  await writeFile(join(home(profile), 'synthetic-collection-config.json'), JSON.stringify({ mode: 'success', requireLogin: true }) + '\n', { mode: 0o600 });
+  await driver.openProfileReadings(profile.id); await driver.click(`[data-login-start="${profile.id}"]`);
+  await waitFor(async () => (await call('list_profiles')).profiles.find(row => row.id === profile.id)?.connectionState === 'connected', 'synthetic sign-in connects the account', 45000);
+  await waitFor(async () => { const value = await cached(profile); return Boolean(value.quota && value.activity); }, 'automatic readings after sign-in', 45000);
+  await driver.waitForProfileRefresh(profile.id);
+}
 async function guiStart(profile, selectedMode) { await mode(profile, selectedMode); await driver.openProfileReadings(profile.id); await waitFor(async () => driver.execute('const node=document.querySelector(arguments[0]);return Boolean(node&&!node.disabled);', [readSelector(profile)]), 'enabled real Refresh readings button'); const offset = (await rows(profile)).length; await driver.click(readSelector(profile)); return offset; }
 async function guiResult(profile, pattern) { await waitFor(async () => driver.execute('const node=document.querySelector(arguments[0]);return Boolean(node&&node.getClientRects().length&&document.activeElement===node&&!document.querySelector(arguments[1]));', [resultSelector(profile), cancelSelector(profile)]), 'focused combined result'); const text = await driver.execute('return document.querySelector(arguments[0]).textContent;', [resultSelector(profile)]); assert.match(text, pattern); return text; }
 async function capture(name, selector, width = 1280) { for (let attempt = 0; attempt < 3; attempt++) { const size = await driver.execute('return {width:innerWidth,height:innerHeight};'); if (size.width === width && size.height === 850) break; const rect = await driver.request('GET', `/session/${driver.session}/window/rect`); await driver.request('POST', `/session/${driver.session}/window/rect`, { width: rect.width + width - size.width, height: rect.height + 850 - size.height }); } if (selector) await driver.execute('document.querySelector(arguments[0])?.scrollIntoView({block:"center"});return true;', [selector]); await driver.screenshot(join(output, name)); evidence.screenshots.push(name); }
@@ -139,12 +149,12 @@ try {
   executable = join(fixture.root, 'synthetic-collection-provider.py'); await copyFile(join(repository, coreFixture), executable); await chmod(executable, 0o700); assert.equal(await hash(executable), fixtureDigest);
   await open(true);
   const first = await create('Synthetic combined primary'), malformedQuota = await create('Synthetic malformed quota'), malformedActivity = await create('Synthetic malformed activity'), quotaUnsupported = await create('Synthetic unsupported quota'), activityUnsupported = await create('Synthetic unsupported activity'), bothUnsupported = await create('Synthetic unsupported both'), freshUnsupported = await create('Synthetic unavailable fresh'), reassociation = await create('Synthetic account review');
-  evidence.profiles = profiles; await approveGui(first);
+  evidence.profiles = profiles; await approveGui(first); await signIn(first);
   const offset = await guiStart(first, 'success'); await guiResult(first, /Quota and activity readings saved/);
   let initial = await cached(first); validatePair(initial, first);
   const firstRows = (await rows(first)).slice(offset), methods = firstRows.filter(row => row.kind === 'request').map(row => row.request.method);
   assert.deepEqual(methods, ['initialize', 'initialized', 'account/read', 'account/rateLimits/read', 'account/usage/read', 'account/read']); assert.equal(firstRows.filter(row => row.kind === 'start' && row.arguments[0] === 'app-server').length, 1);
-  await driver.navigate('overview'); await driver.selectVisibleOption('#overview-profile', first.label);
+  await driver.openAccount(first.id);
   await waitFor(async () => driver.execute('return document.querySelector("[data-overview-lifetime]")?.getAttribute("data-exact-value")==="9007199254740993";'), 'GUI Overview loads exact accepted activity');
   await capture('collection-both-saved-light.png', '[data-overview]');
   await driver.setAppearance('dark'); await capture('collection-both-saved-dark-360.png', '[data-overview]', 360);
@@ -171,7 +181,7 @@ try {
   assert.deepEqual(await oracle('cancel preserves both current values and complete history'), beforeCancel);
   for (const [profile, selectedMode] of [[malformedQuota, 'quota_invalid'], [malformedActivity, 'activity_invalid']]) { const before = await oracle(`before ${selectedMode}`); await readIpc(profile, selectedMode, 'provider_protocol_failed'); assert.deepEqual(await oracle(`${selectedMode} rejects the entire collection`), before); }
   for (const profile of [bothUnsupported, freshUnsupported]) { const before = await oracle(`before both unsupported ${profile.label}`), previousView = await cached(profile); const value = await readIpc(profile, 'both_unsupported'); assert.equal(value.accepted, false); assert.equal(value.quota, null); assert.equal(value.activity, null); assert.deepEqual(await oracle('both unsupported means no transaction or new binding'), before); assert.deepEqual(await cached(profile), previousView, 'Both unsupported capabilities preserve the complete cached view, including restart-unknown freshness.'); }
-  const beforeReview = await oracle('before changed account review'); const previousBinding = (await cached(reassociation)).quota.bindingId;
+  await signIn(reassociation); const beforeReview = await oracle('before changed account review'); const previousBinding = (await cached(reassociation)).quota.bindingId;
   await guiStart(reassociation, 'stable_changed_identity'); await guiResult(reassociation, /no longer matches/); assert.deepEqual(await oracle('new account cannot replace either capability without consent'), beforeReview);
   await driver.waitForProfileRefresh(reassociation.id);
   await waitFor(async () => driver.execute('return !document.querySelector(arguments[0])?.disabled;', [`[data-collection-reassociate="${reassociation.id}"]`]), 'enabled current-sign-in review');
@@ -181,6 +191,8 @@ try {
   assert.equal(await driver.execute('return document.querySelector(arguments[0]).querySelector("button[type=submit]").disabled;', [form]), true);
   assert.match(await driver.execute('return document.querySelector(arguments[0]).textContent;', [form]), /synthetic-collection@example.invalid/); assert.match(await driver.execute('return document.querySelector(arguments[0]).textContent;', [form]), /changed@example.invalid/);
   await capture('collection-current-sign-in-explicit-review.png', form, 360); await driver.click(consent); await driver.click(`${form} button[type=submit]`); await guiResult(reassociation, /Quota and activity readings saved/);
+  // The changed account paused monitoring for this profile before the review, so the new pair records it.
+  expectedMonitoring = 'paused';
   const reassociated = await cached(reassociation); validatePair(reassociated, reassociation); assert.notEqual(reassociated.quota.bindingId, previousBinding);
   const afterReview = await oracle('explicit reassociation commits both under one new binding');
   for (const name of ['profile_identity_events', 'collection_runs', 'activity_summaries', 'activity_day_history', 'quota_snapshots', 'quota_limits', 'credit_snapshots', 'quota_reset_assessments', 'alert_events']) for (const row of beforeReview.tables[name]) assert.ok(afterReview.tables[name].some(current => JSON.stringify(current) === JSON.stringify(row)), `Reassociation retains complete ${name} history.`);

@@ -1,5 +1,5 @@
 import type { AccountAction } from './account-actions';
-import { useEffect, useState, type MouseEvent, type ReactNode } from 'react';
+import { Fragment, useEffect, useState, type MouseEvent, type ReactNode } from 'react';
 import { Button } from './components/ui/button';
 import { Meter, MeterIndicator, MeterLabel, MeterTrack } from './components/ui/meter';
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from './components/ui/select';
@@ -21,7 +21,9 @@ type AccountQuota = { quota: SavedProfileQuota | null; loading: boolean; failed:
 type Reading = { profileId: string; activity: SavedProfileActivity | null; quota: SavedProfileQuota | null; activityFailed: boolean; quotaFailed: boolean };
 const exactNumbers = new Intl.NumberFormat('en-US');
 function ExactCount({ value }: { value: string | null }) {
-  return value === null ? <bdi>Not available</bdi> : <bdi className="tabular-digits">{exactNumbers.format(BigInt(value))}</bdi>;
+  if (value === null) return <bdi>Not available</bdi>;
+  // DM Sans tnum widens commas, so only the digit groups use tabular figures.
+  return <bdi>{exactNumbers.format(BigInt(value)).split(',').map((group, index) => <Fragment key={index}>{index > 0 && ','}<span className="tabular-digits">{group}</span></Fragment>)}</bdi>;
 }
 const connectionLabels = { connected: 'Connected', authentication_required: 'Not connected', unauthorized: 'Session expired', offline: 'Offline', unsupported: 'Unavailable', error: 'Needs attention' };
 function Avatar({ label }: { label: string }) {
@@ -29,7 +31,7 @@ function Avatar({ label }: { label: string }) {
   const tint = Array.from(label).reduce((sum, character) => sum + character.codePointAt(0)!, 0) % 6;
   return <span className="overview-avatar" data-tint={tint} aria-hidden="true">{initial}</span>;
 }
-const freshness = { fresh: 'Fresh', stale: 'Stale', unknown: 'Freshness unknown' };
+const freshness = { fresh: 'Current', stale: 'Stale', unknown: 'Freshness unknown' };
 
 function QuotaWindow({ value, role }: { value: SavedQuotaWindow | null; role: string }) {
   const dates = useDateFormat();

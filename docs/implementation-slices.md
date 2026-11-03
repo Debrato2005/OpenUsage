@@ -67,7 +67,7 @@ Renderer tests, native journeys, and the local commit therefore need approval to
 | Slice | Goal | Before it starts | State |
 |---|---|---|---|
 | S-01 | Simple screens | | Done, with one exception in [status](implementation-status.md#partial) |
-| S-02 | Native journeys | S-01 | Not started |
+| S-02 | Native journeys | S-01 | Done, with two recorded reasons in [status](implementation-status.md#failing-or-stale-tests) |
 | S-03 | CI | S-02 | Not started |
 | S-04 | Reading status and evidence | S-03 | Not started |
 | S-05 | Adapter layer | S-04 | Not started |

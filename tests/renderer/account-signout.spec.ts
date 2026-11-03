@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
-import type { ProfileRecord, ProfileView } from '../../apps/desktop/src/contracts';
+import type { ProfileMonitoringStatus, ProfileRecord, ProfileView } from '../../apps/desktop/src/contracts';
 import { navigate, openOptions } from './navigation';
 
 // Synthetic renderer IPC only. Native tests own logout, credential isolation and retained storage.
@@ -11,8 +11,8 @@ type Deferred = { resolve: (value: unknown) => void; reject: (error: unknown) =>
 type Fixture = { profiles: ProfileRecord[]; calls: { command: string; args: Record<string, unknown> }[]; signouts: Deferred[]; checks: Deferred[] };
 type FixtureWindow = Window & { accountSignoutFixture: Fixture };
 
-async function open(page: Page, approved = true) {
-  await page.addInitScript(({ initial, approvalId }) => {
+async function open(page: Page, approved = true, monitoring: ProfileMonitoringStatus[] = []) {
+  await page.addInitScript(({ initial, approvalId, monitoring }) => {
     const state: Fixture = { profiles: initial, calls: [], signouts: [], checks: [] }; Object.assign(window, { accountSignoutFixture: state });
     const metadata = { path: '/synthetic/reviewed-codex', fileBytes: '100', sha256: 'a'.repeat(64), testedVersion: '0.163.0', versionChecked: false, sourceVerified: true, sourceKind: 'test_fixture', sourceUrl: null };
     window.__TAURI__ = { core: { invoke: async <T>(command: string, args: Record<string, unknown> = {}) => {
@@ -21,7 +21,7 @@ async function open(page: Page, approved = true) {
       if (command === 'bootstrap') return { storage: 'ready', theme: 'light', schemaVersion: 8, activeProfiles: 2, monitoring: 'stopped', provider: 'not_configured', keyProtection: 'os_store', storageIssue: null } as T;
       if (command === 'get_display_scale') return { percent: 100 } as T;
       if (command === 'set_theme') return { storage: 'ready', theme: args.theme, schemaVersion: 8, activeProfiles: 2, monitoring: 'stopped', provider: 'not_configured', keyProtection: 'os_store', storageIssue: null } as T;
-      if (command === 'load_monitoring') return { state: 'stopped', readingRevision: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', profiles: [] } as T;
+      if (command === 'load_monitoring') return { state: 'stopped', readingRevision: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', profiles: monitoring } as T;
       if (command === 'list_profiles') return { activeProfiles: state.profiles.filter(profile => !profile.archived).length, profiles: structuredClone(state.profiles) } as T;
       if (['load_profile_quota', 'load_profile_activity', 'load_profile_heatmap'].includes(command)) return null as T;
       if (command === 'load_profile_refresh_status') return { profileId: args.profileId, retryAfterSeconds: 0 } as T;
@@ -31,7 +31,7 @@ async function open(page: Page, approved = true) {
       if (command === 'check_profile_connection') return await new Promise<unknown>((resolve, reject) => state.checks.push({ resolve, reject })) as T;
       throw new Error(`Unexpected synthetic command ${command}`);
     } } };
-  }, { initial, approvalId });
+  }, { initial, approvalId, monitoring });
   await page.goto('/'); await navigate(page, 'settings');
   if (approved) {
     await page.getByRole('heading', { name: 'Codex connection', exact: true }).click(); await page.locator('[data-provider-manual]').click();
@@ -55,6 +55,17 @@ async function publish(page: Page, index: number, id = ids[0]!, value?: ProfileV
     state.profiles = next.profiles; state.signouts[index]!.resolve(next);
   }, { index, id, value });
 }
+
+test('a connected account that has not signed in this session keeps Sign in for monitoring', async ({ page }) => {
+  const status = (profileId: string, eligible: boolean): ProfileMonitoringStatus => ({ profileId, state: 'stopped', eligible, issue: null, nextReadInSeconds: null, readingActive: false });
+  await open(page, true, [status(ids[0]!, false), status(ids[1]!, true)]);
+  await expect(row(page).getByText('Sign in again to enable monitoring for this session.', { exact: true })).toBeVisible();
+  await expect(row(page).getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
+  await expect(row(page).getByRole('button', { name: 'Start monitoring', exact: true })).toBeDisabled();
+  await openOptions(page, ids[1]!);
+  await expect(row(page, ids[1]).getByRole('button', { name: 'Start monitoring', exact: true })).toBeEnabled();
+  await expect(row(page, ids[1]).getByRole('button', { name: 'Sign in', exact: true })).toHaveCount(0);
+});
 
 test('sign-out stays in secondary actions and Cancel or Escape never invokes logout', async ({ page }) => {
   await open(page); expect(await signoutCalls(page)).toEqual([]);

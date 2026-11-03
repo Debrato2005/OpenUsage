@@ -12,7 +12,9 @@ const output = resolve(process.env.OPENUSAGE_NATIVE_EVIDENCE);
 const evidence = { result: 'failed', scope: 'Linux native-test Tauri countdown display with approved synthetic-provider saved readings and a controlled renderer clock. No real account, production-provider or other-platform qualification.' };
 let fixture, driver;
 let sequence = 0;
-async function select(label) { await driver.selectVisibleOption('#overview-profile', label); }
+const panel = '[data-detail-panel][open]';
+const india = /GMT\+5:30|GMT\+05:30|IST/;
+async function panelTime() { return driver.execute('return document.querySelector(arguments[0])?.textContent ?? null;', [`${panel} [data-overview-window] time`]); }
 try {
   await mkdir(output, { recursive: true, mode: 0o700 });
   evidence.applicationSha256 = createHash('sha256').update(await readFile(application)).digest('hex');
@@ -56,15 +58,15 @@ try {
   const providerBefore = await readFile(observations, 'utf8');
   const deadline = quota.limits[0].primary.resetsAtUnix * 1000;
   await driver.execute('const original=Date.now;const offset=arguments[0]-8000-original();Date.now=()=>original()+offset;window.dispatchEvent(new Event("focus"));return true;', [deadline]);
-  await driver.navigate('overview');
-  await waitFor(() => driver.execute('return document.querySelector("[data-overview] [data-reset-countdown]")?.textContent.trim()==="In 1m";'), 'live native countdown');
-  assert.equal(await driver.execute('return document.querySelectorAll("[data-overview] [data-reset-countdown]").length;'), 2);
-  await waitFor(() => driver.execute('return document.querySelector("[data-overview] [data-reset-countdown=due]")?.textContent.trim()==="Awaiting reset confirmation";'), 'expected deadline passes locally');
-  assert.equal(await driver.execute('return document.querySelector("[data-overview] [role=meter]").getAttribute("aria-valuenow");'), '75');
-  assert.match(await driver.execute('return document.querySelector(".overview-reset time").textContent;'), /UTC/);
+  await driver.openAccount(a.id);
+  await waitFor(() => driver.execute('return document.querySelector(arguments[0])?.textContent.trim()==="In 1m";', [`${panel} [data-reset-countdown]`]), 'live native countdown');
+  assert.equal(await driver.execute('return document.querySelectorAll(arguments[0]).length;', [`${panel} [data-reset-countdown]`]), 2);
+  await waitFor(() => driver.execute('return document.querySelector(arguments[0])?.textContent.trim()==="Awaiting reset confirmation";', [`${panel} [data-reset-countdown=due]`]), 'expected deadline passes locally');
+  assert.equal(await driver.execute('return document.querySelector(arguments[0]).getAttribute("aria-valuenow");', [`${panel} [data-overview-window] [role=meter]`]), '75');
+  assert.match(await panelTime(), /UTC/);
   await driver.screenshot(join(output, 'reset-countdown.png'));
-  await select(b.label);
-  await waitFor(() => driver.execute('return document.querySelector("[data-overview]").dataset.overviewProfile===arguments[0]&&!document.querySelector("[data-overview] [data-reset-countdown]");', [b.id]), 'missing timestamp stays unavailable for second account');
+  await driver.openAccount(b.id);
+  await waitFor(() => driver.execute('return document.querySelector("[data-overview]").dataset.overviewProfile===arguments[0]&&!document.querySelector(arguments[1]);', [b.id, `${panel} [data-reset-countdown]`]), 'missing timestamp stays unavailable for second account');
   await driver.openProfileReadings(a.id);
   await waitFor(() => driver.execute('return document.querySelector("[data-quota-saved] [data-reset-countdown=due]")?.textContent.trim()==="Awaiting reset confirmation";'), 'native account details countdown');
   assert.equal(await readFile(observations, 'utf8'), providerBefore);
@@ -72,9 +74,8 @@ try {
   await driver.navigate('settings');
   await driver.selectVisibleOption('#time-zone', 'India · Kolkata (UTC+05:30)');
   await waitFor(async () => (await driver.invoke('load_time_zone')).value?.timeZone === 'Asia/Kolkata', 'India preference saved by Rust');
-  const clockBefore = await driver.execute('return document.querySelector("[data-live-clock]").dateTime;');
-  await waitFor(() => driver.execute('return document.querySelector("[data-live-clock]").dateTime!==arguments[0];', [clockBefore]), 'native clock ticks');
-  assert.match(await driver.execute('return document.querySelector("[data-live-clock]").textContent;'), /GMT\+5:30|GMT\+05:30|IST/);
+  await driver.openAccount(a.id);
+  await waitFor(async () => india.test(await panelTime() ?? ''), 'reset time shown in India time');
   for (const args of [{ timeZone: 'Invalid/Zone' }, { timeZone: '../UTC' }, { timeZone: 'UTC', extra: true }]) {
     assert.equal((await driver.invoke('set_time_zone', args)).error, 'invalid_arguments');
     assert.equal((await driver.invoke('load_time_zone')).value.timeZone, 'Asia/Kolkata');
@@ -102,15 +103,15 @@ try {
   await waitFor(() => driver.execute('return Boolean(document.querySelector("#workspace-passphrase")&&!document.querySelector("#workspace-passphrase").disabled);'), 'restart unlock');
   await driver.type('#workspace-passphrase', password); await driver.click('.unlock-form button[type=submit]');
   await waitFor(async () => (await driver.invoke('bootstrap')).value?.storage === 'ready', 'restart ready');
-  await waitFor(() => driver.execute('return /GMT\\+5:30|GMT\\+05:30|IST/.test(document.querySelector("[data-live-clock]")?.textContent);'), 'saved India clock after restart');
   assert.equal((await driver.invoke('load_time_zone')).value.timeZone, 'Asia/Kolkata');
   assert.deepEqual((await driver.invoke('load_profile_quota', { profileId: a.id })).value.limits, quota.limits);
   await driver.navigate('overview');
   await waitFor(() => driver.execute('return Boolean(document.querySelector("[data-heatmap-grid]"));'), 'native heatmap after restart');
-  assert.match(await driver.execute('return document.querySelector(".overview-reset time").textContent;'), /05:30/);
+  await driver.openAccount(a.id);
+  await waitFor(async () => india.test(await panelTime() ?? ''), 'saved India time after restart');
   await driver.screenshot(join(output, 'india-clock-heatmap.png'));
   evidence.result = 'passed';
-  evidence.acceptance = { liveCountdown: true, bothWindows: true, expectedTimeDoesNotResetQuota: true, utcTimestamp: true, accountIsolation: true, missingTimestamp: true, accountDetails: true, noProviderOperations: true, liveClock: true, indiaTimeZone: true, invalidZonesRefused: true, encryptedBackupRestore: true, genuineRestart: true };
+  evidence.acceptance = { liveCountdown: true, bothWindows: true, expectedTimeDoesNotResetQuota: true, utcTimestamp: true, accountIsolation: true, missingTimestamp: true, accountDetails: true, noProviderOperations: true, indiaTimeZone: true, invalidZonesRefused: true, encryptedBackupRestore: true, genuineRestart: true };
 } catch (error) {
   evidence.error = error.stack ?? String(error); process.exitCode = 1;
   try { evidence.display = await driver?.execute('return {selected:document.querySelector("[data-overview]")?.dataset.overviewProfile,quota:document.querySelector("[data-overview-quota]")?.textContent};'); } catch {}

@@ -116,19 +116,21 @@ async function scale(multiplier) {
   if (multiplier === 2) assert.equal(result.after, result.before * 2);
   return result;
 }
-async function capture(name, view, theme, width = 1280, text = 1, target) {
-  await scale(1); await resize(width); await driver.setAppearance(theme); await driver.navigate(view); await scale(text);
+async function capture(name, view, theme, width = 1280, text = 1, target, prepare) {
+  await scale(1); await resize(width); await driver.setAppearance(theme); await driver.navigate(view); await prepare?.(); await scale(text);
   await driver.execute('window.scrollTo(0,0);if(arguments[0])document.querySelector(arguments[0])?.scrollIntoView({block:"center"});return true;', [target ?? null]);
   await driver.request('POST', `/session/${driver.session}/execute/async`, { script: 'const done=arguments[arguments.length-1];document.fonts.ready.then(()=>requestAnimationFrame(()=>requestAnimationFrame(()=>done(true))));', args: [] });
   const data = await driver.execute(`
     const visible=node=>Boolean(node.getClientRects().length&&getComputedStyle(node).visibility!=='hidden');
     const scrollAncestor=node=>{for(let parent=node.parentElement;parent&&parent!==document.body;parent=parent.parentElement)if(['auto','scroll'].includes(getComputedStyle(parent).overflowX)&&parent.scrollWidth>parent.clientWidth+1)return true;return false;};
-    const overflowing=[...document.querySelectorAll('body *')].filter(visible).filter(node=>!scrollAncestor(node)&&!node.closest('[aria-hidden=true],.skip-link')).filter(node=>{const rect=node.getBoundingClientRect();return rect.width>0&&(rect.left < -1||rect.right>innerWidth+1);}).slice(0,15).map(node=>({tag:node.tagName,id:node.id,className:typeof node.className==='string'?node.className:''}));
-    const number = [...document.querySelectorAll('[data-overview-lifetime] bdi,.overview-meter-heading strong,.activity-count')].find(visible);
+    const clipped=node=>{for(let parent=node;parent&&parent!==document.body;parent=parent.parentElement){const style=getComputedStyle(parent);if(style.clipPath!=='none'&&style.overflow==='hidden')return true;}return false;};
+    const overflowing=[...document.querySelectorAll('body *')].filter(visible).filter(node=>!scrollAncestor(node)&&!clipped(node)&&!node.closest('[aria-hidden=true],.skip-link')).filter(node=>{const rect=node.getBoundingClientRect();return rect.width>0&&(rect.left < -1||rect.right>innerWidth+1);}).slice(0,15).map(node=>({tag:node.tagName,id:node.id,className:typeof node.className==='string'?node.className:''}));
+    // Tabular digits apply only to digit-only values; DM Sans widens tabular commas and spaces.
+    const number = [...document.querySelectorAll('.activity-count')].find(visible);
     const heading = document.querySelector('h1');
     const lifetime = [...document.querySelectorAll('[data-overview-lifetime]')].find(visible);
     const lifetimeExact = lifetime?.getAttribute('data-exact-value') ?? null;
-    const lifetimeTitle = lifetime?.querySelector('bdi')?.getAttribute('title') ?? null;
+    const lifetimeText = lifetime?.querySelector('bdi')?.textContent ?? null;
     let numberDigitWidths = null;
     if (number) {
       const style = getComputedStyle(number), probe = document.createElement('span');
@@ -137,39 +139,42 @@ async function capture(name, view, theme, width = 1280, text = 1, target) {
       numberDigitWidths = ['0000000000','1111111111','9999999999'].map(text=>{probe.textContent=text;return probe.getBoundingClientRect().width;});
       probe.remove();
     }
-    return {lifetimeExact,lifetimeTitle,numberDigitWidths,numberFont:number?getComputedStyle(number).fontFamily:null,numberVariant:number?getComputedStyle(number).fontVariantNumeric:null,numberFontLoaded:number?document.fonts.check(getComputedStyle(number).fontWeight+' '+getComputedStyle(number).fontSize+' "DM Sans"'):null,uiFontLoaded:document.fonts.check('400 14px "DM Sans"'),heading:heading?{font:getComputedStyle(heading).fontFamily,size:getComputedStyle(heading).fontSize,weight:getComputedStyle(heading).fontWeight,lineHeight:getComputedStyle(heading).lineHeight}:null,viewport:{width:innerWidth,height:innerHeight},pageWidth:document.scrollingElement.scrollWidth,bodyFont:getComputedStyle(document.body).fontFamily,fontStatus:document.fonts.status,fonts:[...document.fonts].filter(face=>face.status==='loaded').map(face=>({family:face.family,weight:face.weight})),currentView:document.querySelector('[data-workspace-nav][aria-current=page]')?.getAttribute('data-workspace-nav'),visibleViewCount:[...document.querySelectorAll('[data-workspace-view]')].filter(visible).length,overflowing,overviewLifetime:document.querySelector('[data-overview-lifetime]')?.textContent,overviewProfile:document.querySelector('[data-overview]')?.getAttribute('data-overview-profile')};
+    return {lifetimeExact,lifetimeText,numberDigitWidths,numberFont:number?getComputedStyle(number).fontFamily:null,numberVariant:number?getComputedStyle(number).fontVariantNumeric:null,numberFontLoaded:number?document.fonts.check(getComputedStyle(number).fontWeight+' '+getComputedStyle(number).fontSize+' "DM Sans"'):null,uiFontLoaded:document.fonts.check('400 14px "DM Sans"'),heading:heading?{font:getComputedStyle(heading).fontFamily,size:getComputedStyle(heading).fontSize,weight:getComputedStyle(heading).fontWeight,lineHeight:getComputedStyle(heading).lineHeight}:null,viewport:{width:innerWidth,height:innerHeight},pageWidth:document.scrollingElement.scrollWidth,bodyFont:getComputedStyle(document.body).fontFamily,fontStatus:document.fonts.status,fonts:[...document.fonts].filter(face=>face.status==='loaded').map(face=>({family:face.family,weight:face.weight})),currentView:document.querySelector('[data-workspace-nav][aria-current=page]')?.getAttribute('data-workspace-nav'),visibleViewCount:[...document.querySelectorAll('[data-workspace-view]')].filter(visible).length,overflowing,overviewLifetime:document.querySelector('[data-overview-lifetime]')?.textContent,overviewProfile:document.querySelector('[data-overview]')?.getAttribute('data-overview-profile')};
   `);
   await driver.screenshot(join(output, name)); evidence.screenshots.push(name); evidence.views.push({ screenshot: name, view, theme, textScale: text, ...data });
   if (data.pageWidth > width + 1 || data.overflowing.length) evidence.violations.push({ screenshot: name, pageWidth: data.pageWidth, viewportWidth: width, overflowing: data.overflowing });
-  assert.equal(data.currentView, view); assert.equal(data.visibleViewCount, 1); assert.equal(data.fontStatus, 'loaded'); assert.match(data.bodyFont, /DM Sans/); assert.equal(data.uiFontLoaded, true); if (data.numberFont) { assert.match(data.numberFont, /DM Sans/); assert.match(data.numberVariant, /tabular-nums/); assert.equal(data.numberFontLoaded, true); assert.ok(data.numberDigitWidths[0] > 0); assert.ok(Math.max(...data.numberDigitWidths) - Math.min(...data.numberDigitWidths) < 0.1, 'Actual native DM Sans digits must have equal width.'); }
-  if (data.lifetimeExact !== null) assert.equal(data.lifetimeTitle, data.lifetimeExact, 'Compact lifetime retains its exact integer title.');
+  // Account management is a dialog over Settings.
+  assert.equal(data.currentView, view === 'accounts' ? 'settings' : view); assert.equal(data.visibleViewCount, view === 'accounts' ? 2 : 1); assert.equal(data.fontStatus, 'loaded'); assert.match(data.bodyFont, /DM Sans/); assert.equal(data.uiFontLoaded, true); if (data.numberFont) { assert.match(data.numberFont, /DM Sans/); assert.match(data.numberVariant, /tabular-nums/); assert.equal(data.numberFontLoaded, true); assert.ok(data.numberDigitWidths[0] > 0); if (Math.max(...data.numberDigitWidths) - Math.min(...data.numberDigitWidths) >= 0.1) evidence.violations.push({ screenshot: name, digitWidths: data.numberDigitWidths, message: 'Actual native DM Sans digits must have equal width.' }); }
+  if (data.lifetimeExact !== null) assert.equal(data.lifetimeText.replaceAll(',', ''), data.lifetimeExact, 'The panel shows the exact lifetime count.');
   await scale(1);
 }
+const panel = '[data-detail-panel][open]';
 async function overviewSet(profile) {
-  await driver.navigate('overview');
-  await driver.selectVisibleOption('#overview-profile', profile.label);
+  await driver.openAccount(profile.id);
   await waitFor(async () => driver.execute('const node=document.querySelector("[data-overview]");return node?.getAttribute("data-overview-profile")===arguments[0]&&node.getAttribute("aria-busy")==="false";', [profile.id]), 'selected profile overview loaded');
+}
+async function key(value) {
+  await driver.request('POST', `/session/${driver.session}/actions`, { actions: [{ type: 'key', id: 'reading-details', actions: [{ type: 'keyDown', value }, { type: 'keyUp', value }] }] });
 }
 async function overviewCaptures(profile, kind) {
   await overviewSet(profile);
   if (kind === 'activity') {
-    assert.equal(await driver.execute('return document.querySelector("[data-overview-lifetime]").getAttribute("data-exact-value");'), '9007199254740993');
-    await driver.execute('document.querySelector(".overview-account-footer button").focus();return true;');
-    for (const value of ['\uE004', '\uE007']) {
-      await driver.request('POST', `/session/${driver.session}/actions`, { actions: [{ type: 'key', id: 'reading-details', actions: [{ type: 'keyDown', value }, { type: 'keyUp', value }] }] });
-      if (value === '\uE004') assert.equal(await driver.execute('return document.activeElement===document.querySelector(".overview-source-details > button");'), true, 'Tab reaches Reading details from View usage.');
-    }
-    await waitFor(() => driver.execute('return document.querySelector(".overview-source-details > button").getAttribute("aria-expanded")==="true";'), 'keyboard expands exact reading details');
-    assert.equal(await driver.execute('return [...document.querySelectorAll(".overview-source-details bdi")].some(node=>node.textContent==="9007199254740993"&&node.getClientRects().length>0);'), true, 'Exact lifetime remains visible through the keyboard disclosure.');
-    assert.match(await driver.execute('return document.querySelector(".overview-source-details").textContent;'), /Unverified identity/);
-    await driver.request('POST', `/session/${driver.session}/actions`, { actions: [{ type: 'key', id: 'reading-details', actions: [{ type: 'keyDown', value: '\uE007' }, { type: 'keyUp', value: '\uE007' }] }] });
-    await waitFor(() => driver.execute('return document.querySelector(".overview-source-details > button").getAttribute("aria-expanded")==="false";'), 'keyboard closes reading details');
+    assert.equal(await driver.execute('return document.querySelector(arguments[0]).getAttribute("data-exact-value");', [`${panel} [data-overview-lifetime]`]), '9007199254740993');
+    assert.equal(await driver.execute('return document.querySelector(arguments[0])?.textContent;', [`${panel} [data-overview-lifetime] bdi`]), '9,007,199,254,740,993', 'The panel shows the exact lifetime count.');
+    // Keyboard: Escape closes the panel and returns focus; Enter on the row opens it again.
+    await driver.closeDetail();
+    await driver.execute('document.querySelector(arguments[0]).focus();return true;', [`[data-overview-account="${profile.id}"] .overview-account-link`]);
+    await key('\uE007');
+    await waitFor(() => driver.execute('return Boolean(document.querySelector(arguments[0]));', [`${panel} [data-overview-lifetime]`]), 'keyboard opens the account panel');
+    await key('\uE00C');
+    await waitFor(() => driver.execute('return !document.querySelector(arguments[0])&&document.activeElement===document.querySelector(arguments[1]);', [panel, `[data-overview-account="${profile.id}"] .overview-account-link`]), 'Escape closes the account panel and returns focus');
   }
-  else assert.deepEqual(await driver.execute('return [...document.querySelectorAll("[data-overview-quota] [role=meter]")].map(node=>node.getAttribute("aria-valuenow")).slice(0,2);'), ['75', '0']);
+  else assert.deepEqual(await driver.execute('return [...document.querySelectorAll(arguments[0])].map(node=>node.getAttribute("aria-valuenow")).slice(0,2);', [`${panel} [data-overview-window] [role=meter]`]), ['75', '0']);
+  const open = () => driver.openAccount(profile.id);
   for (const theme of ['light', 'dark']) {
     await capture(`overview-${kind}-${theme}-desktop.png`, 'overview', theme);
     await capture(`overview-${kind}-${theme}-360.png`, 'overview', theme, 360);
-    await capture(`overview-${kind}-${theme}-text200-360.png`, 'overview', theme, 360, 2, kind === 'activity' ? '[data-overview-activity]' : '[data-overview-quota]');
+    await capture(`overview-${kind}-${theme}-panel-text200-360.png`, 'overview', theme, 360, 2, `${panel} [data-overview-quota]`, open);
   }
 }
 

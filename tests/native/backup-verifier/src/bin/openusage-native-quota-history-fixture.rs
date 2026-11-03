@@ -16,13 +16,20 @@ fn main() {
         "Supply the owned fixture root and synthetic profile UUID."
     );
     let root = Path::new(&args[1]);
-    assert!(root.is_absolute() && root.parent() == Some(Path::new("/tmp")));
+    // Native fixtures live in the repository's private temporary folder (tests/native/private-fixture.mjs).
+    let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../..")
+        .canonicalize()
+        .unwrap();
+    assert!(
+        root.is_absolute() && root.parent() == Some(repository.join(".recovery/tmp").as_path())
+    );
     assert!(
         root.file_name()
             .unwrap()
             .to_str()
             .unwrap()
-            .starts_with("openusage-native-quota-history-")
+            .starts_with("n-")
     );
     assert!(!fs::symlink_metadata(root).unwrap().file_type().is_symlink());
     let workspace = root.join("data/app.openusage.desktop/workspace");

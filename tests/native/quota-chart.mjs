@@ -39,10 +39,11 @@ try {
   result.views = [];
   for (const theme of ['light', 'dark']) {
     await driver.setAppearance(theme); const before = await hashes();
-    await driver.navigate('overview');
-    await waitFor(() => driver.execute('return Boolean(document.querySelector("[data-overview-quota-chart]"));'), 'saved quota chart');
-    const view = await driver.execute('const root=document.querySelector("[data-overview-quota-chart]"),r=root.getBoundingClientRect();return{label:root.getAttribute("aria-label"),dash:root.querySelector(".overview-quota-ring-value").getAttribute("stroke-dasharray"),center:root.querySelector(".overview-quota-ring-count").textContent,caption:root.querySelector("figcaption").textContent,width:r.width,pageWidth:document.scrollingElement.scrollWidth,viewport:innerWidth};');
-    assert.equal(view.dash, '75 100'); assert.equal(view.center, '75%'); assert.match(view.label, /75% remaining.*25% used/); assert.match(view.caption, /25% used/); assert.ok(view.width > 0 && view.pageWidth <= view.viewport + 1);
+    // The quota donut lives on Usage since the S-01 layout.
+    await driver.navigate('usage');
+    await waitFor(() => driver.execute('return Boolean(document.querySelector("[data-workspace-view=usage] [data-overview-quota-donut]"));'), 'saved quota chart');
+    const view = await driver.execute('const plot=document.querySelector("[data-workspace-view=usage] [data-overview-quota-donut]"),figure=plot.closest("figure"),r=figure.getBoundingClientRect();return{label:figure.getAttribute("aria-label"),remaining:plot.dataset.remaining,center:figure.querySelector(".overview-donut-center strong").textContent,values:figure.parentElement.querySelector(".overview-donut-values")?.textContent??"",width:r.width,pageWidth:document.scrollingElement.scrollWidth,viewport:innerWidth};');
+    assert.equal(view.remaining, '75'); assert.equal(view.center, '75%'); assert.match(view.label, /75% remaining, 25% used/); assert.match(view.values, /25%/); assert.ok(view.width > 0 && view.pageWidth <= view.viewport + 1);
     const name = `quota-doughnut-${theme}.png`; await driver.screenshot(join(output, name)); result.screenshots.push(name); result.views.push(view);
     assert.deepEqual(await hashes(), before, 'Rendering must preserve encrypted database, WAL and wrapped key bytes.');
   }

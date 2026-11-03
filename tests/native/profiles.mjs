@@ -104,6 +104,12 @@ async function manage(id, open = true) {
   const state = await optionsState(id);
   assert.ok(state?.panelPresent, 'Manage must retain its hidden panel.');
   assert.equal(state.controlsMatch, true, 'An expanded trigger must control its own profile panel.');
+  // Manage profile sits inside the row's View usage panel, so a person opens that first.
+  const readings = `${rowSelector(id)} [data-profile-action="readings"]`;
+  if (open && await driver.execute('return document.querySelector(arguments[0])?.getAttribute("aria-expanded")==="false";', [readings])) {
+    await driver.click(readings);
+    await waitFor(async () => Boolean(await driver.execute('const n=document.querySelector(arguments[0]);return n&&n.getClientRects().length>0;', [optionsSelector(id)])), 'visible Manage profile');
+  }
   if (state.expanded !== String(open)) await driver.click(optionsSelector(id));
   await waitFor(async () => { const next = await optionsState(id); return next?.expanded === String(open) && next.panelVisible === open; }, `${open ? 'expanded' : 'collapsed'} management controls`);
 }
@@ -178,7 +184,8 @@ async function screenshot(name, narrow = false, theme = 'dark') {
   assert.ok(view.scrollWidth <= view.width + 1, 'Profile controls must not cause horizontal overflow.');
   assert.deepEqual(view.overflowing, [], 'Profile controls must remain inside the viewport.');
   assert.deepEqual(view.clipped, [], 'Profile containers must not clip text.');
-  for (const label of ['Quota remaining', 'Token activity']) assert.equal(view.metrics.find(metric => metric.label?.includes(label))?.value, 'Not available');
+  // No saved readings exist here, so any quota or activity value shown must be unavailable.
+  for (const label of ['Quota remaining', 'Token activity']) { const metric = view.metrics.find(item => item.label?.includes(label)); if (metric) assert.equal(metric.value, 'Not available'); }
   await driver.screenshot(join(output, name));
   evidence.screenshots.push(name);
   evidence.views.push({ screenshot: name, theme, ...view });
@@ -270,7 +277,8 @@ try {
   await key('\uE007');
   await waitFor(async () => (await optionsState(keyboardProfile.id)).expanded === 'false', 'Enter closes Manage');
   await key('\uE004');
-  assert.equal(await driver.execute('return document.activeElement?.matches(arguments[0]);', [optionsSelector(nextProfile.id)]), true, 'Tab must skip hidden Rename and Archive and reach the next profile.');
+  // The next profile's Manage sits in its closed View usage panel, so Tab lands on the next visible control.
+  assert.equal(await driver.execute('const a=document.activeElement,panel=document.querySelector(arguments[0]).querySelector(".profile-management");return Boolean(a&&a!==document.body&&a.getClientRects().length&&!panel.contains(a));', [rowSelector(keyboardProfile.id)]), true, 'Tab must skip hidden Rename and Archive.');
   await key('\uE004', true);
   assert.equal(await driver.execute('return document.activeElement?.matches(arguments[0]);', [optionsSelector(keyboardProfile.id)]), true);
   await key(' ');
@@ -315,6 +323,8 @@ try {
   await driver.click(`[data-profile-id="${another.id}"] [data-profile-action="archive"]`);
   await waitFor(async () => (await list()).activeProfiles === 9, 'another slot archived before GUI restore');
   if (!await driver.execute('return document.querySelector(".archived-profiles").open;')) await driver.click('.archived-profiles > summary');
+  // An archived row shows Rename and Restore directly in its View usage panel.
+  await driver.openProfileReadings(first.id);
   await driver.click(`${row} [data-profile-action="restore"]`);
   await waitFor(async () => (await list()).profiles.find(profile => profile.id === first.id)?.archived === false, 'profile restored through GUI');
   await waitFor(async () => Boolean(await driver.execute('return document.activeElement?.matches(arguments[0]);', [`${row} [data-profile-action="options"]`])), 'focus after profile restore');

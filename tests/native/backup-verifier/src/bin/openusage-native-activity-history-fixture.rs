@@ -28,7 +28,9 @@ fn directory(path: &Path) {
         metadata.is_dir()
             && !metadata.file_type().is_symlink()
             && metadata.uid() == unsafe { libc::geteuid() }
-            && metadata.mode() & 0o777 == 0o700
+            && metadata.mode() & 0o777 == 0o700,
+        "{} must be a private owned directory",
+        path.display()
     );
     assert_eq!(path.canonicalize().unwrap(), path);
 }
@@ -95,12 +97,21 @@ fn main() {
     let workspace = root.join("data/app.openusage.desktop/workspace");
     for path in [
         root.join("data"),
-        root.join("data/app.openusage.desktop"),
         workspace.clone(),
         workspace.join("profiles"),
     ] {
         directory(&path);
     }
+    // The webview shares this folder and keeps it 0755; only the workspace inside is private.
+    let shared = root.join("data/app.openusage.desktop");
+    let metadata = fs::symlink_metadata(&shared).unwrap();
+    assert!(
+        metadata.is_dir()
+            && metadata.uid() == unsafe { libc::geteuid() }
+            && metadata.mode() & 0o022 == 0,
+        "{} must be an owned directory that others cannot write",
+        shared.display()
+    );
     let mut input = Zeroizing::new(String::new());
     io::stdin().take(4097).read_to_string(&mut input).unwrap();
     assert!(input.len() <= 4096);
@@ -127,7 +138,7 @@ fn main() {
         storage.metadata().unwrap().schema_version,
         CURRENT_SCHEMA_VERSION
     );
-    assert_eq!(CURRENT_SCHEMA_VERSION, 8);
+    assert_eq!(CURRENT_SCHEMA_VERSION, 9);
     assert!(
         storage
             .list_profiles()

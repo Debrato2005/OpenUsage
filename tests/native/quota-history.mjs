@@ -155,9 +155,12 @@ try {
   await clickButton('Older readings'); await waitFor(async () => (await rows()).length === 2, 'native older-page rendering'); assert.deepEqual(await rows(), nextPage.entries.map(row => row.collectionRunId));
   const zero = nextPage.entries.find(row => row.limits[0]?.primary?.usedPercent === 0); assert.ok(zero);
   await driver.click(`[data-quota-history-run="${zero.collectionRunId}"] > button`);
-  assert.match(await driver.execute('return document.querySelector(arguments[0]).textContent;', [`[data-quota-history-run="${zero.collectionRunId}"]`]), /0%.*100%/s);
+  // The snapshot opens in the detail panel.
+  await waitFor(() => driver.execute('return Boolean(document.querySelector(arguments[0]));', [`[data-detail-panel][open] [aria-label="Quota snapshot ${zero.observedAtUtc}"]`]), 'snapshot details open');
+  assert.match(await driver.execute('return document.querySelector(arguments[0]).textContent;', [`[data-detail-panel][open] [aria-label="Quota snapshot ${zero.observedAtUtc}"]`]), /0%.*100%/s);
   assert.equal(await driver.execute('return document.querySelector(arguments[0]).textContent.includes("Fresh");', [`[data-quota-history="${profiles[0].id}"]`]), false);
   await driver.screenshot(join(output, 'quota-history-native.png')); evidence.screenshots.push('quota-history-native.png');
+  await driver.closeDetail();
   await clickButton('Newer readings'); await waitFor(async () => (await rows()).length === 20, 'native newer-page rendering');
   const selection = { profileId: profiles[0].id, format: 'csv', includeIdentifiers: false, confirmed: true };
   const filesBeforeRefusal = await exportNames();

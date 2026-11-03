@@ -92,6 +92,7 @@ export class NativeDriver {
 
   async navigate(view) {
     assert.ok(['overview', 'accounts', 'usage', 'settings'].includes(view));
+    await this.closeDetail();
     // Account management remains testable through Settings without restoring a fourth route.
     if (await this.execute('const panel=document.querySelector("[data-account-panel]");return Boolean(panel?.open&&panel.getClientRects().length);')) {
       await this.click('[data-account-panel-close]');
@@ -113,11 +114,14 @@ export class NativeDriver {
 
   async setAppearance(theme) {
     assert.ok(['system', 'light', 'dark'].includes(theme));
-    const previous = await this.execute('return document.querySelector(".startup-panel[data-storage=ready]") ? document.querySelector("nav[aria-label=Main] [aria-current=page]")?.getAttribute("data-workspace-nav") : null;');
-    if (previous) await this.navigate('settings');
+    // Appearance lives in Settings, which exists only in an open workspace.
+    const previous = await this.execute('return document.querySelector("[data-workspace-view=settings] #theme") ? document.querySelector("nav[aria-label=Main] [aria-current=page]")?.getAttribute("data-workspace-nav") ?? null : null;');
+    assert.ok(previous, 'Appearance can be changed only in an open workspace.');
+    const accounts = await this.execute('const panel=document.querySelector("[data-account-panel]");return Boolean(panel?.open&&panel.getClientRects().length);');
+    await this.navigate('settings');
     await this.selectVisibleOption('#theme', { system: 'System', light: 'Light', dark: 'Dark' }[theme]);
     await waitFor(async () => this.execute('return document.documentElement.dataset.theme===arguments[0]&&!document.querySelector("#theme").disabled;', [theme]), 'saved appearance');
-    if (previous) await this.navigate(previous);
+    await this.navigate(accounts ? 'accounts' : previous);
   }
 
   async openProfileCreate() {
@@ -143,7 +147,26 @@ export class NativeDriver {
     const element = await this.element(selector);
     // The driver skips scrolling for a partly visible target, which can leave it under the sticky header.
     await this.execute('document.querySelector(arguments[0]).scrollIntoView({block:"center"});return true;', [selector]);
-    await this.request('POST', `/session/${this.session}/element/${element}/click`, {});
+    try { await this.request('POST', `/session/${this.session}/element/${element}/click`, {}); }
+    catch (error) {
+      // Name the target and whatever covers it, so a failure points at the screen, not a node id.
+      const cover = await this.execute('const node=document.querySelector(arguments[0]),rect=node.getBoundingClientRect(),hit=document.elementFromPoint(rect.left+rect.width/2,rect.top+rect.height/2),name=n=>n?n.tagName.toLowerCase()+(n.id?"#"+n.id:"")+[...n.classList].slice(0,2).map(c=>"."+c).join(""):"nothing";return `${Math.round(rect.width)}x${Math.round(rect.height)}, covered by ${name(hit)}${document.querySelector("dialog[open]")?", "+name(document.querySelector("dialog[open]"))+" open":""}`;', [selector]).catch(() => 'unknown');
+      throw new Error(`Click ${selector} (${cover}): ${error.message}`);
+    }
+  }
+
+  // An open detail panel makes the page behind it inert.
+  async closeDetail() {
+    if (!await this.execute('return Boolean(document.querySelector("[data-detail-panel][open]"));')) return;
+    await this.click('[data-detail-panel][open] [data-detail-panel-close]');
+    await waitFor(async () => this.execute('return !document.querySelector("[data-detail-panel][open]");'), 'detail panel closed');
+  }
+
+  // Opens the side panel that holds one account's detail on Overview.
+  async openAccount(profileId) {
+    await this.navigate('overview');
+    await this.click(`[data-overview-account="${profileId}"] .overview-account-link`);
+    await waitFor(async () => this.execute('return Boolean(document.querySelector("[data-detail-panel][open] [data-overview-quota]"));'), 'open account detail');
   }
 
   async readProfileQuota(profileId) {

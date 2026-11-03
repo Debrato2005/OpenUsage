@@ -42,7 +42,7 @@ Overview now reads top-down: a four-tile summary, the account list, then the sel
 
 Settings groups its rows into six topics inside cards, with a section index that moves keyboard focus. Usage uses flat cards and adds Compare accounts, which aligns windows only when limit ID, role and duration all match.
 
-**Tabular digits:** DM Sans `tnum` widens the space, comma, colon and period to about 0.6 em. A root-level setting caused the wide word gaps seen across the app. Apply tabular figures only to digit-only values, or wrap digit runs in `.tabular-digits` as the live clock does. Do not apply them to dates, sentences or containers. Scan this rule before adding `font-variant-numeric`.
+**Tabular digits:** DM Sans `tnum` widens the space, comma, colon and period to about 0.6 em. A root-level setting caused the wide word gaps seen across the app. Apply tabular figures only to digit-only values, or wrap digit runs in `.tabular-digits` as exact counts in the account panel do. Do not apply them to dates, sentences or containers. Scan this rule before adding `font-variant-numeric`.
 
 Controls use a 40-pixel default and 34-pixel compact height. Coarse pointers receive 44 pixels. Main navigation stays at 44 pixels. Attention colors are paired with a percentage or text, so color never carries the state alone.
 

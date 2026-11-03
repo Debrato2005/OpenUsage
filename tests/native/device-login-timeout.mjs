@@ -20,7 +20,6 @@ const monotonic = () => Number(process.hrtime.bigint()) / 1e9;
 const evidence = { requirement: 'NATIVE-DEVICE-LOGIN-TIMEOUT-001', result: 'failed', startedAt: new Date().toISOString(), scope: 'Actual 900-second native application wait limit with the existing reviewed synthetic pending-login provider. No real OAuth, browser opening, network operation, existing credential home, provider-code expiry, verified identity, accepted history, monitoring, release-performance or cross-platform qualification.', screenshots: [], views: [], heartbeats: [] };
 let fixture, driver, workspace, executable, executionLog, first, other, archived;
 const startSelector = id => `[data-login-start="${id}"]`;
-const consentSelector = id => `form[data-login-consent="${id}"]`;
 const promptSelector = id => `.login-prompt[data-login-profile="${id}"]`;
 const cancelSelector = id => `[data-login-cancel="${id}"]`;
 const resultSelector = id => `.login-result[data-login-profile="${id}"]`;
@@ -76,20 +75,17 @@ async function approveGui() { await driver.navigate('settings');
   await waitFor(async () => driver.execute('return document.activeElement?.matches(".provider-approval-result");'), 'source approval focus');
   assert.deepEqual(await observations(), [], 'Approval must not execute the fixture.');
 }
-async function consentGui() {
+// Sign in starts at once. Approving Codex in Settings is the consent; the per-account form went away in 0f5f7aa.
+async function startGui() {
   await driver.openProfileReadings(first.id);
   await waitFor(async () => driver.execute('const node=document.querySelector(arguments[0]);return Boolean(node&&!node.disabled);', [startSelector(first.id)]), 'enabled Sign in');
-  const before = (await observations()).length; await driver.click(startSelector(first.id));
-  await waitFor(async () => driver.execute('const form=document.querySelector(arguments[0]);return Boolean(form&&document.activeElement===form.querySelector("button[type=submit]"));', [consentSelector(first.id)]), 'focused explicit consent');
-  const text = await driver.execute('return document.querySelector(arguments[0]).textContent;', [consentSelector(first.id)]);
-  assert.ok(text.includes(first.label)); assert.match(text, /OpenAI/); assert.match(text, /sign-in information/); assert.match(text, /Credentials already saved/);
-  assert.equal((await observations()).length, before, 'Opening consent must not start the provider.');
-  const submittedAt = monotonic(); await driver.click(`${consentSelector(first.id)} button[type=submit]`); return submittedAt;
+  const submittedAt = monotonic(); await driver.click(startSelector(first.id)); return submittedAt;
 }
 async function promptGui() {
   await waitFor(async () => driver.execute('const field=document.querySelector(arguments[0]);return Boolean(field&&document.activeElement===field&&field.selectionStart===0&&field.selectionEnd===field.value.length);', [`#login-code-${first.id}`]), 'focused selected synthetic code');
-  const value = await driver.execute('const panel=document.querySelector(arguments[0]),code=document.querySelector(arguments[1]),url=document.querySelector(arguments[2]),cancel=document.querySelector(arguments[3]);return {code:code.value,url:url.value,codeReadonly:code.readOnly,urlReadonly:url.readOnly,links:panel.querySelectorAll("a").length,cancelEnabled:Boolean(cancel&&!cancel.disabled),fixture:Boolean(panel.closest(".login-panel").querySelector("[data-provider-fixture]")),wait:panel.textContent};', [promptSelector(first.id), `#login-code-${first.id}`, `#login-address-${first.id}`, cancelSelector(first.id)]);
-  assert.equal(value.code, 'SYNTH-1234'); assert.equal(value.url, 'https://auth.openai.com/codex/device'); assert.equal(value.codeReadonly, true); assert.equal(value.urlReadonly, true); assert.equal(value.links, 0); assert.equal(value.cancelEnabled, true); assert.equal(value.fixture, true); assert.match(value.wait, /up to 15 minutes/); assert.match(value.wait, /did not provide a code expiry/);
+  // The prompt shows the code and an Open sign-in page button. The wait limit is checked through Rust below.
+  const value = await driver.execute('const panel=document.querySelector(arguments[0]),code=document.querySelector(arguments[1]),browser=document.querySelector(arguments[2]),cancel=document.querySelector(arguments[3]);return {code:code.value,codeReadonly:code.readOnly,browser:Boolean(browser&&!browser.disabled&&browser.textContent==="Open sign-in page"),links:panel.querySelectorAll("a").length,cancelEnabled:Boolean(cancel&&!cancel.disabled),fixture:Boolean(panel.closest(".login-panel").querySelector("[data-provider-fixture]"))};', [promptSelector(first.id), `#login-code-${first.id}`, `[data-login-browser="${first.id}"]`, cancelSelector(first.id)]);
+  assert.equal(value.code, 'SYNTH-1234'); assert.equal(value.codeReadonly, true); assert.equal(value.browser, true); assert.equal(value.links, 0); assert.equal(value.cancelEnabled, true); assert.equal(value.fixture, true);
   return monotonic();
 }
 async function terminal(pattern) {
@@ -138,15 +134,15 @@ try {
   // Observe the real IPC promises without delaying, replacing or changing their results or clocks.
   assert.equal(await driver.execute('const descriptor=Object.getOwnPropertyDescriptor(window.__TAURI__,"core");return descriptor.writable;'), true);
   await driver.execute('const tauri=window.__TAURI__,original=tauri.core;window.__timeoutOriginalCore=original;window.__timeoutTrace=[];tauri.core={...original,invoke(command,...args){const at=performance.now(),pending=Reflect.apply(original.invoke,original,[command,...args]);if(command!=="complete_profile_login")return pending;pending.then(()=>window.__timeoutTrace.push({command,ok:true,startedAtMs:at,finishedAtMs:performance.now(),profileId:args[0]?.profileId,attemptId:args[0]?.attemptId}),error=>window.__timeoutTrace.push({command,ok:false,startedAtMs:at,finishedAtMs:performance.now(),profileId:args[0]?.profileId,attemptId:args[0]?.attemptId,error}));return pending;}};return true;');
-  const offset = (await observations()).length, submittedAt = await consentGui(), promptObservedAt = await promptGui();
+  const offset = (await observations()).length, submittedAt = await startGui(), promptObservedAt = await promptGui();
   assert.ok(promptObservedAt - submittedAt <= 5, 'Prompt observation must stay within the documented five-second timing allowance.');
   const child = await stage('challenge-emitted', home, offset); await capture('device-login-timeout-pending.png', promptSelector(first.id));
   let timedOutAt, nextHeartbeat = promptObservedAt;
   while (monotonic() - submittedAt <= 960) {
-    const state = await driver.execute('return {nowMs:performance.now(),trace:window.__timeoutTrace,code:document.querySelector(arguments[0])?.value??null,url:document.querySelector(arguments[1])?.value??null,cancelEnabled:Boolean(document.querySelector(arguments[2])&&!document.querySelector(arguments[2]).disabled),heartbeat:window.__timeoutHeartbeat=(window.__timeoutHeartbeat??0)+1};', [`#login-code-${first.id}`, `#login-address-${first.id}`, cancelSelector(first.id)]);
+    const state = await driver.execute('return {nowMs:performance.now(),trace:window.__timeoutTrace,code:document.querySelector(arguments[0])?.value??null,browser:Boolean(document.querySelector(arguments[1])&&!document.querySelector(arguments[1]).disabled),cancelEnabled:Boolean(document.querySelector(arguments[2])&&!document.querySelector(arguments[2]).disabled),heartbeat:window.__timeoutHeartbeat=(window.__timeoutHeartbeat??0)+1};', [`#login-code-${first.id}`, `[data-login-browser="${first.id}"]`, cancelSelector(first.id)]);
     const completion = state.trace.find(item => item.command === 'complete_profile_login');
     if (completion) { assert.equal(completion.ok, false); assert.equal(completion.error, 'provider_login_timed_out'); timedOutAt = monotonic(); break; }
-    assert.equal(state.code, 'SYNTH-1234'); assert.equal(state.url, 'https://auth.openai.com/codex/device'); assert.equal(state.cancelEnabled, true); process.kill(child.pid, 0);
+    assert.equal(state.code, 'SYNTH-1234'); assert.equal(state.browser, true); assert.equal(state.cancelEnabled, true); process.kill(child.pid, 0);
     if (monotonic() >= nextHeartbeat) {
       assert.deepEqual(await liveHashes(), baseline); assert.deepEqual(await files(otherHome), beforeHomes[1]); assert.deepEqual(await files(archivedHome), beforeHomes[2]);
       evidence.heartbeats.push({ elapsedSinceSubmitSeconds: monotonic() - submittedAt, browserMonotonicMs: state.nowMs, successfulShortExecute: true, heartbeat: state.heartbeat, pendingCancelEnabled: true, storageAndOtherHomesPreserved: true });
@@ -166,7 +162,7 @@ try {
   assert.deepEqual(timeoutRows.find(row => row.kind === 'request' && row.request.id === 5).request.params, { loginId: 'synthetic-device-attempt' });
   await capture('device-login-timeout-result.png', resultSelector(first.id)); assert.deepEqual(await liveHashes(), baseline);
   const firstTrace = await driver.execute('return window.__timeoutTrace;'); assert.equal(firstTrace.length, 1); assert.equal(firstTrace[0].profileId, first.id); assert.match(firstTrace[0].attemptId, /^[0-9a-f-]{36}$/);
-  const reuseOffset = (await observations()).length; await consentGui(); await promptGui(); const successor = await stage('challenge-emitted', home, reuseOffset); assert.notEqual(successor.pid, child.pid);
+  const reuseOffset = (await observations()).length; await startGui(); await promptGui(); const successor = await stage('challenge-emitted', home, reuseOffset); assert.notEqual(successor.pid, child.pid);
   await driver.click(cancelSelector(first.id)); const cancelled = await terminal(/Credentials already saved by Codex may remain/); assert.equal(cancelled.role, 'status'); await reaped(successor);
   const trace = await driver.execute('return window.__timeoutTrace;'); assert.equal(trace.length, 2); assert.notEqual(trace[0].attemptId, trace[1].attemptId); assert.equal(trace[1].profileId, first.id); assert.equal(trace[1].ok, false); assert.equal(trace[1].error, 'provider_login_cancelled');
   const successorRequests = (await observations()).filter(row => row.kind === 'request' && row.pid === successor.pid);

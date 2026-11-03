@@ -227,7 +227,7 @@ test('bundled DM Sans serves interface and exact readings with tabular digits', 
   const rendered = await page.evaluate(async () => {
     const faces = await Promise.all([400, 500, 600].map(weight => document.fonts.load(`${weight} 14px "DM Sans"`)));
     await document.fonts.ready;
-    const ui = getComputedStyle(document.body), reading = document.querySelector<HTMLElement>('[data-overview-lifetime] bdi')!;
+    const ui = getComputedStyle(document.body), reading = document.querySelector<HTMLElement>('[data-overview-lifetime] bdi .tabular-digits')!;
     const numeric = getComputedStyle(reading);
     const probe = document.createElement('span');
     probe.style.cssText = `position:absolute;visibility:hidden;font-family:${numeric.fontFamily};font-size:${numeric.fontSize};font-weight:${numeric.fontWeight};font-variant-numeric:tabular-nums;white-space:pre`;

@@ -15,7 +15,7 @@ const providerDigest = '53a853b737ceca311649e9f1d9ebd1341154a5f782efd8e915f7f834
 const verifierDigest = 'a2e4a64707081a9943f3c04f8237c2b16bea673e974e96393d6a8a7d9357f975';
 const secretSentinel = 'Synthetic provider-only credential sentinel; never export this file.';
 const hash = async path => createHash('sha256').update(await readFile(path)).digest('hex');
-const evidence = { requirement: 'NATIVE-APPLICATION-DATA-EXPORT-001', result: 'failed', scope: 'Actual Linux Tauri full JSON application-record export from a private SQLCipher4/WAL schema8 workspace. Two explicit synthetic sign-ins and automatic readings,21strictly marked additional history snapshots, archived profile and genuine restart. An independent read-only encrypted-copy oracle establishes all30table rowsets and every populated field with exact decimal integers. Empty-table columns receive structural checks; storage tests qualify the trusted schema. Explicit identifiable plaintext consent, private files, no credential-home export, locked/invalid refusal and source preservation are checked. No real-provider or other-platform acceptance.', exports: [], oracles: [], closes: [], screenshots: [] };
+const evidence = { requirement: 'NATIVE-APPLICATION-DATA-EXPORT-001', result: 'failed', scope: 'Actual Linux Tauri full JSON application-record export from a private SQLCipher4/WAL schema8 workspace. Two explicit synthetic sign-ins and automatic readings,21strictly marked additional history snapshots, archived profile and genuine restart. An independent read-only encrypted-copy oracle establishes all 31 table rowsets and every populated field with exact decimal integers. Empty-table columns receive structural checks; storage tests qualify the trusted schema. Explicit identifiable plaintext consent, private files, no credential-home export, locked/invalid refusal and source preservation are checked. No real-provider or other-platform acceptance.', exports: [], oracles: [], closes: [], screenshots: [] };
 let fixture, driver, sequence = 0;
 const profiles = [];
 const call = async (command, args) => { const response = await driver.invoke(command, args); assert.equal(response.ok, true, `${command}: ${JSON.stringify(response)}`); return response.value; };
@@ -109,11 +109,11 @@ async function readExport(fileName, expected, receipt) {
   const recordCount = payload.tables.reduce((sum, table) => sum + BigInt(table.rows.length), 0n).toString();
   if (receipt) {
     assert.deepEqual(Object.keys(receipt).sort(), ['fileName', 'directory', 'format', 'schemaVersion', 'tableCount', 'recordCount', 'byteCount', 'exportedAt'].sort());
-    assert.equal(receipt.fileName, fileName); assert.equal(receipt.directory, exportDirectory()); assert.equal(receipt.format, 'json'); assert.equal(receipt.schemaVersion, 9); assert.equal(receipt.tableCount, 30); assert.equal(receipt.recordCount, recordCount); assert.equal(receipt.byteCount, String(Buffer.byteLength(text))); assert.equal(receipt.exportedAt, payload.exportedAt);
+    assert.equal(receipt.fileName, fileName); assert.equal(receipt.directory, exportDirectory()); assert.equal(receipt.format, 'json'); assert.equal(receipt.schemaVersion, 9); assert.equal(receipt.tableCount, 31); assert.equal(receipt.recordCount, recordCount); assert.equal(receipt.byteCount, String(Buffer.byteLength(text))); assert.equal(receipt.exportedAt, payload.exportedAt);
   }
   for (const forbidden of [password, secretSentinel, fixture.root, 'database-key.v1', CODEX_SENTINEL.trim()]) assert.equal(text.includes(forbidden), false, 'Provider files, keys and machine paths must stay outside the export.');
   assert.equal((await exportNames()).some(name => name.endsWith('.pending')), false);
-  evidence.exports.push({ fileName, tableCount: 30, recordCount, byteCount: String(Buffer.byteLength(text)), sha256: await hash(path), privatePlaintextFile: true });
+  evidence.exports.push({ fileName, tableCount: 31, recordCount, byteCount: String(Buffer.byteLength(text)), sha256: await hash(path), privatePlaintextFile: true });
   return tables;
 }
 async function guiExport(expected, capture = false) {
@@ -184,14 +184,14 @@ try {
   const current = await call('export_saved_readings', { profileIds: [profiles[1].id], format: 'json', includeIdentifiers: true, confirmed: true });
   assert.equal(current.directory, exportDirectory()); const latest = JSON.parse(await readFile(join(current.directory, current.fileName), 'utf8'));
   assert.equal(latest.records.every(row => row.profile_id === profiles[1].id), true); assert.ok(latest.records.some(row => row.record_kind === 'quota_summary')); assert.ok(latest.records.some(row => row.record_kind === 'activity_summary')); assert.equal(JSON.stringify(latest).includes(secretSentinel), false);
-  assert.deepEqual(await liveHashes(), before); assert.deepEqual(await oracle('exports and invalid requests preserve all30tables'), source); assert.deepEqual(await sessions(), sessionsBefore);
+  assert.deepEqual(await liveHashes(), before); assert.deepEqual(await oracle('exports and invalid requests preserve all 31 tables'), source); assert.deepEqual(await sessions(), sessionsBefore);
   await close(); await open();
   const restartBefore = await liveHashes(), restart = await oracle('genuine restart before complete export'); matchesOracle(restart, source);
   const receipt = await call('export_application_data', { confirmed: true }); await readExport(receipt.fileName, restart, receipt);
   assert.deepEqual(await liveHashes(), restartBefore); assert.deepEqual(await oracle('restarted full export remains read-only'), restart); assert.deepEqual(await sessions(), sessionsBefore);
   assert.equal(await readFile(join(fixture.dirs.codex, 'synthetic-fixture.txt'), 'utf8'), CODEX_SENTINEL);
   for (const profile of profiles) assert.equal(await readFile(join(dirname(fixture.database), 'profiles', profile.id, 'synthetic-private-credential-sentinel.txt'), 'utf8'), secretSentinel);
-  evidence.acceptance = { emptyWorkspace: true, actualSyntheticSignIns: 2, allTables: 30, everyPopulatedFieldComparedExactly: true, emptyTableColumns: 'structural_checks_and_storage_schema_tests', archivedAndPriorConnections: true, exactI64NullZero: true, explicitIdentifiablePlaintextConsent: true, providerFilesExcluded: true, invalidAndLockedRequestsCreateNoFiles: true, sourceDatabaseWalWrappedKeyUnchanged: true, genuineRestart: true, providerSessions: sessionsBefore, newProviderSessionsDuringExport: 0, latestSharedPublisherRoute: true };
+  evidence.acceptance = { emptyWorkspace: true, actualSyntheticSignIns: 2, allTables: 31, everyPopulatedFieldComparedExactly: true, emptyTableColumns: 'structural_checks_and_storage_schema_tests', archivedAndPriorConnections: true, exactI64NullZero: true, explicitIdentifiablePlaintextConsent: true, providerFilesExcluded: true, invalidAndLockedRequestsCreateNoFiles: true, sourceDatabaseWalWrappedKeyUnchanged: true, genuineRestart: true, providerSessions: sessionsBefore, newProviderSessionsDuringExport: 0, latestSharedPublisherRoute: true };
   assert.equal(await hash(application), evidence.applicationSha256); assert.equal(await hash(seeder), evidence.seederSha256); assert.equal(await hash(executable), providerDigest); await close(); evidence.result = 'passed';
 } catch (error) { evidence.error = error.stack ?? String(error); process.exitCode = 1; }
 finally { try { await driver?.stop(); } finally { stopGroup(fixture?.bus, 'SIGKILL'); if (fixture) await rm(fixture.root, { recursive: true, force: true }); await writeFile(join(output, 'result.json'), JSON.stringify(evidence, null, 2) + '\n', { mode: 0o600 }); } }

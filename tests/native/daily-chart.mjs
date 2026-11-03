@@ -15,8 +15,10 @@ const application = resolve(process.env.OPENUSAGE_NATIVE_BINARY);
 const output = resolve(process.env.OPENUSAGE_NATIVE_EVIDENCE ?? join(tmpdir(), `openusage-daily-chart-${randomUUID()}`));
 const fixtureDigest = '91e780f49518a25ffa75963b2856f5951c5fe6f4d1e1c9040b41a4231d0750ae';
 const password = 'OpenUsage synthetic daily chart workspace 2026';
-const chartSelector = '[data-overview-daily-chart]';
-const detailsSelector = `${chartSelector} .overview-daily-details button`;
+// The Overview daily bar chart became the token heatmap on October 21, 2026. Saved daily totals now open from Usage in the detail panel.
+const detailsSelector = '[data-workspace-view=usage] [data-activity-details-open]';
+const chartSelector = detailsSelector;
+const panelSelector = '[data-detail-panel][open]';
 const hash = async path => createHash('sha256').update(await readFile(path)).digest('hex');
 const expectedRows = [{ date: '2024-02-29', tokens: '9007199254740993' }, { date: '2024-03-01', tokens: '0' }];
 const expectedChart = { maxTokens: '9007199254740993', bars: [{ date: '2024-02-29', heightBasisPoints: 10000 }, { date: '2024-03-01', heightBasisPoints: 0 }] };
@@ -86,45 +88,40 @@ async function closeNormally() {
   driver = undefined;
 }
 async function overview() {
-  await driver.navigate('overview');
-  await waitFor(() => driver.execute('const root=document.querySelector("[data-overview]");return root?.getAttribute("data-overview-profile")===arguments[0]&&root.getAttribute("aria-busy")==="false"&&Boolean(root.querySelector("[data-overview-daily-chart]"));', [profile.id]), 'selected saved daily chart');
+  await driver.navigate('usage');
+  await waitFor(() => driver.execute('const n=document.querySelector(arguments[0]);return Boolean(n&&n.getClientRects().length);', [detailsSelector]), 'saved daily totals on Usage');
 }
 async function keyboardDetails() {
   for (let presses = 0; presses < 80 && !await driver.execute('return document.activeElement===document.querySelector(arguments[0]);', [detailsSelector]); presses++) await key('\uE004');
-  assert.equal(await driver.execute('return document.activeElement===document.querySelector(arguments[0]);', [detailsSelector]), true, 'Real Tab must reach Daily values.');
-  assert.equal(await driver.execute('return document.querySelector(arguments[0]).getAttribute("aria-expanded");', [detailsSelector]), 'false');
+  assert.equal(await driver.execute('return document.activeElement===document.querySelector(arguments[0]);', [detailsSelector]), true, 'Real Tab must reach saved activity Details.');
   await key('\uE007');
-  await waitFor(() => driver.execute('const button=document.querySelector(arguments[0]);return button===document.activeElement&&button.getAttribute("aria-expanded")==="true"&&document.querySelector(".overview-daily-table")?.getClientRects().length>0;', [detailsSelector]), 'Enter opens daily values');
-  await key(' ');
-  await waitFor(() => driver.execute('return document.querySelector(arguments[0]).getAttribute("aria-expanded")==="false"&&document.activeElement===document.querySelector(arguments[0]);', [detailsSelector]), 'Space closes daily values');
+  await waitFor(() => driver.execute('return Boolean(document.querySelector(arguments[0])?.querySelector(".activity-days")?.getClientRects().length);', [panelSelector]), 'Enter opens daily totals');
+  await key('\uE00C');
+  await waitFor(() => driver.execute('return !document.querySelector(arguments[0])&&document.activeElement===document.querySelector(arguments[1]);', [panelSelector, detailsSelector]), 'Escape closes daily totals and returns focus');
   await key('\uE007');
-  await waitFor(() => driver.execute('return document.querySelector(arguments[0]).getAttribute("aria-expanded")==="true";', [detailsSelector]), 'Enter reopens daily values');
-  evidence.keyboardDetails = { actualTab: true, enterOpen: true, spaceClose: true, triggerFocusRetained: true };
+  await waitFor(() => driver.execute('return Boolean(document.querySelector(arguments[0])?.querySelector(".activity-days"));', [panelSelector]), 'Enter reopens daily totals');
+  evidence.keyboardDetails = { actualTab: true, enterOpen: true, escapeClose: true, focusReturned: true };
 }
 async function chartView() {
   const saved = await load();
+  if (!await driver.execute('return Boolean(document.querySelector(arguments[0])?.querySelector(".activity-days"));', [panelSelector])) {
+    await driver.click(detailsSelector);
+    await waitFor(() => driver.execute('return Boolean(document.querySelector(arguments[0])?.querySelector(".activity-days"));', [panelSelector]), 'daily totals panel');
+  }
   const view = await driver.execute(`
-    const root=document.querySelector('[data-overview]'),chart=root.querySelector('[data-overview-daily-chart]');
-    const rows=[...chart.querySelectorAll('tbody tr')].map(row=>({date:row.querySelector('th time').dateTime,tokens:row.querySelector('td bdi').textContent,observedAt:row.querySelector('td:last-child time').dateTime,freshness:row.querySelector('td:nth-child(3)').textContent}));
-    const bars=[...chart.querySelectorAll('[data-overview-day]')].map(column=>{const bar=column.querySelector('.overview-daily-bar'),rect=bar.getBoundingClientRect();return{date:column.getAttribute('data-overview-day'),height:rect.height,width:rect.width,zero:bar.getAttribute('data-zero'),title:bar.title};});
-    return {profileId:root.getAttribute('data-overview-profile'),rows,bars,scale:chart.querySelector('[aria-label="Daily chart scale maximum"] bdi')?.textContent,provenance:root.querySelector('.overview-provenance')?.textContent,scope:chart.querySelector('figcaption p').textContent,aggregateOptions:[...document.querySelectorAll('[role=option],select option')].filter(node=>/all accounts|all profiles|verified total/i.test(node.textContent)).map(node=>node.textContent),pageWidth:document.scrollingElement.scrollWidth,width:innerWidth,theme:document.documentElement.dataset.theme};
-  `);
-  assert.equal(view.profileId, profile.id);
+    const panel=document.querySelector(arguments[0]);
+    const rows=[...panel.querySelectorAll('[data-activity-day]')].map(row=>({date:row.querySelector('time').dateTime,tokens:row.querySelector('.activity-count bdi').textContent,observedAt:row.querySelector('[data-activity-observed]')?.dateTime,freshness:row.querySelector('.activity-day-observed').textContent.split(' · ')[0]}));
+    const rows2=[...panel.querySelectorAll('.detail-rows dt')].map(dt=>[dt.textContent,dt.nextElementSibling?.textContent]);
+    return {rows,details:Object.fromEntries(rows2),notAvailable:panel.textContent.includes('Not available'),pageWidth:document.scrollingElement.scrollWidth,width:innerWidth,panelWidth:panel.getBoundingClientRect().width,panelScroll:panel.scrollWidth};
+  `, [panelSelector]);
   assert.deepEqual(view.rows.map(({ date, tokens }) => ({ date, tokens })), expectedRows);
   assert.deepEqual(view.rows.map(row => row.observedAt), saved.dailyUsageBuckets.map(row => row.observedAtUtc));
-  const freshness = { fresh: 'Fresh', stale: 'Stale', unknown: 'Freshness unknown' };
+  const freshness = { fresh: 'Current', stale: 'Stale', unknown: 'Freshness unknown' };
   assert.deepEqual(view.rows.map(row => row.freshness), saved.dailyUsageBuckets.map(row => freshness[row.freshness]));
-  assert.equal(view.scale, expectedChart.maxTokens);
-  assert.deepEqual(view.bars.map(bar => bar.date), expectedRows.map(row => row.date));
-  assert.ok(view.bars[0].height > view.bars[1].height && view.bars[0].width > 0);
-  assert.equal(view.bars[1].zero, 'true');
-  assert.ok(view.bars[1].height <= 2.1, 'Observed zero must remain a baseline, not a positive-height bar.');
-  assert.match(view.bars[0].title, /9007199254740993 tokens/);
-  assert.match(view.bars[1].title, /: 0 tokens/);
-  assert.match(view.provenance, /Synthetic test data.*Unverified identity/);
-  assert.match(view.scope, /saved dates.*Dates may have gaps/);
-  assert.deepEqual(view.aggregateOptions, []);
-  assert.ok(view.pageWidth <= view.width + 1, 'The chart must not overflow the page.');
+  assert.equal(view.rows[1].tokens, '0', 'An observed zero day stays a zero, not missing.');
+  assert.equal(view.details.Source, 'Synthetic test data');
+  assert.ok(view.pageWidth <= view.width + 1, 'The page must not overflow.');
+  assert.ok(view.panelScroll <= view.panelWidth + 1, 'The daily totals panel must not overflow.');
   return view;
 }
 async function resize(width, height = 900) {

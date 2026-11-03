@@ -226,6 +226,8 @@ def verify(root, args):
                 storage.linked(p) for p in (root / 'tests', root / 'tests/renderer', root / path)):
             raise ValueError('Select an existing regular renderer spec inside tests/renderer')
     result = plan(paths, args.renderer_test, args.milestone)
+    # A deleted journey still keeps its native gate, but has no file to syntax-check.
+    result['commands'] = [c for c in result['commands'] if c['id'] != 'native_syntax' or (root / c['argv'][-1]).is_file()]
     if args.base:
         result['commands'][0]['argv'].append(git(root, 'rev-parse', '--verify', args.base + '^{commit}').strip())
     elif args.staged:

@@ -1,6 +1,6 @@
 # Acceptance traceability
 
-Updated: November 2, 2026. Native startup, encrypted persistence, backups, restore and undo, profile activity, saved quota, overdue expectations, and conservative reset confirmation passed within their recorded Linux scopes. The full mandatory acceptance suite remains incomplete. Rows record their original artifact scopes; newer rows supersede earlier pending states.
+Updated: November 3, 2026. Native startup, encrypted persistence, backups, restore and undo, profile activity, saved quota, overdue expectations, and conservative reset confirmation passed within their recorded Linux scopes. The full mandatory acceptance suite remains incomplete. Rows record their original artifact scopes; newer rows supersede earlier pending states.
 
 ## Baseline 3.0 coverage
 
@@ -8,7 +8,7 @@ Only OU-DES has evidence so far. See the log.
 
 | Requirements | Tests | State |
 |---|---|---|
-| OU-DES | AT-85 | Passed on the renderer, with one exception |
+| OU-DES | AT-85 | Passed on the renderer and in native Linux journeys, with one exception |
 | OU-SRC, OU-ACCT-020 | AT-61, AT-62, AT-84 | Not started |
 | OU-AUD, OU-ALERT-019, OU-STATE-010, OU-STATE-011, OU-RESET-005, OU-RESET-006 | AT-56 to AT-61 | Not started |
 | OU-LOG, OU-SEC-021, OU-HEAT-026, OU-HEAT-027 | AT-65 to AT-74, AT-93 | Not started |
@@ -30,6 +30,7 @@ Newest first. Rows keep the requirement text of their date. [SRS Section 22.1](S
 
 | Requirement or check | Implementation and executed evidence | Status |
 |---|---|---|
+| Native journeys (S-02); native acceptance for the S-01 screens | All 48 native journeys were brought up to date with the current screens, on Linux with synthetic data on a private display. 43 ran on the native-test build and 4 on the production build with the pinned Codex 0.163.0 companion; 46 passed. `heatmap-window` passes its calendar checks, but this host has no X11 window manager for the title-bar checks. `reference-visual` passes every layout check, but host font hinting makes a tabular `0` 1 pixel wider at 20 pixels. `companion-onboarding` did not run, because it requests a real OpenAI device code. `activity-read` was retired, because every completed read has been saved since October 18. The runs found six app defects, all fixed: the Appearance label was hidden at 760 pixels and below; detail-panel labels broke mid-word at large text; exact counts widened their commas; the heatmap said Fresh where the app says Current; Usage never stacked in narrow windows; and a connected account had no Sign in when monitoring needed one this session. 422 renderer cases passed, 211 each in Chromium and WebKit, with 55 contract checks, 27 tool tests and the verifier crate tests. | Scoped synthetic native Linux passed, with two recorded reasons. Real accounts, Windows, macOS and the real device-code request remain unverified. |
 | AT-85 on the renderer (S-01); OU-DES-003 to OU-DES-008 | Every screen reviewed: Overview, Usage, Settings, and Manage accounts. Numbers open the one panel through Overview summary cards, account rows, Compare cells, the quota donut, history snapshots, and heatmap values. Reviewed by eye in light, dark, 1280, 720, and 360 pixels; expanded Settings text was reviewed from source. Six helper lines removed. Consent, destructive confirmation, restore warnings, unencrypted-export notices, and errors stay. `They do not prove payment` stays, because it states SRS Section 0.2 item 6. Exception: quota numbers in Manage accounts open through View usage in the row. Renderer only, with synthetic IPC, on Linux. No native journey ran on this build. | Passed with one exception |
 | Simple Overview (S-01); partial OU-DES-003 to OU-DES-008 | One side panel and one mark. Overview shows summary, accounts, and token activity. Account Detail moved to the panel, the share donut stays with activity selection, and the quota donut moved to Usage. Theme and display scale moved to Settings, and the clock was removed. Renderer only, with synthetic IPC, on Linux: 210 cases each in Chromium and WebKit and 55 contract checks passed on November 3, 2026. Screens were reviewed by eye in light, dark, 720-pixel, 360-pixel, and empty states. No native journey ran on this build. Usage, Settings, and Manage accounts remain. | Partial |
 | Workspace redesign; OU-UI-004, partial OU-UI-002/003/005/006, OU-ACT-004, OU-ACC | Top-down Overview with connected-account summary, label search and filters, grouped Settings, flat Usage cards and aligned Compare accounts. Tabular digits no longer widen spaces. No IPC, storage or provider change. All 205 renderer cases passed in Chromium and in WebKit, 410 in total, with axe checks in both themes. Build, TypeScript and 55 contracts passed. Synthetic renderer IPC only. | Renderer scope passed. See the next row for native scope. Owner review open. Tags remain absent, so OU-UI-005 is partial. |

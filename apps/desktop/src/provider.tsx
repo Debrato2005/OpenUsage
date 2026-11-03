@@ -255,11 +255,13 @@ export function ProfileProviderCheck({ profileId, profileLabel, approval, busy, 
     finally { if (alive.current && checkGeneration.current === operation) setCancelling(false); }
   }
 
+  // Monitoring needs a sign-in in each app session, so a connected profile without one keeps Sign in.
+  const sessionSignIn = connected && !!monitoring && !monitoring.eligible && (!monitoring.issue || monitoring.issue === 'sign_in_required');
   const title = diagnostic?.authentication === 'authentication_required' ? 'Sign-in required'
     : diagnostic?.authentication === 'chatgpt' ? 'Account response received' : 'Account type not supported';
   return <div className="profile-provider-check">
     {checking && <div className="profile-actions"><span role="status">Checking connection…</span><Button className="text-button" variant="ghost" type="button" data-provider-cancel={profileId} aria-describedby={`profile-name-${profileId}`} disabled={cancelling} onClick={() => { void cancel(); }}>{cancelling ? 'Cancelling…' : 'Cancel check'}</Button></div>}
-    <ProfileDeviceLogin actionContainerId={loginContainerId} connected={connected} actionLabel={loginActionLabel} onAuthenticated={() => {
+    <ProfileDeviceLogin actionContainerId={loginContainerId} connected={connected && !sessionSignIn} actionLabel={loginActionLabel} onAuthenticated={() => {
       setAutomaticRequest(++automaticSequence.current);
     }} onConnectionChanged={onConnectionChanged} key={`login:${loginGeneration}`} profileId={profileId} profileLabel={profileLabel} approval={approval} busy={busy || checking || readingQuota || readingCollection || activity.working} onActivity={setLoggingIn} onStarted={() => { setAutomaticRequest(null); activity.clear(); checkGeneration.current += 1; setDiagnostic(null); setError(null); setQuotaGeneration(value => value + 1); }} />
     <ProfileCollectionRead actionContainerId={loginContainerId} connected={connected} automaticRequest={automaticRequest} profileId={profileId} approval={approval} busy={busy || checking || loggingIn || readingQuota || activity.working} retryAfterSeconds={refreshWait} onActivity={setReadingCollection} onSaved={async value => { await onCollectionSaved(value); await refreshReadingConnection(); }} onFailed={async () => { await onCollectionFailed(); await refreshReadingConnection(); }} onStarted={() => { activity.clear(); checkGeneration.current += 1; setDiagnostic(null); setError(null); setQuotaGeneration(value => value + 1); setLoginGeneration(value => value + 1); }}>

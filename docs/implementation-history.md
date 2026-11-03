@@ -4,6 +4,18 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## Native journeys before S-02
+
+As of November 2, 2026, on Linux:
+
+- Failing: `profiles` and `restore-checkpoint`. Both failed with element not interactable, the same as before the redesign.
+- Stale: `overview-workspace`, `quota-history`, `activity-history`, `application-export`, `smoke`, `restore-preview`, `restore-apply`, and `theme-select`.
+- Needs a window manager: `heatmap-window`.
+- Not run on that build: monitoring, collection, device login, and production fixture refusal.
+- S-01 then moved Overview content, history snapshots, and heatmap values into the detail panel, renamed disclosures, removed the clock, and moved theme and display scale to Settings.
+
+S-02 resolved these on November 3, 2026. [Status](implementation-status.md#failing-or-stale-tests) holds the current list.
+
 ## Workspace redesign and comparison: renderer acceptance passed
 
 The user requested a more intuitive and appealing interface. Overview now reads top-down: a four-tile summary, the searchable account list, then the selected account. Settings groups its rows into six topics with a section index. Usage uses flat cards. The three primary pages, DM Sans, both quota bars, same-page Refresh, the true-black dark theme and the blue heatmap remain.

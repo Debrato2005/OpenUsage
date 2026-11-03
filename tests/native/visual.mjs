@@ -155,15 +155,18 @@ async function measure(state, themeName, variant, target) {
     if (!data.fontChecks.some(check => check.weight === weight && check.loaded)
       || !data.fontFaces.some(face => face.family.replaceAll('"', '').replaceAll("'", '') === expectedFont && face.status === 'loaded' && weight >= Number(face.weight.split(' ')[0]) && weight <= Number(face.weight.split(' ')[1] ?? face.weight.split(' ')[0]))) fail(`The required local font weight ${weight} is not loaded.`);
   }
+  // These states have no saved readings, so any quota or activity value shown must be unavailable.
   for (const label of ['Quota remaining', 'Token activity']) {
     const metric = data.metrics.find(item => item.label?.includes(label));
-    if (metric?.value !== 'Not available') fail(`Missing provider metric must remain unavailable: ${label}.`);
+    if (metric && metric.value !== 'Not available') fail(`Missing provider metric must remain unavailable: ${label}.`);
   }
 }
 
 async function captureState(state, target, narrow = false) {
-  for (const value of ['light', 'dark']) {
-    await theme(value);
+  // Appearance is a workspace setting. Before a workspace opens, the window follows the system appearance.
+  const open = await driver.execute('return Boolean(document.querySelector("[data-workspace-view=settings] #theme"));');
+  for (const value of open ? ['light', 'dark'] : ['system']) {
+    if (open) await theme(value);
     await resize(1280, 850);
     await driver.execute('window.scrollTo(0,0); if(arguments[0])document.querySelector(arguments[0]).scrollIntoView({block:"center"}); return true;', [target]);
     await measure(state, value, 'desktop', target);
@@ -192,6 +195,8 @@ async function captureState(state, target, narrow = false) {
 }
 
 async function keyboardFocus() {
+  // Overview is the first link after the brand.
+  await driver.navigate('overview');
   for (const value of ['light', 'dark']) {
     await theme(value);
     await driver.execute('window.scrollTo(0,0); document.querySelector(".brand").focus(); return true;');
