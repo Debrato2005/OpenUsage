@@ -53,7 +53,7 @@ async function notificationRows(label) {
     assert.equal(await hash(fixture.database), before.database); assert.equal(await hash(keyPath), before.key);
     if (walHash !== null) assert.equal(await hash(`${fixture.database}-wal`), walHash);
     const rows = Object.fromEntries(['alert_events', 'threshold_alert_events', 'reset_notification_outbox', 'reset_notification_receipts'].map(name => [name, result.state.tables[name]]));
-    (evidence.oracleChecks ??= []).push({ label, allNamedTables: 30, databaseWalKeyUnchanged: true, rows: Object.fromEntries(Object.entries(rows).map(([name, value]) => [name, { count: value.length, sha256: createHash('sha256').update(JSON.stringify(value)).digest('hex') }])) });
+    (evidence.oracleChecks ??= []).push({ label, allNamedTables: 31, databaseWalKeyUnchanged: true, rows: Object.fromEntries(Object.entries(rows).map(([name, value]) => [name, { count: value.length, sha256: createHash('sha256').update(JSON.stringify(value)).digest('hex') }])) });
     return rows;
   } finally { await rm(temporary, { recursive: true, force: true }); }
 }

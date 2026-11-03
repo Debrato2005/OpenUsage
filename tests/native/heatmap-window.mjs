@@ -56,7 +56,7 @@ try {
   await waitFor(() => driver.execute('return !document.querySelector("[data-account-panel]")?.open;'), 'Escape closes account details');
   await driver.navigate('overview');
   await waitFor(() => driver.execute('return Boolean(document.querySelector("[data-overview] [data-heatmap-grid]"));'), 'compact Overview calendar');
-  assert.equal(await driver.execute('return document.querySelector("[data-overview] [data-token-heatmap]").dataset.periodDays;'), '90');
+  assert.equal(await driver.execute('return document.querySelector("[data-overview] [data-token-heatmap]").dataset.periodDays;'), '365');
   await driver.navigate('usage');
   await waitFor(() => driver.execute('return document.querySelector("[data-workspace-view=usage] [data-token-heatmap]")?.dataset.periodDays==="365"&&document.querySelectorAll("[data-workspace-view=usage] [data-heatmap-cell]").length===365;'), 'full-year native Usage heatmap');
   const size = await driver.execute('const n=document.querySelector("[data-workspace-view=usage] [data-token-heatmap]");return {panel:n.clientWidth,plot:n.querySelector(".react-activity-calendar svg").getBoundingClientRect().width};');
@@ -67,7 +67,10 @@ try {
   assert.equal((grid.readings + grid.padding) % 7, 0);
   assert.equal(grid.interactivePadding, 0);
   evidence.calendar = grid;
-  assert.match(await driver.execute('return document.querySelector("[data-workspace-view=usage] [data-heatmap-coverage]").textContent;'), /7 of 365 days reported/);
+  // Coverage lives in the Values panel.
+  await driver.click('[data-workspace-view=usage] [data-heatmap-values-toggle]');
+  await waitFor(() => driver.execute('return /7 of 365 days reported/.test(document.querySelector("[data-detail-panel][open] [data-heatmap-coverage]")?.textContent ?? "");'), 'coverage in the Values panel');
+  await driver.closeDetail();
   const displayed = await driver.execute('const n=document.querySelector("[data-workspace-view=usage] [data-heatmap-selected]");return {count:n.querySelector("bdi").textContent,exact:n.querySelector("bdi").title,label:n.querySelector("strong").textContent};');
   assert.equal(displayed.count, '2.22M');
   assert.equal(displayed.exact, '2,220,000');
@@ -82,7 +85,9 @@ try {
   assert.ok(owned);
   const focus = JSON.parse(execFileSync('/usr/bin/python3', [resolve('tests/native/x11-close.py'), String(owned), 'focus'], { env: fixture.environment, encoding: 'utf8', timeout: 10000 }));
   execFileSync('/usr/bin/import', ['-silent', '-window', String(focus.windowId), join(output, 'native-year-heatmap.png')], { env: fixture.environment, timeout: 10000 });
+  evidence.calendarPassed = true;
   evidence.windowManager = execFileSync('/usr/bin/xprop', ['-root', '_NET_SUPPORTING_WM_CHECK'], { env: fixture.environment, encoding: 'utf8', timeout: 5000 }).trim();
+  assert.match(evidence.windowManager, /window id/, 'No window manager on this display, so the native title-bar controls were not run.');
   const click = action => JSON.parse(execFileSync('/usr/bin/python3', [resolve('tests/native/x11-titlebar.py'), String(owned), String(focus.windowId), action], { env: fixture.environment, encoding: 'utf8', timeout: 10000 }));
   const state = () => execFileSync('/usr/bin/xprop', ['-id', String(focus.windowId), '_NET_WM_STATE', 'WM_STATE'], { env: fixture.environment, encoding: 'utf8', timeout: 5000 });
   evidence.controls = [click('maximize')];

@@ -107,9 +107,9 @@ try {
   evidence.harnessHashes = {}; for (const path of ['theme-select.mjs', 'webdriver.mjs', 'private-fixture.mjs', 'x11-close.py', 'viewport.mjs']) evidence.harnessHashes[path] = await hash(join(harness, path));
   fixture = await createFixture('theme-select'); const syntheticHome = join(fixture.root, 'synthetic-home'); await mkdir(syntheticHome, { mode: 0o700 }); fixture.environment.HOME = syntheticHome;
   await open(); await waitFor(async () => await driver.execute('return ["#workspace-passphrase","#workspace-confirmation"].every(selector=>{const field=document.querySelector(selector);return Boolean(field&&!field.disabled);});'), 'enabled setup fields');
+  await driver.type('#workspace-passphrase', password); await driver.type('#workspace-confirmation', password); await driver.click('.unlock-form button[type=submit]'); await waitFor(async () => (await driver.invoke('bootstrap')).value?.storage === 'ready', 'fresh SQLCipher workspace');
   await driver.navigate('settings');
   assert.deepEqual(await driver.execute('const control=document.querySelector("#theme");return {tag:control.tagName,role:control.getAttribute("role"),labelledByAppearance:(control.getAttribute("aria-labelledby")??"").split(/\\s+/).includes("theme-label")};'), { tag: 'BUTTON', role: 'combobox', labelledByAppearance: true });
-  await driver.type('#workspace-passphrase', password); await driver.type('#workspace-confirmation', password); await driver.click('.unlock-form button[type=submit]'); await waitFor(async () => (await driver.invoke('bootstrap')).value?.storage === 'ready', 'fresh SQLCipher workspace');
   const keyHash = await hash(join(dirname(fixture.database), 'database-key.v1'));
   await driver.selectVisibleOption('#theme', 'Dark'); await saved('dark'); const beforeCancel = await liveHashes();
   const options = await openOptions(); assert.equal(options.find(option => option.text === 'Dark').selected, 'true'); await capture('theme-select-dark-desktop.png');

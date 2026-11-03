@@ -82,7 +82,7 @@ async function open(setup = false) {
   if (setup) await driver.type('#workspace-confirmation', passphrase);
   await driver.click('.unlock-form button[type=submit]');
   await waitFor(async () => (await driver.invoke('bootstrap')).value?.storage === 'ready', 'unlocked native workspace');
-  assert.equal((await call('bootstrap')).schemaVersion, 6);
+  assert.equal((await call('bootstrap')).schemaVersion, 9);
 }
 async function desktopPid() {
   const queue = [driver.child.pid];
@@ -159,7 +159,7 @@ async function savedGui(profile) {
 async function overviewRows(expectedFreshness) {
   await driver.navigate('overview');
   for (const profile of profiles) {
-    await waitFor(() => driver.execute('const row=document.querySelector(arguments[0]),quota=row?.querySelector("[data-overview-account-quota]"),observed=row?.querySelector("[data-overview-account-observed]"),meter=quota?.querySelector("[role=meter]");return Boolean(quota?.textContent.includes("75% left")&&meter?.getAttribute("aria-valuenow")==="75"&&meter.getAttribute("aria-label").includes("remaining (derived)")&&observed?.querySelector("time[datetime]")&&(arguments[1]==="Fresh"?!observed.textContent.includes("Freshness unknown"):observed.textContent.includes(arguments[1])));', [`[data-overview-account="${profile.id}"]`, expectedFreshness]), 'each saved account quota visible without selecting its profile');
+    await waitFor(() => driver.execute('const row=document.querySelector(arguments[0]),quota=row?.querySelector("[data-overview-account-quota]"),mark=row?.querySelector("[data-mark]"),meter=quota?.querySelector("[role=meter]");return Boolean(quota?.textContent.includes("75% left")&&meter?.getAttribute("aria-valuenow")==="75"&&meter.getAttribute("aria-label").includes("remaining (derived)")&&(arguments[1]==="Fresh"?!mark:mark?.textContent===arguments[1]));', [`[data-overview-account="${profile.id}"]`, expectedFreshness]), 'each saved account quota visible without selecting its profile');
   }
 }
 async function capture(name, selector) {
@@ -198,7 +198,7 @@ try {
   assert.notEqual(evidence.profiles[0].runtimeHome, evidence.profiles[1].runtimeHome);
   assert.deepEqual((await readdir(join(workspace, 'profiles'))).sort(), profiles.map(profile => profile.id).sort());
   assert.equal(await hash(join(workspace, 'database-key.v1')), keySha);
-  await driver.navigate('overview'); await driver.selectVisibleOption('#overview-profile', 'Account B');
+  await driver.openAccount(second.profile.id);
   await waitFor(() => driver.execute('return document.querySelector("[data-overview-lifetime]")?.getAttribute("data-exact-value")==="9007199254740993";'), 'Overview loads Account B automatic reading');
   await overviewRows('Fresh');
   await capture('second-account-auto-read-overview.png', '[data-overview-accounts-table]');

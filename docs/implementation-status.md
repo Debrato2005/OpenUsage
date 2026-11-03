@@ -26,14 +26,12 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Last full results, all from November 2, 2026, before the docs update:
+Last full results, from November 3, 2026, after S-02, on Linux with synthetic data:
 
-- 389 Rust tests passed, with one intentional child test ignored.
-- All 410 renderer cases passed: 205 each in Chromium and WebKit.
-- 55 contract checks passed.
-- 11 native journeys passed on a private display.
-
-On November 3, 2026, after S-01, all 420 renderer cases passed: 210 each in Chromium and WebKit. All 55 contract checks passed. Rust did not change, so Rust tests were not rerun. No native journey has run on this build.
+- 46 of 48 native journeys passed on a private display. [Failing tests](#failing-or-stale-tests) names the other two.
+- All 422 renderer cases passed: 211 each in Chromium and WebKit.
+- 55 contract checks and 27 tool tests passed.
+- Rust in the app did not change, so the 389 Rust tests from November 2 were not rerun. The native verifier crate's tests passed.
 
 ## Not built
 
@@ -75,13 +73,12 @@ Kept from baseline 2.0:
 
 ## Failing or stale tests
 
-As of November 2, 2026, on Linux:
+As of November 3, 2026, on Linux. 43 journeys ran on the native-test build and 4 on the production build. No failure names an app defect.
 
-- Failing: `profiles` and `restore-checkpoint`. Both fail with element not interactable, the same as before the redesign.
-- Stale: `overview-workspace`, `quota-history`, `activity-history`, `application-export`, `smoke`, `restore-preview`, `restore-apply`, and `theme-select`.
-- Needs a window manager: `heatmap-window`.
-- Not run on this build: monitoring, collection, device login, and production fixture refusal on the prior redesign build.
-- S-01 moved Overview content, history snapshots, and heatmap values into the detail panel, renamed disclosures, removed the clock, and moved theme and display scale to Settings. Native journeys that drive these, including `summary-details`, need S-02.
+- `heatmap-window`: its calendar checks pass. The title-bar checks need an X11 window manager, and this host has none.
+- `reference-visual`: every layout check passes. This host's font hinting rounds each glyph to whole pixels, so a tabular `0` is 1 pixel wider than other digits at 20 pixels. The journey records it as a violation.
+- `companion-onboarding` did not run. It requests a real OpenAI device code, so it waits for owner approval.
+- `activity-read` was removed. It checked unsaved previews, and every completed read has been saved since October 18. `activity-persistence` and `collection` cover saved reads.
 
 ## Missing release documents
 
@@ -93,6 +90,6 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 
 ## Current assignment
 
-S-01 is done on the renderer. S-02 is next. [Implementation slices](implementation-slices.md) hold the order.
+S-02 is done. S-03 is next. [Implementation slices](implementation-slices.md) hold the order.
 
 The exact working checkpoint, if one exists, is in the local `.recovery/active-checkpoint.json`.

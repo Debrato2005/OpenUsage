@@ -36,6 +36,8 @@ async function heatmap(profileId, mode = 'daily', periodDays = 365) {
 async function visibleHeatmap(profileId, mode = 'daily', periodDays = 365) {
   await waitFor(() => driver.execute('const node=document.querySelector("[data-overview] [data-token-heatmap]");return node?.getAttribute("data-profile-id")===arguments[0]&&node.getAttribute("data-mode")===arguments[1]&&node.getAttribute("data-period-days")===String(arguments[2])&&Boolean(node.querySelector("[data-heatmap-grid]"));', [profileId, mode, periodDays]), `loaded ${mode} ${periodDays}-day heatmap for selected account`);
 }
+// The account panel is a modal; close it before using the page behind it.
+async function select(profileId) { await driver.openAccount(profileId); await driver.closeDetail(); }
 async function key(value) {
   await driver.request('POST', `/session/${driver.session}/actions`, { actions: [{ type: 'key', id: 'native-keyboard', actions: [{ type: 'keyDown', value }, { type: 'keyUp', value }] }] });
   await driver.request('DELETE', `/session/${driver.session}/actions`);
@@ -72,7 +74,7 @@ async function resize(width, height = 920) {
 async function capture(name) {
   await driver.execute('scrollTo(0,0);return true;'); await driver.screenshot(join(output, name)); evidence.screenshots.push(name);
   await waitFor(() => driver.execute('return document.fonts.status === "loaded";'), 'loaded UI font');
-  const geometry = await driver.execute('const panels=[...document.querySelectorAll(".overview-panels>.overview-panel")].map(node=>{const r=node.getBoundingClientRect();return {left:r.left,top:r.top,width:r.width,height:r.height,scrollHeight:node.scrollHeight,layout:getComputedStyle(node.parentNode).display,children:[...node.children].map(child=>{const q=child.getBoundingClientRect(),s=getComputedStyle(child);return {class:child.className,height:q.height,top:q.top,width:q.width,marginTop:s.marginTop,marginBottom:s.marginBottom,position:s.position};})};});return {width:innerWidth,scrollWidth:document.documentElement.scrollWidth,height:innerHeight,bodyFont:getComputedStyle(document.body).fontSize,titleFont:getComputedStyle(document.querySelector("h1")).fontSize,panels};');
+  const geometry = await driver.execute('const panels=[...document.querySelectorAll("[data-overview-glance],[data-overview-accounts-table],[data-overview-activity]")].map(node=>{const r=node.getBoundingClientRect();return {left:r.left,top:r.top,width:r.width,height:r.height,scrollHeight:node.scrollHeight};});return {width:innerWidth,scrollWidth:document.documentElement.scrollWidth,height:innerHeight,bodyFont:getComputedStyle(document.body).fontSize,titleFont:getComputedStyle(document.querySelector("h1")).fontSize,panels};');
   assert.ok(geometry.scrollWidth <= geometry.width + 1); evidence.views.push({ name, ...geometry });
 }
 await mkdir(output, { recursive: true, mode: 0o700 });
@@ -107,20 +109,23 @@ try {
     assert.equal(await driver.execute('return [...document.querySelectorAll("[data-account-panel] [data-profile-id]")].filter(node=>node.getClientRects().length).length;'), 1);
     await waitFor(async () => Boolean(await call('load_profile_quota', { profileId: profile.id })) && Boolean(await call('load_profile_activity', { profileId: profile.id })), 'selected GUI sign-in automatically saves paired fixture readings', 45000);
   }
-  await driver.navigate('overview');
-  await waitFor(() => driver.execute('return document.querySelector("[data-overview-lifetime]")?.getAttribute("data-exact-value")==="9007199254740993";'), 'selected saved count');
-  await waitFor(() => driver.execute('return document.querySelector(".overview-account-identity")?.textContent.includes("ChatGPT Plus");'), 'saved provider plan');
+  await driver.openAccount(profiles[0].id);
+  await waitFor(() => driver.execute('return document.querySelector("[data-detail-panel][open] [data-overview-lifetime]")?.getAttribute("data-exact-value")==="9007199254740993";'), 'selected saved count');
+  await waitFor(() => driver.execute('return [...document.querySelectorAll("[data-detail-panel][open] .detail-rows dt")].find(node=>node.textContent==="Plan")?.nextElementSibling?.textContent==="ChatGPT Plus";'), 'saved provider plan');
   assert.equal(await driver.execute('return document.querySelector("[data-account-panel]").open;'), false);
   assert.equal(await driver.execute('return document.querySelector("[data-account-refresh-message]");'), null, 'Automatic login collection does not add an Overview banner.');
-  assert.deepEqual(await driver.execute('return [...document.querySelectorAll("[data-overview-quota] [role=meter]")].map(node=>Number(node.getAttribute("aria-valuenow")));'), [75, 60]);
-  assert.deepEqual(await driver.execute('return [...document.querySelectorAll("[data-overview-window]")].map(node=>node.getAttribute("data-overview-window"));'), ['Primary window', 'Secondary window']);
-  await visibleHeatmap(profiles[0].id, 'daily', 90);
-  assert.equal(await driver.execute('return document.querySelector("[data-overview-quota-donut]")?.getAttribute("data-remaining");'), '75');
+  assert.deepEqual(await driver.execute('return [...document.querySelectorAll("[data-detail-panel][open] [data-overview-window] [role=meter]")].map(node=>Number(node.getAttribute("aria-valuenow")));'), [75, 60]);
+  assert.deepEqual(await driver.execute('return [...document.querySelectorAll("[data-detail-panel][open] [data-overview-window]")].map(node=>node.getAttribute("data-overview-window"));'), ['Primary window', 'Secondary window']);
+  await driver.closeDetail();
+  await visibleHeatmap(profiles[0].id);
   await resize(1586, 992); await capture('overview-reference-light.png');
   assert.equal(await driver.execute('return document.querySelectorAll("[data-overview-combined-usage],[data-overview-day]").length;'), 0, 'The bar chart is replaced without inventing combined totals.');
+  // Summary, accounts and activity each use the full width, one above the other.
+  const [glance, accounts, activityPanel] = evidence.views.at(-1).panels;
   assert.equal(evidence.views.at(-1).panels.length, 3);
-  assert.ok(evidence.views.at(-1).panels.every(panel => Math.abs(panel.top - evidence.views.at(-1).panels[0].top) < 1));
-  await visibleHeatmap(profiles[0].id, 'daily', 90);
+  assert.ok([accounts, activityPanel].every(panel => Math.abs(panel.left - glance.left) < 1 && Math.abs(panel.width - glance.width) < 1));
+  assert.ok(glance.top < accounts.top && accounts.top < activityPanel.top);
+  await visibleHeatmap(profiles[0].id);
   const beforeHeatmap = await liveHashes(), providersBeforeHeatmap = await providerHashes(profiles);
   const daily = await heatmap(profiles[0].id);
   assert.equal(daily.profileId, profiles[0].id);
@@ -130,7 +135,7 @@ try {
   assert.deepEqual(daily.cells.filter(cell => cell.tokens !== null).map(cell => cell.tokens), expectedDays);
   assert.equal(daily.scaleMaximum, '3100000');
   assert.ok(daily.cells.some(cell => cell.tokens === null && cell.knownDays === 0 && cell.observedAtUtc === null));
-  assert.equal(await driver.execute('return document.querySelectorAll("[data-overview] [data-heatmap-cell][data-value=missing]").length;'), 83);
+  assert.equal(await driver.execute('return document.querySelectorAll("[data-overview] [data-heatmap-cell][data-value=missing]").length;'), 358);
   assert.equal(await driver.execute('return document.querySelectorAll("[data-overview] [data-heatmap-cell][data-value=zero]").length;'), 1);
   assert.equal(await driver.execute('return document.querySelector(arguments[0])?.getAttribute("data-exact-value");', ['[data-overview] [data-heatmap-cell="2026-10-17"]']), '0');
   assert.equal(await driver.execute('return document.querySelector(arguments[0])?.getAttribute("data-exact-value");', ['[data-overview] [data-heatmap-cell="2026-10-19"]']), '3100000');
@@ -139,12 +144,12 @@ try {
   await waitFor(() => driver.execute('return document.activeElement?.getAttribute("data-heatmap-cell")==="2026-10-16"&&document.querySelector("[data-overview] [data-heatmap-selected] bdi")?.title==="2,450,000";'), 'native arrow key explores the next exact daily cell');
   await driver.execute('document.querySelector("[data-overview] [data-heatmap-values-toggle]").focus();return true;');
   await key('\uE007');
-  await waitFor(() => driver.execute('return Boolean(document.querySelector("[data-overview] [data-heatmap-values]")?.getClientRects().length);'), 'actual keyboard opens exact heatmap values');
-  const exactValues = await driver.execute('return document.querySelector("[data-overview] [data-heatmap-values]").textContent;');
+  await waitFor(() => driver.execute('return Boolean(document.querySelector("[data-detail-panel][open] [data-heatmap-values]")?.getClientRects().length);'), 'actual keyboard opens exact heatmap values');
+  const exactValues = await driver.execute('return document.querySelector("[data-detail-panel][open] [data-heatmap-values]").textContent;');
   assert.match(exactValues, /3,100,000/);
   assert.match(exactValues, /2026-10-17/);
-  await key('\uE007');
-  await waitFor(() => driver.execute('return !document.querySelector("[data-overview] [data-heatmap-values]")?.getClientRects().length;'), 'keyboard closes exact values');
+  await key('\uE00C');
+  await waitFor(() => driver.execute('return !document.querySelector("[data-detail-panel][open]")&&document.activeElement?.hasAttribute("data-heatmap-values-toggle");'), 'Escape closes exact values and returns focus');
   for (const days of [30, 90, 180, 365]) {
     await driver.selectVisibleOption('[data-overview] [aria-label="Activity history range"]', `${days} days`);
     await visibleHeatmap(profiles[0].id, 'daily', days);
@@ -167,46 +172,47 @@ try {
   assert.equal(await driver.execute('return [...document.querySelectorAll("[data-overview] [data-heatmap-cell]")].at(-1)?.getAttribute("data-exact-value");'), '11670000');
   await driver.click('[data-overview] [data-heatmap-mode=daily]');
   await visibleHeatmap(profiles[0].id);
-  await driver.selectVisibleOption('[data-overview] #overview-profile', profiles[1].label);
+  await select(profiles[1].id);
   await visibleHeatmap(profiles[1].id);
   assert.equal(await driver.execute('return document.querySelector("[data-overview]").getAttribute("data-overview-profile");'), profiles[1].id, 'Activity account selects the shared Overview account.');
   const otherHeatmap = await heatmap(profiles[1].id);
   assert.equal(otherHeatmap.profileId, profiles[1].id);
   assert.notEqual(otherHeatmap.bindingId, daily.bindingId);
   assert.notEqual(otherHeatmap.collectionRunId, daily.collectionRunId);
-  await driver.selectVisibleOption('#overview-profile', profiles[4].label);
+  await select(profiles[4].id);
   assert.equal(await heatmap(profiles[4].id), null);
   await waitFor(() => driver.execute('return document.querySelector("[data-overview] [data-token-heatmap]")?.getAttribute("data-profile-id")===arguments[0]&&document.querySelectorAll("[data-overview] [data-heatmap-cell]").length===0;', [profiles[4].id]), 'unconnected account does not inherit another account heatmap');
-  await driver.selectVisibleOption('#overview-profile', profiles[0].label);
+  await select(profiles[0].id);
   await visibleHeatmap(profiles[0].id);
-  await driver.click('[data-overview] [aria-label="Activity accounts"] button:nth-child(2)');
-  await waitFor(() => driver.execute('return document.querySelector("[data-overview] [data-activity-scope]")?.getAttribute("data-activity-scope")==="combined"&&Boolean(document.querySelector("[data-overview] [data-combined-availability]"));'), 'Combined checks saved eligibility');
-  assert.equal(await driver.execute('return document.querySelectorAll("[data-overview] [data-combined-heatmap] [role=checkbox]").length;'), 5);
-  assert.equal(await driver.execute('return document.querySelectorAll("[data-overview] [data-combined-heatmap] [role=checkbox][aria-checked=true]").length;'), 2, 'Only connected accounts are selected by default.');
+  await driver.click('[data-overview] [aria-label="Activity accounts"] button:nth-child(3)');
+  await waitFor(() => driver.execute('return document.querySelector("[data-overview] [data-activity-scope]")?.getAttribute("data-activity-scope")==="verified"&&Boolean(document.querySelector("[data-overview] [data-combined-availability]"));'), 'Verified combined checks saved eligibility');
+  assert.equal(await driver.execute('return document.querySelectorAll("[data-overview] .combined-account-selection [role=checkbox]").length;'), 5);
+  assert.equal(await driver.execute('return document.querySelectorAll("[data-overview] .combined-account-selection [role=checkbox][aria-checked=true]").length;'), 2, 'Only connected accounts are selected by default.');
   const combinedIds = profiles.slice(0, 2).map(profile => profile.id);
   const combined = await call('load_combined_heatmap', { profileIds: combinedIds });
   assert.deepEqual(combined, { status: 'unavailable', includedProfileIds: [], exclusions: combinedIds.map(profileId => ({ profileId, reason: 'identity_unverified' })) });
   assert.equal(await driver.execute('return document.querySelectorAll("[data-overview] [data-heatmap-grid],[data-overview] [data-heatmap-cell]").length;'), 0, 'Ineligible accounts never produce a combined calendar or invented totals.');
   assert.equal(await driver.execute('return document.querySelectorAll("[data-overview] .combined-exclusions li").length;'), 2);
   await driver.click('[data-overview] .combined-account-selection label:nth-child(2) [role=checkbox]');
-  await waitFor(() => driver.execute('return document.querySelectorAll("[data-overview] .combined-exclusions li").length===1&&document.querySelectorAll("[data-overview] [data-combined-heatmap] [role=checkbox][aria-checked=true]").length===1;'), 'unchecking an account updates Combined eligibility');
+  await waitFor(() => driver.execute('return document.querySelectorAll("[data-overview] .combined-exclusions li").length===1&&document.querySelectorAll("[data-overview] .combined-account-selection [role=checkbox][aria-checked=true]").length===1;'), 'unchecking an account updates Combined eligibility');
   assert.deepEqual(await call('load_combined_heatmap', { profileIds: [profiles[0].id] }), { status: 'unavailable', includedProfileIds: [], exclusions: [{ profileId: profiles[0].id, reason: 'identity_unverified' }] });
   await driver.click('[data-overview] .combined-account-selection label:nth-child(2) [role=checkbox]');
-  await waitFor(() => driver.execute('return document.querySelectorAll("[data-overview] .combined-exclusions li").length===2&&document.querySelectorAll("[data-overview] [data-combined-heatmap] [role=checkbox][aria-checked=true]").length===2;'), 'checking the second account restores its exclusion');
+  await waitFor(() => driver.execute('return document.querySelectorAll("[data-overview] .combined-exclusions li").length===2&&document.querySelectorAll("[data-overview] .combined-account-selection [role=checkbox][aria-checked=true]").length===2;'), 'checking the second account restores its exclusion');
   await driver.click('[data-overview] [aria-label="Activity accounts"] button:first-child');
-  await visibleHeatmap(profiles[0].id, 'daily', 90);
+  await visibleHeatmap(profiles[0].id);
   assert.equal(await driver.execute('return document.querySelector("[data-overview]").getAttribute("data-overview-profile");'), profiles[0].id, 'Returning to Individual preserves its selected account.');
   assert.deepEqual(await liveHashes(), beforeHeatmap, 'Calendar and combined-eligibility reads and controls must preserve encrypted database, WAL and key bytes.');
   assert.deepEqual(await providerHashes(profiles), providersBeforeHeatmap, 'History browsing must not make provider requests.');
-  evidence.heatmap = { defaultDays: 90, knownDays: 7, missingDays: 83, explicitZeroDays: 1, dailyExactValues: expectedDays, weeklyExactTotals: ['5430000', '6240000'], cumulativeAvailableTotal: '11670000', coverageUnknown: true, keyboardExactValues: true, ranges: [30, 90, 180, 365], accountIsolation: true, individualAccountSelector: true, combinedSelectionControls: true, unverifiedCombinedRefused: true, databaseWalKeyUnchanged: true, noProviderRequests: true };
-  await driver.click('.overview-source-details > button');
-  assert.ok((await driver.execute('return document.querySelector(".overview-source-details").textContent;')).includes('9007199254740993'));
-  await driver.click('.overview-source-details > button');
-  await driver.click('.overview-account-footer > button');
+  evidence.heatmap = { defaultDays: 365, knownDays: 7, missingDays: 358, explicitZeroDays: 1, dailyExactValues: expectedDays, weeklyExactTotals: ['5430000', '6240000'], cumulativeAvailableTotal: '11670000', coverageUnknown: true, keyboardExactValues: true, ranges: [30, 90, 180, 365], accountIsolation: true, individualAccountSelector: true, combinedSelectionControls: true, unverifiedCombinedRefused: true, databaseWalKeyUnchanged: true, noProviderRequests: true };
+  const viewUsage = '[data-detail-panel][open] .overview-account-actions > button:nth-child(2)';
+  await driver.openAccount(profiles[0].id);
+  assert.equal(await driver.execute('return document.querySelector(arguments[0])?.textContent;', [viewUsage]), 'View usage');
+  await driver.click(viewUsage);
   await waitFor(() => driver.execute('return document.querySelector("[data-workspace-view=usage] [role=combobox]")?.textContent.includes(arguments[0]);', [profiles[0].label]), 'View usage selects the requested account');
+  await waitFor(() => driver.execute('return document.querySelector("[data-workspace-view=usage] [data-overview-quota-donut]")?.getAttribute("data-remaining")==="75";'), 'Usage quota donut shows the saved remaining value');
   await driver.selectVisibleOption('[aria-label="Usage profile"]', profiles[1].label);
-  await driver.navigate('overview');
-  await driver.click('.overview-account-footer > button');
+  await driver.openAccount(profiles[0].id);
+  await driver.click(viewUsage);
   await waitFor(() => driver.execute('return document.querySelector("[data-workspace-view=usage] [role=combobox]")?.textContent.includes(arguments[0]);', [profiles[0].label]), 'Repeated View usage restores its account');
   evidence.usageSelection = { repeatedAccountActionWinsOverUsageSelection: true };
   await driver.navigate('overview');
@@ -218,8 +224,7 @@ try {
   await driver.click(`[data-login-cancel="${profiles[2].id}"]`);
   await waitFor(() => driver.execute('return !document.querySelector(arguments[0]);', [`[data-login-cancel="${profiles[2].id}"]`]), 'selected sign-in cancelled');
   evidence.accountActions = { overviewAddCreatedFiveSeparateProfiles: true, selectedSignInStartedOnlyThirdAccount: true, cancellationCompleted: true, onlyThreePrimaryViews: true, addAndSignInUseSelectedDialog: true };
-  await driver.navigate('overview');
-  await driver.selectVisibleOption('#overview-profile', profiles[0].label);
+  await driver.openAccount(profiles[0].id);
   const selectedId = await driver.execute('return document.querySelector("[data-overview]").getAttribute("data-overview-profile");');
   assert.ok(profiles.slice(0, 2).some(profile=>profile.id===selectedId));
   await driver.waitForProfileRefresh(selectedId);
@@ -228,7 +233,7 @@ try {
   await driver.waitForProfileRefresh(otherId);
   const otherBeforeRefresh = await call('load_profile_quota', { profileId: otherId });
   // The visible countdown updates separately from backend cooldown admission.
-  await waitFor(() => driver.execute('return document.querySelector(arguments[0])?.disabled===false;', [`[data-overview-row-refresh="${otherId}"]`]), 'other account visible cooldown finishes before independent refresh');
+  await waitFor(() => driver.execute('return document.querySelector(arguments[0])?.disabled===false;', [`[data-overview-refresh="${selectedId}"]`]), 'selected account visible cooldown finishes before refresh');
   const held = join(dirname(fixture.database), 'profiles', selectedId, 'synthetic-dashboard-hold');
   await writeFile(held, 'Owned synthetic refresh hold. No credentials.\n', { mode: 0o600 });
   try {
@@ -236,8 +241,8 @@ try {
     await waitFor(() => driver.execute('const button=document.querySelector(arguments[0]);return button?.disabled&&button.textContent==="Refreshing…"&&button.getAttribute("aria-busy")==="true";', [`[data-overview-refresh="${selectedId}"]`]), 'selected Overview refresh shows progress');
     assert.equal(await driver.execute('return document.querySelector("[data-account-panel]").open;'), false);
     assert.equal(await driver.execute('return document.querySelector("nav[aria-label=Main] [data-workspace-nav=overview]")?.getAttribute("aria-current");'), 'page');
-    assert.equal(await driver.execute('return document.querySelector(arguments[0])?.textContent;', [`[data-overview-row-refresh="${selectedId}"]`]), 'Refreshing…');
-    assert.equal(await driver.execute('return document.querySelector(arguments[0])?.disabled;', [`[data-overview-row-refresh="${otherId}"]`]), false);
+    assert.equal(await driver.execute('return document.querySelector(arguments[0])?.textContent;', [`[data-overview-account="${selectedId}"] [data-overview-row-refreshing]`]), 'Refreshing…');
+    assert.equal(await driver.execute('return document.querySelector(arguments[0]);', [`[data-overview-account="${otherId}"] [data-overview-row-refreshing]`]), null);
   } finally { await rm(held, { force: true }); }
   await waitFor(async () => (await call('load_profile_quota', { profileId: selectedId })).collectionRunId !== beforeRefresh.collectionRunId, 'selected Refresh commits new saved reading', 45000);
   await waitFor(() => driver.execute('return document.querySelector("[data-account-refresh-message]")?.textContent.includes("Readings updated.");'), 'Overview reports successful refresh');
@@ -253,6 +258,7 @@ try {
   evidence.darkTheme = await driver.execute('return { background:getComputedStyle(document.documentElement).backgroundColor,header:getComputedStyle(document.querySelector(".workspace-header")).backgroundColor,foreground:getComputedStyle(document.body).color };');
   assert.deepEqual(evidence.darkTheme, { background: 'rgb(0, 0, 0)', header: 'rgb(0, 0, 0)', foreground: 'rgb(204, 204, 204)' });
   const beforeZoom = await driver.execute('return {width:innerWidth,dpr:devicePixelRatio};');
+  await driver.navigate('settings');
   await driver.selectVisibleOption('#display-scale', '125%');
   await waitFor(async () => (await driver.execute('return innerWidth;')) < beforeZoom.width, 'native zoom changes CSS viewport');
   evidence.nativeZoom = { before: beforeZoom, after: await driver.execute('return {width:innerWidth,dpr:devicePixelRatio};') };
@@ -263,11 +269,14 @@ try {
   const heatmapBeforeRestart = await heatmap(profiles[0].id), providersBeforeRestart = await providerHashes(profiles);
   await close(); await open();
   assert.equal((await call('get_display_scale')).percent, 125);
+  // WebKitGTK WebDriver places pointer clicks in CSS pixels, which land elsewhere at 125% zoom.
+  // The Settings control is read in place, and the view changes below use a DOM click.
   await waitFor(() => driver.execute('return document.querySelector("#display-scale")?.textContent.trim()==="125%";'), 'restored native scale shown');
+  await waitFor(() => driver.execute('return document.querySelector("nav[aria-label=Main] [data-workspace-nav=overview]")?.getAttribute("aria-current")==="page";'), 'restart opens Overview');
   const savedAfterRestart = await call('load_profile_quota', { profileId: profiles[0].id });
   assert.equal(savedAfterRestart.collectionRunId, savedBeforeRestart.collectionRunId);
   assert.equal(savedAfterRestart.observedAtUtc, savedBeforeRestart.observedAtUtc);
-  await visibleHeatmap(profiles[0].id, 'daily', 90);
+  await visibleHeatmap(profiles[0].id);
   // Freshness uses a process-local monotonic observation and becomes unknown after restart.
   // Saved dates, exact counts, levels, coverage and source references must remain identical.
   assert.deepEqual(await heatmap(profiles[0].id), {
@@ -276,11 +285,14 @@ try {
   });
   assert.deepEqual(await providerHashes(profiles), providersBeforeRestart, 'Restart restores saved calendar activity without provider requests.');
   evidence.genuineRestart = { scaleRestored: true, savedReadingUnchanged: true, heatmapSavedValuesRestoredExactly: true, sessionFreshnessAfterRestart: 'unknown', noProviderRequests: true };
+  await driver.execute('document.querySelector("nav[aria-label=Main] [data-workspace-nav=settings]").click();return true;');
+  await waitFor(() => driver.execute('return Boolean(document.querySelector("#display-scale")?.getClientRects().length);'), 'Settings shown at 125%');
   await driver.execute('document.querySelector("#display-scale").focus();return true;');
   await key('\uE007');
   await waitFor(() => driver.execute('return [...document.querySelectorAll("[role=option]")].some(node=>node.getClientRects().length);'), 'scale keyboard popup');
   for (const value of ['\uE011', '\uE015', '\uE007']) await key(value);
   await waitFor(async () => (await call('get_display_scale')).percent === 100, 'keyboard scale selection');
+  await driver.navigate('overview');
   await resize(360, 800); await capture('overview-narrow-dark.png');
   assert.equal(await hash(application), evidence.applicationSha256);
   await close(); evidence.result = 'passed';

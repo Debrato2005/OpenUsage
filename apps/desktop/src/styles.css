@@ -200,7 +200,6 @@ main { max-width: 1280px; padding: var(--space-6); margin: 0 auto; }
   nav { margin: 0; }
   .topbar { padding-inline: var(--space-4); }
   main { padding: var(--space-5) var(--space-4); }
-  .theme-control label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
   .metric-grid { grid-template-columns: 1fr; }
   .metric { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: var(--space-2); }
   .metric + .metric { border-left: 0; border-top: 1px solid var(--line); }

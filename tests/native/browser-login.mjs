@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import { chmod, copyFile, mkdir, readFile, readdir, readlink, rm, writeFile } from 'node:fs/promises';
+import { chmod, copyFile, mkdir, readFile, readdir, readlink, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -83,8 +83,14 @@ try {
   await writeFile(join(applications, 'openusage-synthetic-browser.desktop'), `[Desktop Entry]\nType=Application\nName=OpenUsage synthetic browser\nExec=/usr/bin/python3 ${handler} %u\nTerminal=false\nNoDisplay=true\nMimeType=x-scheme-handler/https;\n`, { mode: 0o600 });
   await writeFile(join(fixture.dirs.config, 'mimeapps.list'), '[Default Applications]\nx-scheme-handler/https=openusage-synthetic-browser.desktop;\n', { mode: 0o600 });
   await installLauncher();
-  Object.assign(fixture.environment, { HOME: fixture.root, PATH: bin, XDG_DATA_DIRS: fixture.dirs.data, XDG_CURRENT_DESKTOP: 'OpenUsageSynthetic' }); delete fixture.environment.BROWSER;
-  assert.deepEqual(await readdir(bin), ['xdg-open']); evidence.osHandlerScope = { privatePathOnly: true, windowsAndSystemLaunchersAbsent: true, privateXdgAssociationOnly: true, launcher: 'Owned xdg-open shim invokes absolute /usr/bin/gio with the private HTTPS association. No actual browser or network.' };
+  // glycin starts its image loaders through bwrap; it cannot open URLs.
+  await symlink('/usr/bin/bwrap', join(bin, 'bwrap'));
+  // GTK aborts without the system MIME database, GSettings schemas and image loaders. This folder
+  // links only those and has no applications folder, so no system URL handler can be found.
+  const systemData = join(fixture.root, 'system-data'); await mkdir(systemData, { mode: 0o700 });
+  for (const name of ['mime', 'glib-2.0', 'glycin-loaders']) await symlink(join('/usr/share', name), join(systemData, name));
+  Object.assign(fixture.environment, { HOME: fixture.root, PATH: bin, XDG_DATA_DIRS: `${fixture.dirs.data}:${systemData}`, XDG_CURRENT_DESKTOP: 'OpenUsageSynthetic' }); delete fixture.environment.BROWSER;
+  assert.deepEqual((await readdir(bin)).sort(), ['bwrap', 'xdg-open']); evidence.osHandlerScope = { privatePathOnly: true, windowsAndSystemLaunchersAbsent: true, privateXdgAssociationOnly: true, launcher: 'Owned xdg-open shim invokes absolute /usr/bin/gio with the private HTTPS association. No actual browser or network.' };
   executable = join(fixture.root, 'synthetic-login-provider'); await copyFile(join(harness, 'fixtures/synthetic-login-provider.py'), executable); await chmod(executable, 0o700); assert.equal(await hash(executable), fixtureDigest);
   await writeFile(join(fixture.root, 'synthetic-login-provider-config.json'), JSON.stringify({ defaultMode: 'pending', modesByHome: {} }) + '\n', { mode: 0o600 });
   driver = new NativeDriver(application, fixture.environment, join(output, 'driver.log')); await driver.start(); await focusWindow();
@@ -110,13 +116,13 @@ try {
   await rejected({ profileId: selected.id, attemptId: early.value.attemptId }, 'provider_login_prompt_pending');
   await driver.invoke('cancel_profile_login', { profileId: selected.id, attemptId: early.value.attemptId });
   assert.deepEqual(await records(browserLog), []); assert.deepEqual(await hashes(), before);
-  await driver.click(`[data-login-start="${selected.id}"]`); assert.deepEqual(await records(browserLog), []); await driver.click(`form[data-login-consent="${selected.id}"] button[type=submit]`);
+  await driver.click(`[data-login-start="${selected.id}"]`); assert.deepEqual(await records(browserLog), []);
   await waitFor(async () => driver.execute('const n=document.querySelector(arguments[0]);return Boolean(n&&!n.disabled&&window.__browserObservedAttempt);', [button()]), 'active published browser action');
   const attempt = await driver.execute('return window.__browserObservedAttempt;'); assert.equal(attempt.profileId, selected.id);
   await waitFor(async () => (await records(executionLog)).some(row => row.kind === 'challenge-emitted'), 'synthetic challenge marker');
   const starts = (await records(executionLog)).filter(row => row.kind === 'start' && row.arguments[0] === 'app-server'); const providerProcess = starts.at(-1); assert.ok(providerProcess); assert.equal(providerProcess.environment.CODEX_HOME, join(workspace, 'profiles', selected.id));
   await rejected({ profileId: other.id, attemptId: attempt.attemptId }, 'provider_login_not_found'); assert.deepEqual(await records(browserLog), []);
-  await rm(launcher); assert.deepEqual(await readdir(bin), []); await driver.click(button());
+  await rm(launcher); assert.deepEqual(await readdir(bin), ['bwrap']); await driver.click(button());
   await waitFor(async () => driver.execute('const n=document.getElementById(arguments[0]);return Boolean(n&&n.textContent.includes("could not be started"));', [`login-browser-error-${selected.id}`]), 'redacted launcher-spawn failure');
   assert.deepEqual(await records(browserLog), []); assert.equal(await driver.execute('return document.querySelector(arguments[0]).disabled;', [cancel()]), false); assert.equal(await driver.execute('return document.getElementById(arguments[0]).value;', [`login-code-${selected.id}`]), 'SYNTH-1234');
   await capture('browser-launch-failure-light-360.png', 360);

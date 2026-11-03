@@ -267,18 +267,18 @@ Set the frozen native-test executable, source root, and persistent evidence dire
 The journey uses only `fixtures/synthetic-login-provider.py` and fresh synthetic homes.
 The existing read-only provider fixture stays unchanged.
 
-Sign in opens a short consent form without starting a provider.
-The explicit Get sign-in code action starts only the selected profile.
-The test follows keyboard focus from that action to the selectable code and final status.
+Sign in starts only the selected profile. Approving Codex in Settings is the consent.
+The test follows keyboard focus from Sign in to the selectable code and the Open sign-in page button.
 It captures the actual prompt in both themes, at a narrow width, and with doubled text.
-The validated URL is plain text. The journey never opens a browser or performs real OAuth.
+A completed sign-in shows the connected account, not a result panel. Errors and cancellations keep their result.
+The journey never opens a browser or performs real OAuth. `browser-login` checks the sign-in page request.
 
 Early completion must precede a fresh account check.
 Mismatched completion, malformed challenges, and unsupported account states must fail.
 Cancel must work before the challenge arrives and must not affect a newer attempt.
 A restore and genuine X11 window close must stop and reap the owned login process.
 Other homes, archived homes, and application records must stay intact.
-Identity remains provisional or unknown, and monitoring stays stopped.
+Identity remains provisional or unknown, and monitoring never runs. A failed reading can pause the app-wide summary.
 
 The native application wait limit remains 900 seconds.
 Short timeout behavior is checked in the Rust core, not this native journey.

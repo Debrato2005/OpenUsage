@@ -64,7 +64,7 @@ async function oracle(label) {
     try { await copyFile(`${fixture.database}-wal`, `${database}-wal`); await chmod(`${database}-wal`, 0o600); } catch (error) { if (error.code !== 'ENOENT') throw error; }
     const report = JSON.parse(execFileSync(verifier, ['database', database, join(workspace, 'database-key.v1'), '--profile-state'], { input: JSON.stringify({ passphrase }), env: fixture.environment, encoding: 'utf8', timeout: 60000, maxBuffer: 16 * 1024 * 1024 }));
     for (const key of ['verified', 'readOnly', 'encryptedPagesAuthenticated', 'originalProtectedKeyUsed', 'inputUnchanged', 'keyEnvelopeUnchanged', 'walRecordsUnchanged']) assert.equal(report[key], true, key);
-    assert.equal(report.schemaVersion, 8); assert.equal(report.plaintextDiskStaging, false); assert.equal(Object.keys(report.state.tables).length, 30);
+    assert.equal(report.schemaVersion, 9); assert.equal(report.plaintextDiskStaging, false); assert.equal(Object.keys(report.state.tables).length, 31);
     assert.deepEqual(await liveHashes(), original);
     evidence.oracles.push({ label, actualSchemaVersion: 8, allThirtyTables: Object.fromEntries(Object.entries(report.state.tables).map(([name, rows]) => [name, { rows: rows.length, sha256: createHash('sha256').update(JSON.stringify(rows)).digest('hex') }])), derivedEncryptedCopy: true, persistentStateIsNotRuntimeMonitoringStatus: true, verification: { ...report, state: undefined } });
     return report.state;
@@ -74,7 +74,7 @@ async function open(setup = false) {
   driver = new NativeDriver(application, fixture.environment, join(output, `driver-${++sequence}.log`)); await driver.start();
   await waitFor(async () => driver.execute('const input=document.querySelector("#workspace-passphrase");return Boolean(input&&!input.disabled&&(!arguments[0]||document.querySelector("#workspace-confirmation")));', [setup]), 'native unlock fields');
   await driver.type('#workspace-passphrase', passphrase); if (setup) await driver.type('#workspace-confirmation', passphrase); await driver.click('.unlock-form button[type=submit]');
-  await waitFor(async () => (await driver.invoke('bootstrap')).value?.storage === 'ready', 'unlocked monitoring workspace'); assert.equal((await call('bootstrap')).schemaVersion, 8);
+  await waitFor(async () => (await driver.invoke('bootstrap')).value?.storage === 'ready', 'unlocked monitoring workspace'); assert.equal((await call('bootstrap')).schemaVersion, 9);
 }
 async function ownedPid() { const queue = [driver.child.pid]; for (let count = 0; queue.length && count < 64; count++) { const pid = queue.shift(); try { if (await readlink(`/proc/${pid}/exe`) === application) return pid; queue.push(...(await readFile(`/proc/${pid}/task/${pid}/children`, 'utf8')).trim().split(/\s+/).filter(Boolean).map(Number)); } catch (error) { if (error.code !== 'ENOENT') throw error; } } assert.fail('No owned frozen desktop process.'); }
 async function closeNormally() { const pid = await ownedPid(); evidence.closes.push(JSON.parse(execFileSync('/usr/bin/python3', [join(harness, 'x11-close.py'), String(pid)], { env: fixture.environment, encoding: 'utf8', timeout: 10000 }))); await waitFor(async () => { try { await readlink(`/proc/${pid}/exe`); return false; } catch (error) { if (error.code === 'ENOENT') return true; throw error; } }, 'normal native exit joins scheduler'); driver.session = undefined; await driver.stop(); driver = undefined; }
@@ -91,12 +91,19 @@ async function approve(profile) {
 async function login(profile) {
   await configure(profile, 'success'); await driver.openProfileOptions(profile.id);
   await waitFor(async () => driver.execute('const button=document.querySelector(arguments[0]);return Boolean(button&&!button.disabled&&button.getClientRects().length);', [`[data-login-start="${profile.id}"]`]), 'available selected sign-in');
-  await driver.click(`[data-login-start="${profile.id}"]`); await driver.click(`[data-login-consent="${profile.id}"] button[type=submit]`);
+  await driver.click(`[data-login-start="${profile.id}"]`);
   await waitFor(async () => (await status(profile)).eligible, 'matched completed login grants runtime eligibility');
-  await waitFor(async () => driver.execute('const node=document.querySelector(arguments[0]);return Boolean(node&&node.getClientRects().length&&!document.querySelector(arguments[1]));', [`.login-result[data-login-profile="${profile.id}"]`, `[data-login-cancel="${profile.id}"]`]), 'login terminal result');
-  assert.equal((await call('list_profiles')).profiles.find(item => item.id === profile.id).connectionState, 'connected');
+  // A completed sign-in shows the connected account itself, not a separate result panel.
+  await waitFor(async () => !await driver.execute('return Boolean(document.querySelector(arguments[0])||document.querySelector(arguments[1]));', [`[data-login-cancel="${profile.id}"]`, `.login-result[data-login-profile="${profile.id}"]`]) && (await call('list_profiles')).profiles.find(item => item.id === profile.id).connectionState === 'connected', 'login completed and connected');
 }
 async function manual(profile) { const before = await saved(profile); await driver.openProfileReadings(profile.id); await waitFor(async () => driver.execute('const button=document.querySelector(arguments[0]);return Boolean(button&&!button.disabled);', [`[data-collection-read="${profile.id}"]`]), 'available manual refresh'); await driver.click(`[data-collection-read="${profile.id}"]`); await waitFor(async () => { const value = await saved(profile); return value.quota && value.activity && value.quota.collectionRunId !== before.quota?.collectionRunId && value.activity.collectionRunId !== before.activity?.collectionRunId; }, 'manual paired COMMIT'); await waitFor(async () => driver.execute('return document.activeElement===document.querySelector(arguments[0])&&!document.querySelector(arguments[1]);', [collectionResult(profile), `[data-collection-cancel="${profile.id}"]`]), 'manual result focus'); const value = await saved(profile); pair(value, profile); return value; }
+// An account that never signed in has no Refresh in the GUI, so the pre-sign-in seed uses the typed IPC the GUI calls.
+async function seed(profile) {
+  const before = await saved(profile);
+  const receipt = await call('begin_profile_collection_read', { profileId: profile.id, approvalId }); assert.equal(receipt.accepted, false);
+  const value = await call('complete_profile_collection_read', { profileId: receipt.profileId, requestId: receipt.requestId }); assert.equal(value.accepted, true);
+  const after = await saved(profile); assert.ok(after.quota && after.activity && after.quota.collectionRunId !== before.quota?.collectionRunId);
+}
 async function start(profile) { await driver.openProfileOptions(profile.id); await waitFor(async () => driver.execute('const button=document.querySelector(arguments[0]);return Boolean(button&&!button.disabled&&button.getClientRects().length);', [startButton(profile)]), 'eligible Start monitoring'); await driver.click(startButton(profile)); await waitFor(async () => (await status(profile)).state === 'running', 'explicit monitoring start'); }
 async function capture(name, selector, width = 1280, scale = 1) { for (let count = 0; count < 3; count++) { const viewport = await driver.execute('return {width:innerWidth,height:innerHeight};'); if (viewport.width === width && viewport.height === 850) break; const rect = await driver.request('GET', `/session/${driver.session}/window/rect`); await driver.request('POST', `/session/${driver.session}/window/rect`, { width: rect.width + width - viewport.width, height: rect.height + 850 - viewport.height }); } await driver.execute('document.documentElement.style.fontSize=arguments[0]===1?"":`${16*arguments[0]}px`;document.querySelector(arguments[1])?.scrollIntoView({block:"center"});return true;', [scale, selector]); await driver.screenshot(join(output, name)); evidence.screenshots.push(name); }
 function csvRecords(text, columns) {
@@ -384,7 +391,7 @@ try {
   await open(true); const protectedKeyHash = await hash(join(workspace, 'database-key.v1'));
   for (const [command, args] of [['load_monitoring', { unexpected: true }], ['start_profile_monitoring', { profileId: randomUUID(), approvalId: randomUUID(), confirmed: true }], ['pause_profile_monitoring', { profileId: randomUUID(), unexpected: true }]]) assert.deepEqual(await driver.invoke(command, args), { ok: false, error: 'invalid_arguments' });
   const first = await create('Synthetic monitored profile'), other = await create('Synthetic expired sign-in');
-  await configure(first, 'success', false); await approve(first); await manual(first);
+  await configure(first, 'success', false); await approve(first); await seed(first);
   assert.equal((await status(first)).eligible, false); const seedStarts = (await appStarts(first)).length;
   assert.deepEqual(await driver.invoke('start_profile_monitoring', { profileId: first.id, approvalId }), { ok: false, error: 'monitoring_not_eligible' }); assert.equal((await appStarts(first)).length, seedStarts);
   await login(first);
@@ -480,7 +487,10 @@ try {
   await approve(first); assert.equal((await status(first)).eligible, false); const noStart = (await appStarts(first)).length;
   assert.deepEqual(await driver.invoke('start_profile_monitoring', { profileId: first.id, approvalId }), { ok: false, error: 'monitoring_not_eligible' }); assert.equal((await appStarts(first)).length, noStart);
   await driver.openProfileOptions(first.id); await capture('monitoring-restart-needs-sign-in-light-360.png', `[data-profile-id="${first.id}"]`, 360);
-  await login(first); await configure(first, 'activity_hang'); const beforeExit = await oracle('before exit cancels pending fresh-runtime scheduled read'), exitOffset = (await appStarts(first)).length; await start(first);
+  // A completed sign-in starts one automatic reading. Let it save before the read-only oracle.
+  const beforeSessionLogin = await saved(first);
+  await login(first); await waitFor(async () => { const value = await saved(first); return Boolean(value.quota && value.activity && value.quota.collectionRunId !== beforeSessionLogin.quota?.collectionRunId && value.activity.collectionRunId !== beforeSessionLogin.activity?.collectionRunId); }, 'automatic reading after session sign-in', 45000);
+  await configure(first, 'activity_hang'); const beforeExit = await oracle('before exit cancels pending fresh-runtime scheduled read'), exitOffset = (await appStarts(first)).length; await start(first);
   let exitChild; await waitFor(async () => { exitChild = (await appStarts(first))[exitOffset]; return Boolean(exitChild && (await observations(first)).some(row => row.pid === exitChild.pid && row.kind === 'activity-pending')); }, 'owned pending scheduled child before normal exit');
   await closeNormally(); await reaped(exitChild); assert.deepEqual(await oracle('normal exit joins scheduler without accepting pending half'), beforeExit);
   assert.deepEqual(await readdir(fixture.dirs.codex), ['synthetic-fixture.txt']); assert.equal(await hash(join(fixture.dirs.codex, 'synthetic-fixture.txt')), sentinel);

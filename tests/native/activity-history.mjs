@@ -54,9 +54,9 @@ async function oracle(label) {
     if (before[`${fixture.database}-wal`] !== null) { await copyFile(`${fixture.database}-wal`, `${database}-wal`); await chmod(`${database}-wal`, 0o600); }
     const report = JSON.parse(execFileSync(verifier, ['database', database, join(dirname(fixture.database), 'database-key.v1'), '--profile-state'], { input: JSON.stringify({ passphrase: password }), encoding: 'utf8', env: fixture.environment, timeout: 30000, maxBuffer: 8 * 1024 * 1024 }));
     for (const field of ['verified', 'readOnly', 'inputUnchanged', 'keyEnvelopeUnchanged', 'walRecordsUnchanged']) assert.equal(report[field], true, field);
-    assert.equal(report.schemaVersion, 9); assert.equal(report.plaintextDiskStaging, false); assert.equal(Object.keys(report.state.tables).length, 30);
+    assert.equal(report.schemaVersion, 9); assert.equal(report.plaintextDiskStaging, false); assert.equal(Object.keys(report.state.tables).length, 31);
     assert.deepEqual(await liveHashes(), before);
-    evidence.oracles.push({ label, allNamedTables: 30, databaseWalKeyUnchanged: true, tables: Object.fromEntries(Object.entries(report.state.tables).map(([name, records]) => [name, { rows: records.length, sha256: createHash('sha256').update(JSON.stringify(records)).digest('hex') }])) });
+    evidence.oracles.push({ label, allNamedTables: 31, databaseWalKeyUnchanged: true, tables: Object.fromEntries(Object.entries(report.state.tables).map(([name, records]) => [name, { rows: records.length, sha256: createHash('sha256').update(JSON.stringify(records)).digest('hex') }])) });
     return report.state.tables;
   } finally { await rm(temporary, { recursive: true, force: true }); }
 }
@@ -137,20 +137,25 @@ try {
   await clickButton('Newer readings'); await waitFor(async () => (await rows()).length === 20, 'newer activity page'); assert.deepEqual(await rows(), firstPage.entries.map(entry => entry.collectionRunId));
   const detailed = firstPage.entries.find(entry => entry.summary.lifetimeTokens === '9223372036854775807'); assert.ok(detailed);
   const scope = `[data-activity-history-run="${detailed.collectionRunId}"]`;
+  // A snapshot opens in the detail panel, with its source shown there.
+  const panel = '[data-detail-panel][open]';
   await driver.click(`${scope} > button`);
-  for (const [metric, value] of Object.entries(detailed.summary)) assert.equal(await driver.execute('return document.querySelector(arguments[0]).textContent;', [`${scope} [data-activity-history-metric="${metric}"]`]), value ?? 'Not available');
-  assert.equal(await driver.execute('return document.querySelector(arguments[0]).getAttribute("data-activity-history-daily-state");', [`${scope} [data-activity-history-daily-state]`]), detailed.dailyBucketsState);
-  await clickButton('Source details', scope);
-  const details = await driver.execute('return document.querySelector(arguments[0]).textContent;', [scope]);
+  await waitFor(() => driver.execute('return Boolean(document.querySelector(arguments[0]));', [`${panel} [data-activity-history-metric]`]), 'snapshot details open');
+  for (const [metric, value] of Object.entries(detailed.summary)) assert.equal(await driver.execute('return document.querySelector(arguments[0]).textContent;', [`${panel} [data-activity-history-metric="${metric}"]`]), value ?? 'Not available');
+  assert.equal(await driver.execute('return document.querySelector(arguments[0]).getAttribute("data-activity-history-daily-state");', [`${panel} [data-activity-history-daily-state]`]), detailed.dailyBucketsState);
+  const details = await driver.execute('return document.querySelector(arguments[0]).textContent;', [panel]);
   for (const text of [detailed.collectionRunId, detailed.bindingId, detailed.observedAtUtc, '0.163.0', 'Synthetic provider', 'Unknown']) assert.equal(details.includes(text), true);
   assert.equal(await driver.execute('return document.querySelector(arguments[0]).textContent.includes("Fresh");', [`[data-activity-history="${profiles[0].id}"]`]), false);
   await driver.screenshot(join(output, 'activity-summary-history.png')); evidence.screenshots.push('activity-summary-history.png');
+  await driver.closeDetail();
   const previous = firstPage.entries.find(entry => entry.bindingId === evidence.seed.originalBindingId && entry.summary.lifetimeTokens === '0'); assert.ok(previous);
   const previousScope = `[data-activity-history-run="${previous.collectionRunId}"]`;
-  await driver.click(`${previousScope} > button`); await clickButton('Source details', previousScope);
-  assert.equal(await driver.execute('return document.querySelector(arguments[0]).textContent;', [`${previousScope} [data-activity-history-metric="lifetimeTokens"]`]), '0');
-  assert.equal(await driver.execute('return document.querySelector(arguments[0]).textContent;', [`${previousScope} [data-activity-history-metric="peakDailyTokens"]`]), 'Not available');
-  assert.equal(await driver.execute('return document.querySelector(arguments[0]).textContent.includes(arguments[1]);', [previousScope, previous.bindingId]), true);
+  await driver.click(`${previousScope} > button`);
+  await waitFor(() => driver.execute('return document.querySelector(arguments[0])?.textContent.includes(arguments[1]);', [panel, previous.collectionRunId]), 'previous snapshot details open');
+  assert.equal(await driver.execute('return document.querySelector(arguments[0]).textContent;', [`${panel} [data-activity-history-metric="lifetimeTokens"]`]), '0');
+  assert.equal(await driver.execute('return document.querySelector(arguments[0]).textContent;', [`${panel} [data-activity-history-metric="peakDailyTokens"]`]), 'Not available');
+  assert.equal(await driver.execute('return document.querySelector(arguments[0]).textContent.includes(arguments[1]);', [panel, previous.bindingId]), true);
+  await driver.closeDetail();
   await showHistory(profiles[1]); assert.deepEqual(await rows(), [otherBefore.collectionRunId]); assert.deepEqual(metrics(await call('load_profile_activity', { profileId: profiles[1].id })), otherBefore);
   assert.deepEqual(await liveHashes(), before); assert.deepEqual(await oracle('paging, details and refused cursors preserve all records'), beforeTables);
   await driver.openProfileOptions(profiles[0].id); await driver.click(`[data-profile-id="${profiles[0].id}"] [data-profile-action="archive"]`);

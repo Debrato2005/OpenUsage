@@ -26,7 +26,7 @@ const evidence = {
   platform: { os: platform(), release: release(), architecture: arch() },
   nodeVersion: process.versions.node,
   fixtureType: 'Native Tauri binary with empty application directories and synthetic CODEX_HOME',
-  expectedResult: { bootstrap: expectedBootstrap, unknownCommandRejected: true, invalidArgumentsRejected: true, missingMetrics: 'Not available', keyboardPrivacy: true },
+  expectedResult: { bootstrap: expectedBootstrap, unknownCommandRejected: true, invalidArgumentsRejected: true, metricsBeforeSetup: 'none shown', keyboardPrivacy: true },
   result: 'failed',
   steps: [],
 };
@@ -144,20 +144,20 @@ try {
     });
     assert.deepEqual(invalidArguments, { rejected: true, error: 'invalid_arguments' });
     evidence.steps.push('Native bootstrap rejected an unexpected argument with invalid_arguments.');
-    await waitUntil(async () => (await execute('return document.querySelector("#startup-heading")?.textContent;')) === 'Set up your private workspace', 'setup guidance after native bootstrap');
-    const view = await execute('return {heading:document.querySelector("#startup-heading").textContent, monitoring:document.querySelector(".status-pill").textContent.trim(), metrics:Object.fromEntries([...document.querySelectorAll(".metric")].map(card=>[card.querySelector(".metric-label").firstChild.textContent.trim(),card.querySelector(".metric-value").textContent.trim()])), privacyExpanded:document.querySelector("[aria-controls=privacy-details]").getAttribute("aria-expanded")};');
-    assert.match(view.monitoring, /Monitoring stopped/);
-    assert.equal(view.metrics['Quota remaining'], 'Not available');
-    assert.equal(view.metrics['Token activity'], 'Not available');
-    assert.equal(view.metrics['Active profiles'], 'Locked');
+    await waitUntil(async () => (await execute('return document.querySelector("#startup-heading")?.textContent;')) === 'Welcome to OpenUsage', 'setup guidance after native bootstrap');
+    // Before setup the app shows no readings and no workspace header, so nothing can look like a number.
+    const view = await execute('return {heading:document.querySelector("#startup-heading").textContent, form:Boolean(document.querySelector(".unlock-form #workspace-passphrase")), headerHidden:document.querySelector(".workspace-header").hidden, readings:document.querySelectorAll("[data-workspace-view=overview],[data-workspace-view=usage],.metric,[role=meter]").length, privacyExpanded:document.querySelector("[aria-controls=privacy-details]").getAttribute("aria-expanded")};');
+    assert.equal(view.form, true);
+    assert.equal(view.headerHidden, true);
+    assert.equal(view.readings, 0);
     assert.equal(view.privacyExpanded, 'false');
     evidence.actualView = view;
-    evidence.steps.push('Native startup showed unavailable provider metrics and stopped monitoring.');
-    await execute('document.querySelector(".brand").focus(); return true;');
-    await request('POST', `/session/${session}/actions`, { actions: [{ type: 'key', id: 'native-keyboard', actions: [
+    evidence.steps.push('Native startup showed setup only, with no readings or monitoring status.');
+    await execute('document.querySelector(".onboarding-header .brand").focus(); return true;');
+    // Brand, App password, Confirm app password, Create private workspace, Privacy details.
+    await request('POST', `/session/${session}/actions`, { actions: [{ type: 'key', id: 'native-keyboard', actions: Array.from({ length: 4 }, () => [
       { type: 'keyDown', value: '\uE004' }, { type: 'keyUp', value: '\uE004' },
-      { type: 'keyDown', value: '\uE004' }, { type: 'keyUp', value: '\uE004' },
-    ] }] });
+    ]).flat() }] });
     assert.equal(await execute('return document.activeElement?.getAttribute("aria-controls");'), 'privacy-details');
     await request('POST', `/session/${session}/actions`, { actions: [{ type: 'key', id: 'native-keyboard', actions: [
       { type: 'keyDown', value: '\uE007' }, { type: 'keyUp', value: '\uE007' },
@@ -169,7 +169,7 @@ try {
       script: 'const done = arguments[arguments.length - 1]; document.fonts.ready.then(() => requestAnimationFrame(() => requestAnimationFrame(() => done(true))));',
       args: [],
     });
-    assert.equal(await execute('return document.querySelector("#startup-heading")?.textContent;'), 'Set up your private workspace');
+    assert.equal(await execute('return document.querySelector("#startup-heading")?.textContent;'), 'Welcome to OpenUsage');
     const screenshot = await request('GET', `/session/${session}/screenshot`);
     await writeFile(join(output, 'startup.png'), Buffer.from(screenshot, 'base64'), { mode: 0o600 });
     evidence.screenshot = 'startup.png';

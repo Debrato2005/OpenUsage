@@ -121,8 +121,10 @@ async function fail(profile, label, minimum, maximum) {
   await reaped(child);
   const seconds = await status(profile, `${label}: retry delay`);
   assert.ok(seconds >= minimum - 1 && seconds <= maximum, `Retry delay ${seconds}s must match jittered range ${minimum}..${maximum}s, allowing one elapsed second.`);
-  assert.deepEqual(await liveHashes(), before); assert.deepEqual(retained(await saved(profile)), retained(previous)); assert.deepEqual(await quotaView(profile), view);
-  evidence.failures.push({ label, profileId: profile.id, pid: child.pid, processGroup: child.processGroup, controlledOwnedGroupSignal: 'SIGKILL', selectedHomeQuotaRequestObserved: true, exactPrivateFixtureCommandChecked: true, actualProviderEof: true, observedRetryAfterSeconds: seconds, expectedJitterRangeSeconds: [minimum, maximum], manualCooldownCanRaiseBaseDelay: minimum === 24, encryptedStorageUnchanged: true, savedValuesAndTimeUnchanged: true });
+  // The app counts each transient failure toward its third-failure alert, so the database changes; the key and saved readings do not.
+  const keyPath = join(workspace, 'database-key.v1'); assert.equal((await liveHashes())[keyPath], before[keyPath]);
+  assert.deepEqual(retained(await saved(profile)), retained(previous)); assert.deepEqual(await quotaView(profile), view);
+  evidence.failures.push({ label, profileId: profile.id, pid: child.pid, processGroup: child.processGroup, controlledOwnedGroupSignal: 'SIGKILL', selectedHomeQuotaRequestObserved: true, exactPrivateFixtureCommandChecked: true, actualProviderEof: true, observedRetryAfterSeconds: seconds, expectedJitterRangeSeconds: [minimum, maximum], manualCooldownCanRaiseBaseDelay: minimum === 24, protectedKeyAndReadingsUnchanged: true, failureCounted: true, savedValuesAndTimeUnchanged: true });
   return { failedAt, minimum, maximum, label };
 }
 async function blocked(profile, label) {

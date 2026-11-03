@@ -28,6 +28,7 @@ async function activate(selector, value = '\uE007') {
   assert.equal(await driver.execute('const n=document.querySelector(arguments[0]);n.scrollIntoView({block:"nearest",inline:"nearest"});n.focus({preventScroll:true});return document.activeElement===n;', [selector]), true); await key(value);
 }
 async function navigate(view) {
+  if (await driver.execute('return Boolean(document.querySelector("[data-detail-panel][open]"));')) { await activate('[data-detail-panel][open] [data-detail-panel-close]'); await waitFor(() => driver.execute('return !document.querySelector("[data-detail-panel][open]");'), 'detail panel closed'); }
   if (await driver.execute('return Boolean(document.querySelector("[data-account-panel]")?.open);')) { await activate('[data-account-panel-close]'); await waitFor(() => driver.execute('return !document.querySelector("[data-account-panel]")?.open;'), 'account dialog closed'); }
   await activate(`[data-workspace-nav="${view}"]`);
   await waitFor(() => driver.execute('const n=document.querySelector(`[data-workspace-nav="${arguments[0]}"]`),p=document.querySelector(`[data-workspace-view="${arguments[0]}"]`);return n?.getAttribute("aria-current")==="page"&&Boolean(p&&!p.hidden&&p.getClientRects().length);', [view]), `native ${view}`);
@@ -128,7 +129,7 @@ try {
   await navigate('overview'); const row = `[data-overview-account="${first.id}"]`; assert.equal(await driver.execute('return document.querySelector(arguments[0]).textContent.trim();', [`${row} td:last-child button:first-child`]), 'Sign in');
   await close(); await open(); assert.deepEqual(await saved(first), firstSaved); assert.deepEqual(await saved(second), secondSaved);
   assert.equal((await call('list_profiles')).profiles.find(row => row.id === first.id).connectionState, 'authentication_required'); assert.equal((await call('list_profiles')).profiles.find(row => row.id === second.id).connectionState, 'connected'); assert.deepEqual(await oracle('genuine restart retains both histories and selected signedout state'), after);
-  await approve(collection); await driver.waitForProfileRefresh(second.id, 45000); await navigate('overview'); await activate(`[data-overview-row-refresh="${second.id}"]`);
+  await approve(collection); await driver.waitForProfileRefresh(second.id, 45000); await navigate('overview'); await activate(`[data-overview-account="${second.id}"] .overview-account-link`); await activate(`[data-detail-panel][open] [data-overview-refresh="${second.id}"]`);
   await waitFor(async () => (await saved(second)).activity.collectionRunId !== secondSaved.activity.collectionRunId, 'other account refreshes using retained synthetic authorization', 45000); assert.deepEqual(await saved(first), firstSaved); assert.equal(await hash(marker(second)), secondMarker);
   await navigate('overview'); await activate(`${row} td:last-child button:first-child`);
   await waitFor(async () => (await call('list_profiles')).profiles.find(item => item.id === first.id)?.connectionState === 'connected' && (await saved(first)).activity.collectionRunId !== firstSaved.activity.collectionRunId, 'selected account reconnect automatically saves readings', 45000);

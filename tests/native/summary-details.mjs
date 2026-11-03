@@ -13,7 +13,8 @@ const output = resolve(process.env.OPENUSAGE_NATIVE_EVIDENCE);
 const evidence = { requirement: 'NATIVE-SUMMARY-DETAILS-001', result: 'failed', scope: 'Linux native-test Tauri/WebKitGTK, private homes and D-Bus, approved synthetic provider. Summary disclosure, actual keyboard input, saved-reading preservation, both themes and narrow text layout. No real account, screen reader, OS scaling, Windows/macOS or full AT-85 acceptance.', screenshots: [] };
 const hash = async path => createHash('sha256').update(await readFile(path)).digest('hex');
 const tile = id => `[data-overview-summary="${id}"]`;
-const trigger = id => `${tile(id)} [data-slot="collapsible-trigger"]`;
+const trigger = id => `${tile(id)} .overview-glance-trigger`;
+const panel = '[data-detail-panel][open]';
 let fixture, driver;
 async function call(command, args = {}) {
   const reply = await driver.invoke(command, args);
@@ -24,9 +25,15 @@ async function key(value) {
   await driver.request('POST', `/session/${driver.session}/actions`, { actions: [{ type: 'key', id: 'summary-keyboard', actions: [{ type: 'keyDown', value }, { type: 'keyUp', value }] }] });
   await driver.request('DELETE', `/session/${driver.session}/actions`);
 }
-async function expanded(id, open) {
-  await waitFor(() => driver.execute('return document.querySelector(arguments[0])?.getAttribute("aria-expanded")===String(arguments[1]);', [trigger(id), open]), `${id} disclosure ${open}`);
+// Each summary opens its details in the one detail panel.
+async function opened(name) {
+  await waitFor(() => driver.execute('return document.querySelectorAll(arguments[0]).length===1&&document.querySelector(arguments[0]).getAttribute("aria-label")===arguments[1];', [panel, `${name} details`]), `${name} details open`);
 }
+async function closed(id) {
+  await waitFor(() => driver.execute('return !document.querySelector(arguments[0]);', [panel]), 'details closed');
+  assert.equal(await driver.execute('return document.activeElement===document.querySelector(arguments[0]);', [trigger(id)]), true, 'Focus returns to the summary.');
+}
+async function openQuota() { await driver.click(trigger('quota')); await opened('Lowest quota left'); }
 async function capture(name, width, scale = 1) {
   for (let adjustment = 0; adjustment < 3; adjustment++) {
     const view = await driver.execute('return {width:innerWidth,height:innerHeight};');
@@ -42,7 +49,7 @@ async function capture(name, width, scale = 1) {
       await driver.screenshot(join(output, 'scaled-layout-failure.png'));
     }
     assert.equal(viewport.ok, true, JSON.stringify({ viewport, overflow: evidence.layoutFailure }));
-    const panels = await driver.execute('return [...document.querySelectorAll("[data-overview-glance] [role=region]")].filter(node=>node.getClientRects().length).map(node=>({left:node.getBoundingClientRect().left,right:node.getBoundingClientRect().right}));');
+    const panels = await driver.execute('return [...document.querySelectorAll(arguments[0])].filter(node=>node.getClientRects().length).map(node=>({left:node.getBoundingClientRect().left,right:node.getBoundingClientRect().right}));', [panel]);
     assert.equal(panels.length, 1);
     assert.ok(panels[0].left >= 0 && panels[0].right <= width + 1);
     if (width < 620) await driver.execute('document.querySelector(arguments[0]).scrollIntoView({block:"start",behavior:"instant"});return true;', [trigger('quota')]);
@@ -103,21 +110,25 @@ try {
   const providerBefore = await hash(providerLog);
   const keyBefore = await hash(join(dirname(fixture.database), 'database-key.v1'));
   await driver.execute('document.querySelector(arguments[0]).focus();return true;', [trigger('accounts')]);
-  await key('\uE007'); await expanded('accounts', true);
+  await key('\uE007'); await opened('Connected accounts');
+  await key('\uE00C'); await closed('accounts');
   await key('\uE004');
   assert.equal(await driver.execute('return document.activeElement===document.querySelector(arguments[0]);', [trigger('quota')]), true);
   assert.notEqual(await driver.execute('return getComputedStyle(document.activeElement).outlineStyle;'), 'none');
-  await key(' '); await expanded('quota', true); await expanded('accounts', false);
-  const details = await driver.execute('return document.querySelector(arguments[0]).textContent;', [`${tile('quota')} [role=region]`]);
+  await key(' '); await opened('Lowest quota left');
+  const details = await driver.execute('return document.querySelector(arguments[0]).textContent;', [`${panel} .detail-rows`]);
   assert.ok(details.includes(profiles[0].label) && details.includes('Seven-day') && details.includes('Synthetic test data') && details.includes('Calculation100% − 40% used'));
   await capture('summary-light-desktop.png', 1280);
   await capture('summary-light-narrow.png', 360);
-  await driver.setAppearance('dark');
+  await driver.setAppearance('dark'); await openQuota();
   await capture('summary-dark-narrow-text.png', 360, 2);
-  await driver.setAppearance('light');
+  await driver.setAppearance('light'); await openQuota();
   await capture('summary-light-narrow-text.png', 360, 2);
-  await driver.click(trigger('quota')); await expanded('quota', false);
-  assert.equal(await driver.execute('return document.activeElement===document.querySelector(arguments[0]);', [trigger('quota')]), true);
+  await key('\uE00C');
+  await waitFor(() => driver.execute('return !document.querySelector(arguments[0]);', [panel]), 'details closed');
+  await driver.execute('document.querySelector(arguments[0]).focus();return true;', [trigger('quota')]);
+  await key('\uE007'); await opened('Lowest quota left');
+  await key('\uE00C'); await closed('quota');
   const after = await call('load_profile_quota', { profileId: profiles[0].id });
   assert.deepEqual(after, before);
   assert.equal(await hash(providerLog), providerBefore);

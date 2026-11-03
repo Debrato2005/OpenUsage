@@ -116,23 +116,25 @@ async function viewport(width) {
 async function ordinaryButton() {
   await driver.navigate('settings');
   await viewport(1280);
-  const selector = '.settings-privacy[aria-controls="privacy-details"]', previousControl = '#display-scale';
+  const selector = '.settings-privacy[aria-controls="privacy-details"]', previousControl = '[data-native-previous-control]';
+  // Mark the tab stop just before Privacy details; native Shift+Tab must land there.
+  assert.equal(await driver.execute('document.querySelector("[data-native-previous-control]")?.removeAttribute("data-native-previous-control");const stops=[...document.querySelectorAll("a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),summary,[tabindex]:not([tabindex=\\"-1\\"])")].filter(n=>n.getClientRects().length&&!n.closest("[inert],[hidden],details:not([open]) > :not(summary)"));const i=stops.indexOf(document.querySelector(arguments[0]));if(i<1)return false;stops[i-1].setAttribute("data-native-previous-control","");return true;', [selector]), true);
   const before = await liveHashes();
   assert.equal(await driver.execute('return document.querySelector(arguments[0]).getAttribute("aria-expanded");', [selector]), 'false');
   await driver.execute('window.__privacyClickCount=0;window.__privacyClickListener=()=>window.__privacyClickCount++;document.querySelector(arguments[0]).addEventListener("click",window.__privacyClickListener,true);return true;', [selector]);
   try {
-    await clickLabelCenter(selector, 'About your privacy');
-    await waitFor(async () => driver.execute('const n=document.querySelector(arguments[0]),panel=document.getElementById("privacy-details");return n.getAttribute("aria-expanded")==="true"&&n.textContent.trim()==="Hide privacy details"&&panel?.getClientRects().length>0;', [selector]), 'one visible privacy expansion');
+    await clickLabelCenter(selector, 'Privacy details');
+    await waitFor(async () => driver.execute('const n=document.querySelector(arguments[0]),panel=document.getElementById("privacy-details");return n.getAttribute("aria-expanded")==="true"&&n.textContent.trim()==="Privacy details"&&panel?.getClientRects().length>0;', [selector]), 'one visible privacy expansion');
     const activation = await driver.execute('const n=document.querySelector(arguments[0]);return {clicks:window.__privacyClickCount,active:document.activeElement===n,tag:n.tagName,name:n.textContent.trim(),ariaLabel:n.getAttribute("aria-label")};', [selector]);
-    assert.equal(activation.clicks, 1); assert.equal(activation.active, true); assert.equal(activation.tag, 'BUTTON'); assert.equal(activation.name, 'Hide privacy details'); assert.equal(activation.ariaLabel, null);
+    assert.equal(activation.clicks, 1); assert.equal(activation.active, true); assert.equal(activation.tag, 'BUTTON'); assert.equal(activation.name, 'Privacy details'); assert.equal(activation.ariaLabel, null);
     const nativeReverseTab = JSON.parse(execFileSync('/usr/bin/python3', [join(harness, 'x11-reverse-tab.py'), String(evidence.nativeWindowFocus.windowId)], { env: fixture.environment, encoding: 'utf8', timeout: 10000 }));
-    await waitFor(async () => driver.execute('return document.activeElement===document.querySelector(arguments[0]);', [previousControl]), 'ordinary button reverse Tab reaches Display scale', 1000);
+    await waitFor(async () => driver.execute('return document.activeElement===document.querySelector(arguments[0]);', [previousControl]), 'ordinary button reverse Tab reaches the previous control', 1000);
     const destination = await driver.execute('const n=document.activeElement,s=getComputedStyle(n);return {documentFocused:document.hasFocus(),tag:n.tagName,name:n.textContent.trim(),exactScale:n===document.querySelector(arguments[0]),focusVisible:n.matches(":focus-visible"),outlineWidth:s.outlineWidth,outlineStyle:s.outlineStyle,outlineColor:s.outlineColor,clicks:window.__privacyClickCount,privacyExpanded:document.querySelector(arguments[1]).getAttribute("aria-expanded")};', [previousControl, selector]);
-    assert.equal(destination.documentFocused, true); assert.equal(destination.tag, 'BUTTON'); assert.equal(destination.name, '100%'); assert.equal(destination.exactScale, true); assert.equal(destination.focusVisible, true); assert.ok(parseFloat(destination.outlineWidth) >= 2); assert.equal(destination.outlineStyle, 'solid'); assert.notEqual(destination.outlineColor, 'rgba(0, 0, 0, 0)'); assert.equal(destination.clicks, 1); assert.equal(destination.privacyExpanded, 'true');
+    assert.equal(destination.documentFocused, true); assert.equal(destination.exactScale, true); assert.equal(destination.focusVisible, true); assert.ok(parseFloat(destination.outlineWidth) >= 2); assert.equal(destination.outlineStyle, 'solid'); assert.notEqual(destination.outlineColor, 'rgba(0, 0, 0, 0)'); assert.equal(destination.clicks, 1); assert.equal(destination.privacyExpanded, 'true');
     assert.deepEqual(await liveHashes(), before, 'Privacy expansion and reverse Tab must preserve database, WAL, and key bytes.');
     await driver.screenshot(join(output, 'ordinary-button-privacy-reverse-light-desktop.png')); evidence.screenshots.push('ordinary-button-privacy-reverse-light-desktop.png');
     evidence.ordinaryButton = { activation, nativeReverseTab, destination, storageHashesPreserved: true };
-    await clickLabelCenter(selector, 'Hide privacy details');
+    await clickLabelCenter(selector, 'Privacy details');
     await waitFor(async () => driver.execute('return document.querySelector(arguments[0]).getAttribute("aria-expanded")==="false"&&!document.getElementById("privacy-details");', [selector]), 'privacy restored closed');
     assert.equal(await driver.execute('return window.__privacyClickCount;'), 2);
     assert.deepEqual(await liveHashes(), before);
@@ -195,16 +197,14 @@ try {
     await driver.waitForProfileRefresh(profile.id);
     provider.executable = await approve(provider);
     const idle = await driver.execute('const row=document.querySelector(arguments[0]);return [...row.querySelectorAll("button")].filter(node=>node.getClientRects().length&&!node.disabled).map(node=>node.textContent.trim());', [row()]);
-    assert.deepEqual(idle, ['Hide readings', 'Sign in', 'Refresh readings', 'Manage profile']);
+    // Refresh appears only after sign-in; a profile that is not connected has one action.
+    assert.deepEqual(idle, ['Hide usage', 'Sign in', 'Manage profile']);
     const state = await optionsState(); assert.equal(state.panelPresent, true); assert.equal(state.panelVisible, false); assert.ok(state.actions.length >= 3 && state.actions.every(value => !value.visible));
     const before = await liveHashes(), offset = (await observations(provider)).length;
     if (provider.name === 'check') { await manage(true); await driver.click(`${row()} [data-provider-check]`); }
     if (provider.name === 'quota') { await manage(true); await driver.click(`${row()} [data-quota-read]`); }
     if (provider.name === 'login') {
       await driver.click(`${row()} [data-login-start]`);
-      await waitFor(async () => visible(`${row()} [data-login-consent] button[type=submit]`), 'explicit profile consent');
-      assert.equal((await observations(provider)).length, offset, 'Sign-in consent alone must execute nothing.');
-      await driver.click(`${row()} [data-login-consent] button[type=submit]`);
     }
     const processRow = await pending(provider, offset), cancel = `${row()} [${provider.cancel}="${profile.id}"]`;
     await waitFor(async () => visible(cancel), `${provider.name} visible Cancel`);

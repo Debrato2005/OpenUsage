@@ -71,6 +71,21 @@ class EngineeringTests(unittest.TestCase):
         self.assertEqual(engineering.changed_paths(self.root, staged=True), ['AGENTS.md'])
         self.assertEqual(engineering.changed_paths(self.root, base), ['AGENTS.md', 'untracked.md'])
 
+    def test_deleted_native_journey_keeps_its_gate_without_a_syntax_check(self):
+        git = self.repository()
+        journeys = self.root / 'tests/native'
+        journeys.mkdir(parents=True)
+        (journeys / 'kept.mjs').write_text('export {};')
+        (journeys / 'retired.mjs').write_text('export {};')
+        git('add', 'tests')
+        git('-c', 'core.hooksPath=', 'commit', '-m', 'Synthetic journeys')
+        (journeys / 'kept.mjs').write_text('export const changed = true;')
+        (journeys / 'retired.mjs').unlink()
+        args = type('Args', (), {'base': None, 'staged': False, 'renderer_test': [], 'milestone': False, 'run': False})()
+        result = engineering.verify(self.root, args)
+        self.assertEqual([c['argv'][-1] for c in result['commands'] if c['id'] == 'native_syntax'], ['tests/native/kept.mjs'])
+        self.assertTrue(any('Native harness' in gate for gate in result['manualGates']))
+
     def test_trace_never_returns_content_and_does_not_sum_cumulative_tokens(self):
         secret = 'SYNTHETIC-PRIVATE-MESSAGE-AND-TOKEN'
         path = self.root / 'fixture.jsonl'

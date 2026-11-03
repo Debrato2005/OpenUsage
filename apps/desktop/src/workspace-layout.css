@@ -32,7 +32,6 @@
   html { scroll-padding-top: 76px; }
 }
 @media (max-width: 1000px) {
-  .usage-activity { grid-template-columns: minmax(0, 1fr); }
   .workspace-header { padding-inline: 20px; }
   .workspace > main { padding: 20px; }
 }
@@ -103,6 +102,8 @@
 .settings-card > .theme-control [data-slot='select-trigger'], .settings-card > .display-scale-control [data-slot='select-trigger'] { width: auto; min-width: 8rem; }
 .usage-activity { display: grid; grid-template-columns: minmax(0, 1fr) 20rem; gap: .75rem; align-items: stretch; min-width: 0; }
 .usage-activity > .usage-card { min-width: 0; }
+/* After the base rule, so narrow windows stack the heatmap above the quota chart. */
+@media (max-width: 1000px) { .usage-activity { grid-template-columns: minmax(0, 1fr); } }
 .settings-card [data-slot='select-trigger'] { min-height: var(--control-height); height: auto; font-size: var(--text-sm); }
 .time-settings-controls label { color: var(--muted); }
 .provider-panel > details > :not(summary) { margin-inline: 1.125rem; font-size: var(--text-sm); }
@@ -139,7 +140,7 @@
 }
 
 /* Usage stacks flat cards; each answers one question about the selected account. */
-.usage-content { display: grid; gap: 1rem; min-width: 0; }
+.usage-content { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; min-width: 0; }
 .usage-card, .usage-content > .quota-history, .usage-content > .activity-history, .usage-content .activity-saved { min-width: 0; margin: 0; padding: 1rem 1.125rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-panel); box-shadow: var(--elevation-panel); }
 .usage-content > .quota-history, .usage-content > .activity-history { padding: 0; overflow: hidden; }
 .usage-content > .quota-history [data-slot='collapsible-panel'], .usage-content > .activity-history [data-slot='collapsible-panel'] { padding-inline: 1.125rem; }

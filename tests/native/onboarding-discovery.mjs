@@ -45,27 +45,32 @@ try{
  await capture('setup-focused-light.png');
  await driver.type('#workspace-passphrase',password);await driver.type('#workspace-confirmation',password);await driver.click('.unlock-form button[type=submit]');
  await waitFor(async()=>(await driver.invoke('bootstrap')).value?.storage==='ready','private SQLCipher workspace');
- assert.equal((await call('bootstrap')).schemaVersion,6);
+ assert.equal((await call('bootstrap')).schemaVersion,9);
  if(inlineAccount){await driver.navigate('accounts');await driver.click('[data-account-connect]');}
  else{await driver.openProfileCreate();await driver.type('#profile-label','Synthetic official provider check');await driver.click('.profile-create-form button[type=submit]');}
  let profile;await waitFor(async()=>{profile=(await call('list_profiles')).profiles[0];return Boolean(profile);},'fresh profile');
  if(!inlineAccount){await driver.navigate('settings');if(await driver.execute('return !document.querySelector("[data-provider-settings]").closest("details").open;'))await driver.click('[data-provider-settings]');await driver.click('[data-provider-find]');}
- await waitFor(()=>driver.execute('return Boolean(document.querySelector(".provider-executable-review"))&&!document.querySelector("[data-provider-find]").disabled;'),'official installed source discovered',30000);
- if(inlineAccount){assert.equal(profile.label,'Account A');assert.equal(await driver.execute('return document.querySelector("[data-workspace-nav=accounts]").getAttribute("aria-current");'),'page');}
- const review=await driver.execute('return document.querySelector(".provider-executable-review").textContent;');assert.ok(review.includes(discoveryAlias));assert.ok(review.includes('Reviewed official artifact'));
- assert.equal(await driver.execute('return document.querySelector("#provider-executable-approved").getAttribute("aria-checked");'),'false');
- assert.equal(await driver.execute('return document.querySelector(".provider-approval-form button[type=submit]").disabled;'),true);
- await capture('official-codex-review.png');
- await driver.click('#provider-executable-approved');const approvalStarted=Date.now();await driver.click('.provider-approval-form button[type=submit]');
- await waitFor(()=>driver.execute(inlineAccount ? 'return document.activeElement?.matches("[data-login-start]");' : 'return document.activeElement?.matches(".provider-approval-result");'),'explicit source approval',60000);
- evidence.sourceApprovalDurationMs=Date.now()-approvalStarted;
- if(inlineAccount){await driver.click(`[data-login-start="${profile.id}"]`);await waitFor(()=>driver.execute('return Boolean(document.querySelector("[data-login-consent]"));'),'named-account sign-in consent');await capture('inline-account-sign-in.png');await driver.click('[data-login-consent] button[type=button]');evidence.inlineAccount={automaticIsolatedProfile:true,defaultLabel:profile.label,automaticDiscovery:true,noSettingsDetour:true,namedSignInConsent:true,noDeviceAuthorizationStarted:true};}
+ // Add OpenAI account prepares the bundled official companion; there is no discovery review on this path.
+ if(inlineAccount){assert.equal(profile.label,'Account A');assert.equal(await driver.execute('return Boolean(document.querySelector("[data-account-panel]")?.open);'),true);
+  await waitFor(()=>driver.execute('return document.querySelector(".provider-approval-result h3")?.textContent==="Ready to sign in"&&!document.querySelector(".provider-approval-result [data-provider-fixture]");'),'bundled official companion prepared',60000);
+  assert.equal(await driver.execute('return document.querySelectorAll("[data-login-cancel],.login-prompt").length;'),0,'Adding an account must not start a sign-in.');}
+ else{
+  await waitFor(()=>driver.execute('return Boolean(document.querySelector(".provider-executable-review"))&&!document.querySelector("[data-provider-find]").disabled;'),'official installed source discovered',30000);
+  const review=await driver.execute('return document.querySelector(".provider-executable-review").textContent;');assert.ok(review.includes(discoveryAlias));assert.ok(review.includes('Reviewed official artifact'));
+  assert.equal(await driver.execute('return document.querySelector("#provider-executable-approved").getAttribute("aria-checked");'),'false');
+  assert.equal(await driver.execute('return document.querySelector(".provider-approval-form button[type=submit]").disabled;'),true);
+  await capture('official-codex-review.png');
+  await driver.click('#provider-executable-approved');const approvalStarted=Date.now();await driver.click('.provider-approval-form button[type=submit]');
+  await waitFor(()=>driver.execute(inlineAccount ? 'return document.activeElement?.matches("[data-login-start]");' : 'return document.activeElement?.matches(".provider-approval-result");'),'explicit source approval',60000);
+  evidence.sourceApprovalDurationMs=Date.now()-approvalStarted;
+ }
+ if(inlineAccount){await waitFor(()=>driver.execute('const n=document.querySelector(arguments[0]);return Boolean(n&&!n.disabled&&n.getClientRects().length);',[`[data-login-start="${profile.id}"]`]),'named-account Sign in ready');await capture('inline-account-sign-in.png');evidence.inlineAccount={automaticIsolatedProfile:true,defaultLabel:profile.label,automaticDiscovery:true,noSettingsDetour:true,signInReady:true,noDeviceAuthorizationStarted:true};}
  await driver.openProfileOptions(profile.id);await driver.click(`[data-provider-check="${profile.id}"]`);
  await waitFor(()=>driver.execute('return document.activeElement?.matches(".provider-diagnostic");'),'actual official signed-out response',45000);
  const text=await driver.execute('return document.querySelector(".provider-diagnostic").textContent;');assert.match(text,/sign in|sign-in|authentication/i);
  assert.equal((await call('list_profiles')).profiles[0].connectionState,'authentication_required');
  assert.equal(await call('load_profile_quota',{profileId:profile.id}),null);assert.equal(await call('load_profile_activity',{profileId:profile.id}),null);
  await capture('official-provider-sign-in-required.png');
- evidence.steps={focusedSetup:shell,officialHash:expected,normalPathAliasDiscovered:true,explicitApprovalRequired:true,actualOfficialSignedOutResponse:true,noFakeMetrics:true,noDeviceAuthorizationStarted:true};evidence.result='passed';
+ evidence.steps={focusedSetup:shell,officialHash:expected,normalPathAliasDiscovered:!inlineAccount,explicitApprovalRequired:!inlineAccount,bundledCompanionPrepared:inlineAccount,actualOfficialSignedOutResponse:true,noFakeMetrics:true,noDeviceAuthorizationStarted:true};evidence.result='passed';
 }catch(error){evidence.error=error.stack??String(error);process.exitCode=1;if(driver?.session)try{await capture('failure.png');}catch{}}
 finally{try{await driver?.stop();}catch(error){evidence.cleanupError=error.message;process.exitCode=1;}stopGroup(fixture?.bus,'SIGKILL');if(fixture)await rm(fixture.root,{recursive:true,force:true});evidence.finishedAt=new Date().toISOString();await writeFile(join(output,'result.json'),JSON.stringify(evidence,null,2)+'\n',{mode:0o600});console.log(`${evidence.requirement}: ${evidence.result}`);if(evidence.error)console.error(evidence.error);}
