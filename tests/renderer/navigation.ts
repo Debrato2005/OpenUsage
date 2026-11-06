@@ -8,17 +8,20 @@ export async function closeDetail(page: Page) {
   }
 }
 
-// Selects one account; its card above the accounts table holds that account's numbers.
+// Selects one account in the Overview chips; its card is marked selected and the charts follow it.
 export async function openAccount(page: Page, profileId: string) {
   await closeDetail(page);
-  await page.locator(`[data-overview-account="${profileId}"] .overview-account-link`).click();
-  await expect(page.locator(`[data-overview-account-card="${profileId}"]`)).toBeVisible();
+  await page.locator(`[data-overview-hero] [data-activity-account="${profileId}"]`).click();
+  await expect(page.locator(`[data-overview-account-card="${profileId}"][data-selected]`)).toBeVisible();
 }
+
+// The card of the account chosen in the Overview chips, or the only account.
+export const selectedCard = (page: Page) => page.locator('[data-overview-account-card][data-selected]');
 
 // Source, time, connection and identity for the selected account live in its Reading details panel.
 export async function openReadingDetails(page: Page) {
   await closeDetail(page);
-  await page.locator('[data-overview-reading-details]').click();
+  await selectedCard(page).locator('[data-overview-reading-details]').click();
   const panel = page.locator('[data-detail-panel][open]');
   await expect(panel).toHaveAttribute('aria-label', 'Reading details');
   return panel;

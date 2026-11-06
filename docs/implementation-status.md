@@ -20,7 +20,7 @@ The app runs on Linux only. Results below use synthetic data unless they say oth
 | Alerts | Threshold, reset, failure, and sign-in alerts, with quiet hours and history |
 | Subscriptions | User-entered records |
 | Data safety | CSV and JSON export, application export, encrypted backup, restore, checkpoints, and local deletion |
-| Interface | A sidebar with Overview, Usage, and Settings in light and dark themes. Overview follows the approved reference dashboard. |
+| Interface | A sidebar with Overview, Usage, and Settings in light and dark themes. Overview is the November 6 modern dashboard: hero, eight answers, pastel account cards, daily and weekly charts, and the year heatmap (S-03d). |
 
 Verified combined totals stay unavailable, because no approved identity contract exists.
 
@@ -73,6 +73,8 @@ Kept from baseline 2.0:
 
 ## Failing or stale tests
 
+- S-03d, November 6, 2026: six native journeys still use the old Overview selectors and have not run on the new layout: `account-signout`, `activity-dashboard`, `reference-visual`, `overview-workspace`, `quota-chart` and the shared `webdriver.mjs` helper. Native acceptance of S-03d is unverified.
+
 As of November 3, 2026, on Linux. 43 journeys ran on the native-test build and 4 on the production build. No failure names an app defect.
 
 - `heatmap-window`: its calendar checks pass. The title-bar checks need an X11 window manager, and this host has none.
@@ -90,6 +92,6 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 
 ## Current assignment
 
-S-03b is done. S-03c, the keychain by default, is next. [Implementation slices](implementation-slices.md) hold the order.
+S-03d, the modern Overview, passed the renderer suite and waits for the owner's review and its native journeys. S-03c, the keychain by default, follows. [Implementation slices](implementation-slices.md) hold the order.
 
 The exact working checkpoint, if one exists, is in the local `.recovery/active-checkpoint.json`.

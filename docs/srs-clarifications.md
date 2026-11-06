@@ -18,16 +18,25 @@ This is the record of how requirements were read. Entries keep their original da
 | SC-010 | Selected-profile activity | In force |
 | SC-011 | Baseline 3.0 replaces baseline 2.0 | Adopted |
 | SC-012 | Unknown freshness in summary marks | Unresolved; existing state preserved |
-| SC-013 | Rich dashboard under Section 2.3 | In force; owner may change OU-DES-003 |
+| SC-013 | Rich dashboard under Section 2.3 | Resolved; owner amended OU-DES-003, OU-DES-005 and OU-DES-008 |
 | SC-014 | OAuth in place of the app password | Proposed; owner decision open |
+| SC-015 | All accounts as Overview's opening view | In force |
 
 ## SC-013: rich dashboard under Section 2.3
 
-Recorded November 3, 2026 against baseline 3.0. Status: in force until the owner changes OU-DES-003.
+Recorded November 3, 2026 against baseline 3.0. Status: resolved November 6, 2026.
 
 The owner tested the S-01 build and said its UI was much worse than the approved reference dashboard. That reference shows more numbers in place, a selected-account card, a full accounts table, page subtitles and second lines under some numbers, such as an exact count under a compact one.
 
 OU-DES-005 allows a number with its name, and OU-DES-007 asks each number to open the detail panel. So the reference's density, cards, tiles and table columns meet Section 2.3. Page subtitles and second lines under numbers do not, because OU-DES-003 forbids taglines and secondary labels. S-03b leaves those two out and keeps exact values in the detail panel. If the owner wants them back, OU-DES-003 needs an owner change first.
+
+On November 6, 2026 the owner rejected the S-03b build as well, asked for usability, interpretability and a modern look, and approved context such as "resets in" beside numbers. OU-DES-003 and OU-DES-005 now allow one short context line per number, and OU-DES-008 says helper text instead of secondary labels. Source, time, scope, coverage and derivation stay in the detail panel under OU-DES-007.
+
+## SC-015: all accounts as Overview's opening view
+
+Recorded November 6, 2026 against baseline 3.0. Status: in force.
+
+The owner approved a modern Overview mockup that opens on all accounts, an unverified sum, and asked to build it. With two or more connected accounts, Overview therefore opens on All accounts, the Profile sum view of SC-010, until the person picks an account. The hero, the Share heading and Lifetime tokens carry the Unverified mark, the activity section keeps the SC-010 notice and per-account checkboxes, and Verified only keeps every verified-total gate. With one connected account, Overview opens on that account. This narrows SC-010's "explicit Profile sum view" for the opening state only.
 
 ## SC-014: OAuth in place of the app password
 

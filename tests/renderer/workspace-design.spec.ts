@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import type { ProfileRecord, SavedProfileActivity, SavedProfileHeatmap, SavedProfileQuota, SavedQuotaWindow } from '../../apps/desktop/src/contracts';
-import { closeDetail, openAccount } from './navigation';
+import { closeDetail, openAccount, openReadingDetails, selectedCard } from './navigation';
 
 // Synthetic renderer fixtures. Native rendering and provider sessions are separate acceptance checks.
 const ids = ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222', '33333333-3333-4333-8333-333333333333', '44444444-4444-4444-8444-444444444444'];
@@ -82,7 +82,7 @@ test('tabular figures stay on digit runs so spaces and punctuation keep their no
     const width = (text: string) => { probe.textContent = text; return probe.getBoundingClientRect().width; };
     const space = width('a b') - width('ab');
     probe.remove();
-    return { space, root: getComputedStyle(document.documentElement).fontVariantNumeric, value: getComputedStyle(document.querySelector('.overview-glance-value')!).fontVariantNumeric, row: getComputedStyle(document.querySelector('.overview-table-quota span')!).fontVariantNumeric };
+    return { space, root: getComputedStyle(document.documentElement).fontVariantNumeric, value: getComputedStyle(document.querySelector('.overview-glance-value')!).fontVariantNumeric, row: getComputedStyle(document.querySelector('.overview-window-left')!).fontVariantNumeric };
   });
   expect(measured.root).toBe('normal');
   expect(measured.value).toBe('normal');
@@ -93,11 +93,11 @@ test('tabular figures stay on digit runs so spaces and punctuation keep their no
 
 test('summary keeps only names and values visible and opens one keyboard detail panel', async ({ page }) => {
   await open(page);
-  const cards = glance(page).locator('[data-overview-summary]');
-  const account = cards.nth(0).getByRole('button');
-  await expect(account).toHaveText('Connected accounts2');
-  await expect(cards.nth(1).getByRole('button')).toHaveText('Lowest quota left8%');
-  await expect(cards.nth(1)).toHaveAttribute('data-attention', 'low');
+  const card = (id: string) => glance(page).locator(`[data-overview-summary="${id}"]`);
+  const account = card('accounts').getByRole('button');
+  await expect(account).toContainText('Connected accounts2 / 4');
+  await expect(card('quota').getByRole('button')).toContainText('Runs out first8%Bravo, five-hour');
+  await expect(card('quota')).toHaveAttribute('data-attention', 'low');
   await expect(detail(page)).toHaveCount(0);
   await account.focus();
   await page.keyboard.press('Enter');
@@ -109,11 +109,12 @@ test('summary keeps only names and values visible and opens one keyboard detail 
   await expect(detail(page)).toHaveCount(0);
   await expect(account).toBeFocused();
   await page.keyboard.press('Tab');
-  const quota = cards.nth(1).getByRole('button');
-  await expect(quota).toBeFocused();
+  await expect(card('streak').getByRole('button')).toBeFocused();
+  const quota = card('quota').getByRole('button');
+  await quota.focus();
   expect(await quota.evaluate(node => getComputedStyle(node).outlineStyle)).not.toBe('none');
   await page.keyboard.press('Space');
-  const details = page.getByRole('dialog', { name: 'Lowest quota left details' });
+  const details = page.getByRole('dialog', { name: 'Runs out first details' });
   await expect(detail(page)).toHaveCount(1);
   await expect(details).toContainText('AccountBravo');
   await expect(details).toContainText('WindowFive-hour');
@@ -131,11 +132,12 @@ test('summary keeps only names and values visible and opens one keyboard detail 
 
 test('summary shows Not available instead of inventing a value without saved readings', async ({ page }) => {
   await open(page, { profiles: [profile(0), profile(1)], quotas: { [ids[0]!]: null, [ids[1]!]: null } });
-  const cards = glance(page).locator('[data-overview-summary]');
-  await expect(cards.nth(1).getByRole('button')).toHaveText('Lowest quota leftNot available');
-  await expect(cards.nth(3).getByRole('button')).toHaveText('Latest readingNot available');
+  const card = (id: string) => glance(page).locator(`[data-overview-summary="${id}"]`).getByRole('button');
+  await expect(card('quota')).toHaveText('Runs out firstNot available');
+  await expect(card('best')).toHaveText('Most left nowNot available');
+  await expect(card('reset')).toHaveText('Next resetNot available');
   await expect(glance(page)).not.toContainText('0%');
-  await cards.nth(1).getByRole('button').click();
+  await card('quota').click();
   await expect(detail(page)).toContainText('No saved quota windows for connected accounts');
 });
 
@@ -155,9 +157,11 @@ test('summary marks partial account coverage without hiding stale reading eviden
   await tile.getByRole('button').click();
   await expect(detail(page)).toContainText('Accounts with saved quota1 of 2 connected');
   await expect(detail(page)).toContainText('FreshnessStale');
-  await closeDetail(page);
-  await glance(page).locator('[data-overview-summary="latest"]').getByRole('button').click();
   await expect(detail(page)).toContainText('BravoNot available');
+  await closeDetail(page);
+  await glance(page).locator('[data-overview-summary="accounts"]').getByRole('button').click();
+  await expect(detail(page)).toContainText('Latest readingAlpha');
+  await expect(detail(page)).toContainText('FreshnessStale');
 });
 
 test('next expected reset exposes its account and never confirms a reset on elapsed time', async ({ page }) => {
@@ -226,12 +230,12 @@ test('short account lists skip search until it would help', async ({ page }) => 
   await expect(page.getByRole('searchbox', { name: 'Search accounts', exact: true })).toHaveCount(0);
 });
 
-test('choosing a table row selects its account card without hijacking its controls', async ({ page }) => {
+test('choosing an account in the Overview chips selects its card without hijacking card controls', async ({ page }) => {
   await open(page);
   const overview = page.locator('[data-overview]');
   await expect(overview).toHaveAttribute('data-overview-profile', ids[0]!);
   await expect(detail(page)).toHaveCount(0);
-  await page.locator(`[data-overview-account="${ids[1]}"] [data-overview-account-quota]`).first().click();
+  await page.locator(`[data-overview-hero] [data-activity-account="${ids[1]}"]`).click();
   await expect(overview).toHaveAttribute('data-overview-profile', ids[1]!);
   await expect(page.locator(`[data-overview-account="${ids[1]}"]`)).toHaveAttribute('data-selected', 'true');
   await expect(page.locator(`[data-overview-account-card="${ids[1]}"]`)).toContainText('Bravo');
@@ -246,15 +250,16 @@ test('selected account shows longest task and reset credits, and keeps missing v
   const reading = quota(ids[0]!, windowOf(40, 300, 'Five-hour'), null, { availableResetCredits: '0' });
   await open(page, { profiles: [profile(0)], quotas: { [ids[0]!]: reading }, activity: activity(ids[0]!, { longestRunningTurnSec: '3725' }) });
   await openAccount(page, ids[0]!);
-  await expect(page.locator('[data-overview-quota]')).toContainText('Longest task1h 2m');
-  await expect(page.locator('[data-overview-quota]')).toContainText('Reset credits0');
+  await expect(selectedCard(page)).toContainText('Longest task1h 2m');
+  await expect(selectedCard(page).locator('[data-overview-stat="credits"]')).toHaveCount(0);
+  await expect(await openReadingDetails(page)).toContainText('Reset credits0');
 });
 
 test('a reset credit count that the provider did not report stays unknown', async ({ page }) => {
   await open(page, { profiles: [profile(0)], quotas: { [ids[0]!]: quota(ids[0]!, windowOf(40, 300, 'Five-hour')) }, activity: activity(ids[0]!) });
   await openAccount(page, ids[0]!);
-  await expect(page.locator('[data-overview-quota]')).toContainText('Reset creditsNot available');
-  await expect(page.locator('[data-overview-quota]')).toContainText('Longest taskNot available');
+  await expect(selectedCard(page)).toContainText('Longest taskNot available');
+  await expect(await openReadingDetails(page)).toContainText('Reset creditsNot available');
 });
 
 test('an empty workspace offers one action instead of unavailable tiles', async ({ page }) => {

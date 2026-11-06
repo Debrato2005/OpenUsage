@@ -18,23 +18,24 @@ The sections below are dated records. Where they describe explanatory text or re
 
 ## Overview and the detail panel
 
-Overview answers one question: what have I used, and what is left? Since S-03b it follows the approved reference dashboard (SC-013). Top to bottom: the summary cards; the selected account's card beside account share; token activity with its peak, lowest and active days; then the accounts table. Numbers sit in place with their names, and each one opens the detail panel.
+Overview is a fuel gauge for AI coding plans: how much of each account's windows is left, and how hard they have been used. The owner approved this direction on November 6, 2026 (SC-013, SC-015). Top to bottom:
 
-`detail-panel.tsx` holds the one side panel and the one mark. Every number uses them, and new screens reuse them. The panel opens beside the page, so nothing moves. Enter, Space or a click opens it. Escape, the close button or the backdrop closes it, and focus returns to what opened it. It fills a narrow window. Source, time, scope, coverage, derivation, plan and Account Detail belong here. Results of a refresh appear in the panel while it is open.
+1. **Hero.** Account chips (All accounts, each account, Verified only) and period chips (7 days, 30 days, 90 days, 1 year). One large number: tokens in the period, whole part in full ink and decimals dimmed, with its change against the period before. All accounts carries the Unverified mark.
+2. **Eight answers** in a hairline grid: Runs out first, Next reset, Most left now, Connected accounts, Current streak, Peak day, Active days and Lifetime tokens. Each has its name, its value and one context line, such as the account and window.
+3. **Limits.** One pastel card per account. The card shows plan, connection and update time, each quota window as a large percent left with a bar, an even-pace tick and its reset countdown, then lifetime, peak day, streak and longest task. Reset credits show as a chip when the account has any. Refresh or Sign in, Reading details, View usage and Manage sit on the card. A signed-out card is stone grey. The account chosen in the chips carries a ring.
+4. **Tokens per day.** Bars stacked by account for the period, with Share beside them: a donut built from Rust's share basis points, ranked, with Values and coverage. Share appears only for All accounts and Verified only.
+5. **Your week** (average tokens per weekday) and **the period against the one before** (running totals of known days).
+6. **Token activity.** The year heatmap with Daily, Weekly and Cumulative, its own date range, the per-account checkboxes and the SC-010 notice.
 
-The account card shows the plan, connection, Refresh or Sign in, View usage, the quota windows with their resets, and six tiles: lifetime and peak tokens as exact counts, both streaks, the longest task and reset credits. Reading details holds source, time, scope, identity and connection. Choosing a table row selects its card and opens no panel.
+The pace tick compares used percent with window time elapsed at the reading. It never predicts exhaustion, because SRS Section 1.3 excludes projections. A day with no reading draws as an outline, never as zero. Charts draw at their measured width, so their text keeps its size in every window. Card ink is fixed, so the pastel cards read the same in light and dark.
 
-The accounts table has Account, Status, Plan, Quota left, Last updated and one action. Quota left is the account's lowest window, with its freshness mark. Compare on Usage keeps one column per window.
+Account colours follow the account's position among all profiles, so archiving another account never repaints one. `--tint` is the chart colour, validated as a categorical palette in both themes with the dataviz checker; yellow beside green sits in the colour-blind floor band, so charts keep 1.5-pixel gaps, legends and tooltips. `--pastel` is the card. Six slots exist; a seventh account reuses a colour and keeps its legend.
 
-Account share shows the donut with each account's percent and tokens in Profile sum and Verified combined, so it follows the same accounts and dates. In Individual it shows an empty ring and Compare accounts, which switches to Profile sum as an explicit choice (SC-010). The quota donut is on Usage. Theme and display scale are in Settings.
+`detail-panel.tsx` holds the one side panel and the one mark. Every number uses them, and new screens reuse them. The panel opens beside the page, so nothing moves. Enter, Space or a click opens it. Escape, the close button or the backdrop closes it, and focus returns to what opened it. It fills a narrow window. Source, time, scope, coverage, derivation, exact counts, plan and Account Detail belong here. Results of a refresh appear in the panel while it is open.
 
-Wider than 760 pixels, a left sidebar holds the brand, the three pages and the monitoring mark, and each page shows its title. Narrower windows use the top bar.
+Every account's saved quota and activity load with the page and again every minute; choosing an account loads it again. A failed or mismatched reload keeps only that account's own last reading, marked Freshness unknown. Connected profiles alone supply the quota and reset answers; percentages from separate windows are never added. Unknown freshness keeps its existing wording under [SC-012](../srs-clarifications.md#sc-012-unknown-freshness-in-summary-marks).
 
-`DetailProvider` hosts the panel for the whole app. `useOpenDetail` opens it from a control, and `DetailLink` makes a number open it. Compare cells, history snapshots, and heatmap values use it. Below 620 pixels the accounts table stacks each row and keeps its table roles.
-
-Saved numbers and selection rules are unchanged. Connected profiles alone supply the quota and reset summaries; percentages from separate windows are never added. Unknown freshness keeps its existing wording under [SC-012](../srs-clarifications.md#sc-012-unknown-freshness-in-summary-marks).
-
-Token activity shows a full year, so the heatmap fills Overview. Period and coverage are in the Values panel, and the page keeps only abnormal states such as Partial history and Incomplete. Usage reads top-down: activity, saved numbers, Compare, then history. First run has one action and Privacy details. Theme follows the system until Settings is reachable.
+Wider than 760 pixels, a left sidebar holds the brand, the three pages and the monitoring mark, and each page shows its title. Narrower windows use the top bar, the grid drops to two columns, and cards stack.
 
 Manage accounts keeps its own list and shows a reading through View usage in the row, because that list owns sign-in, focus and provider actions.
 
@@ -104,6 +105,8 @@ The UI/UX search did not return an exact desktop account workflow. Its landing-p
 [Linear documentation](https://linear.app/docs) informed the separation of navigation and work areas. [Raycast guidance](https://developers.raycast.com/basics/prepare-an-extension-for-store) informed functional action names and concise descriptions. The app does not copy their branding or layouts. The [Vercel web guidelines](https://github.com/vercel-labs/web-interface-guidelines) inform the accessibility review. Automated checks do not establish full WCAG 2.2 AA conformance or screen-reader acceptance.
 
 ## Font provenance
+
+Large numbers use Bricolage Grotesque, added November 6, 2026 for the Overview hero, answers and cards. DM Sans stays the interface face, and exact counts in the detail panel keep DM Sans tabular digits. The file comes unchanged from the [google/fonts repository](https://github.com/google/fonts/tree/main/ofl/bricolagegrotesque); its Git blob `9a4ca271ff84357bb8f8830ce71b85ea3571f731` matched the downloaded file. Original path: `ofl/bricolagegrotesque/BricolageGrotesque[opsz,wdth,wght].ttf`. Bundled path: `apps/desktop/public/fonts/BricolageGrotesque-Variable.ttf` (408,496 bytes). SHA-256: `413e7357809ddd12fd80a96a8a396de0e401638d4acd3cb3e37532f0472ac682`. License: SIL Open Font License 1.1, at `apps/desktop/public/fonts/Bricolage-Grotesque-OFL.txt` (blob `a397658a5c4ab27c349964553b7caca61a4346f6`).
 
 The font comes from the [official DM Fonts repository](https://github.com/googlefonts/dm-fonts/tree/4412393b7d2de9fe7a92064c2dce9b5af5d7fd26/Sans), revision `4412393b7d2de9fe7a92064c2dce9b5af5d7fd26`. OpenUsage bundles the original variable TTF unchanged. It supports normal weights from 100 to 1000. The interface uses 400, 500, and 600. The adjacent `DM-Sans-OFL.txt` retains its full copyright and SIL Open Font License 1.1.
 

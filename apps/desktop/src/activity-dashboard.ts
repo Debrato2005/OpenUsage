@@ -5,11 +5,11 @@ function priorDate(end: string, days: number) {
   return new Date(Date.parse(`${end}T00:00:00Z`) - (days - 1) * 86400000).toISOString().slice(0,10);
 }
 
-export function useActivityDashboard(profiles: ProfileRecord[], profileId: string | null, revision: number, active: boolean) {
-  const [view, setView] = useState<ActivityView>('individual');
+export function useActivityDashboard(profiles: ProfileRecord[], profileId: string | null, revision: number, active: boolean, initial: { view?: ActivityView; periodDays?: number } = {}) {
+  const [view, setView] = useState<ActivityView>(initial.view ?? 'individual');
   const [mode, setMode] = useState<HeatmapMode>('daily');
   const [selection, setSelection] = useState<string[] | null>(null);
-  const [range, setRange] = useState(() => { const end = new Date().toISOString().slice(0,10); return { start: priorDate(end,365), end }; });
+  const [range, setRange] = useState(() => { const end = new Date().toISOString().slice(0,10); return { start: priorDate(end, initial.periodDays ?? 365), end }; });
   const [attempt, setAttempt] = useState(0);
   const [result, setResult] = useState<{ key: string; data: ActivityDashboard | null; failed: boolean } | null>(null);
   const periodDays = Math.round((Date.parse(range.end) - Date.parse(range.start)) / 86400000) + 1;

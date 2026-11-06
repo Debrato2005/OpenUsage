@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { closeDetail, navigate, openAccount, openReadingDetails, openReadings } from './navigation';
+import { closeDetail, navigate, openAccount, openReadingDetails, openReadings, selectedCard } from './navigation';
 import type { MonitoringStatus, ProfileCollectionOutcome, SavedProfileActivity, SavedProfileQuota } from '../../apps/desktop/src/contracts';
 
 // Synthetic renderer IPC only. Atomic storage and owned provider execution require native acceptance.
@@ -303,7 +303,7 @@ test('one global status poll reloads caches only on changed reading revision and
   await expect(page.locator('[data-activity-saved] [data-activity-metric="lifetimeTokens"]')).toHaveText('9223372036854775807');
   await expect(pause).toBeFocused(); await expect(pause).toBeEnabled();
   await expect(page.getByRole('button', { name: 'Refresh readings', exact: true })).toBeDisabled();
-  await navigate(page, 'overview'); await openAccount(page, profileId); await expect(page.locator('[data-overview-lifetime]')).toHaveText('9,223,372,036,854,775,807');
+  await navigate(page, 'overview'); await openAccount(page, profileId); await expect(selectedCard(page).locator('[data-overview-lifetime]')).toHaveAttribute('data-exact-value', '9223372036854775807');
   const calls = await page.evaluate(() => (window as unknown as FixtureWindow).collectionFixture.calls.filter(call => call.command === 'load_monitoring'));
   expect(calls.every(call => Object.keys(call.args).length === 0)).toBe(true);
 });
@@ -348,11 +348,11 @@ test('a pre-restore status reply cannot restart or repaint the new workspace mon
   await open(page);
   await navigate(page, 'overview');
   const account = page.locator(`[data-overview-account="${profileId}"]`);
-  await expect(account.locator('[data-overview-account-quota]')).toContainText('75% left');
+  await expect(account.locator('[data-overview-account-quota]')).toContainText('75%Five-hour left');
   await openAccount(page, profileId);
   await expect((await openReadingDetails(page)).locator(`time[datetime="${observedAtUtc}"]`)).toBeVisible();
   await closeDetail(page);
-  await expect(page.locator('[data-overview-lifetime]')).toHaveText('9,007,199,254,740,993');
+  await expect(selectedCard(page).locator('[data-overview-lifetime]')).toHaveAttribute('data-exact-value', '9007199254740993');
   await navigate(page, 'accounts');
   await page.getByRole('button', { name: 'Manage profile', exact: true }).click(); await eligibleMonitoring(page);
   await page.locator(`[data-monitoring-start="${profileId}"]`).click();
@@ -375,10 +375,9 @@ test('a pre-restore status reply cannot restart or repaint the new workspace mon
   await expect(page.locator(`[data-monitoring-start="${profileId}"]`)).toBeDisabled();
   await navigate(page, 'overview');
   await openAccount(page, profileId);
-  await expect(page.locator('[data-overview-quota] .overview-error').filter({ hasText: 'Saved quotas could not be loaded.' })).toBeVisible();
-  await expect(account.locator('[data-overview-account-quota]')).toHaveText('Not available');
-  await expect(account).toContainText('Could not reload saved quota');
-  await expect(page.locator('[data-overview-quota] time')).toHaveCount(0);
+  await expect(selectedCard(page).locator('.overview-error').filter({ hasText: 'Saved quotas could not be loaded.' })).toBeVisible();
+  await expect(account.getByRole('meter')).toHaveCount(0);
+  await expect(selectedCard(page).locator('time')).toHaveCount(0);
   await expect(page.locator('[data-overview-lifetime]')).toHaveText('Not available');
   await expect(page.locator('[data-global-monitoring]')).toHaveText('Monitoring stopped');
 });
@@ -450,7 +449,7 @@ test('Overview refresh stays on the same page, updates its account row and prese
   await expect(navigation.getByRole('link')).toHaveCount(3);
   await expect(navigation.locator('[data-workspace-nav="accounts"]')).toHaveCount(0);
   await openAccount(page, profileId);
-  const selected = page.locator('[data-overview-quota]');
+  const selected = selectedCard(page);
   await selected.getByRole('button', { name: 'Refresh', exact: true }).click();
   await expect.poll(() => page.evaluate(id => Boolean((window as unknown as FixtureWindow).collectionFixture.completions[id]), requests[0]!)).toBe(true);
   await expect(navigation.locator('[data-workspace-nav="overview"]')).toHaveAttribute('aria-current', 'page');
@@ -458,13 +457,13 @@ test('Overview refresh stays on the same page, updates its account row and prese
   await expect(selected.getByRole('button', { name: 'Refreshing…', exact: true })).toBeDisabled();
   await publish(page, { ...committed(), sourceKind: 'official_artifact' });
   await expect(page.locator('[data-account-refresh-message]')).toContainText('Readings updated.');
-  await expect(page.locator(`[data-overview-account="${profileId}"] [data-overview-account-quota]`)).toContainText('50% left');
+  await expect(page.locator(`[data-overview-account="${profileId}"] [data-overview-account-quota]`)).toContainText('50%Five-hour left');
   await expect(page.locator('[data-account-panel]')).toBeHidden();
   await selected.getByRole('button', { name: 'Refresh', exact: true }).click();
   await expect.poll(() => page.evaluate(id => Boolean((window as unknown as FixtureWindow).collectionFixture.completions[id]), requests[1]!)).toBe(true);
   await reject(page, 'provider_unavailable', 1);
   await expect(page.locator('[data-account-refresh-message]')).toContainText('Saved readings are still available.');
-  await expect(page.locator(`[data-overview-account="${profileId}"] [data-overview-account-quota]`)).toContainText('50% left');
+  await expect(page.locator(`[data-overview-account="${profileId}"] [data-overview-account-quota]`)).toContainText('50%Five-hour left');
   await expect(navigation.locator('[data-workspace-nav="overview"]')).toHaveAttribute('aria-current', 'page');
   await expect(page.locator('[data-account-panel]')).toBeHidden();
   await page.getByRole('button', { name: 'View account details', exact: true }).click();

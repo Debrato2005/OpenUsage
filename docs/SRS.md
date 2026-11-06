@@ -3,7 +3,7 @@
 **Document ID:** OU-SRS-001  
 **Baseline:** 3.0  
 **Date:** 2 November 2026  
-**Status:** Adopted 2 November 2026. Normative product and engineering requirements; release is subject to validation.  
+**Status:** Adopted 2 November 2026; OU-DES-003, OU-DES-005 and OU-DES-008 amended by the owner on 6 November 2026 ([SC-013](srs-clarifications.md#sc-013-rich-dashboard-under-section-23)). Normative product and engineering requirements; release is subject to validation.  
 **Product:** OpenUsage  
 **License:** Apache License 2.0  
 **Replaces:** OU-SRS-001, baseline 2.0  
@@ -224,17 +224,17 @@ OpenUsage is an observer and a local record manager. It does not control the ser
 
 **OU-DES-002:** A change shall not break existing behavior, stored data, or a safety rule.
 
-**OU-DES-003:** The UI shall have no taglines, helper text, or secondary labels.
+**OU-DES-003:** The UI shall have no taglines or helper text. A number may carry one short context line that says what it measures, such as its account, window, reset time, pace, or comparison.
 
 **OU-DES-004:** If a screen needs such text to make sense, the layout shall change.
 
-**OU-DES-005:** A number in its normal state shall show only the number and its name.
+**OU-DES-005:** A number in its normal state shall show the number, its name, and at most one short context line.
 
 **OU-DES-006:** A number in an abnormal state shall show one mark, using the word that this document gives that state, such as Stale, Incomplete, Unverified, Disputed, Duplicate?, or May overlap. A missing number shall show Not available.
 
 **OU-DES-007:** Every number shall open one detail panel. Source, time, scope, coverage, derivation, and reasons belong there. Where another requirement says to show or label these facts, the detail panel satisfies it for a number in its normal state.
 
-**OU-DES-008:** Errors, consent, destructive confirmations, accessible names, and required notices are not secondary labels. They shall remain.
+**OU-DES-008:** Errors, consent, destructive confirmations, accessible names, and required notices are not helper text. They shall remain.
 
 **OU-DES-009:** All data shall follow one path: adapter, checks, reading, store, view. A feature shall not add a second path.
 
@@ -1883,7 +1883,7 @@ The app shall not substitute guessed amounts, scraped values, or requests that c
 | Duplicates | Identity rules for Codex | Same, plus rules for accounts, logs, and tools |
 | Token analytics | Provider daily buckets | Same, plus local logs through bundled `ccusage` |
 | Interface | Desktop app | Desktop app and CLI from one install |
-| Design | Labels on each value | No secondary labels; one mark; one detail panel |
+| Design | Labels on each value | One context line per number; one mark; one detail panel |
 | Sharing | Export and backup | Same, plus Wrapped and share images |
 | Hosted service | None | Opt-in leaderboard only, from Stage 2 |
 | Distribution | Paid signing required | Free npm install; hashes and provenance; paid signing optional |

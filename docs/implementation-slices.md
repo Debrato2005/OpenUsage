@@ -70,6 +70,7 @@ Renderer tests, native journeys, and the local commit therefore need approval to
 | S-02 | Native journeys | S-01 | Done, with two recorded reasons in [status](implementation-status.md#failing-or-stale-tests) |
 | S-03 | CI | S-02 | Done; the hosted run waits for the owner's push |
 | S-03b | Rich dashboard | S-03 | Done |
+| S-03d | Modern Overview | S-03b | Renderer done; native journeys not run |
 | S-03c | Keychain by default | S-03b | Not started |
 | S-04 | Reading status and evidence | S-03b | Not started |
 | S-05 | Adapter layer | S-04 | Not started |
