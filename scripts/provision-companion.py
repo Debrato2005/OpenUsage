@@ -9,6 +9,7 @@ import subprocess
 import tarfile
 import tempfile
 import time
+import urllib.parse
 import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -21,6 +22,10 @@ target = next(line.removeprefix('host: ') for line in host.splitlines() if line.
 if target != 'x86_64-unknown-linux-gnu':
     raise SystemExit('This companion pin is qualified only for Linux x86_64. No substitute binary was selected.')
 manifest = json.loads((ROOT / 'crates/openusage-codex/provider-sources/codex-0.163.0-linux-x86_64.json').read_text())
+source = urllib.parse.urlsplit(manifest['sourceUrl'])
+# Defence in depth for an edited manifest: download only official Codex release assets over HTTPS.
+if source.scheme != 'https' or source.hostname != 'github.com' or not source.path.startswith('/openai/codex/releases/download/'):
+    raise SystemExit('The companion source must be an official https://github.com/openai/codex release download.')
 cache = args.cache_dir.resolve()
 cache.mkdir(exist_ok=True)
 archive = cache / f"codex-{manifest['version']}-{manifest['target']}.tar.gz"
