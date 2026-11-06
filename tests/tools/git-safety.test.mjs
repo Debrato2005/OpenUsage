@@ -17,11 +17,11 @@ function repository(run) {
   mkdirSync(base, { recursive: true });
   const cwd = mkdtempSync(join(base, 'git-safety-test-'));
   const env = Object.fromEntries(Object.entries(process.env)
-    .filter(([key]) => !key.startsWith('GIT_')));
+    .filter(([key]) => !key.startsWith('GIT_') && key !== 'OPENUSAGE_PUSH_BRANCH'));
   env.GITLEAKS_BIN = scanner;
-  const invoke = (command, args, input) => {
+  const invoke = (command, args, input, extra = {}) => {
     const result = spawnSync(command, args, {
-      cwd, env, input, encoding: 'utf8', timeout: 45_000, maxBuffer: 2 * 1024 * 1024,
+      cwd, env: { ...env, ...extra }, input, encoding: 'utf8', timeout: 45_000, maxBuffer: 2 * 1024 * 1024,
     });
     assert.ifError(result.error);
     assert.equal(result.signal, null, 'command must finish within its timeout');
@@ -37,8 +37,8 @@ function repository(run) {
     mkdirSync(dirname(target), { recursive: true });
     writeFileSync(target, contents);
   };
-  const check = (mode, input) => invoke(process.execPath,
-    [script, mode, ...(mode === 'push' ? ['origin', 'https://example.invalid/openusage.git'] : [])], input);
+  const check = (mode, input, extra) => invoke(process.execPath,
+    [script, mode, ...(mode === 'push' ? ['origin', 'https://example.invalid/openusage.git'] : [])], input, extra);
   try {
     git('init', '--initial-branch=main');
     git('config', 'user.name', 'Synthetic Git Safety Test');
@@ -101,6 +101,18 @@ test('push permits main fast-forward and refuses unsafe updates', { timeout: 180
     const tip = git('rev-parse', 'HEAD');
     const fastForward = check('push', `refs/heads/main ${tip} refs/heads/main ${base}\n`);
     assert.equal(fastForward.status, 0, fastForward.stderr);
+
+    git('update-ref', 'refs/remotes/origin/main', base);
+    git('branch', 'feature/toolchain', tip);
+    const branchUpdate = `refs/heads/feature/toolchain ${tip} refs/heads/feature/toolchain ${zero}\n`;
+    const unnamed = check('push', branchUpdate);
+    assert.notEqual(unnamed.status, 0, 'must refuse a branch the owner did not name');
+    const named = check('push', branchUpdate, { OPENUSAGE_PUSH_BRANCH: 'feature/toolchain' });
+    assert.equal(named.status, 0, named.stderr);
+    const renamed = check('push', `refs/heads/feature/toolchain ${tip} refs/heads/elsewhere ${zero}\n`, { OPENUSAGE_PUSH_BRANCH: 'feature/toolchain' });
+    assert.notEqual(renamed.status, 0, 'must refuse publishing a named branch under another name');
+    const otherBranch = check('push', `refs/heads/recovery/debug ${tip} refs/heads/recovery/debug ${zero}\n`, { OPENUSAGE_PUSH_BRANCH: 'feature/toolchain' });
+    assert.notEqual(otherBranch.status, 0, 'naming one branch must not publish another');
 
     for (const branch of ['recovery/debug', 'archive/retired']) {
       const result = check('push', `refs/heads/${branch} ${tip} refs/heads/${branch} ${zero}\n`);

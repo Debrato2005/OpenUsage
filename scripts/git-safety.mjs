@@ -54,11 +54,16 @@ try {
         git(['merge-base', '--is-ancestor', remoteOid, 'origin/main']);
         continue;
       }
-      if (localRef !== 'refs/heads/main' || remoteRef !== 'refs/heads/main') refuse('Only main may be published. Recovery, archive and temporary branches stay local.');
+      const named = process.env.OPENUSAGE_PUSH_BRANCH ?? '';
+      const main = localRef === 'refs/heads/main' && remoteRef === 'refs/heads/main';
+      // AGENTS.md: the owner may ask to publish one named branch, under its own name, for a single push.
+      const approved = !main && named !== '' && named !== 'main' && localRef === `refs/heads/${named}` && remoteRef === localRef;
+      if (!main && !approved) refuse('Only main, or the one branch the owner names in OPENUSAGE_PUSH_BRANCH, may be published. Recovery, archive and temporary branches stay local.');
       if (!/^0+$/.test(remoteOid)) git(['merge-base', '--is-ancestor', remoteOid, localOid]);
-      uploads.push(/^0+$/.test(remoteOid) ? localOid : `${remoteOid}..${localOid}`);
+      // A new named branch is scanned from origin/main, so already published history is not rescanned.
+      uploads.push(!/^0+$/.test(remoteOid) ? `${remoteOid}..${localOid}` : approved ? `origin/main..${localOid}` : localOid);
     }
-    if (uploads.length > 1) refuse('Push one reviewed main update at a time.');
+    if (uploads.length > 1) refuse('Push one reviewed update at a time.');
     for (const range of uploads) {
       const paths = git(['log', '--format=', '--name-only', '--diff-filter=ACMR', '-z', range]).split('\0').map(path => path.replace(/^\n+/, '')).filter(Boolean);
       checkPaths(paths);
