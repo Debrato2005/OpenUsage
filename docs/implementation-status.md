@@ -66,7 +66,7 @@ Kept from baseline 2.0:
 
 ## Not yet run
 
-- The Linux CI workflow first ran on GitHub on November 6, 2026 and failed at Test Git safety. The fix passed every CI step locally that day; the hosted rerun waits for the owner's push. OU-NFR-012 also needs Windows and macOS, planned for S-15.
+- The Linux CI workflow first ran on GitHub on November 6, 2026 and failed at Test Git safety. The second run passed every code check, then hit the 90-minute job limit during the renderer tests because the runner's package mirror was slow. The split into two parallel jobs waits for the owner's push. OU-NFR-012 also needs Windows and macOS, planned for S-15.
 - Windows and macOS have never run. The owner has a real Windows PC and Mac for this.
 - Windows and macOS need their own pinned Codex companion. Only Linux x86_64 is qualified.
 - Sleep and wake, packaging, and release-scale performance are unmeasured.
@@ -92,6 +92,6 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 
 ## Current assignment
 
-S-03d, the modern Overview, passed the renderer suite and its native journeys and waits for the owner's review. S-03c, the keychain by default, follows. [Implementation slices](implementation-slices.md) hold the order.
+S-03d, the modern Overview, passed the renderer suite and its native journeys and waits for the owner's review. Three local commits wait for the owner's push. S-03c, the keychain by default, follows. [Implementation slices](implementation-slices.md) hold the order.
 
 The exact working checkpoint, if one exists, is in the local `.recovery/active-checkpoint.json`.
