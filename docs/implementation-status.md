@@ -2,7 +2,7 @@
 
 # Implementation status
 
-Updated: November 3, 2026. This page holds the current state only. [History](implementation-history.md) holds past work, and [traceability](acceptance-traceability.md) holds exact evidence.
+Updated: November 6, 2026. This page holds the current state only. [History](implementation-history.md) holds past work, and [traceability](acceptance-traceability.md) holds exact evidence.
 
 OpenUsage is in development against [SRS baseline 3.0](SRS.md). There is no release. Baseline 3.0 was adopted on November 2, 2026, and most of its new work has not started.
 
@@ -66,7 +66,7 @@ Kept from baseline 2.0:
 
 ## Not yet run
 
-- The Linux CI workflow has not run on GitHub, because only the owner pushes. Its commands passed locally on November 3, 2026. OU-NFR-012 also needs Windows and macOS, planned for S-15.
+- The Linux CI workflow first ran on GitHub on November 6, 2026 and failed at Test Git safety. The fix passed every CI step locally that day; the hosted rerun waits for the owner's push. OU-NFR-012 also needs Windows and macOS, planned for S-15.
 - Windows and macOS have never run. The owner has a real Windows PC and Mac for this.
 - Windows and macOS need their own pinned Codex companion. Only Linux x86_64 is qualified.
 - Sleep and wake, packaging, and release-scale performance are unmeasured.
