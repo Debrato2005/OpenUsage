@@ -14,7 +14,7 @@ export default defineConfig({
     { name: 'webkit-renderer', use: { browserName: 'webkit' } },
   ],
   webServer: {
-    command: 'npm run dev',
+    command: 'bun run dev',
     url: 'http://127.0.0.1:1420',
     reuseExistingServer: false,
     timeout: 30_000,

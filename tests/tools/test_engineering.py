@@ -52,7 +52,7 @@ class EngineeringTests(unittest.TestCase):
         self.assertNotIn('--workspace', command)
         self.assertTrue(rust['manualGates'])
         self.assertIn(['cargo', 'fmt', '--all', '--check'], [c['argv'] for c in rust['commands']])
-        locks = engineering.plan(['package-lock.json'])
+        locks = engineering.plan(['bun.lock'])
         self.assertIn('dependency_policy', [c['id'] for c in locks['commands']])
         renderer = engineering.plan(['apps/desktop/src/main.tsx'], ['tests/renderer/overview.spec.ts'])
         self.assertIn('renderer_targeted', [c['id'] for c in renderer['commands']])

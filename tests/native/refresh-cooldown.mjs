@@ -125,7 +125,7 @@ try {
   evidence.sourceDirtyPaths = execFileSync('git', ['status', '--porcelain'], { cwd: repository, encoding: 'utf8' }).trim().split('\n').filter(Boolean);
   evidence.sourceHashes = {};
   const sources = execFileSync('rg', ['--files', 'apps/desktop/src', 'apps/desktop/src-tauri/src', 'apps/desktop/src-tauri/permissions', 'crates/openusage-codex/src', 'crates/openusage-storage/src'], { cwd: repository, encoding: 'utf8' }).trim().split('\n');
-  for (const path of [...sources, 'Cargo.toml', 'Cargo.lock', 'package.json', 'package-lock.json', 'apps/desktop/src-tauri/Cargo.toml', 'apps/desktop/src-tauri/tauri.conf.json', 'apps/desktop/src-tauri/capabilities/main-window.json']) evidence.sourceHashes[path] = await hash(join(repository, path));
+  for (const path of [...sources, 'Cargo.toml', 'Cargo.lock', 'package.json', 'bun.lock', 'apps/desktop/src-tauri/Cargo.toml', 'apps/desktop/src-tauri/tauri.conf.json', 'apps/desktop/src-tauri/capabilities/main-window.json']) evidence.sourceHashes[path] = await hash(join(repository, path));
   evidence.harnessHashes = {};
   for (const path of ['refresh-cooldown.mjs', 'private-fixture.mjs', 'webdriver.mjs', 'fixtures/synthetic-quota-provider.py']) evidence.harnessHashes[path] = await hash(join(harness, path));
   fixture = await createFixture('refresh');
