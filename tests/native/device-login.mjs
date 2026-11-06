@@ -79,7 +79,7 @@ async function connectionGui(profile, state) {
   await driver.navigate('overview');
   // The Status column names the connection for every account.
   const overviewStatus = { connected: 'Connected', error: 'Needs attention', authentication_required: 'Not connected' }[state];
-  await waitFor(async () => driver.execute('return document.querySelector(arguments[0])?.textContent.trim()===arguments[1];', [`[data-overview-account="${profile.id}"] [data-overview-account-status]`, overviewStatus]), `Overview shows committed ${state}`);
+  await waitFor(async () => driver.execute('return document.querySelector(arguments[0])?.textContent.trim()===arguments[1];', [`[data-overview-account="${profile.id}"] [data-overview-account-status] .overview-connection`, overviewStatus]), `Overview shows committed ${state}`);
   await driver.navigate('accounts');
 }
 async function files(home) {

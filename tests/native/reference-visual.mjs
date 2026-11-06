@@ -130,7 +130,7 @@ async function capture(name, view, theme, width = 1280, text = 1, target, prepar
     const heading = document.querySelector('h1');
     const lifetime = [...document.querySelectorAll('[data-overview-lifetime]')].find(visible);
     const lifetimeExact = lifetime?.getAttribute('data-exact-value') ?? null;
-    const lifetimeText = lifetime?.querySelector('bdi')?.textContent ?? null;
+    const lifetimeText = lifetime?.querySelector('bdi')?.getAttribute('title') ?? null;
     let numberDigitWidths = null;
     if (number) {
       const style = getComputedStyle(number), probe = document.createElement('span');
@@ -145,10 +145,10 @@ async function capture(name, view, theme, width = 1280, text = 1, target, prepar
   if (data.pageWidth > width + 1 || data.overflowing.length) evidence.violations.push({ screenshot: name, pageWidth: data.pageWidth, viewportWidth: width, overflowing: data.overflowing });
   // Account management is a dialog over Settings.
   assert.equal(data.currentView, view === 'accounts' ? 'settings' : view); assert.equal(data.visibleViewCount, view === 'accounts' ? 2 : 1); assert.equal(data.fontStatus, 'loaded'); assert.match(data.bodyFont, /DM Sans/); assert.equal(data.uiFontLoaded, true); if (data.numberFont) { assert.match(data.numberFont, /DM Sans/); assert.match(data.numberVariant, /tabular-nums/); assert.equal(data.numberFontLoaded, true); assert.ok(data.numberDigitWidths[0] > 0); if (Math.max(...data.numberDigitWidths) - Math.min(...data.numberDigitWidths) >= 0.1) evidence.violations.push({ screenshot: name, digitWidths: data.numberDigitWidths, message: 'Actual native DM Sans digits must have equal width.' }); }
-  if (data.lifetimeExact !== null) assert.equal(data.lifetimeText.replaceAll(',', ''), data.lifetimeExact, 'The card shows the exact lifetime count.');
+  if (data.lifetimeExact !== null) assert.equal(data.lifetimeText.replaceAll(',', ''), data.lifetimeExact, 'The card names the exact lifetime count; the compact count is the visible text.');
   await scale(1);
 }
-const card = '[data-overview-quota]';
+const card = '[data-overview-account-card][data-selected]';
 async function overviewSet(profile) {
   await driver.openAccount(profile.id);
   await waitFor(async () => driver.execute('const node=document.querySelector("[data-overview]");return node?.getAttribute("data-overview-profile")===arguments[0]&&node.getAttribute("aria-busy")==="false";', [profile.id]), 'selected profile overview loaded');
@@ -160,9 +160,9 @@ async function overviewCaptures(profile, kind) {
   await overviewSet(profile);
   if (kind === 'activity') {
     assert.equal(await driver.execute('return document.querySelector(arguments[0]).getAttribute("data-exact-value");', [`${card} [data-overview-lifetime]`]), '9007199254740993');
-    assert.equal(await driver.execute('return document.querySelector(arguments[0])?.textContent;', [`${card} [data-overview-lifetime] bdi`]), '9,007,199,254,740,993', 'The card shows the exact lifetime count.');
+    assert.equal(await driver.execute('return document.querySelector(arguments[0])?.getAttribute("title");', [`${card} [data-overview-lifetime] bdi`]), '9,007,199,254,740,993', 'The card names the exact lifetime count.');
     // Keyboard: Enter on the row selects the account; Enter on a number opens its detail, and Escape returns focus.
-    await driver.execute('document.querySelector(arguments[0]).focus();return true;', [`[data-overview-account="${profile.id}"] .overview-account-link`]);
+    await driver.execute('document.querySelector(arguments[0]).focus();return true;', [`[data-overview-hero] [data-activity-account="${profile.id}"]`]);
     await key('\uE007');
     await waitFor(() => driver.execute('return Boolean(document.querySelector(arguments[0]));', [`[data-overview-account-card="${profile.id}"]`]), 'keyboard selects the account card');
     await driver.execute('document.querySelector(arguments[0]).focus();return true;', [`${card} [data-overview-stat="lifetime"]`]);

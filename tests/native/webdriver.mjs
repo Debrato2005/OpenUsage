@@ -165,9 +165,9 @@ export class NativeDriver {
   // Opens the side panel that holds one account's detail on Overview.
   async openAccount(profileId) {
     await this.navigate('overview');
-    await this.click(`[data-overview-account="${profileId}"] .overview-account-link`);
-    // The selected account's card sits above the accounts table.
-    await waitFor(async () => this.execute('return Boolean(document.querySelector(arguments[0]));', [`[data-overview-account-card="${profileId}"]`]), 'selected account card');
+    // Choosing the account in the Overview chips marks its card selected and points the charts at it.
+    await this.click(`[data-overview-hero] [data-activity-account="${profileId}"]`);
+    await waitFor(async () => this.execute('return Boolean(document.querySelector(arguments[0]));', [`[data-overview-account-card="${profileId}"][data-selected]`]), 'selected account card');
   }
 
   async readProfileQuota(profileId) {

@@ -179,7 +179,7 @@ try {
     await driver.navigate('overview'); await driver.click('[data-overview-add-account]');
     let profile; await waitFor(async () => { profile = (await call('list_profiles')).profiles.find(item => !profiles.some(previous => previous.id === item.id)); return Boolean(profile); }, 'new isolated profile'); profiles.push(profile);
     await writeFile(join(dirname(fixture.database), 'profiles', profile.id, 'synthetic-collection-config.json'), JSON.stringify({ mode: 'startup_snapshot', requireLogin: true }) + '\n', { mode: 0o600 });
-    await driver.navigate('overview'); await driver.click(`[data-overview-account="${profile.id}"] td:last-child button:first-child`);
+    await driver.navigate('overview'); await driver.click(`[data-overview-account="${profile.id}"] .overview-card-foot button:first-child`);
     await waitFor(async () => Boolean(await call('load_profile_activity', { profileId: profile.id })), 'automatic first activity COMMIT', 45000);
     const initial = await call('load_profile_activity', { profileId: profile.id });
     assert.equal(initial.sourceKind, 'test_fixture'); assert.equal(initial.summary.lifetimeTokens, '9007199254740993');

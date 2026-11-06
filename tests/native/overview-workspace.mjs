@@ -104,27 +104,28 @@ try {
     const home = join(dirname(fixture.database), 'profiles', profile.id);
     await writeFile(join(home, 'synthetic-collection-config.json'), JSON.stringify({ mode: 'dashboard_success', requireLogin: true }) + '\n', { mode: 0o600 });
     await driver.navigate('overview');
-    await driver.click(`[data-overview-account="${profile.id}"] td:last-child button:first-child`);
+    await driver.click(`[data-overview-account="${profile.id}"] .overview-card-foot button:first-child`);
     await waitFor(() => driver.execute('const panel=document.querySelector("[data-account-panel]");return Boolean(panel?.open&&panel.querySelector(arguments[0])?.getClientRects().length);', [`[data-profile-id="${profile.id}"]`]), 'selected Sign in opens account dialog');
     assert.equal(await driver.execute('return [...document.querySelectorAll("[data-account-panel] [data-profile-id]")].filter(node=>node.getClientRects().length).length;'), 1);
     await waitFor(async () => Boolean(await call('load_profile_quota', { profileId: profile.id })) && Boolean(await call('load_profile_activity', { profileId: profile.id })), 'selected GUI sign-in automatically saves paired fixture readings', 45000);
   }
   await driver.openAccount(profiles[0].id);
-  await waitFor(() => driver.execute('return document.querySelector("[data-overview-quota] [data-overview-lifetime]")?.getAttribute("data-exact-value")==="9007199254740993";'), 'selected saved count');
-  await waitFor(() => driver.execute('return document.querySelector("[data-overview-quota] .overview-account-name .overview-meta")?.textContent==="ChatGPT Plus";'), 'saved provider plan');
+  await waitFor(() => driver.execute('return document.querySelector("[data-overview-account-card][data-selected] [data-overview-lifetime]")?.getAttribute("data-exact-value")==="9007199254740993";'), 'selected saved count');
+  await waitFor(() => driver.execute('return document.querySelector("[data-overview-account-card][data-selected] [data-overview-plan]")?.textContent==="ChatGPT Plus";'), 'saved provider plan');
   assert.equal(await driver.execute('return document.querySelector("[data-account-panel]").open;'), false);
   assert.equal(await driver.execute('return document.querySelector("[data-account-refresh-message]");'), null, 'Automatic login collection does not add an Overview banner.');
-  assert.deepEqual(await driver.execute('return [...document.querySelectorAll("[data-overview-quota] [data-overview-window] [role=meter]")].map(node=>Number(node.getAttribute("aria-valuenow")));'), [75, 60]);
-  assert.deepEqual(await driver.execute('return [...document.querySelectorAll("[data-overview-quota] [data-overview-window]")].map(node=>node.getAttribute("data-overview-window"));'), ['Primary window', 'Secondary window']);
+  assert.deepEqual(await driver.execute('return [...document.querySelectorAll("[data-overview-account-card][data-selected] [data-overview-window] [role=meter]")].map(node=>Number(node.getAttribute("aria-valuenow")));'), [75, 60]);
+  assert.deepEqual(await driver.execute('return [...document.querySelectorAll("[data-overview-account-card][data-selected] [data-overview-window]")].map(node=>node.getAttribute("data-overview-window"));'), ['Primary window', 'Secondary window']);
   await driver.closeDetail();
   await visibleHeatmap(profiles[0].id);
   await resize(1586, 992); await capture('overview-reference-light.png');
   assert.equal(await driver.execute('return document.querySelectorAll("[data-overview-combined-usage],[data-overview-day]").length;'), 0, 'The bar chart is replaced without inventing combined totals.');
   // Summary, activity and accounts each use the full width, one above the other.
-  const [glance, activityPanel, accounts] = evidence.views.at(-1).panels;
+  // Answers, then account cards, then the year of activity; each spans the full width.
+  const [glance, accounts, activityPanel] = evidence.views.at(-1).panels;
   assert.equal(evidence.views.at(-1).panels.length, 3);
   assert.ok([accounts, activityPanel].every(panel => Math.abs(panel.left - glance.left) < 1 && Math.abs(panel.width - glance.width) < 1));
-  assert.ok(glance.top < activityPanel.top && activityPanel.top < accounts.top);
+  assert.ok(glance.top < accounts.top && accounts.top < activityPanel.top);
   await visibleHeatmap(profiles[0].id);
   const beforeHeatmap = await liveHashes(), providersBeforeHeatmap = await providerHashes(profiles);
   const daily = await heatmap(profiles[0].id);
@@ -184,7 +185,7 @@ try {
   await waitFor(() => driver.execute('return document.querySelector("[data-overview] [data-token-heatmap]")?.getAttribute("data-profile-id")===arguments[0]&&document.querySelectorAll("[data-overview] [data-heatmap-cell]").length===0;', [profiles[4].id]), 'unconnected account does not inherit another account heatmap');
   await select(profiles[0].id);
   await visibleHeatmap(profiles[0].id);
-  await driver.click('[data-overview] [aria-label="Activity accounts"] button:nth-child(3)');
+  await driver.click('[data-overview-hero] [aria-label="Accounts shown"] button:last-child');
   await waitFor(() => driver.execute('return document.querySelector("[data-overview] [data-activity-scope]")?.getAttribute("data-activity-scope")==="verified"&&Boolean(document.querySelector("[data-overview] [data-combined-availability]"));'), 'Verified combined checks saved eligibility');
   assert.equal(await driver.execute('return document.querySelectorAll("[data-overview] .combined-account-selection [role=checkbox]").length;'), 5);
   assert.equal(await driver.execute('return document.querySelectorAll("[data-overview] .combined-account-selection [role=checkbox][aria-checked=true]").length;'), 2, 'Only connected accounts are selected by default.');
@@ -198,13 +199,13 @@ try {
   assert.deepEqual(await call('load_combined_heatmap', { profileIds: [profiles[0].id] }), { status: 'unavailable', includedProfileIds: [], exclusions: [{ profileId: profiles[0].id, reason: 'identity_unverified' }] });
   await driver.click('[data-overview] .combined-account-selection label:nth-child(2) [role=checkbox]');
   await waitFor(() => driver.execute('return document.querySelectorAll("[data-overview] .combined-exclusions li").length===2&&document.querySelectorAll("[data-overview] .combined-account-selection [role=checkbox][aria-checked=true]").length===2;'), 'checking the second account restores its exclusion');
-  await driver.click('[data-overview] [aria-label="Activity accounts"] button:first-child');
+  await driver.click(`[data-overview-hero] [data-activity-account="${profiles[0].id}"]`);
   await visibleHeatmap(profiles[0].id);
   assert.equal(await driver.execute('return document.querySelector("[data-overview]").getAttribute("data-overview-profile");'), profiles[0].id, 'Returning to Individual preserves its selected account.');
   assert.deepEqual(await liveHashes(), beforeHeatmap, 'Calendar and combined-eligibility reads and controls must preserve encrypted database, WAL and key bytes.');
   assert.deepEqual(await providerHashes(profiles), providersBeforeHeatmap, 'History browsing must not make provider requests.');
   evidence.heatmap = { defaultDays: 365, knownDays: 7, missingDays: 358, explicitZeroDays: 1, dailyExactValues: expectedDays, weeklyExactTotals: ['5430000', '6240000'], cumulativeAvailableTotal: '11670000', coverageUnknown: true, keyboardExactValues: true, ranges: [30, 90, 180, 365], accountIsolation: true, individualAccountSelector: true, combinedSelectionControls: true, unverifiedCombinedRefused: true, databaseWalKeyUnchanged: true, noProviderRequests: true };
-  const viewUsage = '[data-overview-quota] [data-overview-view-usage]';
+  const viewUsage = '[data-overview-account-card][data-selected] [data-overview-view-usage]';
   await driver.openAccount(profiles[0].id);
   assert.equal(await driver.execute('return document.querySelector(arguments[0])?.textContent;', [viewUsage]), 'View usage');
   await driver.click(viewUsage);
@@ -218,7 +219,7 @@ try {
   await driver.navigate('overview');
   // The prominent row action starts the existing sign-in controller for only this profile.
   await writeFile(join(dirname(fixture.database), 'profiles', profiles[2].id, 'synthetic-collection-config.json'), JSON.stringify({ mode: 'login_pending', requireLogin: true }) + '\n', { mode: 0o600 });
-  await driver.click(`[data-overview-account="${profiles[2].id}"] td:last-child button:first-child`);
+  await driver.click(`[data-overview-account="${profiles[2].id}"] .overview-card-foot button:first-child`);
   await waitFor(() => driver.execute('return Boolean(document.querySelector(arguments[0])?.getClientRects().length);', [`[data-login-cancel="${profiles[2].id}"]`]), 'selected account synthetic sign-in started');
   assert.equal(await driver.execute('return [...document.querySelectorAll("[data-login-cancel]")].filter(node=>node.getClientRects().length).length;'), 1);
   await driver.click(`[data-login-cancel="${profiles[2].id}"]`);

@@ -33,7 +33,7 @@ async function closed(id) {
   await waitFor(() => driver.execute('return !document.querySelector(arguments[0]);', [panel]), 'details closed');
   assert.equal(await driver.execute('return document.activeElement===document.querySelector(arguments[0]);', [trigger(id)]), true, 'Focus returns to the summary.');
 }
-async function openQuota() { await driver.click(trigger('quota')); await opened('Lowest quota left'); }
+async function openQuota() { await driver.click(trigger('quota')); await opened('Runs out first'); }
 async function capture(name, width, scale = 1) {
   for (let adjustment = 0; adjustment < 3; adjustment++) {
     const view = await driver.execute('return {width:innerWidth,height:innerHeight};');
@@ -87,7 +87,7 @@ try {
     profiles.splice(0, profiles.length, ...(await call('list_profiles')).profiles);
   }
   await driver.navigate('overview');
-  await waitFor(() => driver.execute('return document.querySelector(arguments[0])?.textContent==="Lowest quota leftNot available";', [trigger('quota')]), 'missing quota stays unavailable');
+  await waitFor(() => driver.execute('return document.querySelector(arguments[0])?.textContent==="Runs out firstNot available";', [trigger('quota')]), 'missing quota stays unavailable');
   const executable = join(fixture.root, 'synthetic-collection-provider.py');
   await copyFile(join(repository, 'crates/openusage-codex/tests/fixtures/synthetic-collection-provider.py'), executable);
   await chmod(executable, 0o700);
@@ -100,11 +100,11 @@ try {
   const home = join(dirname(fixture.database), 'profiles', profiles[0].id);
   await writeFile(join(home, 'synthetic-collection-config.json'), JSON.stringify({ mode: 'dashboard_success', requireLogin: true }), { mode: 0o600 });
   await driver.navigate('overview');
-  await driver.click(`[data-overview-account="${profiles[0].id}"] td:last-child button:first-child`);
+  await driver.click(`[data-overview-account="${profiles[0].id}"] .overview-card-foot button:first-child`);
   await waitFor(async () => Boolean(await call('load_profile_quota', { profileId: profiles[0].id })), 'synthetic sign-in saves quota', 45000);
   await driver.navigate('overview');
-  await waitFor(() => driver.execute('return document.querySelector(arguments[0])?.textContent==="Lowest quota left60%";', [trigger('quota')]), 'single saved window summary');
-  assert.equal(await driver.execute('return document.querySelector(arguments[0]).textContent;', [trigger('accounts')]), 'Connected accounts1');
+  await waitFor(() => driver.execute('return document.querySelector(arguments[0])?.textContent.startsWith("Runs out first60%");', [trigger('quota')]), 'single saved window summary');
+  assert.ok((await driver.execute('return document.querySelector(arguments[0]).textContent;', [trigger('accounts')])).startsWith('Connected accounts1 / 3'));
   const before = await call('load_profile_quota', { profileId: profiles[0].id });
   const providerLog = join(home, 'synthetic-collection-observations.jsonl');
   const providerBefore = await hash(providerLog);
@@ -112,10 +112,12 @@ try {
   await driver.execute('document.querySelector(arguments[0]).focus();return true;', [trigger('accounts')]);
   await key('\uE007'); await opened('Connected accounts');
   await key('\uE00C'); await closed('accounts');
+  // The grid reads in order, so Tab moves from Connected accounts to Current streak.
   await key('\uE004');
-  assert.equal(await driver.execute('return document.activeElement===document.querySelector(arguments[0]);', [trigger('quota')]), true);
+  assert.equal(await driver.execute('return document.activeElement===document.querySelector(arguments[0]);', [trigger('streak')]), true);
   assert.notEqual(await driver.execute('return getComputedStyle(document.activeElement).outlineStyle;'), 'none');
-  await key(' '); await opened('Lowest quota left');
+  await driver.execute('document.querySelector(arguments[0]).focus();return true;', [trigger('quota')]);
+  await key(' '); await opened('Runs out first');
   const details = await driver.execute('return document.querySelector(arguments[0]).textContent;', [`${panel} .detail-rows`]);
   assert.ok(details.includes(profiles[0].label) && details.includes('Seven-day') && details.includes('Synthetic test data') && details.includes('Calculation100% − 40% used'));
   await capture('summary-light-desktop.png', 1280);
@@ -127,7 +129,7 @@ try {
   await key('\uE00C');
   await waitFor(() => driver.execute('return !document.querySelector(arguments[0]);', [panel]), 'details closed');
   await driver.execute('document.querySelector(arguments[0]).focus();return true;', [trigger('quota')]);
-  await key('\uE007'); await opened('Lowest quota left');
+  await key('\uE007'); await opened('Runs out first');
   await key('\uE00C'); await closed('quota');
   const after = await call('load_profile_quota', { profileId: profiles[0].id });
   assert.deepEqual(after, before);

@@ -73,7 +73,7 @@ Kept from baseline 2.0:
 
 ## Failing or stale tests
 
-- S-03d, November 6, 2026: six native journeys still use the old Overview selectors and have not run on the new layout: `account-signout`, `activity-dashboard`, `reference-visual`, `overview-workspace`, `quota-chart` and the shared `webdriver.mjs` helper. Native acceptance of S-03d is unverified.
+- S-03d, November 6, 2026: the 19 journeys that touch Overview were updated and run on a private display. 17 passed, 16 on the native-test build and `provider-keyring` on the companion build. `reference-visual` passes every Overview check and keeps its recorded digit-width reason on Usage; `heatmap-window` keeps its window-manager reason. The other journeys did not run on this build.
 
 As of November 3, 2026, on Linux. 43 journeys ran on the native-test build and 4 on the production build. No failure names an app defect.
 
@@ -92,6 +92,6 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 
 ## Current assignment
 
-S-03d, the modern Overview, passed the renderer suite and waits for the owner's review and its native journeys. S-03c, the keychain by default, follows. [Implementation slices](implementation-slices.md) hold the order.
+S-03d, the modern Overview, passed the renderer suite and its native journeys and waits for the owner's review. S-03c, the keychain by default, follows. [Implementation slices](implementation-slices.md) hold the order.
 
 The exact working checkpoint, if one exists, is in the local `.recovery/active-checkpoint.json`.

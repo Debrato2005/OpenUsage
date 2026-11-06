@@ -59,7 +59,7 @@ async function originalMode(profile) { await writeFile(join(home(profile), 'synt
 async function addAndSignIn() {
   await navigate('overview'); await activate('[data-overview-add-account]'); let profile;
   await waitFor(async () => { profile = (await call('list_profiles')).profiles.find(row => !profiles.some(previous => previous.id === row.id)); return Boolean(profile); }, 'new isolated account'); profiles.push(profile);
-  await originalMode(profile); await navigate('overview'); await activate(`[data-overview-account="${profile.id}"] td:last-child button:first-child`);
+  await originalMode(profile); await navigate('overview'); await activate(`[data-overview-account="${profile.id}"] .overview-card-foot button:first-child`);
   await waitFor(async () => Boolean((await saved(profile)).activity), 'automatic accepted readings', 45000);
   const value = await saved(profile); assert.equal(value.activity.sourceKind, 'test_fixture'); assert.equal(value.activity.summary.lifetimeTokens, '9007199254740993'); assert.ok(value.quota); return profile;
 }
@@ -126,12 +126,12 @@ try {
   const after = await oracle('successful signout changes only selected connection'); onlySelectedConnectionChanged(before, after, first);
   assert.equal(logoutRequests(await observations(first)).length, 2); assert.equal(logoutRequests(await observations(second)).length, 0);
   assert.equal((await observations(first)).filter(row => row.kind === 'logout-completed').length, 1);
-  await navigate('overview'); const row = `[data-overview-account="${first.id}"]`; assert.equal(await driver.execute('return document.querySelector(arguments[0]).textContent.trim();', [`${row} td:last-child button:first-child`]), 'Sign in');
+  await navigate('overview'); const row = `[data-overview-account="${first.id}"]`; assert.equal(await driver.execute('return document.querySelector(arguments[0]).textContent.trim();', [`${row} .overview-card-foot button:first-child`]), 'Sign in');
   await close(); await open(); assert.deepEqual(await saved(first), firstSaved); assert.deepEqual(await saved(second), secondSaved);
   assert.equal((await call('list_profiles')).profiles.find(row => row.id === first.id).connectionState, 'authentication_required'); assert.equal((await call('list_profiles')).profiles.find(row => row.id === second.id).connectionState, 'connected'); assert.deepEqual(await oracle('genuine restart retains both histories and selected signedout state'), after);
-  await approve(collection); await driver.waitForProfileRefresh(second.id, 45000); await navigate('overview'); await activate(`[data-overview-account="${second.id}"] .overview-account-link`); await activate(`[data-overview-refresh="${second.id}"]`);
+  await approve(collection); await driver.waitForProfileRefresh(second.id, 45000); await navigate('overview'); await activate(`[data-overview-hero] [data-activity-account="${second.id}"]`); await activate(`[data-overview-refresh="${second.id}"]`);
   await waitFor(async () => (await saved(second)).activity.collectionRunId !== secondSaved.activity.collectionRunId, 'other account refreshes using retained synthetic authorization', 45000); assert.deepEqual(await saved(first), firstSaved); assert.equal(await hash(marker(second)), secondMarker);
-  await navigate('overview'); await activate(`${row} td:last-child button:first-child`);
+  await navigate('overview'); await activate(`${row} .overview-card-foot button:first-child`);
   await waitFor(async () => (await call('list_profiles')).profiles.find(item => item.id === first.id)?.connectionState === 'connected' && (await saved(first)).activity.collectionRunId !== firstSaved.activity.collectionRunId, 'selected account reconnect automatically saves readings', 45000);
   assert.ok((await lstat(marker(first))).isFile()); const final = await oracle('reconnected selected account and independently refreshed second account');
   for (const profile of profiles) assert.equal(final.profiles.find(row => row.id === profile.id).connection_state, 'connected');

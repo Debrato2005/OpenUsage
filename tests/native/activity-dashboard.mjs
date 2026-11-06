@@ -53,7 +53,7 @@ try {
   for (const p of [a,b]) {
     await writeFile(join(workspace,'profiles',p.id,'synthetic-collection-config.json'),JSON.stringify({mode:'dashboard_success',requireLogin:true}),{mode:0o600});
     await driver.navigate('overview');
-    await driver.click(`[data-overview-account="${p.id}"] td:last-child button:first-child`);
+    await driver.click(`[data-overview-account="${p.id}"] .overview-card-foot button:first-child`);
     await waitFor(async()=>Boolean((await driver.invoke('load_profile_activity',{profileId:p.id})).value),'selected synthetic sign-in and first activity',45000);
     await driver.request('POST',`/session/${driver.session}/actions`,{actions:[{type:'key',id:'close-account',actions:[{type:'keyDown',value:'\uE00C'},{type:'keyUp',value:'\uE00C'}]}]});
     await waitFor(()=>driver.execute('return !document.querySelector("[data-account-panel]")?.open;'),'account dialog closed');
@@ -81,8 +81,10 @@ try {
   for(const invalid of [{profileIds:[a.id,a.id]},{view:'guess'},{mode:'hourly'},{startDate:'2026-02-30'},{startDate:'2025-01-01',endDate:'2026-01-01'},{extra:'refuse'}]) assert.deepEqual(await driver.invoke('load_activity_dashboard',{...args,...invalid}),{ok:false,error:'invalid_arguments'});
   assert.deepEqual(await hashes(),beforeFiles,'Aggregation must not change database, WAL or key bytes');
   await driver.navigate('overview');
-  await driver.click('[data-activity-scope] button:nth-child(2)');
-  await waitFor(()=>driver.execute('return document.querySelector("[data-overview-account-share] .overview-donut-center strong")?.title===arguments[0];',[new Intl.NumberFormat('en-US').format(expected*2n)]),'native synchronized cohort total');
+  // All accounts and the 90-day period drive the donut; the heatmap below keeps its own modes and dates.
+  await driver.click('[data-overview-hero] [aria-label="Accounts shown"] button:first-child');
+  await driver.click('[data-overview-hero] [aria-label="Period"] button:nth-child(3)');
+  await waitFor(()=>driver.execute('return document.querySelector("[data-overview-account-share] .overview-donut-total bdi")?.title===arguments[0];',[new Intl.NumberFormat('en-US').format(expected*2n)]),'native synchronized cohort total');
   assert.equal(await driver.execute('return document.querySelectorAll("[data-share-profile]").length;'),2);
   assert.match(await driver.execute('return document.querySelector(".activity-sum-notice summary").textContent;'),/Unverified/);
   assert.equal(await driver.execute('return [...document.querySelectorAll("[data-share-profile]")].every(n=>n.textContent.includes("50%"));'),true);
@@ -96,9 +98,9 @@ try {
   await driver.execute('for(const [name,value] of [["Activity from",arguments[0]],["Activity to",arguments[0]]]){const n=document.querySelector(`[aria-label="${name}"]`);Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(n,value);n.dispatchEvent(new Event("input",{bubbles:true}));n.dispatchEvent(new Event("change",{bubbles:true}));}',[date]);
   await waitFor(()=>driver.execute('return document.querySelector("[data-overview] [data-token-heatmap]")?.dataset.periodDays==="1"&&document.querySelectorAll("[data-overview] [data-heatmap-cell]").length===1;'),'native custom provider date');
   const exact = new Intl.NumberFormat('en-US');
-  await waitFor(()=>driver.execute('return document.querySelector("[data-overview-account-share] .overview-donut-center strong")?.title===arguments[0];',[exact.format(BigInt(tokens)*2n)]),'custom date changes donut denominator');
+  assert.equal(await driver.execute('return document.querySelector("[data-overview-account-share] .overview-donut-total bdi")?.title;'),exact.format(expected*2n),'heatmap dates leave the period donut unchanged');
   await driver.click(`[aria-label="Include ${b.label}"]`);
-  await waitFor(()=>driver.execute('return document.querySelectorAll("[data-share-profile]").length===1&&document.querySelector("[data-overview-account-share] .overview-donut-center strong")?.title===arguments[0];',[exact.format(BigInt(tokens))]),'selected account changes both charts');
+  await waitFor(()=>driver.execute('return document.querySelectorAll("[data-share-profile]").length===1&&document.querySelector("[data-overview-account-share] .overview-donut-total bdi")?.title===arguments[0];',[exact.format(expected)]),'selected account changes both charts');
   assert.equal(await driver.execute('return document.querySelector("[data-overview] [data-heatmap-cell]").dataset.exactValue;'),tokens);
   assert.deepEqual(await stateOf(a.id),beforeA);assert.deepEqual(await stateOf(b.id),beforeB);assert.deepEqual(await hashes(),beforeFiles);
   const queue=[driver.child.pid];let owned;

@@ -48,7 +48,7 @@ try {
   const home = join(fixture.dirs.data, 'app.openusage.desktop/workspace/profiles', a.id);
   await writeFile(join(home, 'synthetic-collection-config.json'), JSON.stringify({ mode: 'dashboard_success', requireLogin: true }), { mode: 0o600 });
   await driver.navigate('overview');
-  await driver.click(`[data-overview-account="${a.id}"] td:last-child button:first-child`);
+  await driver.click(`[data-overview-account="${a.id}"] .overview-card-foot button:first-child`);
   let quota;
   await waitFor(async () => { const reply = await driver.invoke('load_profile_quota', { profileId: a.id }); quota = reply.value; return Boolean(reply.ok && quota); }, 'synthetic sign-in saves initial quota', 45000);
   await waitFor(async () => Boolean((await driver.invoke('load_profile_activity', { profileId: a.id })).value), 'paired saved activity');

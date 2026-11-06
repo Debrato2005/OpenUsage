@@ -160,7 +160,7 @@ async function savedGui(profile) {
 async function overviewRows(expectedFreshness) {
   await driver.navigate('overview');
   for (const profile of profiles) {
-    await waitFor(() => driver.execute('const row=document.querySelector(arguments[0]),quota=row?.querySelector("[data-overview-account-quota]"),mark=row?.querySelector("[data-mark]"),meter=quota?.querySelector("[role=meter]");return Boolean(quota?.textContent.includes("75% left")&&meter?.getAttribute("aria-valuenow")==="75"&&meter.getAttribute("aria-label").includes("remaining (derived)")&&(arguments[1]==="Fresh"?!mark:mark?.textContent===arguments[1]));', [`[data-overview-account="${profile.id}"]`, expectedFreshness]), 'each saved account quota visible without selecting its profile');
+    await waitFor(() => driver.execute('const row=document.querySelector(arguments[0]),quota=row?.querySelector("[data-overview-account-quota]"),mark=row?.querySelector("[data-mark]"),meter=quota?.querySelector("[role=meter]");return Boolean(quota?.textContent.includes("75%")&&meter?.getAttribute("aria-valuenow")==="75"&&meter.getAttribute("aria-label").includes("remaining (derived)")&&(arguments[1]==="Fresh"?!mark:mark?.textContent===arguments[1]));', [`[data-overview-account="${profile.id}"]`, expectedFreshness]), 'each saved account quota visible without selecting its profile');
   }
 }
 async function capture(name, selector) {

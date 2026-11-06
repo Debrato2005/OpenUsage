@@ -13,7 +13,7 @@ const evidence = { result: 'failed', scope: 'Linux native-test Tauri countdown d
 let fixture, driver;
 let sequence = 0;
 // The selected account's card holds its quota windows.
-const panel = '[data-overview-quota]';
+const panel = '[data-overview-account-card][data-selected]';
 const india = /GMT\+5:30|GMT\+05:30|IST/;
 async function panelTime() { return driver.execute('return document.querySelector(arguments[0])?.textContent ?? null;', [`${panel} [data-overview-window] time`]); }
 try {
@@ -52,7 +52,7 @@ try {
   const home = join(fixture.dirs.data, 'app.openusage.desktop/workspace/profiles', a.id);
   await writeFile(join(home, 'synthetic-collection-config.json'), JSON.stringify({ mode: 'dashboard_success', requireLogin: true }), { mode: 0o600 });
   await driver.navigate('overview');
-  await driver.click(`[data-overview-account="${a.id}"] td:last-child button:first-child`);
+  await driver.click(`[data-overview-account="${a.id}"] .overview-card-foot button:first-child`);
   let quota;
   await waitFor(async () => { const reply = await driver.invoke('load_profile_quota', { profileId: a.id }); quota = reply.value; return Boolean(reply.ok && quota); }, 'synthetic sign-in saves initial quota', 45000);
   const observations = join(home, 'synthetic-collection-observations.jsonl');
@@ -60,7 +60,7 @@ try {
   const deadline = quota.limits[0].primary.resetsAtUnix * 1000;
   await driver.execute('const original=Date.now;const offset=arguments[0]-8000-original();Date.now=()=>original()+offset;window.dispatchEvent(new Event("focus"));return true;', [deadline]);
   await driver.openAccount(a.id);
-  await waitFor(() => driver.execute('return document.querySelector(arguments[0])?.textContent.trim()==="In 1m";', [`${panel} [data-reset-countdown]`]), 'live native countdown');
+  await waitFor(() => driver.execute('return document.querySelector(arguments[0])?.textContent.trim()==="Resets in 1m";', [`${panel} [data-reset-countdown]`]), 'live native countdown');
   assert.equal(await driver.execute('return document.querySelectorAll(arguments[0]).length;', [`${panel} [data-reset-countdown]`]), 2);
   await waitFor(() => driver.execute('return document.querySelector(arguments[0])?.textContent.trim()==="Awaiting reset confirmation";', [`${panel} [data-reset-countdown=due]`]), 'expected deadline passes locally');
   assert.equal(await driver.execute('return document.querySelector(arguments[0]).getAttribute("aria-valuenow");', [`${panel} [data-overview-window] [role=meter]`]), '75');
@@ -115,7 +115,7 @@ try {
   evidence.acceptance = { liveCountdown: true, bothWindows: true, expectedTimeDoesNotResetQuota: true, utcTimestamp: true, accountIsolation: true, missingTimestamp: true, accountDetails: true, noProviderOperations: true, indiaTimeZone: true, invalidZonesRefused: true, encryptedBackupRestore: true, genuineRestart: true };
 } catch (error) {
   evidence.error = error.stack ?? String(error); process.exitCode = 1;
-  try { evidence.display = await driver?.execute('return {selected:document.querySelector("[data-overview]")?.dataset.overviewProfile,quota:document.querySelector("[data-overview-quota]")?.textContent};'); } catch {}
+  try { evidence.display = await driver?.execute('return {selected:document.querySelector("[data-overview]")?.dataset.overviewProfile,quota:document.querySelector("[data-overview-account-card][data-selected]")?.textContent};'); } catch {}
 }
 finally {
   try { await driver?.stop(); }

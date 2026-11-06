@@ -165,7 +165,7 @@ try {
     await navigate('overview'); await activate('[data-overview-add-account]'); let profile;
     await waitFor(async () => { profile = (await call('list_profiles')).profiles.find(row => !profiles.some(previous => previous.id === row.id)); return Boolean(profile); }, 'new isolated profile'); profiles.push(profile);
     const home = join(dirname(fixture.database), 'profiles', profile.id); await writeFile(join(home, 'synthetic-collection-config.json'), JSON.stringify({ mode: 'startup_snapshot', requireLogin: true }) + '\n', { mode: 0o600 }); await writeFile(join(home, 'synthetic-private-credential-sentinel.txt'), secretSentinel, { mode: 0o600 });
-    await navigate('overview'); await activate(`[data-overview-account="${profile.id}"] td:last-child button:first-child`);
+    await navigate('overview'); await activate(`[data-overview-account="${profile.id}"] .overview-card-foot button:first-child`);
     await waitFor(async () => Boolean(await call('load_profile_activity', { profileId: profile.id })), 'automatic saved synthetic activity', 45000);
     const activity = await call('load_profile_activity', { profileId: profile.id }); assert.equal(activity.sourceKind, 'test_fixture'); assert.equal(activity.summary.lifetimeTokens, '9007199254740993'); assert.ok(await call('load_profile_quota', { profileId: profile.id }));
   }

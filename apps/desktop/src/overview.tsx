@@ -51,6 +51,7 @@ function pace(value: SavedQuotaWindow, observedAtUtc: string) {
 }
 
 function QuotaWindow({ value, role, observedAtUtc }: { value: SavedQuotaWindow | null; role: string; observedAtUtc: string }) {
+  const dates = useDateFormat();
   if (!value) return null;
   const reset = value.resetsAtUnix === null ? null : new Date(value.resetsAtUnix * 1000);
   const resetState = { expected: null, due: 'Reset due; awaiting confirmation', unconfirmed: 'Reset status not confirmed', confirmed: 'Reset confirmed' }[value.resetState];
@@ -61,10 +62,11 @@ function QuotaWindow({ value, role, observedAtUtc }: { value: SavedQuotaWindow |
       <div className="overview-meter-heading">
         <strong className="overview-window-left">{left}<span className="overview-dim">%</span></strong>
         <MeterLabel>{value.label} left</MeterLabel>
+        <span className="overview-window-reset" title={reset?.toISOString()}><ClockIcon />{reset ? <ResetCountdown phrase resetsAtUnix={value.resetsAtUnix} /> : 'Reset time not available'}</span>
       </div>
       <MeterTrack><MeterIndicator />{steady && <span className="overview-pace-tick" style={{ left: `${100 - steady.elapsed}%` }} aria-hidden="true" />}</MeterTrack>
     </Meter>
-    <p className="overview-window-note"><span data-pace={steady?.kind}>{steady?.word ?? `${value.usedPercent}% used`}</span><span className="overview-window-reset" title={reset?.toISOString()}><ClockIcon />{reset ? <ResetCountdown phrase resetsAtUnix={value.resetsAtUnix} /> : 'Reset time not available'}</span></p>
+    <p className="overview-window-note"><span data-pace={steady?.kind}>{steady?.word ?? `${value.usedPercent}% used`}</span>{reset && <time dateTime={reset.toISOString()}>{dates.format(reset)}</time>}</p>
     {resetState && <p data-overview-reset-state={value.resetState}><Mark>{resetState}</Mark></p>}
   </div>;
 }

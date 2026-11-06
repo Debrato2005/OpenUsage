@@ -136,7 +136,7 @@ async function savedSyntheticReading() {
   await waitFor(() => driver.execute('return Boolean(document.querySelector(".provider-approval-result"));'), 'approved synthetic provider');
   const profile = await addProfile();
   await writeFile(join(workspace(), 'profiles', profile.id, 'synthetic-collection-config.json'), JSON.stringify({ mode: 'startup_snapshot', requireLogin: true }) + '\n', { mode: 0o600 });
-  await nativeActivate(`[data-overview-account="${profile.id}"] td:last-child button:first-child`);
+  await nativeActivate(`[data-overview-account="${profile.id}"] .overview-card-foot button:first-child`);
   await waitFor(async () => Boolean(await call('load_profile_activity', { profileId: profile.id })), 'automatic accepted synthetic collection', 45000);
   const activity = await call('load_profile_activity', { profileId: profile.id });
   assert.equal(activity.sourceKind, 'test_fixture'); assert.equal(activity.summary.lifetimeTokens, '9007199254740993');
