@@ -13,6 +13,7 @@ One fact has one home. Change it there, and link to it from anywhere else.
 | What is next? | [Implementation slices](implementation-slices.md) |
 | What proves it? | [Acceptance traceability](acceptance-traceability.md) |
 | Why was a requirement read this way? | [SRS clarifications](srs-clarifications.md) |
+| Why was a service built this way? | [Decisions](decisions/) |
 | How should it look? | [Design foundations](design/desktop-foundations.md) |
 | How do I build and contribute? | [Contributing](../CONTRIBUTING.md) |
 | How do I verify a change? | [Engineering workflow](engineering-workflow.md) |

@@ -50,8 +50,8 @@ A release is not complete because a screen exists. A release is complete only wh
 
 | Stage | Content |
 |---|---|
-| 1. First public release | CLI and desktop app on Windows, macOS, and Linux. All requirements except Section 14A |
-| 2. Leaderboard | Section 14A, except OU-BOARD-012 |
+| 1. First public release | CLI and desktop app on Linux, with labelled Windows and macOS previews. All requirements, including Section 14A except OU-BOARD-012 |
+| 2. Platform release | Windows and macOS after acceptance on real machines |
 | 3. Public website | OU-BOARD-012 |
 
 ### 0.5 Owner decisions, 2 November 2026
@@ -62,10 +62,10 @@ A release is not complete because a screen exists. A release is complete only wh
 4. Promotions, payments, and receipt import are removed.
 5. Quotas shall cover as many tools as possible.
 6. Real-account testing covers Codex and Claude Code. The owner tests on a real Windows PC and a real Mac.
-7. Stage 1 covers Windows, macOS, and Linux at once.
+7. Stage 1 covers Windows, macOS, and Linux at once. Amended 7 November 2026: see Section 0.6.
 8. One install supplies the CLI and the desktop app. A public website follows later.
 9. First launch uses one consent screen with one action.
-10. An opt-in leaderboard follows soon after Stage 1.
+10. An opt-in leaderboard follows soon after Stage 1. Amended 7 November 2026: see Section 0.6.
 11. WSL profiles stay. The CLI, statusline output, and customizable dashboard are in Stage 1.
 12. Tools stay separate by default. A sum across tools is optional and carries a May overlap mark.
 13. The product follows the simplicity rules in Section 2.3.
@@ -81,7 +81,15 @@ A release is not complete because a screen exists. A release is complete only wh
 23. Profile tags and browser shortcuts are removed.
 24. There is no floating widget. Editor plugins stay outside Stage 1.
 
-### 0.6 Open items
+
+### 0.6 Owner decisions, 7 November 2026
+
+1. The first release ships a working, usable product for feedback. Visual design can change later.
+2. The opt-in leaderboard, Section 14A except OU-BOARD-012, is in the first release. Its service follows the [architecture decision of 7 November 2026](decisions/2026-11-07-leaderboard-service.md).
+3. The first release ships on Linux. Windows and macOS builds ship as labelled previews until the owner's real-machine tests pass.
+4. The first release includes local logs without sign-in, sharing, the CLI with statusline output, and npm installation.
+
+### 0.7 Open items
 
 - **OQ-1:** Choose how to split logs by account. The `ccusage` Codex adapter has no account handling. On the owner's Linux host on 2 November 2026, `creator_account_id` was filled in all 86 readable logs since October 2026 and absent from 7 older logs. 1,323 compressed logs were not read.
 - **OQ-2:** Claim the npm name `openusage`. The registry reports it as unpublished since 14 June 2026.
@@ -1459,7 +1467,7 @@ The reference computer shall have: four CPU cores, 8 GiB RAM, a local SSD, a cur
 
 Other Linux distributions are not release-verified until a published test matrix names them. Release notes shall list exact tested versions and architectures. The app shall show Unsupported environment when a required runtime is missing.
 
-Stage 1 shall run on all three operating systems. Acceptance on Windows and macOS shall use real machines. CI does not replace these runs.
+Stage 1 shall run on Linux. Windows and macOS builds shall ship as labelled previews until they pass acceptance on real machines. CI does not replace these runs.
 
 **OU-PLAT-001:** Windows packaging shall handle missing or damaged WebView2 installations with a documented recovery action.
 

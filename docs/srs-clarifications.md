@@ -21,6 +21,7 @@ This is the record of how requirements were read. Entries keep their original da
 | SC-013 | Rich dashboard under Section 2.3 | Resolved; owner amended OU-DES-003, OU-DES-005 and OU-DES-008 |
 | SC-014 | OAuth in place of the app password | Proposed; owner decision open |
 | SC-015 | All accounts as Overview's opening view | In force |
+| SC-016 | Leaderboard and platforms in the first release | Adopted in SRS Section 0.6 |
 
 ## SC-013: rich dashboard under Section 2.3
 
@@ -31,6 +32,12 @@ The owner tested the S-01 build and said its UI was much worse than the approved
 OU-DES-005 allows a number with its name, and OU-DES-007 asks each number to open the detail panel. So the reference's density, cards, tiles and table columns meet Section 2.3. Page subtitles and second lines under numbers do not, because OU-DES-003 forbids taglines and secondary labels. S-03b leaves those two out and keeps exact values in the detail panel. If the owner wants them back, OU-DES-003 needs an owner change first.
 
 On November 6, 2026 the owner rejected the S-03b build as well, asked for usability, interpretability and a modern look, and approved context such as "resets in" beside numbers. OU-DES-003 and OU-DES-005 now allow one short context line per number, and OU-DES-008 says helper text instead of secondary labels. Source, time, scope, coverage and derivation stay in the detail panel under OU-DES-007.
+
+## SC-016: leaderboard and platforms in the first release
+
+Recorded November 7, 2026 against baseline 3.0. Status: adopted in SRS Section 0.6.
+
+The owner asked for a working product to launch for feedback, with the leaderboard in the first release for traction. The owner chose Linux first with Windows and macOS previews, and local logs, sharing, the CLI and npm installation as first-release features. For hosting the owner said to choose the best option that keeps an open-source service safe from malicious use; the [architecture decision](decisions/2026-11-07-leaderboard-service.md) records the choice. The Stage table, owner decisions 7 and 10, and the Section 16 platform rule were amended to match.
 
 ## SC-015: all accounts as Overview's opening view
 

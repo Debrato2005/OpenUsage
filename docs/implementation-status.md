@@ -40,7 +40,7 @@ New in baseline 3.0:
 - Source adapters (5A), audit (5B), local logs (5C), and duplicates (5D).
 - Sharing (8A), the CLI (11A), and distribution (16A).
 - Customizable dashboard, Start at login, first launch without sign-in, and graphs: OU-UI-025 to OU-UI-027, OU-MON-017.
-- Leaderboard (14A), planned for Stage 2.
+- Leaderboard (14A), now in the first release (SRS Section 0.6).
 
 Kept from baseline 2.0:
 
@@ -88,10 +88,10 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 
 ## Open items
 
-[SRS Section 0.6](SRS.md) lists four: how to split logs by account, the npm name, the provider and terms review, and the first `ccusage` run.
+[SRS Section 0.7](SRS.md) lists four: how to split logs by account, the npm name, the provider and terms review, and the first `ccusage` run.
 
 ## Current assignment
 
-S-03d, the modern Overview, passed the renderer suite and its native journeys and waits for the owner's review. Three local commits wait for the owner's push. S-03c, the keychain by default, follows. [Implementation slices](implementation-slices.md) hold the order.
+S-03d, the modern Overview, passed the renderer suite and its native journeys. Local commits wait for the owner's push. On November 7, 2026 the owner adopted a launch track with the leaderboard in the first release; L-0, the keychain by default, is next. [Implementation slices](implementation-slices.md#launch-track) hold the order. [Implementation slices](implementation-slices.md) hold the order.
 
 The exact working checkpoint, if one exists, is in the local `.recovery/active-checkpoint.json`.

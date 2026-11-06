@@ -1,6 +1,6 @@
 # Implementation slices
 
-Updated: November 3, 2026. This page owns the order and boundaries of planned work. The [SRS](SRS.md) owns what each requirement says, and [status](implementation-status.md) owns what works today.
+Updated: November 7, 2026. This page owns the order and boundaries of planned work. The [SRS](SRS.md) owns what each requirement says, and [status](implementation-status.md) owns what works today.
 
 ## Run a slice
 
@@ -61,6 +61,24 @@ Renderer tests, native journeys, and the local commit therefore need approval to
 - UI changes are checked by eye in screenshots: light, dark, a 720-pixel window, and empty, populated, and error states. Empty fixtures hide layout problems, so always check real-looking data. Each screen answers one question, its main action is obvious, and nothing is clipped or repeated.
 - Docs are updated as the [documentation map](README.md) lists, and the slice is marked Done below.
 - The slice has one local commit. Then report and stop.
+
+## Launch track
+
+Adopted November 7, 2026 (SRS Section 0.6, SC-016). The owner wants a working product to launch for feedback, with the leaderboard in the first release. These slices come first, in this order. Each still follows the rules above and ends with one local commit.
+
+| Slice | Goal | Existing slices it covers | State |
+|---|---|---|---|
+| L-0 | First run without an app password: keychain by default | S-03c | Not started |
+| L-1 | Local logs with no sign-in: pinned `ccusage` and `@ccusage/codex` binaries built with the pinned Bun, a Rust runner, the local usage store, consent, and This device views | S-09, S-10, S-11, part of S-05 | Not started |
+| L-2 | CLI with `openusage status`, `statusline` and `report` | S-14 | Not started |
+| L-3 | Sharing: Wrapped summary, heatmap PNG and SVG, a README badge, and personal records | S-19 | Not started |
+| L-4 | Leaderboard service on Cloudflare Workers and D1, per the [decision](decisions/2026-11-07-leaderboard-service.md) | S-21 | Not started |
+| L-5 | Leaderboard client: join with GitHub, dry run, sync, leave | S-22 | Not started |
+| L-6 | Packaging: Linux packages, Windows and macOS preview builds in CI, the npm package | S-18, part of S-15 | Not started |
+| L-7 | Release documents and the launch checklist | S-20 | Not started |
+| G-L | Owner: claim the npm name (OQ-2), create the Cloudflare account and GitHub OAuth App, run the real-account tests, publish | G-1, G-2, G-3 | Not started |
+
+The other slices below follow the launch, unless a launch slice needs part of one.
 
 ## Order
 
