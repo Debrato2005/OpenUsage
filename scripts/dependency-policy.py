@@ -84,13 +84,33 @@ def bun(root):
     return problems, count
 
 
+def install_config(root):
+    # Registry or scope redirection and non-registry specs would bypass the official-registry guarantee.
+    problems = []
+    bunfig = root / 'bunfig.toml'
+    if bunfig.exists():
+        install = tomllib.loads(bunfig.read_text()).get('install', {})
+        problems += [f'bunfig.toml: install.{key} redirects package resolution' for key in ('registry', 'scopes') if key in install]
+    npmrc = root / '.npmrc'
+    if npmrc.exists() and re.search(r'^\s*(?:@[^:\s]+:)?registry\s*=', npmrc.read_text(), re.MULTILINE):
+        problems.append('.npmrc: registry override')
+    manifest = root / 'package.json'
+    if manifest.exists():
+        package = json.loads(manifest.read_text())
+        for field in ('dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies', 'overrides', 'resolutions'):
+            for name, spec in (package.get(field) or {}).items():
+                if not isinstance(spec, str) or ':' in spec or '/' in spec:
+                    problems.append(f'package.json: {field}.{name} is not a registry version')
+    return problems
+
+
 def check(root=ROOT):
     allowed, problems, counts = local_crates(root), [], {}
     for lock in CARGO_LOCKS:
         found, counts[lock] = cargo(root, lock, allowed)
         problems += found
     found, counts[BUN_LOCK] = bun(root)
-    return {'packages': counts, 'problems': problems + found}
+    return {'packages': counts, 'problems': problems + found + install_config(root)}
 
 
 if __name__ == '__main__':

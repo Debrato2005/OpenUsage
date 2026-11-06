@@ -74,6 +74,22 @@ class DependencyPolicyTests(unittest.TestCase):
             'bun.lock: local does not resolve from registry.npmjs.org',
             'bun.lock: local has no sha512 integrity'])
 
+    def test_registry_redirection_and_non_registry_specs_fail(self):
+        self.write('package.json', json.dumps({'dependencies': {'react': '19.0.0', 'forked': 'github:example/forked'},
+                                               'overrides': {'nested': 'https://example.invalid/nested.tgz'}}))
+        self.write('bunfig.toml', '[install]\nexact = true\nregistry = "https://mirror.example.invalid/"\n')
+        self.write('.npmrc', '@scope:registry=https://mirror.example.invalid/\n')
+        self.assertEqual(policy.check(self.root)['problems'], [
+            'bunfig.toml: install.registry redirects package resolution',
+            '.npmrc: registry override',
+            'package.json: dependencies.forked is not a registry version',
+            'package.json: overrides.nested is not a registry version'])
+
+    def test_exact_registry_versions_and_exact_saves_pass(self):
+        self.write('package.json', json.dumps({'dependencies': {'react': '19.0.0'}, 'trustedDependencies': []}))
+        self.write('bunfig.toml', '[install]\nexact = true\n')
+        self.assertEqual(policy.check(self.root)['problems'], [])
+
     def test_a_second_lockfile_or_unknown_bun_lock_version_fails(self):
         self.bun({'react': ['react@19.0.0', '', {}, 'sha512-AAAA']}, version=2)
         self.write('package-lock.json', '{}')
