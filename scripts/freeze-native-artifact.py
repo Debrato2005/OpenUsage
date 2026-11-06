@@ -98,9 +98,9 @@ def _freeze(source, destination, retain=False, build_commands=(), test_reference
     dirty = None
     if source_workspace is not None:
         workspace = Path(os.path.abspath(source_workspace))
-        locks = [scoped(workspace / name, ROOT) for name in ['Cargo.lock', 'package-lock.json']]
+        locks = [scoped(workspace / name, ROOT) for name in ['Cargo.lock', 'bun.lock']]
         if not workspace.is_dir() or any(not path.is_file() for path in locks):
-            raise ValueError('Source workspace requires its Cargo and npm lockfiles.')
+            raise ValueError('Source workspace requires its Cargo and Bun lockfiles.')
         commit = version(['git', 'rev-parse', 'HEAD'], workspace)
         status = version(['git', 'status', '--porcelain', '--untracked-files=all'], workspace)
         dirty = None if status is None else any(line != '?? scripts/freeze-native-artifact.py' for line in status.splitlines())

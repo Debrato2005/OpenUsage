@@ -1,6 +1,6 @@
 OpenUsage shows what you have used and what you have left across your AI coding tools.
 Use Linux commands directly. Check the executor and working directory first.
-Never push, publish, create pull requests or call GitHub write APIs. Commit locally only.
+Push a branch only when the owner explicitly asks, as Debrato2005 after confirming `gh api user --jq .login`. Never publish releases, create pull requests or call other GitHub write APIs without explicit owner approval.
 Before edits, check Git status and preserve unrelated work. Read docs/implementation-status.md and the SRS IDs that the task names, not the entire history. docs/README.md maps every document.
 docs/SRS.md is normative, and only the owner changes it. Record conflicts in docs/srs-clarifications.md. The user controls execution.
 Follow SRS Section 2.3. Every decision improves user, developer and agent experience together and breaks nothing. Add no taglines, helper text or secondary labels; if a screen needs them, fix the layout.

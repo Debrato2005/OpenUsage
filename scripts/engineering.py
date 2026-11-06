@@ -55,8 +55,10 @@ def git(root, *args):
 def doctor(root):
     env = environment(root)
     tools = {}
-    expected = json.loads((root / 'package.json').read_text())['engines']['node']
-    for name, args in {'git': ['--version'], 'node': ['--version'],
+    manifest = json.loads((root / 'package.json').read_text())
+    expected = manifest['engines']['node']
+    expected_bun = manifest['packageManager'].removeprefix('bun@')
+    for name, args in {'git': ['--version'], 'node': ['--version'], 'bun': ['--version'],
                        'cargo': ['--version'], 'rustc': ['--version'],
                        'pkg-config': ['--version']}.items():
         executable = shutil.which(name, path=env.get('PATH'))
@@ -84,6 +86,7 @@ def doctor(root):
     return {'platform': platform.system(), 'python': platform.python_version(),
             'tools': tools, 'expectedNode': expected,
             'nodeMatches': tools['node']['version'] == expected,
+            'expectedBun': expected_bun, 'bunMatches': tools['bun']['version'] == expected_bun,
             'nodeDependencies': (root / 'node_modules/typescript').is_dir(),
             'nativeLinuxPackages': native,
             'displayConfigured': bool(env.get('DISPLAY') or env.get('WAYLAND_DISPLAY')),
@@ -105,7 +108,7 @@ def changed_paths(root, base=None, staged=False):
     return sorted(set(path for path in paths if path))
 
 
-DEPENDENCY_FILES = ('Cargo.toml', 'Cargo.lock', 'package.json', 'package-lock.json', 'tests/native/backup-verifier/Cargo.toml',
+DEPENDENCY_FILES = ('Cargo.toml', 'Cargo.lock', 'package.json', 'bun.lock', 'bunfig.toml', 'tests/native/backup-verifier/Cargo.toml',
                     'tests/native/backup-verifier/Cargo.lock', 'scripts/dependency-policy.py')
 
 
@@ -119,17 +122,17 @@ def plan(paths, renderer_tests=(), milestone=False):
         commands.append({'id': 'dependency_policy', 'argv': [sys.executable, 'scripts/dependency-policy.py']})
     if any(p in ('scripts/git-safety.mjs', 'tests/tools/git-safety.test.mjs') for p in paths):
         commands.append({'id': 'git_safety', 'argv': ['node', '--test', 'tests/tools/git-safety.test.mjs']})
-    shared_renderer = any(p in ('package.json', 'package-lock.json', 'playwright.config.ts', 'tsconfig.json') for p in paths)
+    shared_renderer = any(p in ('package.json', 'bun.lock', 'bunfig.toml', 'playwright.config.ts', 'tsconfig.json') for p in paths)
     renderer = shared_renderer or any(p.startswith(('apps/desktop/src/', 'tests/renderer/', 'tests/contract/')) for p in paths)
     selected = sorted(set(renderer_tests or [p for p in paths if re.fullmatch(r'tests/renderer/[\w-]+\.spec\.ts', p)]))
     if renderer:
         if milestone:
-            commands.append({'id': 'renderer_milestone', 'argv': ['npm', 'run', 'check']})
+            commands.append({'id': 'renderer_milestone', 'argv': ['bun', 'run', 'check']})
         else:
-            commands += [{'id': 'renderer_build', 'argv': ['npm', 'run', 'build']},
-                         {'id': 'contracts', 'argv': ['npm', 'run', 'test:contract']}]
+            commands += [{'id': 'renderer_build', 'argv': ['bun', 'run', 'build']},
+                         {'id': 'contracts', 'argv': ['bun', 'run', 'test:contract']}]
             if selected:
-                commands.append({'id': 'renderer_targeted', 'argv': ['npm', 'run', 'test:renderer', '--', *selected]})
+                commands.append({'id': 'renderer_targeted', 'argv': ['bun', 'run', 'test:renderer', *selected]})
             else:
                 gates.append('Select relevant --renderer-test files or use --milestone')
             if shared_renderer:
@@ -155,7 +158,7 @@ def plan(paths, renderer_tests=(), milestone=False):
         gates.append('Other tool changes require their own relevant behavioral checks')
     known = ('.github/', 'docs/', 'scripts/', 'tests/', 'apps/desktop/', 'crates/')
     unknown = [p for p in paths if not p.startswith(known) and not p.endswith('.md') and p not in
-               ('.gitignore', 'Cargo.toml', 'Cargo.lock', 'package.json', 'package-lock.json', 'tsconfig.json', 'playwright.config.ts')]
+               ('.gitignore', 'Cargo.toml', 'Cargo.lock', 'package.json', 'bun.lock', 'bunfig.toml', 'tsconfig.json', 'playwright.config.ts')]
     if unknown:
         gates.append('Unclassified changes require an explicit verification decision')
     return {'changedFiles': len(paths), 'commands': commands, 'manualGates': gates,
@@ -282,8 +285,8 @@ def trace(path):
     owner = None
     inherited = False
     started = time.monotonic()
-    patterns = {'build': r'cargo\s+build|npm\s+run\s+build',
-                'broad_tests': r'npm\s+run\s+check|cargo\s+test\s+--workspace',
+    patterns = {'build': r'cargo\s+build|(?:npm|bun)\s+run\s+build',
+                'broad_tests': r'(?:npm|bun)\s+run\s+check|cargo\s+test\s+--workspace',
                 'agent_spawn': r'spawn_agent', 'wait': r'write_stdin|wait_agent|functions.wait'}
     size = os.fstat(descriptor).st_size
     if size > 1024**3:

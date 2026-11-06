@@ -180,7 +180,7 @@ try {
   evidence.sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repository, encoding: 'utf8' }).trim();
   evidence.sourceHashes = {};
   const sources = execFileSync('rg', ['--files', 'apps/desktop/src', 'apps/desktop/src-tauri/src', 'apps/desktop/src-tauri/permissions', 'apps/desktop/public/fonts', 'crates/openusage-codex/src', 'crates/openusage-storage/src'], { cwd: repository, encoding: 'utf8' }).trim().split('\n');
-  for (const path of [...sources, 'Cargo.toml', 'Cargo.lock', 'package.json', 'package-lock.json', 'apps/desktop/index.html', 'apps/desktop/src-tauri/Cargo.toml', 'apps/desktop/src-tauri/build.rs', 'apps/desktop/src-tauri/tauri.conf.json', 'apps/desktop/src-tauri/capabilities/main-window.json']) evidence.sourceHashes[path] = await hash(join(repository, path));
+  for (const path of [...sources, 'Cargo.toml', 'Cargo.lock', 'package.json', 'bun.lock', 'apps/desktop/index.html', 'apps/desktop/src-tauri/Cargo.toml', 'apps/desktop/src-tauri/build.rs', 'apps/desktop/src-tauri/tauri.conf.json', 'apps/desktop/src-tauri/capabilities/main-window.json']) evidence.sourceHashes[path] = await hash(join(repository, path));
   evidence.harnessHashes = {};
   for (const path of ['profile-options.mjs', 'private-fixture.mjs', 'webdriver.mjs', 'x11-close.py', 'x11-reverse-tab.py', ...providers.map(value => 'fixtures/' + value.file)]) evidence.harnessHashes[path] = await hash(join(harness, path));
   fixture = await createFixture('profile-options'); workspace = dirname(fixture.database);

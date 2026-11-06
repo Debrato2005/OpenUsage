@@ -1,6 +1,6 @@
 # Contributing to OpenUsage
 
-Keep changes small and verify the affected workflow. Preserve existing local data, unrelated work and the normative [SRS](docs/SRS.md). This development session permits local commits only: do not push, publish, open pull requests or change a remote.
+Keep changes small and verify the affected workflow. Preserve existing local data, unrelated work and the normative [SRS](docs/SRS.md). Commit locally by default. Push a branch only when the owner explicitly asks; do not publish, open pull requests or change a remote without owner approval.
 
 The [documentation map](docs/README.md) shows which doc owns each fact and what to update. Update docs in the same change as the work.
 
@@ -9,7 +9,7 @@ The [documentation map](docs/README.md) shows which doc owns each fact and what 
 With native prerequisites installed and dependencies cached, build the frontend and desktop binary:
 
 ```sh
-npm run build
+bun run build
 CARGO_BUILD_JOBS=1 cargo rustc --locked --offline -p openusage-desktop --bin openusage-desktop -- -C link-arg=-Wl,--threads=1
 ```
 
@@ -22,8 +22,8 @@ A provisioned build includes the pinned official Codex companion and its license
 Prepare the reviewed archive, then enable the companion configuration:
 
 ```sh
-npm run build
-npm run prepare:companion -- --offline
+bun run build
+bun run prepare:companion --offline
 TAURI_CONFIG="$(cat apps/desktop/src-tauri/tauri.companion.conf.json)" \
   CARGO_BUILD_JOBS=1 cargo rustc --locked --offline \
   -p openusage-desktop --bin openusage-desktop -- -C link-arg=-Wl,--threads=1

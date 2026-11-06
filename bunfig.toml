@@ -1,0 +1,4 @@
+[install]
+# Save exact versions, as .npmrc save-exact=true did under npm.
+# Dependency lifecycle scripts stay blocked by the empty trustedDependencies in package.json.
+exact = true

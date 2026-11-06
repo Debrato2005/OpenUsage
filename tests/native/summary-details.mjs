@@ -67,7 +67,7 @@ try {
   evidence.sourceDirty = Boolean(execFileSync('git', ['status', '--porcelain'], { encoding: 'utf8' }).trim());
   evidence.sourceHashes = {};
   const sources = execFileSync('rg', ['--files', 'apps/desktop/src', 'apps/desktop/src-tauri/src', 'crates'], { encoding: 'utf8' }).trim().split('\n');
-  for (const path of [...sources, 'Cargo.lock', 'package-lock.json', 'tests/native/summary-details.mjs', 'tests/native/webdriver.mjs', 'tests/native/private-fixture.mjs', 'tests/native/viewport.mjs']) evidence.sourceHashes[path] = await hash(join(repository, path));
+  for (const path of [...sources, 'Cargo.lock', 'bun.lock', 'tests/native/summary-details.mjs', 'tests/native/webdriver.mjs', 'tests/native/private-fixture.mjs', 'tests/native/viewport.mjs']) evidence.sourceHashes[path] = await hash(join(repository, path));
   fixture = await createFixture('summary-details');
   fixture.environment.HOME = join(fixture.root, 'synthetic-home');
   await mkdir(fixture.environment.HOME, { mode: 0o700 });

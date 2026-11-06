@@ -4,7 +4,7 @@ October 21, 2026. This decision follows the user's requests for reusable compone
 
 ## Reuse
 
-The calendar uses pinned MIT `react-activity-calendar` 3.2.1. The donut uses pinned MIT Recharts 3.10.1. Existing coss/Base UI controls remain shared. Package integrity is recorded in the npm lockfile, and distributed notices accompany the frontend. The inspected public Codex repository provides CLI, SDK and terminal UI code; it does not supply a reusable desktop React interface in the inspected tree.
+The calendar uses pinned MIT `react-activity-calendar` 3.2.1. The donut uses pinned MIT Recharts 3.10.1. Existing coss/Base UI controls remain shared. Package integrity is recorded in `bun.lock`, and distributed notices accompany the frontend. The inspected public Codex repository provides CLI, SDK and terminal UI code; it does not supply a reusable desktop React interface in the inspected tree.
 
 Rust prepares exact decimal strings, calendar dates, intensity levels, ISO-week subtotals and selected-period cumulative values. The calendar's numeric count field is unused. Its total, legend totals and tooltips are disabled. All visible values, accessible labels and the equivalent table use Rust results. Missing dates retain a distinct outline and never become verified zeroes. Calendar-generated filler dates do not become saved readings.
 

@@ -29,8 +29,9 @@ class DependencyPolicyTests(unittest.TestCase):
         self.write('tests/native/backup-verifier/Cargo.toml', '[package]\nname = "verifier"\nversion = "0.1.0"\n')
         self.cargo('Cargo.lock', '[[package]]\nname = "app"\nversion = "0.1.0"\n\n[[package]]\nname = "glib"\nversion = "0.18.5"\n\n[[package]]\nname = "serde"\nversion = "1.0.0"\n' + REGISTRY)
         self.cargo('tests/native/backup-verifier/Cargo.lock', '[[package]]\nname = "verifier"\nversion = "0.1.0"\n')
-        self.npm({'node_modules/react': {'resolved': 'https://registry.npmjs.org/react/-/react-19.0.0.tgz', 'integrity': 'sha512-AAAA'},
-                  'node_modules/parent/node_modules/bundled': {'inBundle': True}})
+        self.bun({'react': ['react@19.0.0', '', {}, 'sha512-AAAA'],
+                  '@scope/pkg': ['@scope/pkg@1.0.0', 'https://registry.npmjs.org/@scope/pkg/-/pkg-1.0.0.tgz',
+                                 {'dependencies': {'react': '^19'}}, 'sha512-BBBB']})
 
     def write(self, path, text):
         (self.root / path).parent.mkdir(parents=True, exist_ok=True)
@@ -39,11 +40,17 @@ class DependencyPolicyTests(unittest.TestCase):
     def cargo(self, path, packages):
         self.write(path, 'version = 4\n\n' + packages)
 
-    def npm(self, packages):
-        self.write('package-lock.json', json.dumps({'lockfileVersion': 3, 'packages': {'': {'name': 'synthetic'}, **packages}}))
+    def bun(self, packages, version=1):
+        # Bun's text lockfile ends every member with a comma.
+        entries = ''.join(f'    {json.dumps(key)}: {json.dumps(entry)},\n' for key, entry in packages.items())
+        self.write('bun.lock', f'{{\n  "lockfileVersion": {version},\n  "workspaces": {{\n    "": {{\n      "name": "synthetic",\n    }},\n  }},\n'
+                               f'  "packages": {{\n{entries}  }},\n}}\n')
 
-    def test_registry_packages_local_crates_and_bundles_pass(self):
-        self.assertEqual(policy.check(self.root), {'packages': {'Cargo.lock': 3, 'tests/native/backup-verifier/Cargo.lock': 1, 'package-lock.json': 1}, 'problems': []})
+    def test_registry_packages_and_local_crates_pass(self):
+        self.assertEqual(policy.check(self.root), {'packages': {'Cargo.lock': 3, 'tests/native/backup-verifier/Cargo.lock': 1, 'bun.lock': 2}, 'problems': []})
+
+    def test_trailing_commas_are_removed_only_outside_strings(self):
+        self.assertEqual(policy.without_trailing_commas('{"a": "x,]", "b": [1, 2 ,\n],\t}'), '{"a": "x,]", "b": [1, 2 \n]\t}')
 
     def test_git_sources_missing_checksums_and_unknown_local_crates_fail(self):
         self.cargo('Cargo.lock', '[[package]]\nname = "forked"\nversion = "1.0.0"\nsource = "git+https://example.invalid/forked"\n\n'
@@ -55,11 +62,24 @@ class DependencyPolicyTests(unittest.TestCase):
             'Cargo.lock: stray 1.0.0 has no registry source and is not a local crate'])
 
     def test_npm_packages_need_the_official_registry_and_sha512(self):
-        self.npm({'node_modules/mirror': {'resolved': 'https://mirror.example.invalid/mirror.tgz', 'integrity': 'sha512-AAAA'},
-                  'node_modules/weak': {'resolved': 'https://registry.npmjs.org/weak/-/weak-1.0.0.tgz', 'integrity': 'sha1-AAAA'}})
+        self.bun({'mirror': ['mirror@1.0.0', 'https://mirror.example.invalid/mirror-1.0.0.tgz', {}, 'sha512-AAAA'],
+                  'weak': ['weak@1.0.0', '', {}, 'sha1-AAAA'],
+                  'forked': ['forked@github:example/forked#0123abc', {}, 'example-forked-0123abc'],
+                  'local': ['local@file:../local', {}]})
         self.assertEqual(policy.check(self.root)['problems'], [
-            'package-lock.json: node_modules/mirror does not resolve from registry.npmjs.org',
-            'package-lock.json: node_modules/weak has no sha512 integrity'])
+            'bun.lock: mirror does not resolve from registry.npmjs.org',
+            'bun.lock: weak has no sha512 integrity',
+            'bun.lock: forked does not resolve from registry.npmjs.org',
+            'bun.lock: forked has no sha512 integrity',
+            'bun.lock: local does not resolve from registry.npmjs.org',
+            'bun.lock: local has no sha512 integrity'])
+
+    def test_a_second_lockfile_or_unknown_bun_lock_version_fails(self):
+        self.bun({'react': ['react@19.0.0', '', {}, 'sha512-AAAA']}, version=2)
+        self.write('package-lock.json', '{}')
+        self.assertEqual(policy.check(self.root)['problems'], [
+            'bun.lock: lockfileVersion must be 1',
+            'package-lock.json: only bun.lock may lock npm packages'])
 
 
 if __name__ == '__main__':
