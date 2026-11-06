@@ -31,6 +31,10 @@ jobs:
       BUN_VERSION: 1.3.14
       BUN_SHA256: 951ee2aee855f08595aeec6225226a298d3fea83a3dcd6465c09cbccdf7e848f
       BUN_BINARY_SHA256: 9fd36f87e4b90b07632b987a2e4ec81ca15a62c81bf983190cea6d715be2ad74
+      # The reviewed Gitleaks in CONTRIBUTING.md. Digests are the official release archive (its checksums.txt) and its binary.
+      GITLEAKS_VERSION: 8.30.1
+      GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+      GITLEAKS_BINARY_SHA256: 88f91962aa2f93ac6ab281d553b9e125f5197bbbce38f9f2437f7299c32e5509
       CARGO_TERM_COLOR: never
     steps:
       - name: Check out source
@@ -71,6 +75,17 @@ jobs:
           echo "$BUN_BINARY_SHA256  $RUNNER_TEMP/bun-linux-x64/bun" | sha256sum -c -
           ln -s bun "$RUNNER_TEMP/bun-linux-x64/bunx"
           echo "$RUNNER_TEMP/bun-linux-x64" >> "$GITHUB_PATH"
+      # The Git safety tests and hooks scan with the real secret scanner.
+      - name: Install pinned Gitleaks
+        run: |
+          set -euo pipefail
+          name="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl --proto '=https' --tlsv1.2 -fsSLo "$RUNNER_TEMP/$name" "https://github.com/gitleaks/gitleaks/releases/download/v$GITLEAKS_VERSION/$name"
+          echo "$GITLEAKS_SHA256  $RUNNER_TEMP/$name" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/gitleaks"
+          tar -xzf "$RUNNER_TEMP/$name" -C "$RUNNER_TEMP/gitleaks" gitleaks
+          echo "$GITLEAKS_BINARY_SHA256  $RUNNER_TEMP/gitleaks/gitleaks" | sha256sum -c -
+          echo "GITLEAKS_BIN=$RUNNER_TEMP/gitleaks/gitleaks" >> "$GITHUB_ENV"
       - name: Install Linux build libraries
         run: |
           sudo apt-get update
