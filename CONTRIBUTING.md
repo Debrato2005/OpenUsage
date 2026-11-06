@@ -64,7 +64,7 @@ git push
 
 The final command is for the repository owner after review. Agents must not execute it. The local default sends only `main` to `origin/main`. It does not publish temporary branches or tags. Do not publish all branches, mirror repositories or force updates.
 
-Pre-commit checks staged paths and runs Gitleaks. Pre-push checks outgoing history, requires a normal main-to-main fast-forward, and refuses other branch uploads or deletion of `main`. Missing scanners and timeouts fail the operation with an explanation. Secret values are redacted. These checks reduce risk but cannot prove that no secret exists. Review findings rather than disabling the hooks. Remote branch deletions require the owner's approval and a fresh preservation check.
+Pre-commit checks staged paths and runs Gitleaks. Pre-push checks outgoing history, requires a normal main-to-main fast-forward, and refuses deletion of `main` and other branch uploads. When the owner asks to publish one branch, set `OPENUSAGE_PUSH_BRANCH=<branch>` for that push; only that branch, under its own name, is accepted, and its commits since `origin/main` are scanned. Missing scanners and timeouts fail the operation with an explanation. Secret values are redacted. These checks reduce risk but cannot prove that no secret exists. Review findings rather than disabling the hooks. Remote branch deletions require the owner's approval and a fresh preservation check.
 
 Recovery and build outputs stay ignored. Never force-add private data to work around an ignore rule. Keep source fixtures synthetic. If a real credential appears in published history, revoke or rotate it with its provider before reviewing history remediation.
 
