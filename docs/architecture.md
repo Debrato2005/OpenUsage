@@ -25,6 +25,7 @@ Today Codex is the only source, and its path has no general adapter layer. The p
 | `crates/openusage-codex/` | Codex protocol, response parsing, approved executable checks, owned child processes |
 | `crates/openusage-storage/` | SQLCipher 4 with WAL, migrations, quota, activity, alerts, subscriptions, exports |
 | `crates/openusage-import/` | Encrypted backup archive format |
+| `crates/openusage-locallogs/` | Pinned `ccusage` binary checks, the hardened runner, and the strict report parser for local logs |
 | `tests/contract/` | IPC contract checks |
 | `tests/renderer/` | Playwright in Chromium and WebKit with synthetic IPC |
 | `tests/native/` | Journeys against the real app |

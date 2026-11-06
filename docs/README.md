@@ -19,6 +19,7 @@ One fact has one home. Change it there, and link to it from anywhere else.
 | How do I verify a change? | [Engineering workflow](engineering-workflow.md) |
 | How do native journeys run? | [Native tests](../tests/native/README.md) |
 | How does the Codex crate work? | [Codex crate](../crates/openusage-codex/README.md) |
+| How are local logs read? | [Local logs crate](../crates/openusage-locallogs/README.md) |
 | How are the icons made? | [Icons](../apps/desktop/src-tauri/icons/README.md) |
 | Why is glib patched? | [Patch note](../vendor/glib-0.18.5/OPENUSAGE-PATCH.md) |
 | What may I keep or delete? | [Artifact retention](artifact-retention.md) |

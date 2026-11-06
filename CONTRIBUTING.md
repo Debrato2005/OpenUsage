@@ -24,6 +24,7 @@ Prepare the reviewed archive, then enable the companion configuration:
 ```sh
 bun run build
 bun run prepare:companion --offline
+bun run prepare:ccusage --offline
 TAURI_CONFIG="$(cat apps/desktop/src-tauri/tauri.companion.conf.json)" \
   CARGO_BUILD_JOBS=1 cargo rustc --locked --offline \
   -p openusage-desktop --bin openusage-desktop -- -C link-arg=-Wl,--threads=1

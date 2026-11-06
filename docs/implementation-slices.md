@@ -68,8 +68,8 @@ Adopted November 7, 2026 (SRS Section 0.6, SC-016). The owner wants a working pr
 
 | Slice | Goal | Existing slices it covers | State |
 |---|---|---|---|
-| L-0 | First run without an app password: keychain by default | S-03c | Not started |
-| L-1 | Local logs with no sign-in: pinned `ccusage` and `@ccusage/codex` binaries built with the pinned Bun, a Rust runner, the local usage store, consent, and This device views | S-09, S-10, S-11, part of S-05 | Not started |
+| L-0 | First run without an app password: keychain by default | S-03c | New workspaces already use the keychain without a prompt (`workspace.rs` setup); moving an existing password workspace follows the launch |
+| L-1 | Local logs with no sign-in: the pinned official `ccusage` binary, a Rust runner, the local usage store, consent, and This device views | S-09, S-10, S-11, part of S-05 | L-1a done: pin, provisioning, runner and parser. L-1b, the store, is next |
 | L-2 | CLI with `openusage status`, `statusline` and `report` | S-14 | Not started |
 | L-3 | Sharing: Wrapped summary, heatmap PNG and SVG, a README badge, and personal records | S-19 | Not started |
 | L-4 | Leaderboard service on Cloudflare Workers and D1, per the [decision](decisions/2026-11-07-leaderboard-service.md) | S-21 | Not started |

@@ -14,6 +14,7 @@
     "build": "tsc --noEmit && vite build --config apps/desktop/vite.config.ts",
     "build:native": "bun run build && cargo build --release -p openusage-desktop",
     "prepare:companion": "python3 scripts/provision-companion.py",
+    "prepare:ccusage": "python3 scripts/provision-ccusage.py",
     "typecheck": "tsc --noEmit",
     "test:contract": "node tests/contract/bootstrap.test.mjs",
     "test:renderer": "playwright test",

@@ -52,6 +52,8 @@ Kept from baseline 2.0:
 
 ## Partial
 
+- Local logs (5C), L-1a, November 7, 2026: the official `ccusage` 20.0.48 Linux x86_64 binary is pinned and provisioned, and `crates/openusage-locallogs` runs it with checked digest, fixed offline arguments, an empty environment and limits, then parses its report strictly. On Linux the real binary read synthetic Claude Code and Codex logs twice with identical exact totals. Nothing stores or shows these totals yet, and folder selection by consent (OU-LOG-001) is not built. This executes OQ-4's arguments and offline mode; per-folder use is still open.
+
 - Simplicity (S-01, Section 2.3): every screen has been reviewed. One exception to OU-DES-007 remains: quota numbers in Manage accounts open their reading through View usage in the row, not through the detail panel. See SC-012 for unknown freshness.
 - Confirmed invalid-credential detection: OU-ALERT-007, under SC-009.
 - Offline behavior: OU-MON-012, OU-STATE-009, OU-DATA-024.

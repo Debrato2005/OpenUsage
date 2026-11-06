@@ -1,0 +1,15 @@
+{
+  "version": "20.0.48",
+  "target": "x86_64-unknown-linux-gnu",
+  "package": "@ccusage/ccusage-linux-x64",
+  "license": "MIT",
+  "sourceUrl": "https://registry.npmjs.org/@ccusage/ccusage-linux-x64/-/ccusage-linux-x64-20.0.48.tgz",
+  "archive": {
+    "bytes": 2630421,
+    "sha256": "649684f4fe72e65afa4ae7ffcc4dbef853c1c13ed7bcfd694d9297732859e2c7",
+    "npmIntegrity": "sha512-ThF2FNVmn8TnzTl94ns980AM2kcMUKBp0zS3LybXlPTV7qeIEhG5U9WbqrpuWvnSOOMM6fEV2Mw1dFoDRLyE9w=="
+  },
+  "executableMember": "package/bin/ccusage",
+  "executableBytes": 5108512,
+  "executableSha256": "55a3fd41b29727672bef1242311758d1605a07765781d7a80a41d1b485d29ed1"
+}
