@@ -94,8 +94,8 @@ Updated November 8, 2026. The owner asked to keep this list and to build down it
 - [x] L-1a: pin, provision, run and parse `ccusage` (OU-LOG-005 to OU-LOG-007).
 - [x] L-1b: store totals and differences at schema 10 (OU-LOG-003, OU-LOG-010 to OU-LOG-013).
 - [x] L-1c: scan service. Detect known folders by existence only, keep each run to the consented tools, scan after consent and then on a schedule, one run at a time, and keep a failure inside local logs (OU-LOG-001, OU-LOG-006, OU-LOG-008, OU-DUP-008, OU-NFR-021; AT-70 to AT-72).
-- [ ] L-1d: the first-launch consent screen and the Settings selection (OU-LOG-001, OU-LOG-002, OU-UI-025; AT-91).
-- [ ] L-1e: the This device scope in Usage, with daily, weekly, monthly and custom ranges, a breakdown by token type and model, and the difference in the detail panel (OU-LOG-011, OU-LOG-016, OU-LOG-017; AT-93).
+- [x] L-1d: the first-launch consent screen and the Settings selection (OU-LOG-001, OU-LOG-002; part of AT-72).
+- [ ] L-1e: the This device scope in Usage, with daily, weekly, monthly and custom ranges, a breakdown by token type and model, and the difference in the detail panel, so first launch reaches local history with no sign-in (OU-LOG-011, OU-LOG-016, OU-LOG-017, OU-UI-025; AT-91, AT-93).
 - [ ] L-1f: the other 16 tools that the pinned `ccusage` reads, each with its folder variable, detection and a synthetic fixture (AT-65).
 
 **L-2 CLI**

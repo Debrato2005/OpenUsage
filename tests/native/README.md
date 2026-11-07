@@ -292,3 +292,11 @@ The login journey raises and focuses only its owned native window before keyboar
 It checks document focus and records the X11 receipt.
 No DOM focus or style override substitutes for this setup.
 Normal close separately sends `WM_DELETE_WINDOW`, then waits for the application and provider to exit.
+
+## Native local log consent
+
+Run `node tests/native/local-log-consent.mjs` with the private display and drivers above. Set `OPENUSAGE_LOGIN_VERIFIER` to the activity verifier.
+
+`NATIVE-LOCAL-LOG-CONSENT-001` copies the synthetic Claude Code and Codex logs from `crates/openusage-locallogs/tests/fixtures/home` into a private home, and names it with `OPENUSAGE_NATIVE_LOG_HOME`. A native-test build reads only that variable for detection, never the real home. `OPENUSAGE_NATIVE_CCUSAGE` names the provisioned pinned `ccusage`, and both the journey and the app check its digest.
+The welcome screen must list both tools, selected. The journey unselects Codex with the keyboard and creates a password workspace. The app must grant only Claude Code and scan only its folder. The verifier then checks the saved sources and the exact daily totals.
+A restart must ask no second consent, and a second scan must give the same totals. The synthetic logs must stay unchanged. This journey reads no real logs and does not establish other platforms.

@@ -1,0 +1,13 @@
+.local-log-choice { min-width: 0; margin: var(--space-4) 0 0; padding: 0; border: 0; }
+.local-log-choice legend { margin-bottom: var(--space-2); padding: 0; color: var(--text-strong); font-size: var(--text-sm); font-weight: 600; }
+.local-log-tool { display: flex; align-items: center; gap: var(--space-3); min-height: 44px; padding: 0 var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface); color: var(--text-strong); cursor: pointer; }
+.local-log-tool + .local-log-tool { margin-top: var(--space-2); }
+.local-log-choice:disabled .local-log-tool { cursor: not-allowed; opacity: .64; }
+.local-log-settings { display: grid; gap: var(--space-3); }
+.local-log-settings .local-log-choice { margin: 0; }
+.local-log-settings > p:not(.operation-error) { margin: 0; color: var(--muted); font-size: var(--text-sm); }
+.local-log-settings > [data-slot='button'] { justify-self: start; }
+.local-log-consent { margin: 0 auto; }
+.local-log-dialog { width: min(28rem, calc(100vw - 2rem)); margin: auto; padding: 0; border: 0; border-radius: var(--radius-panel); background: transparent; color: var(--text); }
+.local-log-dialog::backdrop { background: rgb(0 0 0 / .4); }
+.local-log-dialog .primary-button { width: 100%; margin-top: var(--space-4); }

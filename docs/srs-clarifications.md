@@ -23,6 +23,13 @@ This is the record of how requirements were read. Entries keep their original da
 | SC-015 | All accounts as Overview's opening view | In force |
 | SC-016 | Leaderboard and platforms in the first release | Adopted in SRS Section 0.6 |
 | SC-017 | Local usage store | In force; two SRS gaps wait for the owner |
+| SC-018 | One consent screen for local logs | In force |
+
+## SC-018: one consent screen for local logs
+
+Recorded November 8, 2026 against baseline 3.0. Status: in force.
+
+Owner decision 9 and OU-LOG-001 ask for one consent screen with one action. With the system key store, the welcome screen already has one action, Create private workspace. The detected tools therefore appear on that screen, all selected, and the one action creates the workspace and saves the choice. With the password fallback, the same list sits above the password form. A workspace from before L-1d has no saved choice, so it shows one Local logs dialog with one action, Continue, after unlock. Escape does not skip it. Settings changes the choice later (OU-LOG-002). An unselected tool is saved as withdrawn, so no screen asks again.
 
 ## SC-017: local usage store
 

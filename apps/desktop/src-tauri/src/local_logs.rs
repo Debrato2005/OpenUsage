@@ -52,9 +52,12 @@ pub(crate) fn detect(home: &Path) -> Vec<Detected> {
 }
 
 fn detect_user_home() -> Vec<Detected> {
-    let home = std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" })
-        .map(PathBuf::from)
-        .filter(|home| home.is_absolute());
+    // A native-test build never looks at the real home: a journey names a synthetic one.
+    #[cfg(feature = "native-test")]
+    let home = std::env::var_os("OPENUSAGE_NATIVE_LOG_HOME");
+    #[cfg(not(feature = "native-test"))]
+    let home = std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" });
+    let home = home.map(PathBuf::from).filter(|home| home.is_absolute());
     home.map(|home| detect(&home)).unwrap_or_default()
 }
 
@@ -286,12 +289,16 @@ pub(crate) struct LocalLogsView {
     scan: ScanStatus,
 }
 
+/// Before setup or unlock, no choice can exist yet, so every detected tool asks for consent.
 fn view(
     workspace: &mut Workspace,
     detected: &[Detected],
     scan: ScanStatus,
 ) -> Result<LocalLogsView, CommandError> {
-    let sources = workspace.log_sources()?;
+    let sources = match workspace.log_sources() {
+        Err(CommandError::WorkspaceLocked) => Vec::new(),
+        sources => sources?,
+    };
     let tools = locallogs::FOLDER_VARIABLES
         .iter()
         .map(|(tool, _)| ToolView {
@@ -452,12 +459,20 @@ mod tests {
         std::fs::create_dir_all(home.join(".codex/sessions")).unwrap();
         let detected = detect(&home);
         let mut workspace = Workspace::new(temporary.path().join("workspace")).unwrap();
-        let vault = MemoryVault::default();
-        workspace.setup(Ok(&vault), None).unwrap();
         let idle = ScanStatus {
             state: "idle",
             last_scan_at_utc: None,
         };
+        // Before setup, the welcome screen lists every detected tool. Saving needs storage.
+        let welcome = view(&mut workspace, &detected, idle.clone()).unwrap();
+        assert!(welcome.consent_required);
+        assert!(welcome.tools.iter().all(|t| t.detected && !t.granted));
+        assert_eq!(
+            consent(&mut workspace, &detected, &["claude".into()]),
+            Err(CommandError::WorkspaceLocked)
+        );
+        let vault = MemoryVault::default();
+        workspace.setup(Ok(&vault), None).unwrap();
         let first = view(&mut workspace, &detected, idle.clone()).unwrap();
         assert!(first.consent_required);
         assert_eq!(

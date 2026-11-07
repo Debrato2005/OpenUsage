@@ -8,7 +8,8 @@ import { Field, FieldLabel } from './components/ui/field';
 import { Select, SelectTrigger, SelectValue, SelectPopup, SelectItem } from './components/ui/select';
 import { StrictMode, useCallback, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { DesktopUnavailable, invoke, type BackupReceipt, type Bootstrap, type Theme, type ProviderExecutableApproval, type ProfileRecord } from './contracts';
+import { DesktopUnavailable, invoke, type BackupReceipt, type Bootstrap, type LocalLogTool, type Theme, type ProviderExecutableApproval, type ProfileRecord } from './contracts';
+import { LocalLogChoice, LocalLogConsentDialog, LocalLogSettings, orderedTools, useLocalLogs } from './local-logs';
 import { ProfileManager } from './profiles';
 import { BackupInspection } from './backup-inspection';
 import { DataExport } from './data-export';
@@ -187,6 +188,16 @@ function App() {
   const deletionPending = recovery && data?.storageIssue === 'local_deletion_incomplete';
   const needsPassphrase = data?.keyProtection === 'passphrase_required'
     || (data?.storage === 'locked' && data.keyProtection === 'passphrase');
+  // First launch lists the detected tools, all selected, on the one welcome screen (OU-LOG-001).
+  const [welcomeLogs] = useLocalLogs(startup.kind === 'desktop' && data?.storage === 'setup_required');
+  const welcomeTools = welcomeLogs ? orderedTools(welcomeLogs.tools.filter(t => t.detected).map(t => t.tool)) : [];
+  const [welcomeChoice, setWelcomeChoice] = useState<LocalLogTool[] | null>(null);
+  const welcomeSelected = welcomeChoice ?? welcomeTools;
+  const [readyLogs, setReadyLogs] = useLocalLogs(ready);
+  const setupWorkspace = (passphrase: string | null) => invoke('setup_workspace', { passphrase }).then(async created => {
+    if (welcomeTools.length && created.storage === 'ready') await invoke('save_local_log_consent', { tools: welcomeSelected }).catch(() => undefined);
+    return created;
+  });
 
   async function updateWorkspace(operation: () => Promise<Bootstrap>) {
     setBusy(true);
@@ -307,7 +318,7 @@ function App() {
   const titles = { overview: 'Overview', usage: 'Usage', settings: 'Settings' };
   const privacyControls = <>
     <Button variant="ghost" className={`row-disclosure ${ready ? 'settings-privacy' : 'onboarding-privacy'}`} onClick={() => setPrivacy(!privacy)} aria-expanded={privacy} aria-controls="privacy-details">Privacy details</Button>
-    {privacy && <section className="privacy-details" id="privacy-details" aria-labelledby="privacy-heading"><h2 id="privacy-heading">Privacy and local storage</h2><p>OpenUsage has no hosted account or telemetry. Account connections require your approval. Provider credentials stay with Codex.</p><p>Encrypted storage protects application records. It does not encrypt provider credential files or operating-system swap.</p><p>Codex handles approved sign-in requests, connection checks, and readings. Monitoring runs only while OpenUsage is open and your workspace is unlocked.</p></section>}
+    {privacy && <section className="privacy-details" id="privacy-details" aria-labelledby="privacy-heading"><h2 id="privacy-heading">Privacy and local storage</h2><p>OpenUsage has no hosted account or telemetry. Account connections require your approval. Provider credentials stay with Codex.</p><p>Encrypted storage protects application records. It does not encrypt provider credential files or operating-system swap.</p><p>Codex handles approved sign-in requests, connection checks, and readings. Monitoring runs only while OpenUsage is open and your workspace is unlocked.</p><p>OpenUsage reads token counts from the local logs of the tools you choose and never saves prompts, responses, or code. Its bundled ccusage reader runs with your user rights and is not sandboxed.</p></section>}
   </>;
   return <TimeDisplay ready={ready} revision={profileRevision}><DetailProvider><div className={`app-shell${ready ? '' : ' onboarding-shell'}`}>
     <a className="skip-link" href="#main">Skip to dashboard</a>
@@ -327,8 +338,9 @@ function App() {
               : startup.kind === 'failed' ? 'Restart the desktop application, then try again. Your existing database stays unchanged.'
               : recovery ? recoveryMessage
               : 'Your desktop key store is unavailable. An app password protects saved account data.'}</p>}
+            {data?.storage === 'setup_required' && welcomeTools.length > 0 && <LocalLogChoice tools={welcomeTools} selected={welcomeSelected} onChange={setWelcomeChoice} disabled={busy} />}
             {(startup.kind === 'failed' || startup.kind === 'unavailable') && <Button className="primary-button" onClick={() => { setStartup({ kind: 'loading' }); setAttempt(n => n + 1); }}>Check desktop connection</Button>}
-            {startup.kind === 'desktop' && data?.storage === 'setup_required' && !needsPassphrase && <Button className="primary-button" disabled={busy} onClick={() => { void updateWorkspace(() => invoke('setup_workspace', { passphrase: null })); }}>{busy ? 'Creating workspace…' : 'Create private workspace'}</Button>}
+            {startup.kind === 'desktop' && data?.storage === 'setup_required' && !needsPassphrase && <Button className="primary-button" disabled={busy} onClick={() => { void updateWorkspace(() => setupWorkspace(null)); }}>{busy ? 'Creating workspace…' : 'Create private workspace'}</Button>}
             {startup.kind === 'desktop' && !recovery && needsPassphrase && <form className="unlock-form" onSubmit={event => {
               event.preventDefault();
               if (data?.storage === 'setup_required' && passphrase !== confirmation) {
@@ -338,7 +350,7 @@ function App() {
               }
               void updateWorkspace(() => data?.storage === 'locked'
                 ? invoke('unlock_workspace', { passphrase })
-                : invoke('setup_workspace', { passphrase }));
+                : setupWorkspace(passphrase));
             }}>
               <p id="passphrase-help">{data?.storage === 'locked'
                 ? 'Enter the app password you chose for this device.'
@@ -354,6 +366,7 @@ function App() {
           </div>
         </section>}
         {ready && operationError && <p id="workspace-error" className="operation-error" role="alert">{operationError}</p>}
+        {ready && readyLogs?.consentRequired && <LocalLogConsentDialog view={readyLogs} busy={busy} onSaved={setReadyLogs} />}
         {deletionPending && <LocalDataDeletion key="pending" pending busy={busy} setBusy={setBusy} onChanged={applyLocalDataState} />}
         {!ready && privacyControls}
         {ready && <section data-workspace-view="overview" hidden={view !== 'overview'} inert={view !== 'overview'} aria-label="Overview"><Overview key={profileRevision} notices={overviewNotices} active={view === 'overview'} profiles={profiles} revision={readingRevision} onAccounts={() => { setAccountPanelProfile(null); setAccountPanelOpen(true); }} onAccountAction={requestAccountAction} busy={busy} refreshingProfileIds={refreshingProfiles} refreshWaitSeconds={refreshWaitSeconds} expectedProfiles={data?.activeProfiles ?? 0} /></section>}
@@ -416,6 +429,7 @@ function App() {
               <h2 id="settings-privacy-title" className="settings-group-title">{settingsSections.privacy.title}</h2>
               <div className="settings-card">
                 {view === 'settings' && <div className="settings-privacy-row">{privacyControls}</div>}
+                {view === 'settings' && <LocalLogSettings busy={busy} setBusy={setBusy} />}
                 {view === 'settings' && <LocalDataDeletion key="ready" busy={busy} setBusy={setBusy} onChanged={applyLocalDataState} />}
               </div>
             </section>

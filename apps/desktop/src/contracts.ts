@@ -359,6 +359,30 @@ function isSubscriptionsView(value: unknown): value is SubscriptionsView {
     codes.add(c.code); return true;
   }) && v.records.every(r => v.currencies.some(c => c.code === r.currency && c.scale === r.currencyScale));
 }
+export type LocalLogTool = 'claude' | 'codex';
+export type LocalLogsView = {
+  consentRequired: boolean;
+  tools: { tool: LocalLogTool; detected: boolean; granted: boolean }[];
+  scan: { state: 'idle' | 'running' | 'failed' | 'unavailable'; lastScanAtUtc: string | null };
+};
+const localLogTools: readonly LocalLogTool[] = ['claude', 'codex'];
+function isLocalLogsView(value: unknown): value is LocalLogsView {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  const scan = v.scan as Record<string, unknown> | null;
+  if (Object.keys(v).length !== 3 || typeof v.consentRequired !== 'boolean' || !Array.isArray(v.tools) || v.tools.length > localLogTools.length
+    || !scan || typeof scan !== 'object' || Object.keys(scan).length !== 2
+    || !['idle', 'running', 'failed', 'unavailable'].includes(scan.state as string)
+    || !(scan.lastScanAtUtc === null || isUtcTimestamp(scan.lastScanAtUtc))) return false;
+  const seen = new Set<unknown>();
+  return v.tools.every(item => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
+    const t = item as Record<string, unknown>;
+    if (Object.keys(t).length !== 3 || !localLogTools.includes(t.tool as LocalLogTool) || seen.has(t.tool)
+      || typeof t.detected !== 'boolean' || typeof t.granted !== 'boolean') return false;
+    seen.add(t.tool); return true;
+  });
+}
 function isSubscriptionDeletion(value: unknown): boolean {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const v = value as Record<string, unknown>;
@@ -440,6 +464,8 @@ interface Commands {
   export_quota_history: { args: { profileId: string; format: ReadingExportFormat; includeIdentifiers: boolean; confirmed: true }; result: ReadingExportReceipt };
   export_activity_history: { args: { profileId: string; format: ReadingExportFormat; includeIdentifiers: boolean; confirmed: true }; result: ReadingExportReceipt };
   export_application_data: { args: { confirmed: true }; result: ApplicationExportReceipt };
+  load_local_logs: { args: undefined; result: LocalLogsView };
+  save_local_log_consent: { args: { tools: LocalLogTool[] }; result: LocalLogsView };
 }
 
 declare global {
@@ -464,6 +490,7 @@ export async function invoke<K extends keyof Commands>(
     : command === 'create_subscription' || command === 'update_subscription' || command === 'set_subscription_archived' ? isSubscription(response) && response.profileId === selected?.profileId && (command === 'create_subscription' || response.id === selected?.subscriptionId)
     : command === 'delete_subscription' ? isSubscriptionDeletion(response) && (response as Record<string,unknown>).profileId === selected?.profileId && (response as Record<string,unknown>).subscriptionId === selected?.subscriptionId
     : command === 'load_time_zone' || command === 'set_time_zone' ? isTimeZone(response)
+    : command === 'load_local_logs' || command === 'save_local_log_consent' ? isLocalLogsView(response)
     : command === 'delete_all_local_data' ? isDeletionResult(response)
     : command === 'load_notification_preferences' || command === 'save_notification_preferences' ? isNotificationPreferences(response)
     : command === 'load_reset_notification_preferences' || command === 'save_reset_notification_preferences' ? isResetNotificationPreferences(response)
