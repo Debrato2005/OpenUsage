@@ -92,6 +92,50 @@ pub(crate) struct LocalUsageView {
     models: Vec<ModelTotals>,
     buckets: Vec<Bucket>,
     differences: Vec<Difference>,
+    /// Personal records for these dates: days with saved usage, the longest run of them, and the top day.
+    active_days: usize,
+    longest_streak_days: usize,
+    busiest_day: Option<BusiestDay>,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct BusiestDay {
+    date: String,
+    total_tokens: String,
+}
+
+/// Active days, the longest run of days with saved usage, and the busiest day (the earliest on a tie).
+fn records(
+    by_day: &BTreeMap<Date, u128>,
+    start: Date,
+    end: Date,
+) -> (usize, usize, Option<BusiestDay>) {
+    let (mut active, mut streak, mut longest) = (0, 0, 0);
+    let mut busiest: Option<(Date, u128)> = None;
+    let mut cursor = start;
+    while cursor <= end {
+        let total = by_day.get(&cursor).copied().unwrap_or(0);
+        if total > 0 {
+            active += 1;
+            streak += 1;
+            if busiest.is_none_or(|(_, best)| total > best) {
+                busiest = Some((cursor, total));
+            }
+        } else {
+            streak = 0;
+        }
+        longest = longest.max(streak);
+        let Ok(next) = cursor.checked_add(Span::new().days(1)) else {
+            break;
+        };
+        cursor = next;
+    }
+    let busiest = busiest.map(|(date, total)| BusiestDay {
+        date: date.to_string(),
+        total_tokens: total.to_string(),
+    });
+    (active, longest, busiest)
 }
 
 fn bucket_start(date: Date, period: Period) -> Date {
@@ -122,6 +166,7 @@ fn summarize(
     let mut models: BTreeMap<(&str, &str), (u128, Option<u128>)> = BTreeMap::new();
     let mut buckets: BTreeMap<(Date, &str), u128> = BTreeMap::new();
     let mut versions = BTreeSet::new();
+    let mut by_day: BTreeMap<Date, u128> = BTreeMap::new();
     for day in &range.days {
         let row = &day.counts;
         let Ok(date) = row.local_date.parse::<Date>() else {
@@ -152,13 +197,18 @@ fn summarize(
             .entry((bucket_start(date, period), row.tool.as_str()))
             .or_default() += u128::from(row.total_tokens);
         versions.insert(day.scanner_version.clone());
+        *by_day.entry(date).or_default() += u128::from(row.total_tokens);
     }
+    let (active_days, longest_streak_days, busiest_day) = records(&by_day, start, end);
     let order = |tool: &str| FOLDER_VARIABLES.iter().position(|(t, _)| *t == tool);
     let mut tool_rows: Vec<_> = tools.into_iter().collect();
     tool_rows.sort_by_key(|(tool, _)| (order(tool), tool.to_string()));
     let mut model_rows: Vec<_> = models.into_iter().collect();
     model_rows.sort_by(|a, b| b.1.0.cmp(&a.1.0).then(a.0.cmp(&b.0)));
     LocalUsageView {
+        active_days,
+        longest_streak_days,
+        busiest_day,
         start_date: start.to_string(),
         end_date: end.to_string(),
         time_zone: zone,
@@ -381,6 +431,15 @@ mod tests {
             ]
         );
         assert_eq!(view.differences[0].tool, "claude");
+        // Records: 2, 3 and 9 November have usage, so the longest run is 2 days.
+        assert_eq!((view.active_days, view.longest_streak_days), (3, 2));
+        assert_eq!(
+            view.busiest_day,
+            Some(BusiestDay {
+                date: "2026-11-03".into(),
+                total_tokens: "18446744073709551665".into()
+            })
+        );
         let months = summarize(&range, start, end, Period::Month, "UTC".into());
         assert_eq!(
             months

@@ -59,12 +59,13 @@ function ShareDialog({ onClose }: { onClose: () => void }) {
     <div className="overview-chips" role="group" aria-label="Image">
       <Button variant="ghost" aria-pressed={kind === 'wrapped'} onClick={() => setKind('wrapped')}>Wrapped</Button>
       <Button variant="ghost" aria-pressed={kind === 'heatmap'} onClick={() => setKind('heatmap')}>Heatmap</Button>
+      <Button variant="ghost" aria-pressed={kind === 'badge'} onClick={() => setKind('badge')}>Badge</Button>
     </div>
-    <figure className="share-preview" data-share-preview={kind}>{url && image ? <img src={url} alt={image.summary} width={image.width} height={image.height} /> : !error && <p className="overview-dim" role="status">Loading…</p>}</figure>
+    <figure className="share-preview" data-share-preview={kind} data-badge={kind === 'badge' || undefined}>{url && image ? <img src={url} alt={image.summary} width={image.width} height={image.height} /> : !error && <p className="overview-dim" role="status">Loading…</p>}</figure>
     <label className="share-branding"><Checkbox nativeButton render={<button type="button" />} id="share-branding" checked={branding} disabled={busy} onCheckedChange={checked => setBranding(checked === true)} />Show the OpenUsage name and address</label>
     <div className="share-actions">
-      <Button className="primary-button" disabled={busy || !image} onClick={() => { void save('png'); }}>Save PNG</Button>
-      <Button variant="outline" disabled={busy || !image} onClick={() => { void save('svg'); }}>Save SVG</Button>
+      {kind !== 'badge' && <Button className="primary-button" disabled={busy || !image} onClick={() => { void save('png'); }}>Save PNG</Button>}
+      <Button variant={kind === 'badge' ? 'default' : 'outline'} className={kind === 'badge' ? 'primary-button' : undefined} disabled={busy || !image} onClick={() => { void save('svg'); }}>Save SVG</Button>
     </div>
     {receipt && <p className="share-receipt" role="status">Saved {receipt.fileName} in {receipt.directory}</p>}
     {error && <p className="operation-error" role="alert">{error}</p>}

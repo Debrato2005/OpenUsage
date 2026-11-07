@@ -18,3 +18,8 @@
 .local-differences { margin: 0; padding-left: 1rem; }
 .usage-source { margin-bottom: 1rem; }
 .local-tool-card .mark { color: var(--warn-ink, #7a4500); font-weight: 600; }
+.local-records { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 12rem), 1fr)); gap: .75rem; }
+.local-record { display: grid; align-content: start; justify-items: start; gap: .25rem; min-width: 0; padding: .875rem 1rem; border: 1px solid var(--line); border-radius: 1rem; background: var(--surface); color: var(--text-strong); text-align: left; cursor: pointer; }
+.local-record span { color: var(--muted); font-size: .8125rem; }
+.local-record strong { font-family: var(--font-display); font-size: 1.5rem; font-weight: 600; letter-spacing: -.02em; }
+.local-record small { color: var(--muted); font-size: .8125rem; }

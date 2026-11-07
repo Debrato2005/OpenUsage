@@ -392,6 +392,7 @@ export type LocalUsageView = {
   models: { tool: LocalLogTool; model: string; totalTokens: string; estimatedValueUsdMicros: string | null }[];
   buckets: { startDate: string; tool: LocalLogTool; totalTokens: string }[];
   differences: { date: string; tool: LocalLogTool; model: string; savedTotalTokens: string; newTotalTokens: string; scanAtUtc: string }[];
+  activeDays: number; longestStreakDays: number; busiestDay: { date: string; totalTokens: string } | null;
 };
 const localCount = (value: unknown): value is string => typeof value === 'string' && /^(0|[1-9]\d{0,38})$/.test(value);
 const localTool = (value: unknown): value is LocalLogTool => localLogTools.includes(value as LocalLogTool);
@@ -399,8 +400,11 @@ const localModel = (value: unknown) => typeof value === 'string' && /^[A-Za-z0-9
 const exactKeys = (value: unknown, keys: string[]): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value)
   && Object.keys(value).length === keys.length && keys.every(key => key in (value as object));
 function isLocalUsageView(value: unknown): value is LocalUsageView {
-  if (!exactKeys(value, ['startDate', 'endDate', 'timeZone', 'scannerVersions', 'tools', 'models', 'buckets', 'differences'])) return false;
+  if (!exactKeys(value, ['startDate', 'endDate', 'timeZone', 'scannerVersions', 'tools', 'models', 'buckets', 'differences', 'activeDays', 'longestStreakDays', 'busiestDay'])) return false;
   const v = value as LocalUsageView;
+  if (!Number.isInteger(v.activeDays) || v.activeDays < 0 || v.activeDays > 366 || !Number.isInteger(v.longestStreakDays) || v.longestStreakDays < 0 || v.longestStreakDays > v.activeDays
+    || !(v.busiestDay === null ? v.activeDays === 0 : exactKeys(v.busiestDay, ['date', 'totalTokens']) && isProviderDate(v.busiestDay.date)
+      && v.busiestDay.date >= v.startDate && v.busiestDay.date <= v.endDate && localCount(v.busiestDay.totalTokens) && BigInt(v.busiestDay.totalTokens) > 0n)) return false;
   if (!isProviderDate(v.startDate) || !isProviderDate(v.endDate) || v.startDate > v.endDate || typeof v.timeZone !== 'string' || !/^[A-Za-z0-9_+./-]{1,128}$/.test(v.timeZone)
     || !Array.isArray(v.scannerVersions) || v.scannerVersions.length > 16 || !v.scannerVersions.every(s => typeof s === 'string' && /^[0-9.]{1,32}$/.test(s))
     || !Array.isArray(v.tools) || !Array.isArray(v.models) || !Array.isArray(v.buckets) || !Array.isArray(v.differences)
@@ -418,17 +422,18 @@ function isLocalUsageView(value: unknown): value is LocalUsageView {
     && v.differences.every(d => exactKeys(d, ['date', 'tool', 'model', 'savedTotalTokens', 'newTotalTokens', 'scanAtUtc']) && isProviderDate(d.date) && localTool(d.tool) && localModel(d.model)
       && localCount(d.savedTotalTokens) && localCount(d.newTotalTokens) && BigInt(d.newTotalTokens) < BigInt(d.savedTotalTokens) && isUtcTimestamp(d.scanAtUtc));
 }
-export type ShareKind = 'wrapped' | 'heatmap';
+export type ShareKind = 'wrapped' | 'heatmap' | 'badge';
 export type ShareImage = { svg: string; width: number; height: number; summary: string };
 export type ShareReceipt = { fileName: string; directory: string; format: 'svg' | 'png'; byteCount: string };
-export const shareSizes: Record<ShareKind, [number, number]> = { wrapped: [1200, 630], heatmap: [1000, 230] };
+export const shareSizes: Record<Exclude<ShareKind, 'badge'>, [number, number]> = { wrapped: [1200, 630], heatmap: [1000, 230] };
 function isShareImage(value: unknown, kind: ShareKind | undefined): value is ShareImage {
   if (!exactKeys(value, ['svg', 'width', 'height', 'summary']) || !kind) return false;
   const v = value as ShareImage;
   // Rust builds the SVG. The renderer shows it only as an image, which runs no script.
   return typeof v.svg === 'string' && v.svg.length <= 2_000_000 && v.svg.startsWith('<svg xmlns="http://www.w3.org/2000/svg"') && v.svg.endsWith('</svg>')
     && !/<script|<foreignObject|href=|url\(/i.test(v.svg)
-    && v.width === shareSizes[kind][0] && v.height === shareSizes[kind][1]
+    // A badge sets its width from its text.
+    && (kind === 'badge' ? Number.isInteger(v.width) && v.width >= 60 && v.width <= 800 && v.height === 20 : v.width === shareSizes[kind][0] && v.height === shareSizes[kind][1])
     && typeof v.summary === 'string' && v.summary.length > 0 && v.summary.length <= 500;
 }
 function isShareReceipt(value: unknown, format: unknown, kind: unknown): value is ShareReceipt {

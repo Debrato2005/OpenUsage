@@ -4,7 +4,7 @@ import { localUsage } from './local-usage-fixture';
 
 // Synthetic renderer IPC only. Rust builds the real images. Native tests must establish saved files.
 const ready = { storage: 'ready', theme: 'light', schemaVersion: 10, activeProfiles: 0, monitoring: 'stopped', provider: 'not_configured', keyProtection: 'os_store', storageIssue: null };
-const sizes = { wrapped: [1200, 630], heatmap: [1000, 230] } as const;
+const sizes = { wrapped: [1200, 630], heatmap: [1000, 230], badge: [234, 20] } as const;
 type Call = { command: string; args: Record<string, unknown>; png?: { signature: boolean; width: number; height: number } };
 type FixtureWindow = Window & { shareCalls: Call[] };
 
@@ -73,4 +73,15 @@ test('an image with script or links is refused and shows an error, not a preview
   await expect(dialog(page).getByRole('alert')).toHaveText('OpenUsage could not make this image. Try again.');
   await expect(dialog(page).getByRole('img')).toHaveCount(0);
   await expect(dialog(page).getByRole('button', { name: 'Save PNG', exact: true })).toBeDisabled();
+});
+
+test('the README badge is SVG only and saves with its own name', async ({ page }) => {
+  await open(page);
+  await page.locator('[data-local-overview] [data-share-open]').click();
+  await dialog(page).getByRole('button', { name: 'Badge', exact: true }).click();
+  await expect(dialog(page).getByRole('img', { name: 'Synthetic badge image', exact: true })).toBeVisible();
+  await expect(dialog(page).getByRole('button', { name: 'Save PNG', exact: true })).toHaveCount(0);
+  await dialog(page).getByRole('button', { name: 'Save SVG', exact: true }).click();
+  await expect(dialog(page).getByRole('status')).toHaveText('Saved openusage-badge-AbCdEfGhIjKlMnOp.svg in /home/synthetic/Downloads/OpenUsage');
+  expect((await calls(page)).filter(c => c.command === 'save_share_image')).toEqual([{ command: 'save_share_image', args: { kind: 'badge', branding: true, format: 'svg', png: null } }]);
 });

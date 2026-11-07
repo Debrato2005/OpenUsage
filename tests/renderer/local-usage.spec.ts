@@ -76,8 +76,20 @@ test('the detail panel shows exact counts, the estimate as not money, and saved 
   await expect(panel).toContainText('2026-10-20, claude-sonnet-4-5-20250929: saved 5,120,000, a later scan read 0');
 });
 
+test('personal records open the detail panel with exact values', async ({ page }) => {
+  await open(page, localUsage());
+  await navigate(page, 'usage');
+  const records = device(page).getByRole('region', { name: 'Records', exact: true });
+  await expect(records.getByRole('button', { name: 'Active days: 26', exact: true })).toContainText('26');
+  await expect(records.getByRole('button', { name: 'Longest streak: 6 days', exact: true })).toContainText('6 days');
+  const busiest = records.getByRole('button', { name: 'Busiest day: 2026-10-10, 6,912,345 tokens', exact: true });
+  await expect(busiest).toContainText('Oct 10');
+  await busiest.click();
+  await expect(page.locator('[data-detail-panel][open]')).toContainText('2026-10-10, 6,912,345 tokens');
+});
+
 test('no saved local usage hides the Overview section and Usage shows one empty state', async ({ page }) => {
-  await open(page, { ...localUsage(), tools: [], models: [], buckets: [], differences: [] });
+  await open(page, { ...localUsage(), tools: [], models: [], buckets: [], differences: [], activeDays: 0, longestStreakDays: 0, busiestDay: null });
   await expect(page.getByRole('heading', { name: 'No accounts', exact: true })).toBeVisible();
   await expect(page.locator('[data-local-overview]')).toHaveCount(0);
   await navigate(page, 'usage');

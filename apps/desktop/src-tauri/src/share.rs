@@ -21,18 +21,23 @@ const MAX_PNG_BYTES: usize = 8 * 1024 * 1024;
 enum Kind {
     Wrapped,
     Heatmap,
+    /// A README badge. It is SVG only, because a README shows SVG (OU-SHARE-006).
+    Badge,
 }
 impl Kind {
+    /// The fixed size of a PNG-capable image. A badge sets its own width from its text.
     fn size(self) -> (u32, u32) {
         match self {
             Kind::Wrapped => (1200, 630),
             Kind::Heatmap => (1000, 230),
+            Kind::Badge => (0, 20),
         }
     }
     fn prefix(self) -> &'static str {
         match self {
             Kind::Wrapped => "openusage-wrapped-",
             Kind::Heatmap => "openusage-heatmap-",
+            Kind::Badge => "openusage-badge-",
         }
     }
 }
@@ -403,8 +408,34 @@ fn heatmap(stats: &Stats, branding: bool) -> String {
     svg
 }
 
+/// Text widths use 7 pixels a character at 11 pixels, which fits the common badge fonts.
+fn badge(stats: &Stats, branding: bool) -> String {
+    let left = if branding { "OpenUsage" } else { "AI coding" };
+    let right = format!("{} tokens, 365 days", compact(stats.total));
+    let width = |text: &str| 12 + 7 * text.chars().count() as u32;
+    let (left_width, right_width) = (width(left), width(&right));
+    let total = left_width + right_width;
+    format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{total}\" height=\"20\" viewBox=\"0 0 {total} 20\" font-family=\"Verdana, 'DejaVu Sans', sans-serif\" font-size=\"11\">\
+         <rect width=\"{total}\" height=\"20\" rx=\"3\" fill=\"#7c6cf2\"/>\
+         <rect width=\"{left_width}\" height=\"20\" rx=\"3\" fill=\"#555b66\"/>\
+         <rect x=\"{}\" width=\"4\" height=\"20\" fill=\"#555b66\"/>\
+         <text x=\"{}\" y=\"14\" fill=\"#ffffff\" text-anchor=\"middle\">{}</text>\
+         <text x=\"{}\" y=\"14\" fill=\"#ffffff\" text-anchor=\"middle\">{}</text></svg>",
+        left_width - 4,
+        left_width / 2,
+        escape(left),
+        left_width + right_width / 2,
+        escape(&right)
+    )
+}
+
 fn summary(kind: Kind, stats: &Stats) -> String {
     match kind {
+        Kind::Badge => format!(
+            "{} tokens from local logs in 365 days",
+            grouped(stats.total)
+        ),
         Kind::Wrapped => format!(
             "{} tokens from local logs, {} to {}, on {} active days",
             grouped(stats.total),
@@ -436,8 +467,14 @@ fn image(
     let svg = match kind {
         Kind::Wrapped => wrapped(&stats, branding),
         Kind::Heatmap => heatmap(&stats, branding),
+        Kind::Badge => badge(&stats, branding),
     };
     Ok((stats, svg))
+}
+
+fn badge_width(svg: &str) -> Option<u32> {
+    let rest = svg.split_once("width=\"")?.1;
+    rest.split_once('"')?.0.parse().ok()
 }
 
 /// The PNG must be a PNG at twice the SVG size, so a renderer cannot save other bytes.
@@ -469,7 +506,14 @@ pub async fn load_share_image(
     let args: LoadArgs = arguments(&request)?;
     crate::subscriptions::access(service, move |workspace| {
         let (stats, svg) = image(workspace, args.kind, args.branding)?;
-        let (width, height) = args.kind.size();
+        let (width, height) = match args.kind {
+            // The badge width is the first number in its SVG, set by its text.
+            Kind::Badge => (
+                badge_width(&svg).ok_or(CommandError::StorageUnavailable)?,
+                20,
+            ),
+            kind => kind.size(),
+        };
         Ok(ShareImage {
             svg,
             width,
@@ -489,6 +533,9 @@ pub async fn save_share_image(
 ) -> Result<ShareReceipt, CommandError> {
     let args: SaveArgs = arguments(&request)?;
     let png = match (args.format, args.png.as_deref()) {
+        (Format::Png, Some(_)) if args.kind == Kind::Badge => {
+            return Err(CommandError::InvalidArguments);
+        }
         (Format::Png, Some(encoded)) => Some(checked_png(args.kind, encoded)?),
         (Format::Svg, None) => None,
         _ => return Err(CommandError::InvalidArguments),
@@ -616,6 +663,20 @@ mod tests {
             assert!(svg.starts_with("<svg xmlns=\"http://www.w3.org/2000/svg\""));
             assert!(!svg.contains("<script") && !svg.contains("href") && !svg.contains("/home"));
         }
+    }
+
+    #[test]
+    fn the_badge_fits_its_text_and_can_drop_the_name() {
+        let stats = stats(
+            &range(vec![day("2026-11-03", "claude", "m", 1_374_682_792, None)]),
+            "2026-11-01".parse().unwrap(),
+            "2026-11-08".parse().unwrap(),
+        );
+        let svg = badge(&stats, true);
+        assert!(svg.contains(">OpenUsage</text>") && svg.contains(">1.3B tokens, 365 days</text>"));
+        // 12 + 7 * 9 for the name, and 12 + 7 * 21 for the count.
+        assert_eq!(badge_width(&svg), Some(75 + 159));
+        assert!(!badge(&stats, false).contains("OpenUsage"));
     }
 
     #[test]

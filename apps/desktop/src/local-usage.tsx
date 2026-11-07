@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button } from './components/ui/button';
 import { invoke, type LocalLogTool, type LocalToolTotals, type LocalUsageDays, type LocalUsagePeriod, type LocalUsageView } from './contracts';
-import { Mark, useOpenDetail } from './detail-panel';
+import { DetailLink, Mark, useOpenDetail } from './detail-panel';
 import { BigNumber, compactCount } from './overview-charts';
 import { localLogToolNames } from './local-logs';
 import { ShareButton } from './share';
@@ -138,6 +138,20 @@ function LocalBars({ view, period }: { view: LocalUsageView; period: LocalUsageP
   </figure>;
 }
 
+/** Personal records for the chosen dates. Each number opens the detail panel (OU-DES-007). */
+function Records({ view }: { view: LocalUsageView }) {
+  const where = <><dt>Dates</dt><dd>{view.startDate} to {view.endDate}, days in {view.timeZone}</dd><dt>Source</dt><dd>Saved local log totals on this device</dd></>;
+  const busiest = view.busiestDay;
+  return <section className="local-records" aria-label="Records" data-local-records>
+    <DetailLink className="local-record" label={`Active days: ${view.activeDays}`} details={<dl className="detail-rows"><dt>Active days</dt><dd>{view.activeDays}, the days with saved usage</dd>{where}</dl>}>
+      <span>Active days</span><strong>{view.activeDays}</strong></DetailLink>
+    <DetailLink className="local-record" label={`Longest streak: ${view.longestStreakDays} days`} details={<dl className="detail-rows"><dt>Longest streak</dt><dd>{view.longestStreakDays} days in a row with saved usage</dd>{where}</dl>}>
+      <span>Longest streak</span><strong>{view.longestStreakDays} days</strong></DetailLink>
+    <DetailLink className="local-record" label={busiest ? `Busiest day: ${busiest.date}, ${exact.format(BigInt(busiest.totalTokens))} tokens` : 'Busiest day: Not available'} details={<dl className="detail-rows"><dt>Busiest day</dt><dd>{busiest ? `${busiest.date}, ${exact.format(BigInt(busiest.totalTokens))} tokens` : 'Not available'}</dd>{where}</dl>}>
+      <span>Busiest day</span><strong>{busiest ? monthDay(busiest.date) : 'Not available'}</strong>{busiest && <small>{compactCount(BigInt(busiest.totalTokens))} tokens</small>}</DetailLink>
+  </section>;
+}
+
 function Models({ view }: { view: LocalUsageView }) {
   return <section className="local-models" aria-labelledby="local-models-heading">
     <h3 id="local-models-heading">Models</h3>
@@ -163,6 +177,7 @@ export function LocalUsagePanel({ active }: { active: boolean }) {
     {failed && <p className="operation-error" role="alert">OpenUsage could not read saved local usage. Try again.</p>}
     {!view ? !failed && <p className="overview-dim" role="status">Loading…</p> : view.tools.length === 0 ? <div className="empty-state"><h3>No saved local usage for these dates</h3></div> : <>
       <div className="local-tool-grid">{view.tools.map(totals => <ToolCard key={totals.tool} totals={totals} view={view} />)}</div>
+      <Records view={view} />
       <div className="overview-days"><LocalBars view={view} period={period} /></div>
       <Models view={view} />
     </>}

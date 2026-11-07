@@ -107,7 +107,7 @@ Updated November 8, 2026. The owner asked to keep this list and to build down it
 **L-3 Sharing**
 
 - [x] L-3a: the Wrapped summary and the heatmap as SVG and PNG, made on the device, with a preview and an explicit save (OU-SHARE-001 to OU-SHARE-006; AT-82).
-- [ ] L-3b: the README badge and personal records.
+- [x] L-3b: the README badge and personal records.
 
 **L-4 Leaderboard service**
 

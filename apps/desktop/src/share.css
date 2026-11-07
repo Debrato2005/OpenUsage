@@ -9,3 +9,4 @@
 .share-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
 .share-actions .primary-button { margin: 0; }
 .share-receipt { margin: 0; color: var(--muted); font-size: var(--text-sm); overflow-wrap: anywhere; }
+.share-preview[data-badge] img { width: auto; max-width: 100%; height: 2.5rem; border-radius: 0; }

@@ -52,7 +52,9 @@ Kept from baseline 2.0:
 
 ## Partial
 
-- Sharing (8A), L-3a, November 8, 2026: Share on This device previews a Wrapped card and a year heatmap from saved local totals, and saves each as PNG or SVG in Downloads/OpenUsage only on an explicit save. Rust builds the SVG with escaped text and checks the PNG. The images show no email, account label, project, path or device name, a day with no saved usage is an outline, the estimate says Estimated, and the OpenUsage name and address can be removed. The README badge and personal records are not built.
+- Sharing (8A), L-3a, November 8, 2026: Share on This device previews a Wrapped card and a year heatmap from saved local totals, and saves each as PNG or SVG in Downloads/OpenUsage only on an explicit save. Rust builds the SVG with escaped text and checks the PNG. The images show no email, account label, project, path or device name, a day with no saved usage is an outline, the estimate says Estimated, and the OpenUsage name and address can be removed.
+
+- Sharing (8A), L-3b, November 8, 2026: Share also makes a README badge with the 365-day total, as SVG only. Usage, This device, shows three personal records for the chosen dates: active days, the longest streak and the busiest day, each with its detail panel. The badge has not run in a real GitHub README (OU-SHARE-006).
 
 - Command line (11A), L-2a, November 8, 2026: the `openusage` binary in `crates/openusage-cli` has `report`, `doctor` and `app`, with help for each, stable error codes and documented exit codes. `report` asks once for consent or takes `--yes`, runs the pinned `ccusage` once for each detected folder, prints exact totals as text or versioned JSON, and saves nothing. No package installs the CLI yet.
 
