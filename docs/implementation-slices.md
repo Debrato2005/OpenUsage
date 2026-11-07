@@ -122,7 +122,7 @@ Updated November 8, 2026. The owner asked to keep this list and to build down it
 **L-6 Packaging**
 
 - [ ] L-6a: Linux packages with the bundled `ccusage` and Codex companion, and the WebKitGTK dependencies listed (OU-PLAT-002, OU-PLAT-005).
-- [ ] L-6b: the npm package, with per-platform packages and no install scripts (OU-DIST-001 to OU-DIST-005, OU-DIST-009; AT-81).
+- [x] L-6b: the npm package, with per-platform packages and no install scripts (OU-DIST-001 to OU-DIST-005, OU-DIST-009; AT-81).
 - [ ] L-6c: Windows and macOS preview builds in CI (part of OU-NFR-012).
 
 **L-7 Release documents**
@@ -131,7 +131,7 @@ Updated November 8, 2026. The owner asked to keep this list and to build down it
 
 **Owner (G-L)**
 
-- [ ] Claim the npm name (OQ-2).
+- [ ] Claim the npm name `openusage` and the `@openusage` scope (OQ-2).
 - [ ] Create the Cloudflare account and the D1 database, then deploy the service.
 - [ ] Register the GitHub OAuth App and give its public client ID.
 - [ ] Run the real-account tests (AT-60) and the real-machine tests (AT-38, AT-80).

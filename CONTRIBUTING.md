@@ -34,6 +34,20 @@ The archive cache defaults to `.tools` in this checkout. Use `--cache-dir /absol
 
 The Tauri override stages `openusage-codex` beside the application and copies LICENSE and NOTICE under `licenses/codex`. Keep those files together. The ordinary development build can instead discover a supported installed version. It does not produce a companion bundle by default.
 
+### npm packages
+
+After a release build, assemble the npm packages for Linux x86_64 in an empty folder:
+
+```sh
+cargo build --release --locked --offline -p openusage-cli -p openusage-desktop
+python3 scripts/package-npm.py --out /absolute/empty/folder \
+  --cli target/release/openusage --desktop target/release/openusage-desktop \
+  --ccusage apps/desktop/src-tauri/binaries/openusage-ccusage-x86_64-unknown-linux-gnu \
+  --codex apps/desktop/src-tauri/binaries/openusage-codex-x86_64-unknown-linux-gnu
+```
+
+Use your shared Cargo target in place of `target` when you set one. The script checks both pinned binaries against their source records, then writes two packages: `openusage`, which holds only a launcher, and `@openusage/linux-x64`, which holds the CLI, the desktop app, `ccusage`, the Codex companion and their notices. Neither package has an install script, and nothing downloads at install time or at run time (OU-DIST-003). It packs both with `npm pack` and writes `SHA256SUMS`. It never publishes: publishing with npm provenance is an owner step.
+
 This path currently covers Linux x86_64 only. A native build does not prove an installer or another platform. See the [source review and architecture decision](docs/reviews/2026-10-21-onboarding-sources.md).
 
 ## Normal Git workflow

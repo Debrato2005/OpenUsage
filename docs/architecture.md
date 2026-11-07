@@ -29,6 +29,7 @@ Today Codex is the only source, and its path has no general adapter layer. The p
 | `crates/openusage-cli/` | The `openusage` command, with no webview dependency |
 | `crates/openusage-keys/` | The database key in the OS credential store, for the app and the CLI |
 | `services/leaderboard/` | The opt-in leaderboard Worker and its D1 schema |
+| `packaging/` | The npm launcher, its README, and third-party notices for the packages |
 | `tests/contract/` | IPC contract checks |
 | `tests/renderer/` | Playwright in Chromium and WebKit with synthetic IPC |
 | `tests/native/` | Journeys against the real app |

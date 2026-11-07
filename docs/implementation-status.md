@@ -38,7 +38,6 @@ Last full results, from November 4, 2026, after S-03b, on Linux with synthetic d
 New in baseline 3.0:
 
 - Source adapters (5A), audit (5B), and duplicates (5D).
-- Distribution (16A).
 - Customizable dashboard, Start at login, first launch without sign-in, and graphs: OU-UI-025 to OU-UI-027, OU-MON-017.
 
 Kept from baseline 2.0:
@@ -50,6 +49,8 @@ Kept from baseline 2.0:
 - Wake handling: OU-PROC-013, OU-MON-013.
 
 ## Partial
+
+- Distribution (16A), L-6b, November 8, 2026: `scripts/package-npm.py` assembles `openusage`, which holds only a launcher, and `@openusage/linux-x64`, which holds the CLI, the desktop app, the pinned `ccusage`, the pinned Codex companion and their notices. It checks both pins, packs both with `npm pack`, and writes `SHA256SUMS`. Neither package has an install script. Nothing is published: the npm name, provenance, a build attestation and an SBOM wait for the owner and for L-6c.
 
 - Leaderboard (14A), L-4a, November 8, 2026: the Cloudflare Worker and D1 schema in `services/leaderboard` join with GitHub, sync strict rows, leave, and rank over 7 days, 30 days and all time under the title Self-reported. Its [moderation policy](../services/leaderboard/MODERATION.md) sits beside the source (L-4b). The service is not deployed, `wrangler.toml` has not run with wrangler, and no client calls it yet.
 
