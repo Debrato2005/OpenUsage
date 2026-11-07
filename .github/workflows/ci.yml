@@ -110,6 +110,9 @@ jobs:
         run: bun run build
       - name: Check IPC contracts
         run: bun run test:contract
+      # The leaderboard Worker against SQLite, with no network.
+      - name: Test leaderboard service
+        run: bun run test:leaderboard
       - name: Check Rust format
         run: cargo fmt --all --check
       - name: Lint Rust

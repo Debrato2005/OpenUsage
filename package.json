@@ -17,6 +17,7 @@
     "prepare:ccusage": "python3 scripts/provision-ccusage.py",
     "typecheck": "tsc --noEmit",
     "test:contract": "node tests/contract/bootstrap.test.mjs",
+    "test:leaderboard": "node --test services/leaderboard/test/worker.test.mjs",
     "test:renderer": "playwright test",
     "test:native": "node tests/native/smoke.mjs",
     "test:native:storage": "node tests/native/persistence.mjs",

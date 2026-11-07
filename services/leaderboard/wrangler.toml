@@ -1,0 +1,21 @@
+# The owner fills in the D1 database ID, then deploys with: wrangler deploy
+# This file was written from the Cloudflare documentation and has not run with wrangler yet.
+name = "openusage-leaderboard"
+main = "src/worker.mjs"
+compatibility_date = "2026-11-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "openusage-leaderboard"
+database_id = "REPLACE_WITH_THE_D1_DATABASE_ID"
+migrations_dir = "migrations"
+
+# The edge limiter counts joins for each IP address. Cloudflare keeps the address only for the count.
+[[ratelimits]]
+name = "JOIN_LIMITER"
+namespace_id = "1001"
+simple = { limit = 3, period = 60 }
+
+# The service keeps no request logs of its own.
+[observability]
+enabled = false

@@ -48,3 +48,7 @@ Requests are limited to 64 KiB and 400 rows. Unknown fields, wrong types, totals
 4. Publish the moderation policy beside the service source.
 
 Until then, the client's Join control stays unavailable, and `openusage board sync --dry-run` still prints the exact upload (OU-BOARD-005).
+
+## Addendum, November 8, 2026
+
+Cloudflare's rate limiting binding counts only 10-second or 60-second periods, so the edge limit is 3 joins a minute for each IP address. The hourly limits use D1 counts keyed by GitHub account for joins and by user for syncs, never by IP address, so the database still stores no IP address. Tokens are issued for each device: each device joins once and gets its own token, and leaving deletes every device of the user.
