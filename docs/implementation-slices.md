@@ -1,6 +1,6 @@
 # Implementation slices
 
-Updated: November 7, 2026. This page owns the order and boundaries of planned work. The [SRS](SRS.md) owns what each requirement says, and [status](implementation-status.md) owns what works today.
+Updated: November 8, 2026. This page owns the order and boundaries of planned work. The [SRS](SRS.md) owns what each requirement says, and [status](implementation-status.md) owns what works today.
 
 ## Run a slice
 
@@ -60,7 +60,7 @@ Renderer tests, native journeys, and the local commit therefore need approval to
 - The [workflow](engineering-workflow.md) checks pass. UI changes also need the full renderer suite in Chromium and WebKit. Rust changes also need the full workspace tests.
 - UI changes are checked by eye in screenshots: light, dark, a 720-pixel window, and empty, populated, and error states. Empty fixtures hide layout problems, so always check real-looking data. Each screen answers one question, its main action is obvious, and nothing is clipped or repeated.
 - Docs are updated as the [documentation map](README.md) lists, and the slice is marked Done below.
-- The slice has one local commit. Then report and stop.
+- The slice has one local commit. Then report, and start the next open item in the [build checklist](#build-checklist). The owner asked for this on November 8, 2026.
 
 ## Launch track
 
@@ -69,7 +69,7 @@ Adopted November 7, 2026 (SRS Section 0.6, SC-016). The owner wants a working pr
 | Slice | Goal | Existing slices it covers | State |
 |---|---|---|---|
 | L-0 | First run without an app password: keychain by default | S-03c | New workspaces already use the keychain without a prompt (`workspace.rs` setup); moving an existing password workspace follows the launch |
-| L-1 | Local logs with no sign-in: the pinned official `ccusage` binary, a Rust runner, the local usage store, consent, and This device views | S-09, S-10, S-11, part of S-05 | L-1a and L-1b done: pin, provisioning, runner, parser and the store. L-1c, consent and This device views, is next |
+| L-1 | Local logs with no sign-in: the pinned official `ccusage` binary, a Rust runner, the local usage store, consent, and This device views | S-09, S-10, S-11, part of S-05 | L-1a and L-1b done. See the [checklist](#build-checklist) |
 | L-2 | CLI with `openusage status`, `statusline` and `report` | S-14 | Not started |
 | L-3 | Sharing: Wrapped summary, heatmap PNG and SVG, a README badge, and personal records | S-19 | Not started |
 | L-4 | Leaderboard service on Cloudflare Workers and D1, per the [decision](decisions/2026-11-07-leaderboard-service.md) | S-21 | Not started |
@@ -79,6 +79,66 @@ Adopted November 7, 2026 (SRS Section 0.6, SC-016). The owner wants a working pr
 | G-L | Owner: claim the npm name (OQ-2), create the Cloudflare account and GitHub OAuth App, run the real-account tests, publish | G-1, G-2, G-3 | Not started |
 
 The other slices below follow the launch, unless a launch slice needs part of one.
+
+## Build checklist
+
+Updated November 8, 2026. The owner asked to keep this list and to build down it with no stop between items. Each item ends with one local commit, which ticks the item. Owner items wait for the owner.
+
+**L-0 First run**
+
+- [x] New workspaces use the OS key store with no app password.
+- [ ] Move an existing password workspace to the key store. This follows the launch.
+
+**L-1 Local logs**
+
+- [x] L-1a: pin, provision, run and parse `ccusage` (OU-LOG-005 to OU-LOG-007).
+- [x] L-1b: store totals and differences at schema 10 (OU-LOG-003, OU-LOG-010 to OU-LOG-013).
+- [ ] L-1c: scan service. Detect known folders by existence only, keep each run to the consented tools, scan after consent and then on a schedule, one run at a time, and keep a failure inside local logs (OU-LOG-001, OU-LOG-006, OU-LOG-008, OU-DUP-008, OU-NFR-021; AT-70 to AT-72).
+- [ ] L-1d: the first-launch consent screen and the Settings selection (OU-LOG-001, OU-LOG-002, OU-UI-025; AT-91).
+- [ ] L-1e: the This device scope in Usage, with daily, weekly, monthly and custom ranges, a breakdown by token type and model, and the difference in the detail panel (OU-LOG-011, OU-LOG-016, OU-LOG-017; AT-93).
+
+**L-2 CLI**
+
+- [ ] L-2a: the `openusage` binary with no webview: `openusage`, `status --json` and `statusline`, with versioned JSON, stable exit codes, and Locked without a prompt (OU-CLI-001, OU-CLI-002, OU-CLI-004 to OU-CLI-008; AT-78, AT-79).
+- [ ] L-2b: `openusage report` with one consent prompt, `--yes` and nothing saved, plus `openusage app` and `openusage doctor` (OU-CLI-003, OU-DIST-004; AT-77).
+
+**L-3 Sharing**
+
+- [ ] L-3a: the Wrapped summary and the heatmap as SVG and PNG, made on the device, with a preview and an explicit save (OU-SHARE-001 to OU-SHARE-006; AT-82).
+- [ ] L-3b: the README badge and personal records.
+
+**L-4 Leaderboard service**
+
+- [ ] L-4a: the Worker in `services/leaderboard/` with join, sync, leave and public ranks, strict schemas and limits, tested against SQLite with no network (OU-BOARD-003, OU-BOARD-004, OU-BOARD-007 to OU-BOARD-011).
+- [ ] L-4b: the moderation policy beside the source.
+
+**L-5 Leaderboard client**
+
+- [ ] L-5a: `openusage board join`, `sync --dry-run`, `sync` and `leave` through one upload builder, with the token in the OS credential store (OU-BOARD-001, OU-BOARD-002, OU-BOARD-005, OU-BOARD-006; AT-86 to AT-88).
+- [ ] L-5b: join, sync and leave in Settings.
+
+**L-6 Packaging**
+
+- [ ] L-6a: Linux packages with the bundled `ccusage` and Codex companion, and the WebKitGTK dependencies listed (OU-PLAT-002, OU-PLAT-005).
+- [ ] L-6b: the npm package, with per-platform packages and no install scripts (OU-DIST-001 to OU-DIST-005, OU-DIST-009; AT-81).
+- [ ] L-6c: Windows and macOS preview builds in CI (part of OU-NFR-012).
+
+**L-7 Release documents**
+
+- [ ] Install, upgrade, uninstall and data deletion steps, unsigned-build behavior, release notes, the SBOM, the threat model and the OU-SEC-022 statement (OU-PLAT-007, OU-DIST-006, OU-DIST-008, OU-SEC-016, OU-SEC-022).
+
+**Owner (G-L)**
+
+- [ ] Claim the npm name (OQ-2).
+- [ ] Create the Cloudflare account and the D1 database, then deploy the service.
+- [ ] Register the GitHub OAuth App and give its public client ID.
+- [ ] Run the real-account tests (AT-60) and the real-machine tests (AT-38, AT-80).
+- [ ] Decide the two gaps in [SC-017](srs-clarifications.md#sc-017-local-usage-store).
+- [ ] Push and publish.
+
+**After the launch track**
+
+- [ ] The slices in [Order](#order). Stage 1 needs every mandatory requirement (SRS Section 0.4).
 
 ## Order
 
@@ -96,8 +156,8 @@ The other slices below follow the launch, unless a launch slice needs part of on
 | S-06 | Tray and background | S-05 | Not started |
 | S-07 | Graphs and dashboard | S-01 | Not started |
 | S-08 | Remaining gaps | S-02 | Not started |
-| S-09 | `ccusage` runner | S-05, a download | Not started |
-| S-10 | Local usage store | S-09 | Not started |
+| S-09 | `ccusage` runner | S-05, a download | Done as L-1a |
+| S-10 | Local usage store | S-09 | Done as L-1b |
 | S-11 | First launch and consent | S-10 | Not started |
 | S-12 | This device and duplicates | S-11 | Not started |
 | S-13 | Claude Code quotas | S-05 | Not started |
