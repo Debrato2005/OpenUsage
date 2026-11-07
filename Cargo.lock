@@ -2759,6 +2759,7 @@ dependencies = [
  "open",
  "openusage-codex",
  "openusage-import",
+ "openusage-locallogs",
  "openusage-storage",
  "rusqlite",
  "secret-service",

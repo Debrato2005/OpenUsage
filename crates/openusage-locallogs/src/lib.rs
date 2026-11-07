@@ -6,6 +6,6 @@ pub mod runner;
 
 pub use report::{ReportError, TOOLS, UsageRow, parse_daily_by_agent};
 pub use runner::{
-    CCUSAGE_VERSION, DEFAULT_MAX_OUTPUT, DEFAULT_TIMEOUT, ScanError, ScanRequest, pinned_sha256,
-    scan, sha256_hex,
+    CCUSAGE_VERSION, DEFAULT_MAX_OUTPUT, DEFAULT_TIMEOUT, FOLDER_VARIABLES, ScanError, ScanRequest,
+    pinned_sha256, scan, sha256_hex,
 };

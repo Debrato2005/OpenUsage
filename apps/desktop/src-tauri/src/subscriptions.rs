@@ -47,7 +47,7 @@ struct DeleteArgs {
     confirmed: bool,
 }
 
-async fn access<T: Send + 'static>(
+pub(crate) async fn access<T: Send + 'static>(
     service: State<'_, WorkspaceService>,
     operation: impl FnOnce(&mut Workspace) -> Result<T, CommandError> + Send + 'static,
 ) -> Result<T, CommandError> {

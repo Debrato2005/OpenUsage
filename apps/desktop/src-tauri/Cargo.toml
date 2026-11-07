@@ -18,6 +18,7 @@ open = { version = "=5.4.4", features = ["shellexecute-on-windows"] }
 openusage-codex = { path = "../../../crates/openusage-codex" }
 sha2 = "=0.10.9"
 openusage-import = { path = "../../../crates/openusage-import" }
+openusage-locallogs = { path = "../../../crates/openusage-locallogs" }
 openusage-storage = { path = "../../../crates/openusage-storage" }
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = "=1.0.154"

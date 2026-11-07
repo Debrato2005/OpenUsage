@@ -1,5 +1,7 @@
 //! Runs the pinned ccusage binary once (OU-LOG-005, OU-LOG-006): checked digest, fixed arguments,
-//! no shell, an empty environment apart from HOME, offline pricing, a deadline and an output limit.
+//! no shell, a minimal environment, offline pricing, a deadline and an output limit.
+//! Each run reads one consented folder of one tool. HOME is an empty private directory, so the
+//! default folders of other tools do not exist for ccusage (OU-LOG-001).
 
 use crate::report::{ReportError, UsageRow, parse_daily_by_agent};
 use sha2::{Digest, Sha256};
@@ -23,6 +25,10 @@ pub fn pinned_sha256(target: &str) -> Option<&'static str> {
     }
 }
 
+/// Tools that a run can read, each with the variable that points ccusage at one folder.
+pub const FOLDER_VARIABLES: &[(&str, &str)] =
+    &[("claude", "CLAUDE_CONFIG_DIR"), ("codex", "CODEX_HOME")];
+
 pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(120);
 pub const DEFAULT_MAX_OUTPUT: usize = 64 * 1024 * 1024;
 
@@ -31,8 +37,11 @@ static ONE_RUN: Mutex<()> = Mutex::new(());
 pub struct ScanRequest<'a> {
     pub binary: &'a Path,
     pub expected_sha256: &'a str,
-    /// The home whose tool folders ccusage reads. The user consented to these tools (OU-LOG-001).
-    pub home: &'a Path,
+    /// A tool in `FOLDER_VARIABLES` and its resolved folder. The user consented to both (OU-LOG-001).
+    pub tool: &'a str,
+    pub folder: &'a Path,
+    /// An empty private directory that becomes HOME and the working directory.
+    pub empty_home: &'a Path,
     /// The IANA zone pinned at the first scan for day boundaries (OU-LOG-010).
     pub timezone: &'a str,
     pub since: Option<&'a str>,
@@ -87,9 +96,20 @@ pub fn sha256_hex(bytes: &[u8]) -> String {
 
 pub fn scan(request: &ScanRequest<'_>) -> Result<Vec<UsageRow>, ScanError> {
     let _one = ONE_RUN.try_lock().map_err(|_| ScanError::Busy)?;
+    let variable = FOLDER_VARIABLES
+        .iter()
+        .find(|(tool, _)| *tool == request.tool)
+        .map(|(_, variable)| *variable);
+    let empty =
+        std::fs::read_dir(request.empty_home).is_ok_and(|mut entries| entries.next().is_none());
+    let (Some(variable), true) = (variable, empty) else {
+        return Err(ScanError::InvalidRequest);
+    };
     if !valid_timezone(request.timezone)
         || request.since.is_some_and(|since| !valid_since(since))
-        || !request.home.is_absolute()
+        || !request.empty_home.is_absolute()
+        || !request.folder.is_absolute()
+        || !request.folder.is_dir()
     {
         return Err(ScanError::InvalidRequest);
     }
@@ -113,10 +133,11 @@ pub fn scan(request: &ScanRequest<'_>) -> Result<Vec<UsageRow>, ScanError> {
     let mut child = Command::new(request.binary)
         .args(&args)
         .env_clear()
-        .env("HOME", request.home)
+        .env("HOME", request.empty_home)
+        .env(variable, request.folder)
         .env("NO_COLOR", "1")
         .env("TZ", "UTC")
-        .current_dir(request.home)
+        .current_dir(request.empty_home)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
@@ -176,18 +197,26 @@ pub fn scan(request: &ScanRequest<'_>) -> Result<Vec<UsageRow>, ScanError> {
             .and_then(|reader| reader.join().ok())
             .unwrap_or(Err(())),
     };
-    finish(status, output)
+    finish(status, output, request.tool)
 }
 
 fn finish(
     status: std::process::ExitStatus,
     output: Result<Vec<u8>, ()>,
+    tool: &str,
 ) -> Result<Vec<UsageRow>, ScanError> {
     if !status.success() {
         return Err(ScanError::Failed(status.code()));
     }
     let output = output.map_err(|_| ScanError::OutputTooLarge)?;
-    parse_daily_by_agent(&output).map_err(ScanError::Report)
+    let rows = parse_daily_by_agent(&output).map_err(ScanError::Report)?;
+    // A row of another tool means that ccusage read a folder that it was not given.
+    if rows.iter().any(|row| row.tool != tool) {
+        return Err(ScanError::Report(ReportError::Shape(
+            "a tool that the run did not ask for".into(),
+        )));
+    }
+    Ok(rows)
 }
 
 #[cfg(all(test, unix))]
@@ -203,11 +232,34 @@ mod tests {
         (path, digest)
     }
 
-    fn request<'a>(binary: &'a Path, digest: &'a str, home: &'a Path) -> ScanRequest<'a> {
+    struct Dirs {
+        _root: tempfile::TempDir,
+        bin: std::path::PathBuf,
+        home: std::path::PathBuf,
+        logs: std::path::PathBuf,
+    }
+
+    fn dirs() -> Dirs {
+        let root = tempfile::tempdir().unwrap();
+        let [bin, home, logs] = ["bin", "home", "logs"].map(|name| root.path().join(name));
+        for dir in [&bin, &home, &logs] {
+            std::fs::create_dir(dir).unwrap();
+        }
+        Dirs {
+            _root: root,
+            bin,
+            home,
+            logs,
+        }
+    }
+
+    fn request<'a>(binary: &'a Path, digest: &'a str, dirs: &'a Dirs) -> ScanRequest<'a> {
         ScanRequest {
             binary,
             expected_sha256: digest,
-            home,
+            tool: "claude",
+            folder: &dirs.logs,
+            empty_home: &dirs.home,
             timezone: "UTC",
             since: None,
             timeout: Duration::from_secs(5),
@@ -215,87 +267,118 @@ mod tests {
         }
     }
 
+    const FIXTURES: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures");
+
     // One test, because scans share one process-wide lock.
     #[test]
     fn runner_refuses_unsafe_runs_and_returns_parsed_rows() {
-        let dir = tempfile::tempdir().unwrap();
-        let home = dir.path();
-        let fixture = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/tests/fixtures/ccusage-20.0.48-daily-by-agent.json"
-        );
+        let d = dirs();
+        let bin = d.bin.as_path();
 
         // A digest mismatch never runs the binary.
-        let marker = home.join("ran");
-        let (path, _) = script(home, "mismatch", &format!("touch {}", marker.display()));
-        assert_eq!(scan(&request(&path, "00", home)), Err(ScanError::Digest));
+        let marker = bin.join("ran");
+        let (path, _) = script(bin, "mismatch", &format!("touch {}", marker.display()));
+        assert_eq!(scan(&request(&path, "00", &d)), Err(ScanError::Digest));
         assert!(!marker.exists());
 
-        // Fixed arguments, an empty environment apart from HOME, and parsed output.
+        // Fixed arguments, a minimal environment that names only the consented folder, and parsed output.
         let (path, digest) = script(
-            home,
+            bin,
             "ok",
             &format!(
-                "printf '%s\\n' \"$@\" > {0}/args; env > {0}/env; cat {1}",
-                home.display(),
-                fixture
+                "printf '%s\\n' \"$@\" > {0}/args; env > {0}/env; pwd > {0}/pwd; cat {FIXTURES}/ccusage-20.0.48-daily-by-agent-claude.json",
+                bin.display(),
             ),
         );
-        let rows = scan(&request(&path, &digest, home)).unwrap();
-        assert_eq!(rows.len(), 4);
+        let rows = scan(&request(&path, &digest, &d)).unwrap();
+        assert_eq!(rows.len(), 3);
+        assert!(rows.iter().all(|row| row.tool == "claude"));
         assert_eq!(
-            std::fs::read_to_string(home.join("args")).unwrap(),
+            std::fs::read_to_string(bin.join("args")).unwrap(),
             "daily\n--json\n--offline\n--by-agent\n--no-color\n--timezone\nUTC\n"
         );
-        let env = std::fs::read_to_string(home.join("env")).unwrap();
-        let names: Vec<&str> = env
+        let env = std::fs::read_to_string(bin.join("env")).unwrap();
+        let vars: std::collections::BTreeMap<&str, &str> = env
             .lines()
-            .filter_map(|line| line.split('=').next())
-            .filter(|name| !["PWD", "SHLVL", "_", "OLDPWD"].contains(name))
+            .filter_map(|line| line.split_once('='))
+            .filter(|(name, _)| !["PWD", "SHLVL", "_", "OLDPWD"].contains(name))
             .collect();
+        let home = d.home.to_str().unwrap();
+        let logs = d.logs.to_str().unwrap();
         assert_eq!(
-            names
-                .iter()
-                .copied()
-                .collect::<std::collections::BTreeSet<_>>(),
-            ["HOME", "NO_COLOR", "TZ"].into_iter().collect()
+            vars,
+            [
+                ("CLAUDE_CONFIG_DIR", logs),
+                ("HOME", home),
+                ("NO_COLOR", "1"),
+                ("TZ", "UTC")
+            ]
+            .into_iter()
+            .collect()
+        );
+        assert_eq!(
+            std::fs::read_to_string(bin.join("pwd")).unwrap().trim(),
+            home
         );
 
+        // A row of a tool that the run did not ask for rejects the whole run.
+        let (path, digest) = script(
+            bin,
+            "other",
+            &format!("cat {FIXTURES}/ccusage-20.0.48-daily-by-agent.json"),
+        );
+        assert!(matches!(
+            scan(&request(&path, &digest, &d)),
+            Err(ScanError::Report(_))
+        ));
+
         // Failures stay distinct.
-        let (path, digest) = script(home, "fail", "exit 3");
+        let (path, digest) = script(bin, "fail", "exit 3");
         assert_eq!(
-            scan(&request(&path, &digest, home)),
+            scan(&request(&path, &digest, &d)),
             Err(ScanError::Failed(Some(3)))
         );
-        let (path, digest) = script(home, "slow", "sleep 10");
-        let mut slow = request(&path, &digest, home);
+        let (path, digest) = script(bin, "slow", "sleep 10");
+        let mut slow = request(&path, &digest, &d);
         slow.timeout = Duration::from_millis(300);
         let started = Instant::now();
         assert_eq!(scan(&slow), Err(ScanError::Timeout));
         assert!(started.elapsed() < Duration::from_secs(5));
-        let (path, digest) = script(home, "loud", "head -c 3000000 /dev/zero");
-        let mut loud = request(&path, &digest, home);
+        let (path, digest) = script(bin, "loud", "head -c 3000000 /dev/zero");
+        let mut loud = request(&path, &digest, &d);
         loud.max_output = 1000;
         assert_eq!(scan(&loud), Err(ScanError::OutputTooLarge));
-        let (path, digest) = script(home, "garbage", "echo not-json");
+        let (path, digest) = script(bin, "garbage", "echo not-json");
         assert!(matches!(
-            scan(&request(&path, &digest, home)),
+            scan(&request(&path, &digest, &d)),
             Err(ScanError::Report(_))
         ));
 
         // Invalid requests never run anything.
-        let (path, digest) = script(home, "never", &format!("touch {}", marker.display()));
-        let mut bad = request(&path, &digest, home);
+        let (path, digest) = script(bin, "never", &format!("touch {}", marker.display()));
+        let mut bad = request(&path, &digest, &d);
         bad.timezone = "../etc";
         assert_eq!(scan(&bad), Err(ScanError::InvalidRequest));
         bad.timezone = "UTC";
         bad.since = Some("2026-1-1");
         assert_eq!(scan(&bad), Err(ScanError::InvalidRequest));
+        bad.since = None;
+        bad.tool = "opencode";
+        assert_eq!(scan(&bad), Err(ScanError::InvalidRequest));
+        bad.tool = "claude";
+        let missing = d.bin.join("missing");
+        bad.folder = &missing;
+        assert_eq!(scan(&bad), Err(ScanError::InvalidRequest));
+        bad.folder = &d.logs;
+        // HOME must be empty, so that no default folder of another tool exists.
+        std::fs::create_dir(d.home.join(".codex")).unwrap();
+        assert_eq!(scan(&bad), Err(ScanError::InvalidRequest));
+        std::fs::remove_dir(d.home.join(".codex")).unwrap();
         assert!(!marker.exists());
 
         // Only one scan runs at a time.
         let held = ONE_RUN.lock().unwrap();
-        assert_eq!(scan(&request(&path, &digest, home)), Err(ScanError::Busy));
+        assert_eq!(scan(&request(&path, &digest, &d)), Err(ScanError::Busy));
         drop(held);
     }
 }

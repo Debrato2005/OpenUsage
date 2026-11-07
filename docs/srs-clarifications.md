@@ -36,7 +36,7 @@ L-1b stores local log totals in the `log_sources`, `local_usage_days` and `local
 - **Lower results:** when a scan reads less for a day, the saved counts stay, the day gets `logs_gone` coverage, and the store saves the difference once for each saved and new pair (OU-LOG-011). A scan that reads all days and has no row for a saved day counts that day as zero. A scan that starts at a date does not judge earlier days.
 - **Coverage:** the store writes `complete` and `logs_gone`. It does not write `partial`, because no requirement defines it.
 - **Sessions and accounts:** `local_usage_sessions` and `log_accounts` are not built, because the daily report has no session or account data. All local totals stay under Unknown account until the owner settles OQ-1 (OU-LOG-015).
-- **Consent:** the store refuses rows for a tool that has no granted source in the scan. The runner gives `ccusage` one home, and `ccusage` reads every tool that it knows under that home. L-1c must keep the run to the consented tools before OU-LOG-001 can pass.
+- **Consent:** the store refuses rows for a tool that has no granted source in the scan. Since L-1c, each run gives `ccusage` an empty private home and the folder variable of one granted tool only, so `ccusage` cannot see the folders of other tools.
 
 Two gaps wait for the owner:
 

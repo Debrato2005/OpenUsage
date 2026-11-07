@@ -5,6 +5,7 @@ mod backup;
 mod backup_inspection;
 mod display_scale;
 mod keyvault;
+mod local_logs;
 mod monitoring;
 mod notifications;
 mod provider;
@@ -31,17 +32,20 @@ struct WorkspaceService(
     restore::RestoreCache,
     provider::ProviderCoordinator,
     monitoring::MonitoringWorker,
+    Arc<local_logs::LocalLogWorker>,
 );
 impl Default for WorkspaceService {
     fn default() -> Self {
         let workspace = Arc::new(Mutex::new(None));
         let provider = provider::ProviderCoordinator::default();
         let worker = monitoring::MonitoringWorker::start(workspace.clone(), provider.clone());
+        let local_logs = Arc::new(local_logs::LocalLogWorker::start(workspace.clone()));
         Self(
             workspace,
             restore::RestoreCache::default(),
             provider,
             worker,
+            local_logs,
         )
     }
 }
@@ -2027,6 +2031,8 @@ fn main() {
             subscriptions::update_subscription,
             subscriptions::set_subscription_archived,
             subscriptions::delete_subscription,
+            local_logs::load_local_logs,
+            local_logs::save_local_log_consent,
             bootstrap,
             get_display_scale,
             set_display_scale,
@@ -2119,6 +2125,7 @@ fn main() {
         .run(|app, event| {
             if matches!(event, tauri::RunEvent::Exit) {
                 app.state::<WorkspaceService>().1.close();
+                app.state::<WorkspaceService>().4.close();
                 if app.state::<WorkspaceService>().3.close().is_err() {
                     // Typed cleanup failure only. Never log provider frames, credentials, or paths.
                     eprintln!("OpenUsage could not complete owned provider cleanup.");

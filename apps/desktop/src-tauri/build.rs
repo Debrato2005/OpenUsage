@@ -6,6 +6,8 @@ fn main() {
             "update_subscription",
             "set_subscription_archived",
             "delete_subscription",
+            "load_local_logs",
+            "save_local_log_consent",
             "bootstrap",
             "get_display_scale",
             "set_display_scale",

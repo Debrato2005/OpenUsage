@@ -12,6 +12,8 @@
     "allow-update-subscription",
     "allow-set-subscription-archived",
     "allow-delete-subscription",
+    "allow-load-local-logs",
+    "allow-save-local-log-consent",
     "allow-bootstrap",
     "allow-get-display-scale",
     "allow-set-display-scale",
