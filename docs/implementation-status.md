@@ -52,7 +52,9 @@ Kept from baseline 2.0:
 
 ## Partial
 
-- Command line (11A), L-2a, November 8, 2026: the `openusage` binary in `crates/openusage-cli` has `report`, `doctor` and `app`, with help for each, stable error codes and documented exit codes. `report` asks once for consent or takes `--yes`, runs the pinned `ccusage` once for each detected folder, prints exact totals as text or versioned JSON, and saves nothing. `openusage`, `status --json` and `statusline` are not built, and no package installs the CLI yet.
+- Command line (11A), L-2a, November 8, 2026: the `openusage` binary in `crates/openusage-cli` has `report`, `doctor` and `app`, with help for each, stable error codes and documented exit codes. `report` asks once for consent or takes `--yes`, runs the pinned `ccusage` once for each detected folder, prints exact totals as text or versioned JSON, and saves nothing. No package installs the CLI yet.
+
+- Command line (11A), L-2b, November 8, 2026: `openusage`, `status --json` and `statusline` read the saved quotas and today's local usage from a read-only database open, with the key from the OS credential store. They never prompt: a password workspace or a locked key store gives `locked` with exit code 7. The key store code moved from the desktop app into `crates/openusage-keys`, which both use.
 
 - Local logs (5C), L-1a, November 7, 2026: the official `ccusage` 20.0.48 Linux x86_64 binary is pinned and provisioned, and `crates/openusage-locallogs` runs it with checked digest, fixed offline arguments, an empty environment and limits, then parses its report strictly. On Linux the real binary read synthetic Claude Code and Codex logs twice with identical exact totals. This executes OQ-4's arguments and offline mode; per-folder use is still open.
 

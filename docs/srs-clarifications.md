@@ -25,6 +25,13 @@ This is the record of how requirements were read. Entries keep their original da
 | SC-017 | Local usage store | In force; two SRS gaps wait for the owner |
 | SC-018 | One consent screen for local logs | In force |
 | SC-019 | Local log totals in CLI JSON | In force |
+| SC-020 | A read-only CLI and the WAL index | In force |
+
+## SC-020: a read-only CLI and the WAL index
+
+Recorded November 8, 2026 against baseline 3.0. Status: in force.
+
+OU-CLI-002 says that the CLI shall not write the database. The CLI opens it read-only and refuses every write. When no WAL file exists, it opens the database as immutable and creates no file. When a WAL file exists, such as while the app runs, SQLite readers can update the shared index in the `-shm` file. That file holds lock and index state, not records. The database file and its WAL stay byte for byte unchanged, and no file is added. The `cli-status` native journey checks both cases.
 
 ## SC-019: local log totals in CLI JSON
 

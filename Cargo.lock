@@ -2737,10 +2737,13 @@ name = "openusage-cli"
 version = "0.1.0"
 dependencies = [
  "jiff",
+ "openusage-keys",
  "openusage-locallogs",
+ "openusage-storage",
  "serde",
  "serde_json",
  "tempfile",
+ "zeroize",
 ]
 
 [[package]]
@@ -2760,16 +2763,15 @@ dependencies = [
 name = "openusage-desktop"
 version = "0.1.0"
 dependencies = [
- "apple-native-keyring-store",
  "getrandom 0.4.3",
  "gtk",
  "jiff",
- "keyring-core",
  "libc",
  "notify-rust",
  "open",
  "openusage-codex",
  "openusage-import",
+ "openusage-keys",
  "openusage-locallogs",
  "openusage-storage",
  "rusqlite",
@@ -2782,7 +2784,6 @@ dependencies = [
  "tempfile",
  "tokio",
  "uuid",
- "windows-native-keyring-store",
  "windows-sys 0.61.2",
  "zbus",
  "zeroize",
@@ -2796,6 +2797,18 @@ dependencies = [
  "chacha20poly1305",
  "getrandom 0.4.3",
  "tempfile",
+ "zeroize",
+]
+
+[[package]]
+name = "openusage-keys"
+version = "0.1.0"
+dependencies = [
+ "apple-native-keyring-store",
+ "keyring-core",
+ "secret-service",
+ "tokio",
+ "windows-native-keyring-store",
  "zeroize",
 ]
 

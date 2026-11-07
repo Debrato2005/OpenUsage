@@ -4,7 +4,9 @@
 mod app;
 mod doctor;
 mod report;
+mod status;
 
+use openusage_keys::{DatabaseKey, KeyVault, VaultError};
 use serde::Serialize;
 use std::io::{IsTerminal, Write};
 use std::path::PathBuf;
@@ -69,6 +71,12 @@ pub struct Env {
     /// The date that ends the report. None uses today in the report zone.
     pub today: Option<jiff::civil::Date>,
     pub time_zone: String,
+    /// The desktop workspace folder that holds the encrypted database.
+    pub workspace: Option<PathBuf>,
+    /// Loads the database key from the OS credential store. It never prompts.
+    pub key: Box<dyn Fn() -> Result<Option<DatabaseKey>, VaultError>>,
+    /// The time that sets freshness and today. None uses the clock.
+    pub now: Option<jiff::Timestamp>,
 }
 impl Env {
     fn from_system() -> Self {
@@ -98,7 +106,22 @@ impl Env {
             .iana_name()
             .map(str::to_string)
             .unwrap_or_else(|| "UTC".into());
+        // The folder that Tauri gives app.openusage.desktop for its local data.
+        let data = if cfg!(target_os = "macos") {
+            home.as_ref()
+                .map(|home| home.join("Library/Application Support"))
+        } else if cfg!(windows) {
+            std::env::var_os("LOCALAPPDATA").map(PathBuf::from)
+        } else {
+            std::env::var_os("XDG_DATA_HOME")
+                .map(PathBuf::from)
+                .filter(|path| path.is_absolute())
+                .or_else(|| home.as_ref().map(|home| home.join(".local/share")))
+        };
         Self {
+            workspace: data.map(|data| data.join("app.openusage.desktop").join("workspace")),
+            key: Box::new(|| openusage_keys::OsVault::new()?.load()),
+            now: None,
             home,
             ccusage,
             ccusage_digest: openusage_locallogs::pinned_sha256_here().map(str::to_string),
@@ -113,12 +136,14 @@ impl Env {
 const HELP: &str =
     "OpenUsage shows what you used and what you have left across your AI coding tools.
 
-Usage: openusage <command> [options]
+Usage: openusage [command] [options]
 
 Commands:
-  report    Local log totals for this device, with no database
-  doctor    Check this machine and print each fix
-  app       Open the desktop app
+  status       Saved quotas and today's local usage. This is the default
+  statusline   One line for tmux and shell prompts
+  report       Local log totals for this device, with no database
+  doctor       Check this machine and print each fix
+  app          Open the desktop app
 
 Run 'openusage <command> --help' for the options of one command.
 
@@ -130,6 +155,10 @@ Exit codes:
   4  ccusage_unavailable: the pinned ccusage is missing or changed
   5  scan_failed: a ccusage run failed
   6  app_unavailable: the desktop app cannot start here
+  7  locked: the workspace is locked, or uses an app password
+  8  no_workspace: no saved data on this device
+  9  unsupported_schema: open the desktop app once to update the data
+  10 read_failed: the saved data could not be read
 ";
 
 #[derive(Serialize)]
@@ -153,7 +182,10 @@ pub fn run(
 ) -> (Result<String, CliError>, bool) {
     let json = args.iter().any(|a| a == "--json");
     let result = match args.first().map(String::as_str) {
-        None | Some("--help" | "-h" | "help") => Ok(HELP.to_string()),
+        Some("--help" | "-h" | "help") => Ok(HELP.to_string()),
+        None | Some("--json") => status::status(args, env),
+        Some("status") => status::status(&args[1..], env),
+        Some("statusline") => status::statusline(&args[1..], env),
         Some("report") => report::command(&args[1..], env, input, prompt),
         Some("doctor") => doctor::command(&args[1..], env),
         Some("app") => app::command(&args[1..], env),
@@ -169,6 +201,8 @@ fn main() -> ExitCode {
     let env = Env::from_system();
     let stdin = std::io::stdin();
     let (result, json) = run(&args, &env, &mut stdin.lock(), &mut std::io::stderr());
+    // A prompt reads standard output, so statusline prints its one short state line there.
+    let line = args.first().map(String::as_str) == Some("statusline");
     match result {
         Ok(output) => {
             print!("{output}");
@@ -183,6 +217,10 @@ fn main() -> ExitCode {
                 },
             };
             println!("{}", serde_json::to_string(&body).unwrap_or_default());
+            ExitCode::from(error.exit)
+        }
+        Err(error) if line && error.code != "usage" => {
+            println!("{}", error.message);
             ExitCode::from(error.exit)
         }
         Err(error) => {
@@ -225,6 +263,25 @@ pub fn known_options(args: &[String], known: &[&str]) -> Result<(), CliError> {
 }
 
 #[cfg(test)]
+impl Env {
+    /// An environment that reads nothing real: no home, no workspace and no key store.
+    pub fn for_tests() -> Self {
+        Self {
+            home: None,
+            ccusage: PathBuf::from("/nonexistent/openusage-ccusage"),
+            ccusage_digest: None,
+            desktop: PathBuf::from("/nonexistent/openusage-desktop"),
+            interactive: false,
+            today: None,
+            time_zone: "UTC".into(),
+            workspace: None,
+            key: Box::new(|| Err(VaultError::Unavailable)),
+            now: None,
+        }
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -235,7 +292,7 @@ mod tests {
         assert_eq!(grouped(1_234_567_890), "1,234,567,890");
         assert_eq!(dollars(108_525), "$0.11");
         assert_eq!(dollars(1_234_565_000), "$1,234.57");
-        let env = Env::from_system();
+        let env = Env::for_tests();
         let (result, json) = run(
             &["nope".into(), "--json".into()],
             &env,
@@ -244,11 +301,15 @@ mod tests {
         );
         assert!(json);
         assert_eq!(result.unwrap_err().code, "usage");
-        assert!(
-            run(&[], &env, &mut std::io::empty(), &mut std::io::sink())
-                .0
-                .unwrap()
-                .contains("Exit codes:")
+        let help = run(
+            &["--help".into()],
+            &env,
+            &mut std::io::empty(),
+            &mut std::io::sink(),
         );
+        assert!(help.0.unwrap().contains("Exit codes:"));
+        // With no workspace, the default command reports no_workspace with exit code 8.
+        let status = run(&[], &env, &mut std::io::empty(), &mut std::io::sink());
+        assert_eq!(status.0.unwrap_err().exit, 8);
     }
 }

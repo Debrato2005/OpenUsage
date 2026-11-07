@@ -23,10 +23,11 @@ Today Codex is the only source, and its path has no general adapter layer. The p
 | `apps/desktop/src/` | React UI with three pages: Overview, Usage, Settings |
 | `apps/desktop/src-tauri/src/` | Typed commands, monitoring, local log consent and scans, notifications, key handling, provider control, export, backup, restore |
 | `crates/openusage-codex/` | Codex protocol, response parsing, approved executable checks, owned child processes |
-| `crates/openusage-storage/` | SQLCipher 4 with WAL, migrations, quota, activity, alerts, subscriptions, local log totals, exports |
+| `crates/openusage-storage/` | SQLCipher 4 with WAL, migrations, a read-only open for the CLI, quota, activity, alerts, subscriptions, local log totals, exports |
 | `crates/openusage-import/` | Encrypted backup archive format |
 | `crates/openusage-locallogs/` | Pinned `ccusage` binary checks, folder detection, the hardened runner, and the strict report parser for local logs |
 | `crates/openusage-cli/` | The `openusage` command, with no webview dependency |
+| `crates/openusage-keys/` | The database key in the OS credential store, for the app and the CLI |
 | `tests/contract/` | IPC contract checks |
 | `tests/renderer/` | Playwright in Chromium and WebKit with synthetic IPC |
 | `tests/native/` | Journeys against the real app |

@@ -202,6 +202,49 @@ impl Storage {
         Self::connect(path, key)
     }
 
+    /// Opens an existing database for reading only: no migration and no write (OU-CLI-002).
+    /// A database at another schema version is refused, so only the desktop app migrates it.
+    pub fn open_read_only(path: &Path, key: &[u8; 32]) -> Result<Self, StorageError> {
+        validate_path(path)?;
+        let metadata = fs::symlink_metadata(path).map_err(|_| StorageError::OpenFailed)?;
+        if !metadata.is_file() || metadata.len() == 0 {
+            return Err(StorageError::OpenFailed);
+        }
+        let text = path.to_str().ok_or(StorageError::InvalidPath)?;
+        let mut uri = String::from("file:");
+        for byte in text.bytes() {
+            if byte.is_ascii_alphanumeric() || b"/._-~".contains(&byte) {
+                uri.push(byte as char);
+            } else {
+                uri.push_str(&format!("%{byte:02X}"));
+            }
+        }
+        uri.push_str("?mode=ro");
+        // With the app closed there is no WAL. An immutable open then creates no -shm or -wal file.
+        // If the app starts during the read, SQLCipher's page check fails rather than give old data.
+        if !Path::new(&format!("{text}-wal")).exists() {
+            uri.push_str("&immutable=1");
+        }
+        let flags = OpenFlags::SQLITE_OPEN_READ_ONLY
+            | OpenFlags::SQLITE_OPEN_NO_MUTEX
+            | OpenFlags::SQLITE_OPEN_NOFOLLOW
+            | OpenFlags::SQLITE_OPEN_URI;
+        let connection =
+            Connection::open_with_flags(&uri, flags).map_err(|_| StorageError::OpenFailed)?;
+        if unlock(&connection, key)? as usize != MIGRATIONS.len() {
+            return Err(StorageError::UnsupportedSchema);
+        }
+        connection
+            .busy_timeout(Duration::from_millis(5000))
+            .and_then(|()| connection.pragma_update(None, "query_only", true))
+            .and_then(|()| connection.pragma_update(None, "temp_store", "MEMORY"))
+            .map_err(|_| StorageError::ConfigurationFailed)?;
+        Ok(Self {
+            connection,
+            revision_scope: Arc::new(()),
+        })
+    }
+
     fn connect(path: &Path, key: &[u8; 32]) -> Result<Self, StorageError> {
         let flags = OpenFlags::SQLITE_OPEN_READ_WRITE
             | OpenFlags::SQLITE_OPEN_NO_MUTEX
@@ -209,39 +252,7 @@ impl Storage {
             | OpenFlags::SQLITE_OPEN_URI;
         let mut connection =
             Connection::open_with_flags(path, flags).map_err(|_| StorageError::OpenFailed)?;
-
-        // SQLCipher raw keys use a 64-digit hexadecimal string inside x'...'.
-        let mut encoded = Zeroizing::new(String::with_capacity(67));
-        encoded.push_str("x'");
-        for byte in key {
-            use std::fmt::Write;
-            write!(&mut *encoded, "{byte:02x}").map_err(|_| StorageError::UnlockFailed)?;
-        }
-        encoded.push('\'');
-        connection
-            .pragma_update(None, "key", encoded.as_str())
-            .map_err(|_| StorageError::UnlockFailed)?;
-        drop(encoded);
-
-        let cipher_version: String = connection
-            .query_row("PRAGMA cipher_version", [], |row| row.get(0))
-            .map_err(|_| StorageError::EncryptionUnavailable)?;
-        if !cipher_version.starts_with("4.") {
-            return Err(StorageError::EncryptionUnavailable);
-        }
-        connection
-            .pragma_update(None, "cipher_memory_security", true)
-            .map_err(|_| StorageError::ConfigurationFailed)?;
-        // Key assignment alone does not authenticate an existing encrypted database.
-        connection
-            .query_row("SELECT count(*) FROM sqlite_schema", [], |row| {
-                row.get::<_, i64>(0)
-            })
-            .map_err(|_| StorageError::UnlockFailed)?;
-        let version: u32 = connection
-            .pragma_query_value(None, "user_version", |row| row.get(0))
-            .map_err(|_| StorageError::UnlockFailed)?;
-        if version as usize > MIGRATIONS.len() {
+        if unlock(&connection, key)? as usize > MIGRATIONS.len() {
             return Err(StorageError::UnsupportedSchema);
         }
 
@@ -403,6 +414,41 @@ impl Storage {
 
 // Only constructor-owned live connections or private validated RAM copies call this function.
 // No failed migration connection may be published to application operations.
+/// Applies the raw key, checks SQLCipher 4, authenticates the file and returns its schema version.
+fn unlock(connection: &Connection, key: &[u8; 32]) -> Result<u32, StorageError> {
+    // SQLCipher raw keys use a 64-digit hexadecimal string inside x'...'.
+    let mut encoded = Zeroizing::new(String::with_capacity(67));
+    encoded.push_str("x'");
+    for byte in key {
+        use std::fmt::Write;
+        write!(&mut *encoded, "{byte:02x}").map_err(|_| StorageError::UnlockFailed)?;
+    }
+    encoded.push('\'');
+    connection
+        .pragma_update(None, "key", encoded.as_str())
+        .map_err(|_| StorageError::UnlockFailed)?;
+    drop(encoded);
+
+    let cipher_version: String = connection
+        .query_row("PRAGMA cipher_version", [], |row| row.get(0))
+        .map_err(|_| StorageError::EncryptionUnavailable)?;
+    if !cipher_version.starts_with("4.") {
+        return Err(StorageError::EncryptionUnavailable);
+    }
+    connection
+        .pragma_update(None, "cipher_memory_security", true)
+        .map_err(|_| StorageError::ConfigurationFailed)?;
+    // Key assignment alone does not authenticate an existing encrypted database.
+    connection
+        .query_row("SELECT count(*) FROM sqlite_schema", [], |row| {
+            row.get::<_, i64>(0)
+        })
+        .map_err(|_| StorageError::UnlockFailed)?;
+    connection
+        .pragma_query_value(None, "user_version", |row| row.get(0))
+        .map_err(|_| StorageError::UnlockFailed)
+}
+
 fn migrate(connection: &mut Connection, migrations: &[&str]) -> Result<(), StorageError> {
     let failed = |_| StorageError::MigrationFailed;
     let version: u32 = connection
@@ -511,6 +557,9 @@ fn validate_path(path: &Path) -> Result<(), StorageError> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod read_only_tests;
 
 #[cfg(test)]
 mod tests {

@@ -103,18 +103,9 @@ impl Workspace {
 
     /// The zone of the saved days: the first pinned source zone, else the display zone (OU-LOG-010).
     pub(crate) fn local_usage_zone(&mut self) -> Result<String, CommandError> {
-        let storage = self.local_logs_storage()?;
-        let pinned = storage
-            .log_sources()
-            .map_err(|_| CommandError::StorageUnavailable)?
-            .into_iter()
-            .find_map(|source| source.time_zone);
-        match pinned {
-            Some(zone) => Ok(zone),
-            None => storage
-                .time_zone()
-                .map_err(|_| CommandError::StorageUnavailable),
-        }
+        self.local_logs_storage()?
+            .local_usage_zone()
+            .map_err(|_| CommandError::StorageUnavailable)
     }
 
     /// Saved days and differences from `since` to `until`, with the sources that own them.

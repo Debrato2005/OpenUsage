@@ -374,6 +374,18 @@ impl Storage {
             .ok_or(LocalLogError::ReadFailed)
     }
 
+    /// The zone of the saved days: the first pinned source zone, else the display zone (OU-LOG-010).
+    pub fn local_usage_zone(&self) -> Result<String> {
+        let pinned = self
+            .log_sources()?
+            .into_iter()
+            .find_map(|source| source.time_zone);
+        match pinned {
+            Some(zone) => Ok(zone),
+            None => self.time_zone().map_err(|_| LocalLogError::ReadFailed),
+        }
+    }
+
     /// All sources, ordered by tool and folder.
     pub fn log_sources(&self) -> Result<Vec<LogSource>> {
         let mut statement = self

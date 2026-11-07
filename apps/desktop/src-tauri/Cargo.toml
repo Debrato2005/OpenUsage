@@ -12,12 +12,12 @@ tauri-build = { version = "=2.7.3", features = [] }
 [dependencies]
 getrandom = "=0.4.3"
 jiff = "=0.2.38"
-keyring-core = "=1.0.1"
 libc = "=0.2.191"
 open = { version = "=5.4.4", features = ["shellexecute-on-windows"] }
 openusage-codex = { path = "../../../crates/openusage-codex" }
 sha2 = "=0.10.9"
 openusage-import = { path = "../../../crates/openusage-import" }
+openusage-keys = { path = "../../../crates/openusage-keys" }
 openusage-locallogs = { path = "../../../crates/openusage-locallogs" }
 openusage-storage = { path = "../../../crates/openusage-storage" }
 serde = { version = "=1.0.229", features = ["derive"] }
@@ -35,11 +35,9 @@ tokio = { version = "=1.53.3", features = ["time", "sync"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 notify-rust = "=4.18.0"
-apple-native-keyring-store = { version = "=1.0.2", features = ["keychain"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 notify-rust = "=4.18.0"
-windows-native-keyring-store = { version = "=1.1.0", default-features = false }
 windows-sys = { version = "=0.61.2", features = ["Win32_Storage_FileSystem"] }
 
 [dev-dependencies]
@@ -48,4 +46,4 @@ rusqlite = { version = "=0.40.1", features = ["bundled-sqlcipher-vendored-openss
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
-native-test = ["openusage-storage/native-test"]
+native-test = ["openusage-storage/native-test", "openusage-keys/native-test"]

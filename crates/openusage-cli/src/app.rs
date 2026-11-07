@@ -70,6 +70,7 @@ mod tests {
             interactive: false,
             today: None,
             time_zone: "UTC".into(),
+            ..Env::for_tests()
         };
         assert_eq!(
             command(&[], &env(desktop.clone())).unwrap_err().code,

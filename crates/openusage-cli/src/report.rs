@@ -318,6 +318,7 @@ mod tests {
             interactive: false,
             today: Some("2026-11-08".parse().unwrap()),
             time_zone: "UTC".into(),
+            ..Env::for_tests()
         }
     }
     fn args(values: &[&str]) -> Vec<String> {

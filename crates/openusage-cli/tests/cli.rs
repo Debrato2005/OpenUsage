@@ -25,7 +25,7 @@ fn help_exit_codes_and_errors_are_stable() {
     let (code, out, _) = openusage(home.path(), &["--help"]);
     assert_eq!(code, 0);
     assert!(out.starts_with("OpenUsage shows what you used"));
-    for command in ["report", "doctor", "app"] {
+    for command in ["report", "doctor", "app", "status", "statusline"] {
         let (code, out, _) = openusage(home.path(), &[command, "--help"]);
         assert_eq!(code, 0, "{command}");
         assert!(
@@ -49,6 +49,15 @@ fn help_exit_codes_and_errors_are_stable() {
     let error: serde_json::Value = serde_json::from_str(&out).unwrap();
     assert_eq!(error["schemaVersion"], 1);
     assert_eq!(error["error"]["code"], "consent_required");
+    // Saved-data commands with no workspace give no_workspace, and statusline keeps one line.
+    let (code, out, err) = openusage(home.path(), &[]);
+    assert_eq!((code, out.as_str()), (8, ""));
+    assert!(err.ends_with("(no_workspace)\n"));
+    let (code, out, err) = openusage(home.path(), &["statusline"]);
+    assert_eq!(
+        (code, out.as_str(), err.as_str()),
+        (8, "OpenUsage no data\n", "")
+    );
     let (code, _, err) = openusage(home.path(), &["nope"]);
     assert_eq!(code, 2);
     assert!(err.ends_with("(usage)\n"));

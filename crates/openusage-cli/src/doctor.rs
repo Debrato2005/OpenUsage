@@ -178,6 +178,7 @@ mod tests {
             interactive: false,
             today: None,
             time_zone: "UTC".into(),
+            ..Env::for_tests()
         };
         let all = checks(&env);
         let by = |name: &str| all.iter().find(|c| c.name == name).unwrap();
