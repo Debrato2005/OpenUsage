@@ -418,6 +418,25 @@ function isLocalUsageView(value: unknown): value is LocalUsageView {
     && v.differences.every(d => exactKeys(d, ['date', 'tool', 'model', 'savedTotalTokens', 'newTotalTokens', 'scanAtUtc']) && isProviderDate(d.date) && localTool(d.tool) && localModel(d.model)
       && localCount(d.savedTotalTokens) && localCount(d.newTotalTokens) && BigInt(d.newTotalTokens) < BigInt(d.savedTotalTokens) && isUtcTimestamp(d.scanAtUtc));
 }
+export type ShareKind = 'wrapped' | 'heatmap';
+export type ShareImage = { svg: string; width: number; height: number; summary: string };
+export type ShareReceipt = { fileName: string; directory: string; format: 'svg' | 'png'; byteCount: string };
+export const shareSizes: Record<ShareKind, [number, number]> = { wrapped: [1200, 630], heatmap: [1000, 230] };
+function isShareImage(value: unknown, kind: ShareKind | undefined): value is ShareImage {
+  if (!exactKeys(value, ['svg', 'width', 'height', 'summary']) || !kind) return false;
+  const v = value as ShareImage;
+  // Rust builds the SVG. The renderer shows it only as an image, which runs no script.
+  return typeof v.svg === 'string' && v.svg.length <= 2_000_000 && v.svg.startsWith('<svg xmlns="http://www.w3.org/2000/svg"') && v.svg.endsWith('</svg>')
+    && !/<script|<foreignObject|href=|url\(/i.test(v.svg)
+    && v.width === shareSizes[kind][0] && v.height === shareSizes[kind][1]
+    && typeof v.summary === 'string' && v.summary.length > 0 && v.summary.length <= 500;
+}
+function isShareReceipt(value: unknown, format: unknown, kind: unknown): value is ShareReceipt {
+  if (!exactKeys(value, ['fileName', 'directory', 'format', 'byteCount'])) return false;
+  const v = value as ShareReceipt;
+  return v.format === format && typeof v.fileName === 'string' && new RegExp(`^openusage-${kind}-[A-Za-z0-9_-]{16,64}\\.${format}$`).test(v.fileName)
+    && typeof v.directory === 'string' && v.directory.length > 0 && v.directory.length <= 4096 && localCount(v.byteCount);
+}
 function isSubscriptionDeletion(value: unknown): boolean {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const v = value as Record<string, unknown>;
@@ -502,6 +521,8 @@ interface Commands {
   load_local_logs: { args: undefined; result: LocalLogsView };
   save_local_log_consent: { args: { tools: LocalLogTool[] }; result: LocalLogsView };
   load_local_usage: { args: { days: LocalUsageDays; period: LocalUsagePeriod }; result: LocalUsageView };
+  load_share_image: { args: { kind: ShareKind; branding: boolean }; result: ShareImage };
+  save_share_image: { args: { kind: ShareKind; branding: boolean; format: 'svg' | 'png'; png: string | null }; result: ShareReceipt };
 }
 
 declare global {
@@ -528,6 +549,8 @@ export async function invoke<K extends keyof Commands>(
     : command === 'load_time_zone' || command === 'set_time_zone' ? isTimeZone(response)
     : command === 'load_local_logs' || command === 'save_local_log_consent' ? isLocalLogsView(response)
     : command === 'load_local_usage' ? isLocalUsageView(response)
+    : command === 'load_share_image' ? isShareImage(response, (args[0] as { kind?: ShareKind } | undefined)?.kind)
+    : command === 'save_share_image' ? isShareReceipt(response, (args[0] as { format?: string } | undefined)?.format, (args[0] as { kind?: string } | undefined)?.kind)
     : command === 'delete_all_local_data' ? isDeletionResult(response)
     : command === 'load_notification_preferences' || command === 'save_notification_preferences' ? isNotificationPreferences(response)
     : command === 'load_reset_notification_preferences' || command === 'save_reset_notification_preferences' ? isResetNotificationPreferences(response)

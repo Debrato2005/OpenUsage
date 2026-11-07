@@ -1,0 +1,11 @@
+.share-dialog { width: min(44rem, calc(100vw - 2rem)); max-height: calc(100vh - 2rem); margin: auto; padding: 1.25rem; border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--surface); color: var(--text); overflow: auto; }
+.share-dialog::backdrop { background: rgb(0 0 0 / .4); }
+.share-dialog > * + * { margin-top: 1rem; }
+.share-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.share-head h2 { margin: 0; font-family: var(--font-display); font-size: 1.375rem; font-weight: 600; }
+.share-preview { display: grid; place-items: center; min-height: 8rem; margin: 0; }
+.share-preview img { display: block; width: 100%; height: auto; border-radius: 1rem; }
+.share-branding { display: flex; align-items: center; gap: .75rem; min-height: 44px; color: var(--text-strong); font-size: var(--text-sm); cursor: pointer; }
+.share-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.share-actions .primary-button { margin: 0; }
+.share-receipt { margin: 0; color: var(--muted); font-size: var(--text-sm); overflow-wrap: anywhere; }

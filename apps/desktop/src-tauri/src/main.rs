@@ -13,6 +13,7 @@ mod provider;
 mod provider_credentials;
 mod readings_export;
 mod restore;
+mod share;
 mod subscriptions;
 mod time_zone;
 mod window_chrome;
@@ -2035,6 +2036,8 @@ fn main() {
             local_logs::load_local_logs,
             local_logs::save_local_log_consent,
             local_usage::load_local_usage,
+            share::load_share_image,
+            share::save_share_image,
             bootstrap,
             get_display_scale,
             set_display_scale,

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-load-share-image"
+description = "Enables the load_share_image command without any pre-configured scope."
+commands.allow = ["load_share_image"]
+
+[[permission]]
+identifier = "deny-load-share-image"
+description = "Denies the load_share_image command without any pre-configured scope."
+commands.deny = ["load_share_image"]

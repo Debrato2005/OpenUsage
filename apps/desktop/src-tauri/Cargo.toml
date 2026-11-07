@@ -10,6 +10,7 @@ license = "Apache-2.0"
 tauri-build = { version = "=2.7.3", features = [] }
 
 [dependencies]
+base64 = "=0.22.1"
 getrandom = "=0.4.3"
 jiff = "=0.2.38"
 libc = "=0.2.191"

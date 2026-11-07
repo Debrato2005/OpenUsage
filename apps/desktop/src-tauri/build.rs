@@ -9,6 +9,8 @@ fn main() {
             "load_local_logs",
             "save_local_log_consent",
             "load_local_usage",
+            "load_share_image",
+            "save_share_image",
             "bootstrap",
             "get_display_scale",
             "set_display_scale",

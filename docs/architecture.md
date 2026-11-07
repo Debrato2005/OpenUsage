@@ -21,7 +21,7 @@ Today Codex is the only source, and its path has no general adapter layer. The p
 | Path | Owns |
 |---|---|
 | `apps/desktop/src/` | React UI with three pages: Overview, Usage, Settings |
-| `apps/desktop/src-tauri/src/` | Typed commands, monitoring, local log consent and scans, notifications, key handling, provider control, export, backup, restore |
+| `apps/desktop/src-tauri/src/` | Typed commands, monitoring, local log consent and scans, share images, notifications, key handling, provider control, export, backup, restore |
 | `crates/openusage-codex/` | Codex protocol, response parsing, approved executable checks, owned child processes |
 | `crates/openusage-storage/` | SQLCipher 4 with WAL, migrations, a read-only open for the CLI, quota, activity, alerts, subscriptions, local log totals, exports |
 | `crates/openusage-import/` | Encrypted backup archive format |
@@ -40,7 +40,7 @@ Today Codex is the only source, and its path has no general adapter layer. The p
 - **Secrets:** provider sessions, credentials, and the database key stay in Rust, provider-managed homes, or the OS credential store. They never reach React.
 - **Processes:** the Rust supervisor owns every child process. At most two collections run at once.
 - **Numbers:** Rust does exact arithmetic. Token counts cross IPC as decimal strings. A missing value stays missing.
-- **Renderer:** React calls only registered typed commands. It has no direct file or process access.
+- **Renderer:** React calls only registered typed commands. It has no direct file or process access. Its content security policy allows `blob:` images only so that a share preview can show the Rust-made SVG as an image, which runs no script, and draw it as PNG.
 - **Network:** OpenUsage declares no HTTP client in Rust. The official Codex child process makes provider requests.
 - **Storage:** one service coordinates all writes. Current state and history are separate.
 

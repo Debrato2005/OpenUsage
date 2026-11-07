@@ -38,7 +38,7 @@ Last full results, from November 4, 2026, after S-03b, on Linux with synthetic d
 New in baseline 3.0:
 
 - Source adapters (5A), audit (5B), and duplicates (5D).
-- Sharing (8A) and distribution (16A).
+- Distribution (16A).
 - Customizable dashboard, Start at login, first launch without sign-in, and graphs: OU-UI-025 to OU-UI-027, OU-MON-017.
 - Leaderboard (14A), now in the first release (SRS Section 0.6).
 
@@ -51,6 +51,8 @@ Kept from baseline 2.0:
 - Wake handling: OU-PROC-013, OU-MON-013.
 
 ## Partial
+
+- Sharing (8A), L-3a, November 8, 2026: Share on This device previews a Wrapped card and a year heatmap from saved local totals, and saves each as PNG or SVG in Downloads/OpenUsage only on an explicit save. Rust builds the SVG with escaped text and checks the PNG. The images show no email, account label, project, path or device name, a day with no saved usage is an outline, the estimate says Estimated, and the OpenUsage name and address can be removed. The README badge and personal records are not built.
 
 - Command line (11A), L-2a, November 8, 2026: the `openusage` binary in `crates/openusage-cli` has `report`, `doctor` and `app`, with help for each, stable error codes and documented exit codes. `report` asks once for consent or takes `--yes`, runs the pinned `ccusage` once for each detected folder, prints exact totals as text or versioned JSON, and saves nothing. No package installs the CLI yet.
 

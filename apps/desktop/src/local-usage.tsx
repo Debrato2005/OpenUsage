@@ -4,6 +4,7 @@ import { invoke, type LocalLogTool, type LocalToolTotals, type LocalUsageDays, t
 import { Mark, useOpenDetail } from './detail-panel';
 import { BigNumber, compactCount } from './overview-charts';
 import { localLogToolNames } from './local-logs';
+import { ShareButton } from './share';
 import './local-usage.css';
 
 const exact = new Intl.NumberFormat('en-US');
@@ -157,6 +158,7 @@ export function LocalUsagePanel({ active }: { active: boolean }) {
     <div className="overview-hero-controls">
       <div className="overview-chips" role="group" aria-label="Dates">{ranges.map(([value, label]) => <Button key={value} variant="ghost" aria-pressed={days === value} onClick={() => setDays(value)}>{label}</Button>)}</div>
       <div className="overview-chips" role="group" aria-label="Grouping">{periods.map(([value, label]) => <Button key={value} variant="ghost" aria-pressed={period === value} onClick={() => setPeriod(value)}>{label}</Button>)}</div>
+      {view && view.tools.length > 0 && <ShareButton />}
     </div>
     {failed && <p className="operation-error" role="alert">OpenUsage could not read saved local usage. Try again.</p>}
     {!view ? !failed && <p className="overview-dim" role="status">Loading…</p> : view.tools.length === 0 ? <div className="empty-state"><h3>No saved local usage for these dates</h3></div> : <>
@@ -172,7 +174,7 @@ export function LocalOverview({ active, onOpen }: { active: boolean; onOpen: () 
   const { view } = useLocalUsage(active, 30, 'day');
   if (!view || view.tools.length === 0) return null;
   return <section className="local-overview" aria-labelledby="local-overview-heading" data-local-overview>
-    <div className="overview-section-heading"><h2 id="local-overview-heading">This device</h2><span className="local-overview-range">Last 30 days</span><Button variant="outline" onClick={onOpen} data-local-overview-open>Open in Usage</Button></div>
+    <div className="overview-section-heading"><h2 id="local-overview-heading">This device</h2><span className="local-overview-range">Last 30 days</span><ShareButton /><Button variant="outline" onClick={onOpen} data-local-overview-open>Open in Usage</Button></div>
     <div className="local-tool-grid">{view.tools.map(totals => <ToolCard key={totals.tool} totals={totals} view={view} />)}</div>
     <div className="overview-days"><LocalBars view={view} period="day" /></div>
   </section>;

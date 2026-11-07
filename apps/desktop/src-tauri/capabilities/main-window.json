@@ -15,6 +15,8 @@
     "allow-load-local-logs",
     "allow-save-local-log-consent",
     "allow-load-local-usage",
+    "allow-load-share-image",
+    "allow-save-share-image",
     "allow-bootstrap",
     "allow-get-display-scale",
     "allow-set-display-scale",

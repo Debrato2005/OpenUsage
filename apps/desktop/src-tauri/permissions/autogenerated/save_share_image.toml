@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-save-share-image"
+description = "Enables the save_share_image command without any pre-configured scope."
+commands.allow = ["save_share_image"]
+
+[[permission]]
+identifier = "deny-save-share-image"
+description = "Denies the save_share_image command without any pre-configured scope."
+commands.deny = ["save_share_image"]
