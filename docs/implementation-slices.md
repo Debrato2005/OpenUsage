@@ -116,7 +116,7 @@ Updated November 8, 2026. The owner asked to keep this list and to build down it
 
 **L-5 Leaderboard client**
 
-- [ ] L-5a: `openusage board join`, `sync --dry-run`, `sync` and `leave` through one upload builder, with the token in the OS credential store (OU-BOARD-001, OU-BOARD-002, OU-BOARD-005, OU-BOARD-006; AT-86 to AT-88).
+- [ ] L-5a: `openusage board join`, `sync --dry-run`, `sync` and `leave` through one upload builder, with the token in the OS credential store (OU-BOARD-001, OU-BOARD-002, OU-BOARD-005, OU-BOARD-006; AT-86 to AT-88). Waits for the owner: the client needs an HTTPS client with TLS, which the lockfile does not hold. A new network dependency needs a download and changes the boundary in the architecture that Rust declares no HTTP client.
 - [ ] L-5b: join, sync and leave in Settings.
 
 **L-6 Packaging**
@@ -136,6 +136,7 @@ Updated November 8, 2026. The owner asked to keep this list and to build down it
 - [ ] Register the GitHub OAuth App and give its public client ID.
 - [ ] Run the real-account tests (AT-60) and the real-machine tests (AT-38, AT-80).
 - [ ] Decide the two gaps in [SC-017](srs-clarifications.md#sc-017-local-usage-store).
+- [ ] Approve an HTTPS client with TLS for the leaderboard client (L-5), for example `ureq` with `native-tls`, which can use the OpenSSL that SQLCipher already builds.
 - [ ] Push and publish.
 
 **After the launch track**
