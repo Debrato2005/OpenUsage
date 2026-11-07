@@ -383,6 +383,41 @@ function isLocalLogsView(value: unknown): value is LocalLogsView {
     seen.add(t.tool); return true;
   });
 }
+export type LocalUsagePeriod = 'day' | 'week' | 'month';
+export type LocalUsageDays = 7 | 30 | 90 | 365;
+export type LocalToolTotals = { tool: LocalLogTool; inputTokens: string; outputTokens: string; cacheWriteTokens: string; cacheReadTokens: string; totalTokens: string; estimatedValueUsdMicros: string | null; estimateComplete: boolean; logsGone: boolean };
+export type LocalUsageView = {
+  startDate: string; endDate: string; timeZone: string; scannerVersions: string[];
+  tools: LocalToolTotals[];
+  models: { tool: LocalLogTool; model: string; totalTokens: string; estimatedValueUsdMicros: string | null }[];
+  buckets: { startDate: string; tool: LocalLogTool; totalTokens: string }[];
+  differences: { date: string; tool: LocalLogTool; model: string; savedTotalTokens: string; newTotalTokens: string; scanAtUtc: string }[];
+};
+const localCount = (value: unknown): value is string => typeof value === 'string' && /^(0|[1-9]\d{0,38})$/.test(value);
+const localTool = (value: unknown): value is LocalLogTool => localLogTools.includes(value as LocalLogTool);
+const localModel = (value: unknown) => typeof value === 'string' && /^[A-Za-z0-9._:/@+-]{1,128}$/.test(value);
+const exactKeys = (value: unknown, keys: string[]): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value)
+  && Object.keys(value).length === keys.length && keys.every(key => key in (value as object));
+function isLocalUsageView(value: unknown): value is LocalUsageView {
+  if (!exactKeys(value, ['startDate', 'endDate', 'timeZone', 'scannerVersions', 'tools', 'models', 'buckets', 'differences'])) return false;
+  const v = value as LocalUsageView;
+  if (!isProviderDate(v.startDate) || !isProviderDate(v.endDate) || v.startDate > v.endDate || typeof v.timeZone !== 'string' || !/^[A-Za-z0-9_+./-]{1,128}$/.test(v.timeZone)
+    || !Array.isArray(v.scannerVersions) || v.scannerVersions.length > 16 || !v.scannerVersions.every(s => typeof s === 'string' && /^[0-9.]{1,32}$/.test(s))
+    || !Array.isArray(v.tools) || !Array.isArray(v.models) || !Array.isArray(v.buckets) || !Array.isArray(v.differences)
+    || v.tools.length > localLogTools.length || v.models.length > 10_000 || v.buckets.length > 2 * 366 * localLogTools.length || v.differences.length > 100_000) return false;
+  const tools = new Set<string>();
+  const toolsValid = v.tools.every(t => exactKeys(t, ['tool', 'inputTokens', 'outputTokens', 'cacheWriteTokens', 'cacheReadTokens', 'totalTokens', 'estimatedValueUsdMicros', 'estimateComplete', 'logsGone'])
+    && localTool(t.tool) && !tools.has(t.tool) && tools.add(t.tool) !== undefined
+    && [t.inputTokens, t.outputTokens, t.cacheWriteTokens, t.cacheReadTokens, t.totalTokens].every(localCount)
+    && BigInt(t.inputTokens) + BigInt(t.outputTokens) + BigInt(t.cacheWriteTokens) + BigInt(t.cacheReadTokens) === BigInt(t.totalTokens)
+    && (t.estimatedValueUsdMicros === null || localCount(t.estimatedValueUsdMicros)) && typeof t.estimateComplete === 'boolean' && typeof t.logsGone === 'boolean'
+    && !(t.estimateComplete && t.estimatedValueUsdMicros === null));
+  return toolsValid
+    && v.models.every(m => exactKeys(m, ['tool', 'model', 'totalTokens', 'estimatedValueUsdMicros']) && tools.has(m.tool) && localModel(m.model) && localCount(m.totalTokens) && (m.estimatedValueUsdMicros === null || localCount(m.estimatedValueUsdMicros)))
+    && v.buckets.every(b => exactKeys(b, ['startDate', 'tool', 'totalTokens']) && isProviderDate(b.startDate) && b.startDate <= v.endDate && tools.has(b.tool) && localCount(b.totalTokens))
+    && v.differences.every(d => exactKeys(d, ['date', 'tool', 'model', 'savedTotalTokens', 'newTotalTokens', 'scanAtUtc']) && isProviderDate(d.date) && localTool(d.tool) && localModel(d.model)
+      && localCount(d.savedTotalTokens) && localCount(d.newTotalTokens) && BigInt(d.newTotalTokens) < BigInt(d.savedTotalTokens) && isUtcTimestamp(d.scanAtUtc));
+}
 function isSubscriptionDeletion(value: unknown): boolean {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const v = value as Record<string, unknown>;
@@ -466,6 +501,7 @@ interface Commands {
   export_application_data: { args: { confirmed: true }; result: ApplicationExportReceipt };
   load_local_logs: { args: undefined; result: LocalLogsView };
   save_local_log_consent: { args: { tools: LocalLogTool[] }; result: LocalLogsView };
+  load_local_usage: { args: { days: LocalUsageDays; period: LocalUsagePeriod }; result: LocalUsageView };
 }
 
 declare global {
@@ -491,6 +527,7 @@ export async function invoke<K extends keyof Commands>(
     : command === 'delete_subscription' ? isSubscriptionDeletion(response) && (response as Record<string,unknown>).profileId === selected?.profileId && (response as Record<string,unknown>).subscriptionId === selected?.subscriptionId
     : command === 'load_time_zone' || command === 'set_time_zone' ? isTimeZone(response)
     : command === 'load_local_logs' || command === 'save_local_log_consent' ? isLocalLogsView(response)
+    : command === 'load_local_usage' ? isLocalUsageView(response)
     : command === 'delete_all_local_data' ? isDeletionResult(response)
     : command === 'load_notification_preferences' || command === 'save_notification_preferences' ? isNotificationPreferences(response)
     : command === 'load_reset_notification_preferences' || command === 'save_reset_notification_preferences' ? isResetNotificationPreferences(response)

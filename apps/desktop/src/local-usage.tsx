@@ -1,0 +1,179 @@
+import { useEffect, useRef, useState } from 'react';
+import { Button } from './components/ui/button';
+import { invoke, type LocalLogTool, type LocalToolTotals, type LocalUsageDays, type LocalUsagePeriod, type LocalUsageView } from './contracts';
+import { Mark, useOpenDetail } from './detail-panel';
+import { BigNumber, compactCount } from './overview-charts';
+import { localLogToolNames } from './local-logs';
+import './local-usage.css';
+
+const exact = new Intl.NumberFormat('en-US');
+const toolTint: Record<LocalLogTool, number> = { claude: 1, codex: 2 };
+// Rounds millionths of a dollar to cents for display. The stored value keeps every digit.
+const dollars = (micros: string) => {
+  const cents = (BigInt(micros) + 5_000n) / 10_000n;
+  return `$${exact.format(cents / 100n)}.${String(cents % 100n).padStart(2, '0')}`;
+};
+const day = (date: string) => new Date(`${date}T00:00:00Z`);
+const iso = (value: Date) => value.toISOString().slice(0, 10);
+const monthDay = (date: string) => day(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+const monthName = (date: string) => day(date).toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+
+/** Saved local totals. A background scan can add days, so the view reloads while it is shown. */
+export function useLocalUsage(active: boolean, days: LocalUsageDays, period: LocalUsagePeriod) {
+  const [view, setView] = useState<LocalUsageView | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    if (!active) return;
+    let current = true;
+    const load = () => void invoke('load_local_usage', { days, period })
+      .then(value => { if (current) { setView(value); setFailed(false); } })
+      .catch(() => { if (current) setFailed(true); });
+    load();
+    const timer = window.setInterval(load, 15_000);
+    return () => { current = false; window.clearInterval(timer); };
+  }, [active, days, period]);
+  return { view, failed };
+}
+
+function Estimate({ totals }: { totals: LocalToolTotals }) {
+  if (totals.estimatedValueUsdMicros === null) return <>Estimated value Not available</>;
+  return <>Estimated {dollars(totals.estimatedValueUsdMicros)}{!totals.estimateComplete && <Mark>Incomplete</Mark>}</>;
+}
+
+function ToolDetails({ totals, view }: { totals: LocalToolTotals; view: LocalUsageView }) {
+  const differences = view.differences.filter(d => d.tool === totals.tool);
+  return <dl className="detail-rows">
+    <dt>Input</dt><dd>{exact.format(BigInt(totals.inputTokens))}</dd>
+    <dt>Output</dt><dd>{exact.format(BigInt(totals.outputTokens))}</dd>
+    <dt>Cache write</dt><dd>{exact.format(BigInt(totals.cacheWriteTokens))}</dd>
+    <dt>Cache read</dt><dd>{exact.format(BigInt(totals.cacheReadTokens))}</dd>
+    <dt>Total</dt><dd>{exact.format(BigInt(totals.totalTokens))}</dd>
+    <dt>Estimated value</dt><dd>{totals.estimatedValueUsdMicros === null ? 'Not available' : `${dollars(totals.estimatedValueUsdMicros)} at public API prices, not money paid`}{!totals.estimateComplete && totals.estimatedValueUsdMicros !== null && '. Some models have no price.'}</dd>
+    <dt>Source</dt><dd>Local logs on this device, read by ccusage {view.scannerVersions.join(', ') || 'Not available'}</dd>
+    <dt>Dates</dt><dd>{view.startDate} to {view.endDate}, days in {view.timeZone}</dd>
+    {differences.length > 0 && <><dt>Logs gone</dt><dd><ul className="local-differences">{differences.map(d => <li key={`${d.date}:${d.model}:${d.newTotalTokens}`}>{d.date}, {d.model}: saved {exact.format(BigInt(d.savedTotalTokens))}, a later scan read {exact.format(BigInt(d.newTotalTokens))}</li>)}</ul></dd></>}
+  </dl>;
+}
+
+function ToolCard({ totals, view }: { totals: LocalToolTotals; view: LocalUsageView }) {
+  const open = useOpenDetail();
+  const name = localLogToolNames[totals.tool];
+  return <article className="local-tool-card" data-tint={toolTint[totals.tool]} data-local-tool={totals.tool} aria-labelledby={`local-tool-${totals.tool}`}>
+    <h3 id={`local-tool-${totals.tool}`}><i aria-hidden="true" />{name}</h3>
+    <button type="button" className="local-tool-total" aria-haspopup="dialog" aria-label={`${name}: ${exact.format(BigInt(totals.totalTokens))} tokens`} data-local-tool-total={totals.totalTokens}
+      onClick={() => open({ label: `${name} details`, title: `${name} tokens`, content: <ToolDetails totals={totals} view={view} /> })}>
+      <BigNumber value={BigInt(totals.totalTokens)} /><span className="local-tool-unit">tokens</span>
+    </button>
+    <p className="local-tool-context"><Estimate totals={totals} /></p>
+  </article>;
+}
+
+// Every slot from start to end, so a day with no saved usage shows as a gap, not as zero.
+function slots(view: LocalUsageView, period: LocalUsagePeriod) {
+  const result: string[] = [];
+  const end = day(view.endDate);
+  const cursor = day(view.buckets.reduce((min, b) => b.startDate < min ? b.startDate : min, view.startDate));
+  while (cursor <= end && result.length < 400) {
+    result.push(iso(cursor));
+    if (period === 'day') cursor.setUTCDate(cursor.getUTCDate() + 1);
+    else if (period === 'week') cursor.setUTCDate(cursor.getUTCDate() + 7);
+    else cursor.setUTCMonth(cursor.getUTCMonth() + 1, 1);
+  }
+  return result;
+}
+
+function useWidth(fallback: number) {
+  const ref = useRef<HTMLElement>(null);
+  const [width, setWidth] = useState(fallback);
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    const observer = new ResizeObserver(entries => { const next = Math.round(entries[0]!.contentRect.width); if (next > 0) setWidth(next); });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+  return [ref, width] as const;
+}
+
+/** Tokens per day, week or month, one stacked segment per tool. */
+function LocalBars({ view, period }: { view: LocalUsageView; period: LocalUsagePeriod }) {
+  const [frame, measured] = useWidth(960);
+  const tools = view.tools.map(t => t.tool);
+  const totals = new Map(view.buckets.map(b => [`${b.startDate}:${b.tool}`, BigInt(b.totalTokens)]));
+  const columns = slots(view, period).map(start => {
+    const parts = tools.map(tool => ({ tool, tokens: totals.get(`${start}:${tool}`) ?? 0n }));
+    return { start, parts, total: parts.reduce((sum, p) => sum + p.tokens, 0n) };
+  });
+  const max = columns.reduce((m, c) => c.total > m ? c.total : m, 0n);
+  let unit = 1n; while (unit * 10n <= max / 4n + 1n) unit *= 10n;
+  const step = [1n, 2n, 5n, 10n].map(m => m * unit).find(s => s * 4n >= max) ?? unit * 10n;
+  const top = step * 4n, ticks = [0n, step, step * 2n, step * 3n, top];
+  const width = Math.max(280, measured), height = width < 520 ? 200 : 240, left = 44, bottom = 26, plot = height - bottom - 12;
+  const slot = (width - left - 4) / Math.max(1, columns.length), bar = Math.max(1.5, Math.min(26, slot - (slot > 6 ? 3 : 1)));
+  const y = (value: bigint) => height - bottom - (top > 0n ? Number(value * 100_000n / top) / 100_000 : 0) * plot;
+  const labelEvery = Math.max(1, Math.ceil(64 / slot));
+  const label = (start: string) => period === 'month' ? monthName(start) : monthDay(start);
+  const name = period === 'day' ? 'day' : period === 'week' ? 'week' : 'month';
+  return <figure className="overview-chart local-bars" ref={frame} data-local-bars={period}>
+    <ul className="overview-key" aria-label="Tools">{tools.map(tool => <li key={tool}><i data-tint={toolTint[tool]} aria-hidden="true" />{localLogToolNames[tool]}</li>)}</ul>
+    <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`Tokens per ${name} by tool, ${view.startDate} to ${view.endDate}`}>
+      {ticks.map(tick => <g key={String(tick)}><line x1={left} x2={width - 4} y1={y(tick)} y2={y(tick)} className="overview-grid" /><text x={left - 10} y={y(tick) + 4} textAnchor="end" className="overview-axis">{tick === 0n ? '0' : compactCount(tick)}</text></g>)}
+      {columns.map((column, index) => {
+        const x = left + index * slot + (slot - bar) / 2;
+        let base = 0n;
+        return <g key={column.start}><title>{column.total === 0n ? `${column.start}: no saved usage` : `${column.start}: ${exact.format(column.total)} tokens`}</title>
+          {column.parts.map(({ tool, tokens }) => {
+            if (!tokens) return null;
+            const y0 = y(base), y1 = y(base + tokens);
+            base += tokens;
+            return <rect key={tool} x={x} y={y1} width={bar} height={Math.max(1, y0 - y1 - (y0 - y1 > 3 ? 1.5 : 0))} rx={Math.min(3, bar / 2)} data-tint={toolTint[tool]} className="overview-segment" />;
+          })}
+        </g>;
+      })}
+      {columns.map((column, index) => index % labelEvery === 0 && <text key={`label:${column.start}`} x={left + index * slot} y={height - 6} className="overview-axis">{label(column.start)}</text>)}
+    </svg>
+    <table className="sr-only"><caption>Tokens per {name}</caption><thead><tr><th scope="col">Start</th>{tools.map(tool => <th key={tool} scope="col">{localLogToolNames[tool]}</th>)}</tr></thead>
+      <tbody>{columns.filter(c => c.total > 0n).map(c => <tr key={c.start}><th scope="row">{c.start}</th>{c.parts.map(p => <td key={p.tool}>{exact.format(p.tokens)}</td>)}</tr>)}</tbody></table>
+  </figure>;
+}
+
+function Models({ view }: { view: LocalUsageView }) {
+  return <section className="local-models" aria-labelledby="local-models-heading">
+    <h3 id="local-models-heading">Models</h3>
+    <table><thead><tr><th scope="col">Model</th><th scope="col">Tool</th><th scope="col">Tokens</th><th scope="col">Estimated value</th></tr></thead>
+      <tbody>{view.models.map(m => <tr key={`${m.tool}:${m.model}`}><th scope="row"><bdi>{m.model}</bdi></th><td>{localLogToolNames[m.tool]}</td><td>{exact.format(BigInt(m.totalTokens))}</td><td>{m.estimatedValueUsdMicros === null ? 'Not available' : dollars(m.estimatedValueUsdMicros)}</td></tr>)}</tbody></table>
+  </section>;
+}
+
+const ranges: [LocalUsageDays, string][] = [[7, '7 days'], [30, '30 days'], [90, '90 days'], [365, 'Year']];
+const periods: [LocalUsagePeriod, string][] = [['day', 'Daily'], ['week', 'Weekly'], ['month', 'Monthly']];
+
+/** The This device scope in Usage (OU-LOG-016, OU-LOG-017). */
+export function LocalUsagePanel({ active }: { active: boolean }) {
+  const [days, setDays] = useState<LocalUsageDays>(30);
+  const [period, setPeriod] = useState<LocalUsagePeriod>('day');
+  const { view, failed } = useLocalUsage(active, days, period);
+  return <section className="local-usage" aria-label="This device" data-local-usage>
+    <div className="overview-hero-controls">
+      <div className="overview-chips" role="group" aria-label="Dates">{ranges.map(([value, label]) => <Button key={value} variant="ghost" aria-pressed={days === value} onClick={() => setDays(value)}>{label}</Button>)}</div>
+      <div className="overview-chips" role="group" aria-label="Grouping">{periods.map(([value, label]) => <Button key={value} variant="ghost" aria-pressed={period === value} onClick={() => setPeriod(value)}>{label}</Button>)}</div>
+    </div>
+    {failed && <p className="operation-error" role="alert">OpenUsage could not read saved local usage. Try again.</p>}
+    {!view ? !failed && <p className="overview-dim" role="status">Loading…</p> : view.tools.length === 0 ? <div className="empty-state"><h3>No saved local usage for these dates</h3></div> : <>
+      <div className="local-tool-grid">{view.tools.map(totals => <ToolCard key={totals.tool} totals={totals} view={view} />)}</div>
+      <div className="overview-days"><LocalBars view={view} period={period} /></div>
+      <Models view={view} />
+    </>}
+  </section>;
+}
+
+/** The last 30 days on Overview, so first launch reaches local history with no sign-in (OU-UI-025). */
+export function LocalOverview({ active, onOpen }: { active: boolean; onOpen: () => void }) {
+  const { view } = useLocalUsage(active, 30, 'day');
+  if (!view || view.tools.length === 0) return null;
+  return <section className="local-overview" aria-labelledby="local-overview-heading" data-local-overview>
+    <div className="overview-section-heading"><h2 id="local-overview-heading">This device</h2><span className="local-overview-range">Last 30 days</span><Button variant="outline" onClick={onOpen} data-local-overview-open>Open in Usage</Button></div>
+    <div className="local-tool-grid">{view.tools.map(totals => <ToolCard key={totals.tool} totals={totals} view={view} />)}</div>
+    <div className="overview-days"><LocalBars view={view} period="day" /></div>
+  </section>;
+}

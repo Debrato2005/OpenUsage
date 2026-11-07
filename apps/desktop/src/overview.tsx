@@ -15,8 +15,9 @@ import { OverviewGlance, ReadingDetails, age } from './overview-glance';
 import { ResetCountdown } from './reset-countdown';
 import { useDateFormat } from './time-display';
 import { ArrowIcon, ClockIcon, GaugeIcon, MoreIcon, PlusIcon, RefreshIcon, SearchIcon } from './icons';
+import { LocalOverview } from './local-usage';
 
-type Props = { profiles: ProfileRecord[]; revision: number; onAccounts: () => void; onAccountAction?: (action: AccountAction) => void; busy?: boolean; active?: boolean; refreshingProfileIds?: string[]; refreshWaitSeconds?: Record<string, number>; expectedProfiles?: number; notices?: ReactNode };
+type Props = { profiles: ProfileRecord[]; revision: number; onAccounts: () => void; onAccountAction?: (action: AccountAction) => void; busy?: boolean; active?: boolean; refreshingProfileIds?: string[]; refreshWaitSeconds?: Record<string, number>; expectedProfiles?: number; notices?: ReactNode; onDeviceUsage?: () => void };
 type Reading = { activity: SavedProfileActivity | null; quota: SavedProfileQuota | null; activityFailed: boolean; quotaFailed: boolean; loading: boolean };
 const exactNumbers = new Intl.NumberFormat('en-US');
 function ExactCount({ value }: { value: string | null }) {
@@ -217,7 +218,7 @@ function AccountCard({ profile, slot, reading, plan, busy, active, refreshing, w
   </article>;
 }
 
-export function Overview({ profiles, revision, onAccounts, onAccountAction, busy = false, active = true, refreshingProfileIds = [], refreshWaitSeconds = {}, expectedProfiles = 0, notices }: Props) {
+export function Overview({ profiles, revision, onAccounts, onAccountAction, busy = false, active = true, refreshingProfileIds = [], refreshWaitSeconds = {}, expectedProfiles = 0, notices, onDeviceUsage = () => {} }: Props) {
   const activeProfiles = profiles.filter(profile => !profile.archived);
   const ids = activeProfiles.map(profile => profile.id).join(',');
   // A colour follows the account, so archiving another account never repaints it.
@@ -275,10 +276,12 @@ export function Overview({ profiles, revision, onAccounts, onAccountAction, busy
   return <section className="overview-dashboard" aria-label="Usage overview" data-overview data-overview-profile={profileId ?? undefined} aria-busy={pending}>
     {notices}
     {synthetic && <p className="overview-fixture-label">Synthetic test data</p>}
+    {activeProfiles.length === 0 && expectedProfiles === 0 && <LocalOverview active={active} onOpen={onDeviceUsage} />}
     {activeProfiles.length === 0 ? expectedProfiles > 0 ? <p className="overview-meta overview-loading" role="status">Loading accounts…</p> : <section className="overview-welcome" aria-labelledby="overview-welcome-heading" data-overview-welcome>
       <span className="overview-welcome-mark" aria-hidden="true"><GaugeIcon /></span>
       <div className="overview-quota-empty"><h2 id="overview-welcome-heading">No accounts</h2><Button disabled={busy} onClick={() => act({ kind: 'add' })} data-overview-add-account><PlusIcon />Add OpenAI account</Button></div>
-    </section> : <>
+    </section> : null}
+    {activeProfiles.length > 0 && <>
     <section className="overview-hero" aria-labelledby="overview-hero-heading" data-overview-hero>
       <div className="overview-hero-controls">
         <div className="overview-chips" role="group" aria-label="Accounts shown" data-activity-scope={period.view}>
@@ -322,6 +325,7 @@ export function Overview({ profiles, revision, onAccounts, onAccountAction, busy
     <section className="overview-activity-panel" aria-label="Token activity" data-overview-activity>
       <ActivityPanel profiles={activeProfiles} profileId={active ? profileId : null} revision={revision} dashboard={yearDashboard} />
     </section>
+    <LocalOverview active={active} onOpen={onDeviceUsage} />
     </>}
   </section>;
 }

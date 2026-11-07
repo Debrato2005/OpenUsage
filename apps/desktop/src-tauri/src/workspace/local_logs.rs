@@ -1,7 +1,15 @@
 //! Local log sources and scans in the encrypted store (SRS Section 5C).
 use super::*;
 use openusage_locallogs::{CCUSAGE_VERSION, UsageRow};
-use openusage_storage::{LocalUsageRow, LocalUsageScan, LogConsent, LogSource};
+use openusage_storage::{
+    LocalUsageDay, LocalUsageDifference, LocalUsageRow, LocalUsageScan, LogConsent, LogSource,
+};
+
+pub(crate) struct LocalUsageRange {
+    pub days: Vec<LocalUsageDay>,
+    pub differences: Vec<LocalUsageDifference>,
+    pub sources: Vec<LogSource>,
+}
 
 impl Workspace {
     fn local_logs_storage(&mut self) -> Result<&mut Storage, CommandError> {
@@ -91,6 +99,41 @@ impl Workspace {
             })
             .map(|_| ())
             .map_err(|_| CommandError::StorageUnavailable)
+    }
+
+    /// The zone of the saved days: the first pinned source zone, else the display zone (OU-LOG-010).
+    pub(crate) fn local_usage_zone(&mut self) -> Result<String, CommandError> {
+        let storage = self.local_logs_storage()?;
+        let pinned = storage
+            .log_sources()
+            .map_err(|_| CommandError::StorageUnavailable)?
+            .into_iter()
+            .find_map(|source| source.time_zone);
+        match pinned {
+            Some(zone) => Ok(zone),
+            None => storage
+                .time_zone()
+                .map_err(|_| CommandError::StorageUnavailable),
+        }
+    }
+
+    /// Saved days and differences from `since` to `until`, with the sources that own them.
+    pub(crate) fn local_usage_range(
+        &mut self,
+        since: &str,
+        until: &str,
+    ) -> Result<LocalUsageRange, CommandError> {
+        let storage = self.local_logs_storage()?;
+        let unavailable = |_| CommandError::StorageUnavailable;
+        Ok(LocalUsageRange {
+            days: storage
+                .local_usage_days(since, until)
+                .map_err(unavailable)?,
+            differences: storage
+                .local_usage_differences(since, until)
+                .map_err(unavailable)?,
+            sources: storage.log_sources().map_err(unavailable)?,
+        })
     }
 
     #[cfg(test)]

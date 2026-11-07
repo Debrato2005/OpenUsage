@@ -6,6 +6,7 @@ mod backup_inspection;
 mod display_scale;
 mod keyvault;
 mod local_logs;
+mod local_usage;
 mod monitoring;
 mod notifications;
 mod provider;
@@ -2033,6 +2034,7 @@ fn main() {
             subscriptions::delete_subscription,
             local_logs::load_local_logs,
             local_logs::save_local_log_consent,
+            local_usage::load_local_usage,
             bootstrap,
             get_display_scale,
             set_display_scale,

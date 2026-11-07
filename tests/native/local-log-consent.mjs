@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { chmod, copyFile, cp, mkdir, readFile, readdir, readlink, rm, writeFile } from 'node:fs/promises';
+import { readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createFixture, stopGroup } from './private-fixture.mjs';
@@ -20,7 +21,7 @@ const hash = async path => createHash('sha256').update(await readFile(path)).dig
 const evidence = {
   requirement: 'NATIVE-LOCAL-LOG-CONSENT-001', result: 'failed', startedAt: new Date().toISOString(),
   scope: 'Actual Linux Tauri native-test build, a private SQLCipher 4 password workspace, synthetic Claude Code and Codex logs in a private home, and the real pinned ccusage 20.0.48. No real logs and no provider account.',
-  expectedResult: ['The welcome screen lists both detected tools, selected.', 'Only the chosen tool is granted and scanned.', 'A restart asks no second consent and a second scan gives the same totals.', 'The synthetic logs stay unchanged.'],
+  expectedResult: ['The welcome screen lists both detected tools, selected.', 'Only the chosen tool is granted and scanned.', 'With no account, Overview shows the saved Claude Code total (AT-91).', 'A restart asks no second consent and a second scan gives the same totals.', 'The synthetic logs stay unchanged.'],
   steps: [], oracles: [],
 };
 let fixture, driver, sequence = 0;
@@ -102,20 +103,34 @@ try {
   fixture = await createFixture('local-log-consent');
   const logs = join(fixture.root, 'logs-home');
   await cp(join(repository, 'crates/openusage-locallogs/tests/fixtures/home'), logs, { recursive: true });
+  // The Overview shows the last 30 days, so the synthetic Claude Code days move to the two days before today (UTC).
+  const shifted = offset => { const d = new Date(); d.setUTCDate(d.getUTCDate() - offset); return d.toISOString().slice(0, 10); };
+  const [older, newer] = [shifted(2), shifted(1)];
+  const claudeLogs = join(logs, '.claude/projects/-home-dev-alpha');
+  for (const name of readdirSync(claudeLogs)) {
+    const path = join(claudeLogs, name);
+    await writeFile(path, (await readFile(path, 'utf8')).replace(/2026-11-0([45])T/g, (_, day) => `${day === '4' ? older : newer}T`), { mode: 0o600 });
+  }
+  evidence.steps.push(`The synthetic Claude Code days moved to ${older} and ${newer}.`);
   const logsBefore = await treeHashes(logs);
   Object.assign(fixture.environment, { OPENUSAGE_NATIVE_LOG_HOME: logs, OPENUSAGE_NATIVE_CCUSAGE: ccusage });
 
   await open(true);
   const first = await scanned('');
   evidence.steps.push(`The first scan finished at ${first.scan.lastScanAtUtc}.`);
+  // First launch reaches local history with no sign-in (OU-UI-025, AT-91).
+  await waitFor(() => driver.execute('return Boolean(document.querySelector("[data-local-overview] [data-local-tool=claude]"));'), 'the This device section on Overview', 30000);
+  assert.deepEqual(await driver.execute('return [...document.querySelectorAll("[data-local-overview] [data-local-tool-total]")].map(n=>n.getAttribute("aria-label"));'), ['Claude Code: 14,950 tokens']);
+  assert.equal(await driver.execute('return Boolean(document.querySelector("[data-overview-add-account]"));'), true);
+  evidence.steps.push('With no account, Overview showed Claude Code: 14,950 tokens and no Codex card.');
   await close();
   const saved = await oracle('after first launch');
   assert.deepEqual(saved.sources.map(s => [s.tool, s.consent]).sort(), [['claude', 'granted'], ['codex', 'withdrawn']]);
   assert.ok(saved.sources.find(s => s.tool === 'claude').zone, 'The first scan pins the zone.');
   assert.deepEqual(saved.days.map(d => [d.date, d.tool, d.model, d.total]), [
-    ['2026-11-04', 'claude', 'claude-sonnet-4-5-20250929', '12500'],
-    ['2026-11-05', 'claude', 'claude-opus-4-1-20250805', '2300'],
-    ['2026-11-05', 'claude', 'totally-unknown-model-x', '150'],
+    [older, 'claude', 'claude-sonnet-4-5-20250929', '12500'],
+    [newer, 'claude', 'claude-opus-4-1-20250805', '2300'],
+    [newer, 'claude', 'totally-unknown-model-x', '150'],
   ]);
   assert.equal(saved.days[2].value, null, 'An unknown model has no estimate (OU-LOG-013).');
   assert.ok(saved.days.every(d => d.coverage === 'complete' && d.scanner === '20.0.48'));

@@ -46,6 +46,7 @@ function App() {
   const [accountPanelOpen, setAccountPanelOpen] = useState(false);
   const [accountPanelProfile, setAccountPanelProfile] = useState<string | null>(null);
   const [usageProfile, setUsageProfile] = useState<string | null>(null);
+  const [usageDevice, setUsageDevice] = useState(0);
   const [refreshingProfiles, setRefreshingProfiles] = useState<string[]>([]);
   const [refreshWaitSeconds, setRefreshWaitSeconds] = useState<Record<string, number>>({});
   const manualRefreshes = useRef(new Set<string>());
@@ -369,14 +370,14 @@ function App() {
         {ready && readyLogs?.consentRequired && <LocalLogConsentDialog view={readyLogs} busy={busy} onSaved={setReadyLogs} />}
         {deletionPending && <LocalDataDeletion key="pending" pending busy={busy} setBusy={setBusy} onChanged={applyLocalDataState} />}
         {!ready && privacyControls}
-        {ready && <section data-workspace-view="overview" hidden={view !== 'overview'} inert={view !== 'overview'} aria-label="Overview"><Overview key={profileRevision} notices={overviewNotices} active={view === 'overview'} profiles={profiles} revision={readingRevision} onAccounts={() => { setAccountPanelProfile(null); setAccountPanelOpen(true); }} onAccountAction={requestAccountAction} busy={busy} refreshingProfileIds={refreshingProfiles} refreshWaitSeconds={refreshWaitSeconds} expectedProfiles={data?.activeProfiles ?? 0} /></section>}
+        {ready && <section data-workspace-view="overview" hidden={view !== 'overview'} inert={view !== 'overview'} aria-label="Overview"><Overview key={profileRevision} notices={overviewNotices} active={view === 'overview'} profiles={profiles} revision={readingRevision} onAccounts={() => { setAccountPanelProfile(null); setAccountPanelOpen(true); }} onAccountAction={requestAccountAction} busy={busy} refreshingProfileIds={refreshingProfiles} refreshWaitSeconds={refreshWaitSeconds} expectedProfiles={data?.activeProfiles ?? 0} onDeviceUsage={() => { setUsageDevice(n => n + 1); navigate('usage'); }} /></section>}
         {ready && <dialog ref={accountPanel} data-account-panel aria-modal="true" data-workspace-view="accounts" hidden={!accountPanelOpen} aria-labelledby="account-panel-heading" onCancel={event => { event.preventDefault(); setAccountPanelOpen(false); }} onClose={() => setAccountPanelOpen(false)}>
           <div className="account-panel-heading"><h2 id="account-panel-heading">{profiles.find(profile => profile.id === accountPanelProfile)?.label ?? 'Manage accounts'}</h2><Button data-account-panel-close variant="ghost" className="icon-button" aria-label="Close account details" title="Close" onClick={() => setAccountPanelOpen(false)}><CloseIcon /></Button></div>
           {connectionPreparing && <p role="status">Preparing OpenAI sign-in…</p>}
           {connectionError && <div role="alert"><p>{connectionError}</p><Button type="button" variant="outline" disabled={busy} onClick={() => setConnectionRequest(value => value + 1)}>Retry connection</Button><Button type="button" variant="ghost" onClick={() => navigate('settings')}>Connection details</Button></div>}
           <ProfileManager key={profileRevision} embedded selectedProfileId={accountPanelProfile} onSelectProfile={setAccountPanelProfile} onAccountOperation={reportAccountOperation} onRefreshState={refreshState} busy={busy} setBusy={setBusy} onCount={updateProfileCount} requestedAction={accountAction} onActionHandled={handledAccountAction} providerApproval={providerApproval} onProfilesChange={updateProfiles} onReadingsChanged={readingsChanged} monitoring={monitoring.status} monitoringUnavailable={monitoring.unavailable} onMonitoringAction={monitoring.action} onConnectAccount={() => setConnectionRequest(value => value + 1)} />
         </dialog>}
-        {ready && <section data-workspace-view="usage" hidden={view !== 'usage'} inert={view !== 'usage'} aria-label="Saved usage"><Usage requestedProfileId={usageProfile} active={view === 'usage'} profiles={profiles} revision={readingRevision} onAccounts={() => { setAccountPanelProfile(null); setAccountPanelOpen(true); }} /></section>}
+        {ready && <section data-workspace-view="usage" hidden={view !== 'usage'} inert={view !== 'usage'} aria-label="Saved usage"><Usage requestedProfileId={usageProfile} requestedDevice={usageDevice} active={view === 'usage'} profiles={profiles} revision={readingRevision} onAccounts={() => { setAccountPanelProfile(null); setAccountPanelOpen(true); }} /></section>}
         <section data-workspace-view="settings" hidden={!ready || view !== 'settings'} inert={!ready || view !== 'settings'} aria-label="Workspace settings">
         {ready && <div className="settings-layout">
           <SettingsNav />

@@ -8,6 +8,7 @@ import { QuotaHistory } from './quota-history';
 import { ActivityHistory } from './activity-history';
 import { TokenHeatmap } from './token-heatmap';
 import { QuotaCompare } from './quota-compare';
+import { LocalUsagePanel } from './local-usage';
 
 function UsageDonut({ profile, revision }: { profile: ProfileRecord; revision: number }) {
   const [quota, setQuota] = useState<SavedProfileQuota | null>(null);
@@ -21,12 +22,23 @@ function UsageDonut({ profile, revision }: { profile: ProfileRecord; revision: n
   return <AccountDonut mode="quota" label={profile.label} window={limit?.primary ?? limit?.secondary ?? null} />;
 }
 
-export function Usage({ profiles, revision, onAccounts, active, requestedProfileId }: { requestedProfileId?: string | null; active: boolean; profiles: ProfileRecord[]; revision: number; onAccounts: () => void }) {
+type Source = 'provider' | 'device';
+
+// One source control sets the scope, so numbers need no source label (OU-LOG-016).
+export function Usage({ profiles, revision, onAccounts, active, requestedProfileId, requestedDevice = 0 }: { requestedProfileId?: string | null; requestedDevice?: number; active: boolean; profiles: ProfileRecord[]; revision: number; onAccounts: () => void }) {
   const [selected, setSelected] = useState<string | null>(null);
-  useEffect(() => { if (active && requestedProfileId) setSelected(requestedProfileId); }, [active, requestedProfileId]);
+  const [chosenSource, setSource] = useState<Source | null>(null);
+  useEffect(() => { if (active && requestedProfileId) { setSelected(requestedProfileId); setSource('provider'); } }, [active, requestedProfileId]);
+  useEffect(() => { if (active && requestedDevice) setSource('device'); }, [active, requestedDevice]);
   const profile = profiles.find(value => value.id === selected) ?? profiles.find(value => !value.archived) ?? profiles[0];
+  const source = chosenSource ?? (profiles.length ? 'provider' : 'device');
   if (!active) return null;
-  return <section className="usage-content">
+  const sourceControl = <div className="overview-chips usage-source" role="group" aria-label="Source">
+    <Button variant="ghost" aria-pressed={source === 'provider'} onClick={() => setSource('provider')}>Provider</Button>
+    <Button variant="ghost" aria-pressed={source === 'device'} onClick={() => setSource('device')}>This device</Button>
+  </div>;
+  if (source === 'device') return <section className="usage-content">{sourceControl}<LocalUsagePanel active={active} /></section>;
+  return <section className="usage-content">{sourceControl}
     <div className="usage-controls">
       {profile && <Select modal={false} value={profile.id} items={Object.fromEntries(profiles.map(value => [value.id, `${value.label}${value.archived ? ' (archived)' : ''}`]))} onValueChange={setSelected}>
         <SelectTrigger aria-label="Usage profile"><SelectValue /></SelectTrigger><SelectPopup>{profiles.map(value => <SelectItem key={value.id} value={value.id}>{value.label}{value.archived ? ' (archived)' : ''}</SelectItem>)}</SelectPopup>
