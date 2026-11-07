@@ -38,7 +38,7 @@ Last full results, from November 4, 2026, after S-03b, on Linux with synthetic d
 New in baseline 3.0:
 
 - Source adapters (5A), audit (5B), and duplicates (5D).
-- Sharing (8A), the CLI (11A), and distribution (16A).
+- Sharing (8A) and distribution (16A).
 - Customizable dashboard, Start at login, first launch without sign-in, and graphs: OU-UI-025 to OU-UI-027, OU-MON-017.
 - Leaderboard (14A), now in the first release (SRS Section 0.6).
 
@@ -51,6 +51,8 @@ Kept from baseline 2.0:
 - Wake handling: OU-PROC-013, OU-MON-013.
 
 ## Partial
+
+- Command line (11A), L-2a, November 8, 2026: the `openusage` binary in `crates/openusage-cli` has `report`, `doctor` and `app`, with help for each, stable error codes and documented exit codes. `report` asks once for consent or takes `--yes`, runs the pinned `ccusage` once for each detected folder, prints exact totals as text or versioned JSON, and saves nothing. `openusage`, `status --json` and `statusline` are not built, and no package installs the CLI yet.
 
 - Local logs (5C), L-1a, November 7, 2026: the official `ccusage` 20.0.48 Linux x86_64 binary is pinned and provisioned, and `crates/openusage-locallogs` runs it with checked digest, fixed offline arguments, an empty environment and limits, then parses its report strictly. On Linux the real binary read synthetic Claude Code and Codex logs twice with identical exact totals. This executes OQ-4's arguments and offline mode; per-folder use is still open.
 

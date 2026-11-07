@@ -101,8 +101,8 @@ Updated November 8, 2026. The owner asked to keep this list and to build down it
 
 **L-2 CLI**
 
-- [ ] L-2a: the `openusage` binary with no webview: `openusage`, `status --json` and `statusline`, with versioned JSON, stable exit codes, and Locked without a prompt (OU-CLI-001, OU-CLI-002, OU-CLI-004 to OU-CLI-008; AT-78, AT-79).
-- [ ] L-2b: `openusage report` with one consent prompt, `--yes` and nothing saved, plus `openusage app` and `openusage doctor` (OU-CLI-003, OU-DIST-004; AT-77).
+- [x] L-2a: the `openusage` binary with no webview, with `report` (one consent prompt, `--yes`, nothing saved), `app` and `doctor`, stable error codes and exit codes, and help for each command (OU-CLI-001, OU-CLI-003, OU-CLI-005, OU-CLI-008, OU-DIST-004; part of AT-77).
+- [ ] L-2b: `openusage`, `status --json` and `statusline` from saved data, with versioned JSON and Locked without a prompt (OU-CLI-002, OU-CLI-004, OU-CLI-006, OU-CLI-007; AT-78, AT-79).
 
 **L-3 Sharing**
 

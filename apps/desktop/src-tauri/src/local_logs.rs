@@ -2,7 +2,7 @@
 //! Detection checks only whether known folders exist. A worker scans each granted folder outside
 //! the workspace lock, one run at a time, and a failure stays inside local logs (OU-LOG-008).
 use crate::{WorkspaceService, arguments, workspace::CommandError, workspace::Workspace};
-use openusage_locallogs as locallogs;
+use openusage_locallogs::{self as locallogs, Detected, detect};
 use openusage_storage::{LogConsent, LogSource};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
@@ -17,39 +17,6 @@ use tauri::State;
 
 const SCAN_INTERVAL: Duration = Duration::from_secs(600);
 const LOCKED_RETRY: Duration = Duration::from_secs(2);
-
-/// Known folders under the home, with the log folder whose existence detects each one.
-const KNOWN_FOLDERS: &[(&str, &str, &str)] = &[
-    ("claude", ".claude", "projects"),
-    ("claude", ".config/claude", "projects"),
-    ("codex", ".codex", "sessions"),
-];
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct Detected {
-    pub tool: &'static str,
-    /// The resolved folder. Links to one folder give one entry (OU-DUP-008).
-    pub folder: String,
-}
-
-/// Checks only whether known folders exist. It opens no log (OU-LOG-001).
-pub(crate) fn detect(home: &Path) -> Vec<Detected> {
-    let mut seen = BTreeSet::new();
-    KNOWN_FOLDERS
-        .iter()
-        .filter_map(|(tool, folder, logs)| {
-            let folder = home.join(folder);
-            if !folder.join(logs).is_dir() {
-                return None;
-            }
-            let resolved = std::fs::canonicalize(&folder).ok()?.to_str()?.to_string();
-            seen.insert(resolved.clone()).then_some(Detected {
-                tool,
-                folder: resolved,
-            })
-        })
-        .collect()
-}
 
 fn detect_user_home() -> Vec<Detected> {
     // A native-test build never looks at the real home: a journey names a synthetic one.
@@ -75,15 +42,11 @@ pub(crate) struct Scanner {
 }
 impl Scanner {
     fn bundled() -> Option<Self> {
-        let target = if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-            "x86_64-unknown-linux-gnu"
-        } else {
-            return None;
-        };
+        let digest = locallogs::pinned_sha256_here()?;
         let binary = std::env::current_exe()
             .ok()?
             .parent()?
-            .join("openusage-ccusage");
+            .join(locallogs::BINARY_NAME);
         // A native journey can name the pinned binary. The digest check still applies.
         #[cfg(feature = "native-test")]
         let binary = std::env::var_os("OPENUSAGE_NATIVE_CCUSAGE")
@@ -91,7 +54,7 @@ impl Scanner {
             .unwrap_or(binary);
         Some(Self {
             binary,
-            digest: locallogs::pinned_sha256(target)?.into(),
+            digest: digest.into(),
         })
     }
 }
@@ -380,7 +343,7 @@ mod tests {
     use super::*;
     use crate::keyvault::{DatabaseKey, KeyVault, VaultError};
     use std::cell::RefCell;
-    use std::os::unix::fs::{PermissionsExt, symlink};
+    use std::os::unix::fs::PermissionsExt;
     use std::time::Instant;
     use zeroize::Zeroizing;
 
@@ -419,35 +382,6 @@ mod tests {
             .into_iter()
             .map(|d| (d.counts.local_date, d.counts.model, d.counts.total_tokens))
             .collect()
-    }
-
-    #[test]
-    fn detection_checks_known_folders_and_resolves_links() {
-        let home = tempfile::tempdir().unwrap();
-        let path = home.path();
-        assert!(detect(path).is_empty());
-        std::fs::create_dir_all(path.join(".claude/projects")).unwrap();
-        std::fs::create_dir_all(path.join(".config")).unwrap();
-        // A link to the same folder is one folder (OU-DUP-008).
-        symlink(path.join(".claude"), path.join(".config/claude")).unwrap();
-        // A Codex home without sessions has no logs to offer.
-        std::fs::create_dir(path.join(".codex")).unwrap();
-        let claude = std::fs::canonicalize(path.join(".claude")).unwrap();
-        assert_eq!(
-            detect(path),
-            [Detected {
-                tool: "claude",
-                folder: claude.to_str().unwrap().into()
-            }]
-        );
-        std::fs::write(path.join(".codex/sessions"), "not a folder").unwrap();
-        assert_eq!(detect(path).len(), 1);
-        std::fs::remove_file(path.join(".codex/sessions")).unwrap();
-        std::fs::create_dir(path.join(".codex/sessions")).unwrap();
-        assert_eq!(
-            detect(path).iter().map(|d| d.tool).collect::<Vec<_>>(),
-            ["claude", "codex"]
-        );
     }
 
     // One test, because ccusage runs share one process-wide lock.

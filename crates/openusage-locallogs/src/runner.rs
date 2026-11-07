@@ -29,6 +29,22 @@ pub fn pinned_sha256(target: &str) -> Option<&'static str> {
 pub const FOLDER_VARIABLES: &[(&str, &str)] =
     &[("claude", "CLAUDE_CONFIG_DIR"), ("codex", "CODEX_HOME")];
 
+/// The file name of the pinned binary beside the app and the CLI.
+pub const BINARY_NAME: &str = if cfg!(windows) {
+    "openusage-ccusage.exe"
+} else {
+    "openusage-ccusage"
+};
+
+/// The pinned digest for the platform that runs this code. None where no binary is pinned yet.
+pub fn pinned_sha256_here() -> Option<&'static str> {
+    if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+        pinned_sha256("x86_64-unknown-linux-gnu")
+    } else {
+        None
+    }
+}
+
 pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(120);
 pub const DEFAULT_MAX_OUTPUT: usize = 64 * 1024 * 1024;
 

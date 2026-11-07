@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["apps/desktop/src-tauri", "crates/openusage-storage", "crates/openusage-codex", "crates/openusage-import", "crates/openusage-locallogs"]
+members = ["apps/desktop/src-tauri", "crates/openusage-storage", "crates/openusage-codex", "crates/openusage-import", "crates/openusage-locallogs", "crates/openusage-cli"]
 exclude = ["vendor/glib-0.18.5"]
 
 # GTK3 requires glib 0.18. Keep the upstream memory-safety fix in this source tree.

@@ -2733,6 +2733,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "openusage-cli"
+version = "0.1.0"
+dependencies = [
+ "jiff",
+ "openusage-locallogs",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "openusage-codex"
 version = "0.1.0"
 dependencies = [

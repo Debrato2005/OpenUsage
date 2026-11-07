@@ -24,6 +24,13 @@ This is the record of how requirements were read. Entries keep their original da
 | SC-016 | Leaderboard and platforms in the first release | Adopted in SRS Section 0.6 |
 | SC-017 | Local usage store | In force; two SRS gaps wait for the owner |
 | SC-018 | One consent screen for local logs | In force |
+| SC-019 | Local log totals in CLI JSON | In force |
+
+## SC-019: local log totals in CLI JSON
+
+Recorded November 8, 2026 against baseline 3.0. Status: in force.
+
+OU-CLI-004 asks JSON output to give each value with its state, status, source and observation time. The reading statuses of Section 3.2 judge an adapter reading against other sources. A local log total is the authority only for what the log recorded on this device (Section 0.2, rule 1), so no status in Section 3.2 fits it. The CLI therefore gives local log totals `sourceLevel` `local_log`, the source as the `ccusage` version, the state `current`, the observation time, and a `status` of `null`.
 
 ## SC-018: one consent screen for local logs
 
