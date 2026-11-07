@@ -51,7 +51,7 @@ Kept from baseline 2.0:
 
 ## Partial
 
-- Leaderboard (14A), L-4a, November 8, 2026: the Cloudflare Worker and D1 schema in `services/leaderboard` join with GitHub, sync strict rows, leave, and rank over 7 days, 30 days and all time under the title Self-reported. The service is not deployed, `wrangler.toml` has not run with wrangler, and no client calls it yet.
+- Leaderboard (14A), L-4a, November 8, 2026: the Cloudflare Worker and D1 schema in `services/leaderboard` join with GitHub, sync strict rows, leave, and rank over 7 days, 30 days and all time under the title Self-reported. Its [moderation policy](../services/leaderboard/MODERATION.md) sits beside the source (L-4b). The service is not deployed, `wrangler.toml` has not run with wrangler, and no client calls it yet.
 
 - Sharing (8A), L-3a, November 8, 2026: Share on This device previews a Wrapped card and a year heatmap from saved local totals, and saves each as PNG or SVG in Downloads/OpenUsage only on an explicit save. Rust builds the SVG with escaped text and checks the PNG. The images show no email, account label, project, path or device name, a day with no saved usage is an outline, the estimate says Estimated, and the OpenUsage name and address can be removed.
 

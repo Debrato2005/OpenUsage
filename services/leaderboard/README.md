@@ -23,7 +23,7 @@ A row holds only `date`, `tool`, `model`, `inputTokens`, `outputTokens`, `cacheR
 
 ## Moderation
 
-There is no admin endpoint. Maintainers hide an entry or clear a flag with the D1 command line under their Cloudflare login, for example:
+The [moderation policy](MODERATION.md) says how entries are reviewed. There is no admin endpoint. Maintainers hide an entry or clear a flag with the D1 command line under their Cloudflare login, for example:
 
 ```sh
 wrangler d1 execute openusage-leaderboard --remote --command "UPDATE users SET hidden = 1 WHERE login = 'example'"

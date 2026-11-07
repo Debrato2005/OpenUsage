@@ -112,7 +112,7 @@ Updated November 8, 2026. The owner asked to keep this list and to build down it
 **L-4 Leaderboard service**
 
 - [x] L-4a: the Worker in `services/leaderboard/` with join, sync, leave and public ranks, strict schemas and limits, tested against SQLite with no network (OU-BOARD-003, OU-BOARD-004, OU-BOARD-007 to OU-BOARD-011).
-- [ ] L-4b: the moderation policy beside the source.
+- [x] L-4b: the moderation policy beside the source.
 
 **L-5 Leaderboard client**
 
