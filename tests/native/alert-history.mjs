@@ -38,7 +38,7 @@ async function open(setup = false) {
   if (setup) await driver.type('#workspace-confirmation', passphrase);
   await driver.click('.unlock-form button[type=submit]');
   await waitFor(async () => (await call('bootstrap')).storage === 'ready', 'ready synthetic workspace');
-  assert.equal((await call('bootstrap')).schemaVersion, 9);
+  assert.equal((await call('bootstrap')).schemaVersion, 10);
 }
 async function close() {
   const queue = [driver.child.pid]; let pid;
@@ -84,8 +84,8 @@ async function oracle(mode, input, label, full = false) {
     }
     const report = JSON.parse(execFileSync(verifier, [mode, source, join(workspace, 'database-key.v1'), ...(full ? ['--profile-state'] : [])], { input: JSON.stringify({ passphrase, backupPassword }), encoding: 'utf8', timeout: 60000, maxBuffer: 16 * 1024 * 1024, env: fixture.environment }));
     for (const field of ['verified', 'readOnly', 'inputUnchanged', 'keyEnvelopeUnchanged', 'walRecordsUnchanged']) assert.equal(report[field], true, field);
-    assert.equal(report.schemaVersion, 9); assert.equal(report.plaintextDiskStaging, false);
-    assert.equal(Object.keys(report.state.tables).length, full ? 31 : 28);
+    assert.equal(report.schemaVersion, 10); assert.equal(report.plaintextDiskStaging, false);
+    assert.equal(Object.keys(report.state.tables).length, full ? 34 : 31);
     const rows = report.state.tables.alert_events; assert.equal(rows.length, 1); assert.equal(Object.keys(rows[0]).length, 12);
     assert.equal(rows[0].id, event.eventId); assert.equal(rows[0].generation_run_id, event.generationRunId);
     assert.deepEqual(await liveHashes(), before); assert.equal(await hash(input), original);

@@ -53,8 +53,8 @@ async function connectionOracle(label) {
     try { await copyFile(`${fixture.database}-wal`, `${target}-wal`); await chmod(`${target}-wal`, 0o600); } catch (error) { if (error.code !== 'ENOENT') throw error; }
     const report = JSON.parse(execFileSync(verifier, ['database', target, join(workspace, 'database-key.v1'), '--profile-state'], { input: JSON.stringify({ passphrase }), env: fixture.environment, encoding: 'utf8', timeout: 60000, maxBuffer: 16 * 1024 * 1024 }));
     for (const field of ['verified', 'readOnly', 'encryptedPagesAuthenticated', 'originalProtectedKeyUsed', 'inputUnchanged', 'keyEnvelopeUnchanged', 'walRecordsUnchanged']) assert.equal(report[field], true, field);
-    assert.equal(report.schemaVersion, 9); assert.equal(report.plaintextDiskStaging, false); assert.equal(report.state.monitoring, 'stopped');
-    assert.equal(Object.keys(report.state.tables).length, 31);
+    assert.equal(report.schemaVersion, 10); assert.equal(report.plaintextDiskStaging, false); assert.equal(report.state.monitoring, 'stopped');
+    assert.equal(Object.keys(report.state.tables).length, 34);
     for (const table of ['profiles', 'settings', 'accounts']) assert.ok(Array.isArray(report.state.tables[table]), `Missing independent ${table} records.`);
     assert.deepEqual(await liveHashes(), before);
     evidence.oracles.push({ label, inputSha256: await hash(target), derivedEncryptedCopy: true, selectedSemanticFieldsMatched: 'All columns in the twenty-one named tables, compared explicitly by this journey.', tableHashes: Object.fromEntries(Object.entries(report.state.tables).map(([name, rows]) => [name, { rows: rows.length, sha256: createHash('sha256').update(JSON.stringify(rows)).digest('hex') }])), verification: { ...report, state: undefined } });

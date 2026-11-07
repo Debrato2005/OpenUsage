@@ -45,7 +45,7 @@ async function oracle(label) {
     const report = JSON.parse(execFileSync(verifier, ['database', database, join(workspace, 'database-key.v1'), '--profile-state'], { input: JSON.stringify({ passphrase }), env: fixture.environment, encoding: 'utf8', timeout: 60000, maxBuffer: 16 * 1024 * 1024 }));
     for (const key of ['verified', 'readOnly', 'encryptedPagesAuthenticated', 'originalProtectedKeyUsed', 'inputUnchanged', 'keyEnvelopeUnchanged', 'walRecordsUnchanged']) assert.equal(report[key], true, key);
     // This oracle reports the actual schema; this caller requires exactly schema 8.
-    assert.equal(report.schemaVersion, 9); assert.equal(report.plaintextDiskStaging, false); assert.equal(report.state.monitoring, 'stopped'); assert.equal(Object.keys(report.state.tables).length, 31);
+    assert.equal(report.schemaVersion, 10); assert.equal(report.plaintextDiskStaging, false); assert.equal(report.state.monitoring, 'stopped'); assert.equal(Object.keys(report.state.tables).length, 34);
     assert.deepEqual(await liveHashes(), before);
     evidence.oracles.push({ label, expectedSchemaVersion: 8, schemaExpectationEnforcedByCaller: true, actualSchemaVersion: report.schemaVersion, derivedEncryptedCopy: true, plaintextDiskStaging: false, tableHashes: Object.fromEntries(Object.entries(report.state.tables).map(([name, values]) => [name, { rows: values.length, sha256: createHash('sha256').update(JSON.stringify(values)).digest('hex') }])), verification: { ...report, state: undefined } });
     return report.state;
@@ -76,7 +76,7 @@ async function open(setup = false) {
   await waitFor(async () => driver.execute('const a=document.querySelector("#workspace-passphrase"),b=document.querySelector("#workspace-confirmation");return Boolean(a&&!a.disabled&&(!arguments[0]||b&&!b.disabled));', [setup]), 'native unlock fields');
   await driver.type('#workspace-passphrase', passphrase); if (setup) await driver.type('#workspace-confirmation', passphrase); await driver.click('.unlock-form button[type=submit]');
   await waitFor(async () => (await driver.invoke('bootstrap')).value?.storage === 'ready', 'unlocked schema-8 collection workspace');
-  assert.equal((await call('bootstrap')).schemaVersion, 9);
+  assert.equal((await call('bootstrap')).schemaVersion, 10);
 }
 async function ownedDesktopPid() {
   const queue = [driver.child.pid]; let pid;

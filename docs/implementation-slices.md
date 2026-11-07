@@ -69,7 +69,7 @@ Adopted November 7, 2026 (SRS Section 0.6, SC-016). The owner wants a working pr
 | Slice | Goal | Existing slices it covers | State |
 |---|---|---|---|
 | L-0 | First run without an app password: keychain by default | S-03c | New workspaces already use the keychain without a prompt (`workspace.rs` setup); moving an existing password workspace follows the launch |
-| L-1 | Local logs with no sign-in: the pinned official `ccusage` binary, a Rust runner, the local usage store, consent, and This device views | S-09, S-10, S-11, part of S-05 | L-1a done: pin, provisioning, runner and parser. L-1b, the store, is next |
+| L-1 | Local logs with no sign-in: the pinned official `ccusage` binary, a Rust runner, the local usage store, consent, and This device views | S-09, S-10, S-11, part of S-05 | L-1a and L-1b done: pin, provisioning, runner, parser and the store. L-1c, consent and This device views, is next |
 | L-2 | CLI with `openusage status`, `statusline` and `report` | S-14 | Not started |
 | L-3 | Sharing: Wrapped summary, heatmap PNG and SVG, a README badge, and personal records | S-19 | Not started |
 | L-4 | Leaderboard service on Cloudflare Workers and D1, per the [decision](decisions/2026-11-07-leaderboard-service.md) | S-21 | Not started |
@@ -177,7 +177,7 @@ Every number can say where it came from.
 
 - **Requirements:** OU-STATE-010, OU-STATE-011, OU-AUD-001 to OU-AUD-003, OU-AUD-009, OU-AUD-010, OU-ALERT-019, OU-RESET-005, OU-RESET-006, OU-DATA-027 for evidence.
 - **Tests:** AT-56 to AT-59.
-- **Build:** Add schema 10 with `reading_evidence`, and add status and source to the typed readings. Codex readings are `official`. Show status and evidence in the S-01 detail panel, and carry them through exports and backups. Give readings from before schema 10 the `official` status and no evidence record, and record that reading of OU-AUD-001 as a clarification.
+- **Build:** Add a new schema with `reading_evidence`, and add status and source to the typed readings. Codex readings are `official`. Show status and evidence in the S-01 detail panel, and carry them through exports and backups. Give readings from before that schema the `official` status and no evidence record, and record that reading of OU-AUD-001 as a clarification.
 - **Subagents:** Luna writes fixtures for each status. Astra owns the migration and the evidence writer.
 - **Stop:** The tests pass, and an older database and an older backup both open with their numbers unchanged.
 

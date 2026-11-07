@@ -2,7 +2,7 @@
 
 # Implementation status
 
-Updated: November 6, 2026. This page holds the current state only. [History](implementation-history.md) holds past work, and [traceability](acceptance-traceability.md) holds exact evidence.
+Updated: November 8, 2026. This page holds the current state only. [History](implementation-history.md) holds past work, and [traceability](acceptance-traceability.md) holds exact evidence.
 
 OpenUsage is in development against [SRS baseline 3.0](SRS.md). There is no release. Baseline 3.0 was adopted on November 2, 2026, and most of its new work has not started.
 
@@ -12,7 +12,7 @@ The app runs on Linux only. Results below use synthetic data unless they say oth
 
 | Area | State |
 |---|---|
-| Storage | SQLCipher 4 with WAL at schema 9, with OS key store and passphrase fallback |
+| Storage | SQLCipher 4 with WAL at schema 10, with OS key store and passphrase fallback |
 | Accounts | Up to 10 Codex profiles, device-code sign-in, sign-out, and archive |
 | Quotas | Reported windows, reset countdowns, conservative reset confirmation, and history |
 | Token activity | Provider daily buckets, heatmaps, and Individual and Profile sum views |
@@ -37,7 +37,7 @@ Last full results, from November 4, 2026, after S-03b, on Linux with synthetic d
 
 New in baseline 3.0:
 
-- Source adapters (5A), audit (5B), local logs (5C), and duplicates (5D).
+- Source adapters (5A), audit (5B), and duplicates (5D).
 - Sharing (8A), the CLI (11A), and distribution (16A).
 - Customizable dashboard, Start at login, first launch without sign-in, and graphs: OU-UI-025 to OU-UI-027, OU-MON-017.
 - Leaderboard (14A), now in the first release (SRS Section 0.6).
@@ -52,7 +52,9 @@ Kept from baseline 2.0:
 
 ## Partial
 
-- Local logs (5C), L-1a, November 7, 2026: the official `ccusage` 20.0.48 Linux x86_64 binary is pinned and provisioned, and `crates/openusage-locallogs` runs it with checked digest, fixed offline arguments, an empty environment and limits, then parses its report strictly. On Linux the real binary read synthetic Claude Code and Codex logs twice with identical exact totals. Nothing stores or shows these totals yet, and folder selection by consent (OU-LOG-001) is not built. This executes OQ-4's arguments and offline mode; per-folder use is still open.
+- Local logs (5C), L-1a, November 7, 2026: the official `ccusage` 20.0.48 Linux x86_64 binary is pinned and provisioned, and `crates/openusage-locallogs` runs it with checked digest, fixed offline arguments, an empty environment and limits, then parses its report strictly. On Linux the real binary read synthetic Claude Code and Codex logs twice with identical exact totals. This executes OQ-4's arguments and offline mode; per-folder use is still open.
+
+- Local logs (5C), L-1b, November 8, 2026: schema 10 stores consented log sources, daily totals and differences (SRS Section 13). A scan can raise a saved total but never lowers it, and a lower result is saved as a difference. The first saved scan pins the zone of each source. Backup, checkpoint, restore and application export carry the new tables. [SC-017](srs-clarifications.md#sc-017-local-usage-store) records how the store reads these rules. Nothing runs a scan or shows these totals yet, and the consent screen (OU-LOG-001) is not built.
 
 - Simplicity (S-01, Section 2.3): every screen has been reviewed. One exception to OU-DES-007 remains: quota numbers in Manage accounts open their reading through View usage in the row, not through the detail panel. See SC-012 for unknown freshness.
 - Confirmed invalid-credential detection: OU-ALERT-007, under SC-009.
@@ -75,6 +77,7 @@ Kept from baseline 2.0:
 
 ## Failing or stale tests
 
+- L-1b, November 8, 2026: 23 journeys now expect schema 10. 8 ran on the native-test build on a private display and passed: `backup`, `backup-inspection`, `restore-preview`, `restore-apply`, `restore-checkpoint`, `application-export`, `local-data-deletion` and `persistence`. The other 15 did not run on this build.
 - S-03d, November 6, 2026: the 19 journeys that touch Overview were updated and run on a private display. 17 passed, 16 on the native-test build and `provider-keyring` on the companion build. `reference-visual` passes every Overview check and keeps its recorded digit-width reason on Usage; `heatmap-window` keeps its window-manager reason. The other journeys did not run on this build.
 
 As of November 3, 2026, on Linux. 43 journeys ran on the native-test build and 4 on the production build. No failure names an app defect.

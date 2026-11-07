@@ -35,7 +35,7 @@ async function open(setup = false) {
   await driver.type('#workspace-passphrase', passphrase); if (setup) await driver.type('#workspace-confirmation', passphrase);
   await driver.click('.unlock-form button[type=submit]');
   await waitFor(async () => (await call('bootstrap')).storage === 'ready', 'unlocked operational alert workspace');
-  assert.equal((await call('bootstrap')).schemaVersion, 9);
+  assert.equal((await call('bootstrap')).schemaVersion, 10);
 }
 async function close() {
   const queue = [driver.child.pid]; let owned;
@@ -81,12 +81,12 @@ async function oracle(label) {
     const database = join(directory, 'database.db'); await copyFile(fixture.database, database); await chmod(database, 0o600);
     if (wal !== null) { await copyFile(`${fixture.database}-wal`, `${database}-wal`); await chmod(`${database}-wal`, 0o600); }
     const result = JSON.parse(execFileSync(verifier, ['database', database, key, '--profile-state'], { input: JSON.stringify({ passphrase }), encoding: 'utf8', timeout: 30000, env: fixture.environment, maxBuffer: 4 * 1024 * 1024 }));
-    assert.equal(result.schemaVersion, 9); assert.equal(result.verified, true); assert.equal(result.readOnly, true); assert.equal(result.plaintextDiskStaging, false);
-    assert.equal(Object.keys(result.state.tables).length, 31);
+    assert.equal(result.schemaVersion, 10); assert.equal(result.verified, true); assert.equal(result.readOnly, true); assert.equal(result.plaintextDiskStaging, false);
+    assert.equal(Object.keys(result.state.tables).length, 34);
     assert.equal(await hash(fixture.database), before.database); assert.equal(await hash(key), before.key);
     if (wal !== null) assert.equal(await hash(`${fixture.database}-wal`), wal);
     const selected = Object.fromEntries(['notification_event_ids', 'operational_alert_outcomes', 'operational_alert_events', 'operational_alert_state', 'reset_notification_outbox', 'reset_notification_receipts'].map(name => [name, result.state.tables[name]]));
-    (evidence.oracles ??= []).push({ label, allNamedTables: 31, databaseWalKeyUnchanged: true, tables: Object.fromEntries(Object.entries(result.state.tables).map(([name, rows]) => [name, { count: rows.length, sha256: createHash('sha256').update(JSON.stringify(rows)).digest('hex') }])) });
+    (evidence.oracles ??= []).push({ label, allNamedTables: 34, databaseWalKeyUnchanged: true, tables: Object.fromEntries(Object.entries(result.state.tables).map(([name, rows]) => [name, { count: rows.length, sha256: createHash('sha256').update(JSON.stringify(rows)).digest('hex') }])) });
     return selected;
   } finally { await rm(directory, { recursive: true, force: true }); }
 }

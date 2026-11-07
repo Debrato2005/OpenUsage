@@ -23,7 +23,7 @@ Today Codex is the only source, and its path has no general adapter layer. The p
 | `apps/desktop/src/` | React UI with three pages: Overview, Usage, Settings |
 | `apps/desktop/src-tauri/src/` | Typed commands, monitoring, notifications, key handling, provider control, export, backup, restore |
 | `crates/openusage-codex/` | Codex protocol, response parsing, approved executable checks, owned child processes |
-| `crates/openusage-storage/` | SQLCipher 4 with WAL, migrations, quota, activity, alerts, subscriptions, exports |
+| `crates/openusage-storage/` | SQLCipher 4 with WAL, migrations, quota, activity, alerts, subscriptions, local log totals, exports |
 | `crates/openusage-import/` | Encrypted backup archive format |
 | `crates/openusage-locallogs/` | Pinned `ccusage` binary checks, the hardened runner, and the strict report parser for local logs |
 | `tests/contract/` | IPC contract checks |

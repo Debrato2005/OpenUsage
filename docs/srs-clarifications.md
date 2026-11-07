@@ -22,6 +22,26 @@ This is the record of how requirements were read. Entries keep their original da
 | SC-014 | OAuth in place of the app password | Proposed; owner decision open |
 | SC-015 | All accounts as Overview's opening view | In force |
 | SC-016 | Leaderboard and platforms in the first release | Adopted in SRS Section 0.6 |
+| SC-017 | Local usage store | In force; two SRS gaps wait for the owner |
+
+## SC-017: local usage store
+
+Recorded November 8, 2026 against baseline 3.0. Status: in force; the two gaps at the end wait for the owner.
+
+L-1b stores local log totals in the `log_sources`, `local_usage_days` and `local_usage_differences` tables of SRS Section 13. The store reads the rules as follows:
+
+- **Counts:** the pinned `ccusage` reports input, output, cache write, cache read and total counts. The store keeps these five counts as checked decimal text. It keeps no reasoning count, because `ccusage` reports none.
+- **Estimated value:** the store keeps the whole number of millionths of a US dollar as digit text. The column name `estimated_value_usd_micros` is the label that Section 13 asks for.
+- **Zone:** each source pins its zone at its first saved scan (OU-LOG-010). The store refuses a later scan in another zone for that source.
+- **Lower results:** when a scan reads less for a day, the saved counts stay, the day gets `logs_gone` coverage, and the store saves the difference once for each saved and new pair (OU-LOG-011). A scan that reads all days and has no row for a saved day counts that day as zero. A scan that starts at a date does not judge earlier days.
+- **Coverage:** the store writes `complete` and `logs_gone`. It does not write `partial`, because no requirement defines it.
+- **Sessions and accounts:** `local_usage_sessions` and `log_accounts` are not built, because the daily report has no session or account data. All local totals stay under Unknown account until the owner settles OQ-1 (OU-LOG-015).
+- **Consent:** the store refuses rows for a tool that has no granted source in the scan. The runner gives `ccusage` one home, and `ccusage` reads every tool that it knows under that home. L-1c must keep the run to the consented tools before OU-LOG-001 can pass.
+
+Two gaps wait for the owner:
+
+1. The `LocalUsageDay` type in Section 12 has no cache write field, so its parts do not add up to its total for Claude Code. A `cacheWriteTokens` field would close the gap.
+2. The type has a `reasoningTokens` field that no current source fills. It stays null, because a missing count is not zero.
 
 ## SC-013: rich dashboard under Section 2.3
 

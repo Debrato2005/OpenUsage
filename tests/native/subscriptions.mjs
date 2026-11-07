@@ -13,7 +13,7 @@ const repository=resolve(dirname(fileURLToPath(import.meta.url)),'../..');
 const application=resolve(process.env.OPENUSAGE_NATIVE_BINARY), output=resolve(process.env.OPENUSAGE_NATIVE_EVIDENCE), verifier=resolve(process.env.OPENUSAGE_ACTIVITY_VERIFIER);
 const passphrase='OpenUsage synthetic subscription workspace 2026';
 const backupPassword='OpenUsage synthetic subscription archive 2026';
-const evidence={requirement:'NATIVE-SUBSCRIPTIONS-001',result:'failed',scope:'Actual production Linux Tauri application with private unauthenticated synthetic account profiles. GUI create/edit/archive/delete, exact integer money, account isolation, genuine restart and native typed-IPC encrypted backup/restore/Undo. Independent read-only 31-table SQLCipher and authenticated archive verification. No real provider session or Windows/macOS qualification.',oracles:[],closes:[]};
+const evidence={requirement:'NATIVE-SUBSCRIPTIONS-001',result:'failed',scope:'Actual production Linux Tauri application with private unauthenticated synthetic account profiles. GUI create/edit/archive/delete, exact integer money, account isolation, genuine restart and native typed-IPC encrypted backup/restore/Undo. Independent read-only 34-table SQLCipher and authenticated archive verification. No real provider session or Windows/macOS qualification.',oracles:[],closes:[]};
 let fixture,driver,sequence=0;
 const hash=async path=>createHash('sha256').update(await readFile(path)).digest('hex');
 const call=async(command,args)=>{const response=await driver.invoke(command,args);assert.equal(response.ok,true,`${command}: ${JSON.stringify(response)}`);return response.value;};
@@ -44,7 +44,7 @@ async function open(setup=false){
   await driver.type('#workspace-passphrase',passphrase);
   if(setup)await driver.type('#workspace-confirmation',passphrase);
   await key('\uE007');await waitFor(async()=>(await call('bootstrap')).storage==='ready','ready encrypted workspace');
-  assert.equal((await call('bootstrap')).schemaVersion,9);
+  assert.equal((await call('bootstrap')).schemaVersion,10);
 }
 async function close(){
   const queue=[driver.child.pid];let owned;
@@ -63,11 +63,11 @@ async function oracle(label,archive){
   try{
     const input=join(temporary,archive?'archive.oubackup':'database.db');await copyFile(archive??fixture.database,input);await chmod(input,0o600);
     if(!archive&&before[`${fixture.database}-wal`]){await copyFile(`${fixture.database}-wal`,`${input}-wal`);await chmod(`${input}-wal`,0o600);}
-    const raw=execFileSync(verifier,[archive?'backup':'database',input,join(dirname(fixture.database),'database-key.v1'),'--profile-state'],{input:JSON.stringify({passphrase,backupPassword,expectedSchemaVersion:9}),env:fixture.environment,encoding:'utf8',timeout:30000,maxBuffer:8*1024**2});
+    const raw=execFileSync(verifier,[archive?'backup':'database',input,join(dirname(fixture.database),'database-key.v1'),'--profile-state'],{input:JSON.stringify({passphrase,backupPassword,expectedSchemaVersion:10}),env:fixture.environment,encoding:'utf8',timeout:30000,maxBuffer:8*1024**2});
     const report=JSON.parse(execFileSync('/usr/bin/python3',['-c','import json,sys; print(json.dumps(json.load(sys.stdin,parse_int=str)))'],{input:raw,encoding:'utf8',timeout:10000,maxBuffer:8*1024**2}));
-    assert.equal(report.verified,true);assert.equal(report.schemaVersion,'9');assert.equal(report.plaintextDiskStaging,false);assert.equal(report.inputUnchanged,true);assert.equal(Object.keys(report.state.tables).length,31);
+    assert.equal(report.verified,true);assert.equal(report.schemaVersion,'10');assert.equal(report.plaintextDiskStaging,false);assert.equal(report.inputUnchanged,true);assert.equal(Object.keys(report.state.tables).length,34);
     assert.deepEqual(await liveHashes(),before);
-    evidence.oracles.push({label,archiveAuthenticated:report.archiveAuthenticated,tables:31,subscriptionRows:report.state.tables.subscriptions.length,stateSha256:createHash('sha256').update(JSON.stringify(report.state.tables)).digest('hex')});
+    evidence.oracles.push({label,archiveAuthenticated:report.archiveAuthenticated,tables:34,subscriptionRows:report.state.tables.subscriptions.length,stateSha256:createHash('sha256').update(JSON.stringify(report.state.tables)).digest('hex')});
     return report.state.tables;
   }finally{await rm(temporary,{recursive:true,force:true});}
 }
@@ -115,6 +115,6 @@ try{
   await close();await open();assert.deepEqual((await oracle('restart after Undo')).subscriptions,changed.subscriptions);
   assert.equal(await readFile(join(fixture.dirs.codex,'synthetic-fixture.txt'),'utf8'),CODEX_SENTINEL);
   assert.equal(await hash(application),evidence.applicationSha256);assert.equal(await hash(verifier),evidence.verifierSha256);await close();
-  evidence.acceptance={guiCreateEditDelete:true,guiArchiveUnarchive:true,invalidAmountsDatesAndFieldsRefused:true,cancelPreservesRecord:true,accountIsolation:true,staleRevisionRefused:true,exactMoney:true,dateOnlyTerms:true,genuineRestart:true,authenticatedBackup:true,restoreAndUndo:true,stalePreviewRefused:true,allTables:31};evidence.result='passed';
+  evidence.acceptance={guiCreateEditDelete:true,guiArchiveUnarchive:true,invalidAmountsDatesAndFieldsRefused:true,cancelPreservesRecord:true,accountIsolation:true,staleRevisionRefused:true,exactMoney:true,dateOnlyTerms:true,genuineRestart:true,authenticatedBackup:true,restoreAndUndo:true,stalePreviewRefused:true,allTables:34};evidence.result='passed';
 }catch(error){evidence.error=error.stack??String(error);process.exitCode=1;}
 finally{try{await driver?.stop();}finally{stopGroup(fixture?.bus,'SIGKILL');if(fixture)await rm(fixture.root,{recursive:true,force:true});await writeFile(join(output,'result.json'),JSON.stringify(evidence,null,2)+'\n',{mode:0o600});}}

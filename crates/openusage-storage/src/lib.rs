@@ -12,6 +12,11 @@ pub use backup_validation::{
 pub use checkpoint::{CheckpointError, CheckpointMetadata, CheckpointVerification};
 mod time_zone;
 pub use time_zone::valid_time_zone;
+mod local_logs;
+pub use local_logs::{
+    LocalLogError, LocalUsageCoverage, LocalUsageDay, LocalUsageDifference, LocalUsageRow,
+    LocalUsageScan, LocalUsageScanSummary, LogConsent, LogSource,
+};
 mod currency_scales;
 mod profiles;
 mod subscriptions;
@@ -72,6 +77,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("schema_v7.sql"),
     include_str!("schema_v8.sql"),
     include_str!("schema_v9.sql"),
+    include_str!("schema_v10.sql"),
 ];
 pub const CURRENT_SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
 const MAX_BACKUP_SNAPSHOT_SIZE: u64 = 5 * 1024 * 1024 * 1024;

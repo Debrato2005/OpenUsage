@@ -138,7 +138,7 @@ fn main() {
         storage.metadata().unwrap().schema_version,
         CURRENT_SCHEMA_VERSION
     );
-    assert_eq!(CURRENT_SCHEMA_VERSION, 9);
+    assert_eq!(CURRENT_SCHEMA_VERSION, 10);
     assert!(
         storage
             .list_profiles()
