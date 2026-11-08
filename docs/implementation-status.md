@@ -26,13 +26,13 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scoped result, November 8, 2026, after L-1f5: the diagnostic Rust workspace run passed 438 tests, with one intentional ignore. Formatting, Clippy, the renderer build, and 56 IPC contract tests passed. The rebuilt native app passed the consent journey with private synthetic logs on Linux. The first workspace verify run failed and its cause remains unconfirmed. The full renderer and read-only CLI journeys last passed at L-1f2. [Traceability](acceptance-traceability.md) holds the exact scope.
+Latest scoped result, November 8, 2026, after L-1f5: the diagnostic Rust workspace run passed 438 tests, with one intentional ignore. Formatting, Clippy, the renderer build, and 56 IPC contract tests passed. The rebuilt native app passed the consent journey with private synthetic logs on Linux. The first workspace verify run failed and its cause remains unconfirmed. The full Chromium and WebKit renderer suite passed after the countdown fixture fix on November 8. The read-only CLI journey last passed at L-1f2. [Traceability](acceptance-traceability.md) holds the exact scope.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
 - 426 workspace tests passed, with 1 intentional ignore. The verify plan and Clippy passed.
 - 14 native journeys passed at schema 12 on a private display. [Failing or stale tests](#failing-or-stale-tests) names the 12 that did not run.
-- The full Chromium and WebKit renderer suite passed at L-1f2.
+- The full Chromium and WebKit renderer suite passed after the countdown fixture fix on November 8.
 - The last run of all native journeys was on November 4, after S-03b: 46 of 48 passed.
 
 ## Not built
@@ -113,7 +113,7 @@ Kept from baseline 2.0:
 
 ## Not yet run
 
-- The latest pushed catalog commit is 155b61a. Linux CI failed while downloading pinned Bun with HTTP 504, before code checks. The renderer job passed 454 tests and failed two WebKit countdown tests. Those tests allow their clock to advance during setup. Their fixed initial-second assertions then fail after a slow page load. A deterministic clock fixture is the next check. The complete hosted gate remains unverified. [Run 42475604431](https://github.com/Debrato2005/OpenUsage/actions/runs/42475604431) holds the hosted evidence. OU-NFR-012 also needs Windows and macOS, planned for S-15.
+- Linux CI for catalog commit 155b61a failed while downloading pinned Bun with HTTP 504, before code checks. The renderer job passed 454 tests and failed two WebKit countdown tests. The fixtures now pause the clock before they release the simulated cooldown response. All four affected cases and the full renderer milestone passed locally. The complete hosted gate remains unverified until a later push runs it. [Run 42475604431](https://github.com/Debrato2005/OpenUsage/actions/runs/42475604431) holds the hosted evidence. OU-NFR-012 also needs Windows and macOS, planned for S-15.
 - Windows and macOS have never run. The owner has a real Windows PC and Mac for this.
 - Windows and macOS need their own pinned Codex companion. Only Linux x86_64 is qualified.
 - Sleep and wake, packaging, and release-scale performance are unmeasured.

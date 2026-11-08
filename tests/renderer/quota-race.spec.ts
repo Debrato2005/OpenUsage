@@ -413,14 +413,20 @@ test('renderer explains an authoritative cooldown refusal and loads the remainin
 
 
 for (const [seconds, initial, next] of [[60, '1m 0s', '59s'], [4320, '72m 0s', '71m 59s']] as const) test(`renderer formats a ${seconds}s transport wait without idle IPC or blocking sign-in`, async ({ page }) => {
-  await page.clock.install();
-  await openProfile(page, { refreshSeconds: seconds });
+  await page.clock.install({ time: new Date('2026-10-20T00:00:00Z') });
+  await openProfile(page, { refreshSeconds: seconds, deferRefresh: true });
+  await openOptions(page, profileId);
+  await page.clock.pauseAt(new Date('2026-10-20T01:00:00Z'));
+  await page.evaluate(() => {
+    const fixture = (window as unknown as FixtureWindow).quotaFixture;
+    fixture.deferRefresh = false;
+    for (const pending of fixture.pendingRefresh.splice(0)) pending.resolve(structuredClone(fixture.refreshStatus));
+  });
   const notice = page.locator(`[data-profile-refresh-status="${profileId}"]`);
   await expect(notice).toHaveText(`Next reading in ${initial}`);
   const initialCalls = await page.evaluate(() => (window as unknown as FixtureWindow).quotaFixture.requests.filter(c => c === 'load_profile_refresh_status').length);
   await expect(notice).not.toHaveAttribute('aria-live');
   await expect(page.getByRole('button', { name: 'Read quotas', exact: true })).toBeDisabled();
-  await openOptions(page, profileId);
   await expect(page.getByRole('button', { name: 'Read activity', exact: true })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Check connection', exact: true })).toBeEnabled();
   await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeEnabled();
