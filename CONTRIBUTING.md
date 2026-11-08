@@ -44,7 +44,11 @@ tauri build --bundles deb --config src-tauri/tauri.companion.conf.json \
   --config '{"build":{"beforeBuildCommand":""}}' -- --locked
 ```
 
-The package is `target/release/bundle/deb/OpenUsage_<version>_amd64.deb`. It puts `openusage-desktop`, `openusage-codex` and `openusage-ccusage` side by side in `/usr/bin`, and the notices in `/usr/lib/OpenUsage/licenses`. It depends on `libwebkit2gtk-4.1-0` and `libgtk-3-0` (OU-PLAT-002). The CLI comes with the npm package. Publish the SHA-256 of each package with the release (OU-PLAT-005).
+The package is `target/release/bundle/deb/OpenUsage_<version>_amd64.deb`. It puts `openusage-desktop`, `openusage-codex` and `openusage-ccusage` side by side in `/usr/bin`, and the notices in `/usr/lib/OpenUsage/licenses`. It depends on `libwebkit2gtk-4.1-0` and `libgtk-3-0` (OU-PLAT-002). The CLI comes with the npm package. After you assemble the npm packages, add the package to the same `SHA256SUMS`, so the release publishes one list of digests (OU-PLAT-005):
+
+```sh
+(cd target/release/bundle/deb && sha256sum OpenUsage_<version>_amd64.deb) >> /absolute/empty/folder/SHA256SUMS
+```
 
 ### npm packages
 

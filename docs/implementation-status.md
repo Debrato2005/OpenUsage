@@ -52,6 +52,8 @@ Kept from baseline 2.0:
 
 - Distribution (16A), L-6b, November 8, 2026: `scripts/package-npm.py` assembles `openusage`, which holds only a launcher, and `@openusage/linux-x64`, which holds the CLI, the desktop app, the pinned `ccusage`, the pinned Codex companion and their notices. It checks both pins, packs both with `npm pack`, and writes `SHA256SUMS`. Neither package has an install script. Nothing is published: the npm name, provenance and a build attestation wait for the owner and for L-6c.
 
+- Release documents, L-7d, November 8, 2026: the draft [release notes](release-notes/0.1.0.md) state the signing of each package, the Linux dependencies, and the exact tested versions: CachyOS on Linux 7.3.1 x86_64, WebKitGTK 2.54.2, GTK 3.24.52, Codex 0.163.0 and `ccusage` 20.0.48. They say that Ubuntu 24.04, Windows and macOS are not tested yet.
+
 - Release documents, L-7c, November 8, 2026: `scripts/sbom.py` writes a CycloneDX 1.5 SBOM of the Linux release from `cargo tree`, `Cargo.lock`, `bun.lock` and the two pin records, with no download. Crates that only run at build time get the scope `excluded`. Two runs gave the same bytes. `package-npm.py --sbom` publishes it beside the packages in `SHA256SUMS`. No schema validator ran, because none is on this host.
 
 - Release documents, L-7a, November 8, 2026: [Install](install.md) gives the install, upgrade, uninstall and data deletion steps and what an unsigned build does. [Security](../SECURITY.md#bundled-ccusage) states that `ccusage` runs with the user's rights and is not sandboxed. A private-home run on Linux confirmed the Linux folders. The macOS and Windows steps come from the code and were not run on a real machine.
