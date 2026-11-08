@@ -2,8 +2,8 @@
 //! Set OPENUSAGE_CCUSAGE_BIN to the provisioned binary; without it the test says so and passes.
 
 use openusage_locallogs::{
-    DEFAULT_MAX_OUTPUT, ScanRequest, UsageRow, parse_daily_by_agent, parse_hours, parse_sessions,
-    pinned_sha256, scan, scan_hours, scan_sessions,
+    DEFAULT_MAX_OUTPUT, ScanError, ScanRequest, UsageRow, parse_daily_by_agent, parse_hours,
+    parse_sessions, pinned_sha256, scan, scan_hours, scan_sessions,
 };
 use std::path::Path;
 use std::time::Duration;
@@ -43,6 +43,61 @@ fn request<'a>(
 fn scan_tool(binary: &Path, home: &Path, tool: &str, folder: &str) -> Vec<UsageRow> {
     let empty = tempfile::tempdir().unwrap();
     scan(&request(binary, &home.join(folder), empty.path(), tool)).unwrap()
+}
+
+fn check_folder_boundaries(binary: &Path) {
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/home");
+    for (tool, source, child) in [
+        ("claude", ".claude", "projects"),
+        ("codex", ".codex", "sessions"),
+    ] {
+        let root = tempfile::tempdir().unwrap();
+        let first = root.path().join("first");
+        let second = root.path().join("second");
+        copy_tree(&fixtures.join(source), &first);
+        copy_tree(&fixtures.join(source), &second);
+        // Each literal folder is empty. Splitting or trimming it selects populated decoys.
+        for folder in [
+            std::path::PathBuf::from(format!("{},{}", first.display(), second.display())),
+            std::path::PathBuf::from(format!("{} ", first.display())),
+            std::path::PathBuf::from(format!("{}\u{2003}", first.display())),
+        ] {
+            std::fs::create_dir_all(folder.join(child)).unwrap();
+            let empty = tempfile::tempdir().unwrap();
+            let request = request(binary, &folder, empty.path(), tool);
+            assert_eq!(
+                scan(&request),
+                Err(ScanError::InvalidRequest),
+                "{tool}: {folder:?}"
+            );
+            assert_eq!(scan_sessions(&request), Err(ScanError::InvalidRequest));
+            if tool == "claude" {
+                assert_eq!(scan_hours(&request), Err(ScanError::InvalidRequest));
+            }
+        }
+        // Spaces inside a path and Unicode names remain valid, with exact repeated results.
+        let supported = root.path().join("usage logs café");
+        copy_tree(&fixtures.join(source), &supported);
+        let empty = tempfile::tempdir().unwrap();
+        let expected = scan(&request(binary, &first, empty.path(), tool)).unwrap();
+        let empty = tempfile::tempdir().unwrap();
+        let supported_request = request(binary, &supported, empty.path(), tool);
+        assert_eq!(scan(&supported_request).unwrap(), expected);
+        assert_eq!(scan(&supported_request).unwrap(), expected);
+        assert!(!scan_sessions(&supported_request).unwrap().is_empty());
+        #[cfg(unix)]
+        {
+            let link = root.path().join("alias");
+            std::os::unix::fs::symlink(&supported, &link).unwrap();
+            // Detection resolves links before consent; the resolved root remains valid.
+            let resolved = std::fs::canonicalize(link).unwrap();
+            let empty = tempfile::tempdir().unwrap();
+            assert_eq!(
+                scan(&request(binary, &resolved, empty.path(), tool)).unwrap(),
+                expected
+            );
+        }
+    }
 }
 
 #[test]
@@ -151,4 +206,6 @@ fn pinned_binary_reads_synthetic_claude_and_codex_logs() {
         scan_hours(&request(binary, &folder, empty.path(), "claude")).unwrap(),
         hours
     );
+
+    check_folder_boundaries(binary);
 }

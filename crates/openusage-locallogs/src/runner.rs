@@ -105,6 +105,20 @@ fn valid_since(since: &str) -> bool {
         })
 }
 
+fn valid_folder(folder: &Path) -> bool {
+    let Some(text) = folder.to_str() else {
+        return false;
+    };
+    // ccusage splits folder variables on commas and trims each entry (OU-LOG-001).
+    // The resolved path saved with consent must still identify that root (OU-DUP-008).
+    folder.is_absolute()
+        && !text.contains(',')
+        && text.trim() == text
+        && folder.is_dir()
+        && std::fs::canonicalize(folder)
+            .is_ok_and(|resolved| resolved.as_os_str() == folder.as_os_str())
+}
+
 pub fn sha256_hex(bytes: &[u8]) -> String {
     Sha256::digest(bytes)
         .iter()
@@ -169,8 +183,7 @@ fn run(request: &ScanRequest<'_>, fixed: &[&str]) -> Result<Vec<u8>, ScanError> 
     if !valid_timezone(request.timezone)
         || request.since.is_some_and(|since| !valid_since(since))
         || !request.empty_home.is_absolute()
-        || !request.folder.is_absolute()
-        || !request.folder.is_dir()
+        || !valid_folder(request.folder)
     {
         return Err(ScanError::InvalidRequest);
     }
@@ -262,7 +275,8 @@ fn run(request: &ScanRequest<'_>, fixed: &[&str]) -> Result<Vec<u8>, ScanError> 
 #[cfg(all(test, unix))]
 mod tests {
     use super::*;
-    use std::os::unix::fs::PermissionsExt;
+    use std::os::unix::ffi::OsStringExt;
+    use std::os::unix::fs::{PermissionsExt, symlink};
 
     fn script(dir: &Path, name: &str, body: &str) -> (std::path::PathBuf, String) {
         let path = dir.join(name);
@@ -409,6 +423,36 @@ mod tests {
         let missing = d.bin.join("missing");
         bad.folder = &missing;
         assert_eq!(scan(&bad), Err(ScanError::InvalidRequest));
+        let invalid = [
+            d.bin.join("one,two"),
+            d.bin.join("trailing "),
+            d.bin.join("trailing\u{2003}"),
+            d.bin
+                .join(std::ffi::OsString::from_vec(b"invalid-\xff".to_vec())),
+        ];
+        for folder in &invalid {
+            std::fs::create_dir(folder).unwrap();
+        }
+        let linked = d.bin.join("replaced-root");
+        std::fs::create_dir(&linked).unwrap();
+        std::fs::remove_dir(&linked).unwrap();
+        symlink(&d.logs, &linked).unwrap();
+        for tool in ["claude", "codex"] {
+            bad.tool = tool;
+            for folder in invalid.iter().chain([&linked]) {
+                bad.folder = folder;
+                assert_eq!(scan(&bad), Err(ScanError::InvalidRequest));
+                assert_eq!(scan_sessions(&bad), Err(ScanError::InvalidRequest));
+                if tool == "claude" {
+                    assert_eq!(scan_hours(&bad), Err(ScanError::InvalidRequest));
+                }
+                assert!(
+                    !marker.exists(),
+                    "An invalid path must not start the scanner."
+                );
+            }
+        }
+        bad.tool = "claude";
         bad.folder = &d.logs;
         // HOME must be empty, so that no default folder of another tool exists.
         std::fs::create_dir(d.home.join(".codex")).unwrap();

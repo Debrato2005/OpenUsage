@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import { chmod, copyFile, cp, mkdir, readFile, readdir, readlink, rm, writeFile } from 'node:fs/promises';
+import { chmod, copyFile, cp, mkdir, readFile, readdir, readlink, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import { readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -101,7 +101,7 @@ try {
   assert.equal(await hash(ccusage), ccusageDigest);
   evidence.applicationSha256 = await hash(application);
   fixture = await createFixture('local-log-consent');
-  const logs = join(fixture.root, 'logs-home');
+  const logs = join(fixture.root, 'logs home café');
   await cp(join(repository, 'crates/openusage-locallogs/tests/fixtures/home'), logs, { recursive: true });
   // The Overview shows the last 30 days, so the synthetic Claude Code days move to the two days before today (UTC).
   const shifted = offset => { const d = new Date(); d.setUTCDate(d.getUTCDate() - offset); return d.toISOString().slice(0, 10); };
@@ -118,6 +118,7 @@ try {
     await writeFile(path, `${rows.join('\n')}\n`, { mode: 0o600 });
   }
   evidence.steps.push(`The synthetic Claude Code days moved to ${older} and ${newer}, with stored charges of 0 and 999 dollars.`);
+  evidence.steps.push('The synthetic home path contains spaces and Unicode.');
   const logsBefore = await treeHashes(logs);
   Object.assign(fixture.environment, { OPENUSAGE_NATIVE_LOG_HOME: logs, OPENUSAGE_NATIVE_CCUSAGE: ccusage });
 
@@ -165,6 +166,24 @@ try {
   const again = await oracle('after restart and second scan');
   assert.deepEqual(again, saved, 'The same logs give the same totals (OU-LOG-012).');
   assert.deepEqual(await treeHashes(logs), logsBefore, 'The scan leaves the synthetic logs unchanged.');
+
+  // A saved root that now resolves elsewhere must fail without replacing saved usage.
+  const selected = join(logs, '.claude'), retained = join(fixture.root, 'consented-claude'), unselected = join(fixture.root, 'unselected-claude');
+  const selectedBefore = await treeHashes(selected);
+  await rename(selected, retained);
+  await cp(retained, unselected, { recursive: true });
+  const unselectedBefore = await treeHashes(unselected);
+  await symlink(unselected, selected, 'dir');
+  await open(false);
+  await waitFor(async () => (await call('load_local_logs')).scan.state === 'failed', 'the replaced root to fail safely', 30000);
+  assert.equal((await call('bootstrap')).storage, 'ready');
+  assert.deepEqual(await driver.execute('return [...document.querySelectorAll("[data-local-overview] [data-local-tool-total]")].map(n=>n.getAttribute("aria-label"));'), ['Claude Code: 14,950 tokens']);
+  await close();
+  assert.deepEqual(await oracle('after refusing a replaced root'), saved);
+  assert.deepEqual(await treeHashes(retained), selectedBefore);
+  assert.deepEqual(await treeHashes(unselected), unselectedBefore);
+  assert.equal(await readlink(selected), unselected);
+  evidence.steps.push('A saved root replaced with a link to an unselected folder failed. The workspace stayed ready, the saved usage stayed unchanged, and both synthetic folders stayed unchanged.');
   assert.equal(await hash(application), evidence.applicationSha256);
   evidence.result = 'passed';
 } catch (error) { evidence.error = error.stack ?? String(error); process.exitCode = 1; }

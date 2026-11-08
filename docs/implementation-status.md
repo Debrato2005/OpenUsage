@@ -26,7 +26,7 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scoped result, November 8, 2026, after L-1f0: full Rust workspace tests, formatting, Clippy, and the native consent journey passed. The native SQLCipher check confirmed the saved estimates and unchanged data after restart. The exact evidence is in [traceability](acceptance-traceability.md).
+Latest scoped result, November 8, 2026, after L-1f1: full Rust workspace tests, formatting, Clippy, and the native consent journey passed. The native SQLCipher check confirmed saved usage after restart and after refusal of a replaced root. The exact evidence is in [traceability](acceptance-traceability.md).
 
 The wider native and renderer results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -54,6 +54,8 @@ Kept from baseline 2.0:
 - Wake handling: OU-PROC-013, OU-MON-013.
 
 ## Partial
+
+- Local logs (5C), L-1f1, November 8, 2026: the runner rejects commas, trailing whitespace, non-UTF-8 paths, and roots that no longer equal the resolved path saved with consent. The regression first reproduced a read of synthetic decoy logs through a comma in an empty root's name. After the fix, invalid paths never start the scanner. The native journey passed with spaces and Unicode in its home path. A saved root replaced with a link to an unselected folder then failed safely and preserved saved usage. The other 16 tools remain unfinished.
 
 - Local logs (5C), L-1f0, November 8, 2026: every report now uses `--mode calculate` with the existing pinned offline prices. Zero and large stored charges no longer make the strict parser reject the report or replace its API-price estimate. Unknown models keep their tokens and no estimate. The pinned-binary regression and native consent journey passed on Linux with synthetic logs. This change adds no tool and makes no account association.
 
@@ -130,6 +132,6 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 
 ## Current assignment
 
-On November 7, 2026 the owner adopted a launch track with the leaderboard in the first release. The next recommended launch assignment remains L-1f. The [tool comparison](reviews/2026-11-08-usage-tracking-strategy.md) recommends keeping pinned ccusage for local history and a separate path for provider quotas. L-1f0 fixes the stored-cost case. The [source review](reviews/2026-11-08-l1f-source-research.md) records the remaining format, token-count, session, and folder-isolation work. Source inspection needs no archive download. No additional tool is qualified yet, and OQ-1 remains open. Other owner decisions remain in the [build checklist](implementation-slices.md#build-checklist). Local commits wait for the owner's push.
+On November 7, 2026 the owner adopted a launch track with the leaderboard in the first release. The next recommended launch assignment remains L-1f. The [tool comparison](reviews/2026-11-08-usage-tracking-strategy.md) recommends keeping pinned ccusage for local history and a separate path for provider quotas. L-1f0 fixes stored-cost handling, and L-1f1 checks consent roots before process launch. The [source review](reviews/2026-11-08-l1f-source-research.md) records the remaining format, token-count, session, and folder-isolation work. Source inspection needs no archive download. No additional tool is qualified yet, and OQ-1 remains open. Other owner decisions remain in the [build checklist](implementation-slices.md#build-checklist). Local commits wait for the owner's push.
 
 The exact working checkpoint, if one exists, is in the local `.recovery/active-checkpoint.json`.

@@ -16,6 +16,8 @@ Every report also receives `--mode calculate`. Estimates use token prices from t
 
 Each run reads one consented folder of one tool. `HOME` and the working directory are an empty private directory, so the default folders of other tools do not exist for `ccusage`, and no user `ccusage` config is found. The environment holds only `HOME`, `NO_COLOR`, `TZ` and the folder variable of the tool in `FOLDER_VARIABLES`: `CLAUDE_CONFIG_DIR` for Claude Code and `CODEX_HOME` for Codex. A row of another tool rejects the run.
 
+Before any process starts, the folder must be an absolute UTF-8 path that still equals its resolved path. Commas and trailing whitespace are refused, because ccusage can interpret them as a list of roots or another root. Spaces inside the path and Unicode names remain valid. Detection resolves links before consent; a saved root that later becomes a link to another folder fails the scan. This checks the root before launch. It does not sandbox ccusage.
+
 ## The report
 
 `parse_daily_by_agent` rejects unknown fields, unknown tools, invalid dates and model names, and any day whose per-model counts do not add up to its tool, day and report totals. Token counts are exact integers. Estimated value is in millionths of a dollar, and a model without a price keeps its tokens and has no estimate.
@@ -33,3 +35,5 @@ Each run reads one consented folder of one tool. `HOME` and the working director
 `cargo test -p openusage-locallogs` covers the parser and the runner with scripts. Set `OPENUSAGE_CCUSAGE_BIN` to the provisioned binary to also run the real pinned `ccusage` against synthetic Claude Code and Codex logs in `tests/fixtures/home`, one folder at a time. `tests/fixtures/ccusage-20.0.48-daily-by-agent-claude.json` is the real binary's output for the Claude Code folder alone. `ccusage-20.0.48-session-claude.json` and `ccusage-20.0.48-session-codex.json` are its session reports for each folder, and `ccusage-20.0.48-blocks-claude.json` is its hourly report for Claude Code.
 
 The pinned-binary test also writes zero and large stored costs into its private Claude Code fixtures. Daily and session reports must keep the recorded calculated estimates, and hourly counts must stay unchanged. The native local-log consent journey checks the saved estimates with the same stored-cost cases.
+
+The runner test uses a marker to prove that invalid paths never start a child. The pinned-binary test places populated decoy folders beside empty literal roots with commas or trailing whitespace. It checks refusal for daily, session, and hourly runs, and exact repeated results for normal spaces, Unicode, and resolved links. The native journey also replaces a saved root with a link to an unselected folder. The scan must fail, the workspace must stay ready, and saved usage must stay unchanged.
