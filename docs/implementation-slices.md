@@ -123,7 +123,7 @@ Updated November 8, 2026. The owner asked to keep this list and to build down it
 
 - [x] L-6a: Linux packages with the bundled `ccusage` and Codex companion, and the WebKitGTK dependencies listed (OU-PLAT-002, OU-PLAT-005).
 - [x] L-6b: the npm package, with per-platform packages and no install scripts (OU-DIST-001 to OU-DIST-005, OU-DIST-009; AT-81).
-- [ ] L-6c: Windows and macOS preview builds in CI (part of OU-NFR-012).
+- [ ] L-6c: Windows and macOS preview builds in CI (part of OU-NFR-012). Waits for the owner: CI pins each toolchain archive by its digest, and the Windows and macOS digests of Rust, Node and Bun are not on this host. This host also has only the Linux Rust standard library, so it cannot check a Windows or macOS build.
 
 **L-7 Release documents**
 
@@ -137,6 +137,7 @@ Updated November 8, 2026. The owner asked to keep this list and to build down it
 - [ ] Run the real-account tests (AT-60) and the real-machine tests (AT-38, AT-80).
 - [ ] Decide the two gaps in [SC-017](srs-clarifications.md#sc-017-local-usage-store).
 - [ ] Approve an HTTPS client with TLS for the leaderboard client (L-5), for example `ureq` with `native-tls`, which can use the OpenSSL that SQLCipher already builds.
+- [ ] Approve the downloads for the preview builds (L-6c): the Windows and macOS archives of Rust 1.99.1, Node 22.23.2 and Bun 1.3.14 with their digests, and the Windows and macOS `ccusage` and Codex companion pins.
 - [ ] Push and publish.
 
 **After the launch track**
