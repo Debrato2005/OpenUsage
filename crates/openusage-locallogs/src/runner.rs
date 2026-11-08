@@ -180,6 +180,8 @@ fn run(request: &ScanRequest<'_>, fixed: &[&str]) -> Result<Vec<u8>, ScanError> 
     }
     drop(bytes);
     let mut args = fixed.to_vec();
+    // Estimated value always uses token prices, never a stored charge (OU-LOG-014).
+    args.extend(["--mode", "calculate"]);
     args.extend(["--timezone", request.timezone]);
     if let Some(since) = request.since {
         args.extend(["--since", since]);
@@ -333,7 +335,7 @@ mod tests {
         assert!(rows.iter().all(|row| row.tool == "claude"));
         assert_eq!(
             std::fs::read_to_string(bin.join("args")).unwrap(),
-            "daily\n--json\n--offline\n--by-agent\n--no-color\n--timezone\nUTC\n"
+            "daily\n--json\n--offline\n--by-agent\n--no-color\n--mode\ncalculate\n--timezone\nUTC\n"
         );
         let env = std::fs::read_to_string(bin.join("env")).unwrap();
         let vars: std::collections::BTreeMap<&str, &str> = env

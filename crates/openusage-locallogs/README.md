@@ -12,6 +12,8 @@ Reads local usage totals through the pinned official `ccusage` binary (SRS Secti
 
 `scan` holds one process-wide lock, checks the binary's SHA-256, then runs `ccusage daily --json --offline --by-agent --no-color --timezone <zone>` with no shell, a deadline and an output limit. `scan_sessions` runs `ccusage <tool> session --json --offline --no-color --timezone <zone>` with the same checks and limits. `scan_hours` runs `ccusage blocks --json --offline --no-color -n 1 --timezone <zone>` for Claude Code, the only tool in `HOUR_TOOLS`. A mismatched digest or invalid request runs nothing.
 
+Every report also receives `--mode calculate`. Estimates use token prices from the pinned offline data, not costs stored in logs. A zero stored charge does not make the estimate zero. An unknown model keeps its tokens and has no estimate (OU-LOG-013, OU-LOG-014).
+
 Each run reads one consented folder of one tool. `HOME` and the working directory are an empty private directory, so the default folders of other tools do not exist for `ccusage`, and no user `ccusage` config is found. The environment holds only `HOME`, `NO_COLOR`, `TZ` and the folder variable of the tool in `FOLDER_VARIABLES`: `CLAUDE_CONFIG_DIR` for Claude Code and `CODEX_HOME` for Codex. A row of another tool rejects the run.
 
 ## The report
@@ -29,3 +31,5 @@ Each run reads one consented folder of one tool. `HOME` and the working director
 ## Tests
 
 `cargo test -p openusage-locallogs` covers the parser and the runner with scripts. Set `OPENUSAGE_CCUSAGE_BIN` to the provisioned binary to also run the real pinned `ccusage` against synthetic Claude Code and Codex logs in `tests/fixtures/home`, one folder at a time. `tests/fixtures/ccusage-20.0.48-daily-by-agent-claude.json` is the real binary's output for the Claude Code folder alone. `ccusage-20.0.48-session-claude.json` and `ccusage-20.0.48-session-codex.json` are its session reports for each folder, and `ccusage-20.0.48-blocks-claude.json` is its hourly report for Claude Code.
+
+The pinned-binary test also writes zero and large stored costs into its private Claude Code fixtures. Daily and session reports must keep the recorded calculated estimates, and hourly counts must stay unchanged. The native local-log consent journey checks the saved estimates with the same stored-cost cases.

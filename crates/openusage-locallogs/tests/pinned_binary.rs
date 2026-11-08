@@ -106,4 +106,49 @@ fn pinned_binary_reads_synthetic_claude_and_codex_logs() {
         ))
         .unwrap()
     );
+
+    // Stored charges, including zero, must not replace API-price estimates (OU-LOG-014).
+    let projects = folder.join("projects/-home-dev-alpha");
+    for name in [
+        "11111111-aaaa-4aaa-8aaa-111111111111.jsonl",
+        "33333333-cccc-4ccc-8ccc-333333333333.jsonl",
+    ] {
+        let path = projects.join(name);
+        let contents = std::fs::read_to_string(&path).unwrap();
+        let lines: Vec<String> = contents
+            .lines()
+            .enumerate()
+            .map(|(index, line)| {
+                let mut row: serde_json::Value = serde_json::from_str(line).unwrap();
+                row["costUSD"] = if name.starts_with('1') && index == 0 {
+                    serde_json::json!(0)
+                } else {
+                    serde_json::json!(999)
+                };
+                serde_json::to_string(&row).unwrap()
+            })
+            .collect();
+        std::fs::write(path, lines.join("\n") + "\n").unwrap();
+    }
+    assert_eq!(
+        scan_tool(binary, home.path(), "claude", ".claude"),
+        parse_daily_by_agent(include_bytes!(
+            "fixtures/ccusage-20.0.48-daily-by-agent-claude.json"
+        ))
+        .unwrap()
+    );
+    let empty = tempfile::tempdir().unwrap();
+    assert_eq!(
+        scan_sessions(&request(binary, &folder, empty.path(), "claude")).unwrap(),
+        parse_sessions(
+            "claude",
+            include_bytes!("fixtures/ccusage-20.0.48-session-claude.json")
+        )
+        .unwrap()
+    );
+    let empty = tempfile::tempdir().unwrap();
+    assert_eq!(
+        scan_hours(&request(binary, &folder, empty.path(), "claude")).unwrap(),
+        hours
+    );
 }

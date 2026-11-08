@@ -109,9 +109,15 @@ try {
   const claudeLogs = join(logs, '.claude/projects/-home-dev-alpha');
   for (const name of readdirSync(claudeLogs)) {
     const path = join(claudeLogs, name);
-    await writeFile(path, (await readFile(path, 'utf8')).replace(/2026-11-0([45])T/g, (_, day) => `${day === '4' ? older : newer}T`), { mode: 0o600 });
+    const shiftedLogs = (await readFile(path, 'utf8')).replace(/2026-11-0([45])T/g, (_, day) => `${day === '4' ? older : newer}T`);
+    const rows = shiftedLogs.trim().split('\n').map((line, index) => {
+      const row = JSON.parse(line);
+      row.costUSD = name.startsWith('1') && index === 0 ? 0 : 999;
+      return JSON.stringify(row);
+    });
+    await writeFile(path, `${rows.join('\n')}\n`, { mode: 0o600 });
   }
-  evidence.steps.push(`The synthetic Claude Code days moved to ${older} and ${newer}.`);
+  evidence.steps.push(`The synthetic Claude Code days moved to ${older} and ${newer}, with stored charges of 0 and 999 dollars.`);
   const logsBefore = await treeHashes(logs);
   Object.assign(fixture.environment, { OPENUSAGE_NATIVE_LOG_HOME: logs, OPENUSAGE_NATIVE_CCUSAGE: ccusage });
 
@@ -147,7 +153,8 @@ try {
     [newer, 'claude', 'claude-opus-4-1-20250805', '2300'],
     [newer, 'claude', 'totally-unknown-model-x', '150'],
   ]);
-  assert.equal(saved.days[2].value, null, 'An unknown model has no estimate (OU-LOG-013).');
+  assert.deepEqual(saved.days.map(d => d.value), ['31650', '76875', null], 'API-price estimates ignore stored charges, and an unknown model stays unavailable (OU-LOG-013, OU-LOG-014).');
+  evidence.steps.push('Saved API-price estimates stayed 31,650 and 76,875 USD millionths. The unknown model kept no estimate.');
   assert.ok(saved.days.every(d => d.coverage === 'complete' && d.scanner === '20.0.48'));
   assert.equal(saved.differences, 0);
 
