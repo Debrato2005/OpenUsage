@@ -156,11 +156,19 @@ pub(crate) fn valid_date(date: &str) -> bool {
     {
         return false;
     }
-    let (month, day) = (
+    let (year, month, day) = (
+        date[..4].parse::<u16>().unwrap_or(0),
         date[5..7].parse::<u8>().unwrap_or(0),
         date[8..10].parse::<u8>().unwrap_or(0),
     );
-    (1..=12).contains(&month) && (1..=31).contains(&day)
+    let days = match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 if year % 4 == 0 && (year % 100 != 0 || year % 400 == 0) => 29,
+        2 => 28,
+        _ => return false,
+    };
+    (1..=days).contains(&day)
 }
 
 pub(crate) fn valid_model(model: &str) -> bool {
@@ -294,6 +302,25 @@ mod tests {
     use super::*;
 
     const FIXTURE: &[u8] = include_bytes!("../tests/fixtures/ccusage-20.0.48-daily-by-agent.json");
+
+    #[test]
+    fn dates_require_real_calendar_days() {
+        for date in ["2000-02-29", "2024-02-29", "2026-04-30", "2026-12-31"] {
+            assert!(valid_date(date), "{date}");
+        }
+        for date in [
+            "1900-02-29",
+            "2026-02-29",
+            "2026-02-30",
+            "2026-04-31",
+            "2026-00-01",
+            "2026-01-00",
+            "2026-13-01",
+            "2026-11-0é",
+        ] {
+            assert!(!valid_date(date), "{date}");
+        }
+    }
 
     #[test]
     fn pinned_output_becomes_exact_rows() {

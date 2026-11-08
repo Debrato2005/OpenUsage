@@ -56,13 +56,7 @@ struct BlockCounts {
 
 /// A whole UTC hour in the form that ccusage writes: `2026-11-04T09:00:00.000Z`.
 fn whole_hour(value: &str) -> bool {
-    let b = value.as_bytes();
-    b.len() == 24
-        && crate::report::valid_date(&value[..10])
-        && b[10] == b'T'
-        && b[11..13].iter().all(u8::is_ascii_digit)
-        && &value[11..13] < "24"
-        && &value[13..] == ":00:00.000Z"
+    crate::session::valid_utc(value) && &value[13..] == ":00:00.000Z"
 }
 
 fn shape(id: &str) -> ReportError {
@@ -166,6 +160,16 @@ mod tests {
             (3_000, 1_300, 200, 8_000)
         );
         assert_eq!(parse_hours(br#"{"blocks":[]}"#).unwrap(), []);
+    }
+
+    #[test]
+    fn malformed_unicode_hours_return_an_error_without_panicking() {
+        let bytes = edited(|value| {
+            let invalid = serde_json::json!("2026-11-0é03:00:00.000Z");
+            value["blocks"][0]["id"] = invalid.clone();
+            value["blocks"][0]["startTime"] = invalid;
+        });
+        assert!(parse_hours(&bytes).is_err());
     }
 
     #[test]

@@ -26,7 +26,7 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scoped result, November 8, 2026, after L-1f2: the full renderer suite, Rust workspace tests, formatting, and Clippy passed. The rebuilt native app passed the consent and read-only CLI journeys. These checks used private synthetic data on Linux. The exact evidence is in [traceability](acceptance-traceability.md).
+Latest scoped result, November 8, 2026, after L-1f4: the full Rust workspace tests, formatting, and Clippy passed. The rebuilt native app passed the consent journey with private synthetic logs on Linux. The full renderer and read-only CLI journeys last passed at L-1f2. [Traceability](acceptance-traceability.md) holds the exact scope.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -54,6 +54,8 @@ Kept from baseline 2.0:
 - Wake handling: OU-PROC-013, OU-MON-013.
 
 ## Partial
+
+- Local logs (5C), L-1f4, November 8, 2026: The parsers require real calendar days, including leap-year rules. Session and hourly timestamps must be ASCII before byte slicing. Malformed Unicode returns a report error instead of a panic. The full Rust checks and rebuilt native consent journey passed with synthetic logs on Linux.
 
 - Local logs (5C), L-1f3, November 8, 2026: record daily and session outputs for synthetic inputs from all 16 remaining tools. Three tests ran the real pinned binary 98 times. Reports repeated exactly, empty roots returned no rows, and source files stayed unchanged. A copied Amp thread doubled 162 tokens to 324. This is a known AT-65 failure, not completed tool support. See [SC-023](srs-clarifications.md#sc-023-copied-amp-usage-in-the-pinned-scanner).
 

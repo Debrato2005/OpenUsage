@@ -41,3 +41,5 @@ The pinned-binary test also writes zero and large stored costs into its private 
 The runner test uses a marker to prove that invalid paths never start a child. The pinned-binary test places populated decoy folders beside empty literal roots with commas or trailing whitespace. It checks refusal for daily, session, and hourly runs, and exact repeated results for normal spaces, Unicode, and resolved links. The native journey also replaces a saved root with a link to an unselected folder. The scan must fail, the workspace must stay ready, and saved usage must stay unchanged.
 
 The [remaining-tool fixtures](tests/fixtures/remaining-tools/README.md) record daily and session contracts for all 16 disabled tools. They supply a format baseline, not release acceptance.
+
+The parsers require real calendar days, including leap-year rules. Session and hourly timestamps must be ASCII before byte slicing. Malformed Unicode returns a report error instead of a panic.

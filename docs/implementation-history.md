@@ -4,6 +4,10 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f2 scoped result before L-1f4
+
+Latest scoped result, November 8, 2026, after L-1f2: the full renderer suite, Rust workspace tests, formatting, and Clippy passed. The rebuilt native app passed the consent and read-only CLI journeys. These checks used private synthetic data on Linux. The exact evidence is in [traceability](acceptance-traceability.md).
+
 ## CI state before the November 8 push
 
 - The Linux CI workflow first ran on GitHub on November 6, 2026 and failed at Test Git safety. The second run passed every code check, then hit the 90-minute job limit during the renderer tests because the runner's package mirror was slow. The split into two parallel jobs waits for the owner's push. OU-NFR-012 also needs Windows and macOS, planned for S-15.

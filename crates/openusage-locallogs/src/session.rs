@@ -119,10 +119,11 @@ struct CodexTotals {
 }
 
 /// The UTC form that ccusage writes and the store keeps: `2026-11-05T11:00:00.000Z`.
-fn valid_utc(value: &str) -> bool {
+pub(crate) fn valid_utc(value: &str) -> bool {
     let b = value.as_bytes();
     let digits = |range: std::ops::Range<usize>| b[range].iter().all(u8::is_ascii_digit);
     b.len() == 24
+        && value.is_ascii()
         && valid_date(&value[..10])
         && b[10] == b'T'
         && b[13] == b':'
@@ -426,6 +427,29 @@ mod tests {
             parse_sessions("opencode", empty_codex),
             Err(ReportError::Shape(_))
         ));
+    }
+
+    #[test]
+    fn malformed_unicode_times_return_an_error_without_panicking() {
+        for (tool, fixture) in [("claude", CLAUDE), ("codex", CODEX)] {
+            let bytes = edited(fixture, |value| {
+                value["sessions"][0]["lastActivity"] = "2026-11-0é03:04:05.006Z".into();
+            });
+            assert!(parse_sessions(tool, &bytes).is_err());
+        }
+    }
+
+    #[test]
+    fn impossible_calendar_days_reject_sessions() {
+        for (tool, fixture) in [("claude", CLAUDE), ("codex", CODEX)] {
+            let bytes = edited(fixture, |value| {
+                value["sessions"][0]["lastActivity"] = "2026-02-30T03:04:05.006Z".into();
+                if tool == "claude" {
+                    value["sessions"][0]["firstActivity"] = "2026-02-30T03:04:05.006Z".into();
+                }
+            });
+            assert!(parse_sessions(tool, &bytes).is_err());
+        }
     }
 
     #[test]
