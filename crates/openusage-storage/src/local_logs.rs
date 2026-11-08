@@ -70,6 +70,41 @@ pub struct LocalUsageDifference {
     pub scan_at_utc: String,
 }
 
+/// One session of one tool, as one scan read it (SC-021).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LocalUsageSession {
+    pub tool: String,
+    pub session_key: String,
+    /// Only Claude Code reports a project.
+    pub project_name: Option<String>,
+    /// Codex reports no start.
+    pub start_utc: Option<String>,
+    pub end_utc: String,
+    pub input_tokens: u64,
+    pub output_tokens: u64,
+    pub cache_write_tokens: u64,
+    pub cache_read_tokens: u64,
+    /// A part of the output count. None when the tool reports none.
+    pub reasoning_tokens: Option<u64>,
+    pub total_tokens: u64,
+    pub estimated_value_usd_micros: Option<u64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SavedLocalSession {
+    pub log_source_id: String,
+    pub session: LocalUsageSession,
+    pub scanner_version: String,
+}
+
+/// The sessions that one run read from one granted source.
+pub struct LocalSessionScan<'a> {
+    pub log_source_id: &'a str,
+    pub scanner_version: &'a str,
+    pub scanned_at_utc: &'a str,
+    pub sessions: &'a [LocalUsageSession],
+}
+
 pub struct LocalUsageScan<'a> {
     /// The granted sources that this run read, at most one for each tool.
     pub log_source_ids: &'a [String],
@@ -159,6 +194,40 @@ fn valid_row(row: &LocalUsageRow) -> bool {
             .is_none_or(|v| v <= MAX_COUNT)
 }
 
+fn valid_session(session: &LocalUsageSession) -> bool {
+    let sum = [
+        session.output_tokens,
+        session.cache_write_tokens,
+        session.cache_read_tokens,
+    ]
+    .into_iter()
+    .try_fold(session.input_tokens, u64::checked_add);
+    valid_tool(&session.tool)
+        && (1..=256).contains(&session.session_key.len())
+        && session
+            .session_key
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b"-_./:".contains(&b))
+        && session
+            .project_name
+            .as_deref()
+            .is_none_or(|p| (1..=512).contains(&p.len()) && !p.chars().any(char::is_control))
+        && optional_utc(session.start_utc.as_deref())
+        && activity::activity_utc_timestamp(&session.end_utc)
+        && session
+            .start_utc
+            .as_deref()
+            .is_none_or(|start| start <= session.end_utc.as_str())
+        && sum == Some(session.total_tokens)
+        && session.total_tokens <= MAX_COUNT
+        && session
+            .reasoning_tokens
+            .is_none_or(|r| r <= session.output_tokens)
+        && session
+            .estimated_value_usd_micros
+            .is_none_or(|v| v <= MAX_COUNT)
+}
+
 fn token(text: &str) -> Option<u64> {
     activity::activity_decimal(text)
         .then(|| text.parse::<u64>().ok())
@@ -182,6 +251,7 @@ pub(crate) const SOURCE_COLUMNS: &str =
 pub(crate) const DAY_COLUMNS: &str = "id,log_source_id,tool,model,local_date,input_tokens,output_tokens,cache_write_tokens,cache_read_tokens,total_tokens,estimated_value_usd_micros,scanner_version,coverage,created_at_utc,updated_at_utc";
 pub(crate) const DIFFERENCE_COLUMNS: &str =
     "id,log_source_id,local_date,model,saved_total_tokens,new_total_tokens,scan_at_utc";
+pub(crate) const SESSION_COLUMNS: &str = "id,log_source_id,tool,session_key,project_name,log_account_key,start_utc,end_utc,input_tokens,output_tokens,cache_write_tokens,cache_read_tokens,reasoning_tokens,total_tokens,estimated_value_usd_micros,scanner_version,created_at_utc,updated_at_utc";
 
 /// Reads one source row in `SOURCE_COLUMNS` order. None means the row breaks a write rule.
 fn read_source(row: &Row<'_>) -> rusqlite::Result<Option<LogSource>> {
@@ -288,11 +358,70 @@ fn read_difference(row: &Row<'_>) -> rusqlite::Result<Option<LocalUsageDifferenc
     }))
 }
 
+/// Reads one optional count. The outer None means the text breaks a write rule.
+fn optional_token(value: Option<String>) -> Option<Option<u64>> {
+    match value {
+        None => Some(None),
+        Some(text) => token(&text).map(Some),
+    }
+}
+
+/// Reads one session row in `SESSION_COLUMNS` order. None means the row breaks a write rule.
+fn read_session(row: &Row<'_>) -> rusqlite::Result<Option<SavedLocalSession>> {
+    let text = |index: usize| row.get::<_, String>(index);
+    let optional = |index: usize| row.get::<_, Option<String>>(index);
+    let count = |index: usize| text(index).map(|v| token(&v));
+    let (
+        Some(input_tokens),
+        Some(output_tokens),
+        Some(cache_write_tokens),
+        Some(cache_read_tokens),
+        Some(total_tokens),
+    ) = (count(8)?, count(9)?, count(10)?, count(11)?, count(13)?)
+    else {
+        return Ok(None);
+    };
+    let (Some(reasoning_tokens), Some(estimated_value_usd_micros)) =
+        (optional_token(optional(12)?), optional_token(optional(14)?))
+    else {
+        return Ok(None);
+    };
+    let (id, log_source_id, account, scanner_version) =
+        (text(0)?, text(1)?, optional(5)?, text(15)?);
+    let session = LocalUsageSession {
+        tool: text(2)?,
+        session_key: text(3)?,
+        project_name: optional(4)?,
+        start_utc: optional(6)?,
+        end_utc: text(7)?,
+        input_tokens,
+        output_tokens,
+        cache_write_tokens,
+        cache_read_tokens,
+        reasoning_tokens,
+        total_tokens,
+        estimated_value_usd_micros,
+    };
+    let valid = canonical_uuid(&id)
+        && canonical_uuid(&log_source_id)
+        && account.is_none()
+        && valid_session(&session)
+        && valid_version(&scanner_version)
+        && activity::activity_utc_timestamp(&text(16)?)
+        && activity::activity_utc_timestamp(&text(17)?);
+    Ok(valid.then_some(SavedLocalSession {
+        log_source_id,
+        session,
+        scanner_version,
+    }))
+}
+
 /// Checks backup and checkpoint contents with the same rules as a write.
 /// The caller checks foreign keys for the whole database.
 pub(crate) fn validate(
     connection: &rusqlite::Connection,
     schema: &str,
+    version: u32,
 ) -> std::result::Result<(), crate::BackupValidationError> {
     if !matches!(schema, "main" | "openusage_checkpoint")
         || !all_valid(
@@ -316,6 +445,14 @@ pub(crate) fn validate(
             DIFFERENCE_COLUMNS,
             read_difference,
         )
+        || (version >= 11
+            && !all_valid(
+                connection,
+                schema,
+                "local_usage_sessions",
+                SESSION_COLUMNS,
+                read_session,
+            ))
     {
         return Err(crate::BackupValidationError::InvalidDatabase);
     }
@@ -565,6 +702,125 @@ impl Storage {
         }
         tx.commit().map_err(write)?;
         Ok(summary)
+    }
+
+    /// Saves the sessions of one run in one transaction. A session is new, rises or stays, or keeps
+    /// its higher saved counts when this run read less (OU-LOG-011, SC-021).
+    pub fn save_local_sessions(
+        &mut self,
+        scan: &LocalSessionScan<'_>,
+    ) -> Result<LocalUsageScanSummary> {
+        let mut keys = BTreeSet::new();
+        if !canonical_uuid(scan.log_source_id)
+            || !valid_version(scan.scanner_version)
+            || !activity::activity_utc_timestamp(scan.scanned_at_utc)
+            || scan.sessions.len() > MAX_ROWS
+            || scan
+                .sessions
+                .iter()
+                .any(|s| !valid_session(s) || !keys.insert(s.session_key.as_str()))
+        {
+            return Err(LocalLogError::InvalidInput);
+        }
+        let write = |_| LocalLogError::WriteFailed;
+        let tx = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(write)?;
+        let source: Option<(String, String)> = tx
+            .query_row(
+                "SELECT tool,consent FROM log_sources WHERE id=?1",
+                [scan.log_source_id],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .optional()
+            .map_err(|_| LocalLogError::ReadFailed)?;
+        let Some((tool, "granted")) = source.as_ref().map(|(t, c)| (t, c.as_str())) else {
+            return Err(LocalLogError::NotConsented);
+        };
+        if scan.sessions.iter().any(|s| &s.tool != tool) {
+            return Err(LocalLogError::InvalidInput);
+        }
+        let mut summary = LocalUsageScanSummary::default();
+        for session in scan.sessions {
+            let saved: Option<String> = tx
+                .query_row(
+                    "SELECT total_tokens FROM local_usage_sessions WHERE log_source_id=?1 AND session_key=?2",
+                    params![scan.log_source_id, session.session_key],
+                    |r| r.get(0),
+                )
+                .optional()
+                .map_err(|_| LocalLogError::ReadFailed)?;
+            let saved = saved
+                .map(|text| token(&text).ok_or(LocalLogError::ReadFailed))
+                .transpose()?;
+            let values = (
+                session.input_tokens.to_string(),
+                session.output_tokens.to_string(),
+                session.cache_write_tokens.to_string(),
+                session.cache_read_tokens.to_string(),
+                session.reasoning_tokens.map(|v| v.to_string()),
+                session.total_tokens.to_string(),
+                session.estimated_value_usd_micros.map(|v| v.to_string()),
+            );
+            match saved {
+                None => {
+                    let id = activity::new_uuid().map_err(|_| LocalLogError::WriteFailed)?;
+                    tx.execute(
+                        "INSERT INTO local_usage_sessions(id,log_source_id,tool,session_key,project_name,log_account_key,start_utc,end_utc,input_tokens,output_tokens,cache_write_tokens,cache_read_tokens,reasoning_tokens,total_tokens,estimated_value_usd_micros,scanner_version,created_at_utc,updated_at_utc)
+                         VALUES(?1,?2,?3,?4,?5,NULL,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?16)",
+                        params![id, scan.log_source_id, session.tool, session.session_key, session.project_name, session.start_utc, session.end_utc,
+                            values.0, values.1, values.2, values.3, values.4, values.5, values.6, scan.scanner_version, scan.scanned_at_utc],
+                    )
+                    .map_err(write)?;
+                    summary.inserted += 1;
+                }
+                Some(saved) if session.total_tokens >= saved => {
+                    tx.execute(
+                        "UPDATE local_usage_sessions SET project_name=?3,start_utc=?4,end_utc=?5,input_tokens=?6,output_tokens=?7,cache_write_tokens=?8,
+                         cache_read_tokens=?9,reasoning_tokens=?10,total_tokens=?11,estimated_value_usd_micros=?12,scanner_version=?13,updated_at_utc=?14
+                         WHERE log_source_id=?1 AND session_key=?2",
+                        params![scan.log_source_id, session.session_key, session.project_name, session.start_utc, session.end_utc,
+                            values.0, values.1, values.2, values.3, values.4, values.5, values.6, scan.scanner_version, scan.scanned_at_utc],
+                    )
+                    .map_err(write)?;
+                    if session.total_tokens > saved {
+                        summary.raised += 1;
+                    } else {
+                        summary.unchanged += 1;
+                    }
+                }
+                Some(_) => summary.kept_higher += 1,
+            }
+        }
+        tx.commit().map_err(write)?;
+        Ok(summary)
+    }
+
+    /// Saved sessions that ended at or after `since_utc` and before `until_utc`, newest first.
+    pub fn local_usage_sessions(
+        &self,
+        since_utc: &str,
+        until_utc: &str,
+    ) -> Result<Vec<SavedLocalSession>> {
+        if !activity::activity_utc_timestamp(since_utc)
+            || !activity::activity_utc_timestamp(until_utc)
+            || since_utc > until_utc
+        {
+            return Err(LocalLogError::InvalidInput);
+        }
+        let mut statement = self
+            .connection
+            .prepare(&format!(
+                "SELECT {SESSION_COLUMNS} FROM local_usage_sessions WHERE end_utc>=?1 AND end_utc<?2
+                 ORDER BY end_utc DESC,tool,session_key,log_source_id"
+            ))
+            .map_err(|_| LocalLogError::ReadFailed)?;
+        let rows = statement
+            .query_map(params![since_utc, until_utc], read_session)
+            .map_err(|_| LocalLogError::ReadFailed)?;
+        rows.map(|row| row.ok().flatten().ok_or(LocalLogError::ReadFailed))
+            .collect()
     }
 
     /// Saved days from `since` to `until`, inclusive, ordered by date, tool, model and source.
@@ -968,6 +1224,191 @@ mod tests {
             ),
             (2, 2, 1)
         );
+    }
+
+    fn session(
+        tool: &str,
+        key: &str,
+        end: &str,
+        input: u64,
+        reasoning: Option<u64>,
+    ) -> LocalUsageSession {
+        LocalUsageSession {
+            tool: tool.into(),
+            session_key: key.into(),
+            project_name: (tool == "claude").then(|| "-home-synthetic-alpha".into()),
+            start_utc: (tool == "claude").then(|| "2026-11-05T09:00:00.000Z".into()),
+            end_utc: end.into(),
+            input_tokens: input,
+            output_tokens: 5,
+            cache_write_tokens: 2,
+            cache_read_tokens: 1,
+            reasoning_tokens: reasoning,
+            total_tokens: input + 8,
+            estimated_value_usd_micros: Some(7),
+        }
+    }
+
+    fn session_scan<'a>(
+        source: &'a str,
+        sessions: &'a [LocalUsageSession],
+    ) -> LocalSessionScan<'a> {
+        LocalSessionScan {
+            log_source_id: source,
+            scanner_version: "20.0.48",
+            scanned_at_utc: LATER,
+            sessions,
+        }
+    }
+
+    fn session_totals(storage: &Storage) -> Vec<(String, u64, Option<u64>)> {
+        storage
+            .local_usage_sessions("2026-01-01T00:00:00.000Z", "2027-01-01T00:00:00.000Z")
+            .unwrap()
+            .into_iter()
+            .map(|s| {
+                (
+                    s.session.session_key,
+                    s.session.total_tokens,
+                    s.session.reasoning_tokens,
+                )
+            })
+            .collect()
+    }
+
+    #[test]
+    fn sessions_rise_never_fall_and_survive_backup_and_restore() {
+        let (dir, mut storage, claude, codex) = setup();
+        let first = [
+            session("claude", "a", "2026-11-05T11:00:00.000Z", 100, None),
+            session("claude", "b", "2026-11-06T11:00:00.000Z", 10, None),
+        ];
+        let summary = storage
+            .save_local_sessions(&session_scan(&claude, &first))
+            .unwrap();
+        assert_eq!(summary.inserted, 2);
+        // A later run reads more for a and less for b. Session b keeps its saved counts.
+        let second = [
+            session("claude", "a", "2026-11-05T12:00:00.000Z", 200, None),
+            session("claude", "b", "2026-11-06T11:00:00.000Z", 4, None),
+        ];
+        let summary = storage
+            .save_local_sessions(&session_scan(&claude, &second))
+            .unwrap();
+        assert_eq!((summary.raised, summary.kept_higher), (1, 1));
+        storage
+            .save_local_sessions(&session_scan(
+                &codex,
+                &[session(
+                    "codex",
+                    "2026/11/05/rollout-x",
+                    "2026-11-05T12:00:05.000Z",
+                    3,
+                    Some(4),
+                )],
+            ))
+            .unwrap();
+        assert_eq!(
+            session_totals(&storage),
+            [
+                ("b".into(), 18, None),
+                ("2026/11/05/rollout-x".into(), 11, Some(4)),
+                ("a".into(), 208, None)
+            ]
+        );
+        // The range reads by end time, newest first, and excludes its upper bound.
+        let day = storage
+            .local_usage_sessions("2026-11-05T00:00:00.000Z", "2026-11-06T00:00:00.000Z")
+            .unwrap();
+        assert_eq!(
+            day.iter()
+                .map(|s| s.session.session_key.as_str())
+                .collect::<Vec<_>>(),
+            ["2026/11/05/rollout-x", "a"]
+        );
+        assert_eq!(
+            day[1].session.project_name.as_deref(),
+            Some("-home-synthetic-alpha")
+        );
+        assert_eq!(day[0].session.start_utc, None, "Codex reports no start.");
+        // A run of one tool cannot save rows for another, and a withdrawn source saves nothing.
+        assert_eq!(
+            storage.save_local_sessions(&session_scan(
+                &claude,
+                &[session("codex", "c", "2026-11-05T12:00:05.000Z", 1, None)]
+            )),
+            Err(LocalLogError::InvalidInput)
+        );
+        let mut bad = session("codex", "d", "2026-11-05T12:00:05.000Z", 1, Some(6));
+        assert_eq!(
+            storage.save_local_sessions(&session_scan(&codex, std::slice::from_ref(&bad))),
+            Err(LocalLogError::InvalidInput),
+            "Reasoning is part of output."
+        );
+        bad.reasoning_tokens = None;
+        bad.start_utc = Some("2026-11-06T00:00:00.000Z".into());
+        assert_eq!(
+            storage.save_local_sessions(&session_scan(&codex, std::slice::from_ref(&bad))),
+            Err(LocalLogError::InvalidInput),
+            "A start after the end."
+        );
+        storage
+            .set_log_source("codex", CODEX_HOME, LogConsent::Withdrawn, LATER)
+            .unwrap();
+        assert_eq!(
+            storage.save_local_sessions(&session_scan(
+                &codex,
+                &[session("codex", "e", "2026-11-05T12:00:05.000Z", 1, None)]
+            )),
+            Err(LocalLogError::NotConsented)
+        );
+        // Backup, checkpoint and restore keep the sessions.
+        let expected = session_totals(&storage);
+        let snapshot = storage.backup_snapshot().unwrap();
+        crate::validate_backup_snapshot(&snapshot.bytes, snapshot.schema_version).unwrap();
+        let checkpoint = dir.path().join("sessions-checkpoint.db");
+        storage.create_encrypted_checkpoint(&checkpoint).unwrap();
+        assert_eq!(
+            session_totals(&Storage::open(&checkpoint, &KEY).unwrap()),
+            expected
+        );
+        let (_target_dir, mut target, target_claude, _) = setup();
+        target
+            .save_local_sessions(&session_scan(
+                &target_claude,
+                &[session(
+                    "claude",
+                    "old",
+                    "2026-11-05T10:00:00.000Z",
+                    1,
+                    None,
+                )],
+            ))
+            .unwrap();
+        let revision = target.restore_state().unwrap().revision;
+        target
+            .replace_records_from_backup(&snapshot.bytes, snapshot.schema_version, &revision, &[])
+            .unwrap();
+        assert_eq!(session_totals(&target), expected);
+        // A tampered session fails the backup check and the read.
+        for bad in [
+            "UPDATE local_usage_sessions SET total_tokens='1' WHERE session_key='a'",
+            "UPDATE local_usage_sessions SET log_account_key='someone' WHERE session_key='a'",
+            "UPDATE local_usage_sessions SET end_utc='2026-11-05 12:00:00.000' WHERE session_key='a'",
+            "UPDATE local_usage_sessions SET session_key='a b' WHERE session_key='a'",
+        ] {
+            let tx = storage.connection.transaction().unwrap();
+            tx.execute_batch(&format!(
+                "PRAGMA ignore_check_constraints=ON; {bad}; PRAGMA ignore_check_constraints=OFF;"
+            ))
+            .unwrap();
+            assert_eq!(
+                validate_connection(&tx, CURRENT_SCHEMA_VERSION),
+                Err(crate::BackupValidationError::InvalidDatabase),
+                "{bad}"
+            );
+            drop(tx);
+        }
     }
 
     #[test]

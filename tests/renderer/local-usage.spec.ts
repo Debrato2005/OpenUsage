@@ -88,6 +88,29 @@ test('personal records open the detail panel with exact values', async ({ page }
   await expect(page.locator('[data-detail-panel][open]')).toContainText('2026-10-10, 6,912,345 tokens');
 });
 
+test('projects and sessions show exact counts, and a count that a tool does not report stays missing', async ({ page }) => {
+  await open(page, localUsage());
+  await navigate(page, 'usage');
+  const projects = device(page).getByRole('region', { name: 'Projects', exact: true });
+  await expect(projects.getByRole('row')).toHaveCount(3);
+  await expect(projects.getByRole('row', { name: /-home-dev-alpha/ })).toHaveText('-home-dev-alphaClaude Code13,400,000');
+  const sessions = device(page).getByRole('region', { name: 'Sessions', exact: true });
+  await expect(sessions.getByRole('row')).toHaveCount(4);
+  // Times show in the pinned zone. Codex has no project or start, and Claude Code has no reasoning count.
+  await expect(sessions.locator('[data-local-session="codex"]')).toHaveText('Nov 8, 9:30 AMCodexNot availableNot available1,250,00048,000');
+  await expect(sessions.locator('[data-local-session="claude"]').first()).toHaveText('Nov 7, 5:15 PMClaude Code-home-dev-alphaNov 7, 3:00 PM3,400,000Not available');
+  expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations).toEqual([]);
+});
+
+test('a session whose reasoning exceeds its total is refused', async ({ page }) => {
+  const usage = localUsage();
+  usage.sessions[0]!.reasoningTokens = '1250001';
+  await open(page, usage);
+  await navigate(page, 'usage');
+  await expect(device(page).getByRole('alert')).toHaveText('OpenUsage could not read saved local usage. Try again.');
+  await expect(device(page).getByRole('region', { name: 'Sessions', exact: true })).toHaveCount(0);
+});
+
 test('no saved local usage hides the Overview section and Usage shows one empty state', async ({ page }) => {
   await open(page, { ...localUsage(), tools: [], models: [], buckets: [], differences: [], activeDays: 0, longestStreakDays: 0, busiestDay: null });
   await expect(page.getByRole('heading', { name: 'No accounts', exact: true })).toBeVisible();

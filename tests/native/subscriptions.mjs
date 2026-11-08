@@ -44,7 +44,7 @@ async function open(setup=false){
   await driver.type('#workspace-passphrase',passphrase);
   if(setup)await driver.type('#workspace-confirmation',passphrase);
   await key('\uE007');await waitFor(async()=>(await call('bootstrap')).storage==='ready','ready encrypted workspace');
-  assert.equal((await call('bootstrap')).schemaVersion,10);
+  assert.equal((await call('bootstrap')).schemaVersion,11);
 }
 async function close(){
   const queue=[driver.child.pid];let owned;
@@ -63,9 +63,9 @@ async function oracle(label,archive){
   try{
     const input=join(temporary,archive?'archive.oubackup':'database.db');await copyFile(archive??fixture.database,input);await chmod(input,0o600);
     if(!archive&&before[`${fixture.database}-wal`]){await copyFile(`${fixture.database}-wal`,`${input}-wal`);await chmod(`${input}-wal`,0o600);}
-    const raw=execFileSync(verifier,[archive?'backup':'database',input,join(dirname(fixture.database),'database-key.v1'),'--profile-state'],{input:JSON.stringify({passphrase,backupPassword,expectedSchemaVersion:10}),env:fixture.environment,encoding:'utf8',timeout:30000,maxBuffer:8*1024**2});
+    const raw=execFileSync(verifier,[archive?'backup':'database',input,join(dirname(fixture.database),'database-key.v1'),'--profile-state'],{input:JSON.stringify({passphrase,backupPassword,expectedSchemaVersion:11}),env:fixture.environment,encoding:'utf8',timeout:30000,maxBuffer:8*1024**2});
     const report=JSON.parse(execFileSync('/usr/bin/python3',['-c','import json,sys; print(json.dumps(json.load(sys.stdin,parse_int=str)))'],{input:raw,encoding:'utf8',timeout:10000,maxBuffer:8*1024**2}));
-    assert.equal(report.verified,true);assert.equal(report.schemaVersion,'10');assert.equal(report.plaintextDiskStaging,false);assert.equal(report.inputUnchanged,true);assert.equal(Object.keys(report.state.tables).length,34);
+    assert.equal(report.verified,true);assert.equal(report.schemaVersion,'11');assert.equal(report.plaintextDiskStaging,false);assert.equal(report.inputUnchanged,true);assert.equal(Object.keys(report.state.tables).length,35);
     assert.deepEqual(await liveHashes(),before);
     evidence.oracles.push({label,archiveAuthenticated:report.archiveAuthenticated,tables:34,subscriptionRows:report.state.tables.subscriptions.length,stateSha256:createHash('sha256').update(JSON.stringify(report.state.tables)).digest('hex')});
     return report.state.tables;

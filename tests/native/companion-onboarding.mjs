@@ -57,7 +57,7 @@ async function open(setup = false) {
   if (setup) await driver.type('#workspace-confirmation', password);
   await driver.click('.unlock-form button[type=submit]');
   await waitFor(async () => (await driver.invoke('bootstrap')).value?.storage === 'ready', 'unlocked private workspace');
-  assert.equal((await call('bootstrap')).schemaVersion, 10);
+  assert.equal((await call('bootstrap')).schemaVersion, 11);
 }
 async function desktopPid() {
   const queue = [driver.child.pid];

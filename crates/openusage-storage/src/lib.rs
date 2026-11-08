@@ -14,8 +14,9 @@ mod time_zone;
 pub use time_zone::valid_time_zone;
 mod local_logs;
 pub use local_logs::{
-    LocalLogError, LocalUsageCoverage, LocalUsageDay, LocalUsageDifference, LocalUsageRow,
-    LocalUsageScan, LocalUsageScanSummary, LogConsent, LogSource,
+    LocalLogError, LocalSessionScan, LocalUsageCoverage, LocalUsageDay, LocalUsageDifference,
+    LocalUsageRow, LocalUsageScan, LocalUsageScanSummary, LocalUsageSession, LogConsent, LogSource,
+    SavedLocalSession,
 };
 mod currency_scales;
 mod profiles;
@@ -78,6 +79,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("schema_v8.sql"),
     include_str!("schema_v9.sql"),
     include_str!("schema_v10.sql"),
+    include_str!("schema_v11.sql"),
 ];
 pub const CURRENT_SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
 const MAX_BACKUP_SNAPSHOT_SIZE: u64 = 5 * 1024 * 1024 * 1024;

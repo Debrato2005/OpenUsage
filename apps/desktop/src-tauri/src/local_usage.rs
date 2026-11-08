@@ -80,6 +80,34 @@ pub(crate) struct Difference {
     scan_at_utc: String,
 }
 
+/// The newest sessions that the view sends. Projects still count every session in the range.
+const MAX_SESSIONS: usize = 100;
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct SessionView {
+    key: String,
+    tool: String,
+    /// Only Claude Code reports a project (SC-021).
+    project: Option<String>,
+    /// Codex reports no start (SC-021).
+    start_utc: Option<String>,
+    end_utc: String,
+    total_tokens: String,
+    /// A part of the output count. None when the tool reports none.
+    reasoning_tokens: Option<String>,
+    estimated_value_usd_micros: Option<String>,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ProjectView {
+    tool: String,
+    project: String,
+    sessions: usize,
+    total_tokens: String,
+}
+
 #[derive(Debug, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct LocalUsageView {
@@ -96,6 +124,9 @@ pub(crate) struct LocalUsageView {
     active_days: usize,
     longest_streak_days: usize,
     busiest_day: Option<BusiestDay>,
+    /// Sessions that ended in the range, newest first.
+    sessions: Vec<SessionView>,
+    projects: Vec<ProjectView>,
 }
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
@@ -205,7 +236,47 @@ fn summarize(
     tool_rows.sort_by_key(|(tool, _)| (order(tool), tool.to_string()));
     let mut model_rows: Vec<_> = models.into_iter().collect();
     model_rows.sort_by(|a, b| b.1.0.cmp(&a.1.0).then(a.0.cmp(&b.0)));
+    let mut projects: BTreeMap<(&str, &str), (usize, u128)> = BTreeMap::new();
+    for saved in &range.sessions {
+        let session = &saved.session;
+        if let Some(project) = session.project_name.as_deref() {
+            let entry = projects
+                .entry((session.tool.as_str(), project))
+                .or_default();
+            entry.0 += 1;
+            entry.1 += u128::from(session.total_tokens);
+        }
+    }
+    let mut project_rows: Vec<_> = projects.into_iter().collect();
+    project_rows.sort_by(|a, b| b.1.1.cmp(&a.1.1).then(a.0.cmp(&b.0)));
     LocalUsageView {
+        sessions: range
+            .sessions
+            .iter()
+            .take(MAX_SESSIONS)
+            .map(|saved| {
+                let s = &saved.session;
+                SessionView {
+                    key: s.session_key.clone(),
+                    tool: s.tool.clone(),
+                    project: s.project_name.clone(),
+                    start_utc: s.start_utc.clone(),
+                    end_utc: s.end_utc.clone(),
+                    total_tokens: s.total_tokens.to_string(),
+                    reasoning_tokens: s.reasoning_tokens.map(|v| v.to_string()),
+                    estimated_value_usd_micros: s.estimated_value_usd_micros.map(|v| v.to_string()),
+                }
+            })
+            .collect(),
+        projects: project_rows
+            .into_iter()
+            .map(|((tool, project), (sessions, total))| ProjectView {
+                tool: tool.into(),
+                project: project.into(),
+                sessions,
+                total_tokens: total.to_string(),
+            })
+            .collect(),
         active_days,
         longest_streak_days,
         busiest_day,
@@ -263,6 +334,12 @@ fn summarize(
     }
 }
 
+/// The UTC instant at which `date` starts in `zone`, in the stored form.
+fn day_start_utc(date: Date, zone: &TimeZone) -> Option<String> {
+    let start = date.to_zoned(zone.clone()).ok()?.timestamp();
+    Some(start.strftime("%Y-%m-%dT%H:%M:%S.000Z").to_string())
+}
+
 /// Saved local totals for the last `days` days in the zone of the saved days (OU-LOG-010).
 #[tauri::command]
 pub async fn load_local_usage(
@@ -275,13 +352,23 @@ pub async fn load_local_usage(
     }
     crate::subscriptions::access(service, move |workspace| {
         let zone = workspace.local_usage_zone()?;
-        let today = TimeZone::get(&zone)
-            .map(|tz| jiff::Timestamp::now().to_zoned(tz).date())
-            .map_err(|_| CommandError::StorageUnavailable)?;
+        let tz = TimeZone::get(&zone).map_err(|_| CommandError::StorageUnavailable)?;
+        let today = jiff::Timestamp::now().to_zoned(tz.clone()).date();
         let start = today
             .checked_sub(Span::new().days(i64::from(args.days) - 1))
             .map_err(|_| CommandError::InvalidArguments)?;
-        let range = workspace.local_usage_range(&start.to_string(), &today.to_string())?;
+        let next = today
+            .checked_add(Span::new().days(1))
+            .map_err(|_| CommandError::InvalidArguments)?;
+        let (Some(since_utc), Some(until_utc)) =
+            (day_start_utc(start, &tz), day_start_utc(next, &tz))
+        else {
+            return Err(CommandError::StorageUnavailable);
+        };
+        let range = workspace.local_usage_range(
+            (&start.to_string(), &today.to_string()),
+            Some((&since_utc, &until_utc)),
+        )?;
         Ok(summarize(&range, start, today, args.period, zone))
     })
     .await
@@ -291,7 +378,8 @@ pub async fn load_local_usage(
 mod tests {
     use super::*;
     use openusage_storage::{
-        LocalUsageDay, LocalUsageDifference, LocalUsageRow, LogConsent, LogSource,
+        LocalUsageDay, LocalUsageDifference, LocalUsageRow, LocalUsageSession, LogConsent,
+        LogSource, SavedLocalSession,
     };
 
     const CLAUDE: &str = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -339,6 +427,49 @@ mod tests {
         }
     }
 
+    fn session(
+        source: &str,
+        tool: &str,
+        key: &str,
+        project: Option<&str>,
+        end: &str,
+        total: u64,
+        reasoning: Option<u64>,
+    ) -> SavedLocalSession {
+        SavedLocalSession {
+            log_source_id: source.into(),
+            session: LocalUsageSession {
+                tool: tool.into(),
+                session_key: key.into(),
+                project_name: project.map(Into::into),
+                start_utc: None,
+                end_utc: end.into(),
+                input_tokens: total - 3,
+                output_tokens: 1,
+                cache_write_tokens: 1,
+                cache_read_tokens: 1,
+                reasoning_tokens: reasoning,
+                total_tokens: total,
+                estimated_value_usd_micros: None,
+            },
+            scanner_version: "20.0.48".into(),
+        }
+    }
+
+    #[test]
+    fn day_starts_are_utc_instants_in_the_pinned_zone() {
+        let date: Date = "2026-11-08".parse().unwrap();
+        let kolkata = TimeZone::get("Asia/Kolkata").unwrap();
+        assert_eq!(
+            day_start_utc(date, &kolkata).as_deref(),
+            Some("2026-11-07T18:30:00.000Z")
+        );
+        assert_eq!(
+            day_start_utc(date, &TimeZone::UTC).as_deref(),
+            Some("2026-11-08T00:00:00.000Z")
+        );
+    }
+
     #[test]
     fn totals_are_exact_and_a_missing_price_stays_missing() {
         let big = u64::MAX;
@@ -384,6 +515,44 @@ mod tests {
             sources: vec![
                 source(CODEX, "codex", None),
                 source(CLAUDE, "claude", Some("Asia/Kolkata")),
+            ],
+            sessions: vec![
+                session(
+                    CODEX,
+                    "codex",
+                    "2026/11/09/rollout-x",
+                    None,
+                    "2026-11-09T10:00:00.000Z",
+                    40,
+                    Some(3),
+                ),
+                session(
+                    CLAUDE,
+                    "claude",
+                    "s-2",
+                    Some("-home-dev-alpha"),
+                    "2026-11-03T10:00:00.000Z",
+                    big,
+                    None,
+                ),
+                session(
+                    CLAUDE,
+                    "claude",
+                    "s-1",
+                    Some("-home-dev-alpha"),
+                    "2026-11-02T10:00:00.000Z",
+                    big,
+                    None,
+                ),
+                session(
+                    CLAUDE,
+                    "claude",
+                    "s-0",
+                    Some("-home-dev-beta"),
+                    "2026-11-02T09:00:00.000Z",
+                    9,
+                    None,
+                ),
             ],
         };
         let start: Date = "2026-11-01".parse().unwrap();
@@ -439,6 +608,30 @@ mod tests {
                 date: "2026-11-03".into(),
                 total_tokens: "18446744073709551665".into()
             })
+        );
+        // Sessions keep their order and a missing reasoning count stays missing.
+        assert_eq!(
+            view.sessions
+                .iter()
+                .map(|s| (s.key.as_str(), s.reasoning_tokens.as_deref()))
+                .collect::<Vec<_>>(),
+            [
+                ("2026/11/09/rollout-x", Some("3")),
+                ("s-2", None),
+                ("s-1", None),
+                ("s-0", None)
+            ]
+        );
+        // Projects sum exactly past u64, and a session with no project joins none.
+        assert_eq!(
+            view.projects
+                .iter()
+                .map(|p| (p.project.as_str(), p.sessions, p.total_tokens.as_str()))
+                .collect::<Vec<_>>(),
+            [
+                ("-home-dev-alpha", 2, "36893488147419103230"),
+                ("-home-dev-beta", 1, "9")
+            ]
         );
         let months = summarize(&range, start, end, Period::Month, "UTC".into());
         assert_eq!(

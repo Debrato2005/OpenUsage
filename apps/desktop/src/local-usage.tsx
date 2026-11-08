@@ -160,6 +160,28 @@ function Models({ view }: { view: LocalUsageView }) {
   </section>;
 }
 
+function Projects({ view }: { view: LocalUsageView }) {
+  if (view.projects.length === 0) return null;
+  return <section className="local-models" aria-labelledby="local-projects-heading" data-local-projects>
+    <h3 id="local-projects-heading">Projects</h3>
+    <table><thead><tr><th scope="col">Project</th><th scope="col">Tool</th><th scope="col">Sessions</th><th scope="col">Tokens</th></tr></thead>
+      <tbody>{view.projects.map(p => <tr key={`${p.tool}:${p.project}`}><th scope="row"><bdi>{p.project}</bdi></th><td>{localLogToolNames[p.tool]}</td><td>{p.sessions}</td><td>{exact.format(BigInt(p.totalTokens))}</td></tr>)}</tbody></table>
+  </section>;
+}
+
+/** Sessions that ended in the range, newest first. A tool that reports no start or reasoning shows it as missing (SC-021). */
+function Sessions({ view }: { view: LocalUsageView }) {
+  if (view.sessions.length === 0) return null;
+  const when = (utc: string) => new Date(utc).toLocaleString('en-US', { timeZone: view.timeZone, month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  return <section className="local-models" aria-labelledby="local-sessions-heading" data-local-sessions>
+    <h3 id="local-sessions-heading">Sessions</h3>
+    <table><thead><tr><th scope="col">Ended</th><th scope="col">Tool</th><th scope="col">Project</th><th scope="col">Started</th><th scope="col">Tokens</th><th scope="col">Reasoning</th></tr></thead>
+      <tbody>{view.sessions.map((s, index) => <tr key={`${s.tool}:${s.key}:${index}`} data-local-session={s.tool}><th scope="row"><time dateTime={s.endUtc}>{when(s.endUtc)}</time></th><td>{localLogToolNames[s.tool]}</td>
+        <td>{s.project === null ? 'Not available' : <bdi>{s.project}</bdi>}</td><td>{s.startUtc === null ? 'Not available' : <time dateTime={s.startUtc}>{when(s.startUtc)}</time>}</td>
+        <td>{exact.format(BigInt(s.totalTokens))}</td><td>{s.reasoningTokens === null ? 'Not available' : exact.format(BigInt(s.reasoningTokens))}</td></tr>)}</tbody></table>
+  </section>;
+}
+
 const ranges: [LocalUsageDays, string][] = [[7, '7 days'], [30, '30 days'], [90, '90 days'], [365, 'Year']];
 const periods: [LocalUsagePeriod, string][] = [['day', 'Daily'], ['week', 'Weekly'], ['month', 'Monthly']];
 
@@ -180,6 +202,8 @@ export function LocalUsagePanel({ active }: { active: boolean }) {
       <Records view={view} />
       <div className="overview-days"><LocalBars view={view} period={period} /></div>
       <Models view={view} />
+      <Projects view={view} />
+      <Sessions view={view} />
     </>}
   </section>;
 }

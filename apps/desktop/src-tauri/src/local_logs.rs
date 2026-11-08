@@ -112,10 +112,31 @@ fn scan_source(
     })
     .ok()?;
     let scanned_at = now_utc();
-    let mut state = workspace.lock().ok()?;
-    state
+    workspace
+        .lock()
+        .ok()?
         .as_mut()?
         .save_local_log_scan(&source.id, zone, &scanned_at, &rows)
+        .ok()?;
+    // The session report runs in its own empty home, outside the workspace lock (SC-021).
+    let empty_home = tempfile::tempdir().ok()?;
+    let sessions = locallogs::scan_sessions(&locallogs::ScanRequest {
+        binary: &scanner.binary,
+        expected_sha256: &scanner.digest,
+        tool: &source.tool,
+        folder,
+        empty_home: empty_home.path(),
+        timezone: zone,
+        since: None,
+        timeout: locallogs::DEFAULT_TIMEOUT,
+        max_output: locallogs::DEFAULT_MAX_OUTPUT,
+    })
+    .ok()?;
+    workspace
+        .lock()
+        .ok()?
+        .as_mut()?
+        .save_local_session_scan(&source.id, &scanned_at, &sessions)
         .ok()?;
     Some(scanned_at)
 }
@@ -367,6 +388,10 @@ mod tests {
         env!("CARGO_MANIFEST_DIR"),
         "/../../../crates/openusage-locallogs/tests/fixtures/ccusage-20.0.48-daily-by-agent-claude.json"
     );
+    const CLAUDE_SESSIONS: &str = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../crates/openusage-locallogs/tests/fixtures/ccusage-20.0.48-session-claude.json"
+    );
 
     fn scanner(dir: &Path, name: &str, body: &str) -> Scanner {
         let binary = dir.join(name);
@@ -447,7 +472,7 @@ mod tests {
             &bin,
             "ok",
             &format!(
-                "[ -n \"$CODEX_HOME\" ] && touch {}; cat {CLAUDE_REPORT}",
+                "[ -n \"$CODEX_HOME\" ] && touch {}; if [ \"$2\" = session ]; then cat {CLAUDE_SESSIONS}; else cat {CLAUDE_REPORT}; fi",
                 marker.display()
             ),
         );
@@ -462,6 +487,22 @@ mod tests {
         let mut state = shared.lock().unwrap();
         let saved = totals(state.as_mut().unwrap());
         assert_eq!(saved.len(), 3);
+        // The same run saved the Claude Code sessions with their project (SC-021).
+        let range = state
+            .as_mut()
+            .unwrap()
+            .local_usage_range(
+                ("2026-01-01", "2026-12-31"),
+                Some(("2026-01-01T00:00:00.000Z", "2027-01-01T00:00:00.000Z")),
+            )
+            .unwrap();
+        assert_eq!(range.sessions.len(), 2);
+        assert!(
+            range
+                .sessions
+                .iter()
+                .all(|s| s.session.project_name.as_deref() == Some("-home-dev-alpha"))
+        );
         drop(state);
 
         // A failed run keeps the saved totals (OU-LOG-008, OU-LOG-011).

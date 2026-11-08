@@ -27,8 +27,8 @@ pub const TOOLS: &[&str] = &[
 ];
 
 /// A bound well above any real day, so a corrupt count cannot overflow later sums.
-const MAX_COUNT: u64 = 1_000_000_000_000_000;
-const MAX_ROWS: usize = 200_000;
+pub(crate) const MAX_COUNT: u64 = 1_000_000_000_000_000;
+pub(crate) const MAX_ROWS: usize = 200_000;
 
 /// One day of one tool and one model. Token counts are exact integers.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -113,27 +113,27 @@ struct Agent {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
-struct Model {
-    cache_creation_tokens: u64,
-    cache_read_tokens: u64,
-    cost: f64,
-    input_tokens: u64,
+pub(crate) struct Model {
+    pub(crate) cache_creation_tokens: u64,
+    pub(crate) cache_read_tokens: u64,
+    pub(crate) cost: f64,
+    pub(crate) input_tokens: u64,
     #[serde(default)]
-    missing_pricing: bool,
-    model_name: String,
-    output_tokens: u64,
+    pub(crate) missing_pricing: bool,
+    pub(crate) model_name: String,
+    pub(crate) output_tokens: u64,
 }
 
 #[derive(Default, PartialEq, Eq, Debug, Clone, Copy)]
-struct Sum {
-    input: u64,
-    output: u64,
-    write: u64,
-    read: u64,
+pub(crate) struct Sum {
+    pub(crate) input: u64,
+    pub(crate) output: u64,
+    pub(crate) write: u64,
+    pub(crate) read: u64,
 }
 
 impl Sum {
-    fn add(&mut self, other: Sum) -> Result<(), ReportError> {
+    pub(crate) fn add(&mut self, other: Sum) -> Result<(), ReportError> {
         let add = |a: u64, b: u64| {
             a.checked_add(b)
                 .filter(|v| *v <= MAX_COUNT)
@@ -145,7 +145,7 @@ impl Sum {
         self.read = add(self.read, other.read)?;
         Ok(())
     }
-    fn total(self) -> Result<u64, ReportError> {
+    pub(crate) fn total(self) -> Result<u64, ReportError> {
         let sum = [self.output, self.write, self.read]
             .into_iter()
             .try_fold(self.input, |a, b| a.checked_add(b));
@@ -154,7 +154,7 @@ impl Sum {
     }
 }
 
-fn counts(input: u64, output: u64, write: u64, read: u64) -> Result<Sum, ReportError> {
+pub(crate) fn counts(input: u64, output: u64, write: u64, read: u64) -> Result<Sum, ReportError> {
     if [input, output, write, read].iter().any(|v| *v > MAX_COUNT) {
         return Err(ReportError::Inconsistent("count out of range".into()));
     }
@@ -166,7 +166,7 @@ fn counts(input: u64, output: u64, write: u64, read: u64) -> Result<Sum, ReportE
     })
 }
 
-fn valid_date(date: &str) -> bool {
+pub(crate) fn valid_date(date: &str) -> bool {
     let bytes = date.as_bytes();
     if bytes.len() != 10
         || bytes[4] != b'-'
@@ -185,7 +185,7 @@ fn valid_date(date: &str) -> bool {
     (1..=12).contains(&month) && (1..=31).contains(&day)
 }
 
-fn valid_model(model: &str) -> bool {
+pub(crate) fn valid_model(model: &str) -> bool {
     !model.is_empty()
         && model.len() <= 128
         && model
@@ -194,7 +194,7 @@ fn valid_model(model: &str) -> bool {
 }
 
 /// Money estimate in millionths of a dollar. ccusage prices from its offline table.
-fn micros(cost: f64) -> Result<u64, ReportError> {
+pub(crate) fn micros(cost: f64) -> Result<u64, ReportError> {
     if !cost.is_finite() || cost < 0.0 || cost > 1.0e9 {
         return Err(ReportError::Shape("cost out of range".into()));
     }

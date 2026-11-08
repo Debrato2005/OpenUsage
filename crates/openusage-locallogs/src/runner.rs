@@ -4,6 +4,7 @@
 //! default folders of other tools do not exist for ccusage (OU-LOG-001).
 
 use crate::report::{ReportError, UsageRow, parse_daily_by_agent};
+use crate::session::{SessionRow, parse_sessions};
 use sha2::{Digest, Sha256};
 use std::io::Read;
 use std::path::Path;
@@ -110,7 +111,38 @@ pub fn sha256_hex(bytes: &[u8]) -> String {
         .collect()
 }
 
+/// The daily report of the granted tool, one row for each day and model.
 pub fn scan(request: &ScanRequest<'_>) -> Result<Vec<UsageRow>, ScanError> {
+    let output = run(
+        request,
+        &["daily", "--json", "--offline", "--by-agent", "--no-color"],
+    )?;
+    let rows = parse_daily_by_agent(&output).map_err(ScanError::Report)?;
+    // A row of another tool means that ccusage read a folder that it was not given.
+    if rows.iter().any(|row| row.tool != request.tool) {
+        return Err(ScanError::Report(ReportError::Shape(
+            "a tool that the run did not ask for".into(),
+        )));
+    }
+    Ok(rows)
+}
+
+/// The session report of the granted tool (OU-LOG-017, SC-021).
+pub fn scan_sessions(request: &ScanRequest<'_>) -> Result<Vec<SessionRow>, ScanError> {
+    let tool = FOLDER_VARIABLES
+        .iter()
+        .find(|(tool, _)| *tool == request.tool)
+        .map(|(tool, _)| *tool)
+        .ok_or(ScanError::InvalidRequest)?;
+    let output = run(
+        request,
+        &[tool, "session", "--json", "--offline", "--no-color"],
+    )?;
+    parse_sessions(tool, &output).map_err(ScanError::Report)
+}
+
+/// Runs the pinned binary once with fixed arguments and returns its output (OU-LOG-006).
+fn run(request: &ScanRequest<'_>, fixed: &[&str]) -> Result<Vec<u8>, ScanError> {
     let _one = ONE_RUN.try_lock().map_err(|_| ScanError::Busy)?;
     let variable = FOLDER_VARIABLES
         .iter()
@@ -134,15 +166,8 @@ pub fn scan(request: &ScanRequest<'_>) -> Result<Vec<UsageRow>, ScanError> {
         return Err(ScanError::Digest);
     }
     drop(bytes);
-    let mut args = vec![
-        "daily",
-        "--json",
-        "--offline",
-        "--by-agent",
-        "--no-color",
-        "--timezone",
-        request.timezone,
-    ];
+    let mut args = fixed.to_vec();
+    args.extend(["--timezone", request.timezone]);
     if let Some(since) = request.since {
         args.extend(["--since", since]);
     }
@@ -213,26 +238,10 @@ pub fn scan(request: &ScanRequest<'_>) -> Result<Vec<UsageRow>, ScanError> {
             .and_then(|reader| reader.join().ok())
             .unwrap_or(Err(())),
     };
-    finish(status, output, request.tool)
-}
-
-fn finish(
-    status: std::process::ExitStatus,
-    output: Result<Vec<u8>, ()>,
-    tool: &str,
-) -> Result<Vec<UsageRow>, ScanError> {
     if !status.success() {
         return Err(ScanError::Failed(status.code()));
     }
-    let output = output.map_err(|_| ScanError::OutputTooLarge)?;
-    let rows = parse_daily_by_agent(&output).map_err(ScanError::Report)?;
-    // A row of another tool means that ccusage read a folder that it was not given.
-    if rows.iter().any(|row| row.tool != tool) {
-        return Err(ScanError::Report(ReportError::Shape(
-            "a tool that the run did not ask for".into(),
-        )));
-    }
-    Ok(rows)
+    output.map_err(|_| ScanError::OutputTooLarge)
 }
 
 #[cfg(all(test, unix))]

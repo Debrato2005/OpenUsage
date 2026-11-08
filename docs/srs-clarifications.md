@@ -26,6 +26,28 @@ This is the record of how requirements were read. Entries keep their original da
 | SC-018 | One consent screen for local logs | In force |
 | SC-019 | Local log totals in CLI JSON | In force |
 | SC-020 | A read-only CLI and the WAL index | In force |
+| SC-021 | Sessions, projects, hours and reasoning from the pinned `ccusage` | In force; quota movement waits for OQ-1 |
+
+## SC-021: sessions, projects, hours and reasoning from the pinned `ccusage`
+
+Recorded November 8, 2026 against baseline 3.0. Status: in force; quota movement waits for the owner's OQ-1 decision.
+
+OU-LOG-017 asks for hourly ranges and for breakdowns by reasoning, session and project. OU-LOG-018 asks for the quota movement of a session. Runs of the pinned `ccusage` 20.0.48 on the synthetic fixtures show what each tool reports:
+
+| Data | Claude Code | Codex |
+|---|---|---|
+| Sessions (`<tool> session`) | Session ID, first and last activity, project folder, counts | Session ID, last activity, counts with reasoning |
+| Project | The folder name that Claude Code writes, which encodes the path | None |
+| Reasoning count | None | Yes |
+| Hours (`blocks -n 1`) | One-hour blocks that start on whole UTC hours | No blocks |
+
+The app reads these rules as follows:
+
+- **Sessions:** the store saves each session with its key, project and times as `ccusage` reports them. A Codex session has a null start, because `ccusage` gives none. The app does not read a time from a file name.
+- **Lower results:** a scan that reads less for a saved session keeps the saved counts, as for days (OU-LOG-011).
+- **Reasoning and projects:** a tool that reports no reasoning count or project shows it as missing, not as zero (Section 0.2).
+- **Hours:** hourly ranges cover Claude Code only. Where the pinned zone is not a whole number of hours from UTC, a UTC hour covers parts of two local hours, so the app shows no hourly range for that zone.
+- **Quota movement:** a local session does not name a provider account. Until the owner settles OQ-1 and links log accounts to profiles, the app has no saved readings for a session and shows no quota movement. It never converts a percentage to tokens.
 
 ## SC-020: a read-only CLI and the WAL index
 

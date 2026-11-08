@@ -12,7 +12,7 @@ The app runs on Linux only. Results below use synthetic data unless they say oth
 
 | Area | State |
 |---|---|
-| Storage | SQLCipher 4 with WAL at schema 10, with OS key store and passphrase fallback |
+| Storage | SQLCipher 4 with WAL at schema 11, with OS key store and passphrase fallback |
 | Accounts | Up to 10 Codex profiles, device-code sign-in, sign-out, and archive |
 | Quotas | Reported windows, reset countdowns, conservative reset confirmation, and history |
 | Token activity | Provider daily buckets, heatmaps, and Individual and Profile sum views |
@@ -80,6 +80,8 @@ Kept from baseline 2.0:
 
 - Local logs (5C), L-1e, November 8, 2026: Usage has one source control, Provider or This device (OU-LOG-016). This device shows the saved totals for 7, 30 or 90 days or a year, grouped by day, week or month: a card for each tool, stacked bars and a model table. Each total opens the detail panel with the token types, the estimate at public API prices, the source, the day zone, and any saved difference (OU-LOG-011). Overview shows the last 30 days in a This device section, also with no account, so first launch reaches local history with no sign-in (OU-UI-025). Rust sums the exact counts. Not built yet from OU-LOG-017: hourly ranges, custom dates, and the session, project and reasoning breakdowns, which need the `ccusage` session report.
 
+- Local logs (5C), L-1g1, November 8, 2026: each scan also runs the `ccusage` session report of the granted tool, and schema 11 saves each session in `local_usage_sessions` (SC-021). A Claude Code session keeps its project folder and its start and end times. A Codex session keeps its end time and its reasoning count, a part of output. A lower scan keeps the saved counts. This device shows a Projects table and a Sessions table, and a count that a tool does not report shows as Not available. Share images read no session. Hourly and custom ranges (L-1g2, L-1g3) are not built, and session quota movement (L-1g4) waits for OQ-1.
+
 - Simplicity (S-01, Section 2.3): every screen has been reviewed. One exception to OU-DES-007 remains: quota numbers in Manage accounts open their reading through View usage in the row, not through the detail panel. See SC-012 for unknown freshness.
 - Confirmed invalid-credential detection: OU-ALERT-007, under SC-009.
 - Offline behavior: OU-MON-012, OU-STATE-009, OU-DATA-024.
@@ -101,6 +103,7 @@ Kept from baseline 2.0:
 
 ## Failing or stale tests
 
+- L-1g1, November 8, 2026: 24 journeys now expect schema 11. 14 journeys ran on the native-test build on a private display and passed: `local-log-consent`, `share-images`, `cli-status`, `backup`, `backup-inspection`, `restore-preview`, `restore-apply`, `restore-checkpoint`, `application-export`, `local-data-deletion`, `persistence`, `subscriptions`, `activity-persistence` and `account-signout`. These 12 did not run on this build: `activity-history`, `activity-history-export`, `alert-history`, `collection`, `companion-onboarding`, `device-login`, `first-account-read`, `monitoring`, `onboarding-discovery`, `operational-alerts`, `quota-read` and `reset-notifications`.
 - L-1b, November 8, 2026: 23 journeys now expect schema 10. 8 ran on the native-test build on a private display and passed: `backup`, `backup-inspection`, `restore-preview`, `restore-apply`, `restore-checkpoint`, `application-export`, `local-data-deletion` and `persistence`. The other 15 did not run on this build.
 - S-03d, November 6, 2026: the 19 journeys that touch Overview were updated and run on a private display. 17 passed, 16 on the native-test build and `provider-keyring` on the companion build. `reference-visual` passes every Overview check and keeps its recorded digit-width reason on Usage; `heatmap-window` keeps its window-manager reason. The other journeys did not run on this build.
 

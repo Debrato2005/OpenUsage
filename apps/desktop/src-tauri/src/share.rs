@@ -462,7 +462,8 @@ fn image(
     let start = today
         .checked_sub(Span::new().days(i64::from(DAYS) - 1))
         .map_err(|_| CommandError::StorageUnavailable)?;
-    let range = workspace.local_usage_range(&start.to_string(), &today.to_string())?;
+    // No session window: share images never read a session or a project name (OU-LOG-004).
+    let range = workspace.local_usage_range((&start.to_string(), &today.to_string()), None)?;
     let stats = stats(&range, start, today);
     let svg = match kind {
         Kind::Wrapped => wrapped(&stats, branding),
@@ -601,6 +602,7 @@ mod tests {
             days,
             differences: Vec::new(),
             sources: Vec::new(),
+            sessions: Vec::new(),
         }
     }
 

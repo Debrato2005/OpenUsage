@@ -283,7 +283,7 @@ fn current_schema_is_explicit_and_mismatch_refusal_preserves_the_synthetic_works
             assert_eq!(report["plaintextDiskStaging"], false);
             let mut tables = report["state"]["tables"].as_object().unwrap().clone();
             if flag.is_none() {
-                assert_eq!(tables.len(), 31);
+                assert_eq!(tables.len(), 32);
                 assert_eq!(tables.get("subscriptions"), Some(&json!([])));
                 assert_eq!(tables.get("alert_events"), Some(&json!([])));
                 for table in [
@@ -303,13 +303,14 @@ fn current_schema_is_explicit_and_mismatch_refusal_preserves_the_synthetic_works
                     "log_sources",
                     "local_usage_days",
                     "local_usage_differences",
+                    "local_usage_sessions",
                 ] {
                     assert_eq!(tables.get(table), Some(&json!([])), "{table}");
                 }
                 assert!(!tables.contains_key("profiles"));
                 default_tables = Some(tables);
             } else {
-                assert_eq!(tables.len(), 34);
+                assert_eq!(tables.len(), 35);
                 let profiles = tables.remove("profiles").unwrap();
                 assert_eq!(profiles.as_array().unwrap().len(), 1);
                 let profile = &profiles[0];

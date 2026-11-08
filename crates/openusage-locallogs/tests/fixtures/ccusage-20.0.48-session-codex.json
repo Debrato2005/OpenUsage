@@ -1,0 +1,37 @@
+{
+  "sessions": [
+    {
+      "cacheCreationTokens": 0,
+      "cacheReadTokens": 1000,
+      "costUSD": 0.009875,
+      "directory": "2026/11/05",
+      "inputTokens": 3000,
+      "lastActivity": "2026-11-05T12:00:05.000Z",
+      "models": {
+        "gpt-5-codex": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 1000,
+          "inputTokens": 3000,
+          "isFallback": false,
+          "outputTokens": 600,
+          "reasoningOutputTokens": 200,
+          "totalTokens": 4600
+        }
+      },
+      "outputTokens": 600,
+      "reasoningOutputTokens": 200,
+      "sessionFile": "rollout-2026-11-05T12-00-00-22222222-bbbb-4bbb-8bbb-222222222222",
+      "sessionId": "2026/11/05/rollout-2026-11-05T12-00-00-22222222-bbbb-4bbb-8bbb-222222222222",
+      "totalTokens": 4600
+    }
+  ],
+  "totals": {
+    "cacheCreationTokens": 0,
+    "cacheReadTokens": 1000,
+    "costUSD": 0.009875,
+    "inputTokens": 3000,
+    "outputTokens": 600,
+    "reasoningOutputTokens": 200,
+    "totalTokens": 4600
+  }
+}

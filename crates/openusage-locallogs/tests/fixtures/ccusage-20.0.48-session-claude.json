@@ -1,0 +1,75 @@
+{
+  "sessions": [
+    {
+      "cacheCreationTokens": 300,
+      "cacheReadTokens": 8000,
+      "firstActivity": "2026-11-04T09:00:00.000Z",
+      "inputTokens": 4500,
+      "lastActivity": "2026-11-05T11:00:00.000Z",
+      "modelBreakdowns": [
+        {
+          "cacheCreationTokens": 100,
+          "cacheReadTokens": 0,
+          "cost": 0.076875,
+          "inputTokens": 1500,
+          "modelName": "claude-opus-4-1-20250805",
+          "outputTokens": 700
+        },
+        {
+          "cacheCreationTokens": 200,
+          "cacheReadTokens": 8000,
+          "cost": 0.031650000000000005,
+          "inputTokens": 3000,
+          "modelName": "claude-sonnet-4-5-20250929",
+          "outputTokens": 1300
+        }
+      ],
+      "modelsUsed": [
+        "claude-sonnet-4-5-20250929",
+        "claude-opus-4-1-20250805"
+      ],
+      "outputTokens": 2000,
+      "projectPath": "-home-dev-alpha",
+      "sessionId": "11111111-aaaa-4aaa-8aaa-111111111111",
+      "totalCost": 0.10852500000000001,
+      "totalTokens": 14800
+    },
+    {
+      "cacheCreationTokens": 0,
+      "cacheReadTokens": 0,
+      "firstActivity": "2026-11-05T13:00:00.000Z",
+      "inputTokens": 100,
+      "lastActivity": "2026-11-05T13:00:00.000Z",
+      "modelBreakdowns": [
+        {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "cost": 0.0,
+          "inputTokens": 100,
+          "missingPricing": true,
+          "modelName": "totally-unknown-model-x",
+          "outputTokens": 50
+        }
+      ],
+      "modelsUsed": [
+        "totally-unknown-model-x"
+      ],
+      "outputTokens": 50,
+      "projectPath": "-home-dev-alpha",
+      "sessionId": "33333333-cccc-4ccc-8ccc-333333333333",
+      "totalCost": 0.0,
+      "totalTokens": 150
+    }
+  ],
+  "totals": {
+    "cacheCreationTokens": 300,
+    "cacheReadTokens": 8000,
+    "inputTokens": 4600,
+    "outputTokens": 2050,
+    "totalCost": 0.10852500000000001,
+    "totalTokens": 14950,
+    "unpricedModels": [
+      "totally-unknown-model-x"
+    ]
+  }
+}

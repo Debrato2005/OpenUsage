@@ -393,15 +393,30 @@ export type LocalUsageView = {
   buckets: { startDate: string; tool: LocalLogTool; totalTokens: string }[];
   differences: { date: string; tool: LocalLogTool; model: string; savedTotalTokens: string; newTotalTokens: string; scanAtUtc: string }[];
   activeDays: number; longestStreakDays: number; busiestDay: { date: string; totalTokens: string } | null;
+  sessions: LocalSession[];
+  projects: LocalProject[];
 };
+// Only Claude Code reports a project and a start, and only Codex reports reasoning (SC-021).
+export type LocalSession = { key: string; tool: LocalLogTool; project: string | null; startUtc: string | null; endUtc: string; totalTokens: string; reasoningTokens: string | null; estimatedValueUsdMicros: string | null };
+export type LocalProject = { tool: LocalLogTool; project: string; sessions: number; totalTokens: string };
 const localCount = (value: unknown): value is string => typeof value === 'string' && /^(0|[1-9]\d{0,38})$/.test(value);
 const localTool = (value: unknown): value is LocalLogTool => localLogTools.includes(value as LocalLogTool);
 const localModel = (value: unknown) => typeof value === 'string' && /^[A-Za-z0-9._:/@+-]{1,128}$/.test(value);
 const exactKeys = (value: unknown, keys: string[]): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value)
   && Object.keys(value).length === keys.length && keys.every(key => key in (value as object));
+const localProject = (value: unknown): value is string => typeof value === 'string' && value.length >= 1 && value.length <= 512 && !/[\u0000-\u001f\u007f-\u009f]/.test(value);
+const isLocalSession = (s: unknown) => exactKeys(s, ['key', 'tool', 'project', 'startUtc', 'endUtc', 'totalTokens', 'reasoningTokens', 'estimatedValueUsdMicros'])
+  && typeof s.key === 'string' && /^[A-Za-z0-9_./:-]{1,256}$/.test(s.key) && localTool(s.tool) && (s.project === null || localProject(s.project))
+  && isUtcTimestamp(s.endUtc) && (s.startUtc === null || (isUtcTimestamp(s.startUtc) && (s.startUtc as string) <= (s.endUtc as string)))
+  && localCount(s.totalTokens) && (s.reasoningTokens === null || (localCount(s.reasoningTokens) && BigInt(s.reasoningTokens) <= BigInt(s.totalTokens)))
+  && (s.estimatedValueUsdMicros === null || localCount(s.estimatedValueUsdMicros));
+const isLocalProject = (p: unknown) => exactKeys(p, ['tool', 'project', 'sessions', 'totalTokens']) && localTool(p.tool) && localProject(p.project)
+  && Number.isInteger(p.sessions) && (p.sessions as number) >= 1 && localCount(p.totalTokens);
 function isLocalUsageView(value: unknown): value is LocalUsageView {
-  if (!exactKeys(value, ['startDate', 'endDate', 'timeZone', 'scannerVersions', 'tools', 'models', 'buckets', 'differences', 'activeDays', 'longestStreakDays', 'busiestDay'])) return false;
+  if (!exactKeys(value, ['startDate', 'endDate', 'timeZone', 'scannerVersions', 'tools', 'models', 'buckets', 'differences', 'activeDays', 'longestStreakDays', 'busiestDay', 'sessions', 'projects'])) return false;
   const v = value as LocalUsageView;
+  if (!Array.isArray(v.sessions) || v.sessions.length > 100 || !v.sessions.every(isLocalSession)
+    || !Array.isArray(v.projects) || v.projects.length > 200_000 || !v.projects.every(isLocalProject)) return false;
   if (!Number.isInteger(v.activeDays) || v.activeDays < 0 || v.activeDays > 366 || !Number.isInteger(v.longestStreakDays) || v.longestStreakDays < 0 || v.longestStreakDays > v.activeDays
     || !(v.busiestDay === null ? v.activeDays === 0 : exactKeys(v.busiestDay, ['date', 'totalTokens']) && isProviderDate(v.busiestDay.date)
       && v.busiestDay.date >= v.startDate && v.busiestDay.date <= v.endDate && localCount(v.busiestDay.totalTokens) && BigInt(v.busiestDay.totalTokens) > 0n)) return false;

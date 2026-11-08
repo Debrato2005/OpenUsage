@@ -2,7 +2,8 @@
 //! Set OPENUSAGE_CCUSAGE_BIN to the provisioned binary; without it the test says so and passes.
 
 use openusage_locallogs::{
-    DEFAULT_MAX_OUTPUT, ScanRequest, UsageRow, parse_daily_by_agent, pinned_sha256, scan,
+    DEFAULT_MAX_OUTPUT, ScanRequest, UsageRow, parse_daily_by_agent, parse_sessions, pinned_sha256,
+    scan, scan_sessions,
 };
 use std::path::Path;
 use std::time::Duration;
@@ -20,20 +21,28 @@ fn copy_tree(from: &Path, to: &Path) {
     }
 }
 
-fn scan_tool(binary: &Path, home: &Path, tool: &str, folder: &str) -> Vec<UsageRow> {
-    let empty = tempfile::tempdir().unwrap();
-    scan(&ScanRequest {
+fn request<'a>(
+    binary: &'a Path,
+    folder: &'a Path,
+    empty: &'a Path,
+    tool: &'a str,
+) -> ScanRequest<'a> {
+    ScanRequest {
         binary,
         expected_sha256: pinned_sha256("x86_64-unknown-linux-gnu").unwrap(),
         tool,
-        folder: &home.join(folder),
-        empty_home: empty.path(),
+        folder,
+        empty_home: empty,
         timezone: "UTC",
         since: None,
         timeout: Duration::from_secs(60),
         max_output: DEFAULT_MAX_OUTPUT,
-    })
-    .unwrap()
+    }
+}
+
+fn scan_tool(binary: &Path, home: &Path, tool: &str, folder: &str) -> Vec<UsageRow> {
+    let empty = tempfile::tempdir().unwrap();
+    scan(&request(binary, &home.join(folder), empty.path(), tool)).unwrap()
 }
 
 #[test]
@@ -67,4 +76,23 @@ fn pinned_binary_reads_synthetic_claude_and_codex_logs() {
     again.extend(scan_tool(binary, home.path(), "codex", ".codex"));
     again.sort_by_key(key);
     assert_eq!(again, rows);
+    // The session report of each tool matches its recorded output (SC-021).
+    for (tool, folder, recorded) in [
+        (
+            "claude",
+            ".claude",
+            &include_bytes!("fixtures/ccusage-20.0.48-session-claude.json")[..],
+        ),
+        (
+            "codex",
+            ".codex",
+            &include_bytes!("fixtures/ccusage-20.0.48-session-codex.json")[..],
+        ),
+    ] {
+        let empty = tempfile::tempdir().unwrap();
+        let folder = home.path().join(folder);
+        let sessions = scan_sessions(&request(binary, &folder, empty.path(), tool)).unwrap();
+        assert!(!sessions.is_empty());
+        assert_eq!(sessions, parse_sessions(tool, recorded).unwrap());
+    }
 }

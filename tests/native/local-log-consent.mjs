@@ -21,7 +21,7 @@ const hash = async path => createHash('sha256').update(await readFile(path)).dig
 const evidence = {
   requirement: 'NATIVE-LOCAL-LOG-CONSENT-001', result: 'failed', startedAt: new Date().toISOString(),
   scope: 'Actual Linux Tauri native-test build, a private SQLCipher 4 password workspace, synthetic Claude Code and Codex logs in a private home, and the real pinned ccusage 20.0.48. No real logs and no provider account.',
-  expectedResult: ['The welcome screen lists both detected tools, selected.', 'Only the chosen tool is granted and scanned.', 'With no account, Overview shows the saved Claude Code total (AT-91).', 'A restart asks no second consent and a second scan gives the same totals.', 'The synthetic logs stay unchanged.'],
+  expectedResult: ['The welcome screen lists both detected tools, selected.', 'Only the chosen tool is granted and scanned.', 'With no account, Overview shows the saved Claude Code total (AT-91).', 'The scan saves each Claude Code session with its project and times (SC-021).', 'A restart asks no second consent and a second scan gives the same totals.', 'The synthetic logs stay unchanged.'],
   steps: [], oracles: [],
 };
 let fixture, driver, sequence = 0;
@@ -52,7 +52,7 @@ async function open(setup) {
   await driver.type('#workspace-passphrase', password); if (setup) await driver.type('#workspace-confirmation', password);
   await key('');
   await waitFor(async () => (await call('bootstrap')).storage === 'ready', 'ready local log workspace');
-  assert.equal((await call('bootstrap')).schemaVersion, 10);
+  assert.equal((await call('bootstrap')).schemaVersion, 11);
 }
 async function scanned(after) {
   let view;
@@ -81,7 +81,7 @@ async function oracle(label) {
     const database = join(temporary, 'database.db'); await copyFile(fixture.database, database); await chmod(database, 0o600);
     try { await copyFile(`${fixture.database}-wal`, `${database}-wal`); await chmod(`${database}-wal`, 0o600); } catch (error) { if (error.code !== 'ENOENT') throw error; }
     const report = JSON.parse(execFileSync(verifier, ['database', database, join(dirname(fixture.database), 'database-key.v1'), '--profile-state'], { input: JSON.stringify({ passphrase: password }), encoding: 'utf8', env: fixture.environment, timeout: 30000, maxBuffer: 8 * 1024 * 1024 }));
-    assert.equal(report.verified, true); assert.equal(Number(report.schemaVersion), 10);
+    assert.equal(report.verified, true); assert.equal(Number(report.schemaVersion), 11);
     const tables = report.state.tables;
     const sources = tables.log_sources.map(s => ({ tool: s.tool, consent: s.consent, zone: s.time_zone }));
     const days = tables.local_usage_days.map(d => ({ date: d.local_date, tool: d.tool, model: d.model, total: d.total_tokens, value: d.estimated_value_usd_micros, coverage: d.coverage, scanner: d.scanner_version }))
@@ -123,6 +123,14 @@ try {
   assert.deepEqual(await driver.execute('return [...document.querySelectorAll("[data-local-overview] [data-local-tool-total]")].map(n=>n.getAttribute("aria-label"));'), ['Claude Code: 14,950 tokens']);
   assert.equal(await driver.execute('return Boolean(document.querySelector("[data-overview-add-account]"));'), true);
   evidence.steps.push('With no account, Overview showed Claude Code: 14,950 tokens and no Codex card.');
+  // The same scan saved the Claude Code sessions with their project, and no reasoning count (SC-021).
+  const usage = await call('load_local_usage', { days: 30, period: 'day' });
+  assert.deepEqual(usage.sessions.map(s => [s.tool, s.key, s.project, s.startUtc, s.endUtc, s.totalTokens, s.reasoningTokens]), [
+    ['claude', '33333333-cccc-4ccc-8ccc-333333333333', '-home-dev-alpha', `${newer}T13:00:00.000Z`, `${newer}T13:00:00.000Z`, '150', null],
+    ['claude', '11111111-aaaa-4aaa-8aaa-111111111111', '-home-dev-alpha', `${older}T09:00:00.000Z`, `${newer}T11:00:00.000Z`, '14800', null],
+  ]);
+  assert.deepEqual(usage.projects, [{ tool: 'claude', project: '-home-dev-alpha', sessions: 2, totalTokens: '14950' }]);
+  evidence.steps.push('The scan saved two Claude Code sessions in the project -home-dev-alpha, 14,950 tokens in all.');
   await close();
   const saved = await oracle('after first launch');
   assert.deepEqual(saved.sources.map(s => [s.tool, s.consent]).sort(), [['claude', 'granted'], ['codex', 'withdrawn']]);

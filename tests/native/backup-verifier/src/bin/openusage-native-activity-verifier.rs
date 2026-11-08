@@ -63,7 +63,7 @@ fn constrain(connection: &Connection) {
         .query_row("PRAGMA cipher_version", [], |r| r.get(0))
         .unwrap();
     assert!(version.starts_with("4."));
-    assert!([2, 3, 4, 5, 6, 7, 8, 9, 10].contains(&schema_version(connection)));
+    assert!([2, 3, 4, 5, 6, 7, 8, 9, 10, 11].contains(&schema_version(connection)));
     assert_eq!(
         connection
             .query_row("PRAGMA integrity_check", [], |r| r.get::<_, String>(0))
@@ -149,6 +149,9 @@ fn state(connection: &Connection, include_profile_state: bool) -> Value {
             ("local_usage_days", "id"),
             ("local_usage_differences", "id"),
         ]);
+    }
+    if schema_version(connection) >= 11 {
+        selected.push(("local_usage_sessions", "id"));
     }
     if include_profile_state {
         selected.extend([("profiles", "id"), ("settings", "id"), ("accounts", "id")]);
@@ -262,7 +265,7 @@ fn main() {
             free_bytes(stage),
         )
         .expect("Synthetic archive did not authenticate.");
-        assert!([2, 3, 4, 5, 6, 7, 8, 9, 10].contains(&verified.manifest().schema_version));
+        assert!([2, 3, 4, 5, 6, 7, 8, 9, 10, 11].contains(&verified.manifest().schema_version));
         assert_eq!(verified.manifest().entries.len(), 1);
         assert_eq!(verified.manifest().entries[0].name, "records.sqlite");
         verified.copy_payload(&mut *payload).unwrap();
@@ -325,8 +328,8 @@ fn main() {
     }
     if include_profile_state {
         assert!(
-            [4, 5, 6, 7, 8, 9, 10].contains(&schema_version),
-            "Profile-state verification requires schema 4 through 10."
+            [4, 5, 6, 7, 8, 9, 10, 11].contains(&schema_version),
+            "Profile-state verification requires schema 4 through 11."
         );
     }
     let actual = state(&connection, include_profile_state);
