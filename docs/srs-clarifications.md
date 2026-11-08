@@ -26,7 +26,7 @@ This is the record of how requirements were read. Entries keep their original da
 | SC-018 | One consent screen for local logs | In force |
 | SC-019 | Local log totals in CLI JSON | In force |
 | SC-020 | A read-only CLI and the WAL index | In force |
-| SC-021 | Sessions, projects, hours and reasoning from the pinned `ccusage` | In force; quota movement waits for OQ-1 |
+| SC-021 | Sessions, projects, hours and reasoning from the pinned `ccusage` | In force, amended at L-1g2; quota movement waits for OQ-1 |
 
 ## SC-021: sessions, projects, hours and reasoning from the pinned `ccusage`
 
@@ -48,6 +48,8 @@ The app reads these rules as follows:
 - **Reasoning and projects:** a tool that reports no reasoning count or project shows it as missing, not as zero (Section 0.2).
 - **Hours:** hourly ranges cover Claude Code only. Where the pinned zone is not a whole number of hours from UTC, a UTC hour covers parts of two local hours, so the app shows no hourly range for that zone.
 - **Quota movement:** a local session does not name a provider account. Until the owner settles OQ-1 and links log accounts to profiles, the app has no saved readings for a session and shows no quota movement. It never converts a percentage to tokens.
+
+Amended November 8, 2026, at L-1g2: the hours rule above would hide hourly ranges in zones such as Asia/Kolkata, which is UTC+5:30. The app instead keeps each UTC hour and shows it at its local start time, so in such a zone each hour starts at :30. Schema 12 saves the hours in `local_usage_hours`, and a lower scan keeps the saved counts. The hourly view covers at most 7 days, because 168 bars is the most that one chart shows clearly. A tool without hours shows Not available in the chart key, never zero.
 
 ## SC-020: a read-only CLI and the WAL index
 

@@ -23,9 +23,9 @@ Today Codex is the only source, and its path has no general adapter layer. The p
 | `apps/desktop/src/` | React UI with three pages: Overview, Usage, Settings |
 | `apps/desktop/src-tauri/src/` | Typed commands, monitoring, local log consent and scans, share images, notifications, key handling, provider control, export, backup, restore |
 | `crates/openusage-codex/` | Codex protocol, response parsing, approved executable checks, owned child processes |
-| `crates/openusage-storage/` | SQLCipher 4 with WAL, migrations, a read-only open for the CLI, quota, activity, alerts, subscriptions, local log totals and sessions, exports |
+| `crates/openusage-storage/` | SQLCipher 4 with WAL, migrations, a read-only open for the CLI, quota, activity, alerts, subscriptions, local log totals, sessions and hours, exports |
 | `crates/openusage-import/` | Encrypted backup archive format |
-| `crates/openusage-locallogs/` | Pinned `ccusage` binary checks, folder detection, the hardened runner, and the strict daily and session report parsers for local logs |
+| `crates/openusage-locallogs/` | Pinned `ccusage` binary checks, folder detection, the hardened runner, and the strict daily, session and hourly report parsers for local logs |
 | `crates/openusage-cli/` | The `openusage` command, with no webview dependency |
 | `crates/openusage-keys/` | The database key in the OS credential store, for the app and the CLI |
 | `services/leaderboard/` | The opt-in leaderboard Worker and its D1 schema |

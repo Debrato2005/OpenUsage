@@ -3,6 +3,7 @@
 //! Each run reads one consented folder of one tool. HOME is an empty private directory, so the
 //! default folders of other tools do not exist for ccusage (OU-LOG-001).
 
+use crate::hours::{HOUR_TOOLS, HourRow, parse_hours};
 use crate::report::{ReportError, UsageRow, parse_daily_by_agent};
 use crate::session::{SessionRow, parse_sessions};
 use sha2::{Digest, Sha256};
@@ -139,6 +140,18 @@ pub fn scan_sessions(request: &ScanRequest<'_>) -> Result<Vec<SessionRow>, ScanE
         &[tool, "session", "--json", "--offline", "--no-color"],
     )?;
     parse_sessions(tool, &output).map_err(ScanError::Report)
+}
+
+/// The one-hour blocks of Claude Code (OU-LOG-017, SC-021). Blocks take no start date here.
+pub fn scan_hours(request: &ScanRequest<'_>) -> Result<Vec<HourRow>, ScanError> {
+    if !HOUR_TOOLS.contains(&request.tool) || request.since.is_some() {
+        return Err(ScanError::InvalidRequest);
+    }
+    let output = run(
+        request,
+        &["blocks", "--json", "--offline", "--no-color", "-n", "1"],
+    )?;
+    parse_hours(&output).map_err(ScanError::Report)
 }
 
 /// Runs the pinned binary once with fixed arguments and returns its output (OU-LOG-006).

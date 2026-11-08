@@ -33,6 +33,9 @@ export function localUsage(days = 30, end = '2026-11-08') {
       { key: '11111111-aaaa-4aaa-8aaa-111111111111', tool: 'claude', project: '-home-dev-alpha', startUtc: '2026-11-07T09:30:00.000Z', endUtc: '2026-11-07T11:45:00.000Z', totalTokens: '3400000', reasoningTokens: null, estimatedValueUsdMicros: '5120000' },
       { key: '33333333-cccc-4ccc-8ccc-333333333333', tool: 'claude', project: '-home-dev-beta', startUtc: '2026-11-06T13:00:00.000Z', endUtc: '2026-11-06T13:20:00.000Z', totalTokens: '150', reasoningTokens: null, estimatedValueUsdMicros: null },
     ],
+    startUtc: `${start.toISOString().slice(0, 10)}T00:00:00.000Z`, endUtc: `${new Date(endDate.getTime() + 86_400_000).toISOString().slice(0, 10)}T00:00:00.000Z`,
+    hours: [] as { startUtc: string; tool: 'claude' | 'codex'; totalTokens: string }[],
+    hourTools: ['claude'] as ('claude' | 'codex')[],
     projects: [
       { tool: 'claude', project: '-home-dev-alpha', sessions: 1, totalTokens: '3400000' },
       { tool: 'claude', project: '-home-dev-beta', sessions: 1, totalTokens: '150' },

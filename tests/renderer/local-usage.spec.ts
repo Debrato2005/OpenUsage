@@ -63,6 +63,32 @@ test('Usage ranges and grouping ask Rust for new totals, and Provider returns to
   await expect(page.getByRole('heading', { name: 'No saved activity yet', exact: true })).toBeVisible();
 });
 
+test('the hourly view covers 7 days, shows local hours, and marks a tool with no hours as Not available', async ({ page }) => {
+  const usage = localUsage(7);
+  usage.startUtc = '2026-11-01T18:30:00.000Z'; usage.endUtc = '2026-11-08T18:30:00.000Z';
+  usage.hours = [{ startUtc: '2026-11-07T04:00:00.000Z', tool: 'claude', totalTokens: '125000' }];
+  Object.assign(usage, { activeDays: 6, longestStreakDays: 6, busiestDay: { date: '2026-11-07', totalTokens: '6912345' } });
+  await open(page, usage);
+  await navigate(page, 'usage');
+  const grouping = device(page).getByRole('group', { name: 'Grouping', exact: true });
+  // 30 days is too long for hours.
+  await expect(grouping.getByRole('button', { name: 'Hourly', exact: true })).toBeDisabled();
+  await device(page).getByRole('group', { name: 'Dates', exact: true }).getByRole('button', { name: '7 days', exact: true }).click();
+  await grouping.getByRole('button', { name: 'Hourly', exact: true }).click();
+  await expect.poll(async () => (await usageCalls(page)).at(-1)).toEqual({ days: 7, period: 'hour' });
+  const chart = device(page).locator('[data-local-bars="hour"]');
+  await expect(chart.getByRole('img')).toHaveAttribute('aria-label', 'Tokens per hour by tool, 2026-11-02 to 2026-11-08');
+  // 168 hours that start at :30 local time in Asia/Kolkata, and one with saved usage.
+  await expect(chart.locator('svg > g')).toHaveCount(5 + 168);
+  await expect(chart.locator('table tbody tr')).toHaveText(['Nov 7, 9:30 AM125,000']);
+  await expect(chart.locator('[data-local-no-hours="codex"]')).toHaveText('CodexNot available');
+  expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations).toEqual([]);
+  // A longer range falls back to days.
+  await device(page).getByRole('group', { name: 'Dates', exact: true }).getByRole('button', { name: '90 days', exact: true }).click();
+  await expect.poll(async () => (await usageCalls(page)).at(-1)).toEqual({ days: 90, period: 'day' });
+  await expect(grouping.getByRole('button', { name: 'Daily', exact: true })).toHaveAttribute('aria-pressed', 'true');
+});
+
 test('a custom range asks Rust for exact dates and an invalid range asks nothing', async ({ page }) => {
   await open(page, localUsage());
   await navigate(page, 'usage');

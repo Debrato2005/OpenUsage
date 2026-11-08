@@ -1,0 +1,110 @@
+{
+  "blocks": [
+    {
+      "actualEndTime": "2026-11-04T10:00:00.000Z",
+      "burnRate": null,
+      "costUSD": 0.031650000000000005,
+      "endTime": "2026-11-04T10:00:00.000Z",
+      "entries": 2,
+      "id": "2026-11-04T09:00:00.000Z",
+      "isActive": false,
+      "isGap": false,
+      "models": [
+        "claude-sonnet-4-5-20250929"
+      ],
+      "projection": null,
+      "startTime": "2026-11-04T09:00:00.000Z",
+      "tokenCounts": {
+        "cacheCreationInputTokens": 200,
+        "cacheReadInputTokens": 8000,
+        "inputTokens": 3000,
+        "outputTokens": 1300
+      },
+      "totalTokens": 12500
+    },
+    {
+      "actualEndTime": null,
+      "burnRate": null,
+      "costUSD": 0,
+      "endTime": "2026-11-05T11:00:00.000Z",
+      "entries": 0,
+      "id": "gap-2026-11-04T11:00:00.000Z",
+      "isActive": false,
+      "isGap": true,
+      "models": [],
+      "projection": null,
+      "startTime": "2026-11-04T11:00:00.000Z",
+      "tokenCounts": {
+        "cacheCreationInputTokens": 0,
+        "cacheReadInputTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0
+      },
+      "totalTokens": 0
+    },
+    {
+      "actualEndTime": "2026-11-05T11:00:00.000Z",
+      "burnRate": null,
+      "costUSD": 0.076875,
+      "endTime": "2026-11-05T12:00:00.000Z",
+      "entries": 1,
+      "id": "2026-11-05T11:00:00.000Z",
+      "isActive": false,
+      "isGap": false,
+      "models": [
+        "claude-opus-4-1-20250805"
+      ],
+      "projection": null,
+      "startTime": "2026-11-05T11:00:00.000Z",
+      "tokenCounts": {
+        "cacheCreationInputTokens": 100,
+        "cacheReadInputTokens": 0,
+        "inputTokens": 1500,
+        "outputTokens": 700
+      },
+      "totalTokens": 2300
+    },
+    {
+      "actualEndTime": null,
+      "burnRate": null,
+      "costUSD": 0,
+      "endTime": "2026-11-05T13:00:00.000Z",
+      "entries": 0,
+      "id": "gap-2026-11-05T12:00:00.000Z",
+      "isActive": false,
+      "isGap": true,
+      "models": [],
+      "projection": null,
+      "startTime": "2026-11-05T12:00:00.000Z",
+      "tokenCounts": {
+        "cacheCreationInputTokens": 0,
+        "cacheReadInputTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0
+      },
+      "totalTokens": 0
+    },
+    {
+      "actualEndTime": "2026-11-05T13:00:00.000Z",
+      "burnRate": null,
+      "costUSD": 0,
+      "endTime": "2026-11-05T14:00:00.000Z",
+      "entries": 1,
+      "id": "2026-11-05T13:00:00.000Z",
+      "isActive": false,
+      "isGap": false,
+      "models": [
+        "totally-unknown-model-x"
+      ],
+      "projection": null,
+      "startTime": "2026-11-05T13:00:00.000Z",
+      "tokenCounts": {
+        "cacheCreationInputTokens": 0,
+        "cacheReadInputTokens": 0,
+        "inputTokens": 100,
+        "outputTokens": 50
+      },
+      "totalTokens": 150
+    }
+  ]
+}

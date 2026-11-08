@@ -138,6 +138,27 @@ fn scan_source(
         .as_mut()?
         .save_local_session_scan(&source.id, &scanned_at, &sessions)
         .ok()?;
+    if locallogs::HOUR_TOOLS.contains(&source.tool.as_str()) {
+        let empty_home = tempfile::tempdir().ok()?;
+        let hours = locallogs::scan_hours(&locallogs::ScanRequest {
+            binary: &scanner.binary,
+            expected_sha256: &scanner.digest,
+            tool: &source.tool,
+            folder,
+            empty_home: empty_home.path(),
+            timezone: zone,
+            since: None,
+            timeout: locallogs::DEFAULT_TIMEOUT,
+            max_output: locallogs::DEFAULT_MAX_OUTPUT,
+        })
+        .ok()?;
+        workspace
+            .lock()
+            .ok()?
+            .as_mut()?
+            .save_local_hour_scan(&source.id, &scanned_at, &hours)
+            .ok()?;
+    }
     Some(scanned_at)
 }
 
@@ -392,6 +413,10 @@ mod tests {
         env!("CARGO_MANIFEST_DIR"),
         "/../../../crates/openusage-locallogs/tests/fixtures/ccusage-20.0.48-session-claude.json"
     );
+    const CLAUDE_BLOCKS: &str = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../crates/openusage-locallogs/tests/fixtures/ccusage-20.0.48-blocks-claude.json"
+    );
 
     fn scanner(dir: &Path, name: &str, body: &str) -> Scanner {
         let binary = dir.join(name);
@@ -472,7 +497,7 @@ mod tests {
             &bin,
             "ok",
             &format!(
-                "[ -n \"$CODEX_HOME\" ] && touch {}; if [ \"$2\" = session ]; then cat {CLAUDE_SESSIONS}; else cat {CLAUDE_REPORT}; fi",
+                "[ -n \"$CODEX_HOME\" ] && touch {}; if [ \"$2\" = session ]; then cat {CLAUDE_SESSIONS}; elif [ \"$1\" = blocks ]; then cat {CLAUDE_BLOCKS}; else cat {CLAUDE_REPORT}; fi",
                 marker.display()
             ),
         );
@@ -503,6 +528,8 @@ mod tests {
                 .iter()
                 .all(|s| s.session.project_name.as_deref() == Some("-home-dev-alpha"))
         );
+        // The same run saved the Claude Code hours (SC-021).
+        assert_eq!(range.hours.len(), 3);
         drop(state);
 
         // A failed run keeps the saved totals (OU-LOG-008, OU-LOG-011).

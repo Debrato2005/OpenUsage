@@ -98,11 +98,26 @@ function useWidth(fallback: number) {
 }
 
 /** Tokens per day, week or month, one stacked segment per tool. */
+// Every UTC hour that starts in the range. In a zone with a half-hour offset, hours start at :30 local (SC-021).
+function hourSlots(view: LocalUsageView) {
+  const result: string[] = [];
+  if (!view.startUtc || !view.endUtc) return result;
+  const end = Date.parse(view.endUtc);
+  for (let t = Math.ceil(Date.parse(view.startUtc) / 3_600_000) * 3_600_000; t < end && result.length < 24 * 8; t += 3_600_000) result.push(new Date(t).toISOString());
+  return result;
+}
+
 function LocalBars({ view, period }: { view: LocalUsageView; period: LocalUsagePeriod }) {
   const [frame, measured] = useWidth(960);
-  const tools = view.tools.map(t => t.tool);
-  const totals = new Map(view.buckets.map(b => [`${b.startDate}:${b.tool}`, BigInt(b.totalTokens)]));
-  const columns = slots(view, period).map(start => {
+  const hourly = period === 'hour';
+  const tools = view.tools.map(t => t.tool).filter(tool => !hourly || view.hourTools.includes(tool));
+  const missing = hourly ? view.tools.map(t => t.tool).filter(tool => !view.hourTools.includes(tool)) : [];
+  const totals = hourly
+    ? new Map(view.hours.map(h => [`${h.startUtc}:${h.tool}`, BigInt(h.totalTokens)]))
+    : new Map(view.buckets.map(b => [`${b.startDate}:${b.tool}`, BigInt(b.totalTokens)]));
+  const local = (utc: string, options: Intl.DateTimeFormatOptions) => new Date(utc).toLocaleString('en-US', { timeZone: view.timeZone, ...options });
+  const when = (start: string) => hourly ? local(start, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : start;
+  const columns = (hourly ? hourSlots(view) : slots(view, period)).map(start => {
     const parts = tools.map(tool => ({ tool, tokens: totals.get(`${start}:${tool}`) ?? 0n }));
     return { start, parts, total: parts.reduce((sum, p) => sum + p.tokens, 0n) };
   });
@@ -114,16 +129,21 @@ function LocalBars({ view, period }: { view: LocalUsageView; period: LocalUsageP
   const slot = (width - left - 4) / Math.max(1, columns.length), bar = Math.max(1.5, Math.min(26, slot - (slot > 6 ? 3 : 1)));
   const y = (value: bigint) => height - bottom - (top > 0n ? Number(value * 100_000n / top) / 100_000 : 0) * plot;
   const labelEvery = Math.max(1, Math.ceil(64 / slot));
-  const label = (start: string) => period === 'month' ? monthName(start) : monthDay(start);
-  const name = period === 'day' ? 'day' : period === 'week' ? 'week' : 'month';
+  // A long hourly range labels the first hour of each local day with its date.
+  const dayOf = (utc: string) => new Date(utc).toLocaleDateString('en-CA', { timeZone: view.timeZone });
+  const dayLabels = hourly && columns.length > 48;
+  const labelled = (index: number) => dayLabels ? index === 0 || dayOf(columns[index]!.start) !== dayOf(columns[index - 1]!.start) : index % labelEvery === 0;
+  const label = (start: string) => hourly ? dayLabels ? local(start, { month: 'short', day: 'numeric' }) : local(start, { hour: 'numeric', minute: '2-digit' }) : period === 'month' ? monthName(start) : monthDay(start);
+  const name = hourly ? 'hour' : period === 'day' ? 'day' : period === 'week' ? 'week' : 'month';
   return <figure className="overview-chart local-bars" ref={frame} data-local-bars={period}>
-    <ul className="overview-key" aria-label="Tools">{tools.map(tool => <li key={tool}><i data-tint={toolTint[tool]} aria-hidden="true" />{localLogToolNames[tool]}</li>)}</ul>
+    <ul className="overview-key" aria-label="Tools">{tools.map(tool => <li key={tool}><i data-tint={toolTint[tool]} aria-hidden="true" />{localLogToolNames[tool]}</li>)}
+      {missing.map(tool => <li key={tool} data-local-no-hours={tool}><i data-tint={toolTint[tool]} aria-hidden="true" />{localLogToolNames[tool]}<Mark>Not available</Mark></li>)}</ul>
     <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`Tokens per ${name} by tool, ${view.startDate} to ${view.endDate}`}>
       {ticks.map(tick => <g key={String(tick)}><line x1={left} x2={width - 4} y1={y(tick)} y2={y(tick)} className="overview-grid" /><text x={left - 10} y={y(tick) + 4} textAnchor="end" className="overview-axis">{tick === 0n ? '0' : compactCount(tick)}</text></g>)}
       {columns.map((column, index) => {
         const x = left + index * slot + (slot - bar) / 2;
         let base = 0n;
-        return <g key={column.start}><title>{column.total === 0n ? `${column.start}: no saved usage` : `${column.start}: ${exact.format(column.total)} tokens`}</title>
+        return <g key={column.start}><title>{column.total === 0n ? `${when(column.start)}: no saved usage` : `${when(column.start)}: ${exact.format(column.total)} tokens`}</title>
           {column.parts.map(({ tool, tokens }) => {
             if (!tokens) return null;
             const y0 = y(base), y1 = y(base + tokens);
@@ -132,10 +152,10 @@ function LocalBars({ view, period }: { view: LocalUsageView; period: LocalUsageP
           })}
         </g>;
       })}
-      {columns.map((column, index) => index % labelEvery === 0 && <text key={`label:${column.start}`} x={left + index * slot} y={height - 6} className="overview-axis">{label(column.start)}</text>)}
+      {columns.map((column, index) => labelled(index) && <text key={`label:${column.start}`} x={left + index * slot} y={height - 6} className="overview-axis">{label(column.start)}</text>)}
     </svg>
     <table className="sr-only"><caption>Tokens per {name}</caption><thead><tr><th scope="col">Start</th>{tools.map(tool => <th key={tool} scope="col">{localLogToolNames[tool]}</th>)}</tr></thead>
-      <tbody>{columns.filter(c => c.total > 0n).map(c => <tr key={c.start}><th scope="row">{c.start}</th>{c.parts.map(p => <td key={p.tool}>{exact.format(p.tokens)}</td>)}</tr>)}</tbody></table>
+      <tbody>{columns.filter(c => c.total > 0n).map(c => <tr key={c.start}><th scope="row">{when(c.start)}</th>{c.parts.map(p => <td key={p.tool}>{exact.format(p.tokens)}</td>)}</tr>)}</tbody></table>
   </figure>;
 }
 
@@ -184,7 +204,7 @@ function Sessions({ view }: { view: LocalUsageView }) {
 }
 
 const ranges: [LocalUsageDays, string][] = [[7, '7 days'], [30, '30 days'], [90, '90 days'], [365, 'Year']];
-const periods: [LocalUsagePeriod, string][] = [['day', 'Daily'], ['week', 'Weekly'], ['month', 'Monthly']];
+const periods: [LocalUsagePeriod, string][] = [['hour', 'Hourly'], ['day', 'Daily'], ['week', 'Weekly'], ['month', 'Monthly']];
 
 /** The This device scope in Usage (OU-LOG-016, OU-LOG-017). */
 // A custom range is complete when both dates are set, in order, and at most 366 days apart.
@@ -198,13 +218,16 @@ export function LocalUsagePanel({ active }: { active: boolean }) {
   const [custom, setCustom] = useState({ start: '', end: '' });
   const [period, setPeriod] = useState<LocalUsagePeriod>('day');
   const range = days === 'custom' ? customRange(custom.start, custom.end) : { days };
-  const { view, failed } = useLocalUsage(active, range, period);
+  // Hours cover at most 7 days. A longer range falls back to days (SC-021).
+  const hourlyAllowed = !!range && ('days' in range ? range.days === 7 : (day(range.until).getTime() - day(range.since).getTime()) / 86_400_000 < 7);
+  const shown = period === 'hour' && !hourlyAllowed ? 'day' : period;
+  const { view, failed } = useLocalUsage(active, range, shown);
   const openCustom = () => { if (view && !custom.start) setCustom({ start: view.startDate, end: view.endDate }); setDays('custom'); };
   return <section className="local-usage" aria-label="This device" data-local-usage>
     <div className="overview-hero-controls">
       <div className="overview-chips" role="group" aria-label="Dates">{ranges.map(([value, label]) => <Button key={value} variant="ghost" aria-pressed={days === value} onClick={() => setDays(value)}>{label}</Button>)}
         <Button variant="ghost" aria-pressed={days === 'custom'} onClick={openCustom} data-local-custom>Custom</Button></div>
-      <div className="overview-chips" role="group" aria-label="Grouping">{periods.map(([value, label]) => <Button key={value} variant="ghost" aria-pressed={period === value} onClick={() => setPeriod(value)}>{label}</Button>)}</div>
+      <div className="overview-chips" role="group" aria-label="Grouping">{periods.map(([value, label]) => <Button key={value} variant="ghost" aria-pressed={shown === value} disabled={value === 'hour' && !hourlyAllowed} onClick={() => setPeriod(value)}>{label}</Button>)}</div>
       {view && view.tools.length > 0 && <ShareButton />}
     </div>
     {days === 'custom' && <div className="local-date-range" role="group" aria-label="Custom dates">
@@ -216,7 +239,7 @@ export function LocalUsagePanel({ active }: { active: boolean }) {
     {!view ? !failed && <p className="overview-dim" role="status">Loading…</p> : view.tools.length === 0 ? <div className="empty-state"><h3>No saved local usage for these dates</h3></div> : <>
       <div className="local-tool-grid">{view.tools.map(totals => <ToolCard key={totals.tool} totals={totals} view={view} />)}</div>
       <Records view={view} />
-      <div className="overview-days"><LocalBars view={view} period={period} /></div>
+      <div className="overview-days"><LocalBars view={view} period={shown} /></div>
       <Models view={view} />
       <Projects view={view} />
       <Sessions view={view} />

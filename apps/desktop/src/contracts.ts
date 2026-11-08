@@ -383,7 +383,7 @@ function isLocalLogsView(value: unknown): value is LocalLogsView {
     seen.add(t.tool); return true;
   });
 }
-export type LocalUsagePeriod = 'day' | 'week' | 'month';
+export type LocalUsagePeriod = 'hour' | 'day' | 'week' | 'month';
 export type LocalUsageDays = 7 | 30 | 90 | 365;
 // A fixed range ending today, or a custom range of at most 366 days that Rust checks again (OU-LOG-017).
 export type LocalUsageRange = { days: LocalUsageDays } | { since: string; until: string };
@@ -397,6 +397,10 @@ export type LocalUsageView = {
   activeDays: number; longestStreakDays: number; busiestDay: { date: string; totalTokens: string } | null;
   sessions: LocalSession[];
   projects: LocalProject[];
+  // The range in UTC, and saved UTC hours for the hourly view. Only the tools in hourTools report hours (SC-021).
+  startUtc: string | null; endUtc: string | null;
+  hours: { startUtc: string; tool: LocalLogTool; totalTokens: string }[];
+  hourTools: LocalLogTool[];
 };
 // Only Claude Code reports a project and a start, and only Codex reports reasoning (SC-021).
 export type LocalSession = { key: string; tool: LocalLogTool; project: string | null; startUtc: string | null; endUtc: string; totalTokens: string; reasoningTokens: string | null; estimatedValueUsdMicros: string | null };
@@ -415,8 +419,14 @@ const isLocalSession = (s: unknown) => exactKeys(s, ['key', 'tool', 'project', '
 const isLocalProject = (p: unknown) => exactKeys(p, ['tool', 'project', 'sessions', 'totalTokens']) && localTool(p.tool) && localProject(p.project)
   && Number.isInteger(p.sessions) && (p.sessions as number) >= 1 && localCount(p.totalTokens);
 function isLocalUsageView(value: unknown): value is LocalUsageView {
-  if (!exactKeys(value, ['startDate', 'endDate', 'timeZone', 'scannerVersions', 'tools', 'models', 'buckets', 'differences', 'activeDays', 'longestStreakDays', 'busiestDay', 'sessions', 'projects'])) return false;
+  if (!exactKeys(value, ['startDate', 'endDate', 'timeZone', 'scannerVersions', 'tools', 'models', 'buckets', 'differences', 'activeDays', 'longestStreakDays', 'busiestDay', 'sessions', 'projects', 'startUtc', 'endUtc', 'hours', 'hourTools'])) return false;
   const v = value as LocalUsageView;
+  const wholeHour = (s: unknown) => isUtcTimestamp(s) && s.endsWith(':00:00.000Z');
+  if (!(v.startUtc === null ? v.endUtc === null : isUtcTimestamp(v.startUtc) && isUtcTimestamp(v.endUtc) && v.startUtc < v.endUtc)
+    || !Array.isArray(v.hourTools) || v.hourTools.length > localLogTools.length || !v.hourTools.every(localTool)
+    || !Array.isArray(v.hours) || v.hours.length > 24 * 8 * localLogTools.length
+    || !v.hours.every(h => exactKeys(h, ['startUtc', 'tool', 'totalTokens']) && wholeHour(h.startUtc) && v.hourTools.includes(h.tool as LocalLogTool) && localCount(h.totalTokens)
+      && v.startUtc !== null && v.endUtc !== null && (h.startUtc as string) >= v.startUtc && (h.startUtc as string) < v.endUtc)) return false;
   if (!Array.isArray(v.sessions) || v.sessions.length > 100 || !v.sessions.every(isLocalSession)
     || !Array.isArray(v.projects) || v.projects.length > 200_000 || !v.projects.every(isLocalProject)) return false;
   if (!Number.isInteger(v.activeDays) || v.activeDays < 0 || v.activeDays > 366 || !Number.isInteger(v.longestStreakDays) || v.longestStreakDays < 0 || v.longestStreakDays > v.activeDays

@@ -98,7 +98,7 @@ Updated November 8, 2026. The owner asked to keep this list and to build down it
 - [x] L-1e: the This device scope in Usage, with 7, 30 and 90 days or a year, grouped by day, week or month, a breakdown by token type and model, and the difference in the detail panel, so first launch reaches local history with no sign-in (OU-LOG-011, OU-LOG-016, OU-LOG-017, OU-UI-025; AT-91, AT-93).
 - [ ] L-1f: the other 16 tools that the pinned `ccusage` reads, each with its folder variable, detection and a synthetic fixture (AT-65). Waits for the owner: the pinned binary names the variables `OPENCODE_DATA_DIR`, `AMP_DATA_DIR`, `DROID_SESSIONS_DIR`, `CODEBUFF_DATA_DIR`, `HERMES_HOME`, `PI_AGENT_DIR`, `GOOSE_PATH_ROOT`, `KILO_DATA_DIR`, `COPILOT_HOME`, `GEMINI_DATA_DIR`, `ANTIGRAVITY_DATA_DIR`, `KIMI_DATA_DIR`, `QWEN_DATA_DIR`, `OPENCLAW_DIR`, `GROK_HOME` and `ZCODE_HOME`. Its help gives no default folders or formats, and four tools use SQLite and one uses protobuf. Correct fixtures need the `ccusage` 20.0.48 source, which is a download.
 - [x] L-1g1: sessions, projects and the reasoning count from the `ccusage` session report of each tool, at schema 11 (OU-LOG-017, [SC-021](srs-clarifications.md#sc-021-sessions-projects-hours-and-reasoning-from-the-pinned-ccusage)).
-- [ ] L-1g2: hourly ranges for Claude Code from `ccusage blocks` (OU-LOG-017, SC-021).
+- [x] L-1g2: hourly ranges for Claude Code from `ccusage blocks`, at schema 12 (OU-LOG-017, SC-021).
 - [x] L-1g3: custom date ranges (OU-LOG-017).
 - [ ] L-1g4: session quota movement (OU-LOG-018). Waits for the owner's OQ-1 decision, because a local session names no provider account (SC-021).
 

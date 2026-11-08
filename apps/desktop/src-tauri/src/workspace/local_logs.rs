@@ -1,9 +1,10 @@
 //! Local log sources and scans in the encrypted store (SRS Section 5C).
 use super::*;
-use openusage_locallogs::{CCUSAGE_VERSION, SessionRow, UsageRow};
+use openusage_locallogs::{CCUSAGE_VERSION, HourRow, SessionRow, UsageRow};
 use openusage_storage::{
-    LocalSessionScan, LocalUsageDay, LocalUsageDifference, LocalUsageRow, LocalUsageScan,
-    LocalUsageSession, LogConsent, LogSource, SavedLocalSession,
+    LocalHourScan, LocalSessionScan, LocalUsageDay, LocalUsageDifference, LocalUsageHour,
+    LocalUsageRow, LocalUsageScan, LocalUsageSession, LogConsent, LogSource, SavedLocalHour,
+    SavedLocalSession,
 };
 
 pub(crate) struct LocalUsageRange {
@@ -12,6 +13,10 @@ pub(crate) struct LocalUsageRange {
     pub sources: Vec<LogSource>,
     /// Sessions that ended in the range, newest first (SC-021).
     pub sessions: Vec<SavedLocalSession>,
+    /// Hours that start in the range, in time order (SC-021).
+    pub hours: Vec<SavedLocalHour>,
+    /// The UTC instants of the range start and of the day after it ends.
+    pub window: Option<(String, String)>,
 }
 
 impl Workspace {
@@ -139,6 +144,36 @@ impl Workspace {
             .map_err(|_| CommandError::StorageUnavailable)
     }
 
+    /// Saves the hours of one run of one source in one transaction (SC-021).
+    pub(crate) fn save_local_hour_scan(
+        &mut self,
+        source_id: &str,
+        scanned_at_utc: &str,
+        rows: &[HourRow],
+    ) -> Result<(), CommandError> {
+        let hours: Vec<LocalUsageHour> = rows
+            .iter()
+            .map(|row| LocalUsageHour {
+                tool: row.tool.into(),
+                hour_start_utc: row.start_utc.clone(),
+                input_tokens: row.input_tokens,
+                output_tokens: row.output_tokens,
+                cache_write_tokens: row.cache_write_tokens,
+                cache_read_tokens: row.cache_read_tokens,
+                total_tokens: row.total_tokens,
+            })
+            .collect();
+        self.local_logs_storage()?
+            .save_local_hours(&LocalHourScan {
+                log_source_id: source_id,
+                scanner_version: CCUSAGE_VERSION,
+                scanned_at_utc,
+                hours: &hours,
+            })
+            .map(|_| ())
+            .map_err(|_| CommandError::StorageUnavailable)
+    }
+
     /// The zone of the saved days: the first pinned source zone, else the display zone (OU-LOG-010).
     pub(crate) fn local_usage_zone(&mut self) -> Result<String, CommandError> {
         self.local_logs_storage()?
@@ -147,7 +182,8 @@ impl Workspace {
     }
 
     /// Saved days and differences from `since` to `until`, and the sources that own them. With a
-    /// UTC window, also the sessions that ended in it. Share images ask for none (OU-LOG-004).
+    /// UTC window, also the sessions that ended in it and the hours that start in it. Share images
+    /// ask for neither (OU-LOG-004).
     pub(crate) fn local_usage_range(
         &mut self,
         (since, until): (&str, &str),
@@ -169,6 +205,13 @@ impl Workspace {
                     .map_err(unavailable)?,
                 None => Vec::new(),
             },
+            hours: match sessions {
+                Some((since_utc, until_utc)) => storage
+                    .local_usage_hours(since_utc, until_utc)
+                    .map_err(unavailable)?,
+                None => Vec::new(),
+            },
+            window: sessions.map(|(since_utc, until_utc)| (since_utc.into(), until_utc.into())),
         })
     }
 

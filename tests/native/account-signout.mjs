@@ -38,7 +38,7 @@ async function open(setup = false) {
   await waitFor(() => driver.execute('const a=document.querySelector("#workspace-passphrase"),b=document.querySelector("#workspace-confirmation");return Boolean(a&&!a.disabled&&(!arguments[0]||b&&!b.disabled));', [setup]), 'workspace password fields');
   assert.deepEqual(await driver.invoke('sign_out_profile', { profileId: randomUUID(), approvalId: randomUUID(), confirmed: true }), { ok: false, error: 'workspace_locked' });
   await driver.type('#workspace-passphrase', password); if (setup) await driver.type('#workspace-confirmation', password); await key('\uE007');
-  await waitFor(async () => (await call('bootstrap')).storage === 'ready', 'ready signout workspace'); assert.equal((await call('bootstrap')).schemaVersion, 11);
+  await waitFor(async () => (await call('bootstrap')).storage === 'ready', 'ready signout workspace'); assert.equal((await call('bootstrap')).schemaVersion, 12);
 }
 async function close() {
   const queue = [driver.child.pid]; let owned;
@@ -81,7 +81,7 @@ async function oracle(label) {
     const database = join(temporary, 'database.db'); await copyFile(fixture.database, database); await chmod(database, 0o600); if (before[`${fixture.database}-wal`] !== null) { await copyFile(`${fixture.database}-wal`, `${database}-wal`); await chmod(`${database}-wal`, 0o600); }
     const raw = execFileSync(verifier, ['database', database, join(dirname(fixture.database), 'database-key.v1'), '--profile-state'], { input: JSON.stringify({ passphrase: password }), encoding: 'utf8', env: fixture.environment, timeout: 30000, maxBuffer: 8 * 1024 * 1024 });
     const report = JSON.parse(execFileSync('/usr/bin/python3', ['-c', 'import json,sys; print(json.dumps(json.load(sys.stdin,parse_int=str)))'], { input: raw, encoding: 'utf8', timeout: 10000, maxBuffer: 8 * 1024 * 1024, env: { PATH: '/usr/bin:/bin' } }));
-    for (const flag of ['verified', 'readOnly', 'inputUnchanged', 'keyEnvelopeUnchanged', 'walRecordsUnchanged']) assert.equal(report[flag], true); assert.equal(report.schemaVersion, '11'); assert.equal(Object.keys(report.state.tables).length, 35); assert.deepEqual(await liveHashes(), before);
+    for (const flag of ['verified', 'readOnly', 'inputUnchanged', 'keyEnvelopeUnchanged', 'walRecordsUnchanged']) assert.equal(report[flag], true); assert.equal(report.schemaVersion, '12'); assert.equal(Object.keys(report.state.tables).length, 36); assert.deepEqual(await liveHashes(), before);
     evidence.oracles.push({ label, tables: Object.fromEntries(Object.entries(report.state.tables).map(([name, rows]) => [name, { rows: rows.length, sha256: createHash('sha256').update(JSON.stringify(rows)).digest('hex') }])) }); return report.state.tables;
   } finally { await rm(temporary, { recursive: true, force: true }); }
 }

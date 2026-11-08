@@ -603,6 +603,8 @@ mod tests {
             differences: Vec::new(),
             sources: Vec::new(),
             sessions: Vec::new(),
+            hours: Vec::new(),
+            window: None,
         }
     }
 

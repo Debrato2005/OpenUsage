@@ -97,6 +97,33 @@ pub struct SavedLocalSession {
     pub scanner_version: String,
 }
 
+/// One whole UTC hour of one tool, as one scan read it (SC-021).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LocalUsageHour {
+    pub tool: String,
+    pub hour_start_utc: String,
+    pub input_tokens: u64,
+    pub output_tokens: u64,
+    pub cache_write_tokens: u64,
+    pub cache_read_tokens: u64,
+    pub total_tokens: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SavedLocalHour {
+    pub log_source_id: String,
+    pub hour: LocalUsageHour,
+    pub scanner_version: String,
+}
+
+/// The hours that one run read from one granted source.
+pub struct LocalHourScan<'a> {
+    pub log_source_id: &'a str,
+    pub scanner_version: &'a str,
+    pub scanned_at_utc: &'a str,
+    pub hours: &'a [LocalUsageHour],
+}
+
 /// The sessions that one run read from one granted source.
 pub struct LocalSessionScan<'a> {
     pub log_source_id: &'a str,
@@ -228,6 +255,21 @@ fn valid_session(session: &LocalUsageSession) -> bool {
             .is_none_or(|v| v <= MAX_COUNT)
 }
 
+fn valid_hour(hour: &LocalUsageHour) -> bool {
+    let sum = [
+        hour.output_tokens,
+        hour.cache_write_tokens,
+        hour.cache_read_tokens,
+    ]
+    .into_iter()
+    .try_fold(hour.input_tokens, u64::checked_add);
+    valid_tool(&hour.tool)
+        && activity::activity_utc_timestamp(&hour.hour_start_utc)
+        && hour.hour_start_utc.ends_with(":00:00.000Z")
+        && sum == Some(hour.total_tokens)
+        && hour.total_tokens <= MAX_COUNT
+}
+
 fn token(text: &str) -> Option<u64> {
     activity::activity_decimal(text)
         .then(|| text.parse::<u64>().ok())
@@ -251,6 +293,7 @@ pub(crate) const SOURCE_COLUMNS: &str =
 pub(crate) const DAY_COLUMNS: &str = "id,log_source_id,tool,model,local_date,input_tokens,output_tokens,cache_write_tokens,cache_read_tokens,total_tokens,estimated_value_usd_micros,scanner_version,coverage,created_at_utc,updated_at_utc";
 pub(crate) const DIFFERENCE_COLUMNS: &str =
     "id,log_source_id,local_date,model,saved_total_tokens,new_total_tokens,scan_at_utc";
+pub(crate) const HOUR_COLUMNS: &str = "id,log_source_id,tool,hour_start_utc,input_tokens,output_tokens,cache_write_tokens,cache_read_tokens,total_tokens,scanner_version,created_at_utc,updated_at_utc";
 pub(crate) const SESSION_COLUMNS: &str = "id,log_source_id,tool,session_key,project_name,log_account_key,start_utc,end_utc,input_tokens,output_tokens,cache_write_tokens,cache_read_tokens,reasoning_tokens,total_tokens,estimated_value_usd_micros,scanner_version,created_at_utc,updated_at_utc";
 
 /// Reads one source row in `SOURCE_COLUMNS` order. None means the row breaks a write rule.
@@ -416,6 +459,43 @@ fn read_session(row: &Row<'_>) -> rusqlite::Result<Option<SavedLocalSession>> {
     }))
 }
 
+/// Reads one hour row in `HOUR_COLUMNS` order. None means the row breaks a write rule.
+fn read_hour(row: &Row<'_>) -> rusqlite::Result<Option<SavedLocalHour>> {
+    let text = |index: usize| row.get::<_, String>(index);
+    let count = |index: usize| text(index).map(|v| token(&v));
+    let (
+        Some(input_tokens),
+        Some(output_tokens),
+        Some(cache_write_tokens),
+        Some(cache_read_tokens),
+        Some(total_tokens),
+    ) = (count(4)?, count(5)?, count(6)?, count(7)?, count(8)?)
+    else {
+        return Ok(None);
+    };
+    let (id, log_source_id, scanner_version) = (text(0)?, text(1)?, text(9)?);
+    let hour = LocalUsageHour {
+        tool: text(2)?,
+        hour_start_utc: text(3)?,
+        input_tokens,
+        output_tokens,
+        cache_write_tokens,
+        cache_read_tokens,
+        total_tokens,
+    };
+    let valid = canonical_uuid(&id)
+        && canonical_uuid(&log_source_id)
+        && valid_hour(&hour)
+        && valid_version(&scanner_version)
+        && activity::activity_utc_timestamp(&text(10)?)
+        && activity::activity_utc_timestamp(&text(11)?);
+    Ok(valid.then_some(SavedLocalHour {
+        log_source_id,
+        hour,
+        scanner_version,
+    }))
+}
+
 /// Checks backup and checkpoint contents with the same rules as a write.
 /// The caller checks foreign keys for the whole database.
 pub(crate) fn validate(
@@ -452,6 +532,14 @@ pub(crate) fn validate(
                 "local_usage_sessions",
                 SESSION_COLUMNS,
                 read_session,
+            ))
+        || (version >= 12
+            && !all_valid(
+                connection,
+                schema,
+                "local_usage_hours",
+                HOUR_COLUMNS,
+                read_hour,
             ))
     {
         return Err(crate::BackupValidationError::InvalidDatabase);
@@ -795,6 +883,117 @@ impl Storage {
         }
         tx.commit().map_err(write)?;
         Ok(summary)
+    }
+
+    /// Saves the hours of one run in one transaction. An hour is new, rises or stays, or keeps its
+    /// higher saved counts when this run read less (OU-LOG-011, SC-021).
+    pub fn save_local_hours(&mut self, scan: &LocalHourScan<'_>) -> Result<LocalUsageScanSummary> {
+        let mut keys = BTreeSet::new();
+        if !canonical_uuid(scan.log_source_id)
+            || !valid_version(scan.scanner_version)
+            || !activity::activity_utc_timestamp(scan.scanned_at_utc)
+            || scan.hours.len() > MAX_ROWS
+            || scan
+                .hours
+                .iter()
+                .any(|h| !valid_hour(h) || !keys.insert(h.hour_start_utc.as_str()))
+        {
+            return Err(LocalLogError::InvalidInput);
+        }
+        let write = |_| LocalLogError::WriteFailed;
+        let tx = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(write)?;
+        let source: Option<(String, String)> = tx
+            .query_row(
+                "SELECT tool,consent FROM log_sources WHERE id=?1",
+                [scan.log_source_id],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .optional()
+            .map_err(|_| LocalLogError::ReadFailed)?;
+        let Some((tool, "granted")) = source.as_ref().map(|(t, c)| (t, c.as_str())) else {
+            return Err(LocalLogError::NotConsented);
+        };
+        if scan.hours.iter().any(|h| &h.tool != tool) {
+            return Err(LocalLogError::InvalidInput);
+        }
+        let mut summary = LocalUsageScanSummary::default();
+        for hour in scan.hours {
+            let saved: Option<String> = tx
+                .query_row(
+                    "SELECT total_tokens FROM local_usage_hours WHERE log_source_id=?1 AND hour_start_utc=?2",
+                    params![scan.log_source_id, hour.hour_start_utc],
+                    |r| r.get(0),
+                )
+                .optional()
+                .map_err(|_| LocalLogError::ReadFailed)?;
+            let saved = saved
+                .map(|text| token(&text).ok_or(LocalLogError::ReadFailed))
+                .transpose()?;
+            let values = [
+                hour.input_tokens.to_string(),
+                hour.output_tokens.to_string(),
+                hour.cache_write_tokens.to_string(),
+                hour.cache_read_tokens.to_string(),
+                hour.total_tokens.to_string(),
+            ];
+            match saved {
+                None => {
+                    let id = activity::new_uuid().map_err(|_| LocalLogError::WriteFailed)?;
+                    tx.execute(
+                        "INSERT INTO local_usage_hours(id,log_source_id,tool,hour_start_utc,input_tokens,output_tokens,cache_write_tokens,cache_read_tokens,total_tokens,scanner_version,created_at_utc,updated_at_utc)
+                         VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?11)",
+                        params![id, scan.log_source_id, hour.tool, hour.hour_start_utc, values[0], values[1], values[2], values[3], values[4], scan.scanner_version, scan.scanned_at_utc],
+                    )
+                    .map_err(write)?;
+                    summary.inserted += 1;
+                }
+                Some(saved) if hour.total_tokens >= saved => {
+                    tx.execute(
+                        "UPDATE local_usage_hours SET input_tokens=?3,output_tokens=?4,cache_write_tokens=?5,cache_read_tokens=?6,total_tokens=?7,scanner_version=?8,updated_at_utc=?9
+                         WHERE log_source_id=?1 AND hour_start_utc=?2",
+                        params![scan.log_source_id, hour.hour_start_utc, values[0], values[1], values[2], values[3], values[4], scan.scanner_version, scan.scanned_at_utc],
+                    )
+                    .map_err(write)?;
+                    if hour.total_tokens > saved {
+                        summary.raised += 1;
+                    } else {
+                        summary.unchanged += 1;
+                    }
+                }
+                Some(_) => summary.kept_higher += 1,
+            }
+        }
+        tx.commit().map_err(write)?;
+        Ok(summary)
+    }
+
+    /// Saved hours that start at or after `since_utc` and before `until_utc`, in time order.
+    pub fn local_usage_hours(
+        &self,
+        since_utc: &str,
+        until_utc: &str,
+    ) -> Result<Vec<SavedLocalHour>> {
+        if !activity::activity_utc_timestamp(since_utc)
+            || !activity::activity_utc_timestamp(until_utc)
+            || since_utc > until_utc
+        {
+            return Err(LocalLogError::InvalidInput);
+        }
+        let mut statement = self
+            .connection
+            .prepare(&format!(
+                "SELECT {HOUR_COLUMNS} FROM local_usage_hours WHERE hour_start_utc>=?1 AND hour_start_utc<?2
+                 ORDER BY hour_start_utc,tool,log_source_id"
+            ))
+            .map_err(|_| LocalLogError::ReadFailed)?;
+        let rows = statement
+            .query_map(params![since_utc, until_utc], read_hour)
+            .map_err(|_| LocalLogError::ReadFailed)?;
+        rows.map(|row| row.ok().flatten().ok_or(LocalLogError::ReadFailed))
+            .collect()
     }
 
     /// Saved sessions that ended at or after `since_utc` and before `until_utc`, newest first.
@@ -1246,6 +1445,107 @@ mod tests {
             reasoning_tokens: reasoning,
             total_tokens: input + 8,
             estimated_value_usd_micros: Some(7),
+        }
+    }
+
+    fn hour(start: &str, input: u64) -> LocalUsageHour {
+        LocalUsageHour {
+            tool: "claude".into(),
+            hour_start_utc: start.into(),
+            input_tokens: input,
+            output_tokens: 5,
+            cache_write_tokens: 2,
+            cache_read_tokens: 1,
+            total_tokens: input + 8,
+        }
+    }
+
+    fn hour_scan<'a>(source: &'a str, hours: &'a [LocalUsageHour]) -> LocalHourScan<'a> {
+        LocalHourScan {
+            log_source_id: source,
+            scanner_version: "20.0.48",
+            scanned_at_utc: LATER,
+            hours,
+        }
+    }
+
+    #[test]
+    fn hours_rise_never_fall_and_survive_backup_and_restore() {
+        let (_dir, mut storage, claude, codex) = setup();
+        let first = [
+            hour("2026-11-05T09:00:00.000Z", 100),
+            hour("2026-11-05T10:00:00.000Z", 10),
+        ];
+        assert_eq!(
+            storage
+                .save_local_hours(&hour_scan(&claude, &first))
+                .unwrap()
+                .inserted,
+            2
+        );
+        let second = [
+            hour("2026-11-05T09:00:00.000Z", 200),
+            hour("2026-11-05T10:00:00.000Z", 1),
+        ];
+        let summary = storage
+            .save_local_hours(&hour_scan(&claude, &second))
+            .unwrap();
+        assert_eq!((summary.raised, summary.kept_higher), (1, 1));
+        let read = |storage: &Storage| {
+            storage
+                .local_usage_hours("2026-11-05T09:00:00.000Z", "2026-11-05T11:00:00.000Z")
+                .unwrap()
+                .into_iter()
+                .map(|h| (h.hour.hour_start_utc, h.hour.total_tokens))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            read(&storage),
+            [
+                ("2026-11-05T09:00:00.000Z".to_string(), 208),
+                ("2026-11-05T10:00:00.000Z".to_string(), 18)
+            ]
+        );
+        assert_eq!(
+            storage
+                .local_usage_hours("2026-11-05T09:00:00.000Z", "2026-11-05T10:00:00.000Z")
+                .unwrap()
+                .len(),
+            1,
+            "The end bound is excluded."
+        );
+        // Only whole hours of the source's own tool are saved.
+        assert_eq!(
+            storage.save_local_hours(&hour_scan(&claude, &[hour("2026-11-05T09:30:00.000Z", 1)])),
+            Err(LocalLogError::InvalidInput)
+        );
+        assert_eq!(
+            storage.save_local_hours(&hour_scan(&codex, &[hour("2026-11-05T11:00:00.000Z", 1)])),
+            Err(LocalLogError::InvalidInput)
+        );
+        let snapshot = storage.backup_snapshot().unwrap();
+        crate::validate_backup_snapshot(&snapshot.bytes, snapshot.schema_version).unwrap();
+        let (_target_dir, mut target, _, _) = setup();
+        let revision = target.restore_state().unwrap().revision;
+        target
+            .replace_records_from_backup(&snapshot.bytes, snapshot.schema_version, &revision, &[])
+            .unwrap();
+        assert_eq!(read(&target), read(&storage));
+        for bad in [
+            "UPDATE local_usage_hours SET total_tokens='1'",
+            "UPDATE local_usage_hours SET hour_start_utc='2026-11-05T09:30:00.000Z' WHERE total_tokens='18'",
+        ] {
+            let tx = storage.connection.transaction().unwrap();
+            tx.execute_batch(&format!(
+                "PRAGMA ignore_check_constraints=ON; {bad}; PRAGMA ignore_check_constraints=OFF;"
+            ))
+            .unwrap();
+            assert_eq!(
+                validate_connection(&tx, CURRENT_SCHEMA_VERSION),
+                Err(crate::BackupValidationError::InvalidDatabase),
+                "{bad}"
+            );
+            drop(tx);
         }
     }
 

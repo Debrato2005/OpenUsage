@@ -185,7 +185,7 @@ pub(crate) fn with_validated_snapshot<T, E: From<BackupValidationError>>(
 
 pub(crate) fn supported_schema_version(version: u32) -> bool {
     // A later migration must add explicit content/copy support before becoming restorable.
-    matches!(version, 1..=11) && version <= CURRENT_SCHEMA_VERSION
+    matches!(version, 1..=12) && version <= CURRENT_SCHEMA_VERSION
 }
 
 fn validate_size(size: u64) -> Result<()> {
@@ -654,6 +654,17 @@ pub(crate) fn copy_activity_records(
             target,
             schema,
             "local_usage_sessions",
+            columns,
+            columns,
+        )?;
+    }
+    if version >= 12 {
+        let columns = crate::local_logs::HOUR_COLUMNS;
+        copy_fields(
+            source,
+            target,
+            schema,
+            "local_usage_hours",
             columns,
             columns,
         )?;

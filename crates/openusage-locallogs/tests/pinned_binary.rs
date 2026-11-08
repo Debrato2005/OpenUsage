@@ -2,8 +2,8 @@
 //! Set OPENUSAGE_CCUSAGE_BIN to the provisioned binary; without it the test says so and passes.
 
 use openusage_locallogs::{
-    DEFAULT_MAX_OUTPUT, ScanRequest, UsageRow, parse_daily_by_agent, parse_sessions, pinned_sha256,
-    scan, scan_sessions,
+    DEFAULT_MAX_OUTPUT, ScanRequest, UsageRow, parse_daily_by_agent, parse_hours, parse_sessions,
+    pinned_sha256, scan, scan_hours, scan_sessions,
 };
 use std::path::Path;
 use std::time::Duration;
@@ -95,4 +95,15 @@ fn pinned_binary_reads_synthetic_claude_and_codex_logs() {
         assert!(!sessions.is_empty());
         assert_eq!(sessions, parse_sessions(tool, recorded).unwrap());
     }
+    // The hours of Claude Code match its recorded blocks report (SC-021).
+    let empty = tempfile::tempdir().unwrap();
+    let folder = home.path().join(".claude");
+    let hours = scan_hours(&request(binary, &folder, empty.path(), "claude")).unwrap();
+    assert_eq!(
+        hours,
+        parse_hours(include_bytes!(
+            "fixtures/ccusage-20.0.48-blocks-claude.json"
+        ))
+        .unwrap()
+    );
 }

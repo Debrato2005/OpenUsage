@@ -3,7 +3,7 @@
 use crate::workspace::{CommandError, local_logs::LocalUsageRange};
 use crate::{WorkspaceService, arguments};
 use jiff::{Span, civil::Date, tz::TimeZone};
-use openusage_locallogs::FOLDER_VARIABLES;
+use openusage_locallogs::{FOLDER_VARIABLES, HOUR_TOOLS};
 use openusage_storage::LocalUsageCoverage;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -12,10 +12,15 @@ use tauri::State;
 #[derive(Deserialize, Clone, Copy, PartialEq, Eq, Debug)]
 #[serde(rename_all = "camelCase")]
 enum Period {
+    /// UTC hours for at most `MAX_HOURLY_DAYS` days. Days still group by day (SC-021).
+    Hour,
     Day,
     Week,
     Month,
 }
+
+/// The longest range that the hourly view covers: 168 hours.
+const MAX_HOURLY_DAYS: i32 = 7;
 
 /// A fixed range of `days` ending today, or a custom range from `since` to `until` (OU-LOG-017).
 #[derive(Deserialize)]
@@ -133,6 +138,14 @@ pub(crate) struct SessionView {
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+pub(crate) struct HourBucket {
+    start_utc: String,
+    tool: String,
+    total_tokens: String,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct ProjectView {
     tool: String,
     project: String,
@@ -159,6 +172,12 @@ pub(crate) struct LocalUsageView {
     /// Sessions that ended in the range, newest first.
     sessions: Vec<SessionView>,
     projects: Vec<ProjectView>,
+    /// The UTC instants of the range start and of the day after it ends.
+    start_utc: Option<String>,
+    end_utc: Option<String>,
+    /// Saved UTC hours, only for the hourly view. A tool outside `hour_tools` has no hours.
+    hours: Vec<HourBucket>,
+    hour_tools: Vec<String>,
 }
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
@@ -203,7 +222,7 @@ fn records(
 
 fn bucket_start(date: Date, period: Period) -> Date {
     match period {
-        Period::Day => date,
+        Period::Hour | Period::Day => date,
         Period::Week => date
             .checked_sub(Span::new().days(i64::from(date.weekday().to_monday_zero_offset())))
             .unwrap_or(date),
@@ -282,6 +301,22 @@ fn summarize(
     let mut project_rows: Vec<_> = projects.into_iter().collect();
     project_rows.sort_by(|a, b| b.1.1.cmp(&a.1.1).then(a.0.cmp(&b.0)));
     LocalUsageView {
+        start_utc: range.window.as_ref().map(|w| w.0.clone()),
+        end_utc: range.window.as_ref().map(|w| w.1.clone()),
+        hours: if period == Period::Hour {
+            range
+                .hours
+                .iter()
+                .map(|saved| HourBucket {
+                    start_utc: saved.hour.hour_start_utc.clone(),
+                    tool: saved.hour.tool.clone(),
+                    total_tokens: saved.hour.total_tokens.to_string(),
+                })
+                .collect()
+        } else {
+            Vec::new()
+        },
+        hour_tools: HOUR_TOOLS.iter().map(|tool| tool.to_string()).collect(),
         sessions: range
             .sessions
             .iter()
@@ -385,6 +420,14 @@ pub async fn load_local_usage(
         let today_in_zone = jiff::Timestamp::now().to_zoned(tz.clone()).date();
         let (start, today) =
             requested_range(&args, today_in_zone).ok_or(CommandError::InvalidArguments)?;
+        let length = start
+            .until(today)
+            .map_err(|_| CommandError::InvalidArguments)?
+            .get_days()
+            + 1;
+        if args.period == Period::Hour && length > MAX_HOURLY_DAYS {
+            return Err(CommandError::InvalidArguments);
+        }
         let next = today
             .checked_add(Span::new().days(1))
             .map_err(|_| CommandError::InvalidArguments)?;
@@ -406,8 +449,8 @@ pub async fn load_local_usage(
 mod tests {
     use super::*;
     use openusage_storage::{
-        LocalUsageDay, LocalUsageDifference, LocalUsageRow, LocalUsageSession, LogConsent,
-        LogSource, SavedLocalSession,
+        LocalUsageDay, LocalUsageDifference, LocalUsageHour, LocalUsageRow, LocalUsageSession,
+        LogConsent, LogSource, SavedLocalHour, SavedLocalSession,
     };
 
     const CLAUDE: &str = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -586,6 +629,23 @@ mod tests {
                 source(CODEX, "codex", None),
                 source(CLAUDE, "claude", Some("Asia/Kolkata")),
             ],
+            hours: vec![SavedLocalHour {
+                log_source_id: CLAUDE.into(),
+                hour: LocalUsageHour {
+                    tool: "claude".into(),
+                    hour_start_utc: "2026-11-03T04:00:00.000Z".into(),
+                    input_tokens: 7,
+                    output_tokens: 1,
+                    cache_write_tokens: 1,
+                    cache_read_tokens: 1,
+                    total_tokens: 10,
+                },
+                scanner_version: "20.0.48".into(),
+            }],
+            window: Some((
+                "2026-10-31T18:30:00.000Z".into(),
+                "2026-11-10T18:30:00.000Z".into(),
+            )),
             sessions: vec![
                 session(
                     CODEX,
@@ -703,6 +763,23 @@ mod tests {
                 ("-home-dev-beta", 1, "9")
             ]
         );
+        // Hours appear only in the hourly view, which groups days by day.
+        assert!(view.hours.is_empty());
+        let hourly = summarize(&range, start, end, Period::Hour, "Asia/Kolkata".into());
+        assert_eq!(
+            hourly.hours,
+            [HourBucket {
+                start_utc: "2026-11-03T04:00:00.000Z".into(),
+                tool: "claude".into(),
+                total_tokens: "10".into()
+            }]
+        );
+        assert_eq!(hourly.hour_tools, ["claude"]);
+        assert_eq!(
+            hourly.start_utc.as_deref(),
+            Some("2026-10-31T18:30:00.000Z")
+        );
+        assert_eq!(hourly.buckets.len(), 3, "Days group by day.");
         let months = summarize(&range, start, end, Period::Month, "UTC".into());
         assert_eq!(
             months

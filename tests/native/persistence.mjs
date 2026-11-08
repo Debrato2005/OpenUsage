@@ -75,7 +75,7 @@ async function heading(text) {
 
 async function ready(theme, protection) {
   await heading('Overview');
-  await state({ storage: 'ready', theme, keyProtection: protection, schemaVersion: 11, activeProfiles: 0, storageIssue: null });
+  await state({ storage: 'ready', theme, keyProtection: protection, schemaVersion: 12, activeProfiles: 0, storageIssue: null });
   await driver.navigate('accounts');
   await waitFor(async () => driver.execute('const count=document.querySelector(".accounts-section .muted-tag");return Boolean(count&&count.textContent.trim()==="0 of 10 active"&&count.getClientRects().length);'), 'visible Accounts active count');
   await driver.navigate('overview');
