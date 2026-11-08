@@ -69,13 +69,13 @@ Adopted November 7, 2026 (SRS Section 0.6, SC-016). The owner wants a working pr
 | Slice | Goal | Existing slices it covers | State |
 |---|---|---|---|
 | L-0 | First run without an app password: keychain by default | S-03c | New workspaces already use the keychain without a prompt (`workspace.rs` setup); moving an existing password workspace follows the launch |
-| L-1 | Local logs with no sign-in: the pinned official `ccusage` binary, a Rust runner, the local usage store, consent, and This device views | S-09, S-10, S-11, part of S-05 | L-1a and L-1b done. See the [checklist](#build-checklist) |
-| L-2 | CLI with `openusage status`, `statusline` and `report` | S-14 | Not started |
-| L-3 | Sharing: Wrapped summary, heatmap PNG and SVG, a README badge, and personal records | S-19 | Not started |
-| L-4 | Leaderboard service on Cloudflare Workers and D1, per the [decision](decisions/2026-11-07-leaderboard-service.md) | S-21 | Not started |
-| L-5 | Leaderboard client: join with GitHub, dry run, sync, leave | S-22 | Not started |
-| L-6 | Packaging: Linux packages, Windows and macOS preview builds in CI, the npm package | S-18, part of S-15 | Not started |
-| L-7 | Release documents and the launch checklist | S-20 | Not started |
+| L-1 | Local logs with no sign-in: the pinned official `ccusage` binary, a Rust runner, the local usage store, consent, and This device views | S-09, S-10, S-11, part of S-05 | L-1a to L-1e and L-1g1 to L-1g3 done. L-1f and L-1g4 wait for the owner. See the [checklist](#build-checklist) |
+| L-2 | CLI with `openusage status`, `statusline` and `report` | S-14 | Done |
+| L-3 | Sharing: Wrapped summary, heatmap PNG and SVG, a README badge, and personal records | S-19 | Done |
+| L-4 | Leaderboard service on Cloudflare Workers and D1, per the [decision](decisions/2026-11-07-leaderboard-service.md) | S-21 | Done locally. Deployment waits for the owner |
+| L-5 | Leaderboard client: join with GitHub, dry run, sync, leave | S-22 | Waits for the owner |
+| L-6 | Packaging: Linux packages, Windows and macOS preview builds in CI, the npm package | S-18, part of S-15 | L-6a and L-6b done. L-6c waits for the owner |
+| L-7 | Release documents and the launch checklist | S-20 | Done |
 | G-L | Owner: claim the npm name (OQ-2), create the Cloudflare account and GitHub OAuth App, run the real-account tests, publish | G-1, G-2, G-3 | Not started |
 
 The other slices below follow the launch, unless a launch slice needs part of one.
