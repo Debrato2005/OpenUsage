@@ -4,7 +4,8 @@
 The main `openusage` package holds only a launcher. The platform package holds the CLI,
 the desktop app, the pinned Codex companion, the pinned ccusage and their notices
 (OU-DIST-003). Neither package has an install script, and nothing downloads at install
-time or at run time. The script writes SHA256SUMS for every packed file (OU-DIST-005).
+time or at run time. The script writes SHA256SUMS for every packed file and the SBOM
+(OU-DIST-005).
 It never publishes: the owner publishes with npm and provenance.
 """
 
@@ -153,6 +154,8 @@ def assemble(args: argparse.Namespace) -> dict:
         tarballs = [pack(platform, out, Path(cache)), pack(main, out, Path(cache))]
     check_tarball(tarballs[0], {f"bin/{name}{suffix}" for name in binaries})
     check_tarball(tarballs[1], {"bin/openusage.js"})
+    if args.sbom is not None:
+        shutil.copyfile(args.sbom, out / f"openusage-{version}-{npm_name}.cdx.json")
     sums = [f"{sha256(path)}  {path.relative_to(out)}" for path in sorted(p for p in out.rglob("*") if p.is_file())]
     (out / "SHA256SUMS").write_text("\n".join(sums) + "\n")
     return {"version": version, "target": args.target, "tarballs": [t.name for t in tarballs], "files": len(sums)}
@@ -167,6 +170,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--ccusage", type=Path, required=True)
     parser.add_argument("--codex", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--sbom", type=Path, help="The SBOM from scripts/sbom.py, published beside the packages.")
     parser.add_argument("--pins", type=Path, help="A JSON file of test digests. Releases use the pinned source records.")
     args = parser.parse_args(argv)
     try:

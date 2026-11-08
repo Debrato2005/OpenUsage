@@ -50,7 +50,9 @@ Kept from baseline 2.0:
 
 ## Partial
 
-- Distribution (16A), L-6b, November 8, 2026: `scripts/package-npm.py` assembles `openusage`, which holds only a launcher, and `@openusage/linux-x64`, which holds the CLI, the desktop app, the pinned `ccusage`, the pinned Codex companion and their notices. It checks both pins, packs both with `npm pack`, and writes `SHA256SUMS`. Neither package has an install script. Nothing is published: the npm name, provenance, a build attestation and an SBOM wait for the owner and for L-6c.
+- Distribution (16A), L-6b, November 8, 2026: `scripts/package-npm.py` assembles `openusage`, which holds only a launcher, and `@openusage/linux-x64`, which holds the CLI, the desktop app, the pinned `ccusage`, the pinned Codex companion and their notices. It checks both pins, packs both with `npm pack`, and writes `SHA256SUMS`. Neither package has an install script. Nothing is published: the npm name, provenance and a build attestation wait for the owner and for L-6c.
+
+- Release documents, L-7c, November 8, 2026: `scripts/sbom.py` writes a CycloneDX 1.5 SBOM of the Linux release from `cargo tree`, `Cargo.lock`, `bun.lock` and the two pin records, with no download. Crates that only run at build time get the scope `excluded`. Two runs gave the same bytes. `package-npm.py --sbom` publishes it beside the packages in `SHA256SUMS`. No schema validator ran, because none is on this host.
 
 - Release documents, L-7a, November 8, 2026: [Install](install.md) gives the install, upgrade, uninstall and data deletion steps and what an unsigned build does. [Security](../SECURITY.md#bundled-ccusage) states that `ccusage` runs with the user's rights and is not sandboxed. A private-home run on Linux confirmed the Linux folders. The macOS and Windows steps come from the code and were not run on a real machine.
 
@@ -109,7 +111,7 @@ As of November 3, 2026, on Linux. 43 journeys ran on the native-test build and 4
 
 ## Missing release documents
 
-SRS Section 20 requires these documents, which do not exist yet: data contracts, identity contract, provider capabilities, security and privacy, compatibility matrix, performance report, and provider evidence. The [threat model](threat-model.md) exists since L-7b. No SBOM exists.
+SRS Section 20 requires these documents, which do not exist yet: data contracts, identity contract, provider capabilities, security and privacy, compatibility matrix, performance report, and provider evidence. The [threat model](threat-model.md) exists since L-7b, and `scripts/sbom.py` writes the SBOM since L-7c.
 
 ## Open items
 

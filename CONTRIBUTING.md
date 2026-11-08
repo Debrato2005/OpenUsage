@@ -52,13 +52,17 @@ After a release build, assemble the npm packages for Linux x86_64 in an empty fo
 
 ```sh
 cargo build --release --locked --offline -p openusage-cli -p openusage-desktop
+python3 scripts/sbom.py --out /absolute/openusage.cdx.json
 python3 scripts/package-npm.py --out /absolute/empty/folder \
+  --sbom /absolute/openusage.cdx.json \
   --cli target/release/openusage --desktop target/release/openusage-desktop \
   --ccusage apps/desktop/src-tauri/binaries/openusage-ccusage-x86_64-unknown-linux-gnu \
   --codex apps/desktop/src-tauri/binaries/openusage-codex-x86_64-unknown-linux-gnu
 ```
 
-Use your shared Cargo target in place of `target` when you set one. The script checks both pinned binaries against their source records, then writes two packages: `openusage`, which holds only a launcher, and `@openusage/linux-x64`, which holds the CLI, the desktop app, `ccusage`, the Codex companion and their notices. Neither package has an install script, and nothing downloads at install time or at run time (OU-DIST-003). It packs both with `npm pack` and writes `SHA256SUMS`. It never publishes: publishing with npm provenance is an owner step.
+Use your shared Cargo target in place of `target` when you set one. The script checks both pinned binaries against their source records, then writes two packages: `openusage`, which holds only a launcher, and `@openusage/linux-x64`, which holds the CLI, the desktop app, `ccusage`, the Codex companion and their notices. Neither package has an install script, and nothing downloads at install time or at run time (OU-DIST-003). It packs both with `npm pack`, copies the SBOM beside them, and writes `SHA256SUMS`.
+
+`scripts/sbom.py` writes a CycloneDX 1.5 SBOM of the Linux release. It lists the crates of the CLI and the desktop app, the npm packages in the renderer, and the pinned `ccusage` and Codex binaries. It reads only the lockfiles, the Cargo cache and `node_modules`, so run `bun install` first. Set `SOURCE_DATE_EPOCH` to fix its time. Otherwise it uses the time of the HEAD commit. It never publishes: publishing with npm provenance is an owner step.
 
 This path currently covers Linux x86_64 only. A native build does not prove an installer or another platform. See the [source review and architecture decision](docs/reviews/2026-10-21-onboarding-sources.md).
 

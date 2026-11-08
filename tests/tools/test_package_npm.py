@@ -37,19 +37,23 @@ class PackageNpmTests(unittest.TestCase):
     def tearDown(self):
         self.temporary.cleanup()
 
-    def run_script(self, out: Path, pins: Path | None = None):
+    def run_script(self, out: Path, pins: Path | None = None, extra: tuple[str, ...] = ()):
         command = [sys.executable, str(SCRIPT), "--version", "0.0.0-test", "--cli", str(self.cli), "--desktop", str(self.desktop),
-                   "--ccusage", str(self.ccusage), "--codex", str(self.codex), "--out", str(out), "--pins", str(pins or self.pins)]
+                   "--ccusage", str(self.ccusage), "--codex", str(self.codex), "--out", str(out), "--pins", str(pins or self.pins), *extra]
         return subprocess.run(command, capture_output=True, text=True, timeout=600, check=False)
 
     def test_packages_have_no_scripts_keep_executables_and_the_launcher_runs_the_cli(self):
         out = self.dir / "out"
-        result = self.run_script(out)
+        bom = self.dir / "bom.json"
+        bom.write_text('{"bomFormat": "CycloneDX"}\n')
+        result = self.run_script(out, extra=("--sbom", str(bom)))
         self.assertEqual(result.returncode, 0, result.stderr)
         summary = json.loads(result.stdout)
         self.assertEqual(summary["tarballs"], ["openusage-linux-x64-0.0.0-test.tgz", "openusage-0.0.0-test.tgz"])
         sums = (out / "SHA256SUMS").read_text().splitlines()
         self.assertTrue(any(line.endswith("  openusage-0.0.0-test.tgz") for line in sums))
+        bom_digest = hashlib.sha256(bom.read_bytes()).hexdigest()
+        self.assertIn(f"{bom_digest}  openusage-0.0.0-test-linux-x64.cdx.json", sums)
         # Install the way npm does: each tarball's package folder in node_modules.
         modules = self.dir / "node_modules"
         for tarball, folder in ((out / summary["tarballs"][0], modules / "@openusage/linux-x64"), (out / summary["tarballs"][1], modules / "openusage")):
