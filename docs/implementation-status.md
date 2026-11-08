@@ -26,7 +26,7 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scoped result, November 8, 2026, after L-1f4: the full Rust workspace tests, formatting, and Clippy passed. The rebuilt native app passed the consent journey with private synthetic logs on Linux. The full renderer and read-only CLI journeys last passed at L-1f2. [Traceability](acceptance-traceability.md) holds the exact scope.
+Latest scoped result, November 8, 2026, after L-1f5: the diagnostic Rust workspace run passed 438 tests, with one intentional ignore. Formatting, Clippy, the renderer build, and 56 IPC contract tests passed. The rebuilt native app passed the consent journey with private synthetic logs on Linux. The first workspace verify run failed and its cause remains unconfirmed. The full renderer and read-only CLI journeys last passed at L-1f2. [Traceability](acceptance-traceability.md) holds the exact scope.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -54,6 +54,8 @@ Kept from baseline 2.0:
 - Wake handling: OU-PROC-013, OU-MON-013.
 
 ## Partial
+
+- Local logs (5C), L-1f5, November 8, 2026: the common session parser reads recorded reports for all sixteen disabled tools. It keeps independent totals and unavailable metrics under [SC-022](srs-clarifications.md#sc-022-incomplete-metrics-from-the-other-local-tools). It rejects malformed shapes, metadata, counts, and inconsistent totals. Storage and process integration remain open. No additional tool is enabled.
 
 - Local logs (5C), L-1f4, November 8, 2026: The parsers require real calendar days, including leap-year rules. Session and hourly timestamps must be ASCII before byte slicing. Malformed Unicode returns a report error instead of a panic. The full Rust checks and rebuilt native consent journey passed with synthetic logs on Linux.
 
@@ -111,7 +113,7 @@ Kept from baseline 2.0:
 
 ## Not yet run
 
-- The latest pushed catalog commit is 155b61a. Its Linux CI job failed while downloading pinned Bun with HTTP 504, before code checks. The renderer job remains in progress. Local full checks passed. The split CI workflow has now run on GitHub, but the complete hosted result remains unverified. [Run 42475604431](https://github.com/Debrato2005/OpenUsage/actions/runs/42475604431) holds the hosted evidence. OU-NFR-012 also needs Windows and macOS, planned for S-15.
+- The latest pushed catalog commit is 155b61a. Linux CI failed while downloading pinned Bun with HTTP 504, before code checks. The renderer job passed 454 tests and failed two WebKit countdown tests. Those tests allow their clock to advance during setup. Their fixed initial-second assertions then fail after a slow page load. A deterministic clock fixture is the next check. The complete hosted gate remains unverified. [Run 42475604431](https://github.com/Debrato2005/OpenUsage/actions/runs/42475604431) holds the hosted evidence. OU-NFR-012 also needs Windows and macOS, planned for S-15.
 - Windows and macOS have never run. The owner has a real Windows PC and Mac for this.
 - Windows and macOS need their own pinned Codex companion. Only Linux x86_64 is qualified.
 - Sleep and wake, packaging, and release-scale performance are unmeasured.

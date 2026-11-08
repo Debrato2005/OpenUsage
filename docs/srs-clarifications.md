@@ -36,7 +36,7 @@ Status: confirmed acceptance gap, November 8, 2026. The SRS stays unchanged.
 
 OU-DUP-004 places within-tool replay and fork handling in ccusage. AT-65 requires copied logs to count once. A synthetic Amp thread with 162 tokens counted 324 after an identical file copy. The copy kept the same thread and event IDs. The pinned scanner does not suppress this copy. The current upstream release and main source have no fix.
 
-Amp remains disabled. An upgrade alone does not resolve this gap. A fix needs review and new fixture qualification before it can enter the release pin. The download request for pinned source and missing locked build dependencies is pending. No upstream message, pull request, or publication is authorized by this record.
+Amp remains disabled. An upgrade alone does not resolve this gap. A fix needs review and new fixture qualification before it can enter the release pin. On November 8, 2026, the owner approved downloads of pinned source and missing locked build dependencies to prepare and test the fix. The owner also replaced the blanket download restriction in the slice rules. This approval does not authorize an upstream message, pull request, or publication.
 
 See the [executed fixture](../tests/tools/test_ccusage_formats.py) and the [upstream review](reviews/2026-11-08-ccusage-duplicate-handling.md).
 

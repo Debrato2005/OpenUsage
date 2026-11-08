@@ -28,6 +28,14 @@ Before any process starts, the folder must be an absolute UTF-8 path that still 
 
 `parse_sessions` reads the session report of Claude Code or Codex, because the two tools give different shapes ([SC-021](../../docs/srs-clarifications.md#sc-021-sessions-projects-hours-and-reasoning-from-the-pinned-ccusage)). A Claude Code session has its first and last activity and the project folder that Claude Code writes. A Codex session has only its last activity, and its reasoning count, which is a part of its output count. The parser rejects unknown fields, repeated session keys, a start after the end, and counts that do not add up to the model breakdowns and the report totals. A session with an unpriced model has no estimate.
 
+## Additional session reports
+
+`parse_agent_sessions` reads focused session JSON for the sixteen disabled tools. It keeps the reported session and report totals separate from model attribution. This parser does not start a process, save data, or enable a tool.
+
+The catalog holds each report's metadata policy. Only Pi and ZCode retain activity times. Pi, Qwen, Grok, and ZCode retain reported projects, with Pi's fallback `unknown` omitted. Other fields remain unavailable under [SC-022](../../docs/srs-clarifications.md#sc-022-incomplete-metrics-from-the-other-local-tools). Token categories and estimates remain unavailable because the pinned report loses their presence and derivation. A model total is available only when all tokens in its enclosing session or report have model attribution. A remainder never becomes reasoning or an invented model.
+
+The parser rejects unknown fields, invalid metadata, repeated keys, excessive counts, and totals that disagree with their rows. It accepts Qwen's null empty totals but rejects missing totals. Empty reports differ from sessions with a reported zero. All sixteen recorded fixtures and malformed-report cases exercise this boundary. Storage, process integration, and duplicate qualification remain open.
+
 ## The hourly report
 
 `parse_hours` reads one-hour blocks. Each block must start and end on a whole UTC hour, in order, with counts that add up to its total. A gap must be empty and gives no row. The parser keeps no cost, because a block does not mark an unpriced model.

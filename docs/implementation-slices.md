@@ -42,7 +42,7 @@ Renderer tests, native journeys, and the local commit therefore need approval to
 - Do one slice. Read the requirements it names, not the whole SRS.
 - Keep existing behavior, stored data, and safety rules (OU-DES-002).
 - Add a setting, screen, state, or dependency only under OU-DES-013.
-- Download nothing. Use what the lockfiles and local caches hold. If a slice needs more, stop and report.
+- Reuse local caches where practical. Download required source and build dependencies from official sources at pinned revisions or locked versions. Check published digests when available. New dependencies still need the architecture review above. The owner approved these downloads on November 8, 2026.
 - Use synthetic data and private temporary homes. Never point a test at real logs, real credentials, or the owner's accounts.
 - Make each schema change a tested forward migration. Older backups shall still restore.
 - Record a conflict or an unclear requirement in [SRS clarifications](srs-clarifications.md), then report it. Do not edit the SRS.
@@ -102,6 +102,7 @@ Updated November 8, 2026. The owner asked to keep this list and to build down it
 - [x] L-1f2: share one tool catalog across detection, consent, the runner, the CLI, and the renderer (OU-DES-011). It declares all 18 tools, but enables only the two already qualified. The full renderer and Rust checks passed. The rebuilt native app passed consent and read-only CLI journeys with private synthetic data on Linux. [SC-022](srs-clarifications.md#sc-022-incomplete-metrics-from-the-other-local-tools) records the approved handling of incomplete metrics for L-1f.
 - [x] L-1f3: record daily and session outputs for synthetic inputs from all 16 remaining tools. Three tests ran the real pinned binary 98 times. Reports repeated exactly, empty roots returned no rows, and source files stayed unchanged. A copied Amp thread doubled 162 tokens to 324. This is a known AT-65 failure, not completed tool support. See the [fixtures](../crates/openusage-locallogs/tests/fixtures/remaining-tools/README.md) and [SC-023](srs-clarifications.md#sc-023-copied-amp-usage-in-the-pinned-scanner).
 - [x] L-1f4: reject malformed Unicode timestamps without a panic and reject impossible calendar dates (OU-LOG-007). Session and hourly parsers share the UTC check. The date check covers month lengths and leap years. Synthetic regressions first reproduced both Unicode panics and acceptance of February 30. Full Rust checks and the rebuilt native consent journey passed on Linux.
+- [x] L-1f5: add the strict common session parser and nullable metric types for the sixteen disabled tools. Eight focused tests cover recorded reports, incomplete model attribution, empty reports, reported zero totals, and malformed values. The diagnostic workspace run, formatting, Clippy, renderer build, IPC contracts, and rebuilt native consent journey passed on Linux. The initial workspace failure did not recur and its cause remains unconfirmed. Storage and scanner integration remain open.
 - [x] L-1g1: sessions, projects and the reasoning count from the `ccusage` session report of each tool, at schema 11 (OU-LOG-017, [SC-021](srs-clarifications.md#sc-021-sessions-projects-hours-and-reasoning-from-the-pinned-ccusage)).
 - [x] L-1g2: hourly ranges for Claude Code from `ccusage blocks`, at schema 12 (OU-LOG-017, SC-021).
 - [x] L-1g3: custom date ranges (OU-LOG-017).
@@ -124,14 +125,14 @@ Updated November 8, 2026. The owner asked to keep this list and to build down it
 
 **L-5 Leaderboard client**
 
-- [ ] L-5a: `openusage board join`, `sync --dry-run`, `sync` and `leave` through one upload builder, with the token in the OS credential store (OU-BOARD-001, OU-BOARD-002, OU-BOARD-005, OU-BOARD-006; AT-86 to AT-88). Waits for the owner: the client needs an HTTPS client with TLS, which the lockfile does not hold. A new network dependency needs a download and changes the boundary in the architecture that Rust declares no HTTP client.
+- [ ] L-5a: `openusage board join`, `sync --dry-run`, `sync` and `leave` through one upload builder, with the token in the OS credential store (OU-BOARD-001, OU-BOARD-002, OU-BOARD-005, OU-BOARD-006; AT-86 to AT-88). Downloads are allowed under the slice rules. The HTTPS client still needs an architecture decision because Rust currently declares no HTTP client.
 - [ ] L-5b: join, sync and leave in Settings.
 
 **L-6 Packaging**
 
 - [x] L-6a: Linux packages with the bundled `ccusage` and Codex companion, and the WebKitGTK dependencies listed (OU-PLAT-002, OU-PLAT-005).
 - [x] L-6b: the npm package, with per-platform packages and no install scripts (OU-DIST-001 to OU-DIST-005, OU-DIST-009; AT-81).
-- [ ] L-6c: Windows and macOS preview builds in CI (part of OU-NFR-012). Waits for the owner: CI pins each toolchain archive by its digest, and the Windows and macOS digests of Rust, Node and Bun are not on this host. This host also has only the Linux Rust standard library, so it cannot check a Windows or macOS build.
+- [ ] L-6c: Windows and macOS preview builds in CI (part of OU-NFR-012). The owner approved required build downloads on November 8. Obtain each official toolchain archive. Check its digest. Each platform also needs qualified companion pins. This host has only the Linux Rust standard library. Hosted builds and real-machine tests remain open.
 
 **L-7 Release documents**
 
@@ -148,7 +149,7 @@ Updated November 8, 2026. The owner asked to keep this list and to build down it
 - [ ] Run the real-account tests (AT-60) and the real-machine tests (AT-38, AT-80).
 - [ ] Decide the two gaps in [SC-017](srs-clarifications.md#sc-017-local-usage-store).
 - [ ] Approve an HTTPS client with TLS for the leaderboard client (L-5), for example `ureq` with `native-tls`, which can use the OpenSSL that SQLCipher already builds.
-- [ ] Approve the downloads for the preview builds (L-6c): the Windows and macOS archives of Rust 1.99.1, Node 22.23.2 and Bun 1.3.14 with their digests, and the Windows and macOS `ccusage` and Codex companion pins.
+- [x] The owner approved build downloads under the slice rules. Record the toolchain digests and companion pins for Windows and macOS during L-6c.
 - [ ] Push and publish.
 
 **After the launch track**

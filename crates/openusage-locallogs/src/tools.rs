@@ -24,6 +24,33 @@ pub struct Root {
 pub enum SessionShape {
     Claude,
     Codex,
+    Agent,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum ProjectPolicy {
+    Unavailable,
+    Reported,
+    Pi,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum PeriodPolicy {
+    Day,
+    Unplaced,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct AgentReportPolicy {
+    pub metadata: bool,
+    pub activity_times: bool,
+    pub project: ProjectPolicy,
+    pub model_prefix: Option<String>,
+    pub null_empty_totals: bool,
+    pub period: PeriodPolicy,
 }
 
 #[derive(Debug, Deserialize)]
@@ -39,6 +66,7 @@ pub struct Tool {
     pub roots: Vec<Root>,
     pub session_shape: Option<SessionShape>,
     pub hours: bool,
+    pub agent_report: Option<AgentReportPolicy>,
 }
 
 pub fn tools() -> &'static [Tool] {
@@ -93,6 +121,17 @@ mod tests {
             assert!(orders.insert(tool.order));
             assert!(!tool.name.is_empty() && !tool.name.chars().any(char::is_control));
             assert!(tool.tint < 6);
+            assert_eq!(
+                tool.agent_report.is_some(),
+                tool.session_shape == Some(SessionShape::Agent)
+            );
+            if let Some(policy) = &tool.agent_report {
+                assert!(
+                    policy.metadata
+                        || (!policy.activity_times && policy.project == ProjectPolicy::Unavailable)
+                );
+                assert!(!policy.activity_times || policy.period == PeriodPolicy::Day);
+            }
             if tool.enabled {
                 let variable = tool.folder_variable.as_ref().unwrap();
                 assert!(!variable.is_empty() && variables.insert(variable));

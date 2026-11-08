@@ -140,7 +140,7 @@ pub(crate) fn valid_utc(value: &str) -> bool {
 }
 
 /// A key, never a path to open (OU-SEC-021).
-fn valid_key(key: &str) -> bool {
+pub(crate) fn valid_key(key: &str) -> bool {
     (1..=256).contains(&key.len())
         && key
             .bytes()

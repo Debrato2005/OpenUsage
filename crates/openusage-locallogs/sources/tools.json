@@ -18,7 +18,8 @@
       }
     ],
     "sessionShape": "claude",
-    "hours": true
+    "hours": true,
+    "agentReport": null
   },
   "codex": {
     "name": "Codex",
@@ -34,7 +35,8 @@
       }
     ],
     "sessionShape": "codex",
-    "hours": false
+    "hours": false,
+    "agentReport": null
   },
   "opencode": {
     "name": "OpenCode",
@@ -43,8 +45,16 @@
     "enabled": false,
     "folderVariable": null,
     "roots": [],
-    "sessionShape": null,
-    "hours": false
+    "sessionShape": "agent",
+    "hours": false,
+    "agentReport": {
+      "metadata": false,
+      "activityTimes": false,
+      "project": "unavailable",
+      "modelPrefix": null,
+      "nullEmptyTotals": false,
+      "period": "unplaced"
+    }
   },
   "amp": {
     "name": "Amp",
@@ -53,8 +63,16 @@
     "enabled": false,
     "folderVariable": null,
     "roots": [],
-    "sessionShape": null,
-    "hours": false
+    "sessionShape": "agent",
+    "hours": false,
+    "agentReport": {
+      "metadata": false,
+      "activityTimes": false,
+      "project": "unavailable",
+      "modelPrefix": null,
+      "nullEmptyTotals": false,
+      "period": "day"
+    }
   },
   "droid": {
     "name": "Droid",
@@ -63,8 +81,16 @@
     "enabled": false,
     "folderVariable": null,
     "roots": [],
-    "sessionShape": null,
-    "hours": false
+    "sessionShape": "agent",
+    "hours": false,
+    "agentReport": {
+      "metadata": false,
+      "activityTimes": false,
+      "project": "unavailable",
+      "modelPrefix": null,
+      "nullEmptyTotals": false,
+      "period": "unplaced"
+    }
   },
   "codebuff": {
     "name": "Codebuff",
@@ -73,8 +99,16 @@
     "enabled": false,
     "folderVariable": null,
     "roots": [],
-    "sessionShape": null,
-    "hours": false
+    "sessionShape": "agent",
+    "hours": false,
+    "agentReport": {
+      "metadata": false,
+      "activityTimes": false,
+      "project": "unavailable",
+      "modelPrefix": null,
+      "nullEmptyTotals": false,
+      "period": "unplaced"
+    }
   },
   "hermes": {
     "name": "Hermes",
@@ -83,8 +117,16 @@
     "enabled": false,
     "folderVariable": null,
     "roots": [],
-    "sessionShape": null,
-    "hours": false
+    "sessionShape": "agent",
+    "hours": false,
+    "agentReport": {
+      "metadata": false,
+      "activityTimes": false,
+      "project": "unavailable",
+      "modelPrefix": null,
+      "nullEmptyTotals": false,
+      "period": "unplaced"
+    }
   },
   "pi": {
     "name": "Pi",
@@ -93,8 +135,16 @@
     "enabled": false,
     "folderVariable": null,
     "roots": [],
-    "sessionShape": null,
-    "hours": false
+    "sessionShape": "agent",
+    "hours": false,
+    "agentReport": {
+      "metadata": true,
+      "activityTimes": true,
+      "project": "pi",
+      "modelPrefix": "[pi] ",
+      "nullEmptyTotals": false,
+      "period": "day"
+    }
   },
   "goose": {
     "name": "Goose",
@@ -103,8 +153,16 @@
     "enabled": false,
     "folderVariable": null,
     "roots": [],
-    "sessionShape": null,
-    "hours": false
+    "sessionShape": "agent",
+    "hours": false,
+    "agentReport": {
+      "metadata": false,
+      "activityTimes": false,
+      "project": "unavailable",
+      "modelPrefix": null,
+      "nullEmptyTotals": false,
+      "period": "unplaced"
+    }
   },
   "kilo": {
     "name": "Kilo",
@@ -113,8 +171,16 @@
     "enabled": false,
     "folderVariable": null,
     "roots": [],
-    "sessionShape": null,
-    "hours": false
+    "sessionShape": "agent",
+    "hours": false,
+    "agentReport": {
+      "metadata": false,
+      "activityTimes": false,
+      "project": "unavailable",
+      "modelPrefix": null,
+      "nullEmptyTotals": false,
+      "period": "day"
+    }
   },
   "copilot": {
     "name": "GitHub Copilot",
@@ -123,8 +189,16 @@
     "enabled": false,
     "folderVariable": null,
     "roots": [],
-    "sessionShape": null,
-    "hours": false
+    "sessionShape": "agent",
+    "hours": false,
+    "agentReport": {
+      "metadata": true,
+      "activityTimes": false,
+      "project": "unavailable",
+      "modelPrefix": null,
+      "nullEmptyTotals": false,
+      "period": "unplaced"
+    }
   },
   "gemini": {
     "name": "Gemini CLI",
@@ -133,8 +207,16 @@
     "enabled": false,
     "folderVariable": null,
     "roots": [],
-    "sessionShape": null,
-    "hours": false
+    "sessionShape": "agent",
+    "hours": false,
+    "agentReport": {
+      "metadata": false,
+      "activityTimes": false,
+      "project": "unavailable",
+      "modelPrefix": null,
+      "nullEmptyTotals": false,
+      "period": "unplaced"
+    }
   },
   "antigravity": {
     "name": "Antigravity",
@@ -143,8 +225,16 @@
     "enabled": false,
     "folderVariable": null,
     "roots": [],
-    "sessionShape": null,
-    "hours": false
+    "sessionShape": "agent",
+    "hours": false,
+    "agentReport": {
+      "metadata": true,
+      "activityTimes": false,
+      "project": "unavailable",
+      "modelPrefix": null,
+      "nullEmptyTotals": false,
+      "period": "unplaced"
+    }
   },
   "kimi": {
     "name": "Kimi",
@@ -153,8 +243,16 @@
     "enabled": false,
     "folderVariable": null,
     "roots": [],
-    "sessionShape": null,
-    "hours": false
+    "sessionShape": "agent",
+    "hours": false,
+    "agentReport": {
+      "metadata": false,
+      "activityTimes": false,
+      "project": "unavailable",
+      "modelPrefix": null,
+      "nullEmptyTotals": false,
+      "period": "unplaced"
+    }
   },
   "qwen": {
     "name": "Qwen Code",
@@ -163,8 +261,16 @@
     "enabled": false,
     "folderVariable": null,
     "roots": [],
-    "sessionShape": null,
-    "hours": false
+    "sessionShape": "agent",
+    "hours": false,
+    "agentReport": {
+      "metadata": true,
+      "activityTimes": false,
+      "project": "reported",
+      "modelPrefix": null,
+      "nullEmptyTotals": true,
+      "period": "unplaced"
+    }
   },
   "openclaw": {
     "name": "OpenClaw",
@@ -173,8 +279,16 @@
     "enabled": false,
     "folderVariable": null,
     "roots": [],
-    "sessionShape": null,
-    "hours": false
+    "sessionShape": "agent",
+    "hours": false,
+    "agentReport": {
+      "metadata": true,
+      "activityTimes": false,
+      "project": "unavailable",
+      "modelPrefix": "[openclaw] ",
+      "nullEmptyTotals": false,
+      "period": "unplaced"
+    }
   },
   "grok": {
     "name": "Grok",
@@ -183,8 +297,16 @@
     "enabled": false,
     "folderVariable": null,
     "roots": [],
-    "sessionShape": null,
-    "hours": false
+    "sessionShape": "agent",
+    "hours": false,
+    "agentReport": {
+      "metadata": true,
+      "activityTimes": false,
+      "project": "reported",
+      "modelPrefix": null,
+      "nullEmptyTotals": false,
+      "period": "unplaced"
+    }
   },
   "zcode": {
     "name": "ZCode",
@@ -193,7 +315,15 @@
     "enabled": false,
     "folderVariable": null,
     "roots": [],
-    "sessionShape": null,
-    "hours": false
+    "sessionShape": "agent",
+    "hours": false,
+    "agentReport": {
+      "metadata": true,
+      "activityTimes": true,
+      "project": "reported",
+      "modelPrefix": null,
+      "nullEmptyTotals": false,
+      "period": "day"
+    }
   }
 }

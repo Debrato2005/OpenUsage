@@ -1,6 +1,7 @@
 //! Local log totals from the pinned ccusage binary (SRS Section 5C).
 //! Rust checks the binary, runs it with fixed arguments and parses its report strictly.
 
+pub mod agent_report;
 pub mod detect;
 pub mod hours;
 pub mod report;
@@ -8,6 +9,9 @@ pub mod runner;
 pub mod session;
 pub mod tools;
 
+pub use agent_report::{
+    AgentSession, AgentSessionReport, ModelDetail, TokenDetails, parse_agent_sessions,
+};
 pub use detect::{Detected, detect};
 pub use hours::{HourRow, parse_hours};
 pub use report::{ReportError, UsageRow, parse_daily_by_agent};
