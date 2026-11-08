@@ -3,10 +3,9 @@ import { Button } from './components/ui/button';
 import { Checkbox } from './components/ui/checkbox';
 import { invoke, type LocalLogTool, type LocalLogsView } from './contracts';
 import './local-logs.css';
+import { localLogToolNames, orderedTools } from './local-tools';
 
-export const localLogToolNames: Record<LocalLogTool, string> = { claude: 'Claude Code', codex: 'Codex' };
-const order: LocalLogTool[] = ['claude', 'codex'];
-export const orderedTools = (tools: LocalLogTool[]) => order.filter(tool => tools.includes(tool));
+export { localLogToolNames, orderedTools } from './local-tools';
 
 /** Loads the local log view. A failure gives null, so no consent list appears. */
 export function useLocalLogs(enabled: boolean) {

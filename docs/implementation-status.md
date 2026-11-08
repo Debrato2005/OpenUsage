@@ -26,13 +26,13 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scoped result, November 8, 2026, after L-1f1: full Rust workspace tests, formatting, Clippy, and the native consent journey passed. The native SQLCipher check confirmed saved usage after restart and after refusal of a replaced root. The exact evidence is in [traceability](acceptance-traceability.md).
+Latest scoped result, November 8, 2026, after L-1f2: the full renderer suite, Rust workspace tests, formatting, and Clippy passed. The rebuilt native app passed the consent and read-only CLI journeys. These checks used private synthetic data on Linux. The exact evidence is in [traceability](acceptance-traceability.md).
 
-The wider native and renderer results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
+The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
 - 426 workspace tests passed, with 1 intentional ignore. The verify plan and Clippy passed.
 - 14 native journeys passed at schema 12 on a private display. [Failing or stale tests](#failing-or-stale-tests) names the 12 that did not run.
-- The last full renderer count is from L-3a: 444 cases, 222 each in Chromium and WebKit. Each later slice ran its new renderer cases in both engines.
+- The full Chromium and WebKit renderer suite passed at L-1f2.
 - The last run of all native journeys was on November 4, after S-03b: 46 of 48 passed.
 
 ## Not built
@@ -54,6 +54,8 @@ Kept from baseline 2.0:
 - Wake handling: OU-PROC-013, OU-MON-013.
 
 ## Partial
+
+- Local logs (5C), L-1f2, November 8, 2026: one catalog now defines all 18 tools for Rust, the CLI, and the renderer. Only Claude Code and Codex are enabled. Consent and every report runner reject disabled entries. The owner approved reliable totals with unavailable fields under [SC-022](srs-clarifications.md#sc-022-incomplete-metrics-from-the-other-local-tools). The remaining adapters, storage changes, and fixtures are not complete.
 
 - Local logs (5C), L-1f1, November 8, 2026: the runner rejects commas, trailing whitespace, non-UTF-8 paths, and roots that no longer equal the resolved path saved with consent. The regression first reproduced a read of synthetic decoy logs through a comma in an empty root's name. After the fix, invalid paths never start the scanner. The native journey passed with spaces and Unicode in its home path. A saved root replaced with a link to an unselected folder then failed safely and preserved saved usage. The other 16 tools remain unfinished.
 
@@ -132,6 +134,6 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 
 ## Current assignment
 
-On November 7, 2026 the owner adopted a launch track with the leaderboard in the first release. The next recommended launch assignment remains L-1f. The [tool comparison](reviews/2026-11-08-usage-tracking-strategy.md) recommends keeping pinned ccusage for local history and a separate path for provider quotas. L-1f0 fixes stored-cost handling, and L-1f1 checks consent roots before process launch. The [source review](reviews/2026-11-08-l1f-source-research.md) records the remaining format, token-count, session, and folder-isolation work. Source inspection needs no archive download. No additional tool is qualified yet, and OQ-1 remains open. Other owner decisions remain in the [build checklist](implementation-slices.md#build-checklist). Local commits wait for the owner's push.
+The next launch assignment remains L-1f. L-1f2 supplies the shared catalog. [SC-022](srs-clarifications.md#sc-022-incomplete-metrics-from-the-other-local-tools) records the owner's decision to show reliable totals and keep unavailable fields unavailable. The [first](reviews/2026-11-08-l1f-formats-a.md) and [second](reviews/2026-11-08-l1f-formats-b.md) source notes identify the remaining count, cost, date, session, and folder-isolation work. The next change must preserve tool totals independently of incomplete model detail. No additional tool is qualified yet, and OQ-1 remains open. The [build checklist](implementation-slices.md#build-checklist) holds the other owner decisions.
 
 The exact working checkpoint, if one exists, is in the local `.recovery/active-checkpoint.json`.

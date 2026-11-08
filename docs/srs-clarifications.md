@@ -27,6 +27,17 @@ This is the record of how requirements were read. Entries keep their original da
 | SC-019 | Local log totals in CLI JSON | In force |
 | SC-020 | A read-only CLI and the WAL index | In force |
 | SC-021 | Sessions, projects, hours and reasoning from the pinned `ccusage` | In force, amended at L-1g2; quota movement waits for OQ-1 |
+| SC-022 | Incomplete metrics from the other local tools | Owner approved; implementation pending |
+
+## SC-022: incomplete metrics from the other local tools
+
+Status: owner approved, November 8, 2026. Implementation is pending. The SRS stays unchanged.
+
+The pinned scanner reports totals that its visible token buckets cannot always explain. Some session reports omit times and projects. OpenCode and Hermes can return stored charges even with `--mode calculate`. Pi and OpenClaw can omit hidden extra tokens from calculated cost. The [first](reviews/2026-11-08-l1f-formats-a.md) and [second](reviews/2026-11-08-l1f-formats-b.md) source notes record the exact contracts and synthetic fixture recipes.
+
+The owner chose to show reliable totals and keep unavailable fields unavailable. Each unreliable breakdown, time, project, or estimate must show Not available. The app must not label a remainder as reasoning or invent a session time. Any schema change must preserve exact totals and carry absent values through storage and IPC. Unknown shapes still reject the scan under OU-LOG-007.
+
+This decision authorizes the parser, storage, and interface changes needed for these incomplete reports. Each tool still needs its fixtures and acceptance checks before it is enabled.
 
 ## SC-021: sessions, projects, hours and reasoning from the pinned `ccusage`
 

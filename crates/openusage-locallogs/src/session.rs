@@ -160,9 +160,9 @@ fn inconsistent(key: &str) -> ReportError {
 
 /// Parses the session report of one tool. Only Claude Code and Codex have a session report here.
 pub fn parse_sessions(tool: &str, bytes: &[u8]) -> Result<Vec<SessionRow>, ReportError> {
-    match tool {
-        "claude" => parse_claude(bytes),
-        "codex" => parse_codex(bytes),
+    match crate::tools::tool(tool).and_then(|tool| tool.session_shape) {
+        Some(crate::tools::SessionShape::Claude) => parse_claude(bytes),
+        Some(crate::tools::SessionShape::Codex) => parse_codex(bytes),
         _ => Err(shape("no session report for", tool)),
     }
 }

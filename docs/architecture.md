@@ -37,6 +37,8 @@ Today Codex is the only source, and its path has no general adapter layer. The p
 | `scripts/` | Verification, storage cleanup, Git safety, companion preparation |
 | `vendor/glib-0.18.5/` | Local security backport, explained in [SECURITY.md](../SECURITY.md) |
 
+The [local tool catalog](../crates/openusage-locallogs/sources/tools.json) defines tool names, order, colors, enabled state, roots, folder variables, and report capabilities. Rust embeds it at compile time. The renderer imports it at build time. Detection, consent, the runner, and both interfaces use this one definition. Adapter and fixture checks must pass before a tool is enabled.
+
 ## Boundaries
 
 - **Secrets:** provider sessions, credentials, and the database key stay in Rust, provider-managed homes, or the OS credential store. They never reach React.

@@ -138,7 +138,7 @@ fn scan_source(
         .as_mut()?
         .save_local_session_scan(&source.id, &scanned_at, &sessions)
         .ok()?;
-    if locallogs::HOUR_TOOLS.contains(&source.tool.as_str()) {
+    if locallogs::tool(&source.tool).is_some_and(|tool| tool.enabled && tool.hours) {
         let empty_home = tempfile::tempdir().ok()?;
         let hours = locallogs::scan_hours(&locallogs::ScanRequest {
             binary: &scanner.binary,
@@ -304,14 +304,13 @@ fn view(
         Err(CommandError::WorkspaceLocked) => Vec::new(),
         sources => sources?,
     };
-    let tools = locallogs::FOLDER_VARIABLES
-        .iter()
-        .map(|(tool, _)| ToolView {
-            tool: (*tool).into(),
-            detected: detected.iter().any(|d| d.tool == *tool),
+    let tools = locallogs::enabled_tools()
+        .map(|tool| ToolView {
+            tool: tool.id.clone(),
+            detected: detected.iter().any(|d| d.tool == tool.id),
             granted: sources
                 .iter()
-                .any(|s| s.tool == *tool && s.consent == LogConsent::Granted),
+                .any(|s| s.tool == tool.id && s.consent == LogConsent::Granted),
         })
         .filter(|view| view.detected || sources.iter().any(|s| s.tool == view.tool))
         .collect();
@@ -328,7 +327,7 @@ fn consent(
     tools: &[String],
 ) -> Result<(), CommandError> {
     let unique: BTreeSet<&String> = tools.iter().collect();
-    let known = |tool: &String| locallogs::FOLDER_VARIABLES.iter().any(|(t, _)| t == tool);
+    let known = |tool: &String| locallogs::tool(tool).is_some_and(|tool| tool.enabled);
     if unique.len() != tools.len() || !tools.iter().all(known) {
         return Err(CommandError::InvalidArguments);
     }

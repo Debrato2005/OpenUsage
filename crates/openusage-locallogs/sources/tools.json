@@ -1,0 +1,199 @@
+{
+  "claude": {
+    "name": "Claude Code",
+    "order": 0,
+    "tint": 1,
+    "enabled": true,
+    "folderVariable": "CLAUDE_CONFIG_DIR",
+    "roots": [
+      {
+        "path": ".claude",
+        "marker": "projects",
+        "kind": "directory"
+      },
+      {
+        "path": ".config/claude",
+        "marker": "projects",
+        "kind": "directory"
+      }
+    ],
+    "sessionShape": "claude",
+    "hours": true
+  },
+  "codex": {
+    "name": "Codex",
+    "order": 1,
+    "tint": 2,
+    "enabled": true,
+    "folderVariable": "CODEX_HOME",
+    "roots": [
+      {
+        "path": ".codex",
+        "marker": "sessions",
+        "kind": "directory"
+      }
+    ],
+    "sessionShape": "codex",
+    "hours": false
+  },
+  "opencode": {
+    "name": "OpenCode",
+    "order": 2,
+    "tint": 3,
+    "enabled": false,
+    "folderVariable": null,
+    "roots": [],
+    "sessionShape": null,
+    "hours": false
+  },
+  "amp": {
+    "name": "Amp",
+    "order": 3,
+    "tint": 4,
+    "enabled": false,
+    "folderVariable": null,
+    "roots": [],
+    "sessionShape": null,
+    "hours": false
+  },
+  "droid": {
+    "name": "Droid",
+    "order": 4,
+    "tint": 5,
+    "enabled": false,
+    "folderVariable": null,
+    "roots": [],
+    "sessionShape": null,
+    "hours": false
+  },
+  "codebuff": {
+    "name": "Codebuff",
+    "order": 5,
+    "tint": 0,
+    "enabled": false,
+    "folderVariable": null,
+    "roots": [],
+    "sessionShape": null,
+    "hours": false
+  },
+  "hermes": {
+    "name": "Hermes",
+    "order": 6,
+    "tint": 1,
+    "enabled": false,
+    "folderVariable": null,
+    "roots": [],
+    "sessionShape": null,
+    "hours": false
+  },
+  "pi": {
+    "name": "Pi",
+    "order": 7,
+    "tint": 2,
+    "enabled": false,
+    "folderVariable": null,
+    "roots": [],
+    "sessionShape": null,
+    "hours": false
+  },
+  "goose": {
+    "name": "Goose",
+    "order": 8,
+    "tint": 3,
+    "enabled": false,
+    "folderVariable": null,
+    "roots": [],
+    "sessionShape": null,
+    "hours": false
+  },
+  "kilo": {
+    "name": "Kilo",
+    "order": 9,
+    "tint": 4,
+    "enabled": false,
+    "folderVariable": null,
+    "roots": [],
+    "sessionShape": null,
+    "hours": false
+  },
+  "copilot": {
+    "name": "GitHub Copilot",
+    "order": 10,
+    "tint": 5,
+    "enabled": false,
+    "folderVariable": null,
+    "roots": [],
+    "sessionShape": null,
+    "hours": false
+  },
+  "gemini": {
+    "name": "Gemini CLI",
+    "order": 11,
+    "tint": 0,
+    "enabled": false,
+    "folderVariable": null,
+    "roots": [],
+    "sessionShape": null,
+    "hours": false
+  },
+  "antigravity": {
+    "name": "Antigravity",
+    "order": 12,
+    "tint": 1,
+    "enabled": false,
+    "folderVariable": null,
+    "roots": [],
+    "sessionShape": null,
+    "hours": false
+  },
+  "kimi": {
+    "name": "Kimi",
+    "order": 13,
+    "tint": 2,
+    "enabled": false,
+    "folderVariable": null,
+    "roots": [],
+    "sessionShape": null,
+    "hours": false
+  },
+  "qwen": {
+    "name": "Qwen Code",
+    "order": 14,
+    "tint": 3,
+    "enabled": false,
+    "folderVariable": null,
+    "roots": [],
+    "sessionShape": null,
+    "hours": false
+  },
+  "openclaw": {
+    "name": "OpenClaw",
+    "order": 15,
+    "tint": 4,
+    "enabled": false,
+    "folderVariable": null,
+    "roots": [],
+    "sessionShape": null,
+    "hours": false
+  },
+  "grok": {
+    "name": "Grok",
+    "order": 16,
+    "tint": 5,
+    "enabled": false,
+    "folderVariable": null,
+    "roots": [],
+    "sessionShape": null,
+    "hours": false
+  },
+  "zcode": {
+    "name": "ZCode",
+    "order": 17,
+    "tint": 0,
+    "enabled": false,
+    "folderVariable": null,
+    "roots": [],
+    "sessionShape": null,
+    "hours": false
+  }
+}

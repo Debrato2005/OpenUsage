@@ -4,28 +4,6 @@
 use serde::Deserialize;
 use std::collections::BTreeSet;
 
-/// Tools that the pinned ccusage reports. Another value means an unknown shape.
-pub const TOOLS: &[&str] = &[
-    "claude",
-    "codex",
-    "opencode",
-    "amp",
-    "droid",
-    "codebuff",
-    "hermes",
-    "pi",
-    "goose",
-    "kilo",
-    "copilot",
-    "gemini",
-    "antigravity",
-    "kimi",
-    "qwen",
-    "openclaw",
-    "grok",
-    "zcode",
-];
-
 /// A bound well above any real day, so a corrupt count cannot overflow later sums.
 pub(crate) const MAX_COUNT: u64 = 1_000_000_000_000_000;
 pub(crate) const MAX_ROWS: usize = 200_000;
@@ -218,10 +196,8 @@ pub fn parse_daily_by_agent(bytes: &[u8]) -> Result<Vec<UsageRow>, ReportError> 
         let mut seen = BTreeSet::new();
         let mut day_sum = Sum::default();
         for agent in &day.agents {
-            let tool = TOOLS
-                .iter()
-                .copied()
-                .find(|t| *t == agent.agent)
+            let tool = crate::tools::tool(&agent.agent)
+                .map(|tool| tool.id.as_str())
                 .ok_or_else(|| ReportError::Shape(format!("tool {:?}", agent.agent)))?;
             if !seen.insert(tool) {
                 return Err(ReportError::Shape(format!("repeated tool {tool}")));

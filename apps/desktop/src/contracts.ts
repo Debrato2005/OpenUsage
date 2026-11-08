@@ -1,3 +1,6 @@
+import { localLogTools, type LocalLogTool } from './local-tools.ts';
+export type { LocalLogTool } from './local-tools.ts';
+
 export type MonitoringState = 'stopped' | 'running' | 'paused';
 interface SavedAlertCommon {
   id: string; profileId: string; profileLabel: string;
@@ -359,13 +362,11 @@ function isSubscriptionsView(value: unknown): value is SubscriptionsView {
     codes.add(c.code); return true;
   }) && v.records.every(r => v.currencies.some(c => c.code === r.currency && c.scale === r.currencyScale));
 }
-export type LocalLogTool = 'claude' | 'codex';
 export type LocalLogsView = {
   consentRequired: boolean;
   tools: { tool: LocalLogTool; detected: boolean; granted: boolean }[];
   scan: { state: 'idle' | 'running' | 'failed' | 'unavailable'; lastScanAtUtc: string | null };
 };
-const localLogTools: readonly LocalLogTool[] = ['claude', 'codex'];
 function isLocalLogsView(value: unknown): value is LocalLogsView {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const v = value as Record<string, unknown>;

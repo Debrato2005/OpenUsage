@@ -6,12 +6,14 @@ pub mod hours;
 pub mod report;
 pub mod runner;
 pub mod session;
+pub mod tools;
 
-pub use detect::{Detected, KNOWN_FOLDERS, detect};
-pub use hours::{HOUR_TOOLS, HourRow, parse_hours};
-pub use report::{ReportError, TOOLS, UsageRow, parse_daily_by_agent};
+pub use detect::{Detected, detect};
+pub use hours::{HourRow, parse_hours};
+pub use report::{ReportError, UsageRow, parse_daily_by_agent};
 pub use runner::{
-    BINARY_NAME, CCUSAGE_VERSION, DEFAULT_MAX_OUTPUT, DEFAULT_TIMEOUT, FOLDER_VARIABLES, ScanError,
-    ScanRequest, pinned_sha256, pinned_sha256_here, scan, scan_hours, scan_sessions, sha256_hex,
+    BINARY_NAME, CCUSAGE_VERSION, DEFAULT_MAX_OUTPUT, DEFAULT_TIMEOUT, ScanError, ScanRequest,
+    pinned_sha256, pinned_sha256_here, scan, scan_hours, scan_sessions, sha256_hex,
 };
 pub use session::{SessionRow, parse_sessions};
+pub use tools::{MarkerKind, SessionShape, Tool, enabled_tools, hour_tools, tool, tools};

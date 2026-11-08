@@ -1,6 +1,8 @@
 # Local logs crate
 
-Reads local usage totals through the pinned official `ccusage` binary (SRS Section 5C). One `ccusage` release reads Claude Code, Codex, OpenCode, Amp, Gemini CLI, GitHub Copilot CLI and other tools; the parser accepts the tools it lists in `TOOLS`.
+Reads local usage totals through the pinned official `ccusage` binary (SRS Section 5C).
+
+The shared catalog in `sources/tools.json` defines each tool's name, order, color, enabled state, folder variable, known roots, and report capabilities. Rust embeds this file at compile time. The renderer imports it at build time. Neither reads a catalog from the user's disk. Detection, consent, process arguments, and report selection use its enabled entries. A declaration alone does not enable a tool. Claude Code and Codex remain the only enabled tools. The other 16 entries await adapter and fixture checks.
 
 ## The pin
 
@@ -10,11 +12,11 @@ Reads local usage totals through the pinned official `ccusage` binary (SRS Secti
 
 ## A run
 
-`scan` holds one process-wide lock, checks the binary's SHA-256, then runs `ccusage daily --json --offline --by-agent --no-color --timezone <zone>` with no shell, a deadline and an output limit. `scan_sessions` runs `ccusage <tool> session --json --offline --no-color --timezone <zone>` with the same checks and limits. `scan_hours` runs `ccusage blocks --json --offline --no-color -n 1 --timezone <zone>` for Claude Code, the only tool in `HOUR_TOOLS`. A mismatched digest or invalid request runs nothing.
+`scan` holds one process-wide lock, checks the binary's SHA-256, then runs `ccusage daily --json --offline --by-agent --no-color --timezone <zone>` with no shell, a deadline and an output limit. `scan_sessions` runs `ccusage <tool> session --json --offline --no-color --timezone <zone>` with the same checks and limits. `scan_hours` runs `ccusage blocks --json --offline --no-color -n 1 --timezone <zone>` for Claude Code, the only tool with hours enabled in the catalog. A mismatched digest or invalid request runs nothing.
 
-Every report also receives `--mode calculate`. Estimates use token prices from the pinned offline data, not costs stored in logs. A zero stored charge does not make the estimate zero. An unknown model keeps its tokens and has no estimate (OU-LOG-013, OU-LOG-014).
+Every report also receives `--mode calculate`. For the enabled tools, estimates use token prices from the pinned offline data instead of stored charges. A zero stored charge does not make the estimate zero. An unknown model keeps its tokens and has no estimate (OU-LOG-013, OU-LOG-014). This claim does not extend to the 16 tools that remain disabled. The [source review](../../docs/reviews/2026-11-08-l1f-formats-a.md) found exceptions to `--mode calculate` in some of those tools.
 
-Each run reads one consented folder of one tool. `HOME` and the working directory are an empty private directory, so the default folders of other tools do not exist for `ccusage`, and no user `ccusage` config is found. The environment holds only `HOME`, `NO_COLOR`, `TZ` and the folder variable of the tool in `FOLDER_VARIABLES`: `CLAUDE_CONFIG_DIR` for Claude Code and `CODEX_HOME` for Codex. A row of another tool rejects the run.
+Each run reads one consented folder of one tool. `HOME` and the working directory are an empty private directory, so the default folders of other tools do not exist for `ccusage`, and no user `ccusage` config is found. The environment holds only `HOME`, `NO_COLOR`, `TZ` and the folder variable from the catalog: `CLAUDE_CONFIG_DIR` for Claude Code and `CODEX_HOME` for Codex. A row of another tool rejects the run.
 
 Before any process starts, the folder must be an absolute UTF-8 path that still equals its resolved path. Commas and trailing whitespace are refused, because ccusage can interpret them as a list of roots or another root. Spaces inside the path and Unicode names remain valid. Detection resolves links before consent; a saved root that later becomes a link to another folder fails the scan. This checks the root before launch. It does not sandbox ccusage.
 

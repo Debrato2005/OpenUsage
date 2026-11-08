@@ -4,6 +4,10 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f1 scoped result before L-1f2
+
+Latest scoped result, November 8, 2026, after L-1f1: full Rust workspace tests, formatting, Clippy, and the native consent journey passed. The native SQLCipher check confirmed saved usage after restart and after refusal of a replaced root. The exact evidence is in [traceability](acceptance-traceability.md).
+
 ## Native journeys before S-02
 
 As of November 2, 2026, on Linux:

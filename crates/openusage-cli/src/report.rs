@@ -21,11 +21,7 @@ Options:
 ";
 
 fn name(tool: &str) -> &'static str {
-    match tool {
-        "claude" => "Claude Code",
-        "codex" => "Codex",
-        _ => "Unknown tool",
-    }
+    locallogs::tool(tool).map_or("Unknown tool", |tool| tool.name.as_str())
 }
 
 #[derive(Debug, Default)]
@@ -246,11 +242,7 @@ pub fn command(
             }
         }
     }
-    let order = |tool: &str| {
-        locallogs::FOLDER_VARIABLES
-            .iter()
-            .position(|(t, _)| *t == tool)
-    };
+    let order = |tool: &str| locallogs::tool(tool).map(|tool| tool.order);
     let mut tools: Vec<_> = sums.into_iter().collect();
     tools.sort_by_key(|(tool, _)| order(tool));
     let report = Report {

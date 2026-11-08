@@ -3,7 +3,7 @@
 use crate::workspace::{CommandError, local_logs::LocalUsageRange};
 use crate::{WorkspaceService, arguments};
 use jiff::{Span, civil::Date, tz::TimeZone};
-use openusage_locallogs::{FOLDER_VARIABLES, HOUR_TOOLS};
+use openusage_locallogs::{hour_tools, tool};
 use openusage_storage::LocalUsageCoverage;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -282,7 +282,7 @@ fn summarize(
         *by_day.entry(date).or_default() += u128::from(row.total_tokens);
     }
     let (active_days, longest_streak_days, busiest_day) = records(&by_day, start, end);
-    let order = |tool: &str| FOLDER_VARIABLES.iter().position(|(t, _)| *t == tool);
+    let order = |id: &str| tool(id).map(|tool| tool.order);
     let mut tool_rows: Vec<_> = tools.into_iter().collect();
     tool_rows.sort_by_key(|(tool, _)| (order(tool), tool.to_string()));
     let mut model_rows: Vec<_> = models.into_iter().collect();
@@ -316,7 +316,7 @@ fn summarize(
         } else {
             Vec::new()
         },
-        hour_tools: HOUR_TOOLS.iter().map(|tool| tool.to_string()).collect(),
+        hour_tools: hour_tools().map(|tool| tool.id.clone()).collect(),
         sessions: range
             .sessions
             .iter()

@@ -1,14 +1,8 @@
 //! Detection checks only whether known folders exist. It opens no log (OU-LOG-001).
 
+use crate::tools::{MarkerKind, enabled_tools};
 use std::collections::BTreeSet;
 use std::path::Path;
-
-/// Known folders under a home, with the log folder whose existence detects each one.
-pub const KNOWN_FOLDERS: &[(&str, &str, &str)] = &[
-    ("claude", ".claude", "projects"),
-    ("claude", ".config/claude", "projects"),
-    ("codex", ".codex", "sessions"),
-];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Detected {
@@ -19,20 +13,33 @@ pub struct Detected {
 
 pub fn detect(home: &Path) -> Vec<Detected> {
     let mut seen = BTreeSet::new();
-    KNOWN_FOLDERS
-        .iter()
-        .filter_map(|(tool, folder, logs)| {
-            let folder = home.join(folder);
-            if !folder.join(logs).is_dir() {
-                return None;
+    let mut detected = Vec::new();
+    for tool in enabled_tools() {
+        for root in &tool.roots {
+            let folder = home.join(&root.path);
+            let marker = folder.join(&root.marker);
+            let exists = match root.kind {
+                MarkerKind::Directory => marker.is_dir(),
+                MarkerKind::File => marker.is_file(),
+            };
+            if !exists {
+                continue;
             }
-            let resolved = std::fs::canonicalize(&folder).ok()?.to_str()?.to_string();
-            seen.insert(resolved.clone()).then_some(Detected {
-                tool,
-                folder: resolved,
-            })
-        })
-        .collect()
+            let Some(resolved) = std::fs::canonicalize(&folder)
+                .ok()
+                .and_then(|path| path.to_str().map(str::to_owned))
+            else {
+                continue;
+            };
+            if seen.insert(resolved.clone()) {
+                detected.push(Detected {
+                    tool: tool.id.as_str(),
+                    folder: resolved,
+                });
+            }
+        }
+    }
+    detected
 }
 
 #[cfg(all(test, unix))]

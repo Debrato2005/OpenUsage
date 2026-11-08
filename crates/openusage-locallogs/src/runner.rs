@@ -3,9 +3,10 @@
 //! Each run reads one consented folder of one tool. HOME is an empty private directory, so the
 //! default folders of other tools do not exist for ccusage (OU-LOG-001).
 
-use crate::hours::{HOUR_TOOLS, HourRow, parse_hours};
+use crate::hours::{HourRow, parse_hours};
 use crate::report::{ReportError, UsageRow, parse_daily_by_agent};
 use crate::session::{SessionRow, parse_sessions};
+use crate::tools::tool;
 use sha2::{Digest, Sha256};
 use std::io::Read;
 use std::path::Path;
@@ -26,10 +27,6 @@ pub fn pinned_sha256(target: &str) -> Option<&'static str> {
         _ => None,
     }
 }
-
-/// Tools that a run can read, each with the variable that points ccusage at one folder.
-pub const FOLDER_VARIABLES: &[(&str, &str)] =
-    &[("claude", "CLAUDE_CONFIG_DIR"), ("codex", "CODEX_HOME")];
 
 /// The file name of the pinned binary beside the app and the CLI.
 pub const BINARY_NAME: &str = if cfg!(windows) {
@@ -55,7 +52,7 @@ static ONE_RUN: Mutex<()> = Mutex::new(());
 pub struct ScanRequest<'a> {
     pub binary: &'a Path,
     pub expected_sha256: &'a str,
-    /// A tool in `FOLDER_VARIABLES` and its resolved folder. The user consented to both (OU-LOG-001).
+    /// An enabled tool and its resolved folder. The user consented to both (OU-LOG-001).
     pub tool: &'a str,
     pub folder: &'a Path,
     /// An empty private directory that becomes HOME and the working directory.
@@ -144,10 +141,9 @@ pub fn scan(request: &ScanRequest<'_>) -> Result<Vec<UsageRow>, ScanError> {
 
 /// The session report of the granted tool (OU-LOG-017, SC-021).
 pub fn scan_sessions(request: &ScanRequest<'_>) -> Result<Vec<SessionRow>, ScanError> {
-    let tool = FOLDER_VARIABLES
-        .iter()
-        .find(|(tool, _)| *tool == request.tool)
-        .map(|(tool, _)| *tool)
+    let tool = tool(request.tool)
+        .filter(|tool| tool.enabled && tool.session_shape.is_some())
+        .map(|tool| tool.id.as_str())
         .ok_or(ScanError::InvalidRequest)?;
     let output = run(
         request,
@@ -158,7 +154,8 @@ pub fn scan_sessions(request: &ScanRequest<'_>) -> Result<Vec<SessionRow>, ScanE
 
 /// The one-hour blocks of Claude Code (OU-LOG-017, SC-021). Blocks take no start date here.
 pub fn scan_hours(request: &ScanRequest<'_>) -> Result<Vec<HourRow>, ScanError> {
-    if !HOUR_TOOLS.contains(&request.tool) || request.since.is_some() {
+    if !tool(request.tool).is_some_and(|tool| tool.enabled && tool.hours) || request.since.is_some()
+    {
         return Err(ScanError::InvalidRequest);
     }
     let output = run(
@@ -171,10 +168,9 @@ pub fn scan_hours(request: &ScanRequest<'_>) -> Result<Vec<HourRow>, ScanError> 
 /// Runs the pinned binary once with fixed arguments and returns its output (OU-LOG-006).
 fn run(request: &ScanRequest<'_>, fixed: &[&str]) -> Result<Vec<u8>, ScanError> {
     let _one = ONE_RUN.try_lock().map_err(|_| ScanError::Busy)?;
-    let variable = FOLDER_VARIABLES
-        .iter()
-        .find(|(tool, _)| *tool == request.tool)
-        .map(|(_, variable)| *variable);
+    let variable = tool(request.tool)
+        .filter(|tool| tool.enabled)
+        .and_then(|tool| tool.folder_variable.as_deref());
     let empty =
         std::fs::read_dir(request.empty_home).is_ok_and(|mut entries| entries.next().is_none());
     let (Some(variable), true) = (variable, empty) else {
@@ -417,8 +413,16 @@ mod tests {
         bad.since = Some("2026-1-1");
         assert_eq!(scan(&bad), Err(ScanError::InvalidRequest));
         bad.since = None;
-        bad.tool = "opencode";
-        assert_eq!(scan(&bad), Err(ScanError::InvalidRequest));
+        for tool in crate::tools::tools().iter().filter(|tool| !tool.enabled) {
+            bad.tool = &tool.id;
+            assert_eq!(scan(&bad), Err(ScanError::InvalidRequest));
+            assert_eq!(scan_sessions(&bad), Err(ScanError::InvalidRequest));
+            assert_eq!(scan_hours(&bad), Err(ScanError::InvalidRequest));
+            assert!(
+                !marker.exists(),
+                "A disabled tool must not start the scanner."
+            );
+        }
         bad.tool = "claude";
         let missing = d.bin.join("missing");
         bad.folder = &missing;

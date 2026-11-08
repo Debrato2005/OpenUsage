@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button } from './components/ui/button';
-import { invoke, type LocalLogTool, type LocalToolTotals, type LocalUsageDays, type LocalUsagePeriod, type LocalUsageRange, type LocalUsageView } from './contracts';
+import { invoke, type LocalToolTotals, type LocalUsageDays, type LocalUsagePeriod, type LocalUsageRange, type LocalUsageView } from './contracts';
 import { DetailLink, Mark, useOpenDetail } from './detail-panel';
 import { BigNumber, compactCount } from './overview-charts';
 import { localLogToolNames } from './local-logs';
 import { ShareButton } from './share';
 import './local-usage.css';
+import { localLogToolTints as toolTint } from './local-tools';
 
 const exact = new Intl.NumberFormat('en-US');
-const toolTint: Record<LocalLogTool, number> = { claude: 1, codex: 2 };
 // Rounds millionths of a dollar to cents for display. The stored value keeps every digit.
 const dollars = (micros: string) => {
   const cents = (BigInt(micros) + 5_000n) / 10_000n;

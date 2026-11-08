@@ -258,11 +258,7 @@ fn snapshot(storage: &Storage, now: jiff::Timestamp) -> Result<Status, CliError>
             None => entry.2 += 1,
         }
     }
-    let order = |tool: &str| {
-        openusage_locallogs::FOLDER_VARIABLES
-            .iter()
-            .position(|(t, _)| *t == tool)
-    };
+    let order = |tool: &str| openusage_locallogs::tool(tool).map(|tool| tool.order);
     let mut tools: Vec<_> = tools.into_iter().collect();
     tools.sort_by_key(|(tool, _)| order(tool));
     Ok(Status {

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
 import { DesktopUnavailable, invoke } from '../../apps/desktop/src/contracts.ts';
+import toolCatalog from '../../crates/openusage-locallogs/sources/tools.json' with { type: 'json' };
 
 // Synthetic IPC responses. These tests do not exercise a native Tauri application.
 const ready = {
@@ -12,6 +13,15 @@ const ready = {
 function desktopResponse(value) {
   globalThis.window = { __TAURI__: { core: { invoke: async () => value } } };
 }
+
+test('the tool catalog does not enable consent for unqualified scanners', async () => {
+  for (const [tool, definition] of Object.entries(toolCatalog)) {
+    const response = { consentRequired: true, tools: [{ tool, detected: true, granted: false }], scan: { state: 'idle', lastScanAtUtc: null } };
+    desktopResponse(response);
+    if (definition.enabled) assert.deepEqual(await invoke('load_local_logs'), response);
+    else await assert.rejects(invoke('load_local_logs'), /desktop response is incompatible/);
+  }
+});
 
 test('application export returns metadata only and keeps counts exact', async () => {
   const receipt = { fileName: 'openusage-application-AbCd1234EfGh5678.json', directory: '/synthetic/Downloads/OpenUsage', format: 'json', schemaVersion: 8, tableCount: 30, recordCount: '9007199254740993', byteCount: '1048576', exportedAt: '2026-10-22T08:00:00.000Z' };

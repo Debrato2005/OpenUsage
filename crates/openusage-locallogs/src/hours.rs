@@ -4,8 +4,6 @@
 use crate::report::{ReportError, counts, valid_model};
 use serde::Deserialize;
 
-/// The tools whose logs give hours.
-pub const HOUR_TOOLS: &[&str] = &["claude"];
 const MAX_HOURS: usize = 200_000;
 
 /// One UTC hour of one tool. Token counts are exact integers.
