@@ -96,7 +96,7 @@ Updated November 8, 2026. The owner asked to keep this list and to build down it
 - [x] L-1c: scan service. Detect known folders by existence only, keep each run to the consented tools, scan after consent and then on a schedule, one run at a time, and keep a failure inside local logs (OU-LOG-001, OU-LOG-006, OU-LOG-008, OU-DUP-008, OU-NFR-021; AT-70 to AT-72).
 - [x] L-1d: the first-launch consent screen and the Settings selection (OU-LOG-001, OU-LOG-002; part of AT-72).
 - [x] L-1e: the This device scope in Usage, with 7, 30 and 90 days or a year, grouped by day, week or month, a breakdown by token type and model, and the difference in the detail panel, so first launch reaches local history with no sign-in (OU-LOG-011, OU-LOG-016, OU-LOG-017, OU-UI-025; AT-91, AT-93).
-- [ ] L-1f: the other 16 tools that the pinned `ccusage` reads, each with its folder variable, detection and a synthetic fixture (AT-65).
+- [ ] L-1f: the other 16 tools that the pinned `ccusage` reads, each with its folder variable, detection and a synthetic fixture (AT-65). Waits for the owner: the pinned binary names the variables `OPENCODE_DATA_DIR`, `AMP_DATA_DIR`, `DROID_SESSIONS_DIR`, `CODEBUFF_DATA_DIR`, `HERMES_HOME`, `PI_AGENT_DIR`, `GOOSE_PATH_ROOT`, `KILO_DATA_DIR`, `COPILOT_HOME`, `GEMINI_DATA_DIR`, `ANTIGRAVITY_DATA_DIR`, `KIMI_DATA_DIR`, `QWEN_DATA_DIR`, `OPENCLAW_DIR`, `GROK_HOME` and `ZCODE_HOME`. Its help gives no default folders or formats, and four tools use SQLite and one uses protobuf. Correct fixtures need the `ccusage` 20.0.48 source, which is a download.
 - [ ] L-1g: the rest of OU-LOG-017 from the `ccusage` session report: hourly ranges, custom dates, and the session, project and reasoning breakdowns, with the session quota movement (OU-LOG-018).
 
 **L-2 CLI**
@@ -140,6 +140,7 @@ Updated November 8, 2026. The owner asked to keep this list and to build down it
 - [ ] Run the real-account tests (AT-60) and the real-machine tests (AT-38, AT-80).
 - [ ] Decide the two gaps in [SC-017](srs-clarifications.md#sc-017-local-usage-store).
 - [ ] Approve an HTTPS client with TLS for the leaderboard client (L-5), for example `ureq` with `native-tls`, which can use the OpenSSL that SQLCipher already builds.
+- [ ] Approve a download of the `ccusage` 20.0.48 source to qualify the other 16 tools (L-1f).
 - [ ] Approve the downloads for the preview builds (L-6c): the Windows and macOS archives of Rust 1.99.1, Node 22.23.2 and Bun 1.3.14 with their digests, and the Windows and macOS `ccusage` and Codex companion pins.
 - [ ] Push and publish.
 
