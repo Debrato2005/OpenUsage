@@ -34,6 +34,8 @@ OpenUsage limits what it gives the process:
 
 These limits reduce what a fault in `ccusage` can do by accident. They are not a sandbox.
 
+The [threat model](docs/threat-model.md) lists each threat, its control and its open gap.
+
 ## Known dependency qualification
 
 The Linux GTK chain requires `glib 0.18.5`. The root Cargo patch selects a [local source backport](vendor/glib-0.18.5/OPENUSAGE-PATCH.md) of the upstream fix for [RUSTSEC-2024-0429](https://rustsec.org/advisories/RUSTSEC-2024-0429.html). The source archive checksum matches the previous lockfile. Only the two upstream pointer-mutability changes differ from that archive. An optimized synthetic iterator regression reproduced the original abort and passed after the fix. The version stays 0.18.5, and no advisory suppression is added. Full dependency scanning and native desktop acceptance remain separate gates.

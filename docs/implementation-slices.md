@@ -128,7 +128,7 @@ Updated November 8, 2026. The owner asked to keep this list and to build down it
 **L-7 Release documents**
 
 - [x] L-7a: install, upgrade, uninstall and data deletion steps, unsigned-build behavior, and the OU-SEC-022 statement (OU-PLAT-007, OU-DIST-006, OU-DIST-008, OU-SEC-022).
-- [ ] L-7b: the threat model (SRS Section 14.1).
+- [x] L-7b: the threat model (SRS Section 14.1).
 - [ ] L-7c: the SBOM (OU-SEC-016, part of OU-DIST-005).
 - [ ] L-7d: the release notes, with the signing state of each build (OU-PLAT-003, OU-PLAT-004).
 

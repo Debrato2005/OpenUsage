@@ -109,7 +109,7 @@ As of November 3, 2026, on Linux. 43 journeys ran on the native-test build and 4
 
 ## Missing release documents
 
-SRS Section 20 requires these documents, which do not exist yet: data contracts, identity contract, provider capabilities, threat model, security and privacy, compatibility matrix, performance report, and provider evidence. No SBOM exists.
+SRS Section 20 requires these documents, which do not exist yet: data contracts, identity contract, provider capabilities, security and privacy, compatibility matrix, performance report, and provider evidence. The [threat model](threat-model.md) exists since L-7b. No SBOM exists.
 
 ## Open items
 

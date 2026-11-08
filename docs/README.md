@@ -26,6 +26,7 @@ One fact has one home. Change it there, and link to it from anywhere else.
 | Why is glib patched? | [Patch note](../vendor/glib-0.18.5/OPENUSAGE-PATCH.md) |
 | What may I keep or delete? | [Artifact retention](artifact-retention.md) |
 | How do I install, upgrade or remove it? | [Install](install.md) |
+| What does the release protect against? | [Threat model](threat-model.md) |
 | How do I report a vulnerability? | [Security](../SECURITY.md) |
 | What are the rules for agents? | [AGENTS.md](../AGENTS.md) |
 
@@ -52,6 +53,7 @@ Update docs in the same change as the work.
 | A visual rule | [Design foundations](design/desktop-foundations.md) |
 | A build or test command | [Contributing](../CONTRIBUTING.md) or [workflow](engineering-workflow.md) |
 | Where the app keeps data, or how a user installs or removes it | [Install](install.md) |
+| A threat, a control or a trust boundary | [Threat model](threat-model.md) |
 
 When [status](implementation-status.md) replaces a finished topic, add the old text to [history](implementation-history.md).
 
