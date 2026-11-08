@@ -19,6 +19,10 @@ python3 scripts/engineering.py trace /absolute/path/to/selected-session.jsonl
 
 `verify` defaults to a JSON plan for committed-to-working-tree changes and untracked files. Use `--staged` for the index, or `--base REF` for branch changes. Plans select tool tests, renderer specs and affected Rust packages. Unknown changes retain a manual gate. Review the plan before `--run`.
 
+The plan covers every Rust workspace member, including the CLI, keys, and local logs. A member manifest also selects the dependency-policy check. A regression test compares this coverage with the workspace manifest. A source change in an unknown crate keeps an explicit manual gate.
+
+Leaderboard source, tests, migrations, and configuration select `bun run test:leaderboard`. These tests use SQLite with a local D1 stand-in and a GitHub stub. Hosted D1 and deployment remain separate checks.
+
 The runner stops at the first failure. One total deadline covers all checks, followed by bounded child cleanup. It never retries. It uses one Cargo target with incremental builds disabled. Missing renderer selections refuse execution. Use `--milestone` for applicable full renderer/workspace regression. Native acceptance, SQLCipher/restore, authentication isolation and SRS gates remain separate requirements.
 
 Logs retain commands, timing, exit codes and fixed diagnostic counters. They discard raw child output. For full diagnostics, rerun the indicated command locally. Logs remain ignored and use the existing ownership-controlled retention: three completed runs, seven days, 16 MiB. No executable copies are retained.

@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import tomllib
 import unittest
 from unittest.mock import patch
 
@@ -73,6 +74,43 @@ class EngineeringTests(unittest.TestCase):
         self.assertEqual(engineering.changed_paths(self.root), ['AGENTS.md', 'tracked.md', 'untracked.md'])
         self.assertEqual(engineering.changed_paths(self.root, staged=True), ['AGENTS.md'])
         self.assertEqual(engineering.changed_paths(self.root, base), ['AGENTS.md', 'untracked.md'])
+
+    def test_every_workspace_member_selects_rust_checks_and_manifest_policy(self):
+        root = SCRIPTS.parent
+        workspace = tomllib.loads((root / 'Cargo.toml').read_text())['workspace']['members']
+        self.assertEqual(set(engineering.PACKAGES), {member + '/' for member in workspace})
+        for member in workspace:
+            package = tomllib.loads((root / member / 'Cargo.toml').read_text())['package']['name']
+            for changed in ('src/changed.rs', 'tests/changed.rs', 'Cargo.toml'):
+                with self.subTest(member=member, changed=changed):
+                    result = engineering.plan([f'{member}/{changed}'])
+                    commands = {c['id']: c['argv'] for c in result['commands']}
+                    self.assertEqual(commands['rust_tests'], ['cargo', 'test', '--locked', '-p', package])
+                    self.assertEqual(commands['rust_clippy'], ['cargo', 'clippy', '--locked', '-p', package, '--all-targets', '--', '-D', 'warnings'])
+                    self.assertIn('rust_format', commands)
+                    self.assertTrue(any('native acceptance' in gate for gate in result['manualGates']))
+                    self.assertEqual('dependency_policy' in commands, changed == 'Cargo.toml')
+            full = engineering.plan([f'{member}/src/changed.rs'], milestone=True)
+            self.assertIn(['cargo', 'test', '--locked', '--workspace'], [c['argv'] for c in full['commands']])
+            docs = engineering.plan([f'{member}/README.md'])
+            self.assertEqual([c['id'] for c in docs['commands']], ['whitespace'])
+
+    def test_leaderboard_code_schema_tests_and_config_select_service_tests(self):
+        for changed in ('src/worker.mjs', 'test/worker.test.mjs', 'migrations/0001_init.sql', 'wrangler.toml'):
+            with self.subTest(changed=changed):
+                result = engineering.plan([f'services/leaderboard/{changed}'])
+                self.assertEqual([c['id'] for c in result['commands']], ['whitespace', 'leaderboard_tests'])
+                self.assertEqual(result['commands'][1]['argv'], ['bun', 'run', 'test:leaderboard'])
+                self.assertTrue(any('hosted D1' in gate for gate in result['manualGates']))
+        docs = engineering.plan(['services/leaderboard/README.md'])
+        self.assertEqual([c['id'] for c in docs['commands']], ['whitespace'])
+        self.assertEqual(docs['manualGates'], [])
+
+    def test_unknown_crates_and_services_keep_an_explicit_gate(self):
+        for changed in ('crates/future-source/src/lib.rs', 'services/future-service/server.mjs'):
+            with self.subTest(changed=changed):
+                result = engineering.plan([changed])
+                self.assertIn('Unclassified changes require an explicit verification decision', result['manualGates'])
 
     def test_deleted_native_journey_keeps_its_gate_without_a_syntax_check(self):
         git = self.repository()

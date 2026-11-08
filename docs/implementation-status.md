@@ -126,6 +126,6 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 
 ## Current assignment
 
-On November 7, 2026 the owner adopted a launch track with the leaderboard in the first release. As of November 8, each launch slice that needs no owner decision is done in a local commit. The local commits wait for the owner's push. The open items wait for the owner, as the [build checklist](implementation-slices.md#build-checklist) lists. The next item with no owner gate is S-03c, which the checklist puts after the launch.
+On November 7, 2026 the owner adopted a launch track with the leaderboard in the first release. The next recommended launch assignment is L-1f. Read-only research located the exact pinned source, so source inspection needs no archive download. The [source review](reviews/2026-11-08-l1f-source-research.md) records the format, token-count, cost, and consent-isolation work that remains. No additional tool is qualified yet. The [verification plan](engineering-workflow.md) now covers the launch crates and leaderboard service. Other owner decisions remain in the [build checklist](implementation-slices.md#build-checklist). Local commits wait for the owner's push.
 
 The exact working checkpoint, if one exists, is in the local `.recovery/active-checkpoint.json`.

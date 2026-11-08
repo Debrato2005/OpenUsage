@@ -24,6 +24,9 @@ MAX_LINE = 16 * 1024 * 1024
 PACKAGES = {'crates/openusage-storage/': 'openusage-storage',
             'crates/openusage-codex/': 'openusage-codex',
             'crates/openusage-import/': 'openusage-import',
+            'crates/openusage-locallogs/': 'openusage-locallogs',
+            'crates/openusage-keys/': 'openusage-keys',
+            'crates/openusage-cli/': 'openusage-cli',
             'apps/desktop/src-tauri/': 'openusage-desktop'}
 SIGNALS = {'permission': r'permission denied|operation not permitted',
            'missing_dependency': r'not found|no such file|cannot find',
@@ -109,7 +112,8 @@ def changed_paths(root, base=None, staged=False):
 
 
 DEPENDENCY_FILES = ('Cargo.toml', 'Cargo.lock', 'package.json', 'bun.lock', 'bunfig.toml', 'tests/native/backup-verifier/Cargo.toml',
-                    'tests/native/backup-verifier/Cargo.lock', 'scripts/dependency-policy.py')
+                    'tests/native/backup-verifier/Cargo.lock', 'scripts/dependency-policy.py') + tuple(
+                        prefix + 'Cargo.toml' for prefix in PACKAGES)
 
 
 def plan(paths, renderer_tests=(), milestone=False):
@@ -122,6 +126,9 @@ def plan(paths, renderer_tests=(), milestone=False):
         commands.append({'id': 'dependency_policy', 'argv': [sys.executable, 'scripts/dependency-policy.py']})
     if any(p in ('scripts/git-safety.mjs', 'tests/tools/git-safety.test.mjs') for p in paths):
         commands.append({'id': 'git_safety', 'argv': ['node', '--test', 'tests/tools/git-safety.test.mjs']})
+    if any(p.startswith('services/leaderboard/') and not p.endswith('.md') for p in paths):
+        commands.append({'id': 'leaderboard_tests', 'argv': ['bun', 'run', 'test:leaderboard']})
+        gates.append('Leaderboard tests use a local D1 stand-in; hosted D1 and deployment remain separate')
     shared_renderer = any(p in ('package.json', 'bun.lock', 'bunfig.toml', 'playwright.config.ts', 'tsconfig.json') for p in paths)
     renderer = shared_renderer or any(p.startswith(('apps/desktop/src/', 'tests/renderer/', 'tests/contract/')) for p in paths)
     selected = sorted(set(renderer_tests or [p for p in paths if re.fullmatch(r'tests/renderer/[\w-]+\.spec\.ts', p)]))
@@ -156,7 +163,7 @@ def plan(paths, renderer_tests=(), milestone=False):
         gates.append('Hosted CI execution remains separate from local checks')
     if any(p.startswith('scripts/') and p not in ('scripts/engineering.py', 'scripts/storage.py', 'scripts/git-safety.mjs') for p in paths):
         gates.append('Other tool changes require their own relevant behavioral checks')
-    known = ('.github/', 'docs/', 'scripts/', 'tests/', 'apps/desktop/', 'crates/')
+    known = ('.github/', 'docs/', 'scripts/', 'tests/', 'apps/desktop/', 'services/leaderboard/', *PACKAGES)
     unknown = [p for p in paths if not p.startswith(known) and not p.endswith('.md') and p not in
                ('.gitignore', 'Cargo.toml', 'Cargo.lock', 'package.json', 'bun.lock', 'bunfig.toml', 'tsconfig.json', 'playwright.config.ts')]
     if unknown:
