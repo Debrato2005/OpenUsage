@@ -1,0 +1,381 @@
+{
+  "pi": {
+    "folder": "pi/sessions",
+    "variable": "PI_AGENT_DIR",
+    "files": {
+      "project-z/agent_session-z.jsonl": {
+        "type": "message",
+        "timestamp": "2026-11-08T03:04:05.006Z",
+        "message": {
+          "role": "assistant",
+          "model": "claude-sonnet-4-20250514",
+          "usage": {
+            "input": 120,
+            "output": 30,
+            "cacheRead": 7,
+            "cacheWrite": 5,
+            "totalTokens": 162,
+            "cost": {
+              "total": 9
+            }
+          }
+        }
+      }
+    },
+    "databases": {}
+  },
+  "amp": {
+    "folder": "amp",
+    "variable": "AMP_DATA_DIR",
+    "files": {
+      "threads/thread-z.json": {
+        "id": "thread-z",
+        "messages": [
+          {
+            "role": "assistant",
+            "messageId": 4,
+            "usage": {
+              "cacheCreationInputTokens": 5,
+              "cacheReadInputTokens": 7
+            }
+          }
+        ],
+        "usageLedger": {
+          "events": [
+            {
+              "id": "event-z",
+              "timestamp": "2026-11-08T03:04:05.006Z",
+              "model": "claude-sonnet-4-20250514",
+              "toMessageId": 4,
+              "tokens": {
+                "input": 120,
+                "output": 30,
+                "total": 162
+              },
+              "credits": 2
+            }
+          ]
+        }
+      }
+    },
+    "databases": {}
+  },
+  "droid": {
+    "folder": "droid",
+    "variable": "DROID_SESSIONS_DIR",
+    "files": {
+      "session-z.settings.json": {
+        "model": "claude-sonnet-4-20250514",
+        "providerLock": "anthropic",
+        "providerLockTimestamp": "2026-11-08T03:04:05.006Z",
+        "tokenUsage": {
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "thinkingTokens": 11,
+          "totalTokens": 173
+        }
+      }
+    },
+    "databases": {}
+  },
+  "codebuff": {
+    "folder": "codebuff",
+    "variable": "CODEBUFF_DATA_DIR",
+    "files": {
+      "projects/project-z/chats/chat-z/chat-messages.json": [
+        {
+          "id": "message-z",
+          "role": "assistant",
+          "timestamp": "2026-11-08T03:04:05.006Z",
+          "metadata": {
+            "model": "claude-sonnet-4-20250514",
+            "usage": {
+              "inputTokens": 120,
+              "outputTokens": 30,
+              "cacheCreationInputTokens": 5,
+              "cacheReadInputTokens": 7,
+              "totalTokens": 162,
+              "credits": 2
+            }
+          }
+        }
+      ]
+    },
+    "databases": {}
+  },
+  "hermes": {
+    "folder": "hermes",
+    "variable": "HERMES_HOME",
+    "files": {},
+    "databases": {
+      "state.db": {
+        "sql": "CREATE TABLE sessions (\n  id TEXT, model TEXT, billing_provider TEXT, started_at REAL,\n  message_count INTEGER, input_tokens INTEGER, output_tokens INTEGER,\n  cache_read_tokens INTEGER, cache_write_tokens INTEGER, reasoning_tokens INTEGER,\n  estimated_cost_usd REAL, actual_cost_usd REAL\n);\nINSERT INTO sessions VALUES (\n  'session-z', 'claude-sonnet-4-20250514', 'anthropic', 1794107045.006,\n  3, 120, 30, 7, 5, 11, 8, 9\n);\n"
+      }
+    }
+  },
+  "goose": {
+    "folder": "goose",
+    "variable": "GOOSE_PATH_ROOT",
+    "files": {},
+    "databases": {
+      "data/sessions/sessions.db": {
+        "sql": "CREATE TABLE sessions (\n  id TEXT, model_config_json TEXT, provider_name TEXT, created_at TEXT,\n  total_tokens INTEGER, input_tokens INTEGER, output_tokens INTEGER,\n  accumulated_total_tokens INTEGER, accumulated_input_tokens INTEGER,\n  accumulated_output_tokens INTEGER\n);\nINSERT INTO sessions VALUES (\n  'session-z', '{\"model_name\":\"claude-sonnet-4-20250514\"}', 'anthropic',\n  '2026-11-08T03:04:05.006Z', 150, 120, 30, 161, 120, 30\n);\n"
+      }
+    }
+  },
+  "kilo": {
+    "folder": "kilo",
+    "variable": "KILO_DATA_DIR",
+    "files": {},
+    "databases": {
+      "kilo.db": {
+        "sql": "CREATE TABLE message(id TEXT,session_id TEXT,data TEXT);",
+        "message": {
+          "role": "assistant",
+          "id": "message-z",
+          "session_id": "session-z",
+          "modelID": "claude-sonnet-4-20250514",
+          "providerID": "anthropic",
+          "time": {
+            "created": 1794107045006
+          },
+          "tokens": {
+            "input": 120,
+            "output": 30,
+            "cache": {
+              "read": 7,
+              "write": 5
+            },
+            "reasoning": 11,
+            "total": 173
+          },
+          "cost": 9
+        }
+      }
+    }
+  },
+  "opencode": {
+    "folder": "opencode",
+    "variable": "OPENCODE_DATA_DIR",
+    "files": {
+      "storage/message/session-z/message-z.json": {
+        "id": "message-z",
+        "sessionID": "session-z",
+        "modelID": "claude-sonnet-4-20250514",
+        "providerID": "anthropic",
+        "time": {
+          "created": 1794107045006
+        },
+        "tokens": {
+          "input": 120,
+          "output": 30,
+          "cache": {
+            "read": 7,
+            "write": 5
+          },
+          "reasoning": 11,
+          "total": 173
+        },
+        "cost": 9
+      }
+    },
+    "databases": {}
+  },
+  "copilot": {
+    "folder": "copilot",
+    "variable": "COPILOT_HOME",
+    "files": {
+      "session-state/session-a/events.jsonl": {
+        "type": "session.shutdown",
+        "id": "shutdown-a",
+        "timestamp": "2026-11-04T09:00:00Z",
+        "data": {
+          "modelMetrics": {
+            "gpt-5.4": {
+              "usage": {
+                "inputTokens": 100,
+                "outputTokens": 20,
+                "cacheReadTokens": 10,
+                "cacheWriteTokens": 5,
+                "reasoningTokens": 7
+              },
+              "requests": {
+                "count": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    "databases": {}
+  },
+  "gemini": {
+    "folder": "gemini",
+    "variable": "GEMINI_DATA_DIR",
+    "files": {
+      "project/chats/session-a.json": {
+        "sessionId": "session-a",
+        "startTime": "2026-11-04T09:00:00Z",
+        "messages": [
+          {
+            "id": "message-a",
+            "type": "gemini",
+            "model": "gemini-2.5-pro",
+            "timestamp": "2026-11-04T09:01:00Z",
+            "tokens": {
+              "input": 100,
+              "output": 20,
+              "cached": 10,
+              "thoughts": 5,
+              "total": 125
+            }
+          }
+        ]
+      }
+    },
+    "databases": {}
+  },
+  "antigravity": {
+    "folder": "antigravity",
+    "variable": "ANTIGRAVITY_DATA_DIR",
+    "files": {},
+    "databases": {
+      "conversations/session-a.db": {
+        "sql": "CREATE TABLE gen_metadata (idx INTEGER PRIMARY KEY, data BLOB NOT NULL);\nCREATE TABLE steps (idx INTEGER PRIMARY KEY, metadata BLOB);\nCREATE TABLE trajectory_metadata_blob (data BLOB);\n",
+        "protobuf": true
+      }
+    }
+  },
+  "kimi": {
+    "folder": "kimi",
+    "variable": "KIMI_DATA_DIR",
+    "files": {
+      "sessions/workspace/session-a/wire.jsonl": {
+        "timestamp": 1780000000,
+        "message": {
+          "type": "StatusUpdate",
+          "payload": {
+            "message_id": "message-a",
+            "token_usage": {
+              "input_other": 100,
+              "output": 20,
+              "input_cache_creation": 5,
+              "input_cache_read": 10,
+              "total": 135
+            }
+          }
+        }
+      },
+      "sessions/workspace/session-b/agents/agent-a/wire.jsonl": {
+        "type": "usage.record",
+        "usageScope": "turn",
+        "time": 1780000000000,
+        "model": "kimi-code/kimi-k2.6",
+        "usage": {
+          "inputOther": 100,
+          "output": 20,
+          "inputCacheCreation": 5,
+          "inputCacheRead": 10
+        }
+      }
+    },
+    "databases": {}
+  },
+  "qwen": {
+    "folder": "qwen",
+    "variable": "QWEN_DATA_DIR",
+    "files": {
+      "projects/project-a/chats/session-a.jsonl": {
+        "type": "assistant",
+        "sessionId": "session-a",
+        "timestamp": "2026-11-04T09:00:00Z",
+        "model": "qwen3-coder",
+        "usageMetadata": {
+          "promptTokenCount": 100,
+          "candidatesTokenCount": 20,
+          "cachedContentTokenCount": 10,
+          "thoughtsTokenCount": 5,
+          "totalTokenCount": 135
+        }
+      }
+    },
+    "databases": {}
+  },
+  "openclaw": {
+    "folder": "openclaw",
+    "variable": "OPENCLAW_DIR",
+    "files": {
+      "agents/main/sessions/session-a.jsonl": {
+        "id": "message-a",
+        "type": "message",
+        "message": {
+          "role": "assistant",
+          "model": "gpt-5.2",
+          "provider": "openai",
+          "timestamp": 1780000000000,
+          "usage": {
+            "input": 100,
+            "output": 20,
+            "cacheRead": 10,
+            "cacheWrite": 5,
+            "totalTokens": 145,
+            "cost": {
+              "total": 999
+            }
+          }
+        }
+      }
+    },
+    "databases": {}
+  },
+  "grok": {
+    "folder": "grok",
+    "variable": "GROK_HOME",
+    "files": {
+      "sessions/project-a/session-a/updates.jsonl": {
+        "timestamp": 1780000000,
+        "params": {
+          "sessionId": "session-a",
+          "update": {
+            "sessionUpdate": "turn_completed",
+            "usage": {
+              "modelUsage": {
+                "grok-4.5-build": {
+                  "inputTokens": 100,
+                  "outputTokens": 20,
+                  "cachedReadTokens": 40,
+                  "cacheCreationTokens": 5,
+                  "reasoningTokens": 10,
+                  "totalTokens": 120
+                }
+              }
+            }
+          },
+          "_meta": {
+            "eventId": "event-a"
+          }
+        }
+      },
+      "sessions/project-a/session-a/summary.json": {
+        "info": {
+          "id": "session-a",
+          "cwd": "/synthetic/project"
+        },
+        "current_model_id": "grok-4.5-build"
+      }
+    },
+    "databases": {}
+  },
+  "zcode": {
+    "folder": "zcode",
+    "variable": "ZCODE_HOME",
+    "files": {},
+    "databases": {
+      "cli/db/db.sqlite": {
+        "sql": "CREATE TABLE session (id TEXT PRIMARY KEY, directory TEXT, version TEXT);\nCREATE TABLE model_usage (\n  id TEXT PRIMARY KEY, session_id TEXT, started_at INTEGER, model_id TEXT,\n  provider_id TEXT, status TEXT, input_tokens INTEGER, output_tokens INTEGER,\n  cache_creation_input_tokens INTEGER, cache_read_input_tokens INTEGER,\n  computed_total_tokens INTEGER\n);\nINSERT INTO session VALUES ('session-a', '/synthetic/project', 'fixture');\nINSERT INTO model_usage VALUES (\n  'usage-a', 'session-a', 1780000000000, 'GLM-5.3',\n  'builtin:zai-coding-plan', 'completed', 100, 20, 5, 40, 130\n);\n"
+      }
+    }
+  }
+}

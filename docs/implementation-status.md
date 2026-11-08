@@ -55,6 +55,8 @@ Kept from baseline 2.0:
 
 ## Partial
 
+- Local logs (5C), L-1f3, November 8, 2026: record daily and session outputs for synthetic inputs from all 16 remaining tools. Three tests ran the real pinned binary 98 times. Reports repeated exactly, empty roots returned no rows, and source files stayed unchanged. A copied Amp thread doubled 162 tokens to 324. This is a known AT-65 failure, not completed tool support. See [SC-023](srs-clarifications.md#sc-023-copied-amp-usage-in-the-pinned-scanner).
+
 - Local logs (5C), L-1f2, November 8, 2026: one catalog now defines all 18 tools for Rust, the CLI, and the renderer. Only Claude Code and Codex are enabled. Consent and every report runner reject disabled entries. The owner approved reliable totals with unavailable fields under [SC-022](srs-clarifications.md#sc-022-incomplete-metrics-from-the-other-local-tools). The remaining adapters, storage changes, and fixtures are not complete.
 
 - Local logs (5C), L-1f1, November 8, 2026: the runner rejects commas, trailing whitespace, non-UTF-8 paths, and roots that no longer equal the resolved path saved with consent. The regression first reproduced a read of synthetic decoy logs through a comma in an empty root's name. After the fix, invalid paths never start the scanner. The native journey passed with spaces and Unicode in its home path. A saved root replaced with a link to an unselected folder then failed safely and preserved saved usage. The other 16 tools remain unfinished.
@@ -107,7 +109,7 @@ Kept from baseline 2.0:
 
 ## Not yet run
 
-- The Linux CI workflow first ran on GitHub on November 6, 2026 and failed at Test Git safety. The second run passed every code check, then hit the 90-minute job limit during the renderer tests because the runner's package mirror was slow. The split into two parallel jobs waits for the owner's push. OU-NFR-012 also needs Windows and macOS, planned for S-15.
+- The latest pushed catalog commit is 155b61a. Its Linux CI job failed while downloading pinned Bun with HTTP 504, before code checks. The renderer job remains in progress. Local full checks passed. The split CI workflow has now run on GitHub, but the complete hosted result remains unverified. [Run 42475604431](https://github.com/Debrato2005/OpenUsage/actions/runs/42475604431) holds the hosted evidence. OU-NFR-012 also needs Windows and macOS, planned for S-15.
 - Windows and macOS have never run. The owner has a real Windows PC and Mac for this.
 - Windows and macOS need their own pinned Codex companion. Only Linux x86_64 is qualified.
 - Sleep and wake, packaging, and release-scale performance are unmeasured.
@@ -134,6 +136,6 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 
 ## Current assignment
 
-The next launch assignment remains L-1f. L-1f2 supplies the shared catalog. [SC-022](srs-clarifications.md#sc-022-incomplete-metrics-from-the-other-local-tools) records the owner's decision to show reliable totals and keep unavailable fields unavailable. The [first](reviews/2026-11-08-l1f-formats-a.md) and [second](reviews/2026-11-08-l1f-formats-b.md) source notes identify the remaining count, cost, date, session, and folder-isolation work. The next change must preserve tool totals independently of incomplete model detail. No additional tool is qualified yet, and OQ-1 remains open. The [build checklist](implementation-slices.md#build-checklist) holds the other owner decisions.
+The next launch assignment remains L-1f. L-1f2 supplies the shared catalog. [SC-022](srs-clarifications.md#sc-022-incomplete-metrics-from-the-other-local-tools) records the owner's decision to show reliable totals and keep unavailable fields unavailable. The [first](reviews/2026-11-08-l1f-formats-a.md) and [second](reviews/2026-11-08-l1f-formats-b.md) source notes identify the remaining count, cost, date, session, and folder-isolation work. The [storage proposal](reviews/2026-11-08-incomplete-local-metrics.md) describes independent totals, unavailable details, and date limits. The [fixture baseline](../crates/openusage-locallogs/tests/fixtures/remaining-tools/README.md) now records all 16 report contracts. The Amp copy defect still needs an upstream fix under SC-023. No additional tool is qualified yet, and OQ-1 remains open. The [build checklist](implementation-slices.md#build-checklist) holds the other owner decisions.
 
 The exact working checkpoint, if one exists, is in the local `.recovery/active-checkpoint.json`.

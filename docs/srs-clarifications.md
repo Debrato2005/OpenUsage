@@ -28,6 +28,17 @@ This is the record of how requirements were read. Entries keep their original da
 | SC-020 | A read-only CLI and the WAL index | In force |
 | SC-021 | Sessions, projects, hours and reasoning from the pinned `ccusage` | In force, amended at L-1g2; quota movement waits for OQ-1 |
 | SC-022 | Incomplete metrics from the other local tools | Owner approved; implementation pending |
+| SC-023 | Copied Amp usage in the pinned scanner | Confirmed AT-65 gap |
+
+## SC-023: copied Amp usage in the pinned scanner
+
+Status: confirmed acceptance gap, November 8, 2026. The SRS stays unchanged.
+
+OU-DUP-004 places within-tool replay and fork handling in ccusage. AT-65 requires copied logs to count once. A synthetic Amp thread with 162 tokens counted 324 after an identical file copy. The copy kept the same thread and event IDs. The pinned scanner does not suppress this copy. The current upstream release and main source have no fix.
+
+Amp remains disabled. An upgrade alone does not resolve this gap. A fix needs review and new fixture qualification before it can enter the release pin. The download request for pinned source and missing locked build dependencies is pending. No upstream message, pull request, or publication is authorized by this record.
+
+See the [executed fixture](../tests/tools/test_ccusage_formats.py) and the [upstream review](reviews/2026-11-08-ccusage-duplicate-handling.md).
 
 ## SC-022: incomplete metrics from the other local tools
 

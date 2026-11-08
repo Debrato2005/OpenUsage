@@ -1,0 +1,1669 @@
+{
+  "pi": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "pi",
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 7,
+              "inputTokens": 120,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 5,
+                  "cacheReadTokens": 7,
+                  "cost": 0.00083085,
+                  "inputTokens": 120,
+                  "modelName": "[pi] claude-sonnet-4-20250514",
+                  "outputTokens": 30
+                }
+              ],
+              "modelsUsed": [
+                "[pi] claude-sonnet-4-20250514"
+              ],
+              "outputTokens": 30,
+              "totalCost": 0.00083085,
+              "totalTokens": 162
+            }
+          ],
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "inputTokens": 120,
+          "metadata": {
+            "agents": [
+              "pi"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 7,
+              "cost": 0.00083085,
+              "inputTokens": 120,
+              "modelName": "[pi] claude-sonnet-4-20250514",
+              "outputTokens": 30
+            }
+          ],
+          "modelsUsed": [
+            "[pi] claude-sonnet-4-20250514"
+          ],
+          "outputTokens": 30,
+          "period": "2026-11-08",
+          "totalCost": 0.00083085,
+          "totalTokens": 162
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 7,
+        "inputTokens": 120,
+        "outputTokens": 30,
+        "totalCost": 0.00083085,
+        "totalTokens": 162
+      }
+    },
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "firstActivity": "2026-11-08T03:04:05.006Z",
+          "inputTokens": 120,
+          "lastActivity": "2026-11-08T03:04:05.006Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 7,
+              "cost": 0.00083085,
+              "inputTokens": 120,
+              "modelName": "[pi] claude-sonnet-4-20250514",
+              "outputTokens": 30
+            }
+          ],
+          "modelsUsed": [
+            "[pi] claude-sonnet-4-20250514"
+          ],
+          "outputTokens": 30,
+          "projectPath": "project-z",
+          "sessionId": "session-z",
+          "totalCost": 0.00083085,
+          "totalTokens": 162
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 7,
+        "inputTokens": 120,
+        "outputTokens": 30,
+        "totalCost": 0.00083085,
+        "totalTokens": 162
+      }
+    }
+  },
+  "amp": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "amp",
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 7,
+              "inputTokens": 120,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 5,
+                  "cacheReadTokens": 7,
+                  "cost": 0.00083085,
+                  "inputTokens": 120,
+                  "modelName": "claude-sonnet-4-20250514",
+                  "outputTokens": 30
+                }
+              ],
+              "modelsUsed": [
+                "claude-sonnet-4-20250514"
+              ],
+              "outputTokens": 30,
+              "totalCost": 0.00083085,
+              "totalTokens": 162
+            }
+          ],
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "inputTokens": 120,
+          "metadata": {
+            "agents": [
+              "amp"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 7,
+              "cost": 0.00083085,
+              "inputTokens": 120,
+              "modelName": "claude-sonnet-4-20250514",
+              "outputTokens": 30
+            }
+          ],
+          "modelsUsed": [
+            "claude-sonnet-4-20250514"
+          ],
+          "outputTokens": 30,
+          "period": "2026-11-08",
+          "totalCost": 0.00083085,
+          "totalTokens": 162
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 7,
+        "inputTokens": 120,
+        "outputTokens": 30,
+        "totalCost": 0.00083085,
+        "totalTokens": 162
+      }
+    },
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "credits": 2.0,
+          "inputTokens": 120,
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 7,
+              "cost": 0.00083085,
+              "inputTokens": 120,
+              "modelName": "claude-sonnet-4-20250514",
+              "outputTokens": 30
+            }
+          ],
+          "modelsUsed": [
+            "claude-sonnet-4-20250514"
+          ],
+          "outputTokens": 30,
+          "sessionId": "thread-z",
+          "totalCost": 0.00083085,
+          "totalTokens": 162
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 7,
+        "credits": 2.0,
+        "inputTokens": 120,
+        "outputTokens": 30,
+        "totalCost": 0.00083085,
+        "totalTokens": 162
+      }
+    }
+  },
+  "droid": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "droid",
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 7,
+              "inputTokens": 120,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 5,
+                  "cacheReadTokens": 7,
+                  "cost": 0.0009958500000000002,
+                  "inputTokens": 120,
+                  "modelName": "claude-sonnet-4-20250514",
+                  "outputTokens": 30
+                }
+              ],
+              "modelsUsed": [
+                "claude-sonnet-4-20250514"
+              ],
+              "outputTokens": 30,
+              "totalCost": 0.0009958500000000002,
+              "totalTokens": 173
+            }
+          ],
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "inputTokens": 120,
+          "metadata": {
+            "agents": [
+              "droid"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 7,
+              "cost": 0.0009958500000000002,
+              "inputTokens": 120,
+              "modelName": "claude-sonnet-4-20250514",
+              "outputTokens": 30
+            }
+          ],
+          "modelsUsed": [
+            "claude-sonnet-4-20250514"
+          ],
+          "outputTokens": 30,
+          "period": "2026-11-08",
+          "totalCost": 0.0009958500000000002,
+          "totalTokens": 173
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 7,
+        "inputTokens": 120,
+        "outputTokens": 30,
+        "totalCost": 0.0009958500000000002,
+        "totalTokens": 173
+      }
+    },
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "inputTokens": 120,
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 7,
+              "cost": 0.0009958500000000002,
+              "inputTokens": 120,
+              "modelName": "claude-sonnet-4-20250514",
+              "outputTokens": 30
+            }
+          ],
+          "modelsUsed": [
+            "claude-sonnet-4-20250514"
+          ],
+          "outputTokens": 30,
+          "sessionId": "session-z",
+          "totalCost": 0.0009958500000000002,
+          "totalTokens": 173
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 7,
+        "inputTokens": 120,
+        "outputTokens": 30,
+        "totalCost": 0.0009958500000000002,
+        "totalTokens": 173
+      }
+    }
+  },
+  "codebuff": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "codebuff",
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 7,
+              "inputTokens": 120,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 5,
+                  "cacheReadTokens": 7,
+                  "cost": 0.00083085,
+                  "inputTokens": 120,
+                  "modelName": "claude-sonnet-4-20250514",
+                  "outputTokens": 30
+                }
+              ],
+              "modelsUsed": [
+                "claude-sonnet-4-20250514"
+              ],
+              "outputTokens": 30,
+              "totalCost": 0.00083085,
+              "totalTokens": 162
+            }
+          ],
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "inputTokens": 120,
+          "metadata": {
+            "agents": [
+              "codebuff"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 7,
+              "cost": 0.00083085,
+              "inputTokens": 120,
+              "modelName": "claude-sonnet-4-20250514",
+              "outputTokens": 30
+            }
+          ],
+          "modelsUsed": [
+            "claude-sonnet-4-20250514"
+          ],
+          "outputTokens": 30,
+          "period": "2026-11-08",
+          "totalCost": 0.00083085,
+          "totalTokens": 162
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 7,
+        "inputTokens": 120,
+        "outputTokens": 30,
+        "totalCost": 0.00083085,
+        "totalTokens": 162
+      }
+    },
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "credits": 2.0,
+          "inputTokens": 120,
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 7,
+              "cost": 0.00083085,
+              "inputTokens": 120,
+              "modelName": "claude-sonnet-4-20250514",
+              "outputTokens": 30
+            }
+          ],
+          "modelsUsed": [
+            "claude-sonnet-4-20250514"
+          ],
+          "outputTokens": 30,
+          "sessionId": "codebuff/project-z/chat-z",
+          "totalCost": 0.00083085,
+          "totalTokens": 162
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 7,
+        "credits": 2.0,
+        "inputTokens": 120,
+        "outputTokens": 30,
+        "totalCost": 0.00083085,
+        "totalTokens": 162
+      }
+    }
+  },
+  "hermes": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "hermes",
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 7,
+              "inputTokens": 120,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 5,
+                  "cacheReadTokens": 7,
+                  "cost": 9.0,
+                  "inputTokens": 120,
+                  "modelName": "claude-sonnet-4-20250514",
+                  "outputTokens": 30
+                }
+              ],
+              "modelsUsed": [
+                "claude-sonnet-4-20250514"
+              ],
+              "outputTokens": 30,
+              "totalCost": 9,
+              "totalTokens": 173
+            }
+          ],
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "inputTokens": 120,
+          "metadata": {
+            "agents": [
+              "hermes"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 7,
+              "cost": 9.0,
+              "inputTokens": 120,
+              "modelName": "claude-sonnet-4-20250514",
+              "outputTokens": 30
+            }
+          ],
+          "modelsUsed": [
+            "claude-sonnet-4-20250514"
+          ],
+          "outputTokens": 30,
+          "period": "2026-11-08",
+          "totalCost": 9,
+          "totalTokens": 173
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 7,
+        "inputTokens": 120,
+        "outputTokens": 30,
+        "totalCost": 9,
+        "totalTokens": 173
+      }
+    },
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "inputTokens": 120,
+          "messageCount": 3,
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 7,
+              "cost": 9.0,
+              "inputTokens": 120,
+              "modelName": "claude-sonnet-4-20250514",
+              "outputTokens": 30
+            }
+          ],
+          "modelsUsed": [
+            "claude-sonnet-4-20250514"
+          ],
+          "outputTokens": 30,
+          "sessionId": "session-z",
+          "totalCost": 9.0,
+          "totalTokens": 173
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 7,
+        "inputTokens": 120,
+        "outputTokens": 30,
+        "totalCost": 9.0,
+        "totalTokens": 173
+      }
+    }
+  },
+  "goose": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "goose",
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "inputTokens": 120,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 0,
+                  "cost": 0.000975,
+                  "inputTokens": 120,
+                  "modelName": "claude-sonnet-4-20250514",
+                  "outputTokens": 30
+                }
+              ],
+              "modelsUsed": [
+                "claude-sonnet-4-20250514"
+              ],
+              "outputTokens": 30,
+              "totalCost": 0.000975,
+              "totalTokens": 161
+            }
+          ],
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 120,
+          "metadata": {
+            "agents": [
+              "goose"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.000975,
+              "inputTokens": 120,
+              "modelName": "claude-sonnet-4-20250514",
+              "outputTokens": 30
+            }
+          ],
+          "modelsUsed": [
+            "claude-sonnet-4-20250514"
+          ],
+          "outputTokens": 30,
+          "period": "2026-11-08",
+          "totalCost": 0.000975,
+          "totalTokens": 161
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 120,
+        "outputTokens": 30,
+        "totalCost": 0.000975,
+        "totalTokens": 161
+      }
+    },
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 120,
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.000975,
+              "inputTokens": 120,
+              "modelName": "claude-sonnet-4-20250514",
+              "outputTokens": 30
+            }
+          ],
+          "modelsUsed": [
+            "claude-sonnet-4-20250514"
+          ],
+          "outputTokens": 30,
+          "sessionId": "session-z",
+          "totalCost": 0.000975,
+          "totalTokens": 161
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 120,
+        "outputTokens": 30,
+        "totalCost": 0.000975,
+        "totalTokens": 161
+      }
+    }
+  },
+  "kilo": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "kilo",
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 7,
+              "inputTokens": 120,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 5,
+                  "cacheReadTokens": 7,
+                  "cost": 0.0009958500000000002,
+                  "inputTokens": 120,
+                  "modelName": "claude-sonnet-4-20250514",
+                  "outputTokens": 30
+                }
+              ],
+              "modelsUsed": [
+                "claude-sonnet-4-20250514"
+              ],
+              "outputTokens": 30,
+              "totalCost": 0.0009958500000000002,
+              "totalTokens": 173
+            }
+          ],
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "inputTokens": 120,
+          "metadata": {
+            "agents": [
+              "kilo"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 7,
+              "cost": 0.0009958500000000002,
+              "inputTokens": 120,
+              "modelName": "claude-sonnet-4-20250514",
+              "outputTokens": 30
+            }
+          ],
+          "modelsUsed": [
+            "claude-sonnet-4-20250514"
+          ],
+          "outputTokens": 30,
+          "period": "2026-11-08",
+          "totalCost": 0.0009958500000000002,
+          "totalTokens": 173
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 7,
+        "inputTokens": 120,
+        "outputTokens": 30,
+        "totalCost": 0.0009958500000000002,
+        "totalTokens": 173
+      }
+    },
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "inputTokens": 120,
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 7,
+              "cost": 0.0009958500000000002,
+              "inputTokens": 120,
+              "modelName": "claude-sonnet-4-20250514",
+              "outputTokens": 30
+            }
+          ],
+          "modelsUsed": [
+            "claude-sonnet-4-20250514"
+          ],
+          "outputTokens": 30,
+          "sessionId": "session-z",
+          "totalCost": 0.0009958500000000002,
+          "totalTokens": 173
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 7,
+        "inputTokens": 120,
+        "outputTokens": 30,
+        "totalCost": 0.0009958500000000002,
+        "totalTokens": 173
+      }
+    }
+  },
+  "opencode": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "opencode",
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 7,
+              "inputTokens": 120,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 5,
+                  "cacheReadTokens": 7,
+                  "cost": 9.0,
+                  "inputTokens": 120,
+                  "modelName": "claude-sonnet-4-20250514",
+                  "outputTokens": 30
+                }
+              ],
+              "modelsUsed": [
+                "claude-sonnet-4-20250514"
+              ],
+              "outputTokens": 30,
+              "totalCost": 9,
+              "totalTokens": 173
+            }
+          ],
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "inputTokens": 120,
+          "metadata": {
+            "agents": [
+              "opencode"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 7,
+              "cost": 9.0,
+              "inputTokens": 120,
+              "modelName": "claude-sonnet-4-20250514",
+              "outputTokens": 30
+            }
+          ],
+          "modelsUsed": [
+            "claude-sonnet-4-20250514"
+          ],
+          "outputTokens": 30,
+          "period": "2026-11-08",
+          "totalCost": 9,
+          "totalTokens": 173
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 7,
+        "inputTokens": 120,
+        "outputTokens": 30,
+        "totalCost": 9,
+        "totalTokens": 173
+      }
+    },
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "inputTokens": 120,
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 7,
+              "cost": 9.0,
+              "inputTokens": 120,
+              "modelName": "claude-sonnet-4-20250514",
+              "outputTokens": 30
+            }
+          ],
+          "modelsUsed": [
+            "claude-sonnet-4-20250514"
+          ],
+          "outputTokens": 30,
+          "sessionId": "session-z",
+          "totalCost": 9.0,
+          "totalTokens": 173
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 7,
+        "inputTokens": 120,
+        "outputTokens": 30,
+        "totalCost": 9.0,
+        "totalTokens": 173
+      }
+    }
+  },
+  "copilot": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "copilot",
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 10,
+              "inputTokens": 85,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 5,
+                  "cacheReadTokens": 10,
+                  "cost": 0.0005306250000000001,
+                  "inputTokens": 85,
+                  "modelName": "gpt-5.4",
+                  "outputTokens": 20
+                }
+              ],
+              "modelsUsed": [
+                "gpt-5.4"
+              ],
+              "outputTokens": 20,
+              "totalCost": 0.0005306250000000001,
+              "totalTokens": 120
+            }
+          ],
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 10,
+          "inputTokens": 85,
+          "metadata": {
+            "agents": [
+              "copilot"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 10,
+              "cost": 0.0005306250000000001,
+              "inputTokens": 85,
+              "modelName": "gpt-5.4",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "gpt-5.4"
+          ],
+          "outputTokens": 20,
+          "period": "2026-11-04",
+          "totalCost": 0.0005306250000000001,
+          "totalTokens": 120
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 10,
+        "inputTokens": 85,
+        "outputTokens": 20,
+        "totalCost": 0.0005306250000000001,
+        "totalTokens": 120
+      }
+    },
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 10,
+          "firstActivity": "2026-11-04T09:00:00.000Z",
+          "inputTokens": 85,
+          "lastActivity": "2026-11-04T09:00:00.000Z",
+          "messageCount": 1,
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 10,
+              "cost": 0.0005306250000000001,
+              "inputTokens": 85,
+              "modelName": "gpt-5.4",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "gpt-5.4"
+          ],
+          "outputTokens": 20,
+          "projectPath": "GitHub Copilot CLI",
+          "sessionId": "session-a",
+          "totalCost": 0.0005306250000000001,
+          "totalTokens": 120
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 10,
+        "inputTokens": 85,
+        "outputTokens": 20,
+        "totalCost": 0.0005306250000000001,
+        "totalTokens": 120
+      }
+    }
+  },
+  "gemini": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "gemini",
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 10,
+              "inputTokens": 90,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 10,
+                  "cost": 0.00036375000000000003,
+                  "inputTokens": 90,
+                  "modelName": "gemini-2.5-pro",
+                  "outputTokens": 20
+                }
+              ],
+              "modelsUsed": [
+                "gemini-2.5-pro"
+              ],
+              "outputTokens": 20,
+              "totalCost": 0.00036375000000000003,
+              "totalTokens": 125
+            }
+          ],
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 10,
+          "inputTokens": 90,
+          "metadata": {
+            "agents": [
+              "gemini"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 10,
+              "cost": 0.00036375000000000003,
+              "inputTokens": 90,
+              "modelName": "gemini-2.5-pro",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "gemini-2.5-pro"
+          ],
+          "outputTokens": 20,
+          "period": "2026-11-04",
+          "totalCost": 0.00036375000000000003,
+          "totalTokens": 125
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 10,
+        "inputTokens": 90,
+        "outputTokens": 20,
+        "totalCost": 0.00036375000000000003,
+        "totalTokens": 125
+      }
+    },
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 10,
+          "inputTokens": 90,
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 10,
+              "cost": 0.00036375000000000003,
+              "inputTokens": 90,
+              "modelName": "gemini-2.5-pro",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "gemini-2.5-pro"
+          ],
+          "outputTokens": 20,
+          "sessionId": "session-a",
+          "totalCost": 0.00036375000000000003,
+          "totalTokens": 125
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 10,
+        "inputTokens": 90,
+        "outputTokens": 20,
+        "totalCost": 0.00036375000000000003,
+        "totalTokens": 125
+      }
+    }
+  },
+  "antigravity": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "antigravity",
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 10,
+              "inputTokens": 100,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 5,
+                  "cacheReadTokens": 10,
+                  "cost": 0.0003840625,
+                  "inputTokens": 100,
+                  "modelName": "gemini-2.5-pro",
+                  "outputTokens": 20
+                }
+              ],
+              "modelsUsed": [
+                "gemini-2.5-pro"
+              ],
+              "outputTokens": 20,
+              "totalCost": 0.0003840625,
+              "totalTokens": 140
+            }
+          ],
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 10,
+          "inputTokens": 100,
+          "metadata": {
+            "agents": [
+              "antigravity"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 10,
+              "cost": 0.0003840625,
+              "inputTokens": 100,
+              "modelName": "gemini-2.5-pro",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "gemini-2.5-pro"
+          ],
+          "outputTokens": 20,
+          "period": "2026-05-28",
+          "totalCost": 0.0003840625,
+          "totalTokens": 140
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 10,
+        "inputTokens": 100,
+        "outputTokens": 20,
+        "totalCost": 0.0003840625,
+        "totalTokens": 140
+      }
+    },
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 10,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 100,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 10,
+              "cost": 0.0003840625,
+              "inputTokens": 100,
+              "modelName": "gemini-2.5-pro",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "gemini-2.5-pro"
+          ],
+          "outputTokens": 20,
+          "projectPath": "Antigravity",
+          "sessionId": "session-a",
+          "totalCost": 0.0003840625,
+          "totalTokens": 140
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 10,
+        "inputTokens": 100,
+        "outputTokens": 20,
+        "totalCost": 0.0003840625,
+        "totalTokens": 140
+      }
+    }
+  },
+  "kimi": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "kimi",
+              "cacheCreationTokens": 10,
+              "cacheReadTokens": 20,
+              "inputTokens": 200,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 5,
+                  "cacheReadTokens": 10,
+                  "cost": 0.0001825375,
+                  "inputTokens": 100,
+                  "modelName": "kimi-for-coding",
+                  "outputTokens": 20
+                },
+                {
+                  "cacheCreationTokens": 5,
+                  "cacheReadTokens": 10,
+                  "cost": 0.0001825375,
+                  "inputTokens": 100,
+                  "modelName": "kimi-k2.6",
+                  "outputTokens": 20
+                }
+              ],
+              "modelsUsed": [
+                "kimi-for-coding",
+                "kimi-k2.6"
+              ],
+              "outputTokens": 40,
+              "totalCost": 0.000365075,
+              "totalTokens": 270
+            }
+          ],
+          "cacheCreationTokens": 10,
+          "cacheReadTokens": 20,
+          "inputTokens": 200,
+          "metadata": {
+            "agents": [
+              "kimi"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 10,
+              "cost": 0.0001825375,
+              "inputTokens": 100,
+              "modelName": "kimi-for-coding",
+              "outputTokens": 20
+            },
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 10,
+              "cost": 0.0001825375,
+              "inputTokens": 100,
+              "modelName": "kimi-k2.6",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "kimi-for-coding",
+            "kimi-k2.6"
+          ],
+          "outputTokens": 40,
+          "period": "2026-05-28",
+          "totalCost": 0.000365075,
+          "totalTokens": 270
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 10,
+        "cacheReadTokens": 20,
+        "inputTokens": 200,
+        "outputTokens": 40,
+        "totalCost": 0.000365075,
+        "totalTokens": 270
+      }
+    },
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 10,
+          "inputTokens": 100,
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 10,
+              "cost": 0.0001825375,
+              "inputTokens": 100,
+              "modelName": "kimi-for-coding",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "kimi-for-coding"
+          ],
+          "outputTokens": 20,
+          "sessionId": "session-a",
+          "totalCost": 0.0001825375,
+          "totalTokens": 135
+        },
+        {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 10,
+          "inputTokens": 100,
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 10,
+              "cost": 0.0001825375,
+              "inputTokens": 100,
+              "modelName": "kimi-k2.6",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "kimi-k2.6"
+          ],
+          "outputTokens": 20,
+          "sessionId": "session-b",
+          "totalCost": 0.0001825375,
+          "totalTokens": 135
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 10,
+        "cacheReadTokens": 20,
+        "inputTokens": 200,
+        "outputTokens": 40,
+        "totalCost": 0.000365075,
+        "totalTokens": 270
+      }
+    }
+  },
+  "qwen": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "qwen",
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 10,
+              "inputTokens": 100,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 10,
+                  "cost": 4.597e-05,
+                  "inputTokens": 100,
+                  "modelName": "qwen3-coder",
+                  "outputTokens": 20
+                }
+              ],
+              "modelsUsed": [
+                "qwen3-coder"
+              ],
+              "outputTokens": 20,
+              "totalCost": 4.597e-05,
+              "totalTokens": 135
+            }
+          ],
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 10,
+          "inputTokens": 100,
+          "metadata": {
+            "agents": [
+              "qwen"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 10,
+              "cost": 4.597e-05,
+              "inputTokens": 100,
+              "modelName": "qwen3-coder",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "qwen3-coder"
+          ],
+          "outputTokens": 20,
+          "period": "2026-11-04",
+          "totalCost": 4.597e-05,
+          "totalTokens": 135
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 10,
+        "inputTokens": 100,
+        "outputTokens": 20,
+        "totalCost": 4.597e-05,
+        "totalTokens": 135
+      }
+    },
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 10,
+          "firstActivity": "2026-11-04T09:00:00.000Z",
+          "inputTokens": 100,
+          "lastActivity": "2026-11-04T09:00:00.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 10,
+              "cost": 4.597e-05,
+              "inputTokens": 100,
+              "modelName": "qwen3-coder",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "qwen3-coder"
+          ],
+          "outputTokens": 20,
+          "projectPath": "project-a",
+          "sessionId": "session-a",
+          "totalCost": 4.597e-05,
+          "totalTokens": 135
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 10,
+        "inputTokens": 100,
+        "outputTokens": 20,
+        "totalCost": 4.597e-05,
+        "totalTokens": 135
+      }
+    }
+  },
+  "openclaw": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "openclaw",
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 10,
+              "inputTokens": 100,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 5,
+                  "cacheReadTokens": 10,
+                  "cost": 0.00046550000000000004,
+                  "inputTokens": 100,
+                  "modelName": "[openclaw] gpt-5.2",
+                  "outputTokens": 20
+                }
+              ],
+              "modelsUsed": [
+                "[openclaw] gpt-5.2"
+              ],
+              "outputTokens": 20,
+              "totalCost": 0.00046550000000000004,
+              "totalTokens": 145
+            }
+          ],
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 10,
+          "inputTokens": 100,
+          "metadata": {
+            "agents": [
+              "openclaw"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 10,
+              "cost": 0.00046550000000000004,
+              "inputTokens": 100,
+              "modelName": "[openclaw] gpt-5.2",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "[openclaw] gpt-5.2"
+          ],
+          "outputTokens": 20,
+          "period": "2026-05-28",
+          "totalCost": 0.00046550000000000004,
+          "totalTokens": 145
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 10,
+        "inputTokens": 100,
+        "outputTokens": 20,
+        "totalCost": 0.00046550000000000004,
+        "totalTokens": 145
+      }
+    },
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 10,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 100,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 10,
+              "cost": 0.00046550000000000004,
+              "inputTokens": 100,
+              "modelName": "[openclaw] gpt-5.2",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "[openclaw] gpt-5.2"
+          ],
+          "outputTokens": 20,
+          "projectPath": "OpenClaw",
+          "sessionId": "session-a",
+          "totalCost": 0.00046550000000000004,
+          "totalTokens": 145
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 10,
+        "inputTokens": 100,
+        "outputTokens": 20,
+        "totalCost": 0.00046550000000000004,
+        "totalTokens": 145
+      }
+    }
+  },
+  "grok": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "grok",
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "inputTokens": 55,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 5,
+                  "cacheReadTokens": 40,
+                  "cost": 0.0002545,
+                  "inputTokens": 55,
+                  "modelName": "grok-4.5-build",
+                  "outputTokens": 20
+                }
+              ],
+              "modelsUsed": [
+                "grok-4.5-build"
+              ],
+              "outputTokens": 20,
+              "totalCost": 0.0002545,
+              "totalTokens": 120
+            }
+          ],
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 40,
+          "inputTokens": 55,
+          "metadata": {
+            "agents": [
+              "grok"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "cost": 0.0002545,
+              "inputTokens": 55,
+              "modelName": "grok-4.5-build",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "grok-4.5-build"
+          ],
+          "outputTokens": 20,
+          "period": "2026-05-28",
+          "totalCost": 0.0002545,
+          "totalTokens": 120
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 40,
+        "inputTokens": 55,
+        "outputTokens": 20,
+        "totalCost": 0.0002545,
+        "totalTokens": 120
+      }
+    },
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 40,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 55,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "cost": 0.0002545,
+              "inputTokens": 55,
+              "modelName": "grok-4.5-build",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "grok-4.5-build"
+          ],
+          "outputTokens": 20,
+          "projectPath": "/synthetic/project",
+          "sessionId": "session-a",
+          "totalCost": 0.0002545,
+          "totalTokens": 120
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 40,
+        "inputTokens": 55,
+        "outputTokens": 20,
+        "totalCost": 0.0002545,
+        "totalTokens": 120
+      }
+    }
+  },
+  "zcode": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "zcode",
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "inputTokens": 55,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 5,
+                  "cacheReadTokens": 40,
+                  "cost": 0.0002264,
+                  "inputTokens": 55,
+                  "modelName": "GLM-5.3",
+                  "outputTokens": 20
+                }
+              ],
+              "modelsUsed": [
+                "GLM-5.3"
+              ],
+              "outputTokens": 20,
+              "totalCost": 0.0002264,
+              "totalTokens": 130
+            }
+          ],
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 40,
+          "inputTokens": 55,
+          "metadata": {
+            "agents": [
+              "zcode"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "cost": 0.0002264,
+              "inputTokens": 55,
+              "modelName": "GLM-5.3",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "GLM-5.3"
+          ],
+          "outputTokens": 20,
+          "period": "2026-05-28",
+          "totalCost": 0.0002264,
+          "totalTokens": 130
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 40,
+        "inputTokens": 55,
+        "outputTokens": 20,
+        "totalCost": 0.0002264,
+        "totalTokens": 130
+      }
+    },
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 40,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 55,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "cost": 0.0002264,
+              "inputTokens": 55,
+              "modelName": "GLM-5.3",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "GLM-5.3"
+          ],
+          "outputTokens": 20,
+          "projectPath": "/synthetic/project",
+          "sessionId": "session-a",
+          "totalCost": 0.0002264,
+          "totalTokens": 130
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 40,
+        "inputTokens": 55,
+        "outputTokens": 20,
+        "totalCost": 0.0002264,
+        "totalTokens": 130
+      }
+    }
+  }
+}
