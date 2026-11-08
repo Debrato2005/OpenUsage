@@ -1,22 +1,22 @@
 # Acceptance traceability
 
-Updated: November 6, 2026. Native startup, encrypted persistence, backups, restore and undo, profile activity, saved quota, overdue expectations, and conservative reset confirmation passed within their recorded Linux scopes. The full mandatory acceptance suite remains incomplete. Rows record their original artifact scopes; newer rows supersede earlier pending states.
+Updated: November 8, 2026. Native startup, encrypted persistence, backups, restore and undo, profile activity, saved quota, overdue expectations, and conservative reset confirmation passed within their recorded Linux scopes. Since November 7, local logs, the CLI, share images and the Linux packages also passed within their recorded Linux scopes. The full mandatory acceptance suite remains incomplete. Rows record their original artifact scopes. Newer rows supersede earlier pending states.
 
 ## Baseline 3.0 coverage
 
-OU-DES has evidence. OU-LOG and OU-DATA-027 have storage evidence only. See the log.
+OU-DES, OU-LOG, OU-SHARE, OU-CLI and OU-DIST have evidence. OU-DATA-027 has storage evidence only. See the log.
 
 | Requirements | Tests | State |
 |---|---|---|
 | OU-DES | AT-85 | Passed on the renderer and in native Linux journeys, with one exception |
 | OU-SRC, OU-ACCT-020 | AT-61, AT-62, AT-84 | Not started |
 | OU-AUD, OU-ALERT-019, OU-STATE-010, OU-STATE-011, OU-RESET-005, OU-RESET-006 | AT-56 to AT-61 | Not started |
-| OU-LOG, OU-SEC-021, OU-HEAT-026, OU-HEAT-027 | AT-65 to AT-74, AT-93 | Storage part of AT-66 to AT-69, AT-73 and AT-94 passed; the rest not started |
+| OU-LOG, OU-SEC-021, OU-HEAT-026, OU-HEAT-027 | AT-65 to AT-74, AT-93 | Storage part of AT-66 to AT-69, AT-73 and AT-94 passed. In the app, part of AT-70, AT-72 and AT-93 passed. AT-65 waits for L-1f. The rest not started |
 | OU-DUP, OU-ID-013 | AT-63, AT-64, AT-75, AT-76 | Not started |
 | OU-SHARE | AT-82 | Passed on Linux with synthetic data, without a network trace |
 | OU-CLI | AT-77 to AT-79 | All commands passed on Linux with synthetic data; quota output not yet checked against a saved account reading |
 | OU-DIST | AT-80, AT-81 | Linux npm packages built and installed offline; not published |
-| OU-UI-024 to OU-UI-027, OU-MON-017, OU-CAP-008 | AT-83, AT-90 to AT-92 | Not started |
+| OU-UI-024 to OU-UI-027, OU-MON-017, OU-CAP-008 | AT-83, AT-90 to AT-92 | AT-91 passed on Linux with synthetic data. The rest not started |
 | OU-ALERT-005 | AT-89 | Not started |
 | OU-DATA-027, OU-DATA-028 | AT-94 | Storage part passed; the app part not started |
 | OU-NFR-019 to OU-NFR-021 | Measurements in SRS Section 15 | Not started |

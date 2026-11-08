@@ -149,7 +149,7 @@ Updated November 8, 2026. The owner asked to keep this list and to build down it
 
 **After the launch track**
 
-- [ ] The slices in [Order](#order). Stage 1 needs every mandatory requirement (SRS Section 0.4).
+- [ ] The slices in [Order](#order). Stage 1 needs every mandatory requirement (SRS Section 0.4). S-03c is the first one with no owner gate.
 
 ## Order
 
@@ -160,7 +160,7 @@ Updated November 8, 2026. The owner asked to keep this list and to build down it
 | S-03 | CI | S-02 | Done; the hosted run waits for the owner's push |
 | S-03b | Rich dashboard | S-03 | Done |
 | S-03d | Modern Overview | S-03b | Done, with two recorded reasons in [status](implementation-status.md#failing-or-stale-tests) |
-| S-03c | Keychain by default | S-03b | Not started |
+| S-03c | Keychain by default | S-03b | New workspaces use the key store (L-0). The move of a password workspace follows the launch |
 | S-04 | Reading status and evidence | S-03b | Not started |
 | S-05 | Adapter layer | S-04 | Not started |
 | G-1 | Owner: real-account test on Codex | S-05 | Not started |
@@ -169,20 +169,20 @@ Updated November 8, 2026. The owner asked to keep this list and to build down it
 | S-08 | Remaining gaps | S-02 | Not started |
 | S-09 | `ccusage` runner | S-05, a download | Done as L-1a |
 | S-10 | Local usage store | S-09 | Done as L-1b |
-| S-11 | First launch and consent | S-10 | Not started |
-| S-12 | This device and duplicates | S-11 | Not started |
+| S-11 | First launch and consent | S-10 | Partly done as L-1d and L-1e. AT-72's file trace and the OU-NFR-020 measurement did not run |
+| S-12 | This device and duplicates | S-11 | This device done as L-1e and L-1g1 to L-1g3. Quota movement waits for OQ-1. Duplicates not started |
 | S-13 | Claude Code quotas | S-05 | Not started |
 | G-2 | Owner: real-account test on Claude Code and local logs | S-12, S-13 | Not started |
-| S-14 | CLI | S-10 | Not started |
-| S-15 | Windows and macOS | S-14 | Not started |
+| S-14 | CLI | S-10 | Done as L-2 |
+| S-15 | Windows and macOS | S-14 | The preview builds wait for the owner (L-6c) |
 | S-16 | WSL profiles | S-15 | Not started |
 | S-17 | Other providers | S-05, OQ-3 | Not started |
-| S-18 | npm package | S-15 | Not started |
-| S-19 | Sharing | S-12 | Not started |
-| S-20 | Release documents | S-18 | Not started |
+| S-18 | npm package | S-15 | Linux packages built as L-6a and L-6b. Publishing waits for the owner |
+| S-19 | Sharing | S-12 | Built as L-3. The check in a GitHub README did not run |
+| S-20 | Release documents | S-18 | The threat model is done (L-7b). The other six documents are not started |
 | G-3 | Owner: real machines and first release | S-20, OQ-2 | Not started |
-| S-21 | Leaderboard service | G-3 | Not started |
-| S-22 | Leaderboard client | S-21 | Not started |
+| S-21 | Leaderboard service | G-3 | Built as L-4. Deployment waits for the owner |
+| S-22 | Leaderboard client | S-21 | Waits for the owner (L-5) |
 
 ## Foundation
 

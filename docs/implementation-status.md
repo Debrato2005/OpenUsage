@@ -4,7 +4,7 @@
 
 Updated: November 8, 2026. This page holds the current state only. [History](implementation-history.md) holds past work, and [traceability](acceptance-traceability.md) holds exact evidence.
 
-OpenUsage is in development against [SRS baseline 3.0](SRS.md). There is no release. Baseline 3.0 was adopted on November 2, 2026, and most of its new work has not started.
+OpenUsage is in development against [SRS baseline 3.0](SRS.md). There is no release. Baseline 3.0 was adopted on November 2, 2026. [Not built](#not-built) lists what is missing, and [Current assignment](#current-assignment) gives the launch state.
 
 ## What works
 
@@ -26,19 +26,22 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Last full results, from November 4, 2026, after S-03b, on Linux with synthetic data:
+Last results, from November 8, 2026, after L-1g2, on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
-- 46 of 48 native journeys passed on a private display. [Failing tests](#failing-or-stale-tests) names the other two. `quota-read` failed once at a reset-confirmation read and passed when rerun alone.
-- All 422 renderer cases passed: 211 each in Chromium and WebKit.
-- 55 contract checks, 30 tool tests and the dependency policy passed.
-- On November 3, 389 Rust tests passed, with one intentional child test ignored, and Rust format, Clippy and the native verifier crate's tests passed. S-03b changed no Rust.
+- 426 workspace tests passed, with 1 intentional ignore. The verify plan and Clippy passed.
+- 14 native journeys passed at schema 12 on a private display. [Failing or stale tests](#failing-or-stale-tests) names the 12 that did not run.
+- The last full renderer count is from L-3a: 444 cases, 222 each in Chromium and WebKit. Each later slice ran its new renderer cases in both engines.
+- The last run of all native journeys was on November 4, after S-03b: 46 of 48 passed.
 
 ## Not built
 
 New in baseline 3.0:
 
 - Source adapters (5A), audit (5B), and duplicates (5D).
-- Customizable dashboard, Start at login, first launch without sign-in, and graphs: OU-UI-025 to OU-UI-027, OU-MON-017.
+- Customizable dashboard, Start at login, and graphs: OU-UI-026, OU-UI-027, OU-MON-017.
+- The other 16 tools that the pinned `ccusage` reads (L-1f, AT-65), and session quota movement (L-1g4, OU-LOG-018).
+- The leaderboard client (L-5): OU-BOARD-001, OU-BOARD-002, OU-BOARD-005, OU-BOARD-006.
+- Moving a password workspace's key to the OS key store (S-03c).
 
 Kept from baseline 2.0:
 
@@ -56,7 +59,7 @@ Kept from baseline 2.0:
 
 - Release documents, L-7c, November 8, 2026: `scripts/sbom.py` writes a CycloneDX 1.5 SBOM of the Linux release from `cargo tree`, `Cargo.lock`, `bun.lock` and the two pin records, with no download. Crates that only run at build time get the scope `excluded`. Two runs gave the same bytes. `package-npm.py --sbom` publishes it beside the packages in `SHA256SUMS`. No schema validator ran, because none is on this host.
 
-- Release documents, L-7a, November 8, 2026: [Install](install.md) gives the install, upgrade, uninstall and data deletion steps and what an unsigned build does. [Security](../SECURITY.md#bundled-ccusage) states that `ccusage` runs with the user's rights and is not sandboxed. A private-home run on Linux confirmed the Linux folders. The macOS and Windows steps come from the code and were not run on a real machine.
+- Release documents, L-7a, November 8, 2026: [Install](install.md) gives the steps to install, upgrade, uninstall and delete data. It also tells what an unsigned build does. [Security](../SECURITY.md#bundled-ccusage) states that `ccusage` runs with the user's rights and is not sandboxed. A private-home run on Linux confirmed the Linux folders. The macOS and Windows steps come from the code and were not run on a real machine.
 
 - Distribution (16A), L-6a, November 8, 2026: the production Tauri config now bundles `ccusage` beside the Codex companion, with both notices and package metadata. The Debian package puts the app, the companion and `ccusage` in `/usr/bin` and depends on `libwebkit2gtk-4.1-0` and `libgtk-3-0`. It was built and inspected on Linux but not installed, because this host has no `dpkg`. No RPM or AppImage is built.
 
@@ -66,19 +69,19 @@ Kept from baseline 2.0:
 
 - Sharing (8A), L-3b, November 8, 2026: Share also makes a README badge with the 365-day total, as SVG only. Usage, This device, shows three personal records for the chosen dates: active days, the longest streak and the busiest day, each with its detail panel. The badge has not run in a real GitHub README (OU-SHARE-006).
 
-- Command line (11A), L-2a, November 8, 2026: the `openusage` binary in `crates/openusage-cli` has `report`, `doctor` and `app`, with help for each, stable error codes and documented exit codes. `report` asks once for consent or takes `--yes`, runs the pinned `ccusage` once for each detected folder, prints exact totals as text or versioned JSON, and saves nothing. No package installs the CLI yet.
+- Command line (11A), L-2a, November 8, 2026: the `openusage` binary in `crates/openusage-cli` has `report`, `doctor` and `app`. Each command has help, stable error codes and documented exit codes. `report` asks once for consent or takes `--yes`, runs the pinned `ccusage` once for each detected folder, prints exact totals as text or versioned JSON, and saves nothing. No package installs the CLI yet.
 
 - Command line (11A), L-2b, November 8, 2026: `openusage`, `status --json` and `statusline` read the saved quotas and today's local usage from a read-only database open, with the key from the OS credential store. They never prompt: a password workspace or a locked key store gives `locked` with exit code 7. The key store code moved from the desktop app into `crates/openusage-keys`, which both use.
 
-- Local logs (5C), L-1a, November 7, 2026: the official `ccusage` 20.0.48 Linux x86_64 binary is pinned and provisioned, and `crates/openusage-locallogs` runs it with checked digest, fixed offline arguments, an empty environment and limits, then parses its report strictly. On Linux the real binary read synthetic Claude Code and Codex logs twice with identical exact totals. This executes OQ-4's arguments and offline mode; per-folder use is still open.
+- Local logs (5C), L-1a, November 7, 2026: the official `ccusage` 20.0.48 Linux x86_64 binary is pinned and provisioned, and `crates/openusage-locallogs` runs it with checked digest, fixed offline arguments, an empty environment and limits, then parses its report strictly. On Linux the real binary read synthetic Claude Code and Codex logs twice with identical exact totals. This executes the arguments and the offline mode of OQ-4. L-1c ran it once for each folder.
 
-- Local logs (5C), L-1b, November 8, 2026: schema 10 stores consented log sources, daily totals and differences (SRS Section 13). A scan can raise a saved total but never lowers it, and a lower result is saved as a difference. The first saved scan pins the zone of each source. Backup, checkpoint, restore and application export carry the new tables. [SC-017](srs-clarifications.md#sc-017-local-usage-store) records how the store reads these rules. The consent screen (OU-LOG-001) and the This device views are not built.
+- Local logs (5C), L-1b, November 8, 2026: schema 10 stores consented log sources, daily totals and differences (SRS Section 13). A scan can raise a saved total but never lowers it, and a lower result is saved as a difference. The first saved scan pins the zone of each source. Backup, checkpoint, restore and application export carry the new tables. [SC-017](srs-clarifications.md#sc-017-local-usage-store) records how the store reads these rules.
 
 - Local logs (5C), L-1c, November 8, 2026: the desktop app detects the Claude Code and Codex folders by existence only, saves the consent per tool, and scans each granted folder after start, after consent and every 10 minutes. Each run gets an empty private `HOME` and only the folder variable of its tool, so `ccusage` cannot see a tool that the user did not choose. Runs happen outside the workspace lock, and a failed run keeps the saved totals. `load_local_logs` and `save_local_log_consent` are the IPC commands. The other 16 tools that `ccusage` reads are not scanned yet.
 
 - Local logs (5C), L-1d, November 8, 2026: the welcome screen lists the detected tools, all selected, and its one action creates the workspace and saves the choice. A workspace with no saved choice shows one Local logs dialog after unlock. Settings, Privacy and data, changes the choice and shows a failed scan. Privacy details state that the bundled `ccusage` is not sandboxed.
 
-- Local logs (5C), L-1e, November 8, 2026: Usage has one source control, Provider or This device (OU-LOG-016). This device shows the saved totals for 7, 30 or 90 days or a year, grouped by day, week or month: a card for each tool, stacked bars and a model table. Each total opens the detail panel with the token types, the estimate at public API prices, the source, the day zone, and any saved difference (OU-LOG-011). Overview shows the last 30 days in a This device section, also with no account, so first launch reaches local history with no sign-in (OU-UI-025). Rust sums the exact counts. Not built yet from OU-LOG-017: hourly ranges, custom dates, and the session, project and reasoning breakdowns, which need the `ccusage` session report.
+- Local logs (5C), L-1e, November 8, 2026: Usage has one source control, Provider or This device (OU-LOG-016). This device shows the saved totals for 7, 30 or 90 days or a year, grouped by day, week or month: a card for each tool, stacked bars and a model table. Each total opens the detail panel with the token types, the estimate at public API prices, the source, the day zone, and any saved difference (OU-LOG-011). Overview shows the last 30 days in a This device section, also with no account, so first launch reaches local history with no sign-in (OU-UI-025). Rust sums the exact counts. The L-1g1 entry covers the rest of OU-LOG-017.
 
 - Local logs (5C), L-1g1, November 8, 2026: each scan also runs the `ccusage` session report of the granted tool, and schema 11 saves each session in `local_usage_sessions` (SC-021). A Claude Code session keeps its project folder and its start and end times. A Codex session keeps its end time and its reasoning count, a part of output. A lower scan keeps the saved counts. This device shows a Projects table and a Sessions table, and a count that a tool does not report shows as Not available. Share images read no session. Since L-1g3, a Custom chip sets any range of at most 366 days that ends by today, and Rust checks it again. Since L-1g2, each scan of Claude Code also saves its UTC hours from `ccusage blocks` at schema 12, and an Hourly grouping shows them for ranges of up to 7 days, at their local start times. Codex reports no hours, so the chart key shows it as Not available. Session quota movement (L-1g4) waits for OQ-1.
 
@@ -104,8 +107,7 @@ Kept from baseline 2.0:
 ## Failing or stale tests
 
 - L-1g2, November 8, 2026: 24 journeys now expect schema 12. 14 journeys ran on the native-test build on a private display and passed: `local-log-consent`, `share-images`, `cli-status`, `backup`, `backup-inspection`, `restore-preview`, `restore-apply`, `restore-checkpoint`, `application-export`, `local-data-deletion`, `persistence`, `subscriptions`, `activity-persistence` and `account-signout`. These 12 did not run on this build: `activity-history`, `activity-history-export`, `alert-history`, `collection`, `companion-onboarding`, `device-login`, `first-account-read`, `monitoring`, `onboarding-discovery`, `operational-alerts`, `quota-read` and `reset-notifications`.
-- L-1b, November 8, 2026: 23 journeys now expect schema 10. 8 ran on the native-test build on a private display and passed: `backup`, `backup-inspection`, `restore-preview`, `restore-apply`, `restore-checkpoint`, `application-export`, `local-data-deletion` and `persistence`. The other 15 did not run on this build.
-- S-03d, November 6, 2026: the 19 journeys that touch Overview were updated and run on a private display. 17 passed, 16 on the native-test build and `provider-keyring` on the companion build. `reference-visual` passes every Overview check and keeps its recorded digit-width reason on Usage; `heatmap-window` keeps its window-manager reason. The other journeys did not run on this build.
+- S-03d, November 6, 2026: the slice updated the 19 journeys that touch Overview and ran them on a private display. 17 passed, 16 on the native-test build and `provider-keyring` on the companion build. `reference-visual` passes every Overview check and keeps its recorded digit-width reason on Usage. `heatmap-window` keeps its window-manager reason. The other journeys did not run on this build.
 
 As of November 3, 2026, on Linux. 43 journeys ran on the native-test build and 4 on the production build. No failure names an app defect.
 
@@ -124,6 +126,6 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 
 ## Current assignment
 
-S-03d, the modern Overview, passed the renderer suite and its native journeys. Local commits wait for the owner's push. On November 7, 2026 the owner adopted a launch track with the leaderboard in the first release; L-0, the keychain by default, is next. [Implementation slices](implementation-slices.md#launch-track) hold the order. [Implementation slices](implementation-slices.md) hold the order.
+On November 7, 2026 the owner adopted a launch track with the leaderboard in the first release. As of November 8, each launch slice that needs no owner decision is done in a local commit. The local commits wait for the owner's push. The open items wait for the owner, as the [build checklist](implementation-slices.md#build-checklist) lists. The next item with no owner gate is S-03c, which the checklist puts after the launch.
 
 The exact working checkpoint, if one exists, is in the local `.recovery/active-checkpoint.json`.

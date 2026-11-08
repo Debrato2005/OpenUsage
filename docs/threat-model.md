@@ -10,7 +10,7 @@ OpenUsage does not protect against an attacker with full control of your unlocke
 
 - Provider sessions and credentials, in provider-managed homes inside the workspace.
 - The database key, in the OS credential store or wrapped with your password.
-- The encrypted database: accounts, quota and activity history, local log totals.
+- The encrypted database: accounts, quota and activity history, local log totals, sessions and hours. A Claude Code project folder name encodes a path on your device.
 - Backup archives and exports that you save.
 
 ## Threats and controls
@@ -22,7 +22,7 @@ OpenUsage does not protect against an attacker with full control of your unlocke
 | Malicious path links | The app opens only the fixed Codex sign-in page `https://auth.openai.com/codex/device`, after Rust compares the exact string. Log text never becomes a path to open (OU-SEC-021). | The SRS rule to show an unrecognized link before it opens (OU-SEC-019) has no other link to apply to yet. |
 | Poisoned JSON-RPC data | The Codex client in `openusage-codex` limits a message to 1 MiB and a response to 4 MiB. It parses each message into strict types, limits list sizes, and refuses quota integers above 2^53 − 1. A value that does not parse stays missing. | Only Codex 0.163.0 is qualified. |
 | Poisoned adapter responses | Each reading passes format, range and identity checks before the store (OU-DES-009). Missing values stay missing, and time alone does not confirm a reset. | The general adapter layer is not built. Codex is the only provider source. |
-| Malicious log content | `ccusage` output is parsed by a strict parser with an output limit. Only token counts, model names, dates, the estimated value and the `ccusage` version are kept, and React shows them as text. | `ccusage` itself reads the raw logs. See the next row and [Bundled ccusage](../SECURITY.md#bundled-ccusage). |
+| Malicious log content | `ccusage` output is parsed by a strict parser with an output limit. Only token counts, model names, dates, session IDs and times, Claude Code project folder names, the estimated value and the `ccusage` version are kept. React shows them as text, and share images hold no project name. | `ccusage` itself reads the raw logs. See the next row and [Bundled ccusage](../SECURITY.md#bundled-ccusage). |
 | Substituted Codex or `ccusage` binaries | Rust checks the SHA-256 digest of the Codex companion and of `ccusage` before each start, and refuses a mismatch. The npm assembly refuses binaries off their pins. | `ccusage` runs with your rights and is not sandboxed. Only the Linux x86_64 binaries are pinned. |
 | A compromised npm package | The packages have no install scripts and download nothing. `SHA256SUMS` lists every packed file. The binaries carry pinned digests. | npm provenance and a build attestation wait for the owner to publish. `scripts/sbom.py` writes the SBOM. |
 | Fake leaderboard submissions | Every view says Self-reported. Joining needs a GitHub account. The Worker checks strict schemas and limits, and hides a day above 2 billion tokens until a review. The [moderation policy](../services/leaderboard/MODERATION.md) gives the review steps. | The service cannot prove any total (OU-BOARD-011). It is not deployed, and no client sends to it. |
