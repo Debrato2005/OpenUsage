@@ -52,6 +52,8 @@ Kept from baseline 2.0:
 
 - Distribution (16A), L-6b, November 8, 2026: `scripts/package-npm.py` assembles `openusage`, which holds only a launcher, and `@openusage/linux-x64`, which holds the CLI, the desktop app, the pinned `ccusage`, the pinned Codex companion and their notices. It checks both pins, packs both with `npm pack`, and writes `SHA256SUMS`. Neither package has an install script. Nothing is published: the npm name, provenance, a build attestation and an SBOM wait for the owner and for L-6c.
 
+- Release documents, L-7a, November 8, 2026: [Install](install.md) gives the install, upgrade, uninstall and data deletion steps and what an unsigned build does. [Security](../SECURITY.md#bundled-ccusage) states that `ccusage` runs with the user's rights and is not sandboxed. A private-home run on Linux confirmed the Linux folders. The macOS and Windows steps come from the code and were not run on a real machine.
+
 - Distribution (16A), L-6a, November 8, 2026: the production Tauri config now bundles `ccusage` beside the Codex companion, with both notices and package metadata. The Debian package puts the app, the companion and `ccusage` in `/usr/bin` and depends on `libwebkit2gtk-4.1-0` and `libgtk-3-0`. It was built and inspected on Linux but not installed, because this host has no `dpkg`. No RPM or AppImage is built.
 
 - Leaderboard (14A), L-4a, November 8, 2026: the Cloudflare Worker and D1 schema in `services/leaderboard` join with GitHub, sync strict rows, leave, and rank over 7 days, 30 days and all time under the title Self-reported. Its [moderation policy](../services/leaderboard/MODERATION.md) sits beside the source (L-4b). The service is not deployed, `wrangler.toml` has not run with wrangler, and no client calls it yet.

@@ -14,10 +14,25 @@ Describe the affected commit, operating system, expected and observed behavior, 
 - Production storage requires SQLCipher 4 with WAL. A working OS credential store is preferred; an explicit protected fallback is required when it is unavailable. Provider OS credential storage is still incomplete.
 - Accounts use separate provider-managed authorization homes. Never copy credentials between accounts or read an unrelated Codex home.
 - Today OpenUsage uses only validated official provider interfaces and pinned executables. Read-only usage collection must respect cooldowns and provider backoff. OpenUsage does not promise immunity from provider enforcement.
-- The [SRS](docs/SRS.md) plans two more source levels. Local logs need consent, and OpenUsage stores only usage numbers from them. Unofficial sources stay off by default and show their status. The bundled `ccusage` process will run with the user's rights and will not be sandboxed.
+- The [SRS](docs/SRS.md) plans two more source levels. Local logs need consent, and OpenUsage stores only usage numbers from them. Unofficial sources stay off by default and show their status.
 - Browser cookies, page scraping, pasted keys and the saved credentials of other tools are never permitted.
 - Missing measurements remain unavailable. Email is not verified identity, elapsed time does not confirm a reset, and provisional identities must not be combined into totals.
 - Backups require authenticated encryption; restore requires explicit consent. Secrets must stay out of logs, exports, screenshots and public test evidence.
+
+## Bundled ccusage
+
+OpenUsage reads local logs with the bundled `ccusage` (OU-SEC-022). The `ccusage` process runs with your user rights and is not sandboxed. It can read any file that you can read. OpenUsage does not claim otherwise.
+
+OpenUsage limits what it gives the process:
+
+- It starts `ccusage` only for the tools that you selected.
+- It checks the SHA-256 digest of the binary before each run, and refuses a binary that differs from its pin.
+- It clears the environment. The process gets an empty private home, one folder variable for one tool, `NO_COLOR` and `TZ`.
+- It runs `ccusage` with `--offline`, so `ccusage` does not get prices from the network.
+- It stops the process after a time limit or an output limit.
+- It treats the output as untrusted data and keeps only usage numbers.
+
+These limits reduce what a fault in `ccusage` can do by accident. They are not a sandbox.
 
 ## Known dependency qualification
 
