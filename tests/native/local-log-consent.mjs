@@ -102,7 +102,8 @@ try {
   evidence.applicationSha256 = await hash(application);
   fixture = await createFixture('local-log-consent');
   const logs = join(fixture.root, 'logs home café');
-  await cp(join(repository, 'crates/openusage-locallogs/tests/fixtures/home'), logs, { recursive: true });
+  await cp(join(repository, 'crates/openusage-locallogs/tests/fixtures/home/.claude'), join(logs, '.claude'), { recursive: true });
+  await cp(join(repository, 'crates/openusage-locallogs/tests/fixtures/codex'), join(logs, '.codex'), { recursive: true });
   // The Overview shows the last 30 days, so the synthetic Claude Code days move to the two days before today (UTC).
   const shifted = offset => { const d = new Date(); d.setUTCDate(d.getUTCDate() - offset); return d.toISOString().slice(0, 10); };
   const [older, newer] = [shifted(2), shifted(1)];

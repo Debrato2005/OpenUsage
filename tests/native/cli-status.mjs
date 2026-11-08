@@ -79,7 +79,8 @@ try {
   fixture = await createFixture('cli-status');
   await startSecretService(fixture);
   const logs = join(fixture.root, 'logs-home');
-  await cp(join(repository, 'crates/openusage-locallogs/tests/fixtures/home'), logs, { recursive: true });
+  await cp(join(repository, 'crates/openusage-locallogs/tests/fixtures/home/.claude'), join(logs, '.claude'), { recursive: true });
+  await cp(join(repository, 'crates/openusage-locallogs/tests/fixtures/codex'), join(logs, '.codex'), { recursive: true });
   const shifted = offset => { const d = new Date(); d.setUTCDate(d.getUTCDate() - offset); return d.toISOString().slice(0, 10); };
   const [yesterday, today] = [shifted(1), shifted(0)];
   const claudeLogs = join(logs, '.claude/projects/-home-dev-alpha');

@@ -42,7 +42,7 @@ The parser rejects unknown fields, invalid metadata, repeated keys, excessive co
 
 ## Tests
 
-`cargo test -p openusage-locallogs` covers the parser and the runner with scripts. Set `OPENUSAGE_CCUSAGE_BIN` to the provisioned binary to also run the real pinned `ccusage` against synthetic Claude Code and Codex logs in `tests/fixtures/home`, one folder at a time. `tests/fixtures/ccusage-20.0.48-daily-by-agent-claude.json` is the real binary's output for the Claude Code folder alone. `ccusage-20.0.48-session-claude.json` and `ccusage-20.0.48-session-codex.json` are its session reports for each folder, and `ccusage-20.0.48-blocks-claude.json` is its hourly report for Claude Code.
+`cargo test -p openusage-locallogs` covers the parser and runner with scripts. Set `OPENUSAGE_CCUSAGE_BIN` to the provisioned binary to run the real scanner against synthetic logs in private temporary homes. Claude Code input lives in `tests/fixtures/home/.claude`. Codex input lives in `tests/fixtures/codex` and becomes a private `.codex` folder only at runtime. The `.codex` exclusion and secret hooks stay intact. `tests/fixtures/ccusage-20.0.48-daily-by-agent-claude.json` is the real binary's output for the Claude Code folder alone. `ccusage-20.0.48-session-claude.json` and `ccusage-20.0.48-session-codex.json` are its session reports for each folder, and `ccusage-20.0.48-blocks-claude.json` is its hourly report for Claude Code.
 
 The pinned-binary test also writes zero and large stored costs into its private Claude Code fixtures. Daily and session reports must keep the recorded calculated estimates, and hourly counts must stay unchanged. The native local-log consent journey checks the saved estimates with the same stored-cost cases.
 

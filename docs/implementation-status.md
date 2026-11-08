@@ -26,7 +26,7 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scoped result, November 8, 2026, after L-1f5: the diagnostic Rust workspace run passed 438 tests, with one intentional ignore. Formatting, Clippy, the renderer build, and 56 IPC contract tests passed. The rebuilt native app passed the consent journey with private synthetic logs on Linux. The first workspace verify run failed and its cause remains unconfirmed. The full Chromium and WebKit renderer suite passed after the countdown fixture fix on November 8. The read-only CLI journey last passed at L-1f2. [Traceability](acceptance-traceability.md) holds the exact scope.
+Latest scoped result, November 8, 2026: the full Rust workspace verification plan passed after the fixture portability fix. The rebuilt app and CLI passed native consent and read-only status journeys with tracked synthetic input on Linux. The full renderer milestone passed after the countdown fixture fix. [Traceability](acceptance-traceability.md) holds the exact scope.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -54,6 +54,8 @@ Kept from baseline 2.0:
 - Wake handling: OU-PROC-013, OU-MON-013.
 
 ## Partial
+
+- Codex fixture portability: the Rust fixture test and two native journeys now copy tracked synthetic input into private homes. They no longer depend on an ignored `.codex` directory in the checkout. Secret exclusions and hooks stay intact.
 
 - Local logs (5C), L-1f5, November 8, 2026: the common session parser reads recorded reports for all sixteen disabled tools. It keeps independent totals and unavailable metrics under [SC-022](srs-clarifications.md#sc-022-incomplete-metrics-from-the-other-local-tools). It rejects malformed shapes, metadata, counts, and inconsistent totals. Storage and process integration remain open. No additional tool is enabled.
 

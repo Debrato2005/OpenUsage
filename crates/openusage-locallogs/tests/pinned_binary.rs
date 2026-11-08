@@ -21,6 +21,12 @@ fn copy_tree(from: &Path, to: &Path) {
     }
 }
 
+fn fixture_home(to: &Path) {
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
+    copy_tree(&fixtures.join("home/.claude"), &to.join(".claude"));
+    copy_tree(&fixtures.join("codex"), &to.join(".codex"));
+}
+
 fn request<'a>(
     binary: &'a Path,
     folder: &'a Path,
@@ -46,10 +52,10 @@ fn scan_tool(binary: &Path, home: &Path, tool: &str, folder: &str) -> Vec<UsageR
 }
 
 fn check_folder_boundaries(binary: &Path) {
-    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/home");
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
     for (tool, source, child) in [
-        ("claude", ".claude", "projects"),
-        ("codex", ".codex", "sessions"),
+        ("claude", "home/.claude", "projects"),
+        ("codex", "codex", "sessions"),
     ] {
         let root = tempfile::tempdir().unwrap();
         let first = root.path().join("first");
@@ -108,10 +114,7 @@ fn pinned_binary_reads_synthetic_claude_and_codex_logs() {
     };
     let binary = Path::new(&binary);
     let home = tempfile::tempdir().unwrap();
-    copy_tree(
-        &Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/home"),
-        home.path(),
-    );
+    fixture_home(home.path());
     // One run for each consented folder. Together they equal one run over the whole home.
     let mut rows = scan_tool(binary, home.path(), "claude", ".claude");
     assert!(rows.iter().all(|row| row.tool == "claude"));
