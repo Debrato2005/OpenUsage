@@ -121,7 +121,7 @@ Updated November 8, 2026. The owner asked to keep this list and to build down it
 
 **L-6 Packaging**
 
-- [ ] L-6a: Linux packages with the bundled `ccusage` and Codex companion, and the WebKitGTK dependencies listed (OU-PLAT-002, OU-PLAT-005).
+- [x] L-6a: Linux packages with the bundled `ccusage` and Codex companion, and the WebKitGTK dependencies listed (OU-PLAT-002, OU-PLAT-005).
 - [x] L-6b: the npm package, with per-platform packages and no install scripts (OU-DIST-001 to OU-DIST-005, OU-DIST-009; AT-81).
 - [ ] L-6c: Windows and macOS preview builds in CI (part of OU-NFR-012).
 

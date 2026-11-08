@@ -1,10 +1,19 @@
 {
   "bundle": {
     "active": true,
-    "externalBin": ["binaries/openusage-codex"],
+    "externalBin": [
+      "binaries/openusage-codex",
+      "binaries/openusage-ccusage"
+    ],
     "resources": {
       "companion/licenses/LICENSE": "licenses/codex/LICENSE",
-      "companion/licenses/NOTICE": "licenses/codex/NOTICE"
-    }
+      "companion/licenses/NOTICE": "licenses/codex/NOTICE",
+      "../../../packaging/licenses/ccusage/LICENSE": "licenses/ccusage/LICENSE"
+    },
+    "publisher": "OpenUsage contributors",
+    "homepage": "https://github.com/Debrato2005/OpenUsage",
+    "category": "DeveloperTool",
+    "shortDescription": "Usage and limits across AI coding tools",
+    "longDescription": "OpenUsage shows what you used and what you have left across your AI coding tools. It keeps its data in an encrypted local database and has no telemetry."
   }
 }

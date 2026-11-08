@@ -34,6 +34,18 @@ The archive cache defaults to `.tools` in this checkout. Use `--cache-dir /absol
 
 The Tauri override stages `openusage-codex` beside the application and copies LICENSE and NOTICE under `licenses/codex`. Keep those files together. The ordinary development build can instead discover a supported installed version. It does not produce a companion bundle by default.
 
+### Linux package
+
+After `bun run build`, `prepare:companion` and `prepare:ccusage`, build the Debian package from `apps/desktop` with the pinned Tauri CLI:
+
+```sh
+cd apps/desktop
+tauri build --bundles deb --config src-tauri/tauri.companion.conf.json \
+  --config '{"build":{"beforeBuildCommand":""}}' -- --locked
+```
+
+The package is `target/release/bundle/deb/OpenUsage_<version>_amd64.deb`. It puts `openusage-desktop`, `openusage-codex` and `openusage-ccusage` side by side in `/usr/bin`, and the notices in `/usr/lib/OpenUsage/licenses`. It depends on `libwebkit2gtk-4.1-0` and `libgtk-3-0` (OU-PLAT-002). The CLI comes with the npm package. Publish the SHA-256 of each package with the release (OU-PLAT-005).
+
 ### npm packages
 
 After a release build, assemble the npm packages for Linux x86_64 in an empty folder:
