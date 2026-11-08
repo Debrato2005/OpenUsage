@@ -63,6 +63,30 @@ test('Usage ranges and grouping ask Rust for new totals, and Provider returns to
   await expect(page.getByRole('heading', { name: 'No saved activity yet', exact: true })).toBeVisible();
 });
 
+test('a custom range asks Rust for exact dates and an invalid range asks nothing', async ({ page }) => {
+  await open(page, localUsage());
+  await navigate(page, 'usage');
+  const dates = device(page).getByRole('group', { name: 'Dates', exact: true });
+  await dates.getByRole('button', { name: 'Custom', exact: true }).click();
+  await expect(dates.getByRole('button', { name: 'Custom', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  const custom = device(page).getByRole('group', { name: 'Custom dates', exact: true });
+  // Custom starts from the shown dates, then follows each change.
+  await expect(custom.getByLabel('From')).toHaveValue('2026-10-10');
+  await expect(custom.getByLabel('To')).toHaveValue('2026-11-08');
+  await custom.getByLabel('From').fill('2026-01-05');
+  await expect.poll(async () => (await usageCalls(page)).at(-1)).toEqual({ since: '2026-01-05', until: '2026-11-08', period: 'day' });
+  const before = (await usageCalls(page)).length;
+  await custom.getByLabel('From').fill('2025-11-01');
+  await expect(custom.getByRole('alert')).toHaveText('Choose a start and an end at most 366 days apart.');
+  await custom.getByLabel('To').fill('2025-10-01');
+  await page.waitForTimeout(300);
+  expect((await usageCalls(page)).slice(before).filter(call => 'since' in call && call.since === '2025-11-01')).toEqual([]);
+  expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations).toEqual([]);
+  await dates.getByRole('button', { name: '90 days', exact: true }).click();
+  await expect.poll(async () => (await usageCalls(page)).at(-1)).toEqual({ days: 90, period: 'day' });
+  await expect(custom).toHaveCount(0);
+});
+
 test('the detail panel shows exact counts, the estimate as not money, and saved differences', async ({ page }) => {
   const usage = localUsage();
   await open(page, usage);

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button } from './components/ui/button';
-import { invoke, type LocalLogTool, type LocalToolTotals, type LocalUsageDays, type LocalUsagePeriod, type LocalUsageView } from './contracts';
+import { invoke, type LocalLogTool, type LocalToolTotals, type LocalUsageDays, type LocalUsagePeriod, type LocalUsageRange, type LocalUsageView } from './contracts';
 import { DetailLink, Mark, useOpenDetail } from './detail-panel';
 import { BigNumber, compactCount } from './overview-charts';
 import { localLogToolNames } from './local-logs';
@@ -20,19 +20,20 @@ const monthDay = (date: string) => day(date).toLocaleDateString('en-US', { month
 const monthName = (date: string) => day(date).toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
 
 /** Saved local totals. A background scan can add days, so the view reloads while it is shown. */
-export function useLocalUsage(active: boolean, days: LocalUsageDays, period: LocalUsagePeriod) {
+export function useLocalUsage(active: boolean, range: LocalUsageRange | null, period: LocalUsagePeriod) {
   const [view, setView] = useState<LocalUsageView | null>(null);
   const [failed, setFailed] = useState(false);
+  const key = range && JSON.stringify(range);
   useEffect(() => {
-    if (!active) return;
+    if (!active || !key) return;
     let current = true;
-    const load = () => void invoke('load_local_usage', { days, period })
+    const load = () => void invoke('load_local_usage', { ...(JSON.parse(key) as LocalUsageRange), period })
       .then(value => { if (current) { setView(value); setFailed(false); } })
       .catch(() => { if (current) setFailed(true); });
     load();
     const timer = window.setInterval(load, 15_000);
     return () => { current = false; window.clearInterval(timer); };
-  }, [active, days, period]);
+  }, [active, key, period]);
   return { view, failed };
 }
 
@@ -186,16 +187,31 @@ const ranges: [LocalUsageDays, string][] = [[7, '7 days'], [30, '30 days'], [90,
 const periods: [LocalUsagePeriod, string][] = [['day', 'Daily'], ['week', 'Weekly'], ['month', 'Monthly']];
 
 /** The This device scope in Usage (OU-LOG-016, OU-LOG-017). */
+// A custom range is complete when both dates are set, in order, and at most 366 days apart.
+function customRange(start: string, end: string): LocalUsageRange | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end) || start > end) return null;
+  return (day(end).getTime() - day(start).getTime()) / 86_400_000 < 366 ? { since: start, until: end } : null;
+}
+
 export function LocalUsagePanel({ active }: { active: boolean }) {
-  const [days, setDays] = useState<LocalUsageDays>(30);
+  const [days, setDays] = useState<LocalUsageDays | 'custom'>(30);
+  const [custom, setCustom] = useState({ start: '', end: '' });
   const [period, setPeriod] = useState<LocalUsagePeriod>('day');
-  const { view, failed } = useLocalUsage(active, days, period);
+  const range = days === 'custom' ? customRange(custom.start, custom.end) : { days };
+  const { view, failed } = useLocalUsage(active, range, period);
+  const openCustom = () => { if (view && !custom.start) setCustom({ start: view.startDate, end: view.endDate }); setDays('custom'); };
   return <section className="local-usage" aria-label="This device" data-local-usage>
     <div className="overview-hero-controls">
-      <div className="overview-chips" role="group" aria-label="Dates">{ranges.map(([value, label]) => <Button key={value} variant="ghost" aria-pressed={days === value} onClick={() => setDays(value)}>{label}</Button>)}</div>
+      <div className="overview-chips" role="group" aria-label="Dates">{ranges.map(([value, label]) => <Button key={value} variant="ghost" aria-pressed={days === value} onClick={() => setDays(value)}>{label}</Button>)}
+        <Button variant="ghost" aria-pressed={days === 'custom'} onClick={openCustom} data-local-custom>Custom</Button></div>
       <div className="overview-chips" role="group" aria-label="Grouping">{periods.map(([value, label]) => <Button key={value} variant="ghost" aria-pressed={period === value} onClick={() => setPeriod(value)}>{label}</Button>)}</div>
       {view && view.tools.length > 0 && <ShareButton />}
     </div>
+    {days === 'custom' && <div className="local-date-range" role="group" aria-label="Custom dates">
+      <label>From<input type="date" value={custom.start} max={custom.end || undefined} onChange={e => setCustom({ ...custom, start: e.target.value })} /></label>
+      <label>To<input type="date" value={custom.end} min={custom.start || undefined} onChange={e => setCustom({ ...custom, end: e.target.value })} /></label>
+      {!range && <p className="operation-error" role="alert">Choose a start and an end at most 366 days apart.</p>}
+    </div>}
     {failed && <p className="operation-error" role="alert">OpenUsage could not read saved local usage. Try again.</p>}
     {!view ? !failed && <p className="overview-dim" role="status">Loading…</p> : view.tools.length === 0 ? <div className="empty-state"><h3>No saved local usage for these dates</h3></div> : <>
       <div className="local-tool-grid">{view.tools.map(totals => <ToolCard key={totals.tool} totals={totals} view={view} />)}</div>
@@ -210,7 +226,7 @@ export function LocalUsagePanel({ active }: { active: boolean }) {
 
 /** The last 30 days on Overview, so first launch reaches local history with no sign-in (OU-UI-025). */
 export function LocalOverview({ active, onOpen }: { active: boolean; onOpen: () => void }) {
-  const { view } = useLocalUsage(active, 30, 'day');
+  const { view } = useLocalUsage(active, { days: 30 }, 'day');
   if (!view || view.tools.length === 0) return null;
   return <section className="local-overview" aria-labelledby="local-overview-heading" data-local-overview>
     <div className="overview-section-heading"><h2 id="local-overview-heading">This device</h2><span className="local-overview-range">Last 30 days</span><ShareButton /><Button variant="outline" onClick={onOpen} data-local-overview-open>Open in Usage</Button></div>

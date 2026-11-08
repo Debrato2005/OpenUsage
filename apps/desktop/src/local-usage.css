@@ -23,3 +23,7 @@
 .local-record span { color: var(--muted); font-size: .8125rem; }
 .local-record strong { font-family: var(--font-display); font-size: 1.5rem; font-weight: 600; letter-spacing: -.02em; }
 .local-record small { color: var(--muted); font-size: .8125rem; }
+.local-date-range { display: flex; flex-wrap: wrap; align-items: end; gap: .75rem; color: var(--muted); font-size: .8125rem; }
+.local-date-range label { display: grid; gap: .25rem; }
+.local-date-range input { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--line); border-radius: .5rem; padding: .4rem .5rem; min-width: 0; }
+.local-date-range .operation-error { flex-basis: 100%; margin: 0; }

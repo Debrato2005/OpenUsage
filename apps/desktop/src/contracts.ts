@@ -385,6 +385,8 @@ function isLocalLogsView(value: unknown): value is LocalLogsView {
 }
 export type LocalUsagePeriod = 'day' | 'week' | 'month';
 export type LocalUsageDays = 7 | 30 | 90 | 365;
+// A fixed range ending today, or a custom range of at most 366 days that Rust checks again (OU-LOG-017).
+export type LocalUsageRange = { days: LocalUsageDays } | { since: string; until: string };
 export type LocalToolTotals = { tool: LocalLogTool; inputTokens: string; outputTokens: string; cacheWriteTokens: string; cacheReadTokens: string; totalTokens: string; estimatedValueUsdMicros: string | null; estimateComplete: boolean; logsGone: boolean };
 export type LocalUsageView = {
   startDate: string; endDate: string; timeZone: string; scannerVersions: string[];
@@ -540,7 +542,7 @@ interface Commands {
   export_application_data: { args: { confirmed: true }; result: ApplicationExportReceipt };
   load_local_logs: { args: undefined; result: LocalLogsView };
   save_local_log_consent: { args: { tools: LocalLogTool[] }; result: LocalLogsView };
-  load_local_usage: { args: { days: LocalUsageDays; period: LocalUsagePeriod }; result: LocalUsageView };
+  load_local_usage: { args: LocalUsageRange & { period: LocalUsagePeriod }; result: LocalUsageView };
   load_share_image: { args: { kind: ShareKind; branding: boolean }; result: ShareImage };
   save_share_image: { args: { kind: ShareKind; branding: boolean; format: 'svg' | 'png'; png: string | null }; result: ShareReceipt };
 }

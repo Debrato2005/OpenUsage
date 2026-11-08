@@ -17,11 +17,43 @@ enum Period {
     Month,
 }
 
+/// A fixed range of `days` ending today, or a custom range from `since` to `until` (OU-LOG-017).
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct LoadArgs {
-    days: u16,
+    #[serde(default)]
+    days: Option<u16>,
+    #[serde(default)]
+    since: Option<String>,
+    #[serde(default)]
+    until: Option<String>,
     period: Period,
+}
+
+/// The longest custom range: one leap year of days.
+const MAX_CUSTOM_DAYS: i32 = 366;
+
+/// The first and last day of the requested range in the zone of the saved days.
+fn requested_range(args: &LoadArgs, today: Date) -> Option<(Date, Date)> {
+    let date = |text: &str| {
+        (text.len() == 10)
+            .then(|| text.parse::<Date>().ok())
+            .flatten()
+    };
+    match (args.days, args.since.as_deref(), args.until.as_deref()) {
+        (Some(days @ (7 | 30 | 90 | 365)), None, None) => Some((
+            today
+                .checked_sub(Span::new().days(i64::from(days) - 1))
+                .ok()?,
+            today,
+        )),
+        (None, Some(since), Some(until)) => {
+            let (start, end) = (date(since)?, date(until)?);
+            let length = start.until(end).ok()?.get_days() + 1;
+            (start <= end && end <= today && length <= MAX_CUSTOM_DAYS).then_some((start, end))
+        }
+        _ => None,
+    }
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
@@ -347,16 +379,12 @@ pub async fn load_local_usage(
     service: State<'_, WorkspaceService>,
 ) -> Result<LocalUsageView, CommandError> {
     let args: LoadArgs = arguments(&request)?;
-    if !matches!(args.days, 7 | 30 | 90 | 365) {
-        return Err(CommandError::InvalidArguments);
-    }
     crate::subscriptions::access(service, move |workspace| {
         let zone = workspace.local_usage_zone()?;
         let tz = TimeZone::get(&zone).map_err(|_| CommandError::StorageUnavailable)?;
-        let today = jiff::Timestamp::now().to_zoned(tz.clone()).date();
-        let start = today
-            .checked_sub(Span::new().days(i64::from(args.days) - 1))
-            .map_err(|_| CommandError::InvalidArguments)?;
+        let today_in_zone = jiff::Timestamp::now().to_zoned(tz.clone()).date();
+        let (start, today) =
+            requested_range(&args, today_in_zone).ok_or(CommandError::InvalidArguments)?;
         let next = today
             .checked_add(Span::new().days(1))
             .map_err(|_| CommandError::InvalidArguments)?;
@@ -454,6 +482,48 @@ mod tests {
             },
             scanner_version: "20.0.48".into(),
         }
+    }
+
+    #[test]
+    fn fixed_and_custom_ranges_are_checked() {
+        let today: Date = "2026-11-08".parse().unwrap();
+        let args = |days: Option<u16>, since: Option<&str>, until: Option<&str>| LoadArgs {
+            days,
+            since: since.map(Into::into),
+            until: until.map(Into::into),
+            period: Period::Day,
+        };
+        let range =
+            |a: LoadArgs| requested_range(&a, today).map(|(s, e)| (s.to_string(), e.to_string()));
+        assert_eq!(
+            range(args(Some(7), None, None)),
+            Some(("2026-11-02".into(), "2026-11-08".into()))
+        );
+        assert_eq!(range(args(Some(8), None, None)), None);
+        assert_eq!(
+            range(args(None, Some("2025-11-08"), Some("2026-11-08"))),
+            Some(("2025-11-08".into(), "2026-11-08".into())),
+            "366 days is the longest custom range."
+        );
+        for (since, until) in [
+            ("2025-11-07", "2026-11-08"), // 367 days
+            ("2026-11-05", "2026-11-04"), // backwards
+            ("2026-11-05", "2026-11-09"), // ends after today
+            ("2026-2-01", "2026-11-04"),  // not YYYY-MM-DD
+            ("2026-02-30", "2026-11-04"), // no such day
+        ] {
+            assert_eq!(
+                range(args(None, Some(since), Some(until))),
+                None,
+                "{since} to {until}"
+            );
+        }
+        assert_eq!(
+            range(args(Some(7), Some("2026-11-01"), Some("2026-11-02"))),
+            None,
+            "Both forms at once."
+        );
+        assert_eq!(range(args(None, Some("2026-11-01"), None)), None);
     }
 
     #[test]
