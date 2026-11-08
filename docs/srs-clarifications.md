@@ -38,6 +38,8 @@ OU-DUP-004 places within-tool replay and fork handling in ccusage. AT-65 require
 
 Amp remains disabled. An upgrade alone does not resolve this gap. A fix needs review and new fixture qualification before it can enter the release pin. On November 8, 2026, the owner approved downloads of pinned source and missing locked build dependencies to prepare and test the fix. The owner also replaced the blanket download restriction in the slice rules. This approval does not authorize an upstream message, pull request, or publication.
 
+A local candidate now passes the stable-ID copy and failure cases. The [candidate record](reviews/2026-11-08-amp-dedup-design.md#local-candidate-after-review) holds its evidence and remaining gates. This does not qualify Amp or replace the release pin.
+
 See the [executed fixture](../tests/tools/test_ccusage_formats.py) and the [upstream review](reviews/2026-11-08-ccusage-duplicate-handling.md).
 
 ## SC-022: incomplete metrics from the other local tools

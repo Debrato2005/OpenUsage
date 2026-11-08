@@ -1,0 +1,978 @@
+diff --git a/docs/guide/amp/index.md b/docs/guide/amp/index.md
+index e1e578e..1901003 100644
+--- a/docs/guide/amp/index.md
++++ b/docs/guide/amp/index.md
+@@ -60,6 +60,14 @@ These views support `--json` for structured output, `--compact` for narrow termi
+ | `AMP_DATA_DIR` | Override the root directory, or comma-separated root directories, containing Amp data |
+ | `LOG_LEVEL`    | Adjust verbosity (0 silent ... 5 trace)                                               |
+ 
++## Duplicate snapshots
++
++Matching event or message IDs within one thread count once when their usage fields agree. All selected roots take part in that check. Numeric and string message IDs stay distinct. Ledger cache attachments must also agree.
++
++Conflicting usage, overlapping snapshots without stable IDs, or mixed ledger/message snapshots fail the Amp report. One snapshot without IDs still works. The loader does not choose a winner from file order, modification time, or the greatest count. Different thread IDs stay separate. This does not resolve copied fork history across threads.
++
++The scan fails when selected files or folders cannot be read. Damaged JSON and usage without a thread ID also fail. Valid metadata without usage remains skippable. An absent default Amp folder returns no usage. Each explicit root must exist and be a directory. A non-UTF-8 root setting fails instead of selecting the default home.
++
+ ## Troubleshooting
+ 
+ ::: details No Amp usage data found
+diff --git a/rust/adapters/amp/src/lib.rs b/rust/adapters/amp/src/lib.rs
+index db04a1f..5f5f6ee 100644
+--- a/rust/adapters/amp/src/lib.rs
++++ b/rust/adapters/amp/src/lib.rs
+@@ -1,6 +1,4 @@
+-use ccusage_adapter_common::{
+-    collect_files_with_extension, filter_loaded_entries_by_date, read_files_parallel,
+-};
++use ccusage_adapter_common::{filter_loaded_entries_by_date, read_files_parallel};
+ use ccusage_core::*;
+ 
+ mod loader;
+diff --git a/rust/adapters/amp/src/loader.rs b/rust/adapters/amp/src/loader.rs
+index 31cdf8e..f62908b 100644
+--- a/rust/adapters/amp/src/loader.rs
++++ b/rust/adapters/amp/src/loader.rs
+@@ -1,10 +1,18 @@
++use std::{
++    fs,
++    io::ErrorKind,
++    path::{Path, PathBuf},
++};
++
+ use crate::{
+-    LoadedEntry, PricingMap, Result, cli::SharedArgs, collect_files_with_extension, debug_log,
+-    parse_tz, read_files_parallel,
++    LoadedEntry, PricingMap, Result, cli::SharedArgs, cli_error, parse_tz, read_files_parallel,
+ };
+ 
+ use super::{parser, paths};
+ 
++#[cfg(test)]
++mod tests;
++
+ pub fn load_entries(shared: &SharedArgs, pricing: &PricingMap) -> Result<Vec<LoadedEntry>> {
+     crate::progress::track_usage_load(crate::progress::UsageLoadAgent("Amp"), shared.json, || {
+         load_entries_inner(shared, pricing)
+@@ -12,27 +20,51 @@ pub fn load_entries(shared: &SharedArgs, pricing: &PricingMap) -> Result<Vec<Loa
+ }
+ 
+ fn load_entries_inner(shared: &SharedArgs, pricing: &PricingMap) -> Result<Vec<LoadedEntry>> {
+-    let mut entries = Vec::new();
+     let tz = parse_tz(shared.timezone.as_deref());
++    let mut files = Vec::new();
+     for path in paths::paths()? {
+-        let threads_dir = path.join("threads");
+-        let mut files = Vec::new();
+-        collect_files_with_extension(&threads_dir, "json", &mut files);
+-        let per_file = read_files_parallel(&files, shared.single_thread, |file| {
+-            parser::read_thread_file(file, tz.as_ref(), shared.mode, Some(pricing)).unwrap_or_else(
+-                |error| {
+-                    debug_log(
+-                        shared,
+-                        format!("Failed to read Amp thread file {}: {error}", file.display()),
+-                    );
+-                    Vec::new()
+-                },
+-            )
+-        });
+-        for file_entries in per_file {
+-            entries.extend(file_entries);
++        collect_thread_files(&path.join("threads"), &mut files, true)?;
++    }
++    files.sort();
++    files.dedup();
++    let snapshots = read_files_parallel(&files, shared.single_thread, |file| {
++        parser::read_snapshot(file)
++    })
++    .into_iter()
++    .collect::<Result<Vec<_>>>()?;
++    parser::parse_snapshots(
++        snapshots.into_iter().flatten().collect(),
++        tz.as_ref(),
++        shared.mode,
++        Some(pricing),
++    )
++}
++
++fn collect_thread_files(
++    directory: &Path,
++    files: &mut Vec<PathBuf>,
++    allow_absent: bool,
++) -> Result<()> {
++    let entries = match fs::read_dir(directory) {
++        Ok(entries) => entries,
++        Err(error) if allow_absent && error.kind() == ErrorKind::NotFound => return Ok(()),
++        Err(_) => return Err(cli_error("Amp thread directory could not be read")),
++    };
++    for entry in entries {
++        let entry = entry.map_err(|_| cli_error("Amp thread directory entry could not be read"))?;
++        let kind = entry
++            .file_type()
++            .map_err(|_| cli_error("Amp thread file type could not be read"))?;
++        if kind.is_dir() {
++            collect_thread_files(&entry.path(), files, false)?;
++        } else if kind.is_file()
++            && entry
++                .path()
++                .extension()
++                .is_some_and(|extension| extension == "json")
++        {
++            files.push(entry.path());
+         }
+     }
+-    entries.sort_by_key(|entry| entry.timestamp);
+-    Ok(entries)
++    Ok(())
+ }
+diff --git a/rust/adapters/amp/src/parser.rs b/rust/adapters/amp/src/parser.rs
+index fa14498..af50cfb 100644
+--- a/rust/adapters/amp/src/parser.rs
++++ b/rust/adapters/amp/src/parser.rs
+@@ -4,6 +4,8 @@ use jiff::tz::TimeZone as JiffTimeZone;
+ use serde::Deserialize;
+ use serde_json::Value;
+ 
++mod dedup;
++
+ use crate::{
+     LoadedEntry, PricingMap, Result, TokenUsageRaw, UsageEntry, UsageMessage,
+     apply_total_token_fallback, calculate_cost, cli::CostMode, format_date_tz, json_value_u64,
+@@ -16,9 +18,9 @@ use crate::{
+ /// Polymorphic and leniency-sensitive leaves (token blocks, ids, credits) stay
+ /// as raw [`Value`]s so navigation matches the historical `Value::get` parsing
+ /// exactly instead of failing the whole file on an unexpected field type.
+-#[derive(Debug, Default, Deserialize)]
++#[derive(Debug, Default, Deserialize, PartialEq)]
+ #[serde(rename_all = "camelCase")]
+-struct AmpThread {
++pub(crate) struct AmpThread {
+     #[serde(
+         default,
+         deserialize_with = "ccusage_adapter_common::jsonl::non_empty_string"
+@@ -37,7 +39,7 @@ struct AmpThread {
+ }
+ 
+ /// Wrapper around the ledger's `events` array.
+-#[derive(Debug, Default, Deserialize)]
++#[derive(Debug, Default, Deserialize, PartialEq)]
+ struct AmpUsageLedger {
+     #[serde(
+         default,
+@@ -47,7 +49,7 @@ struct AmpUsageLedger {
+ }
+ 
+ /// A single ledger event carrying token counts and pricing metadata.
+-#[derive(Debug, Default, Deserialize)]
++#[derive(Debug, Default, Deserialize, PartialEq)]
+ #[serde(rename_all = "camelCase")]
+ struct AmpLedgerEvent {
+     #[serde(default)]
+@@ -71,7 +73,7 @@ struct AmpLedgerEvent {
+ }
+ 
+ /// A single chat message in the thread.
+-#[derive(Debug, Default, Deserialize)]
++#[derive(Debug, Default, Deserialize, PartialEq)]
+ #[serde(rename_all = "camelCase")]
+ struct AmpMessage {
+     #[serde(default)]
+@@ -92,30 +94,77 @@ pub fn read_thread_file(
+     mode: CostMode,
+     pricing: Option<&PricingMap>,
+ ) -> Result<Vec<LoadedEntry>> {
+-    let content = fs::read(path)?;
+-    let Ok(thread) = serde_json::from_slice::<AmpThread>(&content) else {
+-        return Ok(Vec::new());
+-    };
+-    let Some(thread_id) = thread.id else {
+-        return Ok(Vec::new());
+-    };
+-    let messages = &thread.messages;
+-
+-    if let Some(ledger) = thread.usage_ledger.as_ref()
+-        && let Some(events) = ledger.events.as_ref()
+-    {
+-        let cache_tokens = cache_tokens_by_message_id(messages);
+-        return Ok(parse_ledger_events(
+-            events,
+-            &cache_tokens,
+-            &thread_id,
+-            tz,
+-            mode,
+-            pricing,
+-        ));
++    parse_snapshots(
++        read_snapshot(path)?.into_iter().collect(),
++        tz,
++        mode,
++        pricing,
++    )
++}
++
++pub(crate) fn read_snapshot(path: &Path) -> Result<Option<AmpThread>> {
++    let content =
++        fs::read(path).map_err(|_| crate::cli_error("Amp thread file could not be read"))?;
++    let thread: AmpThread = serde_json::from_slice(&content)
++        .map_err(|_| crate::cli_error("Amp thread file could not be parsed"))?;
++    if thread.id.is_some() {
++        return Ok(Some(thread));
++    }
++    let has_usage = thread
++        .usage_ledger
++        .as_ref()
++        .and_then(|ledger| ledger.events.as_ref())
++        .is_some_and(|events| !events.is_empty())
++        || thread
++            .messages
++            .iter()
++            .any(|message| message.usage.as_ref().is_some_and(|usage| !usage.is_null()));
++    if has_usage {
++        return Err(crate::cli_error("Amp usage has no thread identity"));
+     }
++    Ok(None)
++}
+ 
+-    Ok(parse_message_usage(messages, &thread_id, tz, mode, pricing))
++pub(crate) fn parse_snapshots(
++    snapshots: Vec<AmpThread>,
++    tz: Option<&JiffTimeZone>,
++    mode: CostMode,
++    pricing: Option<&PricingMap>,
++) -> Result<Vec<LoadedEntry>> {
++    let mut entries = Vec::new();
++    for thread in dedup::merge(snapshots)? {
++        let thread_id = thread.id.as_deref().expect("merged threads have IDs");
++        if let Some(events) = thread
++            .usage_ledger
++            .as_ref()
++            .and_then(|ledger| ledger.events.as_ref())
++        {
++            let cache_tokens = cache_tokens_by_message_id(&thread.messages);
++            entries.extend(parse_ledger_events(
++                events,
++                &cache_tokens,
++                thread_id,
++                tz,
++                mode,
++                pricing,
++            ));
++        } else {
++            entries.extend(parse_message_usage(
++                &thread.messages,
++                thread_id,
++                tz,
++                mode,
++                pricing,
++            ));
++        }
++    }
++    entries.sort_by(|a, b| {
++        a.timestamp
++            .cmp(&b.timestamp)
++            .then_with(|| a.session_id.cmp(&b.session_id))
++            .then_with(|| a.data.message.id.cmp(&b.data.message.id))
++    });
++    Ok(entries)
+ }
+ 
+ fn parse_ledger_events(
+diff --git a/rust/adapters/amp/src/paths.rs b/rust/adapters/amp/src/paths.rs
+index 4e621e7..79d9f8d 100644
+--- a/rust/adapters/amp/src/paths.rs
++++ b/rust/adapters/amp/src/paths.rs
+@@ -1,4 +1,4 @@
+-use std::{collections::HashSet, env, path::PathBuf};
++use std::{collections::HashSet, env, fs, io::ErrorKind, path::PathBuf};
+ 
+ use crate::Result;
+ 
+@@ -7,14 +7,24 @@ const AMP_DATA_DIR_ENV: &str = "AMP_DATA_DIR";
+ pub(super) fn paths() -> Result<Vec<PathBuf>> {
+     let mut paths = Vec::new();
+     let mut seen = HashSet::new();
+-    if let Ok(env_paths) = env::var(AMP_DATA_DIR_ENV) {
++    if let Some(env_paths) = env::var_os(AMP_DATA_DIR_ENV) {
++        let env_paths = env_paths
++            .into_string()
++            .map_err(|_| crate::cli_error("Amp data directory setting must be UTF-8"))?;
+         for raw in env_paths
+             .split(',')
+             .map(str::trim)
+             .filter(|path| !path.is_empty())
+         {
+             let path = PathBuf::from(raw);
+-            if path.is_dir() && seen.insert(path.clone()) {
++            let metadata = fs::metadata(&path)
++                .map_err(|_| crate::cli_error("Amp selected data directory could not be read"))?;
++            if !metadata.is_dir() {
++                return Err(crate::cli_error(
++                    "Amp selected data path is not a directory",
++                ));
++            }
++            if seen.insert(path.clone()) {
+                 paths.push(path);
+             }
+         }
+@@ -24,8 +34,14 @@ pub(super) fn paths() -> Result<Vec<PathBuf>> {
+     let home =
+         crate::home::home_dir().ok_or_else(|| crate::cli_error("home directory is not set"))?;
+     let path = home.join(".local/share/amp");
+-    if path.is_dir() && seen.insert(path.clone()) {
+-        paths.push(path);
++    match fs::metadata(&path) {
++        Ok(metadata) if metadata.is_dir() => paths.push(path),
++        Err(error) if error.kind() == ErrorKind::NotFound => {}
++        _ => {
++            return Err(crate::cli_error(
++                "Amp default data directory could not be read",
++            ));
++        }
+     }
+     Ok(paths)
+ }
+diff --git a/rust/adapters/amp/src/loader/tests.rs b/rust/adapters/amp/src/loader/tests.rs
+new file mode 100644
+index 0000000..fae4469
+--- /dev/null
++++ b/rust/adapters/amp/src/loader/tests.rs
+@@ -0,0 +1,430 @@
++use super::*;
++use ccusage_test_support::{EnvVarsGuard, Fixture};
++use serde_json::{Value, json};
++
++fn event(id: &str) -> Value {
++    json!({"id":id,"timestamp":"2026-01-02T03:04:05.000Z",
++        "model":"claude-sonnet-4-20250514", "tokens":{"input":120,"output":30,"total":162},
++        "toMessageId":1,"credits":1.25})
++}
++
++fn ledger(id: &str, events: Vec<Value>) -> Value {
++    json!({"id":id,"usageLedger":{"events":events}, "messages":[{
++        "role":"assistant", "messageId":1,
++        "usage":{"cacheCreationInputTokens":5,"cacheReadInputTokens":7}
++    }]})
++}
++
++fn scan(snapshots: &[Value], single_thread: bool) -> Result<Vec<LoadedEntry>> {
++    scan_roots(snapshots, single_thread, false)
++}
++
++fn scan_roots(
++    snapshots: &[Value],
++    single_thread: bool,
++    separate_roots: bool,
++) -> Result<Vec<LoadedEntry>> {
++    let texts = snapshots.iter().map(Value::to_string).collect::<Vec<_>>();
++    scan_texts(&texts, single_thread, separate_roots)
++}
++
++fn scan_texts(
++    texts: &[String],
++    single_thread: bool,
++    separate_roots: bool,
++) -> Result<Vec<LoadedEntry>> {
++    let fixture = Fixture::new();
++    let mut roots = std::collections::BTreeSet::new();
++    let mut sources = Vec::new();
++    let home = fixture.create_dir_all("home");
++    for (index, text) in texts.iter().enumerate() {
++        let root = if separate_roots { index } else { 0 };
++        let source = fixture.create_dir_all(format!("source-{root}"));
++        roots.insert(source.display().to_string());
++        let file = fixture.write_file(format!("source-{root}/threads/{index}.json"), text);
++        sources.push((file, text.clone()));
++    }
++    let _env = EnvVarsGuard::set_many([
++        (
++            "AMP_DATA_DIR",
++            Some(roots.into_iter().collect::<Vec<_>>().join(",").into()),
++        ),
++        ("HOME", Some(home.into_os_string())),
++    ]);
++    let result = load_entries(
++        &SharedArgs {
++            json: true,
++            single_thread,
++            offline: true,
++            timezone: Some("UTC".into()),
++            mode: crate::cli::CostMode::Calculate,
++            ..SharedArgs::default()
++        },
++        &PricingMap::default(),
++    );
++    for (path, expected) in sources {
++        assert_eq!(std::fs::read_to_string(path).unwrap(), expected);
++    }
++    assert_eq!(std::fs::read_dir(fixture.path("home")).unwrap().count(), 0);
++    result
++}
++
++fn total(entries: &[LoadedEntry]) -> u64 {
++    entries
++        .iter()
++        .map(|entry| {
++            let usage = entry.data.message.usage;
++            usage.input_tokens
++                + usage.output_tokens
++                + usage.cache_creation_input_tokens
++                + usage.cache_read_input_tokens
++                + entry.extra_total_tokens
++        })
++        .sum()
++}
++
++#[test]
++fn copied_thread_counts_once() {
++    let snapshot = ledger("thread-a", vec![event("event-a")]);
++    let entries = scan(&[snapshot.clone(), snapshot], false).unwrap();
++    assert_eq!(total(&entries), 162);
++}
++
++#[test]
++fn a_later_snapshot_cannot_supply_cache_for_an_earlier_missing_join() {
++    let mut first = ledger("thread-a", vec![event("event-a")]);
++    first["messages"] = json!([]);
++    let later = ledger("thread-a", vec![event("event-b")]);
++    assert!(scan(&[first, later], false).is_err());
++}
++
++#[test]
++fn copied_threads_across_roots_count_once() {
++    let snapshot = ledger("thread-a", vec![event("a")]);
++    assert_eq!(
++        total(&scan_roots(&[snapshot.clone(), snapshot], false, true).unwrap()),
++        162
++    );
++}
++
++#[test]
++fn growing_and_partially_overlapping_snapshots_form_one_union() {
++    let old = ledger("thread-a", vec![event("a"), event("b")]);
++    for newer in [
++        vec![event("a"), event("b"), event("c")],
++        vec![event("b"), event("c")],
++    ] {
++        let new = ledger("thread-a", newer);
++        assert_eq!(total(&scan(&[old.clone(), new], false).unwrap()), 486);
++    }
++}
++
++#[test]
++fn repeated_event_within_one_snapshot_counts_once() {
++    let snapshot = ledger("thread-a", vec![event("a"), event("a")]);
++    assert_eq!(total(&scan(&[snapshot], false).unwrap()), 162);
++}
++
++#[test]
++fn different_threads_and_different_event_ids_keep_equal_usage() {
++    assert_eq!(
++        total(
++            &scan(
++                &[
++                    ledger("first", vec![event("a")]),
++                    ledger("second", vec![event("a")]),
++                ],
++                false
++            )
++            .unwrap()
++        ),
++        324
++    );
++    assert_eq!(
++        total(&scan(&[ledger("first", vec![event("a"), event("b")])], false).unwrap()),
++        324
++    );
++}
++
++#[test]
++fn conflicting_payloads_fail_in_both_orders() {
++    let first = ledger("thread-a", vec![event("a")]);
++    let changes: &[fn(&mut Value)] = &[
++        |v| v["usageLedger"]["events"][0]["tokens"]["output"] = 31.into(),
++        |v| v["usageLedger"]["events"][0]["model"] = "other-model".into(),
++        |v| v["usageLedger"]["events"][0]["timestamp"] = "2026-01-03T03:04:05.000Z".into(),
++        |v| v["usageLedger"]["events"][0]["credits"] = 2.into(),
++        |v| v["messages"][0]["usage"]["cacheReadInputTokens"] = 8.into(),
++        |v| {
++            v["messages"] = json!([]);
++        },
++    ];
++    for change in changes {
++        let mut next = first.clone();
++        change(&mut next);
++        for single in [false, true] {
++            let forward = scan(&[first.clone(), next.clone()], single)
++                .unwrap_err()
++                .to_string();
++            let reverse = scan(&[next.clone(), first.clone()], single)
++                .unwrap_err()
++                .to_string();
++            assert_eq!(forward, reverse);
++        }
++    }
++}
++
++#[test]
++fn missing_counts_and_explicit_zero_do_not_prove_equal_payloads() {
++    let mut first = ledger("thread-a", vec![event("a")]);
++    first["usageLedger"]["events"][0]["tokens"]
++        .as_object_mut()
++        .unwrap()
++        .remove("output");
++    let mut next = first.clone();
++    next["usageLedger"]["events"][0]["tokens"]["output"] = 0.into();
++    assert!(scan(&[first, next], false).is_err());
++}
++
++fn messages(id: &str, ids: &[Value]) -> Value {
++    json!({"id":id, "messages":ids.iter().map(|id| json!({
++        "role":"assistant","messageId":id,
++        "usage":{"timestamp":"2026-01-02T03:04:05.000Z", "model":"claude-sonnet-4-20250514",
++            "inputTokens":120,"outputTokens":30,"cacheCreationInputTokens":5,"cacheReadInputTokens":7}
++    })).collect::<Vec<_>>()})
++}
++
++#[test]
++fn message_ids_keep_their_source_type_and_duplicates_count_once() {
++    let first = messages("thread-a", &[json!(7), json!("7")]);
++    assert_eq!(total(&scan(&[first.clone(), first], false).unwrap()), 324);
++}
++
++#[test]
++fn conflicting_message_snapshots_fail() {
++    let first = messages("thread-a", &[json!(7)]);
++    let mut next = first.clone();
++    next["messages"][0]["usage"]["inputTokens"] = 121.into();
++    assert!(scan(&[first, next], false).is_err());
++}
++
++#[test]
++fn missing_id_overlaps_fail_but_one_snapshot_still_parses() {
++    for snapshot in [messages("thread-a", &[Value::Null]), {
++        let mut value = ledger("thread-a", vec![event("a")]);
++        value["usageLedger"]["events"][0]
++            .as_object_mut()
++            .unwrap()
++            .remove("id");
++        value
++    }] {
++        assert_eq!(
++            total(&scan(std::slice::from_ref(&snapshot), false).unwrap()),
++            162
++        );
++        assert!(scan(&[snapshot.clone(), snapshot], false).is_err());
++    }
++}
++
++#[test]
++fn ledger_and_message_snapshots_of_one_thread_are_not_added() {
++    assert!(
++        scan(
++            &[
++                ledger("thread-a", vec![event("a")]),
++                messages("thread-a", &[json!(1)])
++            ],
++            false
++        )
++        .is_err()
++    );
++}
++
++#[test]
++fn conflicting_cache_messages_in_one_snapshot_fail() {
++    let mut snapshot = ledger("thread-a", vec![event("a")]);
++    let mut copy = snapshot["messages"][0].clone();
++    copy["usage"]["cacheReadInputTokens"] = 8.into();
++    snapshot["messages"].as_array_mut().unwrap().push(copy);
++    assert!(scan(&[snapshot], false).is_err());
++}
++
++#[test]
++fn unreferenced_cache_does_not_attach_to_another_snapshot() {
++    let mut first = ledger("thread-a", vec![event("a")]);
++    first["messages"] = json!([]);
++    let later = ledger("thread-a", vec![]);
++    let entries = scan(&[first, later], false).unwrap();
++    assert_eq!(total(&entries), 162);
++    assert_eq!(entries[0].data.message.usage.cache_read_input_tokens, 0);
++    assert_eq!(entries[0].extra_total_tokens, 12);
++}
++
++#[test]
++fn report_totals_and_order_match_across_roots_and_loading_modes() {
++    use crate::cli::AgentReportKind;
++    let a = ledger("thread-a", vec![event("a"), event("b")]);
++    let b = ledger("thread-a", vec![event("b"), event("c")]);
++    let c = ledger("thread-b", vec![event("a")]);
++    for kind in [
++        AgentReportKind::Daily,
++        AgentReportKind::Weekly,
++        AgentReportKind::Monthly,
++        AgentReportKind::Session,
++    ] {
++        let report = |values: &[Value], single, roots| {
++            let entries = scan_roots(values, single, roots).unwrap();
++            crate::report_from_rows(&crate::summarize_entries(&entries, kind).unwrap(), kind)
++        };
++        let expected = report(&[a.clone(), b.clone(), c.clone()], true, false);
++        assert_eq!(expected["totals"]["totalTokens"], 648);
++        for single in [false, true] {
++            assert_eq!(
++                report(&[c.clone(), b.clone(), a.clone()], single, true),
++                expected
++            );
++        }
++    }
++}
++
++#[test]
++fn rejects_truncated_snapshots_instead_of_returning_survivors() {
++    let valid = ledger("thread-a", vec![event("a")]).to_string();
++    for malformed in ["{", "[", "\"private-content\""] {
++        for single in [false, true] {
++            for texts in [
++                vec![malformed.into()],
++                vec![valid.clone(), malformed.into()],
++            ] {
++                let error = scan_texts(&texts, single, false).unwrap_err();
++                assert!(!error.to_string().contains("private-content"));
++            }
++        }
++    }
++}
++
++#[test]
++fn rejects_usage_without_a_thread_identity() {
++    let valid = ledger("thread-a", vec![event("a")]);
++    let mut unknown = ledger("unknown", vec![event("b")]);
++    unknown.as_object_mut().unwrap().remove("id");
++    for single in [false, true] {
++        assert!(scan(&[valid.clone(), unknown.clone()], single).is_err());
++    }
++}
++
++#[cfg(unix)]
++#[test]
++fn rejects_unreadable_files_and_subdirectories() {
++    use std::os::unix::fs::PermissionsExt;
++    for directory in [false, true] {
++        let fixture = Fixture::new();
++        let source = fixture.create_dir_all("source");
++        let home = fixture.create_dir_all("home");
++        let content = ledger("thread-a", vec![event("a")]).to_string();
++        let _ = fixture.write_file("source/threads/old.json", &content);
++        let newer = fixture.write_file("source/threads/new/next.json", &content);
++        let denied = if directory {
++            newer.parent().unwrap().to_owned()
++        } else {
++            newer
++        };
++        std::fs::set_permissions(&denied, std::fs::Permissions::from_mode(0o0)).unwrap();
++        let _env = EnvVarsGuard::set_many([
++            ("AMP_DATA_DIR", Some(source.into_os_string())),
++            ("HOME", Some(home.into_os_string())),
++        ]);
++        let result = load_entries(
++            &SharedArgs {
++                json: true,
++                offline: true,
++                ..SharedArgs::default()
++            },
++            &PricingMap::default(),
++        );
++        std::fs::set_permissions(
++            &denied,
++            std::fs::Permissions::from_mode(if directory { 0o700 } else { 0o600 }),
++        )
++        .unwrap();
++        assert!(result.is_err());
++    }
++}
++
++#[test]
++fn metadata_without_usage_or_identity_remains_skippable() {
++    let valid = ledger("thread-a", vec![event("a")]);
++    for single in [false, true] {
++        assert_eq!(
++            total(&scan(&[valid.clone(), json!({"title":"metadata"})], single).unwrap()),
++            162
++        );
++        assert!(
++            scan(&[json!({"title":"metadata"})], single)
++                .unwrap()
++                .is_empty()
++        );
++    }
++}
++
++#[test]
++fn invalid_explicit_roots_fail_instead_of_leaving_survivors() {
++    let fixture = Fixture::new();
++    let root = fixture.create_dir_all("root");
++    let home = fixture.create_dir_all("home");
++    let _ = fixture.write_file(
++        "root/threads/thread.json",
++        ledger("a", vec![event("a")]).to_string(),
++    );
++    let file = fixture.write_file("file", "not a directory");
++    for invalid in [fixture.path("missing"), file] {
++        let _env = EnvVarsGuard::set_many([
++            (
++                "AMP_DATA_DIR",
++                Some(format!("{},{}", root.display(), invalid.display()).into()),
++            ),
++            ("HOME", Some(home.clone().into_os_string())),
++        ]);
++        assert!(
++            load_entries(
++                &SharedArgs {
++                    json: true,
++                    offline: true,
++                    ..SharedArgs::default()
++                },
++                &PricingMap::default()
++            )
++            .is_err()
++        );
++    }
++}
++
++#[cfg(unix)]
++#[test]
++fn non_utf8_override_does_not_fall_back_to_default_home() {
++    use std::os::unix::ffi::OsStringExt;
++    let fixture = Fixture::new();
++    let home = fixture.create_dir_all("home");
++    let _ = fixture.write_file(
++        "home/.local/share/amp/threads/thread.json",
++        ledger("a", vec![event("a")]).to_string(),
++    );
++    let _env = EnvVarsGuard::set_many([
++        (
++            "AMP_DATA_DIR",
++            Some(std::ffi::OsString::from_vec(vec![0xff])),
++        ),
++        ("HOME", Some(home.into_os_string())),
++    ]);
++    assert!(
++        load_entries(
++            &SharedArgs {
++                json: true,
++                offline: true,
++                ..SharedArgs::default()
++            },
++            &PricingMap::default()
++        )
++        .is_err()
++    );
++}
+diff --git a/rust/adapters/amp/src/parser/dedup.rs b/rust/adapters/amp/src/parser/dedup.rs
+new file mode 100644
+index 0000000..527b9f3
+--- /dev/null
++++ b/rust/adapters/amp/src/parser/dedup.rs
+@@ -0,0 +1,203 @@
++use std::collections::{BTreeMap, BTreeSet, btree_map::Entry};
++
++use super::{AmpLedgerEvent, AmpMessage, AmpThread, AmpUsageLedger, Value};
++use crate::{Result, cli_error, non_empty_json_string};
++
++#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
++enum SourceId {
++    Number(i64),
++    Text(String),
++}
++
++fn message_id(value: Option<&Value>) -> Option<SourceId> {
++    let value = value?;
++    value.as_i64().map(SourceId::Number).or_else(|| {
++        value
++            .as_str()
++            .filter(|text| !text.is_empty())
++            .map(|text| SourceId::Text(text.into()))
++    })
++}
++
++#[derive(Default)]
++struct Records<T> {
++    known: BTreeMap<SourceId, T>,
++    anonymous: Vec<T>,
++}
++
++impl<T> Records<T> {
++    fn insert(
++        &mut self,
++        id: Option<SourceId>,
++        value: T,
++        equal: impl FnOnce(&T, &T) -> bool,
++    ) -> Result<()> {
++        let Some(id) = id else {
++            self.anonymous.push(value);
++            return Ok(());
++        };
++        match self.known.entry(id) {
++            Entry::Vacant(entry) => {
++                entry.insert(value);
++            }
++            Entry::Occupied(entry) if !equal(entry.get(), &value) => {
++                return Err(cli_error("conflicting Amp usage for one source identity"));
++            }
++            Entry::Occupied(_) => {}
++        }
++        Ok(())
++    }
++
++    fn finish(self) -> Vec<T> {
++        self.known.into_values().chain(self.anonymous).collect()
++    }
++}
++
++#[derive(Clone, Copy, PartialEq, Eq)]
++enum Kind {
++    Ledger,
++    Messages,
++}
++
++#[derive(PartialEq)]
++struct CacheAttachment {
++    write: Option<Value>,
++    read: Option<Value>,
++}
++
++struct Group {
++    kind: Kind,
++    seen: bool,
++    cache_joins: BTreeMap<i64, Option<CacheAttachment>>,
++    events: Records<AmpLedgerEvent>,
++    messages: Records<AmpMessage>,
++}
++
++fn cache(message: &AmpMessage) -> (Option<&Value>, Option<&Value>) {
++    let usage = message.usage.as_ref();
++    (
++        usage.and_then(|value| value.get("cacheCreationInputTokens")),
++        usage.and_then(|value| value.get("cacheReadInputTokens")),
++    )
++}
++
++impl Group {
++    fn insert(&mut self, thread: AmpThread) -> Result<()> {
++        let events = thread.usage_ledger.and_then(|ledger| ledger.events);
++        let kind = if events.is_some() {
++            Kind::Ledger
++        } else {
++            Kind::Messages
++        };
++        if self.kind != kind {
++            return Err(cli_error("Amp thread mixes ledger and message snapshots"));
++        }
++        match kind {
++            Kind::Ledger => {
++                let mut local_cache = Records::<AmpMessage>::default();
++                for message in thread.messages {
++                    if message.role.as_ref().and_then(Value::as_str) == Some("assistant")
++                        && let Some(id) = message.message_id.as_ref().and_then(Value::as_i64)
++                    {
++                        local_cache.insert(Some(SourceId::Number(id)), message, |a, b| {
++                            cache(a) == cache(b)
++                        })?;
++                    }
++                }
++                let mut referenced = BTreeSet::new();
++                for event in events.into_iter().flatten() {
++                    if let Some(id) = event.to_message_id.as_ref().and_then(Value::as_i64) {
++                        let attached =
++                            local_cache.known.get(&SourceId::Number(id)).map(|message| {
++                                let (write, read) = cache(message);
++                                CacheAttachment {
++                                    write: write.cloned(),
++                                    read: read.cloned(),
++                                }
++                            });
++                        match self.cache_joins.entry(id) {
++                            Entry::Vacant(entry) => {
++                                entry.insert(attached);
++                            }
++                            Entry::Occupied(entry) if entry.get() != &attached => {
++                                return Err(cli_error(
++                                    "conflicting Amp cache attachment across snapshots",
++                                ));
++                            }
++                            Entry::Occupied(_) => {}
++                        }
++                        referenced.insert(id);
++                    }
++                    let id = non_empty_json_string(event.id.as_ref()).map(SourceId::Text);
++                    self.events.insert(id, event, PartialEq::eq)?;
++                }
++                for id in referenced {
++                    if let Some(message) = local_cache.known.remove(&SourceId::Number(id)) {
++                        self.messages
++                            .insert(Some(SourceId::Number(id)), message, |a, b| {
++                                cache(a) == cache(b)
++                            })?;
++                    }
++                }
++            }
++            Kind::Messages => {
++                for message in thread.messages {
++                    if message.role.as_ref().and_then(Value::as_str) == Some("assistant")
++                        && message.usage.is_some()
++                    {
++                        self.messages.insert(
++                            message_id(message.message_id.as_ref()),
++                            message,
++                            PartialEq::eq,
++                        )?;
++                    }
++                }
++            }
++        }
++        // A typed ID proves a merge. Counters, time, and file order do not.
++        if self.seen && (!self.events.anonymous.is_empty() || !self.messages.anonymous.is_empty()) {
++            return Err(cli_error(
++                "Amp snapshots without stable usage IDs cannot be merged",
++            ));
++        }
++        self.seen = true;
++        Ok(())
++    }
++}
++
++pub(super) fn merge(snapshots: Vec<AmpThread>) -> Result<Vec<AmpThread>> {
++    let mut groups = BTreeMap::new();
++    for thread in snapshots {
++        let Some(id) = thread.id.as_ref() else {
++            continue;
++        };
++        let kind = if thread
++            .usage_ledger
++            .as_ref()
++            .and_then(|ledger| ledger.events.as_ref())
++            .is_some()
++        {
++            Kind::Ledger
++        } else {
++            Kind::Messages
++        };
++        let group = groups.entry(id.clone()).or_insert_with(|| Group {
++            kind,
++            seen: false,
++            cache_joins: BTreeMap::new(),
++            events: Records::default(),
++            messages: Records::default(),
++        });
++        group.insert(thread)?;
++    }
++    Ok(groups
++        .into_iter()
++        .map(|(id, group)| AmpThread {
++            id: Some(id),
++            messages: group.messages.finish(),
++            usage_ledger: (group.kind == Kind::Ledger).then(|| AmpUsageLedger {
++                events: Some(group.events.finish()),
++            }),
++        })
++        .collect())
++}

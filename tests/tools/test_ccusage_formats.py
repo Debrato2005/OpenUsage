@@ -67,7 +67,7 @@ def file_hashes(root):
             for path in root.rglob('*') if path.is_file()}
 
 
-class CcusageFormatTests(unittest.TestCase):
+class FormatComparisons:
     @classmethod
     def setUpClass(cls):
         selected = os.environ.get('OPENUSAGE_CCUSAGE_BIN')
@@ -128,6 +128,8 @@ class CcusageFormatTests(unittest.TestCase):
                             self.assertEqual(report['totals']['totalTokens'], 0)
             self.assertEqual(file_hashes(root), {})
 
+
+class CcusageFormatTests(FormatComparisons, unittest.TestCase):
     def test_pinned_amp_counts_a_copied_thread_twice(self):
         # This records an upstream limit. It does not qualify Amp for AT-65.
         with tempfile.TemporaryDirectory(prefix='openusage-amp-copy-') as temporary:

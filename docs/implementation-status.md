@@ -55,6 +55,8 @@ Kept from baseline 2.0:
 
 ## Partial
 
+- Local logs (5C), L-1f6, November 8, 2026: a local ccusage patch fixes equal stable-ID Amp copies and rejects conflicting or incomplete scans. All 28 adapter tests and 210 scanner comparisons passed on Linux with synthetic input. The [candidate record](reviews/2026-11-08-amp-dedup-design.md#local-candidate-after-review) holds exact scope. The production pin is unchanged, Amp stays disabled, and the patch remains unpublished.
+
 - Codex fixture portability: the Rust fixture test and two native journeys now copy tracked synthetic input into private homes. They no longer depend on an ignored `.codex` directory in the checkout. Secret exclusions and hooks stay intact.
 
 - Local logs (5C), L-1f5, November 8, 2026: the common session parser reads recorded reports for all sixteen disabled tools. It keeps independent totals and unavailable metrics under [SC-022](srs-clarifications.md#sc-022-incomplete-metrics-from-the-other-local-tools). It rejects malformed shapes, metadata, counts, and inconsistent totals. Storage and process integration remain open. No additional tool is enabled.
@@ -115,7 +117,7 @@ Kept from baseline 2.0:
 
 ## Not yet run
 
-- Linux CI for catalog commit 155b61a failed while downloading pinned Bun with HTTP 504, before code checks. The renderer job passed 454 tests and failed two WebKit countdown tests. The fixtures now pause the clock before they release the simulated cooldown response. All four affected cases and the full renderer milestone passed locally. The complete hosted gate remains unverified until a later push runs it. [Run 42475604431](https://github.com/Debrato2005/OpenUsage/actions/runs/42475604431) holds the hosted evidence. OU-NFR-012 also needs Windows and macOS, planned for S-15.
+- Hosted CI for `b1b8d84` passed Linux lint, then failed the synthetic quota test at its temporary-path assertion. Native oracle checks were skipped. Renderer results remain pending. [Run 42483593712](https://github.com/Debrato2005/OpenUsage/actions/runs/42483593712) holds the hosted evidence. The full renderer milestone passed locally after the countdown fixture fix. The complete hosted gate remains unverified. OU-NFR-012 also needs Windows and macOS, planned for S-15.
 - Windows and macOS have never run. The owner has a real Windows PC and Mac for this.
 - Windows and macOS need their own pinned Codex companion. Only Linux x86_64 is qualified.
 - Sleep and wake, packaging, and release-scale performance are unmeasured.
@@ -142,6 +144,6 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 
 ## Current assignment
 
-The next launch assignment remains L-1f. L-1f2 supplies the shared catalog. [SC-022](srs-clarifications.md#sc-022-incomplete-metrics-from-the-other-local-tools) records the owner's decision to show reliable totals and keep unavailable fields unavailable. The [first](reviews/2026-11-08-l1f-formats-a.md) and [second](reviews/2026-11-08-l1f-formats-b.md) source notes identify the remaining count, cost, date, session, and folder-isolation work. The [storage proposal](reviews/2026-11-08-incomplete-local-metrics.md) describes independent totals, unavailable details, and date limits. The [fixture baseline](../crates/openusage-locallogs/tests/fixtures/remaining-tools/README.md) now records all 16 report contracts. The Amp copy defect still needs an upstream fix under SC-023. No additional tool is qualified yet, and OQ-1 remains open. The [build checklist](implementation-slices.md#build-checklist) holds the other owner decisions.
+The next launch assignment remains L-1f. L-1f2 supplies the shared catalog. [SC-022](srs-clarifications.md#sc-022-incomplete-metrics-from-the-other-local-tools) records the owner's decision to show reliable totals and keep unavailable fields unavailable. The [first](reviews/2026-11-08-l1f-formats-a.md) and [second](reviews/2026-11-08-l1f-formats-b.md) source notes identify the remaining count, cost, date, session, and folder-isolation work. The [storage proposal](reviews/2026-11-08-incomplete-local-metrics.md) describes independent totals, unavailable details, and date limits. The [fixture baseline](../crates/openusage-locallogs/tests/fixtures/remaining-tools/README.md) now records all 16 report contracts. The local Amp candidate fixes stable-ID copies under SC-023. Its remaining qualification gates and production integration are open. No additional tool is qualified yet, and OQ-1 remains open. The [build checklist](implementation-slices.md#build-checklist) holds the other owner decisions.
 
 The exact working checkpoint, if one exists, is in the local `.recovery/active-checkpoint.json`.
