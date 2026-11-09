@@ -1188,7 +1188,7 @@ pub(crate) mod tests {
             let executed = temporary
                 .path()
                 .join("synthetic-execution-observations.jsonl");
-            fs::write(
+            crate::test_executable::write(
                 &executable,
                 include_bytes!("../../../../tests/native/fixtures/synthetic-provider.py"),
             )
@@ -1326,7 +1326,7 @@ pub(crate) mod tests {
 
     fn monitored_fixture(mode: &str, require_login: bool) -> Fixture {
         let fixture = Fixture::new(false);
-        fs::write(
+        crate::test_executable::write(
             &fixture.executable,
             include_bytes!(
                 "../../../../crates/openusage-codex/tests/fixtures/synthetic-collection-provider.py"
@@ -1679,7 +1679,10 @@ pub(crate) mod tests {
                     fs::rename(path, path.with_extension("retained")).unwrap();
                     crate::workspace::prepare_directory(path).unwrap();
                 }
-                "source" => fs::write(&fixture.executable, b"#!/bin/sh\nexit 1\n").unwrap(),
+                "source" => {
+                    crate::test_executable::write(&fixture.executable, b"#!/bin/sh\nexit 1\n")
+                        .unwrap()
+                }
                 "hardlink" => fs::hard_link(
                     &fixture.executable,
                     fixture.executable.with_extension("linked"),
@@ -1704,7 +1707,7 @@ pub(crate) mod tests {
             .unwrap()
             .wait()
             .unwrap();
-        fs::write(&fixture.executable, b"#!/bin/sh\nexit 1\n").unwrap();
+        crate::test_executable::write(&fixture.executable, b"#!/bin/sh\nexit 1\n").unwrap();
         assert_eq!(
             completed
                 .publish(|_, _, _, _, _| panic!("Changed source must not reach storage."))
@@ -2334,7 +2337,7 @@ pub(crate) mod tests {
             .provider
             .inspect(fixture.executable.to_str().unwrap())
             .unwrap();
-        fs::write(&fixture.executable, b"#!/bin/sh\nexit 1\n").unwrap();
+        crate::test_executable::write(&fixture.executable, b"#!/bin/sh\nexit 1\n").unwrap();
         assert_eq!(
             fixture
                 .provider
@@ -2354,7 +2357,7 @@ pub(crate) mod tests {
             Some(CommandError::ProviderSourceUnverified)
         );
         assert!(!fixture.executed.exists());
-        fs::write(
+        crate::test_executable::write(
             &fixture.executable,
             include_bytes!("../../../../tests/native/fixtures/synthetic-provider.py"),
         )
@@ -2363,7 +2366,7 @@ pub(crate) mod tests {
         assert!(!approval.version_checked);
         let old = fixture._temporary.path().join("synthetic-old-executable");
         fs::rename(&fixture.executable, &old).unwrap();
-        fs::copy(&old, &fixture.executable).unwrap();
+        crate::test_executable::copy(&old, &fixture.executable).unwrap();
         assert_eq!(
             fixture.start(0).err(),
             Some(CommandError::StaleProviderApproval)

@@ -42,7 +42,7 @@ impl Fixture {
             format!("{:x}", Sha256::digest(bytes)),
             "53a853b737ceca311649e9f1d9ebd1341154a5f782efd8e915f7f834c819a6dc"
         );
-        fs::write(&executable, bytes).unwrap();
+        crate::test_executable::write(&executable, bytes).unwrap();
         fs::set_permissions(&executable, fs::Permissions::from_mode(0o700)).unwrap();
         let mut workspace = Workspace::new(temporary.path().join("workspace")).unwrap();
         let vault = MemoryVault::default();

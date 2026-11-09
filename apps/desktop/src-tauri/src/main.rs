@@ -15,6 +15,9 @@ mod readings_export;
 mod restore;
 mod share;
 mod subscriptions;
+#[cfg(all(test, unix))]
+#[path = "../../../../crates/openusage-codex/src/test_executable.rs"]
+mod test_executable;
 mod time_zone;
 mod window_chrome;
 mod workspace;

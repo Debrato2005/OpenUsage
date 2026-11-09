@@ -130,6 +130,8 @@ Kept from baseline 2.0:
 
 ## Failing or stale tests
 
+- R-2, November 10, 2026: desktop synthetic fixtures now reuse the bounded executable writer from R-1. The deterministic inherited-writer test, 22 provider tests, full Rust checks, and native provider-lifecycle passed. The earlier cooldown failure returned ProviderUnavailable but did not expose its underlying cause. Focused diagnostics did not reproduce it. The [review](reviews/2026-11-10-desktop-fixture-writes.md) keeps that distinction explicit. Pi filesystem verification resumes next.
+
 - R-1, November 10, 2026: a captured ETXTBSY startup error now has a bounded test-fixture fix. Full Rust checks and the native provider-lifecycle journey passed. The original cleanup failure did not capture its OS error, so its cause remains unconfirmed. See the [investigation](reviews/2026-11-10-executable-fixture-race.md) for the distinction and diagnostic results.
 
 - L-1f8, November 9, 2026: 24 native journeys now expect schema 13. Nine passed on the final native-test build: `local-log-consent`, `backup`, `backup-inspection`, `restore-preview`, `restore-apply`, `restore-checkpoint`, `application-export`, `local-data-deletion`, and `persistence`. The other native journeys did not run for this slice. The full renderer suite, hosted CI, real accounts, Windows, and macOS also remain unexecuted for this source scope.

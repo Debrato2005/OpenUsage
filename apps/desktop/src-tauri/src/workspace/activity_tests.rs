@@ -41,7 +41,7 @@ impl Fixture {
     fn new(mode: &str) -> Self {
         let temporary = tempfile::tempdir().unwrap();
         let executable = temporary.path().join("synthetic-activity-provider.py");
-        fs::write(
+        crate::test_executable::write(
             &executable,
             include_bytes!("../../../../../tests/native/fixtures/synthetic-activity-provider.py"),
         )
