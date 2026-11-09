@@ -36,3 +36,14 @@ The original Pi matrix remains the production baseline. Its fresh-child source f
 ## Pi format candidate
 
 `pi-format-candidate.json` records nineteen cases and 38 daily/session outcomes from the third local Pi patch. Five cases have reports. Fourteen are explicit unavailable outcomes, not zero totals. `test_ccusage_pi_format.py` also checks the earlier identity matrix, other tools, empty roots, unchanged source hashes, and isolated homes. The [review](../../../../../docs/reviews/2026-11-10-pi-format-candidate.md) owns source evidence, digests, and remaining gates. No production pin or enabled tool changes.
+
+## Pi filesystem candidate
+
+`pi-filesystem-candidate.json` records sixteen cases and 32 daily/session
+outcomes from the fourth local Pi patch. Baseline and repeated-root cases retain
+162 tokens. Fourteen cases return unavailable. The explicit candidate test also
+checks the prior format and identity matrices, other tools, source hashes, and
+private-home isolation. Permission checks require an unprivileged Linux process.
+The [review](../../../../../docs/reviews/2026-11-10-pi-filesystem-candidate.md)
+owns limits, source evidence, digests, and remaining gates. No production pin or
+enabled tool changes.

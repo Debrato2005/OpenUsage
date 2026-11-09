@@ -1,0 +1,320 @@
+{
+  "baseline": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "pi",
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 30,
+              "inputTokens": 100,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 5,
+                  "cacheReadTokens": 30,
+                  "cost": 0.0003365625,
+                  "inputTokens": 100,
+                  "modelName": "[pi] gpt-5",
+                  "outputTokens": 20
+                }
+              ],
+              "modelsUsed": [
+                "[pi] gpt-5"
+              ],
+              "outputTokens": 20,
+              "totalCost": 0.0003365625,
+              "totalTokens": 162
+            }
+          ],
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 30,
+          "inputTokens": 100,
+          "metadata": {
+            "agents": [
+              "pi"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 30,
+              "cost": 0.0003365625,
+              "inputTokens": 100,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 20,
+          "period": "2026-05-28",
+          "totalCost": 0.0003365625,
+          "totalTokens": 162
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 30,
+        "inputTokens": 100,
+        "outputTokens": 20,
+        "totalCost": 0.0003365625,
+        "totalTokens": 162
+      }
+    },
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 30,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 100,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 30,
+              "cost": 0.0003365625,
+              "inputTokens": 100,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 20,
+          "projectPath": "/synthetic/project",
+          "sessionId": "root",
+          "totalCost": 0.0003365625,
+          "totalTokens": 162
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 30,
+        "inputTokens": 100,
+        "outputTokens": 20,
+        "totalCost": 0.0003365625,
+        "totalTokens": 162
+      }
+    }
+  },
+  "duplicate_root": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "pi",
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 30,
+              "inputTokens": 100,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 5,
+                  "cacheReadTokens": 30,
+                  "cost": 0.0003365625,
+                  "inputTokens": 100,
+                  "modelName": "[pi] gpt-5",
+                  "outputTokens": 20
+                }
+              ],
+              "modelsUsed": [
+                "[pi] gpt-5"
+              ],
+              "outputTokens": 20,
+              "totalCost": 0.0003365625,
+              "totalTokens": 162
+            }
+          ],
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 30,
+          "inputTokens": 100,
+          "metadata": {
+            "agents": [
+              "pi"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 30,
+              "cost": 0.0003365625,
+              "inputTokens": 100,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 20,
+          "period": "2026-05-28",
+          "totalCost": 0.0003365625,
+          "totalTokens": 162
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 30,
+        "inputTokens": 100,
+        "outputTokens": 20,
+        "totalCost": 0.0003365625,
+        "totalTokens": 162
+      }
+    },
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 30,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 100,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 30,
+              "cost": 0.0003365625,
+              "inputTokens": 100,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 20,
+          "projectPath": "/synthetic/project",
+          "sessionId": "root",
+          "totalCost": 0.0003365625,
+          "totalTokens": 162
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 30,
+        "inputTokens": 100,
+        "outputTokens": 20,
+        "totalCost": 0.0003365625,
+        "totalTokens": 162
+      }
+    }
+  },
+  "missing_root": {
+    "daily": {
+      "unavailable": true
+    },
+    "session": {
+      "unavailable": true
+    }
+  },
+  "file_root": {
+    "daily": {
+      "unavailable": true
+    },
+    "session": {
+      "unavailable": true
+    }
+  },
+  "root_link": {
+    "daily": {
+      "unavailable": true
+    },
+    "session": {
+      "unavailable": true
+    }
+  },
+  "file_link": {
+    "daily": {
+      "unavailable": true
+    },
+    "session": {
+      "unavailable": true
+    }
+  },
+  "directory_link": {
+    "daily": {
+      "unavailable": true
+    },
+    "session": {
+      "unavailable": true
+    }
+  },
+  "dangling_link": {
+    "daily": {
+      "unavailable": true
+    },
+    "session": {
+      "unavailable": true
+    }
+  },
+  "socket": {
+    "daily": {
+      "unavailable": true
+    },
+    "session": {
+      "unavailable": true
+    }
+  },
+  "fifo": {
+    "daily": {
+      "unavailable": true
+    },
+    "session": {
+      "unavailable": true
+    }
+  },
+  "unreadable_file": {
+    "daily": {
+      "unavailable": true
+    },
+    "session": {
+      "unavailable": true
+    }
+  },
+  "unreadable_directory": {
+    "daily": {
+      "unavailable": true
+    },
+    "session": {
+      "unavailable": true
+    }
+  },
+  "deep_directory": {
+    "daily": {
+      "unavailable": true
+    },
+    "session": {
+      "unavailable": true
+    }
+  },
+  "oversize_file": {
+    "daily": {
+      "unavailable": true
+    },
+    "session": {
+      "unavailable": true
+    }
+  },
+  "too_many_roots": {
+    "daily": {
+      "unavailable": true
+    },
+    "session": {
+      "unavailable": true
+    }
+  },
+  "token_overflow": {
+    "daily": {
+      "unavailable": true
+    },
+    "session": {
+      "unavailable": true
+    }
+  }
+}

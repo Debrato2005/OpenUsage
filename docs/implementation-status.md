@@ -26,7 +26,7 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scoped result, November 10, 2026: L-1f11f0 adds a separate Pi format correction. Reports use validated records, retain escaped JSON keys, and reject ambiguous objects or invalid present fields. Independent assistant totals stay outside missing token categories. All 50 adapter tests, six candidate Python tests, thirteen OpenUsage period tests, full Python/Rust verification, and rebuilt native consent passed on Linux. Nineteen new cases record five accepted outcomes and fourteen unavailable outcomes. The earlier identity matrix keeps its counts. The [review](reviews/2026-11-10-pi-format-candidate.md) records failures and remaining gates. Pi stays disabled. The production pin and Amp patch are unchanged.
+Latest scoped result, November 10, 2026: L-1f11f1 adds bounded Linux reads to the separate Pi candidate. Missing or unreadable explicit roots, links, special files, changed inputs, and exceeded limits return unavailable. All 64 adapter tests and seven candidate Python tests passed. Sixteen new cases record 32 report outcomes. Full Python/Rust verification and rebuilt native consent passed on Linux. The [review](reviews/2026-11-10-pi-filesystem-candidate.md) records failures, limits, and unexecuted checks. Pi stays disabled. The production pin and Amp patch are unchanged.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -154,7 +154,7 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 
 ## Current assignment
 
-The next assignment is [L-1f11f1](implementation-slices.md#next-assignment-l-1f11f1): reject incomplete Pi filesystem reads in the separate local candidate. Cover missing or unreadable roots, omitted directory entries, changed files, and bounded input handling. Preserve source isolation and saved history. The production pin and Amp candidate stay unchanged.
+The next assignment is [L-1f11g](implementation-slices.md#next-assignment-l-1f11g): qualify consistency between Pi daily and session reports. Compare stable inputs and controlled changes between commands. Preserve saved data when the reports cannot establish a complete scan. Keep the candidate disabled and the production and Amp boundaries unchanged.
 
 L-1f0 through L-1f10 are complete within their recorded scope. Only Claude Code and Codex are enabled. The Amp patch is a local candidate, and the production scanner pin is unchanged.
 

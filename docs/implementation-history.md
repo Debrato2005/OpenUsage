@@ -4,6 +4,10 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f11f0 result before L-1f11f1
+
+Latest scoped result, November 10, 2026: L-1f11f0 adds a separate Pi format correction. Reports use validated records, retain escaped JSON keys, and reject ambiguous objects or invalid present fields. Independent assistant totals stay outside missing token categories. All 50 adapter tests, six candidate Python tests, thirteen OpenUsage period tests, full Python/Rust verification, and rebuilt native consent passed on Linux. Nineteen new cases record five accepted outcomes and fourteen unavailable outcomes. The earlier identity matrix keeps its counts. The [review](reviews/2026-11-10-pi-format-candidate.md) records failures and remaining gates. Pi stays disabled. The production pin and Amp patch are unchanged.
+
 ## L-1f11e result before L-1f11f0
 
 Latest scoped result, November 10, 2026: L-1f11e adds a separate Pi identity candidate. Source session and entry IDs count renamed copies once and retain equal-sized calls. Proven parent links cover inactive branches, full clones, and nested forks. Conflicts, missing identity, invalid trees, and unsupported legacy input return no successful partial report. Forty synthetic cases and 80 daily/session outcomes cover 25 accepted cases and 15 unavailable cases. All 42 adapter tests, five candidate Python tests, twelve OpenUsage period tests, full Python/Rust verification, and rebuilt native consent passed on Linux. The [review](reviews/2026-11-10-pi-identity-candidate.md) records failures, boundaries, and unexecuted checks. Pi stays disabled. The production pin and unpublished Amp patch are unchanged.

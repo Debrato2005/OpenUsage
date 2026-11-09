@@ -39,3 +39,18 @@ Set `OPENUSAGE_CCUSAGE_PI_IDENTITY_CANDIDATE` and `OPENUSAGE_CCUSAGE_PI_IDENTITY
 Apply `20.0.48-pi-format.patch` after the usage and identity patches. It maps validated records, accepts escaped JSON keys, rejects ambiguous objects and invalid shapes, and keeps assistant totals out of inferred categories. It remains local and unpublished. The [review](../../docs/reviews/2026-11-10-pi-format-candidate.md) owns digests, checks, and remaining filesystem gates.
 
 Set `OPENUSAGE_CCUSAGE_PI_COMPLETENESS_CANDIDATE` and `OPENUSAGE_CCUSAGE_PI_COMPLETENESS_CANDIDATE_SHA256` for `test_ccusage_pi_format.py`. Its build version is `20.0.48-openusage.pi-completeness-candidate.1`. Keep the earlier candidate variables unset for this binary. No production pin or Amp patch changes.
+
+## Separate Pi filesystem candidate
+
+Apply `20.0.48-pi-filesystem.patch` after the usage, identity, and format patches.
+It bounds Linux reads, rejects omitted or changed inputs, and adds a direct
+Rustix 1.1.5 dependency already present in the lock. Package versions do not
+change. The [review](../../docs/reviews/2026-11-10-pi-filesystem-candidate.md) owns
+limits, platform scope, digests, checks, and remaining gates.
+
+Set `OPENUSAGE_CCUSAGE_PI_FILESYSTEM_CANDIDATE` and
+`OPENUSAGE_CCUSAGE_PI_FILESYSTEM_CANDIDATE_SHA256` for
+`test_ccusage_pi_filesystem.py`. Use build version
+`20.0.48-openusage.pi-filesystem-candidate.1`. Keep earlier candidate variables
+unset for this binary. The candidate remains local and unpublished. Pi stays
+disabled; the production pin and Amp patch are unchanged.

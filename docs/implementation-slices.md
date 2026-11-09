@@ -123,8 +123,9 @@ Updated November 10, 2026. The owner asked to keep this list and to build down i
 - [x] L-1f11c: record 29 Pi cases and preserve missing fields in Rust. Copy, branch, and omitted-usage defects fail AT-65. Pi stays disabled. See the [qualification](reviews/2026-11-10-pi-qualification.md).
 - [x] L-1f11d: prepare a separate local Pi usage patch. Summary and standalone usage counts match. Identity and completeness gates remain open, so Pi stays disabled. See the [candidate](reviews/2026-11-10-pi-usage-candidate.md).
 - [x] L-1f11e: prepare a separate Pi identity patch. Scoped IDs and proven lineage count copies once and retain distinct calls. Ambiguous and unsupported inputs reject the scan. Completeness gates remain open. See the [candidate](reviews/2026-11-10-pi-identity-candidate.md).
-- [ ] L-1f11f: complete Pi format and filesystem gates. Format correction is complete within scope; discovery, coherent reads, and input bounds remain open.
+- [x] L-1f11f: scoped Pi format and filesystem corrections. Controlled changes and input limits pass. Paired reports, producer execution, and release-scale performance remain qualification gates under L-1f11.
 - [x] L-1f11f0: map validated Pi records, preserve escaped JSON keys, reject ambiguous shapes, and keep independent assistant totals outside missing categories. See the [format candidate](reviews/2026-11-10-pi-format-candidate.md).
+- [x] L-1f11f1: bound Linux source reads and reject omitted or changed inputs. See the [filesystem candidate](reviews/2026-11-10-pi-filesystem-candidate.md).
 - [x] R-2: reuse the bounded writer in desktop synthetic fixtures. The inherited-writer regression, 22 provider tests, full Rust, and native provider-lifecycle passed. The original cooldown failure remains unexplained. See the [review](reviews/2026-11-10-desktop-fixture-writes.md).
 - [x] R-1: use bounded test-fixture writes to prevent inherited writable handles from blocking execution. Full Rust and native provider-lifecycle checks passed. See the [investigation](reviews/2026-11-10-executable-fixture-race.md).
 - [x] L-1g1: sessions, projects and the reasoning count from the `ccusage` session report of each tool, at schema 11 (OU-LOG-017, [SC-021](srs-clarifications.md#sc-021-sessions-projects-hours-and-reasoning-from-the-pinned-ccusage)).
@@ -366,7 +367,7 @@ Acceptance:
 
 Stopping condition: one verified local identity correction, owning docs, a local commit, and a Graphify update. Then continue the next unresolved qualification issue.
 
-### L-1f11f: Pi completeness and format gates (open)
+### L-1f11f: Pi completeness and format corrections (complete within scope)
 
 Goal: prevent the Pi candidate from accepting partial totals after omitted, changed, or unsupported source inputs. Preserve the identity and usage corrections.
 
@@ -393,7 +394,7 @@ Acceptance:
 
 Stopping condition: one verified local format correction, owning docs, a local commit, and a Graphify update. Then start L-1f11f1 for discovery, coherent reads, and input bounds.
 
-### Next assignment: L-1f11f1
+### L-1f11f1: Pi filesystem candidate (complete within scope)
 
 Goal: return a complete coherent Pi source snapshot or an explicit unavailable result. Preserve the usage, identity, and format corrections.
 
@@ -406,6 +407,20 @@ Acceptance:
 - Keep candidates disabled, the production pin unchanged, and the Amp patch unpublished. Run doctor, focused adapter/CLI checks, the selected OpenUsage plan, and affected native acceptance.
 
 Stopping condition: one verified local filesystem correction, owning docs, a local commit, and a Graphify update. Then continue the next unresolved qualification issue.
+
+### Next assignment: L-1f11g
+
+Goal: make the Pi required-report boundary reject an inconsistent scan. Preserve the usage, identity, format, and filesystem corrections.
+
+Acceptance:
+
+- Trace producer writes, candidate report generation, and OpenUsage's required-report contract. Compare source findings with independent synthetic expectations.
+- Check stable reports, append, rewrite, and replacement between required commands. Do not invent a common timestamp or assume unchanged input from equal totals.
+- Preserve the last saved usage on a rejected scan. Keep missing measurements unavailable and existing Claude/Codex behavior intact.
+- Correct the boundary where the existing contract permits it. Record any remaining snapshot requirement explicitly before candidate enablement.
+- Keep candidates disabled, the production pin unchanged, and the Amp patch unpublished. Run doctor, focused checks, the selected verification plan, and affected native acceptance.
+
+Stopping condition: one verified report-consistency result, owning docs, a local commit, and a Graphify update. Then continue the next unresolved qualification issue.
 
 ## Order
 

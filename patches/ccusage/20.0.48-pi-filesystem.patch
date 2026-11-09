@@ -1,0 +1,1103 @@
+diff --git a/docs/guide/pi/index.md b/docs/guide/pi/index.md
+index 9f7e1ea..6c905b2 100644
+--- a/docs/guide/pi/index.md
++++ b/docs/guide/pi/index.md
+@@ -28,6 +28,19 @@ The CLI reads usage data from pi-agent:
+ 
+ Both `PI_AGENT_DIR` and `--pi-path` can be one sessions directory or a comma-separated list of sessions directories.
+ 
++The local filesystem candidate requires Linux with `openat2`. It rejects links,
++special files, unreadable or missing explicit roots, and changed inputs. An
++absent default folder gives an empty result. Empty path-list parts and surrounding
++whitespace fail. It does not retry a failed read.
++
++Each load permits at most 64 roots, 32,768 directory entries, 8,192 JSONL files,
++depth 64, 32 MiB per file, 128 MiB of source bytes, and 100,000 physical records.
++Malformed JSON, excessive nesting, and token overflow fail the load. Bytes and
++metadata are checked again before parsing. This is not an atomic snapshot across
++report commands. Other platforms, producer concurrency, and release-scale
++performance remain unqualified. This candidate is unpublished.
++
++
+ Usage includes assistant messages, compaction calls, branch-summary calls, and standalone usage entries such as cache warming. Context sizes such as `tokensBefore` do not add tokens. A summary without a reported model stays outside model attribution. Missing token categories do not establish measured zeros, and an independent total does not identify output or reasoning tokens.
+ 
+ Tools built on the pi session format can also be declared as named stores in the config file for unified reports:
+@@ -46,7 +59,7 @@ Tools built on the pi session format can also be declared as named stores in the
+ }
+ ```
+ 
+-Named stores are loaded in addition to the default `pi` agent when running `ccusage daily`, `ccusage monthly`, `ccusage weekly`, or `ccusage session`. The example above appears as agent `omp` in unified report metadata and prefixes model labels with `[omp]` followed by a space. A named store path can also be a comma-separated list of sessions directories; missing paths are treated as empty, while paths that overlap the default `pi` store or another named store — including one path nested inside another — are rejected to avoid double-counting. It does not add a `ccusage omp` command; use `ccusage pi ...` for the default pi-agent store.
++Named stores are loaded in addition to the default `pi` agent when running `ccusage daily`, `ccusage monthly`, `ccusage weekly`, or `ccusage session`. The example above appears as agent `omp` in unified report metadata and prefixes model labels with `[omp]` followed by a space. A named store path can also be a comma-separated list of sessions directories; each explicit path must exist and be readable, while paths that overlap the default `pi` store or another named store — including one path nested inside another — are rejected to avoid double-counting. It does not add a `ccusage omp` command; use `ccusage pi ...` for the default pi-agent store.
+ 
+ For custom Pi models, add a [`pricingOverrides` entry](/guide/config-files#pricing-overrides) keyed by the model label, such as `[pi] my-custom-model` or `[omp] my-custom-model` for a named store. In the default `auto` mode, an explicit override calculates cost from tokens even when Pi recorded a zero cost. Use `--mode display` to show Pi's recorded cost instead.
+ 
+diff --git a/rust/Cargo.lock b/rust/Cargo.lock
+index 40e8f3c..4ddeec1 100644
+--- a/rust/Cargo.lock
++++ b/rust/Cargo.lock
+@@ -402,6 +402,7 @@ dependencies = [
+  "ccusage-core",
+  "ccusage-test-support",
+  "jiff",
++ "rustix",
+  "serde",
+  "serde_json",
+ ]
+diff --git a/rust/adapters/pi/Cargo.toml b/rust/adapters/pi/Cargo.toml
+index 00cd9eb..8c6496f 100644
+--- a/rust/adapters/pi/Cargo.toml
++++ b/rust/adapters/pi/Cargo.toml
+@@ -11,6 +11,9 @@ jiff.workspace = true
+ serde.workspace = true
+ serde_json.workspace = true
+ 
++[target.'cfg(target_os = "linux")'.dependencies]
++rustix = { version = "=1.1.5", features = ["fs"] }
++
+ [dev-dependencies]
+ ccusage-core = { workspace = true, features = ["test-snapshots"] }
+ ccusage-test-support.workspace = true
+diff --git a/rust/adapters/pi/src/README.md b/rust/adapters/pi/src/README.md
+index 85978aa..67eabd2 100644
+--- a/rust/adapters/pi/src/README.md
++++ b/rust/adapters/pi/src/README.md
+@@ -45,8 +45,7 @@ separate. Time and token counts alone never prove a copy.
+ Missing IDs, unsupported versions, conflicting source fields, invalid trees,
+ missing parents, and malformed records fail the scan without a partial report.
+ Legacy version 1 and headerless transcripts are unsupported by this candidate.
+-A parent path never authorizes a read outside the selected files. Directory read
+-errors and concurrent writes still need a separate completeness review.
++A parent path never authorizes a read outside the selected files.
+ 
+ pi-subagents writes derived debug transcripts under `subagent-artifacts/`
+ directories inside the sessions tree. Those transcripts duplicate calls already
+@@ -59,3 +58,21 @@ in field names do not remove usage. Unknown record types, duplicate object keys,
+ and invalid present fields fail the scan. Header metadata cannot change the
+ source ID or project through a second message-shaped parse. Context edits change
+ future context only; they do not remove raw usage from the totals.
++
++The filesystem candidate reads selected roots on Linux through `openat2`.
++Root and child links are refused. Child opens stay beneath a held root handle.
++Missing or unreadable explicit roots, discovery errors, and special files fail
++the whole load. An absent default sessions folder still gives an empty result.
++Explicit path lists reject empty parts and surrounding whitespace.
++
++Each load has these limits: 64 roots, 32,768 directory entries, 8,192 JSONL
++files, depth 64, 32 MiB per file, 128 MiB of source bytes, and 100,000 physical
++records. Duplicate records still consume this budget. JSON nesting is bounded
++by the parser. Token sums must fit in `u64` after identity deduplication.
++
++The reader compares file bytes and file/directory metadata before returning
++captured bytes to the parser. Changed inputs fail without a retry. These checks
++are not an operating-system atomic snapshot or a shared snapshot across report
++commands. Producer concurrency and release-scale performance remain unqualified.
++Selected Pi roots on other platforms return unavailable; an older Linux kernel
++without `openat2` does the same. No fallback follows links or skips errors.
+diff --git a/rust/adapters/pi/src/files.rs b/rust/adapters/pi/src/files.rs
+new file mode 100644
+index 0000000..04d0391
+--- /dev/null
++++ b/rust/adapters/pi/src/files.rs
+@@ -0,0 +1,280 @@
++use std::path::PathBuf;
++
++use crate::Result;
++
++pub(crate) const MAX_ROOTS: usize = 64;
++pub(crate) const MAX_RECORDS: usize = 100_000;
++
++pub(crate) struct Snapshot {
++    pub path: PathBuf,
++    pub root: PathBuf,
++    pub content: Vec<u8>,
++}
++
++pub(crate) fn read(paths: &[PathBuf]) -> Result<Vec<Snapshot>> {
++    if paths.is_empty() {
++        return Ok(Vec::new());
++    }
++    #[cfg(target_os = "linux")]
++    {
++        linux::read_with(paths, linux::Limits::default(), |_| {})
++    }
++    #[cfg(not(target_os = "linux"))]
++    {
++        Err(super::identity::unavailable())
++    }
++}
++
++#[cfg(target_os = "linux")]
++pub(crate) mod linux {
++    use super::Snapshot;
++    use crate::Result;
++    use crate::identity::unavailable;
++    use rustix::{
++        fd::OwnedFd,
++        fs::{self, AtFlags, CWD, Dir, FileType, Mode, OFlags, ResolveFlags, Stat},
++    };
++    use std::{
++        collections::BTreeMap,
++        ffi::OsStr,
++        fs::File,
++        io::Read,
++        os::unix::ffi::OsStrExt,
++        path::{Path, PathBuf},
++    };
++
++    #[derive(Clone, Copy)]
++    pub(crate) struct Limits {
++        pub roots: usize,
++        pub entries: usize,
++        pub files: usize,
++        pub depth: usize,
++        pub file_bytes: u64,
++        pub total_bytes: u64,
++    }
++
++    impl Default for Limits {
++        fn default() -> Self {
++            Self {
++                roots: super::MAX_ROOTS,
++                entries: 32768,
++                files: 8192,
++                depth: 64,
++                file_bytes: 32 << 20,
++                total_bytes: 128 << 20,
++            }
++        }
++    }
++
++    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
++    pub(crate) enum Stage {
++        Discovered,
++        Read(usize),
++        BeforeVerify,
++    }
++
++    #[derive(Clone, Debug, PartialEq, Eq)]
++    struct Stamp {
++        device: u64,
++        inode: u64,
++        mode: u32,
++        size: i64,
++        modified: (i128, i128),
++        changed: (i128, i128),
++    }
++
++    impl From<Stat> for Stamp {
++        fn from(stat: Stat) -> Self {
++            Self {
++                device: stat.st_dev,
++                inode: stat.st_ino,
++                mode: stat.st_mode,
++                size: stat.st_size,
++                modified: (stat.st_mtime.into(), stat.st_mtime_nsec.into()),
++                changed: (stat.st_ctime.into(), stat.st_ctime_nsec.into()),
++            }
++        }
++    }
++
++    struct Root {
++        path: PathBuf,
++        fd: OwnedFd,
++        stamp: Stamp,
++    }
++    type Manifest = BTreeMap<(usize, PathBuf), Stamp>;
++
++    fn root(path: &Path) -> Result<Root> {
++        let fd = fs::openat2(
++            CWD,
++            path,
++            OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC,
++            Mode::empty(),
++            ResolveFlags::NO_SYMLINKS | ResolveFlags::NO_MAGICLINKS,
++        )
++        .map_err(|_| unavailable())?;
++        let stamp = fs::fstat(&fd).map_err(|_| unavailable())?.into();
++        Ok(Root {
++            path: path.to_owned(),
++            fd,
++            stamp,
++        })
++    }
++
++    fn open(root: &Root, path: &Path, flags: OFlags) -> Result<OwnedFd> {
++        let path = if path.as_os_str().is_empty() {
++            Path::new(".")
++        } else {
++            path
++        };
++        fs::openat2(
++            &root.fd,
++            path,
++            flags | OFlags::CLOEXEC | OFlags::NONBLOCK,
++            Mode::empty(),
++            ResolveFlags::BENEATH | ResolveFlags::NO_SYMLINKS | ResolveFlags::NO_MAGICLINKS,
++        )
++        .map_err(|_| unavailable())
++    }
++
++    fn manifest(roots: &[Root], limits: Limits) -> Result<Manifest> {
++        let mut result = BTreeMap::new();
++        let mut entries = 0usize;
++        let mut files = 0usize;
++        let mut bytes = 0u64;
++        for (index, root) in roots.iter().enumerate() {
++            let mut pending = vec![(PathBuf::new(), 0usize)];
++            while let Some((path, depth)) = pending.pop() {
++                if depth > limits.depth {
++                    return Err(unavailable());
++                }
++                let fd = open(root, &path, OFlags::RDONLY | OFlags::DIRECTORY)?;
++                let before: Stamp = fs::fstat(&fd).map_err(|_| unavailable())?.into();
++                result.insert((index, path.clone()), before.clone());
++                let directory = Dir::read_from(&fd).map_err(|_| unavailable())?;
++                for item in directory {
++                    let item = item.map_err(|_| unavailable())?;
++                    let name = item.file_name().to_bytes();
++                    if name == b"." || name == b".." {
++                        continue;
++                    }
++                    entries = entries.checked_add(1).ok_or_else(unavailable)?;
++                    if entries > limits.entries {
++                        return Err(unavailable());
++                    }
++                    // Derived debug transcripts are not primary session sources.
++                    if name == b"subagent-artifacts" {
++                        continue;
++                    }
++                    let child = path.join(OsStr::from_bytes(name));
++                    let stat = fs::statat(&fd, item.file_name(), AtFlags::SYMLINK_NOFOLLOW)
++                        .map_err(|_| unavailable())?;
++                    match FileType::from_raw_mode(stat.st_mode) {
++                        FileType::Directory => pending.push((child, depth + 1)),
++                        FileType::RegularFile => {
++                            if child.extension().is_none_or(|ext| ext != "jsonl") {
++                                continue;
++                            }
++                            files = files.checked_add(1).ok_or_else(unavailable)?;
++                            let size = u64::try_from(stat.st_size).map_err(|_| unavailable())?;
++                            bytes = bytes.checked_add(size).ok_or_else(unavailable)?;
++                            if files > limits.files
++                                || size > limits.file_bytes
++                                || bytes > limits.total_bytes
++                            {
++                                return Err(unavailable());
++                            }
++                            result.insert((index, child), stat.into());
++                        }
++                        _ => return Err(unavailable()),
++                    }
++                }
++                if Stamp::from(fs::fstat(&fd).map_err(|_| unavailable())?) != before {
++                    return Err(unavailable());
++                }
++            }
++        }
++        Ok(result)
++    }
++
++    pub(crate) fn read_with(
++        paths: &[PathBuf],
++        limits: Limits,
++        mut hook: impl FnMut(Stage),
++    ) -> Result<Vec<Snapshot>> {
++        if paths.len() > limits.roots {
++            return Err(unavailable());
++        }
++        let roots = paths
++            .iter()
++            .map(|path| root(path))
++            .collect::<Result<Vec<_>>>()?;
++        let before = manifest(&roots, limits)?;
++        hook(Stage::Discovered);
++        let mut snapshots = Vec::new();
++        for ((index, path), expected) in &before {
++            if FileType::from_raw_mode(expected.mode) != FileType::RegularFile {
++                continue;
++            }
++            let fd = open(&roots[*index], path, OFlags::RDONLY)?;
++            if Stamp::from(fs::fstat(&fd).map_err(|_| unavailable())?) != *expected {
++                return Err(unavailable());
++            }
++            let mut file = File::from(fd);
++            let mut content = Vec::new();
++            (&mut file)
++                .take(limits.file_bytes.saturating_add(1))
++                .read_to_end(&mut content)
++                .map_err(|_| unavailable())?;
++            hook(Stage::Read(snapshots.len()));
++            if content.len() as u64 != expected.size as u64
++                || Stamp::from(fs::fstat(&file).map_err(|_| unavailable())?) != *expected
++            {
++                return Err(unavailable());
++            }
++            snapshots.push(Snapshot {
++                path: roots[*index].path.join(path),
++                root: roots[*index].path.clone(),
++                content,
++            });
++        }
++        hook(Stage::BeforeVerify);
++        for selected in &roots {
++            if root(&selected.path)?.stamp != selected.stamp {
++                return Err(unavailable());
++            }
++        }
++        // Timestamp resolution can hide a same-size rewrite. Compare bounded
++        // bytes again before the final manifest check, without a retry.
++        for snapshot in &snapshots {
++            let index = roots
++                .iter()
++                .position(|root| root.path == snapshot.root)
++                .ok_or_else(unavailable)?;
++            let path = snapshot
++                .path
++                .strip_prefix(&snapshot.root)
++                .map_err(|_| unavailable())?;
++            let mut file = File::from(open(&roots[index], path, OFlags::RDONLY)?);
++            let expected = before
++                .get(&(index, path.to_owned()))
++                .ok_or_else(unavailable)?;
++            if Stamp::from(fs::fstat(&file).map_err(|_| unavailable())?) != *expected {
++                return Err(unavailable());
++            }
++            let mut content = Vec::new();
++            (&mut file)
++                .take(limits.file_bytes.saturating_add(1))
++                .read_to_end(&mut content)
++                .map_err(|_| unavailable())?;
++            if content != snapshot.content
++                || Stamp::from(fs::fstat(&file).map_err(|_| unavailable())?) != *expected
++            {
++                return Err(unavailable());
++            }
++        }
++        if manifest(&roots, limits)? != before {
++            return Err(unavailable());
++        }
++        Ok(snapshots)
++    }
++}
+diff --git a/rust/adapters/pi/src/filesystem_tests.rs b/rust/adapters/pi/src/filesystem_tests.rs
+new file mode 100644
+index 0000000..c240e73
+--- /dev/null
++++ b/rust/adapters/pi/src/filesystem_tests.rs
+@@ -0,0 +1,379 @@
++use crate::identity_tests::{event, header, load, write};
++use ccusage_test_support::Fixture;
++use std::os::unix::{
++    fs::{PermissionsExt, symlink},
++    net::UnixListener,
++};
++
++#[test]
++fn missing_explicit_root_is_not_an_empty_contribution() {
++    let fixture = Fixture::new();
++    write(
++        &fixture,
++        "sessions/root.jsonl",
++        header("root", None),
++        &[event("aaaaaaaa", None, 120)],
++    );
++    assert!(load(&[fixture.path("sessions"), fixture.path("missing")]).is_err());
++}
++
++#[test]
++fn unreadable_directory_does_not_create_partial_success() {
++    let fixture = Fixture::new();
++    write(
++        &fixture,
++        "sessions/root.jsonl",
++        header("root", None),
++        &[event("aaaaaaaa", None, 120)],
++    );
++    write(
++        &fixture,
++        "sessions/blocked/child.jsonl",
++        header("child", None),
++        &[event("bbbbbbbb", None, 17)],
++    );
++    let blocked = fixture.path("sessions/blocked");
++    std::fs::set_permissions(&blocked, std::fs::Permissions::from_mode(0o0)).unwrap();
++    let result = load(&[fixture.path("sessions")]);
++    std::fs::set_permissions(&blocked, std::fs::Permissions::from_mode(0o700)).unwrap();
++    assert!(result.is_err());
++}
++
++#[test]
++fn selected_file_and_directory_links_are_not_silently_omitted() {
++    for directory in [false, true] {
++        let fixture = Fixture::new();
++        write(
++            &fixture,
++            "sessions/root.jsonl",
++            header("root", None),
++            &[event("aaaaaaaa", None, 120)],
++        );
++        let outside = write(
++            &fixture,
++            "outside/child.jsonl",
++            header("child", None),
++            &[event("bbbbbbbb", None, 17)],
++        );
++        symlink(
++            if directory {
++                outside.parent().unwrap()
++            } else {
++                &outside
++            },
++            fixture.path("sessions/link.jsonl"),
++        )
++        .unwrap();
++        assert!(load(&[fixture.path("sessions")]).is_err());
++    }
++}
++
++#[test]
++fn special_source_files_are_not_successfully_ignored() {
++    let fixture = Fixture::new();
++    write(
++        &fixture,
++        "sessions/root.jsonl",
++        header("root", None),
++        &[event("aaaaaaaa", None, 120)],
++    );
++    let _socket = UnixListener::bind(fixture.path("sessions/socket.jsonl")).unwrap();
++    assert!(load(&[fixture.path("sessions")]).is_err());
++}
++
++#[test]
++fn aggregate_token_overflow_is_unavailable_before_reporting() {
++    let fixture = Fixture::new();
++    write(
++        &fixture,
++        "sessions/root.jsonl",
++        header("root", None),
++        &[
++            event("aaaaaaaa", None, u64::MAX),
++            event("bbbbbbbb", Some("aaaaaaaa"), 1),
++        ],
++    );
++    assert!(load(&[fixture.path("sessions")]).is_err());
++}
++
++#[test]
++fn excessive_directory_nesting_is_unavailable() {
++    let fixture = Fixture::new();
++    let path = format!("sessions/{}root.jsonl", "nested/".repeat(65));
++    write(
++        &fixture,
++        &path,
++        header("root", None),
++        &[event("aaaaaaaa", None, 120)],
++    );
++    assert!(load(&[fixture.path("sessions")]).is_err());
++}
++
++#[test]
++fn controlled_source_changes_return_no_snapshot() {
++    use crate::files::linux::{Limits, Stage, read_with};
++    for change in [
++        "append",
++        "truncate",
++        "rewrite",
++        "replace-file",
++        "add-file",
++        "delete-file",
++        "replace-root",
++    ] {
++        let fixture = Fixture::new();
++        let file = write(
++            &fixture,
++            "sessions/root.jsonl",
++            header("root", None),
++            &[event("aaaaaaaa", None, 120)],
++        );
++        let folder = fixture.path("sessions");
++        let result = read_with(std::slice::from_ref(&folder), Limits::default(), |stage| {
++            if stage != Stage::BeforeVerify {
++                return;
++            }
++            match change {
++                "append" => {
++                    let mut bytes = std::fs::read(&file).unwrap();
++                    bytes.push(b'\n');
++                    std::fs::write(&file, bytes).unwrap();
++                }
++                "truncate" => std::fs::write(&file, b"").unwrap(),
++                "rewrite" => {
++                    let time = std::fs::metadata(&file).unwrap().modified().unwrap();
++                    let bytes = std::fs::read_to_string(&file)
++                        .unwrap()
++                        .replace("120", "121");
++                    std::fs::write(&file, bytes).unwrap();
++                    std::fs::File::options()
++                        .write(true)
++                        .open(&file)
++                        .unwrap()
++                        .set_times(std::fs::FileTimes::new().set_modified(time))
++                        .unwrap();
++                }
++                "replace-file" => {
++                    std::fs::rename(&file, fixture.path("original.jsonl")).unwrap();
++                    std::fs::copy(fixture.path("original.jsonl"), &file).unwrap();
++                }
++                "add-file" => {
++                    write(
++                        &fixture,
++                        "sessions/new.jsonl",
++                        header("new", None),
++                        &[event("bbbbbbbb", None, 17)],
++                    );
++                }
++                "delete-file" => std::fs::remove_file(&file).unwrap(),
++                "replace-root" => {
++                    std::fs::rename(&folder, fixture.path("moved")).unwrap();
++                    std::fs::create_dir(&folder).unwrap();
++                }
++                _ => unreachable!(),
++            }
++        });
++        assert!(result.is_err(), "{change}");
++    }
++}
++
++#[test]
++fn a_link_inserted_after_discovery_is_rejected_before_a_content_read() {
++    use crate::files::linux::{Limits, Stage, read_with};
++    let fixture = Fixture::new();
++    let file = write(
++        &fixture,
++        "sessions/root.jsonl",
++        header("root", None),
++        &[event("aaaaaaaa", None, 120)],
++    );
++    let outside = write(
++        &fixture,
++        "outside/private.jsonl",
++        header("outside", None),
++        &[event("bbbbbbbb", None, 17)],
++    );
++    let mut reads = 0;
++    let result = read_with(
++        &[fixture.path("sessions")],
++        Limits::default(),
++        |stage| match stage {
++            Stage::Discovered => {
++                std::fs::remove_file(&file).unwrap();
++                symlink(&outside, &file).unwrap();
++            }
++            Stage::Read(_) => reads += 1,
++            _ => {}
++        },
++    );
++    assert!(result.is_err());
++    assert_eq!(reads, 0);
++}
++
++#[test]
++fn a_directory_link_inserted_after_discovery_cannot_redirect_reads() {
++    use crate::files::linux::{Limits, Stage, read_with};
++    let fixture = Fixture::new();
++    write(
++        &fixture,
++        "sessions/nested/root.jsonl",
++        header("root", None),
++        &[event("aaaaaaaa", None, 120)],
++    );
++    write(
++        &fixture,
++        "outside/root.jsonl",
++        header("outside", None),
++        &[event("bbbbbbbb", None, 17)],
++    );
++    let mut reads = 0;
++    let result = read_with(
++        &[fixture.path("sessions")],
++        Limits::default(),
++        |stage| match stage {
++            Stage::Discovered => {
++                std::fs::rename(fixture.path("sessions/nested"), fixture.path("moved")).unwrap();
++                symlink(fixture.path("outside"), fixture.path("sessions/nested")).unwrap();
++            }
++            Stage::Read(_) => reads += 1,
++            _ => {}
++        },
++    );
++    assert!(result.is_err());
++    assert_eq!(reads, 0);
++}
++
++#[test]
++fn a_change_after_a_content_read_is_unavailable() {
++    use crate::files::linux::{Limits, Stage, read_with};
++    let fixture = Fixture::new();
++    let file = write(
++        &fixture,
++        "sessions/root.jsonl",
++        header("root", None),
++        &[event("aaaaaaaa", None, 120)],
++    );
++    let result = read_with(&[fixture.path("sessions")], Limits::default(), |stage| {
++        if stage == Stage::Read(0) {
++            std::fs::write(&file, b"").unwrap();
++        }
++    });
++    assert!(result.is_err());
++}
++
++#[test]
++fn source_limits_accept_the_boundary_and_reject_excess_before_reading() {
++    use crate::files::linux::{Limits, Stage, read_with};
++    let fixture = Fixture::new();
++    let file = write(
++        &fixture,
++        "sessions/root.jsonl",
++        header("root", None),
++        &[event("aaaaaaaa", None, 120)],
++    );
++    let size = std::fs::metadata(file).unwrap().len();
++    let boundary = Limits {
++        roots: 1,
++        entries: 1,
++        files: 1,
++        depth: 0,
++        file_bytes: size,
++        total_bytes: size,
++    };
++    assert_eq!(
++        read_with(&[fixture.path("sessions")], boundary, |_| {})
++            .unwrap()
++            .len(),
++        1
++    );
++    for limit in [
++        Limits {
++            roots: 0,
++            ..boundary
++        },
++        Limits {
++            entries: 0,
++            ..boundary
++        },
++        Limits {
++            files: 0,
++            ..boundary
++        },
++        Limits {
++            file_bytes: size - 1,
++            ..boundary
++        },
++        Limits {
++            total_bytes: size - 1,
++            ..boundary
++        },
++    ] {
++        let mut reads = 0;
++        let result = read_with(&[fixture.path("sessions")], limit, |stage| {
++            if matches!(stage, Stage::Read(_)) {
++                reads += 1;
++            }
++        });
++        assert!(result.is_err());
++        assert_eq!(reads, 0);
++    }
++}
++
++#[test]
++fn record_budget_counts_replays_and_keeps_the_exact_boundary() {
++    let fixture = Fixture::new();
++    let row = event("aaaaaaaa", None, 120);
++    let file = write(
++        &fixture,
++        "sessions/root.jsonl",
++        header("root", None),
++        &[row.clone(), row],
++    );
++    let content = std::fs::read(file).unwrap();
++    assert_eq!(
++        crate::identity::parse_bounded(&content, 2)
++            .unwrap()
++            .record_count,
++        2
++    );
++    assert!(crate::identity::parse_bounded(&content, 1).is_err());
++}
++
++#[test]
++fn token_budget_is_checked_after_copy_suppression() {
++    let fixture = Fixture::new();
++    let rows = [event("aaaaaaaa", None, u64::MAX)];
++    write(&fixture, "first/root.jsonl", header("root", None), &rows);
++    write(
++        &fixture,
++        "second/renamed.jsonl",
++        header("root", None),
++        &rows,
++    );
++    let entries = load(&[fixture.path("first"), fixture.path("second")]).unwrap();
++    assert_eq!(entries.len(), 1);
++    assert_eq!(
++        crate::total_usage_tokens(entries[0].data.message.usage),
++        u64::MAX
++    );
++}
++
++#[test]
++fn excessive_json_nesting_is_unavailable() {
++    let fixture = Fixture::new();
++    let file = write(
++        &fixture,
++        "sessions/root.jsonl",
++        header("root", None),
++        &[event("aaaaaaaa", None, 120)],
++    );
++    let content = std::fs::read_to_string(&file).unwrap();
++    let nested = format!("{}0{}", "[".repeat(200), "]".repeat(200));
++    let content = content.replace(
++        "\"provider\":\"openai\"",
++        &format!("\"provider\":\"openai\",\"extra\":{nested}"),
++    );
++    assert!(content.contains(&nested));
++    std::fs::write(&file, content).unwrap();
++    assert!(load(&[fixture.path("sessions")]).is_err());
++}
+diff --git a/rust/adapters/pi/src/identity.rs b/rust/adapters/pi/src/identity.rs
+index 255afc2..bd96207 100644
+--- a/rust/adapters/pi/src/identity.rs
++++ b/rust/adapters/pi/src/identity.rs
+@@ -24,6 +24,7 @@ pub(crate) struct Record {
+ pub(crate) struct Source {
+     pub header: Header,
+     pub records: BTreeMap<String, Record>,
++    pub record_count: usize,
+ }
+ 
+ pub(crate) fn unavailable() -> crate::CliError {
+@@ -57,6 +58,10 @@ fn timestamp(value: Option<&Value>) -> Result<String> {
+ }
+ 
+ pub(crate) fn parse(content: &[u8]) -> Result<Source> {
++    parse_bounded(content, super::files::MAX_RECORDS)
++}
++
++pub(crate) fn parse_bounded(content: &[u8], limit: usize) -> Result<Source> {
+     let mut lines = content
+         .split(|byte| *byte == b'\n')
+         .filter(|line| !line.iter().all(u8::is_ascii_whitespace));
+@@ -79,7 +84,12 @@ pub(crate) fn parse(content: &[u8]) -> Result<Source> {
+         parent_session: optional_text(header.get("parentSession"))?,
+     };
+     let mut records = BTreeMap::new();
++    let mut record_count = 0usize;
+     for line in lines {
++        record_count = record_count.checked_add(1).ok_or_else(unavailable)?;
++        if record_count > limit {
++            return Err(unavailable());
++        }
+         let mut value = super::strict_json::parse(line)?;
+         let kind = text(value.get("type"))?;
+         if !matches!(
+@@ -123,7 +133,11 @@ pub(crate) fn parse(content: &[u8]) -> Result<Source> {
+         }
+     }
+     validate_links(&records)?;
+-    Ok(Source { header, records })
++    Ok(Source {
++        header,
++        records,
++        record_count,
++    })
+ }
+ 
+ fn validate_usage(value: &Value, kind: &str) -> Result<()> {
+diff --git a/rust/adapters/pi/src/lib.rs b/rust/adapters/pi/src/lib.rs
+index e05945c..47b920a 100644
+--- a/rust/adapters/pi/src/lib.rs
++++ b/rust/adapters/pi/src/lib.rs
+@@ -1,8 +1,7 @@
+-use ccusage_adapter_common::{
+-    collect_files_with_extension, filter_loaded_entries_by_date, read_files_parallel,
+-};
++use ccusage_adapter_common::filter_loaded_entries_by_date;
+ use ccusage_core::*;
+ 
++mod files;
+ mod identity;
+ mod loader;
+ mod parser;
+@@ -12,6 +11,8 @@ mod strict_json;
+ 
+ #[cfg(test)]
+ mod completeness_tests;
++#[cfg(all(test, target_os = "linux"))]
++mod filesystem_tests;
+ #[cfg(test)]
+ mod identity_tests;
+ 
+diff --git a/rust/adapters/pi/src/loader.rs b/rust/adapters/pi/src/loader.rs
+index 1d59d72..43fa1cb 100644
+--- a/rust/adapters/pi/src/loader.rs
++++ b/rust/adapters/pi/src/loader.rs
+@@ -3,12 +3,9 @@ use std::{
+     path::{Component, Path, PathBuf},
+ };
+ 
+-use crate::{
+-    LoadedEntry, PricingMap, Result, cli::SharedArgs, collect_files_with_extension, parse_tz,
+-    read_files_parallel,
+-};
++use crate::{LoadedEntry, PricingMap, Result, cli::SharedArgs, parse_tz};
+ 
+-use super::{identity, parser, paths};
++use super::{files, identity, parser, paths};
+ 
+ pub fn load_entries(
+     shared: &SharedArgs,
+@@ -88,29 +85,30 @@ fn load_entries_from_paths(
+     let tz = parse_tz(shared.timezone.as_deref());
+     let mut files = Vec::new();
+     let mut loaded = Vec::new();
+-    for path in paths {
+-        let mut selected = Vec::new();
+-        collect_files_with_extension(&path, "jsonl", &mut selected);
+-        selected.retain(|file| !is_subagent_artifact_transcript(file));
+-        let results = read_files_parallel(&selected, shared.single_thread, |file| match scope {
++    let mut record_count = 0usize;
++    for snapshot in files::read(&paths)? {
++        let data = match scope {
+             PiLoadScope::Default => {
+-                parser::read_session_file_data(file, tz.as_ref(), shared.mode, pricing)
++                parser::parse_session_data(&snapshot.content, tz.as_ref(), shared.mode, pricing)
+             }
+-            PiLoadScope::Named { store_name } => parser::read_session_file_data_for_store(
+-                file,
+-                &path,
++            PiLoadScope::Named { store_name } => parser::parse_session_data_for_store(
++                &snapshot.content,
++                &snapshot.root,
+                 tz.as_ref(),
+                 shared.mode,
+                 pricing,
+                 store_name,
+             ),
+-        });
+-        for result in results {
+-            // Do not include source paths or contents in an error.
+-            let data = result.map_err(|_| identity::unavailable())?;
+-            loaded.push((data.identity, data.entries));
+         }
+-        files.extend(selected);
++        .map_err(|_| identity::unavailable())?;
++        record_count = record_count
++            .checked_add(data.identity.record_count)
++            .ok_or_else(identity::unavailable)?;
++        if record_count > files::MAX_RECORDS {
++            return Err(identity::unavailable());
++        }
++        loaded.push((data.identity, data.entries));
++        files.push(snapshot.path);
+     }
+     let files_by_path = files
+         .iter()
+@@ -196,6 +194,12 @@ fn load_entries_from_paths(
+             id.clone(),
+         ))
+     });
++    entries.iter().try_fold(0u64, |total, entry| {
++        total
++            .checked_add(crate::total_usage_tokens(entry.data.message.usage))
++            .and_then(|total| total.checked_add(entry.extra_total_tokens))
++            .ok_or_else(identity::unavailable)
++    })?;
+     Ok(entries)
+ }
+ 
+@@ -240,11 +244,6 @@ fn resolve_parent_index(
+     None
+ }
+ 
+-fn is_subagent_artifact_transcript(path: &Path) -> bool {
+-    path.components()
+-        .any(|component| component.as_os_str().to_string_lossy() == "subagent-artifacts")
+-}
+-
+ fn normalize_path(path: &Path) -> PathBuf {
+     let mut normalized = if path.is_absolute() {
+         PathBuf::new()
+diff --git a/rust/adapters/pi/src/parser.rs b/rust/adapters/pi/src/parser.rs
+index a08d72b..987e6ca 100644
+--- a/rust/adapters/pi/src/parser.rs
++++ b/rust/adapters/pi/src/parser.rs
+@@ -1,4 +1,7 @@
+-use std::{fs, path::Path, sync::Arc};
++use std::{path::Path, sync::Arc};
++
++#[cfg(test)]
++use std::fs;
+ 
+ use jiff::tz::TimeZone as JiffTimeZone;
+ use serde::Deserialize;
+@@ -124,25 +127,25 @@ fn read_session_file_for_store(
+     )
+ }
+ 
+-pub(crate) fn read_session_file_data(
+-    path: &Path,
++pub(crate) fn parse_session_data(
++    content: &[u8],
+     tz: Option<&JiffTimeZone>,
+     mode: CostMode,
+     pricing: Option<&PricingMap>,
+ ) -> Result<PiSessionData> {
+-    read_session_file_data_with_context(path, tz, mode, pricing, PiStoreContext::Default)
++    parse_session_data_with_context(content, tz, mode, pricing, PiStoreContext::Default)
+ }
+ 
+-pub(crate) fn read_session_file_data_for_store(
+-    path: &Path,
++pub(crate) fn parse_session_data_for_store(
++    content: &[u8],
+     store_root: &Path,
+     tz: Option<&JiffTimeZone>,
+     mode: CostMode,
+     pricing: Option<&PricingMap>,
+     store_name: &str,
+ ) -> Result<PiSessionData> {
+-    read_session_file_data_with_context(
+-        path,
++    parse_session_data_with_context(
++        content,
+         tz,
+         mode,
+         pricing,
+@@ -247,16 +250,15 @@ impl<'a> PiStoreContext<'a> {
+     }
+ }
+ 
+-fn read_session_file_data_with_context(
+-    path: &Path,
++fn parse_session_data_with_context(
++    content: &[u8],
+     tz: Option<&JiffTimeZone>,
+     mode: CostMode,
+     pricing: Option<&PricingMap>,
+     context: PiStoreContext<'_>,
+ ) -> Result<PiSessionData> {
+-    let content = fs::read(path)?;
+     // Validate identity and counts before a lenient report mapper can discard data.
+-    let identity = super::identity::parse(&content)?;
++    let identity = super::identity::parse(content)?;
+     let records = validated_usage_records(&identity)?;
+     let entries = map_entries(
+         records,
+diff --git a/rust/adapters/pi/src/paths.rs b/rust/adapters/pi/src/paths.rs
+index 8149202..eda50a3 100644
+--- a/rust/adapters/pi/src/paths.rs
++++ b/rust/adapters/pi/src/paths.rs
+@@ -5,44 +5,49 @@ use crate::{Result, path_utils::expand_home_path};
+ const PI_AGENT_DIR_ENV: &str = "PI_AGENT_DIR";
+ 
+ pub fn paths(custom_path: Option<&str>) -> Result<Vec<PathBuf>> {
+-    if let Some(custom_path) = custom_path.filter(|path| !path.trim().is_empty()) {
+-        return Ok(existing_path_list(custom_path));
++    if let Some(custom_path) = custom_path {
++        return explicit_paths(custom_path, |path| PathBuf::from(path));
+     }
+-    if let Ok(env_paths) = env::var(PI_AGENT_DIR_ENV)
+-        && !env_paths.trim().is_empty()
+-    {
+-        return Ok(existing_path_list(&env_paths));
++    if let Some(env_paths) = env::var_os(PI_AGENT_DIR_ENV) {
++        return explicit_paths(
++            env_paths
++                .to_str()
++                .ok_or_else(super::identity::unavailable)?,
++            |path| PathBuf::from(path),
++        );
+     }
+ 
+     let home =
+         crate::home::home_dir().ok_or_else(|| crate::cli_error("home directory is not set"))?;
+     let path = home.join(".pi/agent/sessions");
+-    Ok(path.is_dir().then_some(path).into_iter().collect())
++    match std::fs::symlink_metadata(&path) {
++        Ok(metadata) if metadata.is_dir() => Ok(vec![path]),
++        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(Vec::new()),
++        _ => Err(super::identity::unavailable()),
++    }
+ }
+ 
+ pub fn named_store_paths(raw: &str) -> Result<Vec<PathBuf>> {
+-    Ok(existing_named_store_path_list(raw))
+-}
+-
+-fn existing_path_list(raw: &str) -> Vec<PathBuf> {
+-    // `--pi-path` / `PI_AGENT_DIR` deliberately keep their pre-existing
+-    // no-`~`-expansion semantics; named store paths expand `~` like other
+-    // config paths.
+-    existing_paths(raw, |path| PathBuf::from(path))
++    explicit_paths(raw, expand_home_path)
+ }
+ 
+-fn existing_named_store_path_list(raw: &str) -> Vec<PathBuf> {
+-    existing_paths(raw, expand_home_path)
+-}
+-
+-fn existing_paths(raw: &str, to_path: impl Fn(&str) -> PathBuf) -> Vec<PathBuf> {
++fn explicit_paths(raw: &str, to_path: impl Fn(&str) -> PathBuf) -> Result<Vec<PathBuf>> {
+     let mut seen = HashSet::new();
+-    raw.split(',')
+-        .map(str::trim)
+-        .filter(|path| !path.is_empty())
+-        .map(to_path)
+-        .filter(|path| path.is_dir() && seen.insert(path.clone()))
+-        .collect()
++    let mut paths = Vec::new();
++    for part in raw.split(',') {
++        // Do not drop missing roots or silently select a different trimmed path.
++        if part.is_empty() || part.trim() != part {
++            return Err(super::identity::unavailable());
++        }
++        let path = to_path(part);
++        if seen.insert(path.clone()) {
++            paths.push(path);
++        }
++        if paths.len() > super::files::MAX_ROOTS {
++            return Err(super::identity::unavailable());
++        }
++    }
++    Ok(paths)
+ }
+ 
+ #[cfg(test)]
+@@ -62,14 +67,14 @@ mod tests {
+     }
+ 
+     #[test]
+-    fn named_store_path_matches_pi_path_list_semantics() {
++    fn named_store_paths_keep_missing_roots_for_validation_and_reject_ambiguous_text() {
+         let fixture = fs_fixture!({});
+         let first = fixture.create_dir_all("first/sessions");
+         let second = fixture.create_dir_all("second/sessions");
+         let missing = fixture.path("missing/sessions");
+ 
+         let raw = format!(
+-            " {}, {}, {}, {} ",
++            "{},{},{},{}",
+             first.display(),
+             second.display(),
+             first.display(),
+@@ -77,6 +82,9 @@ mod tests {
+         );
+         let paths = named_store_paths(&raw).unwrap();
+ 
+-        assert_eq!(paths, vec![first, second]);
++        assert_eq!(paths, vec![first, second, missing]);
++        for invalid in ["", " , ", "/synthetic,", " /synthetic", "/synthetic "] {
++            assert!(named_store_paths(invalid).is_err());
++        }
+     }
+ }
