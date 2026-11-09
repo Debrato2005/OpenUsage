@@ -26,7 +26,7 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scoped result, November 10, 2026: L-1f11a records 16 Kilo cases against the pinned scanner and Kilo's own storage source. Legacy copies and forks double tokens. Conflicts depend on root order, and incomplete reads can appear successful. Replay and the tested compaction case count correctly. Kilo stays disabled. The regression checks preserve unavailable prices, details, and session metadata. Full selected checks and native consent passed with private synthetic data on Linux. AT-65 remains failed for Kilo.
+Latest scoped result, November 10, 2026: L-1f11b removes ZCode's fallback project label from parsed sessions. Known paths and activity times stay available. Nineteen synthetic cases cover the usage ledger and its separate transcript records. Copies, replay, fork transcripts, and compaction count correctly in those cases. Conflicts and incomplete reads still prevent enablement. Full Python, Rust, renderer, and two native checks passed on Linux. ZCode remains disabled, and the production pin is unchanged.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -152,7 +152,7 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 
 ## Current assignment
 
-The next assignment is [L-1f11b](implementation-slices.md#next-assignment-l-1f11b): qualify ZCode against its pinned source and actual scanner reports. Kilo's count defects need a scanner candidate with proven identities and complete reads. No tool or production pin changes during this slice. The Amp candidate stays unpublished. L-1f11 remains open for all sixteen candidates.
+The next assignment is [L-1f11c](implementation-slices.md#next-assignment-l-1f11c): qualify Pi with its pinned parser and primary producer source. ZCode's project defect is fixed. Its conflict, incomplete-read, untimed-record, and legacy-total gaps need further scanner work. All sixteen candidate tools remain disabled. The production pin stays unchanged, and the Amp candidate stays unpublished.
 
 L-1f0 through L-1f10 are complete within their recorded scope. Only Claude Code and Codex are enabled. The Amp patch is a local candidate, and the production scanner pin is unchanged.
 

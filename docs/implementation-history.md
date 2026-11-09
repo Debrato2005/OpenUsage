@@ -4,6 +4,10 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f11a result before L-1f11b
+
+Latest scoped result, November 10, 2026: L-1f11a records 16 Kilo cases against the pinned scanner and Kilo's own storage source. Legacy copies and forks double tokens. Conflicts depend on root order, and incomplete reads can appear successful. Replay and the tested compaction case count correctly. Kilo stays disabled. The regression checks preserve unavailable prices, details, and session metadata. Full selected checks and native consent passed with private synthetic data on Linux. AT-65 remains failed for Kilo.
+
 ## R-1 result before L-1f11a
 
 Latest scoped result, November 10, 2026: R-1 fixes a race in synthetic executable creation. A captured process-spawn error, the fixture source, and Linux/Rust sources identify inherited writable handles as the cause of the reproduced failure. Test-only helpers wait for those handles to close, with a deadline. The focused regression, eight fixed stress samples, full Rust plan, and rebuilt native provider-lifecycle journey passed on Linux. The original cleanup failure's OS error was not captured. Its cause remains unconfirmed. L-1f11 qualification is next.

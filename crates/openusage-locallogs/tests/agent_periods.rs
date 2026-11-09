@@ -108,6 +108,65 @@ fn recorded_kilo_qualification_gaps_stay_disabled_and_keep_unknown_metrics() {
 }
 
 #[test]
+fn recorded_zcode_reports_preserve_missing_projects_and_known_times() {
+    let cases: Value = serde_json::from_slice(include_bytes!(
+        "fixtures/remaining-tools/zcode-qualification.json"
+    ))
+    .unwrap();
+    assert!(
+        !openusage_locallogs::tools()
+            .iter()
+            .find(|t| t.id == "zcode")
+            .unwrap()
+            .enabled
+    );
+    for (name, reports) in cases.as_object().unwrap() {
+        let expected = reports["daily"]["totals"]["totalTokens"].as_u64().unwrap();
+        let daily = parse("zcode", &reports["daily"]).unwrap();
+        let sessions =
+            parse_agent_sessions("zcode", &serde_json::to_vec(&reports["session"]).unwrap())
+                .unwrap();
+        if matches!(name.as_str(), "empty" | "missing_time" | "noncompleted") {
+            assert!(daily.is_none());
+            assert!(sessions.is_none());
+            continue;
+        }
+        let daily = daily.unwrap();
+        let sessions = sessions.unwrap();
+        assert_eq!(daily.total_tokens, expected, "{name}");
+        assert_eq!(sessions.total_tokens, expected, "{name}");
+        assert_eq!(daily.details, TokenDetails::default());
+        assert_eq!(sessions.details, TokenDetails::default());
+        assert_eq!(daily.estimated_value_micros, None);
+        assert_eq!(sessions.estimated_value_micros, None);
+        for session in &sessions.sessions {
+            let project = (!matches!(name.as_str(), "missing_project" | "empty_project"))
+                .then_some("/synthetic/project");
+            assert_eq!(session.project.as_deref(), project, "{name}");
+            assert_eq!(
+                session.first_activity_utc.as_deref(),
+                Some("2026-05-28T20:26:40.000Z")
+            );
+            assert_eq!(
+                session.last_activity_utc.as_deref(),
+                Some("2026-05-28T20:26:40.000Z")
+            );
+            assert_eq!(session.details, TokenDetails::default());
+            assert_eq!(session.estimated_value_micros, None);
+        }
+    }
+    let mut actual_project = cases["baseline"]["session"].clone();
+    actual_project["sessions"][0]["projectPath"] = "/synthetic/ZCode".into();
+    let parsed = parse_agent_sessions("zcode", &serde_json::to_vec(&actual_project).unwrap())
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        parsed.sessions[0].project.as_deref(),
+        Some("/synthetic/ZCode")
+    );
+}
+
+#[test]
 fn the_other_twelve_tools_use_only_an_explicit_unplaced_scope() {
     let mut unplaced = Vec::new();
     for tool in openusage_locallogs::tools().iter().filter(|t| !t.enabled) {

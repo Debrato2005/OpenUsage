@@ -1,0 +1,1790 @@
+{
+  "baseline": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "zcode",
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "inputTokens": 55,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 5,
+                  "cacheReadTokens": 40,
+                  "cost": 0.0002264,
+                  "inputTokens": 55,
+                  "modelName": "GLM-5.3",
+                  "outputTokens": 20
+                }
+              ],
+              "modelsUsed": [
+                "GLM-5.3"
+              ],
+              "outputTokens": 20,
+              "totalCost": 0.0002264,
+              "totalTokens": 130
+            }
+          ],
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 40,
+          "inputTokens": 55,
+          "metadata": {
+            "agents": [
+              "zcode"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "cost": 0.0002264,
+              "inputTokens": 55,
+              "modelName": "GLM-5.3",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "GLM-5.3"
+          ],
+          "outputTokens": 20,
+          "period": "2026-05-28",
+          "totalCost": 0.0002264,
+          "totalTokens": 130
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 40,
+        "inputTokens": 55,
+        "outputTokens": 20,
+        "totalCost": 0.0002264,
+        "totalTokens": 130
+      }
+    },
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 40,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 55,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "cost": 0.0002264,
+              "inputTokens": 55,
+              "modelName": "GLM-5.3",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "GLM-5.3"
+          ],
+          "outputTokens": 20,
+          "projectPath": "/synthetic/project",
+          "sessionId": "session-a",
+          "totalCost": 0.0002264,
+          "totalTokens": 130
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 40,
+        "inputTokens": 55,
+        "outputTokens": 20,
+        "totalCost": 0.0002264,
+        "totalTokens": 130
+      }
+    }
+  },
+  "copied": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "zcode",
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "inputTokens": 55,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 5,
+                  "cacheReadTokens": 40,
+                  "cost": 0.0002264,
+                  "inputTokens": 55,
+                  "modelName": "GLM-5.3",
+                  "outputTokens": 20
+                }
+              ],
+              "modelsUsed": [
+                "GLM-5.3"
+              ],
+              "outputTokens": 20,
+              "totalCost": 0.0002264,
+              "totalTokens": 130
+            }
+          ],
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 40,
+          "inputTokens": 55,
+          "metadata": {
+            "agents": [
+              "zcode"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "cost": 0.0002264,
+              "inputTokens": 55,
+              "modelName": "GLM-5.3",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "GLM-5.3"
+          ],
+          "outputTokens": 20,
+          "period": "2026-05-28",
+          "totalCost": 0.0002264,
+          "totalTokens": 130
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 40,
+        "inputTokens": 55,
+        "outputTokens": 20,
+        "totalCost": 0.0002264,
+        "totalTokens": 130
+      }
+    },
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 40,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 55,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "cost": 0.0002264,
+              "inputTokens": 55,
+              "modelName": "GLM-5.3",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "GLM-5.3"
+          ],
+          "outputTokens": 20,
+          "projectPath": "/synthetic/project",
+          "sessionId": "session-a",
+          "totalCost": 0.0002264,
+          "totalTokens": 130
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 40,
+        "inputTokens": 55,
+        "outputTokens": 20,
+        "totalCost": 0.0002264,
+        "totalTokens": 130
+      }
+    }
+  },
+  "copied_with_new_usage": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "zcode",
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "inputTokens": 67,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 5,
+                  "cacheReadTokens": 40,
+                  "cost": 0.0002652,
+                  "inputTokens": 67,
+                  "modelName": "GLM-5.3",
+                  "outputTokens": 25
+                }
+              ],
+              "modelsUsed": [
+                "GLM-5.3"
+              ],
+              "outputTokens": 25,
+              "totalCost": 0.0002652,
+              "totalTokens": 147
+            }
+          ],
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 40,
+          "inputTokens": 67,
+          "metadata": {
+            "agents": [
+              "zcode"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "cost": 0.0002652,
+              "inputTokens": 67,
+              "modelName": "GLM-5.3",
+              "outputTokens": 25
+            }
+          ],
+          "modelsUsed": [
+            "GLM-5.3"
+          ],
+          "outputTokens": 25,
+          "period": "2026-05-28",
+          "totalCost": 0.0002652,
+          "totalTokens": 147
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 40,
+        "inputTokens": 67,
+        "outputTokens": 25,
+        "totalCost": 0.0002652,
+        "totalTokens": 147
+      }
+    },
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 12,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 3.8799999999999994e-05,
+              "inputTokens": 12,
+              "modelName": "GLM-5.3",
+              "outputTokens": 5
+            }
+          ],
+          "modelsUsed": [
+            "GLM-5.3"
+          ],
+          "outputTokens": 5,
+          "projectPath": "/synthetic/project",
+          "sessionId": "fork-session",
+          "totalCost": 3.8799999999999994e-05,
+          "totalTokens": 17
+        },
+        {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 40,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 55,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "cost": 0.0002264,
+              "inputTokens": 55,
+              "modelName": "GLM-5.3",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "GLM-5.3"
+          ],
+          "outputTokens": 20,
+          "projectPath": "/synthetic/project",
+          "sessionId": "session-a",
+          "totalCost": 0.0002264,
+          "totalTokens": 130
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 40,
+        "inputTokens": 67,
+        "outputTokens": 25,
+        "totalCost": 0.0002652,
+        "totalTokens": 147
+      }
+    }
+  },
+  "forked_transcript": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "zcode",
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "inputTokens": 55,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 5,
+                  "cacheReadTokens": 40,
+                  "cost": 0.0002264,
+                  "inputTokens": 55,
+                  "modelName": "GLM-5.3",
+                  "outputTokens": 20
+                }
+              ],
+              "modelsUsed": [
+                "GLM-5.3"
+              ],
+              "outputTokens": 20,
+              "totalCost": 0.0002264,
+              "totalTokens": 130
+            }
+          ],
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 40,
+          "inputTokens": 55,
+          "metadata": {
+            "agents": [
+              "zcode"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "cost": 0.0002264,
+              "inputTokens": 55,
+              "modelName": "GLM-5.3",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "GLM-5.3"
+          ],
+          "outputTokens": 20,
+          "period": "2026-05-28",
+          "totalCost": 0.0002264,
+          "totalTokens": 130
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 40,
+        "inputTokens": 55,
+        "outputTokens": 20,
+        "totalCost": 0.0002264,
+        "totalTokens": 130
+      }
+    },
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 40,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 55,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "cost": 0.0002264,
+              "inputTokens": 55,
+              "modelName": "GLM-5.3",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "GLM-5.3"
+          ],
+          "outputTokens": 20,
+          "projectPath": "/synthetic/project",
+          "sessionId": "session-a",
+          "totalCost": 0.0002264,
+          "totalTokens": 130
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 40,
+        "inputTokens": 55,
+        "outputTokens": 20,
+        "totalCost": 0.0002264,
+        "totalTokens": 130
+      }
+    }
+  },
+  "fork_with_new_usage": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "zcode",
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "inputTokens": 67,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 5,
+                  "cacheReadTokens": 40,
+                  "cost": 0.0002652,
+                  "inputTokens": 67,
+                  "modelName": "GLM-5.3",
+                  "outputTokens": 25
+                }
+              ],
+              "modelsUsed": [
+                "GLM-5.3"
+              ],
+              "outputTokens": 25,
+              "totalCost": 0.0002652,
+              "totalTokens": 147
+            }
+          ],
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 40,
+          "inputTokens": 67,
+          "metadata": {
+            "agents": [
+              "zcode"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "cost": 0.0002652,
+              "inputTokens": 67,
+              "modelName": "GLM-5.3",
+              "outputTokens": 25
+            }
+          ],
+          "modelsUsed": [
+            "GLM-5.3"
+          ],
+          "outputTokens": 25,
+          "period": "2026-05-28",
+          "totalCost": 0.0002652,
+          "totalTokens": 147
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 40,
+        "inputTokens": 67,
+        "outputTokens": 25,
+        "totalCost": 0.0002652,
+        "totalTokens": 147
+      }
+    },
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 12,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 3.8799999999999994e-05,
+              "inputTokens": 12,
+              "modelName": "GLM-5.3",
+              "outputTokens": 5
+            }
+          ],
+          "modelsUsed": [
+            "GLM-5.3"
+          ],
+          "outputTokens": 5,
+          "projectPath": "/synthetic/project",
+          "sessionId": "fork-session",
+          "totalCost": 3.8799999999999994e-05,
+          "totalTokens": 17
+        },
+        {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 40,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 55,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "cost": 0.0002264,
+              "inputTokens": 55,
+              "modelName": "GLM-5.3",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "GLM-5.3"
+          ],
+          "outputTokens": 20,
+          "projectPath": "/synthetic/project",
+          "sessionId": "session-a",
+          "totalCost": 0.0002264,
+          "totalTokens": 130
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 40,
+        "inputTokens": 67,
+        "outputTokens": 25,
+        "totalCost": 0.0002652,
+        "totalTokens": 147
+      }
+    }
+  },
+  "replayed_update": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "zcode",
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "inputTokens": 55,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 5,
+                  "cacheReadTokens": 40,
+                  "cost": 0.0002264,
+                  "inputTokens": 55,
+                  "modelName": "GLM-5.3",
+                  "outputTokens": 20
+                }
+              ],
+              "modelsUsed": [
+                "GLM-5.3"
+              ],
+              "outputTokens": 20,
+              "totalCost": 0.0002264,
+              "totalTokens": 130
+            }
+          ],
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 40,
+          "inputTokens": 55,
+          "metadata": {
+            "agents": [
+              "zcode"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "cost": 0.0002264,
+              "inputTokens": 55,
+              "modelName": "GLM-5.3",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "GLM-5.3"
+          ],
+          "outputTokens": 20,
+          "period": "2026-05-28",
+          "totalCost": 0.0002264,
+          "totalTokens": 130
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 40,
+        "inputTokens": 55,
+        "outputTokens": 20,
+        "totalCost": 0.0002264,
+        "totalTokens": 130
+      }
+    },
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 40,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 55,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "cost": 0.0002264,
+              "inputTokens": 55,
+              "modelName": "GLM-5.3",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "GLM-5.3"
+          ],
+          "outputTokens": 20,
+          "projectPath": "/synthetic/project",
+          "sessionId": "session-a",
+          "totalCost": 0.0002264,
+          "totalTokens": 130
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 40,
+        "inputTokens": 55,
+        "outputTokens": 20,
+        "totalCost": 0.0002264,
+        "totalTokens": 130
+      }
+    }
+  },
+  "compacted": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "zcode",
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "inputTokens": 94,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 5,
+                  "cacheReadTokens": 40,
+                  "cost": 0.000325,
+                  "inputTokens": 94,
+                  "modelName": "GLM-5.3",
+                  "outputTokens": 30
+                }
+              ],
+              "modelsUsed": [
+                "GLM-5.3"
+              ],
+              "outputTokens": 30,
+              "totalCost": 0.000325,
+              "totalTokens": 179
+            }
+          ],
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 40,
+          "inputTokens": 94,
+          "metadata": {
+            "agents": [
+              "zcode"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "cost": 0.000325,
+              "inputTokens": 94,
+              "modelName": "GLM-5.3",
+              "outputTokens": 30
+            }
+          ],
+          "modelsUsed": [
+            "GLM-5.3"
+          ],
+          "outputTokens": 30,
+          "period": "2026-05-28",
+          "totalCost": 0.000325,
+          "totalTokens": 179
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 40,
+        "inputTokens": 94,
+        "outputTokens": 30,
+        "totalCost": 0.000325,
+        "totalTokens": 179
+      }
+    },
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 40,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 94,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "cost": 0.000325,
+              "inputTokens": 94,
+              "modelName": "GLM-5.3",
+              "outputTokens": 30
+            }
+          ],
+          "modelsUsed": [
+            "GLM-5.3"
+          ],
+          "outputTokens": 30,
+          "projectPath": "/synthetic/project",
+          "sessionId": "session-a",
+          "totalCost": 0.000325,
+          "totalTokens": 179
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 40,
+        "inputTokens": 94,
+        "outputTokens": 30,
+        "totalCost": 0.000325,
+        "totalTokens": 179
+      }
+    }
+  },
+  "conflicting_id_first": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "zcode",
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "inputTokens": 55,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 5,
+                  "cacheReadTokens": 40,
+                  "cost": 0.0002264,
+                  "inputTokens": 55,
+                  "modelName": "GLM-5.3",
+                  "outputTokens": 20
+                }
+              ],
+              "modelsUsed": [
+                "GLM-5.3"
+              ],
+              "outputTokens": 20,
+              "totalCost": 0.0002264,
+              "totalTokens": 130
+            }
+          ],
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 40,
+          "inputTokens": 55,
+          "metadata": {
+            "agents": [
+              "zcode"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "cost": 0.0002264,
+              "inputTokens": 55,
+              "modelName": "GLM-5.3",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "GLM-5.3"
+          ],
+          "outputTokens": 20,
+          "period": "2026-05-28",
+          "totalCost": 0.0002264,
+          "totalTokens": 130
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 40,
+        "inputTokens": 55,
+        "outputTokens": 20,
+        "totalCost": 0.0002264,
+        "totalTokens": 130
+      }
+    },
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 40,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 55,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "cost": 0.0002264,
+              "inputTokens": 55,
+              "modelName": "GLM-5.3",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "GLM-5.3"
+          ],
+          "outputTokens": 20,
+          "projectPath": "/synthetic/project",
+          "sessionId": "session-a",
+          "totalCost": 0.0002264,
+          "totalTokens": 130
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 40,
+        "inputTokens": 55,
+        "outputTokens": 20,
+        "totalCost": 0.0002264,
+        "totalTokens": 130
+      }
+    }
+  },
+  "conflicting_id_reversed": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "zcode",
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "inputTokens": 85,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 5,
+                  "cacheReadTokens": 40,
+                  "cost": 0.00026839999999999996,
+                  "inputTokens": 85,
+                  "modelName": "GLM-5.3",
+                  "outputTokens": 20
+                }
+              ],
+              "modelsUsed": [
+                "GLM-5.3"
+              ],
+              "outputTokens": 20,
+              "totalCost": 0.00026839999999999996,
+              "totalTokens": 160
+            }
+          ],
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 40,
+          "inputTokens": 85,
+          "metadata": {
+            "agents": [
+              "zcode"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "cost": 0.00026839999999999996,
+              "inputTokens": 85,
+              "modelName": "GLM-5.3",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "GLM-5.3"
+          ],
+          "outputTokens": 20,
+          "period": "2026-05-28",
+          "totalCost": 0.00026839999999999996,
+          "totalTokens": 160
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 40,
+        "inputTokens": 85,
+        "outputTokens": 20,
+        "totalCost": 0.00026839999999999996,
+        "totalTokens": 160
+      }
+    },
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 40,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 85,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "cost": 0.00026839999999999996,
+              "inputTokens": 85,
+              "modelName": "GLM-5.3",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "GLM-5.3"
+          ],
+          "outputTokens": 20,
+          "projectPath": "/synthetic/project",
+          "sessionId": "session-a",
+          "totalCost": 0.00026839999999999996,
+          "totalTokens": 160
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 40,
+        "inputTokens": 85,
+        "outputTokens": 20,
+        "totalCost": 0.00026839999999999996,
+        "totalTokens": 160
+      }
+    }
+  },
+  "unknown_price": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "zcode",
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "inputTokens": 55,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 5,
+                  "cacheReadTokens": 40,
+                  "cost": 0.0,
+                  "inputTokens": 55,
+                  "missingPricing": true,
+                  "modelName": "openusage-unpriced-model",
+                  "outputTokens": 20
+                }
+              ],
+              "modelsUsed": [
+                "openusage-unpriced-model"
+              ],
+              "outputTokens": 20,
+              "totalCost": 0,
+              "totalTokens": 130
+            }
+          ],
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 40,
+          "inputTokens": 55,
+          "metadata": {
+            "agents": [
+              "zcode"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "cost": 0.0,
+              "inputTokens": 55,
+              "missingPricing": true,
+              "modelName": "openusage-unpriced-model",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "openusage-unpriced-model"
+          ],
+          "outputTokens": 20,
+          "period": "2026-05-28",
+          "totalCost": 0,
+          "totalTokens": 130
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 40,
+        "inputTokens": 55,
+        "outputTokens": 20,
+        "totalCost": 0,
+        "totalTokens": 130,
+        "unpricedModels": [
+          "openusage-unpriced-model"
+        ]
+      }
+    },
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 40,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 55,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "cost": 0.0,
+              "inputTokens": 55,
+              "missingPricing": true,
+              "modelName": "openusage-unpriced-model",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "openusage-unpriced-model"
+          ],
+          "outputTokens": 20,
+          "projectPath": "/synthetic/project",
+          "sessionId": "session-a",
+          "totalCost": 0.0,
+          "totalTokens": 130
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 40,
+        "inputTokens": 55,
+        "outputTokens": 20,
+        "totalCost": 0.0,
+        "totalTokens": 130,
+        "unpricedModels": [
+          "openusage-unpriced-model"
+        ]
+      }
+    }
+  },
+  "custom_provider": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "zcode",
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "inputTokens": 55,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 5,
+                  "cacheReadTokens": 40,
+                  "cost": 0.0,
+                  "inputTokens": 55,
+                  "missingPricing": true,
+                  "modelName": "GLM-5.3",
+                  "outputTokens": 20
+                }
+              ],
+              "modelsUsed": [
+                "GLM-5.3"
+              ],
+              "outputTokens": 20,
+              "totalCost": 0,
+              "totalTokens": 130
+            }
+          ],
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 40,
+          "inputTokens": 55,
+          "metadata": {
+            "agents": [
+              "zcode"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "cost": 0.0,
+              "inputTokens": 55,
+              "missingPricing": true,
+              "modelName": "GLM-5.3",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "GLM-5.3"
+          ],
+          "outputTokens": 20,
+          "period": "2026-05-28",
+          "totalCost": 0,
+          "totalTokens": 130
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 40,
+        "inputTokens": 55,
+        "outputTokens": 20,
+        "totalCost": 0,
+        "totalTokens": 130,
+        "unpricedModels": [
+          "GLM-5.3"
+        ]
+      }
+    },
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 40,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 55,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "cost": 0.0,
+              "inputTokens": 55,
+              "missingPricing": true,
+              "modelName": "GLM-5.3",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "GLM-5.3"
+          ],
+          "outputTokens": 20,
+          "projectPath": "/synthetic/project",
+          "sessionId": "session-a",
+          "totalCost": 0.0,
+          "totalTokens": 130
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 40,
+        "inputTokens": 55,
+        "outputTokens": 20,
+        "totalCost": 0.0,
+        "totalTokens": 130,
+        "unpricedModels": [
+          "GLM-5.3"
+        ]
+      }
+    }
+  },
+  "legacy_columns": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "zcode",
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "inputTokens": 100,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 0,
+                  "cost": 0.00022799999999999999,
+                  "inputTokens": 100,
+                  "modelName": "GLM-5.3",
+                  "outputTokens": 20
+                }
+              ],
+              "modelsUsed": [
+                "GLM-5.3"
+              ],
+              "outputTokens": 20,
+              "totalCost": 0.00022799999999999999,
+              "totalTokens": 120
+            }
+          ],
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 100,
+          "metadata": {
+            "agents": [
+              "zcode"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.00022799999999999999,
+              "inputTokens": 100,
+              "modelName": "GLM-5.3",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "GLM-5.3"
+          ],
+          "outputTokens": 20,
+          "period": "2026-05-28",
+          "totalCost": 0.00022799999999999999,
+          "totalTokens": 120
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 100,
+        "outputTokens": 20,
+        "totalCost": 0.00022799999999999999,
+        "totalTokens": 120
+      }
+    },
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 100,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.00022799999999999999,
+              "inputTokens": 100,
+              "modelName": "GLM-5.3",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "GLM-5.3"
+          ],
+          "outputTokens": 20,
+          "projectPath": "/synthetic/project",
+          "sessionId": "session-a",
+          "totalCost": 0.00022799999999999999,
+          "totalTokens": 120
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 100,
+        "outputTokens": 20,
+        "totalCost": 0.00022799999999999999,
+        "totalTokens": 120
+      }
+    }
+  },
+  "missing_time": {
+    "daily": {
+      "daily": [],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": 0,
+        "totalTokens": 0
+      }
+    },
+    "session": {
+      "sessions": [],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": -0.0,
+        "totalTokens": 0
+      }
+    }
+  },
+  "missing_project": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "zcode",
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "inputTokens": 55,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 5,
+                  "cacheReadTokens": 40,
+                  "cost": 0.0002264,
+                  "inputTokens": 55,
+                  "modelName": "GLM-5.3",
+                  "outputTokens": 20
+                }
+              ],
+              "modelsUsed": [
+                "GLM-5.3"
+              ],
+              "outputTokens": 20,
+              "totalCost": 0.0002264,
+              "totalTokens": 130
+            }
+          ],
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 40,
+          "inputTokens": 55,
+          "metadata": {
+            "agents": [
+              "zcode"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "cost": 0.0002264,
+              "inputTokens": 55,
+              "modelName": "GLM-5.3",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "GLM-5.3"
+          ],
+          "outputTokens": 20,
+          "period": "2026-05-28",
+          "totalCost": 0.0002264,
+          "totalTokens": 130
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 40,
+        "inputTokens": 55,
+        "outputTokens": 20,
+        "totalCost": 0.0002264,
+        "totalTokens": 130
+      }
+    },
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 40,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 55,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "cost": 0.0002264,
+              "inputTokens": 55,
+              "modelName": "GLM-5.3",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "GLM-5.3"
+          ],
+          "outputTokens": 20,
+          "projectPath": "ZCode",
+          "sessionId": "session-a",
+          "totalCost": 0.0002264,
+          "totalTokens": 130
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 40,
+        "inputTokens": 55,
+        "outputTokens": 20,
+        "totalCost": 0.0002264,
+        "totalTokens": 130
+      }
+    }
+  },
+  "empty_project": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "zcode",
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "inputTokens": 55,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 5,
+                  "cacheReadTokens": 40,
+                  "cost": 0.0002264,
+                  "inputTokens": 55,
+                  "modelName": "GLM-5.3",
+                  "outputTokens": 20
+                }
+              ],
+              "modelsUsed": [
+                "GLM-5.3"
+              ],
+              "outputTokens": 20,
+              "totalCost": 0.0002264,
+              "totalTokens": 130
+            }
+          ],
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 40,
+          "inputTokens": 55,
+          "metadata": {
+            "agents": [
+              "zcode"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "cost": 0.0002264,
+              "inputTokens": 55,
+              "modelName": "GLM-5.3",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "GLM-5.3"
+          ],
+          "outputTokens": 20,
+          "period": "2026-05-28",
+          "totalCost": 0.0002264,
+          "totalTokens": 130
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 40,
+        "inputTokens": 55,
+        "outputTokens": 20,
+        "totalCost": 0.0002264,
+        "totalTokens": 130
+      }
+    },
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 40,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 55,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "cost": 0.0002264,
+              "inputTokens": 55,
+              "modelName": "GLM-5.3",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "GLM-5.3"
+          ],
+          "outputTokens": 20,
+          "projectPath": "ZCode",
+          "sessionId": "session-a",
+          "totalCost": 0.0002264,
+          "totalTokens": 130
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 40,
+        "inputTokens": 55,
+        "outputTokens": 20,
+        "totalCost": 0.0002264,
+        "totalTokens": 130
+      }
+    }
+  },
+  "invalid_database_peer": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "zcode",
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "inputTokens": 55,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 5,
+                  "cacheReadTokens": 40,
+                  "cost": 0.0002264,
+                  "inputTokens": 55,
+                  "modelName": "GLM-5.3",
+                  "outputTokens": 20
+                }
+              ],
+              "modelsUsed": [
+                "GLM-5.3"
+              ],
+              "outputTokens": 20,
+              "totalCost": 0.0002264,
+              "totalTokens": 130
+            }
+          ],
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 40,
+          "inputTokens": 55,
+          "metadata": {
+            "agents": [
+              "zcode"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "cost": 0.0002264,
+              "inputTokens": 55,
+              "modelName": "GLM-5.3",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "GLM-5.3"
+          ],
+          "outputTokens": 20,
+          "period": "2026-05-28",
+          "totalCost": 0.0002264,
+          "totalTokens": 130
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 40,
+        "inputTokens": 55,
+        "outputTokens": 20,
+        "totalCost": 0.0002264,
+        "totalTokens": 130
+      }
+    },
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 40,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 55,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "cost": 0.0002264,
+              "inputTokens": 55,
+              "modelName": "GLM-5.3",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "GLM-5.3"
+          ],
+          "outputTokens": 20,
+          "projectPath": "/synthetic/project",
+          "sessionId": "session-a",
+          "totalCost": 0.0002264,
+          "totalTokens": 130
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 40,
+        "inputTokens": 55,
+        "outputTokens": 20,
+        "totalCost": 0.0002264,
+        "totalTokens": 130
+      }
+    }
+  },
+  "unsupported_schema_peer": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "zcode",
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "inputTokens": 55,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 5,
+                  "cacheReadTokens": 40,
+                  "cost": 0.0002264,
+                  "inputTokens": 55,
+                  "modelName": "GLM-5.3",
+                  "outputTokens": 20
+                }
+              ],
+              "modelsUsed": [
+                "GLM-5.3"
+              ],
+              "outputTokens": 20,
+              "totalCost": 0.0002264,
+              "totalTokens": 130
+            }
+          ],
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 40,
+          "inputTokens": 55,
+          "metadata": {
+            "agents": [
+              "zcode"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "cost": 0.0002264,
+              "inputTokens": 55,
+              "modelName": "GLM-5.3",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "GLM-5.3"
+          ],
+          "outputTokens": 20,
+          "period": "2026-05-28",
+          "totalCost": 0.0002264,
+          "totalTokens": 130
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 40,
+        "inputTokens": 55,
+        "outputTokens": 20,
+        "totalCost": 0.0002264,
+        "totalTokens": 130
+      }
+    },
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 40,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 55,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 40,
+              "cost": 0.0002264,
+              "inputTokens": 55,
+              "modelName": "GLM-5.3",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "GLM-5.3"
+          ],
+          "outputTokens": 20,
+          "projectPath": "/synthetic/project",
+          "sessionId": "session-a",
+          "totalCost": 0.0002264,
+          "totalTokens": 130
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 40,
+        "inputTokens": 55,
+        "outputTokens": 20,
+        "totalCost": 0.0002264,
+        "totalTokens": 130
+      }
+    }
+  },
+  "noncompleted": {
+    "daily": {
+      "daily": [],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": 0,
+        "totalTokens": 0
+      }
+    },
+    "session": {
+      "sessions": [],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": -0.0,
+        "totalTokens": 0
+      }
+    }
+  },
+  "empty": {
+    "daily": {
+      "daily": [],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": 0,
+        "totalTokens": 0
+      }
+    },
+    "session": {
+      "sessions": [],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": -0.0,
+        "totalTokens": 0
+      }
+    }
+  }
+}

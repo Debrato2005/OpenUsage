@@ -344,6 +344,7 @@ pub fn parse_agent_sessions(
                 ProjectPolicy::Unavailable => false,
                 ProjectPolicy::Reported => true,
                 ProjectPolicy::Pi => *value != "unknown",
+                ProjectPolicy::Zcode => *value != "ZCode",
             })
             .map(str::to_owned);
         sessions.push(AgentSession {

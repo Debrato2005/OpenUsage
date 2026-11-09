@@ -337,7 +337,7 @@
     "agentReport": {
       "metadata": true,
       "activityTimes": true,
-      "project": "reported",
+      "project": "zcode",
       "modelPrefix": null,
       "nullEmptyTotals": false,
       "period": "day"

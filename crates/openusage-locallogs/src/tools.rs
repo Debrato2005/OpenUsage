@@ -33,6 +33,7 @@ pub enum ProjectPolicy {
     Unavailable,
     Reported,
     Pi,
+    Zcode,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
