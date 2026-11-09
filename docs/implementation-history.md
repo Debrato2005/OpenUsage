@@ -4,6 +4,10 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f11b result before L-1f11c
+
+Latest scoped result, November 10, 2026: L-1f11b removes ZCode's fallback project label from parsed sessions. Known paths and activity times stay available. Nineteen synthetic cases cover the usage ledger and its separate transcript records. Copies, replay, fork transcripts, and compaction count correctly in those cases. Conflicts and incomplete reads still prevent enablement. Full Python, Rust, renderer, and two native checks passed on Linux. ZCode remains disabled, and the production pin is unchanged.
+
 ## L-1f11a result before L-1f11b
 
 Latest scoped result, November 10, 2026: L-1f11a records 16 Kilo cases against the pinned scanner and Kilo's own storage source. Legacy copies and forks double tokens. Conflicts depend on root order, and incomplete reads can appear successful. Replay and the tested compaction case count correctly. Kilo stays disabled. The regression checks preserve unavailable prices, details, and session metadata. Full selected checks and native consent passed with private synthetic data on Linux. AT-65 remains failed for Kilo.

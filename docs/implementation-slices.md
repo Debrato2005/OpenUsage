@@ -120,6 +120,7 @@ Updated November 10, 2026. The owner asked to keep this list and to build down i
 - [ ] L-1f11: qualify each tool with copied, forked, replayed, and compacted fixtures under AT-65. Complete the Amp candidate gates before any pin change. Enable only qualified tools. L-1f stays open until all sixteen pass their required checks.
 - [x] L-1f11a: record Kilo copy, fork, replay, compaction, and incomplete-read results. Regression checks pass, but Kilo fails AT-65 and stays disabled. See the [qualification](reviews/2026-11-10-kilo-qualification.md).
 - [x] L-1f11b: remove ZCode's fallback project label and record 19 qualification cases. Copy, fork-transcript, replay, and compaction counts match. Conflicts and incomplete reads keep ZCode disabled. See the [qualification](reviews/2026-11-10-zcode-qualification.md).
+- [x] L-1f11c: record 29 Pi cases and preserve missing fields in Rust. Copy, branch, and omitted-usage defects fail AT-65. Pi stays disabled. See the [qualification](reviews/2026-11-10-pi-qualification.md).
 - [x] R-1: use bounded test-fixture writes to prevent inherited writable handles from blocking execution. Full Rust and native provider-lifecycle checks passed. See the [investigation](reviews/2026-11-10-executable-fixture-race.md).
 - [x] L-1g1: sessions, projects and the reasoning count from the `ccusage` session report of each tool, at schema 11 (OU-LOG-017, [SC-021](srs-clarifications.md#sc-021-sessions-projects-hours-and-reasoning-from-the-pinned-ccusage)).
 - [x] L-1g2: hourly ranges for Claude Code from `ccusage blocks`, at schema 12 (OU-LOG-017, SC-021).
@@ -318,7 +319,7 @@ Acceptance:
 
 Stopping condition: one bounded ZCode qualification result, owning docs, a local commit, and a Graphify update. Then continue the next open slice.
 
-### Next assignment: L-1f11c
+### L-1f11c: Pi qualification record (complete, AT-65 failed)
 
 Goal: qualify Pi with source inspection and private synthetic fixtures. Compare independent totals with actual daily and session reports. Preserve unavailable measurements under SC-022.
 
@@ -331,6 +332,20 @@ Acceptance:
 - Run doctor, the selected verification plan, and affected acceptance checks. Record failures and unexecuted gates.
 
 Stopping condition: one bounded Pi qualification result, owning docs, a local commit, and a Graphify update. Then continue the next open slice.
+
+### Next assignment: L-1f11d
+
+Goal: make a local Pi scanner candidate preserve usage on compaction, branch summaries, and standalone usage entries. Use the pinned source and the recorded producer contract. This slice does not change production support.
+
+Acceptance:
+
+- Preserve independent reported totals for those record types. Treat context size as context, never as a new call.
+- Keep absent models, timestamps, token categories, and prices unavailable. Do not infer reasoning or account identity.
+- Add focused adapter tests and run the candidate against synthetic comparisons. Preserve the current pinned-binary results as the baseline.
+- Keep the Amp candidate and production pin unchanged. Record remaining identity, lineage, incomplete-read, and format gates.
+- Run doctor, the selected verification plan, and affected acceptance checks. Record failures and unexecuted checks.
+
+Stopping condition: one verified local candidate change, owning docs, a local commit, and a Graphify update. Then continue the next unresolved qualification issue.
 
 ## Order
 
