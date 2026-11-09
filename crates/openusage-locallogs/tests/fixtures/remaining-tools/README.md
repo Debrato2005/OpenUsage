@@ -32,3 +32,7 @@ The separate [Pi usage candidate](../../../../../docs/reviews/2026-11-10-pi-usag
 `pi-identity-candidate.json` records 40 synthetic cases and 80 daily/session outcomes from the separate local identity candidate. Fifteen cases are explicit unavailable outcomes, not scanner reports or zero totals. The other 25 include a valid empty tree. `test_ccusage_pi_identity.py` checks the explicit binary digest, independent expected totals, reversed roots, unchanged sources, isolated homes, other tools, and JSON/table views. The [review](../../../../../docs/reviews/2026-11-10-pi-identity-candidate.md) owns its source evidence and remaining gates.
 
 The original Pi matrix remains the production baseline. Its fresh-child source fixture now has a null parent entry ID; this correction leaves the recorded pinned output unchanged. OpenUsage's parser test reads the accepted candidate reports and preserves missing details, estimates, and model attribution. No tool or production pin changes.
+
+## Pi format candidate
+
+`pi-format-candidate.json` records nineteen cases and 38 daily/session outcomes from the third local Pi patch. Five cases have reports. Fourteen are explicit unavailable outcomes, not zero totals. `test_ccusage_pi_format.py` also checks the earlier identity matrix, other tools, empty roots, unchanged source hashes, and isolated homes. The [review](../../../../../docs/reviews/2026-11-10-pi-format-candidate.md) owns source evidence, digests, and remaining gates. No production pin or enabled tool changes.

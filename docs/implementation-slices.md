@@ -123,6 +123,8 @@ Updated November 10, 2026. The owner asked to keep this list and to build down i
 - [x] L-1f11c: record 29 Pi cases and preserve missing fields in Rust. Copy, branch, and omitted-usage defects fail AT-65. Pi stays disabled. See the [qualification](reviews/2026-11-10-pi-qualification.md).
 - [x] L-1f11d: prepare a separate local Pi usage patch. Summary and standalone usage counts match. Identity and completeness gates remain open, so Pi stays disabled. See the [candidate](reviews/2026-11-10-pi-usage-candidate.md).
 - [x] L-1f11e: prepare a separate Pi identity patch. Scoped IDs and proven lineage count copies once and retain distinct calls. Ambiguous and unsupported inputs reject the scan. Completeness gates remain open. See the [candidate](reviews/2026-11-10-pi-identity-candidate.md).
+- [ ] L-1f11f: complete Pi format and filesystem gates. Format correction is complete within scope; discovery, coherent reads, and input bounds remain open.
+- [x] L-1f11f0: map validated Pi records, preserve escaped JSON keys, reject ambiguous shapes, and keep independent assistant totals outside missing categories. See the [format candidate](reviews/2026-11-10-pi-format-candidate.md).
 - [x] R-1: use bounded test-fixture writes to prevent inherited writable handles from blocking execution. Full Rust and native provider-lifecycle checks passed. See the [investigation](reviews/2026-11-10-executable-fixture-race.md).
 - [x] L-1g1: sessions, projects and the reasoning count from the `ccusage` session report of each tool, at schema 11 (OU-LOG-017, [SC-021](srs-clarifications.md#sc-021-sessions-projects-hours-and-reasoning-from-the-pinned-ccusage)).
 - [x] L-1g2: hourly ranges for Claude Code from `ccusage blocks`, at schema 12 (OU-LOG-017, SC-021).
@@ -363,7 +365,7 @@ Acceptance:
 
 Stopping condition: one verified local identity correction, owning docs, a local commit, and a Graphify update. Then continue the next unresolved qualification issue.
 
-### Next assignment: L-1f11f
+### L-1f11f: Pi completeness and format gates (open)
 
 Goal: prevent the Pi candidate from accepting partial totals after omitted, changed, or unsupported source inputs. Preserve the identity and usage corrections.
 
@@ -376,6 +378,33 @@ Acceptance:
 - Keep all candidates disabled, the production scanner pin unchanged, and the Amp patch unpublished. Run doctor, focused checks, the selected verification plan, and affected native acceptance.
 
 Stopping condition: one verified local completeness change, owning docs, a local commit, and a Graphify update. Then continue the next unresolved qualification issue.
+
+### L-1f11f0: Pi format candidate (complete within scope)
+
+Goal: make the Pi report mapper preserve every supported usage record after source validation. Discovery and coherent filesystem reads follow in L-1f11f1.
+
+Acceptance:
+
+- Reproduce escaped JSON field names, independent header metadata, invalid optional fields, and ambiguous duplicate keys against the current candidate.
+- Parse each supported source record without a byte-filter shortcut. Reject invalid shapes without a partial total. Do not infer token categories from an independent total.
+- Preserve source IDs, explicit unavailable times, nullable OpenUsage details, and all prior valid copy/fork results.
+- Keep candidates disabled, the production pin unchanged, and the Amp patch unpublished. Run doctor, focused adapter/CLI checks, the selected OpenUsage plan, and native consent.
+
+Stopping condition: one verified local format correction, owning docs, a local commit, and a Graphify update. Then start L-1f11f1 for discovery, coherent reads, and input bounds.
+
+### Next assignment: L-1f11f1
+
+Goal: return a complete coherent Pi source snapshot or an explicit unavailable result. Preserve the usage, identity, and format corrections.
+
+Acceptance:
+
+- Reproduce omitted explicit roots and directory read errors using private synthetic inputs. Discovery errors must not become empty or partial totals.
+- Do not follow source links outside selected roots. Check directory and file replacement during controlled reads, with no automatic retry.
+- Bound file counts, source bytes, nesting, and cumulative token arithmetic. Reject unsupported or special files before reading their contents.
+- Keep absent timestamps unavailable and preserve the last saved usage on failed scans. Document supported platform scope and any remaining acceptance gates.
+- Keep candidates disabled, the production pin unchanged, and the Amp patch unpublished. Run doctor, focused adapter/CLI checks, the selected OpenUsage plan, and affected native acceptance.
+
+Stopping condition: one verified local filesystem correction, owning docs, a local commit, and a Graphify update. Then continue the next unresolved qualification issue.
 
 ## Order
 

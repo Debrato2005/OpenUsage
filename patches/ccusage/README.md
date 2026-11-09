@@ -33,3 +33,9 @@ Run `test_ccusage_pi_candidate.py` with `OPENUSAGE_CCUSAGE_PI_CANDIDATE` and `OP
 Apply `20.0.48-pi-identity.patch` after `20.0.48-pi-usage.patch` on the same pinned source. It requires source IDs and proven parent links, counts copies once, and rejects ambiguous input. Version 1 and headerless data are unsupported. This patch is local and unpublished; it does not replace the production pin or Amp candidate. The [review](../../docs/reviews/2026-11-10-pi-identity-candidate.md) owns the source evidence, digests, checks, and remaining gates.
 
 Set `OPENUSAGE_CCUSAGE_PI_IDENTITY_CANDIDATE` and `OPENUSAGE_CCUSAGE_PI_IDENTITY_CANDIDATE_SHA256` to run `test_ccusage_pi_identity.py`. Use version `20.0.48-openusage.pi-identity-candidate.1` for its build. Keep the earlier usage-candidate variables unset for this binary. Its stricter identity boundary intentionally rejects their headerless fixtures.
+
+## Separate Pi format candidate
+
+Apply `20.0.48-pi-format.patch` after the usage and identity patches. It maps validated records, accepts escaped JSON keys, rejects ambiguous objects and invalid shapes, and keeps assistant totals out of inferred categories. It remains local and unpublished. The [review](../../docs/reviews/2026-11-10-pi-format-candidate.md) owns digests, checks, and remaining filesystem gates.
+
+Set `OPENUSAGE_CCUSAGE_PI_COMPLETENESS_CANDIDATE` and `OPENUSAGE_CCUSAGE_PI_COMPLETENESS_CANDIDATE_SHA256` for `test_ccusage_pi_format.py`. Its build version is `20.0.48-openusage.pi-completeness-candidate.1`. Keep the earlier candidate variables unset for this binary. No production pin or Amp patch changes.

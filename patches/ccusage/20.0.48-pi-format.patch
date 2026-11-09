@@ -1,0 +1,688 @@
+diff --git a/docs/guide/pi/index.md b/docs/guide/pi/index.md
+index a1a6038..9f7e1ea 100644
+--- a/docs/guide/pi/index.md
++++ b/docs/guide/pi/index.md
+@@ -296,7 +296,7 @@ Sessions are sorted by last activity:
+ 
+ ### Session Identification
+ 
+-The local identity candidate uses the source session ID and reported working directory. An absent working directory stays unknown. Version 2 and 3 trees require entry IDs and valid parent links. Copied sessions count once after renames. Forks require their parent file in the selected folders. Legacy records without IDs, conflicting records, and ambiguous lineage fail the scan without a partial report. This candidate is unpublished.
++The local identity candidate uses the source session ID and reported working directory. An absent working directory stays unknown. Version 2 and 3 trees require entry IDs and valid parent links. Copied sessions count once after renames. Forks require their parent file in the selected folders. Legacy records without IDs, conflicting records, and ambiguous lineage fail the scan without a partial report. The format correction accepts escaped JSON field names and rejects duplicate keys or invalid present fields. An independent assistant total does not become an inferred output count. Context edits leave raw usage intact. This candidate is unpublished.
+ 
+ Long project names are truncated to 25 characters with `...` suffix for readability.
+ 
+diff --git a/rust/adapters/pi/src/README.md b/rust/adapters/pi/src/README.md
+index 71ed497..85978aa 100644
+--- a/rust/adapters/pi/src/README.md
++++ b/rust/adapters/pi/src/README.md
+@@ -25,7 +25,7 @@ cost and calculates from tokens only when that cost is missing or invalid.
+ Usage records include assistant messages, compaction summaries, branch summaries,
+ and standalone `usage` entries. Standalone kinds are open strings, including
+ `cache_warm`. Summary context sizes such as `tokensBefore` add no usage. A missing
+-model stays unattributed. For non-message records, a reported total above the
++model stays unattributed. For all usage records, a reported total above the
+ known categories stays in the independent extra total, never in an inferred
+ output or reasoning category. Missing category values still use the shared
+ numeric report shape; they do not establish a measured zero.
+@@ -53,3 +53,9 @@ directories inside the sessions tree. Those transcripts duplicate calls already
+ recorded in the primary session files, so the loader skips any `.jsonl` file
+ with a `subagent-artifacts/` path segment. `run-*/` fresh-context child
+ sessions are the primary record for those children and keep counting.
++
++The format correction maps the validated source records directly. JSON escapes
++in field names do not remove usage. Unknown record types, duplicate object keys,
++and invalid present fields fail the scan. Header metadata cannot change the
++source ID or project through a second message-shaped parse. Context edits change
++future context only; they do not remove raw usage from the totals.
+diff --git a/rust/adapters/pi/src/completeness_tests.rs b/rust/adapters/pi/src/completeness_tests.rs
+new file mode 100644
+index 0000000..8339fbe
+--- /dev/null
++++ b/rust/adapters/pi/src/completeness_tests.rs
+@@ -0,0 +1,160 @@
++use crate::identity_tests::{event, header, load, write};
++use ccusage_test_support::Fixture;
++use serde_json::json;
++
++#[test]
++fn escaped_json_keys_preserve_usage() {
++    let fixture = Fixture::new();
++    let file = write(
++        &fixture,
++        "sessions/root.jsonl",
++        header("root", None),
++        &[event("aaaaaaaa", None, 120)],
++    );
++    let source = std::fs::read_to_string(&file)
++        .unwrap()
++        .replace("\"usage\"", "\"\\u0075sage\"");
++    std::fs::write(file, source).unwrap();
++    assert_eq!(load(&[fixture.path("sessions")]).unwrap().len(), 1);
++}
++
++#[test]
++fn unrelated_header_fields_cannot_change_source_identity() {
++    let fixture = Fixture::new();
++    let mut head = header("source-session", None);
++    head["message"] = json!(42);
++    for path in ["first/sessions/root.jsonl", "second/sessions/renamed.jsonl"] {
++        write(
++            &fixture,
++            path,
++            head.clone(),
++            &[event("aaaaaaaa", None, 120)],
++        );
++    }
++    let entries = load(&[
++        fixture.path("first/sessions"),
++        fixture.path("second/sessions"),
++    ])
++    .unwrap();
++    assert_eq!(entries.len(), 1);
++    assert_eq!(entries[0].session_id.as_ref(), "source-session");
++}
++
++#[test]
++fn invalid_present_fields_are_not_missing_measurements() {
++    for field in ["model", "provider", "role", "message", "id"] {
++        let fixture = Fixture::new();
++        let mut row = event("aaaaaaaa", None, 120);
++        match field {
++            "message" => row["message"] = json!(42),
++            "id" => row["id"] = json!(" aaaaaaaa "),
++            _ => row["message"][field] = json!(42),
++        }
++        write(
++            &fixture,
++            "sessions/root.jsonl",
++            header("root", None),
++            &[row],
++        );
++        assert!(load(&[fixture.path("sessions")]).is_err(), "{field}");
++    }
++}
++
++#[test]
++fn duplicate_json_keys_are_ambiguous_even_when_the_last_value_looks_valid() {
++    let fixture = Fixture::new();
++    let file = write(
++        &fixture,
++        "sessions/root.jsonl",
++        header("root", None),
++        &[event("aaaaaaaa", None, 120)],
++    );
++    let source = std::fs::read_to_string(&file)
++        .unwrap()
++        .replace("\"input\":115", "\"input\":0,\"input\":115");
++    assert!(source.contains("\"input\":0,\"input\":115"));
++    std::fs::write(file, source).unwrap();
++    assert!(load(&[fixture.path("sessions")]).is_err());
++}
++
++#[test]
++fn an_assistant_total_does_not_identify_its_output_category() {
++    let fixture = Fixture::new();
++    let mut row = event("aaaaaaaa", None, 120);
++    row["message"]["usage"] = json!({"totalTokens":120});
++    write(
++        &fixture,
++        "sessions/root.jsonl",
++        header("root", None),
++        &[row],
++    );
++    let entries = load(&[fixture.path("sessions")]).unwrap();
++    assert_eq!(entries.len(), 1);
++    assert_eq!(crate::total_usage_tokens(entries[0].data.message.usage), 0);
++    assert_eq!(entries[0].extra_total_tokens, 120);
++}
++
++#[test]
++fn duplicate_header_and_nested_keys_are_unavailable() {
++    for (original, replacement) in [
++        ("\"version\":3", "\"version\":2,\"version\":3"),
++        ("\"input\":115", "\"input\":115,\"\\u0069nput\":115"),
++    ] {
++        let fixture = Fixture::new();
++        let file = write(
++            &fixture,
++            "sessions/root.jsonl",
++            header("root", None),
++            &[event("aaaaaaaa", None, 120)],
++        );
++        let source = std::fs::read_to_string(&file)
++            .unwrap()
++            .replace(original, replacement);
++        assert!(source.contains(replacement));
++        std::fs::write(file, source).unwrap();
++        assert!(load(&[fixture.path("sessions")]).is_err());
++    }
++}
++
++#[test]
++fn known_context_records_do_not_change_raw_usage() {
++    for kind in [
++        "context_edit",
++        "model_change",
++        "thinking_level_change",
++        "custom",
++        "custom_message",
++        "label",
++        "session_info",
++    ] {
++        let fixture = Fixture::new();
++        let context = json!({"type":kind,"id":"bbbbbbbb","parentId":"aaaaaaaa",
++            "timestamp":"2026-05-28T20:26:40.000Z", "replacement":null, "targetId":"aaaaaaaa"});
++        write(
++            &fixture,
++            "sessions/root.jsonl",
++            header("root", None),
++            &[event("aaaaaaaa", None, 120), context],
++        );
++        let entries = load(&[fixture.path("sessions")]).unwrap();
++        assert_eq!(entries.len(), 1, "{kind}");
++        assert_eq!(
++            crate::total_usage_tokens(entries[0].data.message.usage),
++            120
++        );
++    }
++}
++
++#[test]
++fn unknown_record_types_do_not_create_successful_partial_reports() {
++    let fixture = Fixture::new();
++    let unknown = json!({"type":"future_record","id":"bbbbbbbb","parentId":"aaaaaaaa",
++        "timestamp":"2026-05-28T20:26:40.000Z"});
++    write(
++        &fixture,
++        "sessions/root.jsonl",
++        header("root", None),
++        &[event("aaaaaaaa", None, 120), unknown],
++    );
++    assert!(load(&[fixture.path("sessions")]).is_err());
++}
+diff --git a/rust/adapters/pi/src/identity.rs b/rust/adapters/pi/src/identity.rs
+index f86742e..255afc2 100644
+--- a/rust/adapters/pi/src/identity.rs
++++ b/rust/adapters/pi/src/identity.rs
+@@ -38,6 +38,14 @@ fn text(value: Option<&Value>) -> Result<String> {
+         .ok_or_else(unavailable)
+ }
+ 
++fn identifier(value: Option<&Value>) -> Result<String> {
++    let id = text(value)?;
++    if id.trim() != id {
++        return Err(unavailable());
++    }
++    Ok(id)
++}
++
+ fn optional_text(value: Option<&Value>) -> Result<Option<String>> {
+     value.map(|value| text(Some(value))).transpose()
+ }
+@@ -52,8 +60,7 @@ pub(crate) fn parse(content: &[u8]) -> Result<Source> {
+     let mut lines = content
+         .split(|byte| *byte == b'\n')
+         .filter(|line| !line.iter().all(u8::is_ascii_whitespace));
+-    let header: Value =
+-        serde_json::from_slice(lines.next().ok_or_else(unavailable)?).map_err(|_| unavailable())?;
++    let header = super::strict_json::parse(lines.next().ok_or_else(unavailable)?)?;
+     if header.get("type").and_then(Value::as_str) != Some("session") {
+         return Err(unavailable());
+     }
+@@ -65,7 +72,7 @@ pub(crate) fn parse(content: &[u8]) -> Result<Source> {
+         return Err(unavailable());
+     }
+     let header = Header {
+-        id: text(header.get("id"))?,
++        id: identifier(header.get("id"))?,
+         version,
+         timestamp: timestamp(header.get("timestamp"))?,
+         cwd: optional_text(header.get("cwd"))?,
+@@ -73,16 +80,29 @@ pub(crate) fn parse(content: &[u8]) -> Result<Source> {
+     };
+     let mut records = BTreeMap::new();
+     for line in lines {
+-        let mut value: Value = serde_json::from_slice(line).map_err(|_| unavailable())?;
++        let mut value = super::strict_json::parse(line)?;
+         let kind = text(value.get("type"))?;
+-        if kind == "session" {
++        if !matches!(
++            kind.as_str(),
++            "message"
++                | "usage"
++                | "compaction"
++                | "branch_summary"
++                | "model_change"
++                | "thinking_level_change"
++                | "context_edit"
++                | "custom"
++                | "custom_message"
++                | "label"
++                | "session_info"
++        ) {
+             return Err(unavailable());
+         }
+-        let id = text(value.get("id"))?;
++        let id = identifier(value.get("id"))?;
+         timestamp(value.get("timestamp"))?;
+         let parent = match value.get("parentId") {
+             Some(Value::Null) => None,
+-            Some(value) => Some(text(Some(value))?),
++            Some(value) => Some(identifier(Some(value))?),
+             None => return Err(unavailable()),
+         };
+         validate_usage(&value, &kind)?;
+@@ -107,15 +127,29 @@ pub(crate) fn parse(content: &[u8]) -> Result<Source> {
+ }
+ 
+ fn validate_usage(value: &Value, kind: &str) -> Result<()> {
+-    let usage = if kind == "message" {
+-        let message = value.get("message").ok_or_else(unavailable)?;
+-        if message.get("role").and_then(Value::as_str) != Some("assistant") {
++    let fields = if kind == "message" {
++        let message = value
++            .get("message")
++            .filter(|v| v.is_object())
++            .ok_or_else(unavailable)?;
++        let role = text(message.get("role"))?;
++        if role != "assistant" {
++            if message.get("usage").is_some() {
++                return Err(unavailable());
++            }
+             return Ok(());
+         }
+-        Some(message.get("usage").ok_or_else(unavailable)?)
++        if message.get("usage").is_none() {
++            return Err(unavailable());
++        }
++        message
+     } else {
+-        value.get("usage")
++        value
+     };
++    for name in ["model", "provider"] {
++        optional_text(fields.get(name))?;
++    }
++    let usage = fields.get("usage");
+     let Some(usage) = usage else {
+         return Ok(());
+     };
+diff --git a/rust/adapters/pi/src/identity_tests.rs b/rust/adapters/pi/src/identity_tests.rs
+index ace6418..d76bf00 100644
+--- a/rust/adapters/pi/src/identity_tests.rs
++++ b/rust/adapters/pi/src/identity_tests.rs
+@@ -7,7 +7,7 @@ use ccusage_test_support::Fixture;
+ use serde_json::{Value, json};
+ use std::path::{Path, PathBuf};
+ 
+-fn header(id: &str, parent: Option<&Path>) -> Value {
++pub(super) fn header(id: &str, parent: Option<&Path>) -> Value {
+     let mut record = json!({"type":"session","version":3,"id":id,
+         "timestamp":"2026-05-28T00:00:00.000Z","cwd":"/synthetic/project"});
+     if let Some(parent) = parent {
+@@ -17,7 +17,7 @@ fn header(id: &str, parent: Option<&Path>) -> Value {
+     record
+ }
+ 
+-fn event(id: &str, parent: Option<&str>, total: u64) -> Value {
++pub(super) fn event(id: &str, parent: Option<&str>, total: u64) -> Value {
+     json!({"type":"message","id":id,"parentId":parent,
+         "timestamp":"2026-05-28T20:26:40.000Z",
+         "message":{"role":"assistant","model":"gpt-5","provider":"openai",
+@@ -25,7 +25,7 @@ fn event(id: &str, parent: Option<&str>, total: u64) -> Value {
+                 "cacheRead":0,"cacheWrite":0,"totalTokens":total}}})
+ }
+ 
+-fn write(fixture: &Fixture, path: &str, header: Value, events: &[Value]) -> PathBuf {
++pub(super) fn write(fixture: &Fixture, path: &str, header: Value, events: &[Value]) -> PathBuf {
+     let content = std::iter::once(header)
+         .chain(events.iter().cloned())
+         .map(|record| record.to_string())
+@@ -34,7 +34,7 @@ fn write(fixture: &Fixture, path: &str, header: Value, events: &[Value]) -> Path
+     fixture.write_file(path, content)
+ }
+ 
+-fn load(roots: &[PathBuf]) -> Result<Vec<LoadedEntry>> {
++pub(super) fn load(roots: &[PathBuf]) -> Result<Vec<LoadedEntry>> {
+     let paths = roots
+         .iter()
+         .map(|p| p.to_string_lossy())
+diff --git a/rust/adapters/pi/src/lib.rs b/rust/adapters/pi/src/lib.rs
+index 2ded45a..e05945c 100644
+--- a/rust/adapters/pi/src/lib.rs
++++ b/rust/adapters/pi/src/lib.rs
+@@ -8,7 +8,10 @@ mod loader;
+ mod parser;
+ mod paths;
+ mod report;
++mod strict_json;
+ 
++#[cfg(test)]
++mod completeness_tests;
+ #[cfg(test)]
+ mod identity_tests;
+ 
+diff --git a/rust/adapters/pi/src/parser.rs b/rust/adapters/pi/src/parser.rs
+index 3c9a03c..a08d72b 100644
+--- a/rust/adapters/pi/src/parser.rs
++++ b/rust/adapters/pi/src/parser.rs
+@@ -5,9 +5,8 @@ use serde::Deserialize;
+ 
+ use crate::{
+     LoadedEntry, Pricing, PricingMap, Result, TokenUsageRaw, UsageEntry, UsageMessage,
+-    apply_total_token_fallback, calculate_cost_for_usage_at, calculate_cost_from_pricing,
+-    cli::CostMode, fast::LinePrefilter, format_date_tz, missing_pricing_model_for_usage,
+-    stored_cost_for_mode,
++    calculate_cost_for_usage_at, calculate_cost_from_pricing, cli::CostMode, format_date_tz,
++    missing_pricing_model_for_usage, stored_cost_for_mode,
+ };
+ use ccusage_adapter_common::jsonl;
+ 
+@@ -25,6 +24,7 @@ struct PiLine {
+     #[serde(default, deserialize_with = "jsonl::non_empty_string")]
+     model: Option<String>,
+     usage: Option<PiUsage>,
++    #[cfg(test)]
+     #[serde(default, deserialize_with = "jsonl::non_empty_string")]
+     cwd: Option<String>,
+ }
+@@ -73,6 +73,7 @@ struct PiCost {
+     total: Option<f64>,
+ }
+ 
++#[cfg(test)]
+ #[derive(Debug, Clone)]
+ struct PiSessionHeader {
+     id: Option<String>,
+@@ -152,6 +153,7 @@ pub(crate) fn read_session_file_data_for_store(
+     )
+ }
+ 
++#[cfg_attr(not(test), allow(dead_code))]
+ #[derive(Clone, Copy)]
+ enum PiStoreContext<'a> {
+     Default,
+@@ -175,6 +177,7 @@ impl<'a> PiStoreContext<'a> {
+         }
+     }
+ 
++    #[cfg(test)]
+     fn project(self, path: &Path) -> String {
+         match self {
+             Self::Default => extract_project(path),
+@@ -254,10 +257,20 @@ fn read_session_file_data_with_context(
+     let content = fs::read(path)?;
+     // Validate identity and counts before a lenient report mapper can discard data.
+     let identity = super::identity::parse(&content)?;
+-    let entries = parse_session_entries(&content, path, tz, mode, pricing, context)?;
++    let records = validated_usage_records(&identity)?;
++    let entries = map_entries(
++        records,
++        identity.header.cwd.as_deref().unwrap_or("unknown"),
++        &identity.header.id,
++        tz,
++        mode,
++        pricing,
++        context,
++    )?;
+     Ok(PiSessionData { identity, entries })
+ }
+ 
++#[cfg(test)]
+ fn parse_session_entries(
+     content: &[u8],
+     path: &Path,
+@@ -275,11 +288,77 @@ fn parse_session_entries(
+         .as_ref()
+         .and_then(|header| header.id.clone())
+         .unwrap_or_else(|| extract_session_id(path));
+-    // Usage can belong to an assistant message, a summary, or a standalone record.
+-    let prefilter = LinePrefilter::all(&[br#""usage""#]);
+-    let mut entries = Vec::new();
++    map_entries(
++        jsonl::records::<PiLine>(content, None),
++        &project,
++        &session_id,
++        tz,
++        mode,
++        pricing,
++        context,
++    )
++}
++
++fn validated_usage_records(source: &super::identity::Source) -> Result<Vec<PiLine>> {
++    let mut records = Vec::new();
++    for (id, record) in &source.records {
++        let value = &record.source;
++        let kind = value["type"]
++            .as_str()
++            .ok_or_else(super::identity::unavailable)?;
++        let fields = if kind == "message" {
++            if value["message"]["role"].as_str() != Some("assistant") {
++                continue;
++            }
++            &value["message"]
++        } else {
++            value
++        };
++        let Some(usage) = fields.get("usage") else {
++            continue;
++        };
++        let usage = serde_json::from_value::<PiUsage>(usage.clone())
++            .map_err(|_| super::identity::unavailable())?;
++        let model = fields
++            .get("model")
++            .and_then(serde_json::Value::as_str)
++            .map(str::to_owned);
++        let mut parsed = PiLine {
++            r#type: Some(kind.to_owned()),
++            timestamp: value["timestamp"].as_str().map(str::to_owned),
++            id: Some(id.clone()),
++            message: None,
++            model: None,
++            usage: None,
++            #[cfg(test)]
++            cwd: None,
++        };
++        if kind == "message" {
++            parsed.message = Some(PiMessage {
++                role: Some("assistant".into()),
++                model,
++                usage: Some(usage),
++            });
++        } else {
++            parsed.model = model;
++            parsed.usage = Some(usage);
++        }
++        records.push(parsed);
++    }
++    Ok(records)
++}
+ 
+-    for record in jsonl::records::<PiLine>(content, Some(&prefilter)) {
++fn map_entries(
++    records: impl IntoIterator<Item = PiLine>,
++    project: &str,
++    session_id: &str,
++    tz: Option<&JiffTimeZone>,
++    mode: CostMode,
++    pricing: Option<&PricingMap>,
++    context: PiStoreContext<'_>,
++) -> Result<Vec<LoadedEntry>> {
++    let mut entries = Vec::new();
++    for record in records {
+         let Some((raw_model, usage_value)) = usage_fields(&record) else {
+             continue;
+         };
+@@ -302,18 +381,8 @@ fn parse_session_entries(
+             speed: None,
+             cache_creation: None,
+         };
+-        let (usage, extra_total_tokens) = if matches!(
+-            record.r#type.as_deref(),
+-            Some("usage" | "compaction" | "branch_summary")
+-        ) {
+-            // An independent total does not identify a missing token category.
+-            (
+-                usage,
+-                total.saturating_sub(crate::total_usage_tokens(usage)),
+-            )
+-        } else {
+-            apply_total_token_fallback(usage, 0, total)
+-        };
++        // The independent total never identifies a missing token category.
++        let extra_total_tokens = total.saturating_sub(crate::total_usage_tokens(usage));
+         if crate::total_usage_tokens(usage) + extra_total_tokens == 0 {
+             continue;
+         }
+@@ -349,7 +418,7 @@ fn parse_session_entries(
+             pricing,
+         );
+         let data = UsageEntry {
+-            session_id: Some(session_id.clone()),
++            session_id: Some(session_id.to_owned()),
+             timestamp: timestamp_text,
+             version: None,
+             message: UsageMessage {
+@@ -365,9 +434,9 @@ fn parse_session_entries(
+         entries.push(LoadedEntry {
+             date: format_date_tz(timestamp, tz),
+             timestamp,
+-            project: Arc::from(project.as_str()),
+-            session_id: Arc::from(session_id.as_str()),
+-            project_path: Arc::from(project.as_str()),
++            project: Arc::from(project),
++            session_id: Arc::from(session_id),
++            project_path: Arc::from(project),
+             cost,
+             extra_total_tokens,
+             credits: None,
+@@ -382,6 +451,7 @@ fn parse_session_entries(
+     Ok(entries)
+ }
+ 
++#[cfg(test)]
+ fn parse_session_header(content: &[u8]) -> Option<PiSessionHeader> {
+     let first_line = content
+         .split(|byte| *byte == b'\n')
+@@ -407,6 +477,7 @@ fn usage_fields(record: &PiLine) -> Option<(Option<&str>, &PiUsage)> {
+     }
+ }
+ 
++#[cfg(test)]
+ fn extract_session_id(path: &Path) -> String {
+     let filename = path
+         .file_stem()
+@@ -418,6 +489,7 @@ fn extract_session_id(path: &Path) -> String {
+         .to_string()
+ }
+ 
++#[cfg(test)]
+ fn extract_project(path: &Path) -> String {
+     let mut previous_was_sessions = false;
+     for component in path.components() {
+@@ -430,6 +502,7 @@ fn extract_project(path: &Path) -> String {
+     "unknown".to_string()
+ }
+ 
++#[cfg(test)]
+ fn extract_project_for_store(path: &Path, store_root: &Path) -> String {
+     if let Ok(relative) = path.strip_prefix(store_root)
+         && let Some(project) = relative.components().next()
+@@ -762,7 +835,7 @@ mod tests {
+     }
+ 
+     #[test]
+-    fn falls_back_to_total_tokens_when_pi_parts_are_missing() {
++    fn keeps_assistant_totals_independent_when_pi_parts_are_missing() {
+         let fixture = fs_fixture!({
+             "sessions/project-a/agent_session-a.jsonl": r#"{"type":"message","timestamp":"2026-01-02T00:00:00.000Z","message":{"role":"assistant","model":"gpt-5","usage":{"totalTokens":333}}}"#,
+         });
+@@ -771,8 +844,8 @@ mod tests {
+         let entries = read_session_file(&file, None, CostMode::Display, None).unwrap();
+ 
+         assert_eq!(entries.len(), 1);
+-        assert_eq!(entries[0].data.message.usage.output_tokens, 333);
+-        assert_eq!(entries[0].extra_total_tokens, 0);
++        assert_eq!(entries[0].data.message.usage.output_tokens, 0);
++        assert_eq!(entries[0].extra_total_tokens, 333);
+     }
+ 
+     #[test]
+diff --git a/rust/adapters/pi/src/strict_json.rs b/rust/adapters/pi/src/strict_json.rs
+new file mode 100644
+index 0000000..fa295ea
+--- /dev/null
++++ b/rust/adapters/pi/src/strict_json.rs
+@@ -0,0 +1,71 @@
++//! Reject duplicate keys at every depth before interpreting a source record.
++use std::fmt;
++
++use serde::de::{self, Deserialize, Deserializer, MapAccess, SeqAccess, Visitor};
++use serde_json::Value;
++
++struct UniqueValue(Value);
++
++impl<'de> Deserialize<'de> for UniqueValue {
++    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
++        struct UniqueVisitor;
++        impl<'de> Visitor<'de> for UniqueVisitor {
++            type Value = UniqueValue;
++            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
++                formatter.write_str("JSON with unique object keys")
++            }
++            fn visit_bool<E: de::Error>(self, value: bool) -> Result<Self::Value, E> {
++                Ok(UniqueValue(Value::Bool(value)))
++            }
++            fn visit_i64<E: de::Error>(self, value: i64) -> Result<Self::Value, E> {
++                Ok(UniqueValue(value.into()))
++            }
++            fn visit_u64<E: de::Error>(self, value: u64) -> Result<Self::Value, E> {
++                Ok(UniqueValue(value.into()))
++            }
++            fn visit_f64<E: de::Error>(self, value: f64) -> Result<Self::Value, E> {
++                serde_json::Number::from_f64(value)
++                    .map(Value::Number)
++                    .map(UniqueValue)
++                    .ok_or_else(|| E::custom("Non-finite number"))
++            }
++            fn visit_str<E: de::Error>(self, value: &str) -> Result<Self::Value, E> {
++                Ok(UniqueValue(Value::String(value.to_owned())))
++            }
++            fn visit_string<E: de::Error>(self, value: String) -> Result<Self::Value, E> {
++                Ok(UniqueValue(Value::String(value)))
++            }
++            fn visit_unit<E: de::Error>(self) -> Result<Self::Value, E> {
++                Ok(UniqueValue(Value::Null))
++            }
++            fn visit_seq<A: SeqAccess<'de>>(
++                self,
++                mut sequence: A,
++            ) -> Result<Self::Value, A::Error> {
++                let mut values = Vec::new();
++                while let Some(UniqueValue(value)) = sequence.next_element()? {
++                    values.push(value);
++                }
++                Ok(UniqueValue(Value::Array(values)))
++            }
++            fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
++                let mut values = serde_json::Map::new();
++                while let Some((key, UniqueValue(value))) =
++                    map.next_entry::<String, UniqueValue>()?
++                {
++                    if values.insert(key, value).is_some() {
++                        return Err(de::Error::custom("Duplicate object key"));
++                    }
++                }
++                Ok(UniqueValue(Value::Object(values)))
++            }
++        }
++        deserializer.deserialize_any(UniqueVisitor)
++    }
++}
++
++pub(crate) fn parse(bytes: &[u8]) -> crate::Result<Value> {
++    serde_json::from_slice::<UniqueValue>(bytes)
++        .map(|value| value.0)
++        .map_err(|_| super::identity::unavailable())
++}

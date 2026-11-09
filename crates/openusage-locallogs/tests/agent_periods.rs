@@ -108,6 +108,53 @@ fn recorded_kilo_qualification_gaps_stay_disabled_and_keep_unknown_metrics() {
 }
 
 #[test]
+fn local_pi_format_candidate_keeps_totals_without_inferred_categories() {
+    let cases: Value = serde_json::from_slice(include_bytes!(
+        "fixtures/remaining-tools/pi-format-candidate.json"
+    ))
+    .unwrap();
+    assert_eq!(cases.as_object().unwrap().len(), 19);
+    let mut accepted = 0;
+    for (name, reports) in cases.as_object().unwrap() {
+        if reports["daily"]["unavailable"] == true {
+            assert_eq!(reports["session"]["unavailable"], true);
+            continue;
+        }
+        accepted += 1;
+        let daily = parse("pi", &reports["daily"]).unwrap().unwrap();
+        let sessions =
+            parse_agent_sessions("pi", &serde_json::to_vec(&reports["session"]).unwrap())
+                .unwrap()
+                .unwrap();
+        assert_eq!(daily.total_tokens, 162, "{name}");
+        assert_eq!(sessions.total_tokens, 162, "{name}");
+        assert_eq!(daily.details, TokenDetails::default());
+        assert_eq!(sessions.details, TokenDetails::default());
+        assert_eq!(daily.estimated_value_micros, None);
+        assert_eq!(sessions.estimated_value_micros, None);
+        for session in &sessions.sessions {
+            assert_eq!(session.project.as_deref(), Some("/synthetic/project"));
+            assert_eq!(
+                session.first_activity_utc.as_deref(),
+                Some("2026-05-28T20:26:40.000Z")
+            );
+            assert_eq!(
+                session.last_activity_utc.as_deref(),
+                Some("2026-05-28T20:26:40.000Z")
+            );
+            assert_eq!(session.details, TokenDetails::default());
+            assert_eq!(session.estimated_value_micros, None);
+        }
+        if name.starts_with("assistant_") {
+            assert_eq!(reports["daily"]["totals"]["outputTokens"], 0);
+            // The shared wire zero is not evidence of a measured category.
+            assert_eq!(daily.details.output_tokens, None);
+        }
+    }
+    assert_eq!(accepted, 5);
+}
+
+#[test]
 fn local_pi_identity_candidate_keeps_source_sessions_and_nullable_details() {
     let cases: Value = serde_json::from_slice(include_bytes!(
         "fixtures/remaining-tools/pi-identity-candidate.json"

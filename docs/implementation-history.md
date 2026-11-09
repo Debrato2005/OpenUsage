@@ -4,6 +4,10 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f11e result before L-1f11f0
+
+Latest scoped result, November 10, 2026: L-1f11e adds a separate Pi identity candidate. Source session and entry IDs count renamed copies once and retain equal-sized calls. Proven parent links cover inactive branches, full clones, and nested forks. Conflicts, missing identity, invalid trees, and unsupported legacy input return no successful partial report. Forty synthetic cases and 80 daily/session outcomes cover 25 accepted cases and 15 unavailable cases. All 42 adapter tests, five candidate Python tests, twelve OpenUsage period tests, full Python/Rust verification, and rebuilt native consent passed on Linux. The [review](reviews/2026-11-10-pi-identity-candidate.md) records failures, boundaries, and unexecuted checks. Pi stays disabled. The production pin and unpublished Amp patch are unchanged.
+
 ## L-1f11d result before L-1f11e
 
 Latest scoped result, November 10, 2026: L-1f11d adds a separate local Pi scanner patch for summary and standalone usage. Compaction and branch-summary fixtures now total 211, and standalone usage fixtures total 179. A total without categories stays independent. All 38 adapter tests, candidate comparisons, full OpenUsage checks, and native consent passed with synthetic Linux data. Pi remains disabled because identity and completeness defects remain. The production pin and unpublished Amp patch are unchanged.

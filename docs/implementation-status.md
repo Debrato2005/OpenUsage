@@ -26,7 +26,7 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scoped result, November 10, 2026: L-1f11e adds a separate Pi identity candidate. Source session and entry IDs count renamed copies once and retain equal-sized calls. Proven parent links cover inactive branches, full clones, and nested forks. Conflicts, missing identity, invalid trees, and unsupported legacy input return no successful partial report. Forty synthetic cases and 80 daily/session outcomes cover 25 accepted cases and 15 unavailable cases. All 42 adapter tests, five candidate Python tests, twelve OpenUsage period tests, full Python/Rust verification, and rebuilt native consent passed on Linux. The [review](reviews/2026-11-10-pi-identity-candidate.md) records failures, boundaries, and unexecuted checks. Pi stays disabled. The production pin and unpublished Amp patch are unchanged.
+Latest scoped result, November 10, 2026: L-1f11f0 adds a separate Pi format correction. Reports use validated records, retain escaped JSON keys, and reject ambiguous objects or invalid present fields. Independent assistant totals stay outside missing token categories. All 50 adapter tests, six candidate Python tests, thirteen OpenUsage period tests, full Python/Rust verification, and rebuilt native consent passed on Linux. Nineteen new cases record five accepted outcomes and fourteen unavailable outcomes. The earlier identity matrix keeps its counts. The [review](reviews/2026-11-10-pi-format-candidate.md) records failures and remaining gates. Pi stays disabled. The production pin and Amp patch are unchanged.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -152,7 +152,7 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 
 ## Current assignment
 
-The next assignment is [L-1f11f](implementation-slices.md#next-assignment-l-1f11f): close Pi discovery and format gaps in the separate local candidate. Check missing or unreadable selected inputs, coherent reads during source changes, unsupported shapes, and bounded input handling. Keep missing source times unavailable. The production pin and Amp candidate stay unchanged.
+The next assignment is [L-1f11f1](implementation-slices.md#next-assignment-l-1f11f1): reject incomplete Pi filesystem reads in the separate local candidate. Cover missing or unreadable roots, omitted directory entries, changed files, and bounded input handling. Preserve source isolation and saved history. The production pin and Amp candidate stay unchanged.
 
 L-1f0 through L-1f10 are complete within their recorded scope. Only Claude Code and Codex are enabled. The Amp patch is a local candidate, and the production scanner pin is unchanged.
 
