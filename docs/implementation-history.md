@@ -4,6 +4,10 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f9 result before L-1f10a
+
+Latest scoped result, November 9, 2026: L-1f9 adds grouped scans for the sixteen candidate tools, which remain disabled. Claude Code and Codex save all required reports in one transaction. Full Rust workspace tests, final Clippy, native database checks, the renderer build, and 56 IPC contracts passed. Four rebuilt native journeys passed with private synthetic data on Linux. [Traceability](acceptance-traceability.md) records the corrected failures and unexecuted gates.
+
 ## L-1f8 result before L-1f9
 
 Latest scoped result, November 9, 2026: L-1f8 stores independent totals and nullable details at schema 13. The full verification plan and nine native journeys passed with synthetic data on Linux. [Traceability](acceptance-traceability.md) records the checks, corrected failures, and unexecuted gates.

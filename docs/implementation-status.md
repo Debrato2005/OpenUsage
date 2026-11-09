@@ -26,7 +26,7 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scoped result, November 9, 2026: L-1f9 adds grouped scans for the sixteen candidate tools, which remain disabled. Claude Code and Codex save all required reports in one transaction. Full Rust workspace tests, final Clippy, native database checks, the renderer build, and 56 IPC contracts passed. Four rebuilt native journeys passed with private synthetic data on Linux. [Traceability](acceptance-traceability.md) records the corrected failures and unexecuted gates.
+Latest scoped result, November 9, 2026: L-1f10a adds a shared Rust read contract. It keeps grouped dated data, unplaced data, and legacy source history separate. Four focused tests and the full Rust verification plan passed. The native read-only CLI regression passed against rebuilt binaries with private synthetic data on Linux. Desktop and CLI integration remain open. [Traceability](acceptance-traceability.md) records the scope.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -150,7 +150,7 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 
 ## Current assignment
 
-The next assignment is [L-1f10](implementation-slices.md#next-assignment-l-1f10): carry independent totals and unavailable fields through desktop, CLI, export, backup, restore, and sharing. [SC-024](srs-clarifications.md#sc-024-legacy-local-usage-during-grouped-migration) resolves legacy history. Its records and zones stay separate from grouped totals.
+The next assignment is [L-1f10b](implementation-slices.md#next-assignment-l-1f10b): connect desktop and sharing views to the shared read results. L-1f10a is complete. L-1f10 stays open. The CLI and remaining data round trips follow in L-1f10c. [SC-024](srs-clarifications.md#sc-024-legacy-local-usage-during-grouped-migration) resolves legacy history. Its records and zones stay separate from grouped totals.
 
 L-1f0 through L-1f9 are complete within their recorded scope. Only Claude Code and Codex are enabled. The Amp patch is a local candidate, and the production scanner pin is unchanged.
 

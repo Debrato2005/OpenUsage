@@ -114,6 +114,9 @@ Updated November 9, 2026. The owner asked to keep this list and to build down it
 - [x] L-1f8: store independent period totals, coherent model details, and nullable session metadata at schema 13. Preserve legacy history and zones under [SC-024](srs-clarifications.md#sc-024-legacy-local-usage-during-grouped-migration). Migration, backup, restore, full Rust checks, and nine native journeys passed on synthetic Linux data.
 - [x] L-1f9: group consented roots by tool in the scanner and save each accepted result once. Validate every root and all required reports before saving. Preserve prior data when any required report fails.
 - [ ] L-1f10: carry the new totals and unavailable fields through desktop, CLI, export, backup, restore, and sharing. Keep unplaced usage out of dated views. Run the affected renderer and native gates.
+- [x] L-1f10a: shared read results for grouped periods, unavailable details, unplaced usage, and separate legacy history.
+- [ ] L-1f10b: desktop and sharing views consume those results.
+- [ ] L-1f10c: CLI integration and the remaining export, backup, and restore round trips.
 - [ ] L-1f11: qualify each tool with copied, forked, replayed, and compacted fixtures under AT-65. Complete the Amp candidate gates before any pin change. Enable only qualified tools. L-1f stays open until all sixteen pass their required checks.
 - [x] L-1g1: sessions, projects and the reasoning count from the `ccusage` session report of each tool, at schema 11 (OU-LOG-017, [SC-021](srs-clarifications.md#sc-021-sessions-projects-hours-and-reasoning-from-the-pinned-ccusage)).
 - [x] L-1g2: hourly ranges for Claude Code from `ccusage blocks`, at schema 12 (OU-LOG-017, SC-021).
@@ -215,7 +218,7 @@ Acceptance:
 
 Stopping condition: one verified scanner slice, owning docs, a local commit, and a Graphify update. Consumer integration follows in L-1f10.
 
-### Next assignment: L-1f10
+### L-1f10: consumer integration
 
 Goal: carry independent totals and unavailable fields through desktop, CLI, export, backup, restore, and sharing. Follow SC-022 and SC-024, with the owning local usage, data safety, CLI, and sharing requirements. Keep legacy history separate and preserve the working Claude Code and Codex paths.
 
@@ -228,6 +231,34 @@ Acceptance:
 - Pass affected Rust, renderer, contract, and native checks. Verify export, backup, restore, and share privacy. Enable no extra tool.
 
 Stopping condition: one verified consumer slice, owning docs, a local commit, and a Graphify update. AT-65 qualification follows in L-1f11.
+
+### L-1f10a: shared read contract (complete)
+
+Goal for L-1f10a: give Rust consumers one read result that preserves independent totals, unavailable details, legacy source history, and unplaced usage. Follow SC-022 and SC-024. Change no schema, scanner pin, consent rule, or enabled tool.
+
+Acceptance:
+
+- Keep grouped periods, unplaced periods, and legacy source records in separate typed collections. Do not infer a combined total.
+- Sum independent period totals with exact integers. A missing category or model count remains unavailable across the selected range.
+- Use each scope's pinned zone for dated sessions. Keep sessions without an activity end outside date filters. Never add session totals to period totals.
+- Preserve lower-scan differences, root membership, legacy source zones, and reported zero. Read all parts in one transaction, including through a read-only connection.
+- Pass the focused and full Rust checks and the affected native read-only journey. Keep consumer integration open.
+
+Stopping condition: one verified read-contract slice, owning docs, a local commit, and a Graphify update. Desktop and sharing integration follows in L-1f10b.
+
+### Next assignment: L-1f10b
+
+Goal: connect desktop and sharing views to the shared read results. Follow SC-022 and SC-024 and the local usage, UI, and sharing requirements. The CLI and remaining data round trips follow in L-1f10c. Keep the Amp candidate unpublished and the production pin unchanged.
+
+Acceptance:
+
+- Carry independent totals and unavailable details through Rust IPC and the renderer. Keep model attribution and nullable session times intact.
+- Keep dated data, unplaced data, and legacy source history separate. Use each scope's pinned zone. Show no combined historical total without proof.
+- Keep the old source values accessible in the existing detail panel. Preserve the working session and hourly views.
+- Exclude unplaced usage from dated charts, records, heatmaps, and shares. Preserve missing days and share privacy.
+- Pass affected Rust and contract checks, the full renderer milestone, and the affected native journeys. Enable no extra tool.
+
+Stopping condition: one verified desktop and sharing slice, owning docs, a local commit, and a Graphify update. CLI integration follows in L-1f10c.
 
 ## Order
 

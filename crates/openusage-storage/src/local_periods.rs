@@ -288,9 +288,19 @@ fn read_metrics(row: &Row<'_>, start: usize) -> Result<(Option<u64>, TokenDetail
     ))
 }
 fn read_records(connection: &Connection, schema: &str, tool_id: &str) -> Result<Vec<Record>> {
+    read_selected_records(connection, schema, tool_id, "1=1")
+}
+
+// Only fixed predicates from this module reach the query.
+fn read_selected_records(
+    connection: &Connection,
+    schema: &str,
+    tool_id: &str,
+    selection: &str,
+) -> Result<Vec<Record>> {
     let mut statement = connection
         .prepare(&format!(
-            "SELECT {} FROM {schema}.local_usage_records WHERE tool=?1 ORDER BY kind,period_key",
+            "SELECT {} FROM {schema}.local_usage_records WHERE tool=?1 AND ({selection}) ORDER BY kind,period_key",
             TABLES[3].1
         ))
         .map_err(|_| LocalLogError::ReadFailed)?;
@@ -438,28 +448,33 @@ impl Storage {
     }
     /// Includes the explicit unplaced period. Use local_dated_periods for any dated view.
     pub fn local_periods(&self, tool_id: &str) -> Result<Vec<SavedLocalPeriod>> {
-        read_records(&self.connection, "main", tool_id)?
-            .into_iter()
-            .filter(|r| !matches!(r.key, LocalUsageKey::Session(_)))
-            .map(|r| {
-                let period = match r.key {
-                    LocalUsageKey::Day(day) => UsagePeriod::Day(day),
-                    LocalUsageKey::Unplaced => UsagePeriod::Unplaced,
-                    _ => unreachable!(),
-                };
-                Ok(SavedLocalPeriod {
-                    period: AgentPeriod {
-                        period,
-                        total_tokens: r.total,
-                        details: r.details,
-                        estimated_value_micros: r.estimate,
-                        models: r.models,
-                    },
-                    scan: provenance(&self.connection, "main", &r.scan_id)?,
-                    retained: r.retained,
-                })
+        read_selected_records(
+            &self.connection,
+            "main",
+            tool_id,
+            "kind IN ('day','unplaced')",
+        )?
+        .into_iter()
+        .filter(|r| !matches!(r.key, LocalUsageKey::Session(_)))
+        .map(|r| {
+            let period = match r.key {
+                LocalUsageKey::Day(day) => UsagePeriod::Day(day),
+                LocalUsageKey::Unplaced => UsagePeriod::Unplaced,
+                _ => unreachable!(),
+            };
+            Ok(SavedLocalPeriod {
+                period: AgentPeriod {
+                    period,
+                    total_tokens: r.total,
+                    details: r.details,
+                    estimated_value_micros: r.estimate,
+                    models: r.models,
+                },
+                scan: provenance(&self.connection, "main", &r.scan_id)?,
+                retained: r.retained,
             })
-            .collect()
+        })
+        .collect()
     }
     pub fn local_dated_periods(
         &self,
@@ -473,7 +488,7 @@ impl Storage {
         Ok(self.local_periods(tool_id)?.into_iter().filter(|r| matches!(&r.period.period, UsagePeriod::Day(day) if day.as_str() >= from && day.as_str() <= to)).collect())
     }
     pub fn grouped_local_sessions(&self, tool_id: &str) -> Result<Vec<SavedGroupedSession>> {
-        read_records(&self.connection, "main", tool_id)?
+        read_selected_records(&self.connection, "main", tool_id, "kind='session'")?
             .into_iter()
             .filter(|r| matches!(r.key, LocalUsageKey::Session(_)))
             .map(|r| {

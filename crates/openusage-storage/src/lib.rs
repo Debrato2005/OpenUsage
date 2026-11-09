@@ -14,6 +14,7 @@ mod time_zone;
 pub use time_zone::valid_time_zone;
 mod local_logs;
 mod local_periods;
+mod local_usage_read;
 pub use local_logs::{
     LocalHourScan, LocalLogError, LocalSessionScan, LocalUsageCoverage, LocalUsageDay,
     LocalUsageDifference, LocalUsageHour, LocalUsageRow, LocalUsageScan, LocalUsageScanSummary,
@@ -22,6 +23,10 @@ pub use local_logs::{
 pub use local_periods::{
     GroupedLocalScan, LocalScanDifference, LocalScanProvenance, LocalToolScope, LocalUsageKey,
     SavedGroupedSession, SavedLocalPeriod,
+};
+pub use local_usage_read::{
+    GroupedUsageRead, LegacyUsageRead, LocalModelTotal, LocalPeriodTotal, LocalTokenDetails,
+    LocalUsageRead, LocalUsageWindow,
 };
 mod currency_scales;
 mod profiles;
