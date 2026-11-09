@@ -1,0 +1,201 @@
+diff --git a/docs/guide/pi/index.md b/docs/guide/pi/index.md
+index 2e3f718..5bab85e 100644
+--- a/docs/guide/pi/index.md
++++ b/docs/guide/pi/index.md
+@@ -28,6 +28,8 @@ The CLI reads usage data from pi-agent:
+ 
+ Both `PI_AGENT_DIR` and `--pi-path` can be one sessions directory or a comma-separated list of sessions directories.
+ 
++Usage includes assistant messages, compaction calls, branch-summary calls, and standalone usage entries such as cache warming. Context sizes such as `tokensBefore` do not add tokens. A summary without a reported model stays outside model attribution. Missing token categories do not establish measured zeros, and an independent total does not identify output or reasoning tokens.
++
+ Tools built on the pi session format can also be declared as named stores in the config file for unified reports:
+ 
+ ```json
+diff --git a/rust/adapters/pi/src/README.md b/rust/adapters/pi/src/README.md
+index c759b38..595509e 100644
+--- a/rust/adapters/pi/src/README.md
++++ b/rust/adapters/pi/src/README.md
+@@ -22,6 +22,14 @@ prefixed or bare model name recalculates cost from tokens, even when the session
+ contains a display cost of zero. Without an override, Auto keeps a valid stored
+ cost and calculates from tokens only when that cost is missing or invalid.
+ 
++Usage records include assistant messages, compaction summaries, branch summaries,
++and standalone `usage` entries. Standalone kinds are open strings, including
++`cache_warm`. Summary context sizes such as `tokensBefore` add no usage. A missing
++model stays unattributed. For non-message records, a reported total above the
++known categories stays in the independent extra total, never in an inferred
++output or reasoning category. Missing category values still use the shared
++numeric report shape; they do not establish a measured zero.
++
+ Forked session files may replay the usage history of their parent. For Pi's
+ tree-format sessions, the parent candidate follows the root-to-leaf path ending
+ at the final physical entry rather than physical JSONL order; abandoned sibling
+diff --git a/rust/adapters/pi/src/parser.rs b/rust/adapters/pi/src/parser.rs
+index 25a1d3c..ba57323 100644
+--- a/rust/adapters/pi/src/parser.rs
++++ b/rust/adapters/pi/src/parser.rs
+@@ -33,6 +33,9 @@ struct PiLine {
+     #[serde(default, deserialize_with = "jsonl::non_empty_string")]
+     id: Option<String>,
+     message: Option<PiMessage>,
++    #[serde(default, deserialize_with = "jsonl::non_empty_string")]
++    model: Option<String>,
++    usage: Option<PiUsage>,
+ }
+ 
+ /// The link fields carried by every tree-format pi session entry.
+@@ -311,28 +314,21 @@ fn read_session_file_data_with_context(
+     let project = context.project(path);
+     let session_id = extract_session_id(path);
+     let header = parse_session_header(&content);
+-    // Usable pi lines carry token counts under a `usage` key nested in a
+-    // `message` object, so require both substrings before JSON parsing.
+-    let prefilter = LinePrefilter::all(&[br#""usage""#, br#""message""#]);
++    // Usage can belong to an assistant message, a summary, or a standalone record.
++    let prefilter = LinePrefilter::all(&[br#""usage""#]);
+     let mut entries = Vec::new();
+     let mut usage_records = Vec::new();
+ 
+     for record in jsonl::records::<PiLine>(&content, Some(&prefilter)) {
+-        if !is_pi_message_usage(&record) {
++        let Some((raw_model, usage_value)) = usage_fields(&record) else {
+             continue;
+-        }
++        };
+         let Some(timestamp_text) = record.timestamp.clone() else {
+             continue;
+         };
+         let Some(timestamp) = crate::parse_ts_timestamp(&timestamp_text) else {
+             continue;
+         };
+-        let Some(message) = record.message.as_ref() else {
+-            continue;
+-        };
+-        let Some(usage_value) = message.usage.as_ref() else {
+-            continue;
+-        };
+         let input = usage_value.input;
+         let output = usage_value.output;
+         let cache_read = usage_value.cache_read;
+@@ -346,11 +342,22 @@ fn read_session_file_data_with_context(
+             speed: None,
+             cache_creation: None,
+         };
+-        let (usage, extra_total_tokens) = apply_total_token_fallback(usage, 0, total);
++        let (usage, extra_total_tokens) = if matches!(
++            record.r#type.as_deref(),
++            Some("usage" | "compaction" | "branch_summary")
++        ) {
++            // An independent total does not identify a missing token category.
++            (
++                usage,
++                total.saturating_sub(crate::total_usage_tokens(usage)),
++            )
++        } else {
++            apply_total_token_fallback(usage, 0, total)
++        };
+         if crate::total_usage_tokens(usage) + extra_total_tokens == 0 {
+             continue;
+         }
+-        let raw_model = message.model.clone();
++        let raw_model = raw_model.map(str::to_owned);
+         let display_cost = usage_value.cost.as_ref().and_then(|cost| cost.total);
+         let model = raw_model
+             .as_ref()
+@@ -565,18 +572,18 @@ fn parse_session_header(content: &[u8]) -> Option<PiSessionHeader> {
+     })
+ }
+ 
+-fn is_pi_message_usage(record: &PiLine) -> bool {
+-    if record
+-        .r#type
+-        .as_deref()
+-        .is_some_and(|message_type| message_type != "message")
+-    {
+-        return false;
++fn usage_fields(record: &PiLine) -> Option<(Option<&str>, &PiUsage)> {
++    match record.r#type.as_deref() {
++        Some("usage" | "compaction" | "branch_summary") => {
++            Some((record.model.as_deref(), record.usage.as_ref()?))
++        }
++        None | Some("message") => {
++            let message = record.message.as_ref()?;
++            (message.role.as_deref() == Some("assistant"))
++                .then_some((message.model.as_deref(), message.usage.as_ref()?))
++        }
++        _ => None,
+     }
+-    let Some(message) = record.message.as_ref() else {
+-        return false;
+-    };
+-    message.role.as_deref() == Some("assistant") && message.usage.is_some()
+ }
+ 
+ fn extract_session_id(path: &Path) -> String {
+@@ -755,6 +762,66 @@ mod tests {
+     use ccusage_test_support::fs_fixture;
+     use std::path::Path;
+ 
++    #[test]
++    fn counts_standalone_usage_without_an_assistant_message() {
++        let fixture = fs_fixture!({
++            "sessions/project-a/root.jsonl": r#"{"type":"usage","id":"aaaaaaaa","parentId":null,"timestamp":"2026-05-28T20:26:40.000Z","kind":"cache_warm","provider":"openai","model":"gpt-5","usage":{"input":12,"output":5,"cacheRead":0,"cacheWrite":0,"totalTokens":17}}"#,
++        });
++        let entries = read_session_file(
++            &fixture.path("sessions/project-a/root.jsonl"),
++            None,
++            CostMode::Calculate,
++            None,
++        )
++        .unwrap();
++        assert_eq!(entries.len(), 1);
++        assert_eq!(entries[0].data.message.usage.input_tokens, 12);
++        assert_eq!(entries[0].data.message.usage.output_tokens, 5);
++        assert_eq!(entries[0].model.as_deref(), Some("[pi] gpt-5"));
++    }
++
++    #[test]
++    fn counts_summary_usage_without_counting_context_sizes() {
++        let fixture = fs_fixture!({
++            "sessions/project-a/root.jsonl": r#"{"type":"compaction","timestamp":"2026-05-28T20:26:40.000Z","tokensBefore":999,"usage":{"input":30,"output":10,"totalTokens":49}}
++{"type":"branch_summary","timestamp":"2026-05-28T20:26:41.000Z","usage":{"input":12,"output":5,"totalTokens":17}}
++{"type":"compaction","timestamp":"2026-05-28T20:26:42.000Z","tokensBefore":999}
++{"type":"custom","timestamp":"2026-05-28T20:26:43.000Z","usage":{"totalTokens":999}}"#,
++        });
++        let entries = read_session_file(
++            &fixture.path("sessions/project-a/root.jsonl"),
++            None,
++            CostMode::Calculate,
++            None,
++        )
++        .unwrap();
++        assert_eq!(entries.len(), 2);
++        assert_eq!(entries[0].extra_total_tokens, 9);
++        assert_eq!(entries[0].data.message.usage.output_tokens, 10);
++        assert_eq!(entries[1].data.message.usage.input_tokens, 12);
++        assert_eq!(entries[1].data.message.usage.output_tokens, 5);
++        assert!(entries.iter().all(|entry| entry.model.is_none()));
++    }
++
++    #[test]
++    fn keeps_unattributed_usage_out_of_token_categories() {
++        let fixture = fs_fixture!({
++            "sessions/project-a/root.jsonl": r#"{"type":"usage","timestamp":"2026-05-28T20:26:40.000Z","kind":"future-operation","usage":{"totalTokens":17}}"#,
++        });
++        let entries = read_session_file(
++            &fixture.path("sessions/project-a/root.jsonl"),
++            None,
++            CostMode::Calculate,
++            None,
++        )
++        .unwrap();
++        assert_eq!(entries.len(), 1);
++        assert_eq!(entries[0].data.message.usage.output_tokens, 0);
++        assert_eq!(crate::total_usage_tokens(entries[0].data.message.usage), 0);
++        assert_eq!(entries[0].extra_total_tokens, 17);
++        assert!(entries[0].model.is_none());
++    }
++
+     fn pricing_for_cost_tests() -> PricingMap {
+         let mut pricing = PricingMap::default();
+         pricing.load_json(

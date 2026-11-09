@@ -21,3 +21,9 @@ python3 -m unittest discover -s tests/tools -p test_ccusage_amp_candidate.py -v
 ```
 
 The checks require the official pinned binary as a reference. They use private synthetic homes, check source files for changes, and compare all sixteen recorded formats. They also compare existing Claude/Codex reports and Amp JSON/table output. They test copies, multiple roots, growing snapshots, conflicts, and missing IDs. They do not qualify all AT-65 cases or promote a production pin.
+
+## Separate Pi candidate
+
+`20.0.48-pi-usage.patch` adds summary and standalone usage to the same pinned source. It does not include the Amp changes. The [Pi candidate record](../../docs/reviews/2026-11-10-pi-usage-candidate.md) owns its evidence and remaining gates. Apply the patch to the exact source commit and set `CCUSAGE_VERSION=20.0.48-openusage.pi-candidate.1` when building.
+
+Run `test_ccusage_pi_candidate.py` with `OPENUSAGE_CCUSAGE_PI_CANDIDATE` and `OPENUSAGE_CCUSAGE_PI_CANDIDATE_SHA256`. Its separate variables prevent accidental selection for the Amp checks. This candidate also remains local and unpublished.

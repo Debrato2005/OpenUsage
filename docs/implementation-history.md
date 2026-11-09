@@ -4,6 +4,10 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f11c result before L-1f11d
+
+Latest scoped result, November 10, 2026: L-1f11c records 29 Pi cases against the pinned scanner and Pi's own session source. Copies can double counts, distinct calls can collapse, and some branched forks count twice. The scanner also omits summary and standalone usage. The Rust regression preserves unavailable fields and known activity times. Full Python/Rust checks and native consent passed with private synthetic data on Linux. Pi remains disabled. No production code or scanner pin changed.
+
 ## L-1f11b result before L-1f11c
 
 Latest scoped result, November 10, 2026: L-1f11b removes ZCode's fallback project label from parsed sessions. Known paths and activity times stay available. Nineteen synthetic cases cover the usage ledger and its separate transcript records. Copies, replay, fork transcripts, and compaction count correctly in those cases. Conflicts and incomplete reads still prevent enablement. Full Python, Rust, renderer, and two native checks passed on Linux. ZCode remains disabled, and the production pin is unchanged.

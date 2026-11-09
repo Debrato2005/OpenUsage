@@ -121,6 +121,7 @@ Updated November 10, 2026. The owner asked to keep this list and to build down i
 - [x] L-1f11a: record Kilo copy, fork, replay, compaction, and incomplete-read results. Regression checks pass, but Kilo fails AT-65 and stays disabled. See the [qualification](reviews/2026-11-10-kilo-qualification.md).
 - [x] L-1f11b: remove ZCode's fallback project label and record 19 qualification cases. Copy, fork-transcript, replay, and compaction counts match. Conflicts and incomplete reads keep ZCode disabled. See the [qualification](reviews/2026-11-10-zcode-qualification.md).
 - [x] L-1f11c: record 29 Pi cases and preserve missing fields in Rust. Copy, branch, and omitted-usage defects fail AT-65. Pi stays disabled. See the [qualification](reviews/2026-11-10-pi-qualification.md).
+- [x] L-1f11d: prepare a separate local Pi usage patch. Summary and standalone usage counts match. Identity and completeness gates remain open, so Pi stays disabled. See the [candidate](reviews/2026-11-10-pi-usage-candidate.md).
 - [x] R-1: use bounded test-fixture writes to prevent inherited writable handles from blocking execution. Full Rust and native provider-lifecycle checks passed. See the [investigation](reviews/2026-11-10-executable-fixture-race.md).
 - [x] L-1g1: sessions, projects and the reasoning count from the `ccusage` session report of each tool, at schema 11 (OU-LOG-017, [SC-021](srs-clarifications.md#sc-021-sessions-projects-hours-and-reasoning-from-the-pinned-ccusage)).
 - [x] L-1g2: hourly ranges for Claude Code from `ccusage blocks`, at schema 12 (OU-LOG-017, SC-021).
@@ -333,7 +334,7 @@ Acceptance:
 
 Stopping condition: one bounded Pi qualification result, owning docs, a local commit, and a Graphify update. Then continue the next open slice.
 
-### Next assignment: L-1f11d
+### L-1f11d: local Pi usage candidate (complete within scope)
 
 Goal: make a local Pi scanner candidate preserve usage on compaction, branch summaries, and standalone usage entries. Use the pinned source and the recorded producer contract. This slice does not change production support.
 
@@ -346,6 +347,20 @@ Acceptance:
 - Run doctor, the selected verification plan, and affected acceptance checks. Record failures and unexecuted checks.
 
 Stopping condition: one verified local candidate change, owning docs, a local commit, and a Graphify update. Then continue the next unresolved qualification issue.
+
+### Next assignment: L-1f11e
+
+Goal: make the local Pi candidate count copied ID-bearing records once while retaining distinct calls. Check forks against proven session lineage. Preserve the usage correction from L-1f11d.
+
+Acceptance:
+
+- Use the producer's scoped entry IDs and session lineage. Different sessions with coincident short IDs remain separate unless a source link proves shared history.
+- Count renamed copies once and retain distinct IDs with equal usage. Reject conflicting usage and ambiguous lineage without a successful partial total.
+- Cover active and inactive branch forks, full clones, multiple roots, reversed input order, and missing legacy identity. Declare unsupported cases explicitly.
+- Preserve missing metrics, source isolation, and saved history after a rejected scan. Keep all candidates disabled and the production scanner pin and the Amp patch unchanged.
+- Run doctor, focused adapter and CLI comparisons, the selected OpenUsage verification plan, and affected acceptance checks.
+
+Stopping condition: one verified local identity correction, owning docs, a local commit, and a Graphify update. Then continue the next unresolved qualification issue.
 
 ## Order
 

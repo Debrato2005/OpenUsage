@@ -108,6 +108,52 @@ fn recorded_kilo_qualification_gaps_stay_disabled_and_keep_unknown_metrics() {
 }
 
 #[test]
+fn local_pi_usage_candidate_preserves_totals_without_inventing_details() {
+    let cases: Value = serde_json::from_slice(include_bytes!(
+        "fixtures/remaining-tools/pi-usage-candidate.json"
+    ))
+    .unwrap();
+    for (name, reports) in cases.as_object().unwrap() {
+        let total = match name.as_str() {
+            "compaction_usage" | "branch_summary_usage" => 211,
+            "cache_warming_usage" | "unknown_usage_kind" => 179,
+            "unattributed" => 17,
+            _ => panic!("Unexpected candidate case"),
+        };
+        let daily = parse("pi", &reports["daily"]).unwrap().unwrap();
+        let sessions =
+            parse_agent_sessions("pi", &serde_json::to_vec(&reports["session"]).unwrap())
+                .unwrap()
+                .unwrap();
+        assert_eq!(daily.total_tokens, total, "{name}");
+        assert_eq!(sessions.total_tokens, total, "{name}");
+        assert_eq!(daily.details, TokenDetails::default());
+        assert_eq!(sessions.details, TokenDetails::default());
+        assert_eq!(daily.estimated_value_micros, None);
+        assert_eq!(sessions.estimated_value_micros, None);
+        for model in daily.models.iter().chain(&sessions.models) {
+            assert_eq!(model.details, TokenDetails::default());
+            assert_eq!(model.estimated_value_micros, None);
+            if matches!(name.as_str(), "compaction_usage" | "branch_summary_usage") {
+                assert_eq!(model.total_tokens, None);
+            }
+        }
+        for session in &sessions.sessions {
+            assert_eq!(session.details, TokenDetails::default());
+            assert_eq!(session.estimated_value_micros, None);
+            assert_eq!(
+                session.first_activity_utc.as_deref(),
+                Some("2026-05-28T20:26:40.000Z")
+            );
+            assert_eq!(
+                session.last_activity_utc.as_deref(),
+                Some("2026-05-28T20:26:40.000Z")
+            );
+        }
+    }
+}
+
+#[test]
 fn recorded_pi_qualification_gaps_keep_missing_fields_unavailable() {
     let cases: Value = serde_json::from_slice(include_bytes!(
         "fixtures/remaining-tools/pi-qualification.json"
