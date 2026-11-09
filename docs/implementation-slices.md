@@ -118,7 +118,7 @@ Updated November 9, 2026. The owner asked to keep this list and to build down it
 - [x] L-1f10b: desktop and sharing views use independent totals, nullable details, and explicit saved scopes. Undated usage stays outside dated charts and shares. Original folder history remains accessible.
 - [x] L-1f10c: CLI schema 2, separate saved scopes, complete per-tool reports, and shared-read export, backup, and restore round trips.
 - [ ] L-1f11: qualify each tool with copied, forked, replayed, and compacted fixtures under AT-65. Complete the Amp candidate gates before any pin change. Enable only qualified tools. L-1f stays open until all sixteen pass their required checks.
-- [ ] R-1: resolve the intermittent synthetic cleanup-fixture startup failure before tool qualification.
+- [x] R-1: use bounded test-fixture writes to prevent inherited writable handles from blocking execution. Full Rust and native provider-lifecycle checks passed. See the [investigation](reviews/2026-11-10-executable-fixture-race.md).
 - [x] L-1g1: sessions, projects and the reasoning count from the `ccusage` session report of each tool, at schema 11 (OU-LOG-017, [SC-021](srs-clarifications.md#sc-021-sessions-projects-hours-and-reasoning-from-the-pinned-ccusage)).
 - [x] L-1g2: hourly ranges for Claude Code from `ccusage blocks`, at schema 12 (OU-LOG-017, SC-021).
 - [x] L-1g3: custom date ranges (OU-LOG-017).
@@ -275,7 +275,7 @@ Acceptance:
 
 Stopping condition: one verified CLI and round-trip slice, owning docs, a local commit, and a Graphify update. Per-tool qualification follows in L-1f11.
 
-### Next assignment: R-1
+### R-1: executable fixture reliability (complete)
 
 Goal: resolve the intermittent startup failure in the synthetic cleanup-fault test before tool qualification. The failure returns StartFailed before CleanupFailed. Production cleanup logic stays unchanged unless evidence proves a defect there.
 
@@ -287,6 +287,20 @@ Acceptance:
 - Run doctor, the selected verification plan, and affected native checks. Record all diagnostic trials and any unexecuted gates.
 
 Stopping condition: one verified reliability fix, owning docs, a local commit, and a Graphify update. Then continue L-1f11 with bounded per-tool qualification.
+
+### Next assignment: L-1f11a
+
+Goal: qualify Kilo using the pinned source, actual scanner reports, and synthetic fixtures. Keep all sixteen candidates disabled while qualification is incomplete. The Amp candidate stays unpublished, and the production scanner pin stays unchanged.
+
+Acceptance:
+
+- Compare the source's identity and count rules with independent expected totals and actual daily/session reports.
+- Check copied roots, forked records, replays, compaction, empty inputs, missing fields, and conflicting records. Never invent event IDs, times, reasoning counts, or account identity.
+- Preserve independent period totals and unavailable detail fields. Keep consent and root isolation intact.
+- Fix defects within OpenUsage's boundary with focused regressions. Record upstream defects and candidate fixes without changing the production pin or enabling a tool that fails AT-65.
+- Run doctor, the selected verification plan, and affected acceptance checks. Record failures and unexecuted gates with their platform and data scope.
+
+Stopping condition: one bounded Kilo qualification result, owning docs, a local commit, and a Graphify update. Then continue the next candidate.
 
 ## Order
 

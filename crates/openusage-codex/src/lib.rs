@@ -7,6 +7,8 @@ mod credential_bus;
 mod quota;
 pub mod session;
 pub mod supervisor;
+#[cfg(all(test, unix))]
+mod test_executable;
 pub use quota::{
     QuotaLimit, QuotaSnapshot, QuotaWindow, ResetCreditDetail, ResetCreditStatus, parse_quota,
 };

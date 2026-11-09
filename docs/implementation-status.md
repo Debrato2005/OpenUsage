@@ -26,7 +26,7 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scoped result, November 10, 2026: L-1f10c connects the CLI to separate saved scopes and completes shared-read round trips. JSON version 2 preserves missing measurements and record times. CLI report scans each tool's detected roots together and saves nothing. Final Rust and six native journeys passed with synthetic data on Linux. [Traceability](acceptance-traceability.md) records a cleanup-test failure whose cause remains unconfirmed. The next task isolates the intermittent fixture startup failure, before L-1f11 qualification.
+Latest scoped result, November 10, 2026: R-1 fixes a race in synthetic executable creation. A captured process-spawn error, the fixture source, and Linux/Rust sources identify inherited writable handles as the cause of the reproduced failure. Test-only helpers wait for those handles to close, with a deadline. The focused regression, eight fixed stress samples, full Rust plan, and rebuilt native provider-lifecycle journey passed on Linux. The original cleanup failure's OS error was not captured. Its cause remains unconfirmed. L-1f11 qualification is next.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -130,7 +130,7 @@ Kept from baseline 2.0:
 
 ## Failing or stale tests
 
-- L-1f10c, November 10, 2026: one full workspace run failed `synthetic_cleanup_fault_is_reported_after_reaping_the_child`. Its cause remains unconfirmed. An isolated run, the full Codex crate, 32 fixed concurrent samples, and the final workspace plan passed. Five additional full-crate diagnostic trials reproduced StartFailed once before the cleanup fault. Later spawn diagnostics did not reproduce it. The test now reports the actual error. Production cleanup logic did not change. [Traceability](acceptance-traceability.md) holds the evidence scope.
+- R-1, November 10, 2026: a captured ETXTBSY startup error now has a bounded test-fixture fix. Full Rust checks and the native provider-lifecycle journey passed. The original cleanup failure did not capture its OS error, so its cause remains unconfirmed. See the [investigation](reviews/2026-11-10-executable-fixture-race.md) for the distinction and diagnostic results.
 
 - L-1f8, November 9, 2026: 24 native journeys now expect schema 13. Nine passed on the final native-test build: `local-log-consent`, `backup`, `backup-inspection`, `restore-preview`, `restore-apply`, `restore-checkpoint`, `application-export`, `local-data-deletion`, and `persistence`. The other native journeys did not run for this slice. The full renderer suite, hosted CI, real accounts, Windows, and macOS also remain unexecuted for this source scope.
 - S-03d, November 6, 2026: the slice updated the 19 journeys that touch Overview and ran them on a private display. 17 passed, 16 on the native-test build and `provider-keyring` on the companion build. `reference-visual` passes every Overview check and keeps its recorded digit-width reason on Usage. `heatmap-window` keeps its window-manager reason. The other journeys did not run on this build.
@@ -152,7 +152,7 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 
 ## Current assignment
 
-The next assignment is [R-1](implementation-slices.md#next-assignment-r-1): resolve the intermittent synthetic cleanup-fixture startup failure before tool qualification. L-1f10 is complete. L-1f11 remains open for all sixteen candidate tools. [SC-024](srs-clarifications.md#sc-024-legacy-local-usage-during-grouped-migration) keeps legacy records and zones separate from grouped totals.
+The next assignment is [L-1f11a](implementation-slices.md#next-assignment-l-1f11a): qualify Kilo with copied, forked, replayed, and compacted synthetic fixtures. R-1 and L-1f10 are complete. L-1f11 remains open for all sixteen candidate tools. [SC-024](srs-clarifications.md#sc-024-legacy-local-usage-during-grouped-migration) keeps legacy records and zones separate from grouped totals.
 
 L-1f0 through L-1f10 are complete within their recorded scope. Only Claude Code and Codex are enabled. The Amp patch is a local candidate, and the production scanner pin is unchanged.
 

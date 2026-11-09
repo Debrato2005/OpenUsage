@@ -1195,7 +1195,7 @@ IFS= read -r request
                 Mode::Oversized => "exec /usr/bin/head -c 1048577 /dev/zero\n",
                 Mode::MoveRuntime => "owned_root=${HOME%/home}\nmv \"$owned_root\" \"$owned_root-moved\"\nprintf '{\"id\":2,\"result\":{\"account\":null,\"requiresOpenaiAuth\":true}}\\n'\nexec /bin/sleep 60\n",
             });
-            fs::write(&executable, script).unwrap();
+            crate::test_executable::write(&executable, script).unwrap();
             fs::set_permissions(&executable, fs::Permissions::from_mode(0o700)).unwrap();
             let executable = ApprovedExecutable::from_reviewed_source(
                 &executable,
@@ -1283,7 +1283,7 @@ IFS= read -r request
         use sha2::{Digest, Sha256};
         let mut fixture = Fixture::new(Mode::Hang);
         let script = source.replace("__MODE__", mode);
-        fs::write(&fixture.executable.path, script.as_bytes()).unwrap();
+        crate::test_executable::write(&fixture.executable.path, script.as_bytes()).unwrap();
         fixture.executable = ApprovedExecutable::from_reviewed_source_with_sha256(
             &fixture.executable.path,
             review,
@@ -1965,7 +1965,7 @@ exec /bin/sleep 60
                 SessionError::InvalidManagedDirectory
             ))
         );
-        fs::write(&fixture.executable.path, b"#!/bin/sh\nexit 42\n").unwrap();
+        crate::test_executable::write(&fixture.executable.path, b"#!/bin/sh\nexit 42\n").unwrap();
         assert_eq!(
             supervisor
                 .start_collection_diagnostic(&fixture.executable, &fixture.homes[1])
@@ -3242,7 +3242,7 @@ exec /bin/sleep 60
         });
         let mut changed = original.clone();
         *changed.last_mut().unwrap() ^= 1;
-        fs::write(path, changed).unwrap();
+        crate::test_executable::write(path, changed).unwrap();
         let mut refreshed_metadata = approved.clone();
         // Exercise the digest guard independently of stat changes. Public callers cannot change this fence.
         refreshed_metadata.identity = executable_identity(path).unwrap();
@@ -3250,7 +3250,7 @@ exec /bin/sleep 60
             refreshed_metadata.recheck(),
             Err(SessionError::InvalidExecutable)
         );
-        fs::write(path, &original).unwrap();
+        crate::test_executable::write(path, &original).unwrap();
         let reviewed_again = ApprovedExecutable::from_reviewed_source_with_sha256(
             path,
             "Synthetic second review.",
@@ -3259,7 +3259,7 @@ exec /bin/sleep 60
         .unwrap();
         let old = fixture.temporary.path().join("retained-original");
         fs::rename(path, &old).unwrap();
-        fs::copy(&old, path).unwrap();
+        crate::test_executable::copy(&old, path).unwrap();
         assert_eq!(
             reviewed_again.recheck(),
             Err(SessionError::InvalidExecutable)
@@ -3277,7 +3277,7 @@ exec /bin/sleep 60
             .create(&unsafe_parent)
             .unwrap();
         let nested = unsafe_parent.join("reviewed-provider");
-        fs::copy(&old, &nested).unwrap();
+        crate::test_executable::copy(&old, &nested).unwrap();
         let nested_approval = ApprovedExecutable::from_reviewed_source_with_sha256(
             &nested,
             "Synthetic ancestor review.",
@@ -3347,7 +3347,7 @@ exec /bin/sleep 60
         let original = fs::read_to_string(&fixture.executable.path).unwrap();
         let script = original.replace("  printf 'codex-cli 0.163.0\\n'", "  printf '# changed after the version process started\\n' >> \"$0\"\n  printf 'codex-cli 0.163.0\\n'");
         assert_ne!(script, original);
-        fs::write(&fixture.executable.path, &script).unwrap();
+        crate::test_executable::write(&fixture.executable.path, &script).unwrap();
         let approved = ApprovedExecutable::from_reviewed_source_with_sha256(
             &fixture.executable.path,
             "Synthetic self-changing fixture review.",
@@ -3379,7 +3379,7 @@ exec /bin/sleep 60
         let fixture = Fixture::new(Mode::Success);
         let mut script = fs::read(&fixture.executable.path).unwrap();
         script.extend_from_slice(format!("\n#{}\n", "x".repeat(3 * 64 * 1024)).as_bytes());
-        fs::write(&fixture.executable.path, &script).unwrap();
+        crate::test_executable::write(&fixture.executable.path, &script).unwrap();
         let approved = ApprovedExecutable::from_reviewed_source_with_sha256(
             &fixture.executable.path,
             "Synthetic multi-chunk concurrent review.",
@@ -3411,7 +3411,7 @@ exec /bin/sleep 60
         }
         let old = fixture.temporary.path().join("original-synthetic-provider");
         fs::rename(&fixture.executable.path, &old).unwrap();
-        fs::copy(&old, &fixture.executable.path).unwrap();
+        crate::test_executable::copy(&old, &fixture.executable.path).unwrap();
         let supervisor = Supervisor::new();
         assert!(matches!(
             supervisor

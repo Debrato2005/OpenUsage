@@ -1646,7 +1646,7 @@ pathlib.Path(sys.argv[1]).write_text('clean')
             fs::set_permissions(&parent, fs::Permissions::from_mode(0o700)).unwrap();
             let parent = parent.canonicalize().unwrap();
             let executable = temporary.path().join("synthetic-provider");
-            fs::write(&executable, r##"#!/bin/sh
+            crate::test_executable::write(&executable, r##"#!/bin/sh
 if [ "$1" = "--version" ]; then
     printf 'codex-cli 0.163.0\n'
     exit 0

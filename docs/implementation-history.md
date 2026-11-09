@@ -4,6 +4,12 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f10c result before R-1
+
+Latest scoped result, November 10, 2026: L-1f10c connects the CLI to separate saved scopes and completes shared-read round trips. JSON version 2 preserves missing measurements and record times. CLI report scans each tool's detected roots together and saves nothing. Final Rust and six native journeys passed with synthetic data on Linux. [Traceability](acceptance-traceability.md) records a cleanup-test failure whose cause remains unconfirmed. The next task isolates the intermittent fixture startup failure, before L-1f11 qualification.
+
+- L-1f10c, November 10, 2026: one full workspace run failed `synthetic_cleanup_fault_is_reported_after_reaping_the_child`. Its cause remains unconfirmed. An isolated run, the full Codex crate, 32 fixed concurrent samples, and the final workspace plan passed. Five additional full-crate diagnostic trials reproduced StartFailed once before the cleanup fault. Later spawn diagnostics did not reproduce it. The test now reports the actual error. Production cleanup logic did not change. [Traceability](acceptance-traceability.md) holds the evidence scope.
+
 ## L-1f10b result before L-1f10c
 
 Latest scoped result, November 9, 2026: L-1f10b connects desktop and sharing views to the shared read results. Combined history stays unavailable when overlap or day boundaries lack proof. Separate folder and undated views preserve their values. Final renderer, Rust, and native checks passed with synthetic data on Linux. [Traceability](acceptance-traceability.md) records an earlier workspace failure whose cause remains unconfirmed. CLI integration follows in L-1f10c.

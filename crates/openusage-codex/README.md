@@ -19,6 +19,8 @@ Sources:
 
 The quota fixture now writes its runtime path before it exposes the child process ID (PID). This makes the PID a safe cancellation point. The existing cleanup and process-ownership assertions stay unchanged. The controlled regression in `tests/tools/test_provider_readiness.py` pauses the path write before it permits cancellation.
 
+Unit tests use `test_executable::write` and `copy` for executable fixtures. These helpers wait for writable handles inherited by concurrent forks to close. Each lock wait has a five-second deadline. Tests remain parallel, and failed launches are not retried. The helper compiles only in Unix unit tests. See the [race investigation](../../docs/reviews/2026-11-10-executable-fixture-race.md) for the captured error and regression scope.
+
 ## Isolated provider probe
 
 `session::probe_account` takes an approved absolute executable path and an existing private managed directory. It creates fresh temporary homes. A successful probe removes those homes. Cleanup failure returns a typed error. It never opens an existing provider home.
