@@ -1,6 +1,6 @@
 # Implementation slices
 
-Updated: November 8, 2026. This page owns the order and boundaries of planned work. The [SRS](SRS.md) owns what each requirement says, and [status](implementation-status.md) owns what works today.
+Updated: November 9, 2026. This page owns the order and boundaries of planned work. The [SRS](SRS.md) owns what each requirement says, and [status](implementation-status.md) owns what works today.
 
 ## Run a slice
 
@@ -74,15 +74,21 @@ Adopted November 7, 2026 (SRS Section 0.6, SC-016). The owner wants a working pr
 | L-3 | Sharing: Wrapped summary, heatmap PNG and SVG, a README badge, and personal records | S-19 | Done |
 | L-4 | Leaderboard service on Cloudflare Workers and D1, per the [decision](decisions/2026-11-07-leaderboard-service.md) | S-21 | Done locally. Deployment waits for the owner |
 | L-5 | Leaderboard client: join with GitHub, dry run, sync, leave | S-22 | Waits for the owner |
-| L-6 | Packaging: Linux packages, Windows and macOS preview builds in CI, the npm package | S-18, part of S-15 | L-6a and L-6b done. L-6c waits for the owner |
-| L-7 | Release documents and the launch checklist | S-20 | Done |
+| L-6 | Packaging: Linux packages, Windows and macOS preview builds in CI, the npm package | S-18, part of S-15 | L-6a and L-6b built. Preview builds and platform pins remain open under L-6c |
+| L-7 | Release documents and the launch checklist | S-20 | L-7a through L-7d built. Remaining documents and evidence are open under L-7e |
 | G-L | Owner: claim the npm name (OQ-2), create the Cloudflare account and GitHub OAuth App, run the real-account tests, publish | G-1, G-2, G-3 | Not started |
 
 The other slices below follow the launch, unless a launch slice needs part of one.
 
 ## Build checklist
 
-Updated November 8, 2026. The owner asked to keep this list and to build down it with no stop between items. Each item ends with one local commit, which ticks the item. Owner items wait for the owner.
+Updated November 9, 2026. The owner asked to keep this list and to build down it with no stop between items. Each item ends with one local commit, which ticks the item. Owner items wait for the owner.
+
+**Verification before release**
+
+- [x] Fix portable Codex fixtures, renderer countdown clocks, and quota fixture readiness. See [traceability](acceptance-traceability.md#evidence-log) for scope and results.
+- [x] The hosted renderer job for `b1b8d84` passed all 456 cases.
+- [ ] Pass the complete hosted Linux gate after the quota fixture fix in `d357655`. The previous job stopped before native oracle checks.
 
 **L-0 First run**
 
@@ -104,6 +110,11 @@ Updated November 8, 2026. The owner asked to keep this list and to build down it
 - [x] L-1f4: reject malformed Unicode timestamps without a panic and reject impossible calendar dates (OU-LOG-007). Session and hourly parsers share the UTC check. The date check covers month lengths and leap years. Synthetic regressions first reproduced both Unicode panics and acceptance of February 30. Full Rust checks and the rebuilt native consent journey passed on Linux.
 - [x] L-1f5: add the strict common session parser and nullable metric types for the sixteen disabled tools. Eight focused tests cover recorded reports, incomplete model attribution, empty reports, reported zero totals, and malformed values. The diagnostic workspace run, formatting, Clippy, renderer build, IPC contracts, and rebuilt native consent journey passed on Linux. The initial workspace failure did not recur and its cause remains unconfirmed. Storage and scanner integration remain open.
 - [x] L-1f6: prepare and test an unpublished Amp duplicate patch against the pinned source. Stable-ID copies count once. Conflicts and incomplete reads fail. All 28 adapter tests and 210 scanner comparisons passed. The production pin stays unchanged. Remaining AT-65 and integration gates remain open. See the [candidate record](reviews/2026-11-08-amp-dedup-design.md#local-candidate-after-review).
+- [ ] L-1f7: preserve independent period totals and nullable details in a strict report contract. Add daily parsing for the four dated candidates. Keep the other twelve tools in an explicit unplaced scope. This is the next assignment.
+- [ ] L-1f8: store coherent period totals and model details, with nullable session times and a tested migration. Preserve older backups and accepted history. Resolve legacy overlap and conflicting-zone questions before the migration.
+- [ ] L-1f9: group consented roots by tool in the scanner and save each accepted result once. Validate every root and all required reports before saving. Preserve prior data when any required report fails.
+- [ ] L-1f10: carry the new totals and unavailable fields through desktop, CLI, export, backup, restore, and sharing. Keep unplaced usage out of dated views. Run the affected renderer and native gates.
+- [ ] L-1f11: qualify each tool with copied, forked, replayed, and compacted fixtures under AT-65. Complete the Amp candidate gates before any pin change. Enable only qualified tools. L-1f stays open until all sixteen pass their required checks.
 - [x] L-1g1: sessions, projects and the reasoning count from the `ccusage` session report of each tool, at schema 11 (OU-LOG-017, [SC-021](srs-clarifications.md#sc-021-sessions-projects-hours-and-reasoning-from-the-pinned-ccusage)).
 - [x] L-1g2: hourly ranges for Claude Code from `ccusage blocks`, at schema 12 (OU-LOG-017, SC-021).
 - [x] L-1g3: custom date ranges (OU-LOG-017).
@@ -141,6 +152,7 @@ Updated November 8, 2026. The owner asked to keep this list and to build down it
 - [x] L-7b: the threat model (SRS Section 14.1).
 - [x] L-7c: the SBOM (OU-SEC-016, part of OU-DIST-005).
 - [x] L-7d: the release notes, with the signing state of each build (OU-PLAT-003, OU-PLAT-004).
+- [ ] L-7e: complete the remaining Section 20 documents and evidence. These cover data and identity contracts, provider capabilities, security and privacy, compatibility, performance, and provider evidence. Record unexecuted platform and live-account gates explicitly.
 
 **Owner (G-L)**
 
@@ -157,13 +169,28 @@ Updated November 8, 2026. The owner asked to keep this list and to build down it
 
 - [ ] The slices in [Order](#order). Stage 1 needs every mandatory requirement (SRS Section 0.4). The next launch item is L-1f. S-03c remains the first item after the launch track with no owner gate.
 
+### Next assignment: L-1f7
+
+Goal: finish the typed report contract that storage integration needs. Follow OU-LOG-007, OU-LOG-013, OU-LOG-017, and [approved SC-022](srs-clarifications.md#sc-022-incomplete-metrics-from-the-other-local-tools).
+
+Scope: the local-log parser, catalog policy, and synthetic report fixtures. Start with the [existing session parser](../crates/openusage-locallogs/src/agent_report.rs) and the [incomplete-metrics proposal](reviews/2026-11-08-incomplete-local-metrics.md). That proposal is design input, not completed implementation.
+
+Acceptance:
+
+- Preserve independently reported totals when model details are incomplete. Do not derive a total from missing buckets or assign a remainder to reasoning.
+- Check daily reports for Amp, Pi, Kilo, and ZCode against the recorded fixtures. Keep the other twelve tools unplaced under the catalog policy.
+- Reject unknown shapes, malformed dates and counts, and inconsistent totals. Keep unavailable buckets, times, projects, and estimates absent.
+- Pass focused fixtures and the full Rust workspace checks. Update the owning documents with the executed scope.
+
+Stopping condition: the contract and checks are complete, with one local commit and a Graphify update. Storage integration starts in L-1f8. This slice enables no tool and changes no production pin.
+
 ## Order
 
 | Slice | Goal | Before it starts | State |
 |---|---|---|---|
 | S-01 | Simple screens | | Done, with one exception in [status](implementation-status.md#partial) |
 | S-02 | Native journeys | S-01 | Done, with two recorded reasons in [status](implementation-status.md#failing-or-stale-tests) |
-| S-03 | CI | S-02 | Done; the hosted run waits for the owner's push |
+| S-03 | CI | S-02 | Configured. Hosted renderer passed. The Linux gate needs a new run after the quota fixture fix |
 | S-03b | Rich dashboard | S-03 | Done |
 | S-03d | Modern Overview | S-03b | Done, with two recorded reasons in [status](implementation-status.md#failing-or-stale-tests) |
 | S-03c | Keychain by default | S-03b | New workspaces use the key store (L-0). The move of a password workspace follows the launch |
@@ -180,12 +207,12 @@ Updated November 8, 2026. The owner asked to keep this list and to build down it
 | S-13 | Claude Code quotas | S-05 | Not started |
 | G-2 | Owner: real-account test on Claude Code and local logs | S-12, S-13 | Not started |
 | S-14 | CLI | S-10 | Done as L-2 |
-| S-15 | Windows and macOS | S-14 | The preview builds wait for the owner (L-6c) |
+| S-15 | Windows and macOS | S-14 | Preview builds and platform pins remain open under L-6c. Required build downloads are approved |
 | S-16 | WSL profiles | S-15 | Not started |
 | S-17 | Other providers | S-05, OQ-3 | Not started |
 | S-18 | npm package | S-15 | Linux packages built as L-6a and L-6b. Publishing waits for the owner |
 | S-19 | Sharing | S-12 | Built as L-3. The check in a GitHub README did not run |
-| S-20 | Release documents | S-18 | The threat model is done (L-7b). The other six documents are not started |
+| S-20 | Release documents | S-18 | L-7a through L-7d built. See L-7e for the remaining documents and evidence |
 | G-3 | Owner: real machines and first release | S-20, OQ-2 | Not started |
 | S-21 | Leaderboard service | G-3 | Built as L-4. Deployment waits for the owner |
 | S-22 | Leaderboard client | S-21 | Waits for the owner (L-5) |

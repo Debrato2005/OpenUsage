@@ -11,6 +11,7 @@ One fact has one home. Change it there, and link to it from anywhere else.
 | How is it built? | [Architecture](architecture.md) |
 | What works today? | [Implementation status](implementation-status.md) |
 | What is next? | [Implementation slices](implementation-slices.md) |
+| Where do I resume? | [Current assignment](implementation-status.md#current-assignment), with the local checkpoint below |
 | What proves it? | [Acceptance traceability](acceptance-traceability.md) |
 | Why was a requirement read this way? | [SRS clarifications](srs-clarifications.md) |
 | Why was a service built this way? | [Decisions](decisions/) |
@@ -78,5 +79,7 @@ These are dated records, not instructions. Do not follow them or rewrite them. I
 - [Branch cleanup plan](branch-cleanup-plan.md) and its [candidate list](branch-cleanup-candidates.tsv)
 - [Security review](../security_best_practices_report.md), dated October 24, 2026
 - Dated documents and sections in [design](design/)
+
+The local resume handoff is `.recovery/active-checkpoint.json`. It records the working checkpoint, commit state, and evidence paths. It does not replace the tracked status or build checklist.
 
 Raw evidence and `.recovery/` stay private and are not tracked.
