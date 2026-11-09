@@ -1,15 +1,17 @@
 //! `openusage`, `openusage status --json` and `openusage statusline` read saved data only.
 //! They open the database read-only, never prompt, and never use the network (OU-CLI-002, OU-CLI-006).
 
+use crate::local_status;
 use crate::{CliError, Env, SCHEMA_VERSION, grouped, known_options};
 use openusage_keys::VaultError;
 use openusage_storage::{ProfileConnectionState, QuotaWindow, Storage, StorageError};
 use serde::Serialize;
-use std::collections::BTreeMap;
 
 pub const STATUS_HELP: &str = "Usage: openusage status [--json]
 
-Runs when openusage has no command. Shows the saved quotas of each account and today's local log usage. It reads
+Runs when openusage has no command. Shows saved quotas and local usage by saved
+scope. Each dated scope uses today in its saved time zone. Undated usage and
+legacy folders stay separate. It reads
 saved data only: it never writes the database, starts a reading, or uses the
 network. A missing value shows Not available, and in JSON it is null.
 
@@ -64,33 +66,12 @@ struct Profile {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct LocalTool {
-    tool: String,
-    name: &'static str,
-    total_tokens: String,
-    estimated_value_usd_micros: Option<String>,
-    estimate_complete: bool,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct LocalToday {
-    date: String,
-    time_zone: String,
-    source_level: &'static str,
-    /// Local log totals have no reading status (SC-019).
-    status: Option<&'static str>,
-    tools: Vec<LocalTool>,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
 struct Status {
     schema_version: u32,
     command: &'static str,
     observed_at_utc: String,
     profiles: Vec<Profile>,
-    local: LocalToday,
+    local: local_status::Local,
 }
 
 fn locked(message: &str) -> CliError {
@@ -98,14 +79,6 @@ fn locked(message: &str) -> CliError {
         code: "locked",
         exit: 7,
         message: message.into(),
-    }
-}
-
-fn tool_name(tool: &str) -> &'static str {
-    match tool {
-        "claude" => "Claude Code",
-        "codex" => "Codex",
-        _ => "Unknown tool",
     }
 }
 
@@ -242,47 +215,12 @@ fn snapshot(storage: &Storage, now: jiff::Timestamp) -> Result<Status, CliError>
             quota,
         });
     }
-    let zone = storage.local_usage_zone().map_err(|_| unreadable(()))?;
-    let today = jiff::tz::TimeZone::get(&zone)
-        .map(|tz| now.to_zoned(tz).date().to_string())
-        .map_err(|_| unreadable(()))?;
-    let mut tools: BTreeMap<String, (u128, u128, usize)> = BTreeMap::new();
-    for day in storage
-        .local_usage_days(&today, &today)
-        .map_err(|_| unreadable(()))?
-    {
-        let entry = tools.entry(day.counts.tool.clone()).or_default();
-        entry.0 += u128::from(day.counts.total_tokens);
-        match day.counts.estimated_value_usd_micros {
-            Some(value) => entry.1 += u128::from(value),
-            None => entry.2 += 1,
-        }
-    }
-    let order = |tool: &str| openusage_locallogs::tool(tool).map(|tool| tool.order);
-    let mut tools: Vec<_> = tools.into_iter().collect();
-    tools.sort_by_key(|(tool, _)| order(tool));
     Ok(Status {
         schema_version: SCHEMA_VERSION,
         command: "status",
         observed_at_utc: now.strftime("%Y-%m-%dT%H:%M:%S%.3fZ").to_string(),
         profiles,
-        local: LocalToday {
-            date: today,
-            time_zone: zone,
-            source_level: "local_log",
-            status: None,
-            tools: tools
-                .into_iter()
-                .map(|(tool, (total, priced, unpriced))| LocalTool {
-                    name: tool_name(&tool),
-                    tool,
-                    total_tokens: total.to_string(),
-                    estimated_value_usd_micros: (unpriced == 0 || priced > 0)
-                        .then(|| priced.to_string()),
-                    estimate_complete: unpriced == 0,
-                })
-                .collect(),
-        },
+        local: local_status::read(storage, now)?,
     })
 }
 
@@ -364,18 +302,37 @@ fn text(status: &Status, now: jiff::Timestamp) -> String {
             ));
         }
     }
-    out.push_str(&format!("This device today, {}\n", status.local.date));
-    if status.local.tools.is_empty() {
+    out.push_str("This device\n");
+    if status.local.scopes.is_empty() {
         out.push_str("  No saved local usage today\n");
     }
-    for tool in &status.local.tools {
+    for (index, scope) in status.local.scopes.iter().enumerate() {
+        let total = scope
+            .metrics
+            .total_tokens
+            .value
+            .as_deref()
+            .and_then(|v| v.parse().ok())
+            .map(grouped)
+            .unwrap_or_else(|| "Not available".into());
+        let period = match (&scope.date, &scope.time_zone) {
+            (Some(day), Some(zone)) => format!("{day}, {zone}"),
+            _ => "Undated".into(),
+        };
         out.push_str(&format!(
-            "  {:<11} {} tokens\n",
-            tool.name,
-            grouped(tool.total_tokens.parse().unwrap_or(0))
+            "  {}: {total} tokens ({period})\n",
+            scope_label(scope, index)
         ));
     }
     out
+}
+
+fn scope_label(scope: &local_status::LocalScope, index: usize) -> String {
+    if scope.kind == "legacy" {
+        format!("{} legacy {}", scope.name, index + 1)
+    } else {
+        scope.name.clone()
+    }
 }
 
 fn line(status: &Status) -> String {
@@ -400,13 +357,29 @@ fn line(status: &Status) -> String {
             format!("{} {}{}", profile.label, windows.join(" "), stale)
         })
         .collect();
-    parts.extend(status.local.tools.iter().map(|t| {
-        format!(
-            "{} {} today",
-            t.name,
-            compact(t.total_tokens.parse().unwrap_or(0))
-        )
-    }));
+    parts.extend(
+        status
+            .local
+            .scopes
+            .iter()
+            .enumerate()
+            .map(|(index, scope)| {
+                let total = scope
+                    .metrics
+                    .total_tokens
+                    .value
+                    .as_deref()
+                    .and_then(|v| v.parse().ok())
+                    .map(compact)
+                    .unwrap_or_else(|| "Not available".into());
+                let period = scope
+                    .time_zone
+                    .as_ref()
+                    .map(|z| format!("today ({z})"))
+                    .unwrap_or_else(|| "undated".into());
+                format!("{} {total} {period}", scope_label(scope, index))
+            }),
+    );
     if parts.is_empty() {
         return "OpenUsage no data\n".into();
     }
@@ -528,21 +501,24 @@ mod tests {
         let text = status(&[], &env(&workspace, Ok(Some(KEY)))).unwrap();
         assert_eq!(
             text,
-            "No accounts\nThis device today, 2026-11-08\n  Claude Code 1,234,567 tokens\n"
+            "No accounts\nThis device\n  Claude Code legacy 1: 1,234,567 tokens (2026-11-08, UTC)\n"
         );
         let json: serde_json::Value = serde_json::from_str(
             &status(&["--json".into()], &env(&workspace, Ok(Some(KEY)))).unwrap(),
         )
         .unwrap();
-        assert_eq!(json["schemaVersion"], 1);
-        assert_eq!(json["local"]["tools"][0]["totalTokens"], "1234567");
+        assert_eq!(json["schemaVersion"], 2);
         assert_eq!(
-            json["local"]["tools"][0]["estimatedValueUsdMicros"],
+            json["local"]["scopes"][0]["metrics"]["totalTokens"]["value"],
+            "1234567"
+        );
+        assert_eq!(
+            json["local"]["scopes"][0]["metrics"]["estimatedValueUsdMicros"]["value"],
             serde_json::Value::Null
         );
         assert_eq!(
             statusline(&[], &env(&workspace, Ok(Some(KEY)))).unwrap(),
-            "Claude Code 1.2M today\n"
+            "Claude Code legacy 1 1.2M today (UTC)\n"
         );
         // A password workspace is Locked, because the CLI never prompts.
         std::fs::write(workspace.join("database-key.v1"), "synthetic").unwrap();

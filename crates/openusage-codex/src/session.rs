@@ -1663,10 +1663,10 @@ exec /bin/sleep 60
 "##).unwrap();
             fs::set_permissions(&executable, fs::Permissions::from_mode(0o700)).unwrap();
             let executable = executable.canonicalize().unwrap();
-            assert!(matches!(
-                probe(&executable, &parent),
-                Err(SessionError::CleanupFailed)
-            ));
+            assert_eq!(
+                probe(&executable, &parent).err(),
+                Some(SessionError::CleanupFailed)
+            );
             let entries: Vec<_> = fs::read_dir(&parent).unwrap().collect();
             assert_eq!(entries.len(), 1);
             let moved_home = entries[0].as_ref().unwrap().path().join("codex");

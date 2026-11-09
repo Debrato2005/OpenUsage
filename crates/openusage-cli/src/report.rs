@@ -1,9 +1,10 @@
 //! `openusage report`: local log totals with no database. It asks once for consent, accepts
 //! `--yes` for scripts and saves nothing (OU-CLI-002, OU-CLI-003).
 
-use crate::{CliError, Env, SCHEMA_VERSION, dollars, grouped, known_options};
+use crate::{CliError, Env, SCHEMA_VERSION, dollars, grouped, known_options, metrics::Metrics};
 use jiff::{Span, civil::Date, tz::TimeZone};
 use openusage_locallogs::{self as locallogs, CCUSAGE_VERSION, Detected, ScanError, ScanRequest};
+use openusage_storage::LocalTokenDetails;
 use serde::Serialize;
 use std::collections::BTreeMap;
 use std::io::{BufRead, Write};
@@ -40,16 +41,7 @@ struct Sum {
 struct ToolReport {
     tool: &'static str,
     name: &'static str,
-    state: &'static str,
-    /// Local log totals have no reading status. See SC-019.
-    status: Option<&'static str>,
-    input_tokens: String,
-    output_tokens: String,
-    cache_write_tokens: String,
-    cache_read_tokens: String,
-    total_tokens: String,
-    estimated_value_usd_micros: Option<String>,
-    estimate_complete: bool,
+    metrics: Metrics,
 }
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
@@ -78,22 +70,31 @@ impl Report {
         let width = self
             .tools
             .iter()
-            .map(|t| grouped(t.total_tokens.parse().unwrap_or(0)).len())
+            .map(|t| {
+                grouped(
+                    t.metrics
+                        .total_tokens
+                        .value
+                        .as_deref()
+                        .and_then(|v| v.parse().ok())
+                        .unwrap_or(0),
+                )
+                .len()
+            })
             .max()
             .unwrap_or(0);
         for tool in &self.tools {
-            let total = grouped(tool.total_tokens.parse().unwrap_or(0));
-            let estimate = match &tool.estimated_value_usd_micros {
+            let total = grouped(
+                tool.metrics
+                    .total_tokens
+                    .value
+                    .as_deref()
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(0),
+            );
+            let estimate = match &tool.metrics.estimated_value_usd_micros.value {
                 None => "Estimated value not available".to_string(),
-                Some(micros) => format!(
-                    "Estimated {}{}",
-                    dollars(micros.parse().unwrap_or(0)),
-                    if tool.estimate_complete {
-                        ""
-                    } else {
-                        ", some models have no price"
-                    }
-                ),
+                Some(micros) => format!("Estimated {}", dollars(micros.parse().unwrap_or(0))),
             };
             out.push_str(&format!(
                 "{:<12} {:>width$} tokens  {}\n",
@@ -198,29 +199,44 @@ pub fn command(
         .as_deref()
         .ok_or_else(|| CliError::ccusage("No pinned ccusage exists for this platform yet."))?;
     let mut sums: BTreeMap<&'static str, Sum> = BTreeMap::new();
+    let mut roots: BTreeMap<&str, Vec<&std::path::Path>> = BTreeMap::new();
     for source in &detected {
-        let empty_home = tempfile::tempdir().map_err(|_| {
+        roots
+            .entry(source.tool)
+            .or_default()
+            .push(std::path::Path::new(&source.folder));
+    }
+    for (tool, folders) in roots {
+        let mut builder = tempfile::Builder::new();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            builder.permissions(std::fs::Permissions::from_mode(0o700));
+        }
+        let empty_home = builder.tempdir().map_err(|_| {
             CliError::scan("OpenUsage could not create a private folder for ccusage.")
         })?;
-        let since = start.to_string();
-        let rows = locallogs::scan(&ScanRequest {
-            binary: &env.ccusage,
-            expected_sha256: digest,
-            tool: source.tool,
-            folder: std::path::Path::new(&source.folder),
-            empty_home: empty_home.path(),
-            timezone: &env.time_zone,
-            since: Some(&since),
-            timeout: locallogs::DEFAULT_TIMEOUT,
-            max_output: locallogs::DEFAULT_MAX_OUTPUT,
-        })
+        let rows = locallogs::scan_daily_roots(
+            &ScanRequest {
+                binary: &env.ccusage,
+                expected_sha256: digest,
+                tool,
+                folder: folders[0],
+                empty_home: empty_home.path(),
+                timezone: &env.time_zone,
+                since: None,
+                timeout: locallogs::DEFAULT_TIMEOUT,
+                max_output: locallogs::DEFAULT_MAX_OUTPUT,
+            },
+            &folders,
+        )
         .map_err(|error| match error {
             ScanError::Unavailable | ScanError::Digest => CliError::ccusage(format!(
                 "The pinned ccusage {CCUSAGE_VERSION} is missing or changed. Reinstall OpenUsage."
             )),
             _ => CliError::scan(format!(
                 "The {} log scan failed. Nothing was saved.",
-                name(source.tool)
+                name(tool)
             )),
         })?;
         for row in rows {
@@ -245,33 +261,39 @@ pub fn command(
     let order = |tool: &str| locallogs::tool(tool).map(|tool| tool.order);
     let mut tools: Vec<_> = sums.into_iter().collect();
     tools.sort_by_key(|(tool, _)| order(tool));
+    let observed = env
+        .now
+        .unwrap_or_else(jiff::Timestamp::now)
+        .strftime("%Y-%m-%dT%H:%M:%S%.3fZ")
+        .to_string();
+    let source = format!("ccusage {CCUSAGE_VERSION}");
     let report = Report {
         schema_version: SCHEMA_VERSION,
         command: "report",
         start_date: start.to_string(),
         end_date: today.to_string(),
         time_zone: env.time_zone.clone(),
-        observed_at_utc: jiff::Timestamp::now()
-            .strftime("%Y-%m-%dT%H:%M:%S%.3fZ")
-            .to_string(),
-        source: format!("ccusage {CCUSAGE_VERSION}"),
+        observed_at_utc: observed.clone(),
+        source: source.clone(),
         source_level: "local_log",
         tools: tools
             .into_iter()
             .map(|(tool, s)| ToolReport {
                 tool,
                 name: name(tool),
-                state: "current",
-                status: None,
-                input_tokens: s.input.to_string(),
-                output_tokens: s.output.to_string(),
-                cache_write_tokens: s.cache_write.to_string(),
-                cache_read_tokens: s.cache_read.to_string(),
-                total_tokens: s.total.to_string(),
-                // With no priced row there is no estimate at all, not an estimate of zero.
-                estimated_value_usd_micros: (s.unpriced == 0 || s.priced > 0)
-                    .then(|| s.priced.to_string()),
-                estimate_complete: s.unpriced == 0,
+                metrics: Metrics::new(
+                    Some(s.total),
+                    &LocalTokenDetails {
+                        input_tokens: Some(s.input),
+                        output_tokens: Some(s.output),
+                        cache_write_tokens: Some(s.cache_write),
+                        cache_read_tokens: Some(s.cache_read),
+                        reasoning_tokens: None,
+                    },
+                    (s.unpriced == 0).then_some(s.priced),
+                    Some(&source),
+                    Some(&observed),
+                ),
             })
             .collect(),
     };
@@ -344,7 +366,7 @@ mod tests {
         let text = command(&[], &env, &mut "y\n".as_bytes(), &mut std::io::sink()).unwrap();
         assert_eq!(
             text,
-            "Local logs from 2026-10-10 to 2026-11-08, days in UTC\nClaude Code  14,950 tokens  Estimated $0.11, some models have no price\n"
+            "Local logs from 2026-10-10 to 2026-11-08, days in UTC\nClaude Code  14,950 tokens  Estimated value not available\n"
         );
         let json: serde_json::Value = serde_json::from_str(
             &command(
@@ -356,12 +378,62 @@ mod tests {
             .unwrap(),
         )
         .unwrap();
-        assert_eq!(json["schemaVersion"], 1);
+        assert_eq!(json["schemaVersion"], 2);
         assert_eq!(json["sourceLevel"], "local_log");
-        assert_eq!(json["tools"][0]["totalTokens"], "14950");
-        assert_eq!(json["tools"][0]["estimatedValueUsdMicros"], "108525");
-        assert_eq!(json["tools"][0]["estimateComplete"], false);
-        assert_eq!(json["tools"][0]["status"], serde_json::Value::Null);
+        assert_eq!(json["tools"][0]["metrics"]["totalTokens"]["value"], "14950");
+        assert_eq!(
+            json["tools"][0]["metrics"]["estimatedValueUsdMicros"]["value"],
+            serde_json::Value::Null
+        );
+        assert_eq!(
+            json["tools"][0]["metrics"]["estimatedValueUsdMicros"]["state"],
+            "not_available"
+        );
+        assert_eq!(
+            json["tools"][0]["metrics"]["reasoningTokens"]["value"],
+            serde_json::Value::Null
+        );
+        assert_eq!(
+            json["tools"][0]["metrics"]["totalTokens"]["status"],
+            serde_json::Value::Null
+        );
+        // Two roots of one tool go to one complete report; copied fixtures do not add twice.
+        std::fs::create_dir_all(env.home.as_ref().unwrap().join(".config/claude/projects"))
+            .unwrap();
+        let marker = dir.path().join("runs");
+        let mut multiple = make_env(
+            dir.path(),
+            &format!(
+                "test \"$(ls -ld \"$HOME\" | cut -c1-10)\" = drwx------ || exit 3; printf '%s\\n' \"$CLAUDE_CONFIG_DIR\" >> {}; cat {CLAUDE_REPORT}",
+                marker.display()
+            ),
+        );
+        multiple.interactive = true;
+        let mut prompt = Vec::new();
+        let output = command(
+            &args(&["--json"]),
+            &multiple,
+            &mut "y\n".as_bytes(),
+            &mut prompt,
+        )
+        .unwrap();
+        assert_eq!(
+            String::from_utf8(prompt)
+                .unwrap()
+                .matches("Continue?")
+                .count(),
+            1
+        );
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&output).unwrap()["tools"][0]["metrics"]["totalTokens"]
+                ["value"],
+            "14950"
+        );
+        let runs = std::fs::read_to_string(&marker).unwrap();
+        assert_eq!(runs.lines().count(), 1);
+        assert!(runs.contains(','));
+        // Refresh the script digest for later tests after replacing the test scanner.
+        env.ccusage_digest = multiple.ccusage_digest;
         // A shorter range leaves out older days.
         let short = command(
             &args(&["--yes", "--days", "3", "--json"]),

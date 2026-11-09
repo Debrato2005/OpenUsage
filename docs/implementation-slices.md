@@ -113,11 +113,12 @@ Updated November 9, 2026. The owner asked to keep this list and to build down it
 - [x] L-1f7: preserve independent period totals and nullable details in a strict report contract. Amp, Pi, Kilo, and ZCode use daily reports. The other twelve tools stay unplaced. Seven focused tests, full Rust checks, 98 scanner comparisons, and the rebuilt native consent journey passed with synthetic data on Linux. No tool or production pin changed.
 - [x] L-1f8: store independent period totals, coherent model details, and nullable session metadata at schema 13. Preserve legacy history and zones under [SC-024](srs-clarifications.md#sc-024-legacy-local-usage-during-grouped-migration). Migration, backup, restore, full Rust checks, and nine native journeys passed on synthetic Linux data.
 - [x] L-1f9: group consented roots by tool in the scanner and save each accepted result once. Validate every root and all required reports before saving. Preserve prior data when any required report fails.
-- [ ] L-1f10: carry the new totals and unavailable fields through desktop, CLI, export, backup, restore, and sharing. Keep unplaced usage out of dated views. Run the affected renderer and native gates.
+- [x] L-1f10: carry the new totals and unavailable fields through desktop, CLI, export, backup, restore, and sharing. Keep unplaced usage out of dated views. Run the affected renderer and native gates.
 - [x] L-1f10a: shared read results for grouped periods, unavailable details, unplaced usage, and separate legacy history.
 - [x] L-1f10b: desktop and sharing views use independent totals, nullable details, and explicit saved scopes. Undated usage stays outside dated charts and shares. Original folder history remains accessible.
-- [ ] L-1f10c: CLI integration and the remaining export, backup, and restore round trips.
+- [x] L-1f10c: CLI schema 2, separate saved scopes, complete per-tool reports, and shared-read export, backup, and restore round trips.
 - [ ] L-1f11: qualify each tool with copied, forked, replayed, and compacted fixtures under AT-65. Complete the Amp candidate gates before any pin change. Enable only qualified tools. L-1f stays open until all sixteen pass their required checks.
+- [ ] R-1: resolve the intermittent synthetic cleanup-fixture startup failure before tool qualification.
 - [x] L-1g1: sessions, projects and the reasoning count from the `ccusage` session report of each tool, at schema 11 (OU-LOG-017, [SC-021](srs-clarifications.md#sc-021-sessions-projects-hours-and-reasoning-from-the-pinned-ccusage)).
 - [x] L-1g2: hourly ranges for Claude Code from `ccusage blocks`, at schema 12 (OU-LOG-017, SC-021).
 - [x] L-1g3: custom date ranges (OU-LOG-017).
@@ -260,7 +261,7 @@ Acceptance:
 
 Stopping condition: one verified desktop and sharing slice, owning docs, a local commit, and a Graphify update. CLI integration follows in L-1f10c.
 
-### Next assignment: L-1f10c
+### L-1f10c: CLI and round trips (complete)
 
 Goal: connect CLI output to independent totals and unavailable fields. Complete the remaining shared-read checks across export, backup, and restore. Follow SC-022, SC-024, and OU-CLI-001 to OU-CLI-008. Keep the Amp candidate unpublished and the scanner pin unchanged.
 
@@ -273,6 +274,19 @@ Acceptance:
 - Pass the selected verification plan and affected native CLI, export, backup, and restore checks with private homes and synthetic data.
 
 Stopping condition: one verified CLI and round-trip slice, owning docs, a local commit, and a Graphify update. Per-tool qualification follows in L-1f11.
+
+### Next assignment: R-1
+
+Goal: resolve the intermittent startup failure in the synthetic cleanup-fault test before tool qualification. The failure returns StartFailed before CleanupFailed. Production cleanup logic stays unchanged unless evidence proves a defect there.
+
+Acceptance:
+
+- Use private temporary homes and synthetic providers. Inspect no real logs, accounts, or credential homes.
+- Capture the underlying process or reader-thread startup error. Compare runtime evidence with the fixture and process-launch source.
+- Fix the proven cause and add a focused regression. Keep deadlines, child ownership, cleanup assertions, and security checks intact.
+- Run doctor, the selected verification plan, and affected native checks. Record all diagnostic trials and any unexecuted gates.
+
+Stopping condition: one verified reliability fix, owning docs, a local commit, and a Graphify update. Then continue L-1f11 with bounded per-tool qualification.
 
 ## Order
 

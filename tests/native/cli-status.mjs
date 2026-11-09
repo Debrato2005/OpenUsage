@@ -42,9 +42,9 @@ async function close() {
   await waitFor(async () => { try { await readlink(`/proc/${owned}/exe`); return false; } catch (error) { if (error.code === 'ENOENT') return true; throw error; } }, 'genuine native close');
   driver.session = undefined; await driver.stop(); driver = undefined;
 }
-async function openusage(args) {
+async function openusage(args, environment = fixture.environment) {
   try {
-    const { stdout, stderr } = await run(cli, args, { env: fixture.environment, timeout: 15000, maxBuffer: 1024 * 1024 });
+    const { stdout, stderr } = await run(cli, args, { env: environment, timeout: 15000, maxBuffer: 1024 * 1024 });
     return { code: 0, stdout, stderr };
   } catch (error) {
     if (typeof error.code !== 'number') throw error;
@@ -64,12 +64,14 @@ async function expectToday(label, today) {
   const status = await openusage(['status', '--json']);
   assert.equal(status.code, 0, `${label}: ${status.stderr}`);
   const report = JSON.parse(status.stdout);
-  assert.equal(report.schemaVersion, 1);
+  assert.equal(report.schemaVersion, 2);
   assert.deepEqual(report.profiles, []);
-  assert.equal(report.local.date, today);
-  assert.deepEqual(report.local.tools.map(t => [t.tool, t.totalTokens, t.estimatedValueUsdMicros, t.estimateComplete]), [['claude', '2450', '76875', false]]);
+  assert.equal(report.local.scopes[0].date, today);
+  assert.deepEqual(report.local.scopes.map(t => [t.tool, t.kind, t.timeZone, t.metrics.totalTokens.value, t.metrics.estimatedValueUsdMicros.value]), [['claude', 'legacy', 'UTC', '2450', null]]);
+  assert.equal(report.local.scopes[0].metrics.totalTokens.observedAtUtc, null);
+  assert.equal(report.local.scopes[0].metrics.reasoningTokens.state, 'not_available');
   const line = await openusage(['statusline']);
-  assert.deepEqual([line.code, line.stdout], [0, 'Claude Code 2.4K today\n']);
+  assert.deepEqual([line.code, line.stdout], [0, 'Claude Code legacy 1 2.4K today (UTC)\n']);
   evidence.steps.push(`${label}: status --json gave Claude Code 2450 tokens for ${today}, and statusline gave one line.`);
 }
 
@@ -105,6 +107,24 @@ try {
   await expectToday('With the app closed', today);
   assert.deepEqual(stable(await workspaceFiles()), stable(before), 'The CLI leaves the database, its WAL and the file set unchanged.');
   evidence.steps.push(`With the app closed, the CLI left the database, its WAL and the file set unchanged: ${Object.keys(before).join(', ')}.`);
+
+  const reportEnvironment = { ...fixture.environment, HOME: logs, OPENUSAGE_CCUSAGE: ccusage };
+  const noConsent = await openusage(['report', '--json'], reportEnvironment);
+  assert.equal(noConsent.code, 3);
+  assert.equal(JSON.parse(noConsent.stdout).error.code, 'consent_required');
+  const scan = async () => {
+    const result = await openusage(['report', '--yes', '--json'], reportEnvironment);
+    assert.equal(result.code, 0, result.stdout + result.stderr);
+    const document = JSON.parse(result.stdout);
+    assert.equal(document.schemaVersion, 2);
+    return document.tools.map(t => [t.tool, t.metrics.totalTokens.value]);
+  };
+  const original = await scan();
+  assert.deepEqual(original.map(([tool]) => tool), ['claude', 'codex']);
+  await cp(join(logs, '.claude'), join(logs, '.config/claude'), { recursive: true });
+  assert.deepEqual(await scan(), original, 'Copied Claude roots count once in the complete daily report.');
+  assert.deepEqual(stable(await workspaceFiles()), stable(before), 'Report saves no workspace records.');
+  evidence.steps.push('Report refused absent consent, accepted --yes, kept copied Claude roots at the original totals, and left saved workspace files unchanged.');
 
   await stopSecretService(fixture);
   const locked = await openusage(['statusline']);

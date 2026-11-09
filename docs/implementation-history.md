@@ -4,6 +4,10 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f10b result before L-1f10c
+
+Latest scoped result, November 9, 2026: L-1f10b connects desktop and sharing views to the shared read results. Combined history stays unavailable when overlap or day boundaries lack proof. Separate folder and undated views preserve their values. Final renderer, Rust, and native checks passed with synthetic data on Linux. [Traceability](acceptance-traceability.md) records an earlier workspace failure whose cause remains unconfirmed. CLI integration follows in L-1f10c.
+
 ## L-1f10a result before L-1f10b
 
 Latest scoped result, November 9, 2026: L-1f10a adds a shared Rust read contract. It keeps grouped dated data, unplaced data, and legacy source history separate. Four focused tests and the full Rust verification plan passed. The native read-only CLI regression passed against rebuilt binaries with private synthetic data on Linux. Desktop and CLI integration remain open. [Traceability](acceptance-traceability.md) records the scope.

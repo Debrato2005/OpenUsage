@@ -127,9 +127,29 @@ pub fn sha256_hex(bytes: &[u8]) -> String {
 
 /// The daily report of the granted tool, one row for each day and model.
 pub fn scan(request: &ScanRequest<'_>) -> Result<Vec<UsageRow>, ScanError> {
-    let output = run(
+    scan_daily_roots(request, &[request.folder])
+}
+
+/// One complete daily report for all consented roots of an enabled legacy tool.
+/// The pinned scanner receives the roots together so copied events share one scan.
+pub fn scan_daily_roots(
+    request: &ScanRequest<'_>,
+    folders: &[&Path],
+) -> Result<Vec<UsageRow>, ScanError> {
+    let _one = ONE_RUN.try_lock().map_err(|_| ScanError::Busy)?;
+    tool(request.tool)
+        .filter(|t| {
+            t.enabled
+                && matches!(
+                    t.session_shape,
+                    Some(crate::tools::SessionShape::Claude | crate::tools::SessionShape::Codex)
+                )
+        })
+        .ok_or(ScanError::InvalidRequest)?;
+    let output = run_roots(
         request,
         &["daily", "--json", "--offline", "--by-agent", "--no-color"],
+        folders,
     )?;
     let rows = parse_daily_by_agent(&output).map_err(ScanError::Report)?;
     // A row of another tool means that ccusage read a folder that it was not given.

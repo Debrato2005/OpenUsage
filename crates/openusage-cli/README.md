@@ -14,15 +14,23 @@ The `openusage` command (SRS Section 11A). It has no webview dependency (OU-CLI-
 
 `status` and `statusline` read saved data only. They open the database read-only, never prompt, never start a reading and never use the network (OU-CLI-002, OU-CLI-006). The key comes from the OS credential store through the [keys crate](../openusage-keys/README.md). A workspace with an app password is `locked`, because the CLI never asks for the password. A quota reading older than 10 minutes is `stale` (OU-STATE-005). A reset time that passed says so, and never claims a reset. With the app closed and no WAL, the read opens the file as immutable and creates no file. With a WAL, SQLite can update its shared index in `-shm`, and the database and its WAL stay unchanged ([SC-020](../../docs/srs-clarifications.md#sc-020-a-read-only-cli-and-the-wal-index)).
 
-`report` detects the Claude Code and Codex folders by existence only. Before it reads a log, it asks once for consent on the terminal, or it takes `--yes` from a script (OU-CLI-003). With no terminal and no `--yes`, it stops with `consent_required`. Each folder gets one run of the pinned `ccusage` with an empty private home, as in the [local logs crate](../openusage-locallogs/README.md).
+`report` detects the Claude Code and Codex folders by existence only. Before it reads a log, it asks once for consent on the terminal, or it takes `--yes` from a script (OU-CLI-003). With no terminal and no `--yes`, it stops with `consent_required`. Each tool gets one full daily report for all detected roots, with an empty private home. The pinned scanner receives these roots together. The CLI filters the complete report to the requested dates. It does not read sessions to invent missing daily details. See the [local logs crate](../openusage-locallogs/README.md).
 
 ## Output
 
-Text goes to standard output. `--json` prints versioned JSON with `schemaVersion` 1. Token counts and the estimate, in millionths of a US dollar, are decimal text. A missing estimate is `null`, never zero (OU-CLI-004). Local log totals have `sourceLevel` `local_log` and a `status` of `null`, as [SC-019](../../docs/srs-clarifications.md#sc-019-local-log-totals-in-cli-json) records.
+Text goes to standard output. JSON uses `schemaVersion` 2. This replaces the version 1 local totals layout. Doctor and error envelopes use the same version.
+
+`status.local.scopes` holds separate `grouped`, `legacy`, and `unplaced` records. Each record names the tool, scope ID, date, saved time zone, and latest scan time. Each dated scope uses today in its own zone. An unplaced record has no date or zone. The CLI never adds these records together. Text and statusline label each legacy folder separately. No account identity comes from local records.
+
+Each scope and each `report.tools` entry has a `metrics` object. It holds total, input, output, cache-write, cache-read, reasoning, and estimated value. Each measurement has `value`, `state`, `status`, `source`, and `observedAtUtc`. Values use exact decimal strings. Estimated value uses millionths of a US dollar. A known zero is `"0"` with state `current`. An absent measurement is `null` with state `not_available`. A total estimate is unavailable if any included model lacks a price.
+
+Local measurements have `status: null` under [SC-019](../../docs/srs-clarifications.md#sc-019-local-log-totals-in-cli-json). The enclosing record has `sourceLevel: local_log`. The source names the saved `ccusage` version. Grouped measurements use their accepted record's scan time, including retained records. `lastScanAtUtc` is separate. Legacy model maxima lack a measurement time, so `observedAtUtc` stays null. The output does not substitute the latest scan time. Daily legacy reports give no reasoning count, so that value stays unavailable.
+
+Backup and restore keep the underlying scope records unchanged. `status` reads the shared storage projection through a read-only connection. It creates no scanner process.
 
 ## Failures
 
-Each failure prints one line to standard error: the message and its code. With `--json`, it prints `{"schemaVersion":1,"error":{"code":...,"message":...}}` to standard output. The exit code is the same in both modes (OU-CLI-005).
+Each failure prints one line to standard error: the message and its code. With `--json`, it prints `{"schemaVersion":2,"error":{"code":...,"message":...}}` to standard output. The exit code is the same in both modes (OU-CLI-005).
 
 | Exit | Code | Meaning |
 |---|---|---|

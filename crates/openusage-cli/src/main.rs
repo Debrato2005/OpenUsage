@@ -3,6 +3,8 @@
 
 mod app;
 mod doctor;
+mod local_status;
+mod metrics;
 mod report;
 mod status;
 
@@ -12,7 +14,7 @@ use std::io::{IsTerminal, Write};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-pub const SCHEMA_VERSION: u32 = 1;
+pub const SCHEMA_VERSION: u32 = 2;
 
 /// A failure with a stable code. JSON mode returns the same code as JSON.
 #[derive(Debug, PartialEq, Eq)]

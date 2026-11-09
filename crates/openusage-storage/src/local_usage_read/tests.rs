@@ -308,3 +308,127 @@ fn date_ranges_reject_invalid_and_excessive_windows() {
             .is_empty()
     );
 }
+
+#[test]
+fn shared_results_survive_backup_checkpoint_restore_and_lossless_export() {
+    let dir = crate::tests::private_directory();
+    let mut storage = Storage::create(&dir.path().join("source.db"), &KEY).unwrap();
+    let roots = [
+        source(&mut storage, "amp", "one"),
+        source(&mut storage, "amp", "two"),
+    ];
+    for (id, zone) in roots.iter().zip(["UTC", "Asia/Kolkata"]) {
+        storage
+            .save_local_usage_scan(&LocalUsageScan {
+                log_source_ids: std::slice::from_ref(id),
+                scanner_version: "20.0.48",
+                time_zone: zone,
+                since: None,
+                scanned_at_utc: NOW,
+                rows: &[LocalUsageRow {
+                    local_date: "2026-11-08".into(),
+                    tool: "amp".into(),
+                    model: "legacy".into(),
+                    input_tokens: 100,
+                    output_tokens: 0,
+                    cache_write_tokens: 0,
+                    cache_read_tokens: 0,
+                    total_tokens: 100,
+                    estimated_value_usd_micros: None,
+                }],
+            })
+            .unwrap();
+    }
+    save(
+        &mut storage,
+        "amp",
+        &roots,
+        Some("UTC"),
+        &[period(
+            UsagePeriod::Day("2026-11-08".into()),
+            173,
+            Some(("unknown-count", None)),
+        )],
+        &[session("untimed", None)],
+    );
+    save(&mut storage, "amp", &roots[..1], Some("UTC"), &[], &[]);
+    let other = [source(&mut storage, "opencode", "undated")];
+    save(
+        &mut storage,
+        "opencode",
+        &other,
+        None,
+        &[period(UsagePeriod::Unplaced, 0, None)],
+        &[session("unplaced", None)],
+    );
+    let read = |store: &Storage| store.local_usage_read("2026-11-08", "2026-11-09").unwrap();
+    let expected = read(&storage);
+    let snapshot = storage.backup_snapshot().unwrap();
+    crate::validate_backup_snapshot(&snapshot.bytes, snapshot.schema_version).unwrap();
+    let checkpoint = dir.path().join("checkpoint.db");
+    storage.create_encrypted_checkpoint(&checkpoint).unwrap();
+    assert_eq!(
+        read(&Storage::open_read_only(&checkpoint, &KEY).unwrap()),
+        expected
+    );
+    for (name, checkpoint) in [("backup.db", false), ("rollback.db", true)] {
+        let mut target = Storage::create(&dir.path().join(name), &KEY).unwrap();
+        let revision = target.restore_state().unwrap().revision;
+        if checkpoint {
+            target
+                .replace_records_from_checkpoint(
+                    &snapshot.bytes,
+                    snapshot.schema_version,
+                    &revision,
+                    &[],
+                )
+                .unwrap();
+        } else {
+            target
+                .replace_records_from_backup(
+                    &snapshot.bytes,
+                    snapshot.schema_version,
+                    &revision,
+                    &[],
+                )
+                .unwrap();
+        }
+        assert_eq!(read(&target), expected);
+    }
+    let mut bytes = Vec::new();
+    storage.write_application_export(&mut bytes, NOW).unwrap();
+    let export: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let mut target = Storage::create(&dir.path().join("export.db"), &KEY).unwrap();
+    // Test-only reconstruction from our own export. This does not add an import command.
+    target
+        .connection
+        .execute_batch("PRAGMA foreign_keys=OFF")
+        .unwrap();
+    let tx = target.connection.transaction().unwrap();
+    for table in export["tables"].as_array().unwrap() {
+        let name = table["name"].as_str().unwrap();
+        assert!(name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_'));
+        tx.execute(&format!("DELETE FROM \"{name}\""), []).unwrap();
+        let placeholders = vec!["?"; table["columns"].as_array().unwrap().len()].join(",");
+        for row in table["rows"].as_array().unwrap() {
+            let values: Vec<Option<&str>> =
+                row.as_array().unwrap().iter().map(|v| v.as_str()).collect();
+            tx.execute(
+                &format!("INSERT INTO \"{name}\" VALUES({placeholders})"),
+                rusqlite::params_from_iter(values),
+            )
+            .unwrap();
+        }
+    }
+    tx.commit().unwrap();
+    target
+        .connection
+        .execute_batch("PRAGMA foreign_keys=ON")
+        .unwrap();
+    crate::backup_validation::validate_connection(
+        &target.connection,
+        crate::CURRENT_SCHEMA_VERSION,
+    )
+    .unwrap();
+    assert_eq!(read(&target), expected);
+}

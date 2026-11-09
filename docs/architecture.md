@@ -46,7 +46,7 @@ Schema 13 adds six tables for grouped scopes, scans, root membership, records, m
 
 The writer checks every root's tool and consent in the save transaction. Scope zones stay pinned. Backup checks enforce the same bounds and metric rules as a write. Restore copies only declared fields. Migration adds empty grouped tables and leaves all legacy records intact. No legacy model sum becomes a new scanner total.
 
-See [SC-024](srs-clarifications.md#sc-024-legacy-local-usage-during-grouped-migration) for the legacy-history rule. `local_periods.rs` owns these Rust APIs. The desktop worker has a grouped path for candidate tools. They remain disabled. Claude Code and Codex keep their source views, with one transaction for all required reports. The desktop views use the shared read result. CLI integration follows in L-1f10c.
+See [SC-024](srs-clarifications.md#sc-024-legacy-local-usage-during-grouped-migration) for the legacy-history rule. `local_periods.rs` owns these Rust APIs. The desktop worker has a grouped path for candidate tools. They remain disabled. Claude Code and Codex keep their source views, with one transaction for all required reports. Desktop and CLI views use the shared read result.
 
 The shared reader in `local_usage_read.rs` returns grouped dated data, unplaced data, and legacy source rows as separate collections. It returns no grand total across those collections. Each grouped scope keeps its scan evidence and its zone. The reader selects dated sessions by their reported last activity in that zone. It keeps untimed sessions outside the selected dates. Session totals never enter period totals.
 
@@ -56,7 +56,9 @@ Desktop and sharing views use the shared read result. Saved history can select a
 
 Token categories, model totals, reasoning counts, and session times cross IPC as nullable values. The renderer accepts saved records from the full catalog without enabling a scanner. Undated usage stays outside charts, records, and share images. Legacy sessions and hours retain their source filter. Missing days and saved zero days remain distinct in charts and shared heatmaps.
 
-Share images use the same selected dated scope and its zone. Both PNG and SVG saves check the scope again. Images exclude folder paths, projects, and identity fields. An incomplete model breakdown has no top model. The CLI follows in L-1f10c. Backup and export already retain the stored fields under schema 13.
+Share images use the same selected dated scope and its zone. Both PNG and SVG saves check the scope again. Images exclude folder paths, projects, and identity fields. An incomplete model breakdown has no top model. Backup and export retain the stored fields under schema 13.
+
+The CLI reads today's value separately for each saved scope and zone. Legacy, grouped, and unplaced records never enter one combined total. Its [version 2 JSON](../crates/openusage-cli/README.md#output) gives each local measurement an exact value or null, its state, source, status, and observation time. Legacy maxima have no per-record time. Their latest scan time stays separate. `report` scans all detected roots of each enabled tool together, filters the full daily report, and saves nothing.
 
 ## Boundaries
 

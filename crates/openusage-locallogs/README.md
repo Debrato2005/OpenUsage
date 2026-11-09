@@ -16,7 +16,7 @@ The shared catalog in `sources/tools.json` defines each tool's name, order, colo
 
 Every report also receives `--mode calculate`. For the enabled tools, estimates use token prices from the pinned offline data instead of stored charges. A zero stored charge does not make the estimate zero. An unknown model keeps its tokens and has no estimate (OU-LOG-013, OU-LOG-014). This claim does not extend to the 16 tools that remain disabled. The [source review](../../docs/reviews/2026-11-08-l1f-formats-a.md) found exceptions to `--mode calculate` in some of those tools.
 
-Each legacy run reads one consented folder of one tool. `HOME` and the working directory are an empty private directory, so the default folders of other tools do not exist for `ccusage`, and no user `ccusage` config is found. The environment holds only `HOME`, `NO_COLOR`, `TZ` and the folder variable from the catalog: `CLAUDE_CONFIG_DIR` for Claude Code and `CODEX_HOME` for Codex. A row of another tool rejects the run.
+A desktop legacy run reads one consented folder of one tool. The CLI uses `scan_daily_roots` for one full daily report across all detected roots of that tool. Both paths hold the same lock and validate the same paths, digest, arguments, deadline, and output limit. `HOME` and the working directory are an empty private directory, so the default folders of other tools do not exist for `ccusage`, and no user `ccusage` config is found. The environment holds only `HOME`, `NO_COLOR`, `TZ` and the folder variable from the catalog: `CLAUDE_CONFIG_DIR` for Claude Code and `CODEX_HOME` for Codex. A row of another tool rejects the run.
 
 Before any process starts, the folder must be an absolute UTF-8 path that still equals its resolved path. Commas and trailing whitespace are refused, because ccusage can interpret them as a list of roots or another root. Spaces inside the path and Unicode names remain valid. Detection resolves links before consent; a saved root that later becomes a link to another folder fails the scan. This checks the root before launch. It does not sandbox ccusage.
 
@@ -34,7 +34,7 @@ Before any process starts, the folder must be an absolute UTF-8 path that still 
 
 The catalog holds each report's metadata policy. Only Pi and ZCode retain activity times. Pi, Qwen, Grok, and ZCode retain reported projects, with Pi's fallback `unknown` omitted. Other fields remain unavailable under [SC-022](../../docs/srs-clarifications.md#sc-022-incomplete-metrics-from-the-other-local-tools). Token categories and estimates remain unavailable because the pinned report loses their presence and derivation. A model total is available only when all tokens in its enclosing session or report have model attribution. A remainder never becomes reasoning or an invented model.
 
-The parser rejects unknown fields, invalid metadata, repeated keys, excessive counts, and totals that disagree with their rows. It accepts Qwen's null empty totals but rejects missing totals. Empty reports differ from sessions with a reported zero. All sixteen recorded fixtures and malformed-report cases exercise this boundary. Grouped storage and the process path are implemented. Consumer integration and duplicate qualification remain open.
+The parser rejects unknown fields, invalid metadata, repeated keys, excessive counts, and totals that disagree with their rows. It accepts Qwen's null empty totals but rejects missing totals. Empty reports differ from sessions with a reported zero. All sixteen recorded fixtures and malformed-report cases exercise this boundary. Grouped storage and the process path are implemented. Duplicate qualification remains open.
 
 ## Additional period reports
 
@@ -52,7 +52,7 @@ The runner sorts roots and removes repeated paths. A `comma_list` adapter receiv
 
 Amp, Pi, Kilo, and ZCode require daily and session reports. The other twelve tools use one session report for separate unplaced and session records. Session totals are never added to period totals. The group has one process lock, one deadline, and one combined output bound. Every process checks the binary digest and uses fixed offline arguments and an empty private home.
 
-The first grouped day scan pins its zone. Unplaced usage has no day zone. Old source records keep their zones under SC-024. Claude Code and Codex keep their existing source views. Their required daily, session, and hourly reports now commit together. A failed later report cannot update an earlier report. The CLI and grouped views follow in L-1f10.
+The first grouped day scan pins its zone. Unplaced usage has no day zone. Old source records keep their zones under SC-024. Claude Code and Codex keep their existing source views. Their required daily, session, and hourly reports now commit together. A failed later report cannot update an earlier report. Desktop, sharing, and CLI consumers read saved scopes without adding legacy history to grouped records.
 
 ## The hourly report
 

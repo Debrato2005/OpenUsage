@@ -47,7 +47,7 @@ fn help_exit_codes_and_errors_are_stable() {
     let (code, out, _) = openusage(home.path(), &["report", "--json"]);
     assert_eq!(code, 3);
     let error: serde_json::Value = serde_json::from_str(&out).unwrap();
-    assert_eq!(error["schemaVersion"], 1);
+    assert_eq!(error["schemaVersion"], 2);
     assert_eq!(error["error"]["code"], "consent_required");
     // Saved-data commands with no workspace give no_workspace, and statusline keeps one line.
     let (code, out, err) = openusage(home.path(), &[]);
