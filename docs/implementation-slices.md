@@ -115,7 +115,7 @@ Updated November 9, 2026. The owner asked to keep this list and to build down it
 - [x] L-1f9: group consented roots by tool in the scanner and save each accepted result once. Validate every root and all required reports before saving. Preserve prior data when any required report fails.
 - [ ] L-1f10: carry the new totals and unavailable fields through desktop, CLI, export, backup, restore, and sharing. Keep unplaced usage out of dated views. Run the affected renderer and native gates.
 - [x] L-1f10a: shared read results for grouped periods, unavailable details, unplaced usage, and separate legacy history.
-- [ ] L-1f10b: desktop and sharing views consume those results.
+- [x] L-1f10b: desktop and sharing views use independent totals, nullable details, and explicit saved scopes. Undated usage stays outside dated charts and shares. Original folder history remains accessible.
 - [ ] L-1f10c: CLI integration and the remaining export, backup, and restore round trips.
 - [ ] L-1f11: qualify each tool with copied, forked, replayed, and compacted fixtures under AT-65. Complete the Amp candidate gates before any pin change. Enable only qualified tools. L-1f stays open until all sixteen pass their required checks.
 - [x] L-1g1: sessions, projects and the reasoning count from the `ccusage` session report of each tool, at schema 11 (OU-LOG-017, [SC-021](srs-clarifications.md#sc-021-sessions-projects-hours-and-reasoning-from-the-pinned-ccusage)).
@@ -246,7 +246,7 @@ Acceptance:
 
 Stopping condition: one verified read-contract slice, owning docs, a local commit, and a Graphify update. Desktop and sharing integration follows in L-1f10b.
 
-### Next assignment: L-1f10b
+### L-1f10b: desktop and sharing (complete)
 
 Goal: connect desktop and sharing views to the shared read results. Follow SC-022 and SC-024 and the local usage, UI, and sharing requirements. The CLI and remaining data round trips follow in L-1f10c. Keep the Amp candidate unpublished and the production pin unchanged.
 
@@ -259,6 +259,20 @@ Acceptance:
 - Pass affected Rust and contract checks, the full renderer milestone, and the affected native journeys. Enable no extra tool.
 
 Stopping condition: one verified desktop and sharing slice, owning docs, a local commit, and a Graphify update. CLI integration follows in L-1f10c.
+
+### Next assignment: L-1f10c
+
+Goal: connect CLI output to independent totals and unavailable fields. Complete the remaining shared-read checks across export, backup, and restore. Follow SC-022, SC-024, and OU-CLI-001 to OU-CLI-008. Keep the Amp candidate unpublished and the scanner pin unchanged.
+
+Acceptance:
+
+- Saved status and statusline use read-only data. Preserve each source zone, separate legacy and grouped accounting, and keep undated usage outside today's totals.
+- Version the JSON changes. Keep absent measurements null with their state, source, status, and observation time. Never derive account identity from local metadata.
+- Report keeps one consent prompt, accepts --yes, and saves nothing. Reuse complete scan rules where they apply. Enable no extra tool.
+- Round trips preserve independent totals, nullable details, retained records, scan evidence, and legacy history in shared read results.
+- Pass the selected verification plan and affected native CLI, export, backup, and restore checks with private homes and synthetic data.
+
+Stopping condition: one verified CLI and round-trip slice, owning docs, a local commit, and a Graphify update. Per-tool qualification follows in L-1f11.
 
 ## Order
 

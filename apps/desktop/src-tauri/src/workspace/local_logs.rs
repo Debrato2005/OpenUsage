@@ -203,6 +203,30 @@ impl Workspace {
             .map_err(|_| CommandError::StorageUnavailable)
     }
 
+    pub(crate) fn local_usage_read(
+        &mut self,
+        since: &str,
+        until: &str,
+    ) -> Result<openusage_storage::LocalUsageRead, CommandError> {
+        self.local_logs_storage()?
+            .local_usage_read(since, until)
+            .map_err(|_| CommandError::StorageUnavailable)
+    }
+
+    pub(crate) fn local_usage_scopes(
+        &mut self,
+    ) -> Result<Vec<openusage_storage::LocalToolScope>, CommandError> {
+        let storage = self.local_logs_storage()?;
+        locallogs::tools()
+            .iter()
+            .filter_map(|tool| match storage.local_tool_scope(&tool.id) {
+                Ok(Some(scope)) => Some(Ok(scope)),
+                Ok(None) => None,
+                Err(_) => Some(Err(CommandError::StorageUnavailable)),
+            })
+            .collect()
+    }
+
     /// Saved days and differences from `since` to `until`, and the sources that own them. With a
     /// UTC window, also the sessions that ended in it and the hours that start in it. Share images
     /// ask for neither (OU-LOG-004).

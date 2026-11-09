@@ -46,13 +46,17 @@ Schema 13 adds six tables for grouped scopes, scans, root membership, records, m
 
 The writer checks every root's tool and consent in the save transaction. Scope zones stay pinned. Backup checks enforce the same bounds and metric rules as a write. Restore copies only declared fields. Migration adds empty grouped tables and leaves all legacy records intact. No legacy model sum becomes a new scanner total.
 
-See [SC-024](srs-clarifications.md#sc-024-legacy-local-usage-during-grouped-migration) for the legacy-history rule. `local_periods.rs` owns these Rust APIs. The desktop worker has a grouped path for candidate tools. They remain disabled. Claude Code and Codex keep their source views, with one transaction for all required reports. The CLI and grouped views follow in L-1f10.
+See [SC-024](srs-clarifications.md#sc-024-legacy-local-usage-during-grouped-migration) for the legacy-history rule. `local_periods.rs` owns these Rust APIs. The desktop worker has a grouped path for candidate tools. They remain disabled. Claude Code and Codex keep their source views, with one transaction for all required reports. The desktop views use the shared read result. CLI integration follows in L-1f10c.
 
 The shared reader in `local_usage_read.rs` returns grouped dated data, unplaced data, and legacy source rows as separate collections. It returns no grand total across those collections. Each grouped scope keeps its scan evidence and its zone. The reader selects dated sessions by their reported last activity in that zone. It keeps untimed sessions outside the selected dates. Session totals never enter period totals.
 
 A range with no saved periods has no total. A saved zero stays zero. Optional categories and estimates remain unavailable if any included period lacks them. Incomplete model attribution leaves model totals unavailable for the whole selected range. All sums use exact Rust integers. The result preserves source zones and lower-scan differences. One read transaction gives a consistent view without a database write.
 
-The read result does not replace the existing legacy session or hourly APIs. Desktop, sharing, and CLI integration remain open. Backup and export already retain the stored fields under schema 13.
+Desktop and sharing views use the shared read result. Saved history can select a dated tool scope, an undated scope, or one legacy folder. Combined history needs one generation, one source per legacy tool, and common day boundaries. Otherwise its total is unavailable. The detail panel keeps each original folder value and zone accessible.
+
+Token categories, model totals, reasoning counts, and session times cross IPC as nullable values. The renderer accepts saved records from the full catalog without enabling a scanner. Undated usage stays outside charts, records, and share images. Legacy sessions and hours retain their source filter. Missing days and saved zero days remain distinct in charts and shared heatmaps.
+
+Share images use the same selected dated scope and its zone. Both PNG and SVG saves check the scope again. Images exclude folder paths, projects, and identity fields. An incomplete model breakdown has no top model. The CLI follows in L-1f10c. Backup and export already retain the stored fields under schema 13.
 
 ## Boundaries
 

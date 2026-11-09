@@ -1,4 +1,4 @@
-import { localLogTools, type LocalLogTool } from './local-tools.ts';
+import { allTools, localLogTools, type LocalLogTool } from './local-tools.ts';
 export type { LocalLogTool } from './local-tools.ts';
 
 export type MonitoringState = 'stopped' | 'running' | 'paused';
@@ -388,14 +388,16 @@ export type LocalUsagePeriod = 'hour' | 'day' | 'week' | 'month';
 export type LocalUsageDays = 7 | 30 | 90 | 365;
 // A fixed range ending today, or a custom range of at most 366 days that Rust checks again (OU-LOG-017).
 export type LocalUsageRange = { days: LocalUsageDays } | { since: string; until: string };
-export type LocalToolTotals = { tool: LocalLogTool; inputTokens: string; outputTokens: string; cacheWriteTokens: string; cacheReadTokens: string; totalTokens: string; estimatedValueUsdMicros: string | null; estimateComplete: boolean; logsGone: boolean };
+export type LocalToolTotals = { tool: LocalLogTool; inputTokens: string | null; outputTokens: string | null; cacheWriteTokens: string | null; cacheReadTokens: string | null; reasoningTokens: string | null; totalTokens: string; estimatedValueUsdMicros: string | null; estimateComplete: boolean; logsGone: boolean };
+export type LocalSavedScope = { id: string; kind: 'combined' | 'grouped' | 'legacy' | 'unplaced'; tool: LocalLogTool | null; timeZone: string | null; folder: string | null; totalTokens: string | null };
 export type LocalUsageView = {
+  scope: string; scopes: LocalSavedScope[]; available: boolean; dated: boolean;
   startDate: string; endDate: string; timeZone: string; scannerVersions: string[];
   tools: LocalToolTotals[];
-  models: { tool: LocalLogTool; model: string; totalTokens: string; estimatedValueUsdMicros: string | null }[];
+  models: { tool: LocalLogTool; model: string; totalTokens: string | null; estimatedValueUsdMicros: string | null }[];
   buckets: { startDate: string; tool: LocalLogTool; totalTokens: string }[];
-  differences: { date: string; tool: LocalLogTool; model: string; savedTotalTokens: string; newTotalTokens: string; scanAtUtc: string }[];
-  activeDays: number; longestStreakDays: number; busiestDay: { date: string; totalTokens: string } | null;
+  differences: { date: string | null; tool: LocalLogTool; model: string | null; savedTotalTokens: string; newTotalTokens: string; scanAtUtc: string }[];
+  activeDays: number | null; longestStreakDays: number | null; busiestDay: { date: string; totalTokens: string } | null;
   sessions: LocalSession[];
   projects: LocalProject[];
   // The range in UTC, and saved UTC hours for the hourly view. Only the tools in hourTools report hours (SC-021).
@@ -403,51 +405,69 @@ export type LocalUsageView = {
   hours: { startUtc: string; tool: LocalLogTool; totalTokens: string }[];
   hourTools: LocalLogTool[];
 };
-// Only Claude Code reports a project and a start, and only Codex reports reasoning (SC-021).
-export type LocalSession = { key: string; tool: LocalLogTool; project: string | null; startUtc: string | null; endUtc: string; totalTokens: string; reasoningTokens: string | null; estimatedValueUsdMicros: string | null };
+// Keep only reported metadata. Missing activity times and reasoning remain null (SC-022).
+export type LocalSession = { key: string; tool: LocalLogTool; project: string | null; startUtc: string | null; endUtc: string | null; totalTokens: string; reasoningTokens: string | null; estimatedValueUsdMicros: string | null };
 export type LocalProject = { tool: LocalLogTool; project: string; sessions: number; totalTokens: string };
 const localCount = (value: unknown): value is string => typeof value === 'string' && /^(0|[1-9]\d{0,38})$/.test(value);
-const localTool = (value: unknown): value is LocalLogTool => localLogTools.includes(value as LocalLogTool);
+const localTool = (value: unknown): value is LocalLogTool => allTools.includes(value as LocalLogTool);
 const localModel = (value: unknown) => typeof value === 'string' && /^[A-Za-z0-9._:/@+-]{1,128}$/.test(value);
 const exactKeys = (value: unknown, keys: string[]): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value)
   && Object.keys(value).length === keys.length && keys.every(key => key in (value as object));
 const localProject = (value: unknown): value is string => typeof value === 'string' && value.length >= 1 && value.length <= 512 && !/[\u0000-\u001f\u007f-\u009f]/.test(value);
 const isLocalSession = (s: unknown) => exactKeys(s, ['key', 'tool', 'project', 'startUtc', 'endUtc', 'totalTokens', 'reasoningTokens', 'estimatedValueUsdMicros'])
   && typeof s.key === 'string' && /^[A-Za-z0-9_./:-]{1,256}$/.test(s.key) && localTool(s.tool) && (s.project === null || localProject(s.project))
-  && isUtcTimestamp(s.endUtc) && (s.startUtc === null || (isUtcTimestamp(s.startUtc) && (s.startUtc as string) <= (s.endUtc as string)))
+  && (s.endUtc === null || isUtcTimestamp(s.endUtc)) && (s.startUtc === null || (isUtcTimestamp(s.startUtc) && (s.endUtc === null || (s.startUtc as string) <= (s.endUtc as string))))
   && localCount(s.totalTokens) && (s.reasoningTokens === null || (localCount(s.reasoningTokens) && BigInt(s.reasoningTokens) <= BigInt(s.totalTokens)))
   && (s.estimatedValueUsdMicros === null || localCount(s.estimatedValueUsdMicros));
 const isLocalProject = (p: unknown) => exactKeys(p, ['tool', 'project', 'sessions', 'totalTokens']) && localTool(p.tool) && localProject(p.project)
   && Number.isInteger(p.sessions) && (p.sessions as number) >= 1 && localCount(p.totalTokens);
+const nullableLocalCount = (value: unknown) => value === null || localCount(value);
+function isLocalSavedScope(s: unknown): s is LocalSavedScope {
+  if (!exactKeys(s, ['id', 'kind', 'tool', 'timeZone', 'folder', 'totalTokens']) || typeof s.id !== 'string' || !nullableLocalCount(s.totalTokens)) return false;
+  if (s.kind === 'combined') return s.id === 'combined' && s.tool === null && s.timeZone === null && s.folder === null && s.totalTokens === null;
+  if (!localTool(s.tool)) return false;
+  if (s.kind === 'unplaced') return s.id === `unplaced:${s.tool}` && s.timeZone === null && s.folder === null;
+  if (typeof s.timeZone !== 'string' || !/^[A-Za-z0-9_+./-]{1,128}$/.test(s.timeZone)) return false;
+  if (s.kind === 'grouped') return s.id === `grouped:${s.tool}` && s.folder === null;
+  return s.kind === 'legacy' && /^legacy:[0-9a-f-]{36}$/.test(s.id) && typeof s.folder === 'string' && s.folder.length <= 4096 && !/[\u0000-\u001f\u007f-\u009f]/.test(s.folder);
+}
 function isLocalUsageView(value: unknown): value is LocalUsageView {
-  if (!exactKeys(value, ['startDate', 'endDate', 'timeZone', 'scannerVersions', 'tools', 'models', 'buckets', 'differences', 'activeDays', 'longestStreakDays', 'busiestDay', 'sessions', 'projects', 'startUtc', 'endUtc', 'hours', 'hourTools'])) return false;
+  if (!exactKeys(value, ['scope', 'scopes', 'available', 'dated', 'startDate', 'endDate', 'timeZone', 'scannerVersions', 'tools', 'models', 'buckets', 'differences', 'activeDays', 'longestStreakDays', 'busiestDay', 'sessions', 'projects', 'startUtc', 'endUtc', 'hours', 'hourTools'])) return false;
   const v = value as LocalUsageView;
+  if (typeof v.scope !== 'string' || typeof v.available !== 'boolean' || typeof v.dated !== 'boolean'
+    || !Array.isArray(v.scopes) || v.scopes.length > 1200 || !v.scopes.every(isLocalSavedScope)
+    || new Set(v.scopes.map(s => s.id)).size !== v.scopes.length || !v.scopes.some(s => s.id === v.scope)
+    || (v.scope.startsWith('unplaced:') === v.dated)) return false;
+  if ((!v.available || !v.dated) && ((Array.isArray(v.buckets) && v.buckets.length) || (Array.isArray(v.hours) && v.hours.length) || v.activeDays !== null || v.longestStreakDays !== null || v.busiestDay !== null)) return false;
   const wholeHour = (s: unknown) => isUtcTimestamp(s) && s.endsWith(':00:00.000Z');
   if (!(v.startUtc === null ? v.endUtc === null : isUtcTimestamp(v.startUtc) && isUtcTimestamp(v.endUtc) && v.startUtc < v.endUtc)
-    || !Array.isArray(v.hourTools) || v.hourTools.length > localLogTools.length || !v.hourTools.every(localTool)
-    || !Array.isArray(v.hours) || v.hours.length > 24 * 8 * localLogTools.length
+    || !Array.isArray(v.hourTools) || v.hourTools.length > allTools.length || !v.hourTools.every(localTool)
+    || !Array.isArray(v.hours) || v.hours.length > 24 * 8 * allTools.length
     || !v.hours.every(h => exactKeys(h, ['startUtc', 'tool', 'totalTokens']) && wholeHour(h.startUtc) && v.hourTools.includes(h.tool as LocalLogTool) && localCount(h.totalTokens)
       && v.startUtc !== null && v.endUtc !== null && (h.startUtc as string) >= v.startUtc && (h.startUtc as string) < v.endUtc)) return false;
   if (!Array.isArray(v.sessions) || v.sessions.length > 100 || !v.sessions.every(isLocalSession)
     || !Array.isArray(v.projects) || v.projects.length > 200_000 || !v.projects.every(isLocalProject)) return false;
-  if (!Number.isInteger(v.activeDays) || v.activeDays < 0 || v.activeDays > 366 || !Number.isInteger(v.longestStreakDays) || v.longestStreakDays < 0 || v.longestStreakDays > v.activeDays
-    || !(v.busiestDay === null ? v.activeDays === 0 : exactKeys(v.busiestDay, ['date', 'totalTokens']) && isProviderDate(v.busiestDay.date)
-      && v.busiestDay.date >= v.startDate && v.busiestDay.date <= v.endDate && localCount(v.busiestDay.totalTokens) && BigInt(v.busiestDay.totalTokens) > 0n)) return false;
+  if (v.activeDays === null ? v.longestStreakDays !== null || v.busiestDay !== null :
+    !Number.isInteger(v.activeDays) || v.activeDays < 0 || v.activeDays > 366 || !Number.isInteger(v.longestStreakDays)
+      || v.longestStreakDays === null || v.longestStreakDays < 0 || v.longestStreakDays > v.activeDays
+      || !(v.busiestDay === null ? v.activeDays === 0 : exactKeys(v.busiestDay, ['date', 'totalTokens']) && isProviderDate(v.busiestDay.date)
+        && v.busiestDay.date >= v.startDate && v.busiestDay.date <= v.endDate && localCount(v.busiestDay.totalTokens) && BigInt(v.busiestDay.totalTokens) > 0n)) return false;
   if (!isProviderDate(v.startDate) || !isProviderDate(v.endDate) || v.startDate > v.endDate || typeof v.timeZone !== 'string' || !/^[A-Za-z0-9_+./-]{1,128}$/.test(v.timeZone)
     || !Array.isArray(v.scannerVersions) || v.scannerVersions.length > 16 || !v.scannerVersions.every(s => typeof s === 'string' && /^[0-9.]{1,32}$/.test(s))
     || !Array.isArray(v.tools) || !Array.isArray(v.models) || !Array.isArray(v.buckets) || !Array.isArray(v.differences)
-    || v.tools.length > localLogTools.length || v.models.length > 10_000 || v.buckets.length > 2 * 366 * localLogTools.length || v.differences.length > 100_000) return false;
+    || v.tools.length > allTools.length || v.models.length > 10_000 || v.buckets.length > 2 * 366 * allTools.length || v.differences.length > 100_000) return false;
   const tools = new Set<string>();
-  const toolsValid = v.tools.every(t => exactKeys(t, ['tool', 'inputTokens', 'outputTokens', 'cacheWriteTokens', 'cacheReadTokens', 'totalTokens', 'estimatedValueUsdMicros', 'estimateComplete', 'logsGone'])
+  const toolsValid = v.tools.every(t => exactKeys(t, ['tool', 'inputTokens', 'outputTokens', 'cacheWriteTokens', 'cacheReadTokens', 'reasoningTokens', 'totalTokens', 'estimatedValueUsdMicros', 'estimateComplete', 'logsGone'])
     && localTool(t.tool) && !tools.has(t.tool) && tools.add(t.tool) !== undefined
-    && [t.inputTokens, t.outputTokens, t.cacheWriteTokens, t.cacheReadTokens, t.totalTokens].every(localCount)
-    && BigInt(t.inputTokens) + BigInt(t.outputTokens) + BigInt(t.cacheWriteTokens) + BigInt(t.cacheReadTokens) === BigInt(t.totalTokens)
+    && localCount(t.totalTokens) && [t.inputTokens, t.outputTokens, t.cacheWriteTokens, t.cacheReadTokens, t.reasoningTokens].every(nullableLocalCount)
+    && [t.inputTokens, t.outputTokens, t.cacheWriteTokens, t.cacheReadTokens].reduce<bigint>((sum, n) => sum + (n === null ? 0n : BigInt(n)), 0n) <= BigInt(t.totalTokens)
+    && (t.reasoningTokens === null || BigInt(t.reasoningTokens) <= (t.outputTokens === null ? BigInt(t.totalTokens) - [t.inputTokens, t.cacheWriteTokens, t.cacheReadTokens].reduce<bigint>((sum, n) => sum + (n === null ? 0n : BigInt(n)), 0n) : BigInt(t.outputTokens)))
     && (t.estimatedValueUsdMicros === null || localCount(t.estimatedValueUsdMicros)) && typeof t.estimateComplete === 'boolean' && typeof t.logsGone === 'boolean'
     && !(t.estimateComplete && t.estimatedValueUsdMicros === null));
   return toolsValid
-    && v.models.every(m => exactKeys(m, ['tool', 'model', 'totalTokens', 'estimatedValueUsdMicros']) && tools.has(m.tool) && localModel(m.model) && localCount(m.totalTokens) && (m.estimatedValueUsdMicros === null || localCount(m.estimatedValueUsdMicros)))
+    && v.models.every(m => exactKeys(m, ['tool', 'model', 'totalTokens', 'estimatedValueUsdMicros']) && tools.has(m.tool) && localModel(m.model) && nullableLocalCount(m.totalTokens) && (m.estimatedValueUsdMicros === null || localCount(m.estimatedValueUsdMicros)))
     && v.buckets.every(b => exactKeys(b, ['startDate', 'tool', 'totalTokens']) && isProviderDate(b.startDate) && b.startDate <= v.endDate && tools.has(b.tool) && localCount(b.totalTokens))
-    && v.differences.every(d => exactKeys(d, ['date', 'tool', 'model', 'savedTotalTokens', 'newTotalTokens', 'scanAtUtc']) && isProviderDate(d.date) && localTool(d.tool) && localModel(d.model)
+    && v.differences.every(d => exactKeys(d, ['date', 'tool', 'model', 'savedTotalTokens', 'newTotalTokens', 'scanAtUtc']) && (d.date === null || isProviderDate(d.date)) && localTool(d.tool) && (d.model === null || localModel(d.model))
       && localCount(d.savedTotalTokens) && localCount(d.newTotalTokens) && BigInt(d.newTotalTokens) < BigInt(d.savedTotalTokens) && isUtcTimestamp(d.scanAtUtc));
 }
 export type ShareKind = 'wrapped' | 'heatmap' | 'badge';
@@ -553,9 +573,9 @@ interface Commands {
   export_application_data: { args: { confirmed: true }; result: ApplicationExportReceipt };
   load_local_logs: { args: undefined; result: LocalLogsView };
   save_local_log_consent: { args: { tools: LocalLogTool[] }; result: LocalLogsView };
-  load_local_usage: { args: LocalUsageRange & { period: LocalUsagePeriod }; result: LocalUsageView };
-  load_share_image: { args: { kind: ShareKind; branding: boolean }; result: ShareImage };
-  save_share_image: { args: { kind: ShareKind; branding: boolean; format: 'svg' | 'png'; png: string | null }; result: ShareReceipt };
+  load_local_usage: { args: LocalUsageRange & { period: LocalUsagePeriod; scope?: string }; result: LocalUsageView };
+  load_share_image: { args: { kind: ShareKind; branding: boolean; scope?: string }; result: ShareImage };
+  save_share_image: { args: { kind: ShareKind; branding: boolean; scope?: string; format: 'svg' | 'png'; png: string | null }; result: ShareReceipt };
 }
 
 declare global {

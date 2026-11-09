@@ -82,6 +82,16 @@ try {
   assert.ok(!png.includes(Buffer.from('dev-alpha')) && !png.includes(Buffer.from(fixture.root)));
   for (const name of names) evidence.files.push({ name, bytes: (await readFile(join(shareDir(), name))).length, sha256: await hash(join(shareDir(), name)) });
   evidence.steps.push('The PNG is 2400 by 1260 pixels. The SVG holds 19,550 tokens and no path or project name.');
+  const usage = await call('load_local_usage', { days: 30, period: 'day' });
+  const claudeScope = usage.scopes.find(s => s.kind === 'legacy' && s.tool === 'claude');
+  assert.ok(claudeScope);
+  const selected = await call('load_share_image', { kind: 'wrapped', branding: false, scope: claudeScope.id });
+  assert.ok(selected.svg.includes('14,950 tokens') && !selected.svg.includes('19,550 tokens'));
+  for (const privateText of [claudeScope.folder, logs, fixture.root, 'dev-alpha']) assert.ok(!selected.svg.includes(privateText));
+  for (const scope of ['grouped:unknown', 'unplaced:claude', 'legacy:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa']) {
+    assert.equal((await driver.invoke('load_share_image', { kind: 'wrapped', branding: false, scope })).ok, false);
+  }
+  evidence.steps.push('The selected Claude Code folder produced 14,950 tokens without a path. Unknown and undated share scopes were refused.');
   assert.equal(await hash(application), evidence.applicationSha256);
   evidence.result = 'passed';
 } catch (error) { evidence.error = error.stack ?? String(error); process.exitCode = 1; }

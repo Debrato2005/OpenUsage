@@ -9,9 +9,12 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use tauri::State;
 
+mod scopes;
+use scopes::load_view;
+
 #[derive(Deserialize, Clone, Copy, PartialEq, Eq, Debug)]
 #[serde(rename_all = "camelCase")]
-enum Period {
+pub(crate) enum Period {
     /// UTC hours for at most `MAX_HOURLY_DAYS` days. Days still group by day (SC-021).
     Hour,
     Day,
@@ -33,6 +36,8 @@ struct LoadArgs {
     #[serde(default)]
     until: Option<String>,
     period: Period,
+    #[serde(default)]
+    scope: Option<String>,
 }
 
 /// The longest custom range: one leap year of days.
@@ -70,51 +75,53 @@ struct Counts {
     total: u128,
     priced: u128,
     unpriced_rows: usize,
+    priced_rows: usize,
 }
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ToolTotals {
-    tool: String,
-    input_tokens: String,
-    output_tokens: String,
-    cache_write_tokens: String,
-    cache_read_tokens: String,
-    total_tokens: String,
+    pub(crate) reasoning_tokens: Option<String>,
+    pub(crate) tool: String,
+    pub(crate) input_tokens: Option<String>,
+    pub(crate) output_tokens: Option<String>,
+    pub(crate) cache_write_tokens: Option<String>,
+    pub(crate) cache_read_tokens: Option<String>,
+    pub(crate) total_tokens: String,
     /// The sum of the priced rows. None when no row has a price.
-    estimated_value_usd_micros: Option<String>,
+    pub(crate) estimated_value_usd_micros: Option<String>,
     /// False when some rows have no price, so the estimate covers only part of the tokens.
-    estimate_complete: bool,
+    pub(crate) estimate_complete: bool,
     /// True when a later scan read less for a day in the range (OU-LOG-011).
-    logs_gone: bool,
+    pub(crate) logs_gone: bool,
 }
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ModelTotals {
-    tool: String,
-    model: String,
-    total_tokens: String,
-    estimated_value_usd_micros: Option<String>,
+    pub(crate) tool: String,
+    pub(crate) model: String,
+    pub(crate) total_tokens: Option<String>,
+    pub(crate) estimated_value_usd_micros: Option<String>,
 }
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct Bucket {
-    start_date: String,
-    tool: String,
-    total_tokens: String,
+    pub(crate) start_date: String,
+    pub(crate) tool: String,
+    pub(crate) total_tokens: String,
 }
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct Difference {
-    date: String,
-    tool: String,
-    model: String,
-    saved_total_tokens: String,
-    new_total_tokens: String,
-    scan_at_utc: String,
+    pub(crate) date: Option<String>,
+    pub(crate) tool: String,
+    pub(crate) model: Option<String>,
+    pub(crate) saved_total_tokens: String,
+    pub(crate) new_total_tokens: String,
+    pub(crate) scan_at_utc: String,
 }
 
 /// The newest sessions that the view sends. Projects still count every session in the range.
@@ -123,68 +130,72 @@ const MAX_SESSIONS: usize = 100;
 #[derive(Debug, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct SessionView {
-    key: String,
-    tool: String,
-    /// Only Claude Code reports a project (SC-021).
-    project: Option<String>,
+    pub(crate) key: String,
+    pub(crate) tool: String,
+    /// Only a reported project, without an inferred identity (SC-022).
+    pub(crate) project: Option<String>,
     /// Codex reports no start (SC-021).
-    start_utc: Option<String>,
-    end_utc: String,
-    total_tokens: String,
+    pub(crate) start_utc: Option<String>,
+    pub(crate) end_utc: Option<String>,
+    pub(crate) total_tokens: String,
     /// A part of the output count. None when the tool reports none.
-    reasoning_tokens: Option<String>,
-    estimated_value_usd_micros: Option<String>,
+    pub(crate) reasoning_tokens: Option<String>,
+    pub(crate) estimated_value_usd_micros: Option<String>,
 }
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct HourBucket {
-    start_utc: String,
-    tool: String,
-    total_tokens: String,
+    pub(crate) start_utc: String,
+    pub(crate) tool: String,
+    pub(crate) total_tokens: String,
 }
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ProjectView {
-    tool: String,
-    project: String,
-    sessions: usize,
-    total_tokens: String,
+    pub(crate) tool: String,
+    pub(crate) project: String,
+    pub(crate) sessions: usize,
+    pub(crate) total_tokens: String,
 }
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct LocalUsageView {
-    start_date: String,
-    end_date: String,
+    pub(crate) scope: String,
+    pub(crate) scopes: Vec<scopes::ScopeInfo>,
+    pub(crate) available: bool,
+    pub(crate) dated: bool,
+    pub(crate) start_date: String,
+    pub(crate) end_date: String,
     /// The zone that sets day boundaries (OU-LOG-010).
-    time_zone: String,
-    scanner_versions: Vec<String>,
-    tools: Vec<ToolTotals>,
-    models: Vec<ModelTotals>,
-    buckets: Vec<Bucket>,
-    differences: Vec<Difference>,
+    pub(crate) time_zone: String,
+    pub(crate) scanner_versions: Vec<String>,
+    pub(crate) tools: Vec<ToolTotals>,
+    pub(crate) models: Vec<ModelTotals>,
+    pub(crate) buckets: Vec<Bucket>,
+    pub(crate) differences: Vec<Difference>,
     /// Personal records for these dates: days with saved usage, the longest run of them, and the top day.
-    active_days: usize,
-    longest_streak_days: usize,
-    busiest_day: Option<BusiestDay>,
+    pub(crate) active_days: Option<usize>,
+    pub(crate) longest_streak_days: Option<usize>,
+    pub(crate) busiest_day: Option<BusiestDay>,
     /// Sessions that ended in the range, newest first.
-    sessions: Vec<SessionView>,
-    projects: Vec<ProjectView>,
+    pub(crate) sessions: Vec<SessionView>,
+    pub(crate) projects: Vec<ProjectView>,
     /// The UTC instants of the range start and of the day after it ends.
-    start_utc: Option<String>,
-    end_utc: Option<String>,
+    pub(crate) start_utc: Option<String>,
+    pub(crate) end_utc: Option<String>,
     /// Saved UTC hours, only for the hourly view. A tool outside `hour_tools` has no hours.
-    hours: Vec<HourBucket>,
-    hour_tools: Vec<String>,
+    pub(crate) hours: Vec<HourBucket>,
+    pub(crate) hour_tools: Vec<String>,
 }
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct BusiestDay {
-    date: String,
-    total_tokens: String,
+    pub(crate) date: String,
+    pub(crate) total_tokens: String,
 }
 
 /// Active days, the longest run of days with saved usage, and the busiest day (the earliest on a tie).
@@ -231,7 +242,7 @@ fn bucket_start(date: Date, period: Period) -> Date {
 }
 
 /// Builds the view for days `start..=end` from saved rows only.
-fn summarize(
+pub(crate) fn summarize(
     range: &LocalUsageRange,
     start: Date,
     end: Date,
@@ -261,7 +272,10 @@ fn summarize(
         counts.cache_read += u128::from(row.cache_read_tokens);
         counts.total += u128::from(row.total_tokens);
         match row.estimated_value_usd_micros {
-            Some(value) => counts.priced += u128::from(value),
+            Some(value) => {
+                counts.priced += u128::from(value);
+                counts.priced_rows += 1;
+            }
             None => counts.unpriced_rows += 1,
         }
         if day.coverage == LocalUsageCoverage::LogsGone {
@@ -301,6 +315,10 @@ fn summarize(
     let mut project_rows: Vec<_> = projects.into_iter().collect();
     project_rows.sort_by(|a, b| b.1.1.cmp(&a.1.1).then(a.0.cmp(&b.0)));
     LocalUsageView {
+        scope: "combined".into(),
+        scopes: Vec::new(),
+        available: true,
+        dated: true,
         start_utc: range.window.as_ref().map(|w| w.0.clone()),
         end_utc: range.window.as_ref().map(|w| w.1.clone()),
         hours: if period == Period::Hour {
@@ -328,7 +346,7 @@ fn summarize(
                     tool: s.tool.clone(),
                     project: s.project_name.clone(),
                     start_utc: s.start_utc.clone(),
-                    end_utc: s.end_utc.clone(),
+                    end_utc: Some(s.end_utc.clone()),
                     total_tokens: s.total_tokens.to_string(),
                     reasoning_tokens: s.reasoning_tokens.map(|v| v.to_string()),
                     estimated_value_usd_micros: s.estimated_value_usd_micros.map(|v| v.to_string()),
@@ -344,8 +362,8 @@ fn summarize(
                 total_tokens: total.to_string(),
             })
             .collect(),
-        active_days,
-        longest_streak_days,
+        active_days: (!range.days.is_empty()).then_some(active_days),
+        longest_streak_days: (!range.days.is_empty()).then_some(longest_streak_days),
         busiest_day,
         start_date: start.to_string(),
         end_date: end.to_string(),
@@ -354,15 +372,15 @@ fn summarize(
         tools: tool_rows
             .into_iter()
             .map(|(tool, c)| ToolTotals {
+                reasoning_tokens: None,
                 tool: tool.into(),
-                input_tokens: c.input.to_string(),
-                output_tokens: c.output.to_string(),
-                cache_write_tokens: c.cache_write.to_string(),
-                cache_read_tokens: c.cache_read.to_string(),
+                input_tokens: Some(c.input.to_string()),
+                output_tokens: Some(c.output.to_string()),
+                cache_write_tokens: Some(c.cache_write.to_string()),
+                cache_read_tokens: Some(c.cache_read.to_string()),
                 total_tokens: c.total.to_string(),
                 // With no priced row there is no estimate at all, not an estimate of zero.
-                estimated_value_usd_micros: (c.unpriced_rows == 0 || c.priced > 0)
-                    .then(|| c.priced.to_string()),
+                estimated_value_usd_micros: (c.priced_rows > 0).then(|| c.priced.to_string()),
                 estimate_complete: c.unpriced_rows == 0,
                 logs_gone: gone.contains(tool),
             })
@@ -372,7 +390,7 @@ fn summarize(
             .map(|((tool, model), (total, value))| ModelTotals {
                 tool: tool.into(),
                 model: model.into(),
-                total_tokens: total.to_string(),
+                total_tokens: Some(total.to_string()),
                 estimated_value_usd_micros: value.map(|v| v.to_string()),
             })
             .collect(),
@@ -389,9 +407,9 @@ fn summarize(
             .iter()
             .filter_map(|d| {
                 Some(Difference {
-                    date: d.local_date.clone(),
+                    date: Some(d.local_date.clone()),
                     tool: (*source_tools.get(d.log_source_id.as_str())?).into(),
-                    model: d.model.clone(),
+                    model: Some(d.model.clone()),
                     saved_total_tokens: d.saved_total_tokens.to_string(),
                     new_total_tokens: d.new_total_tokens.to_string(),
                     scan_at_utc: d.scan_at_utc.clone(),
@@ -407,6 +425,23 @@ fn day_start_utc(date: Date, zone: &TimeZone) -> Option<String> {
     Some(start.strftime("%Y-%m-%dT%H:%M:%S.000Z").to_string())
 }
 
+pub(crate) fn share_view(
+    workspace: &mut crate::workspace::Workspace,
+    scope: Option<String>,
+) -> Result<LocalUsageView, CommandError> {
+    load_view(
+        workspace,
+        &LoadArgs {
+            days: Some(365),
+            since: None,
+            until: None,
+            period: Period::Day,
+            scope,
+        },
+        false,
+    )
+}
+
 /// Saved local totals for the last `days` days in the zone of the saved days (OU-LOG-010).
 #[tauri::command]
 pub async fn load_local_usage(
@@ -414,35 +449,7 @@ pub async fn load_local_usage(
     service: State<'_, WorkspaceService>,
 ) -> Result<LocalUsageView, CommandError> {
     let args: LoadArgs = arguments(&request)?;
-    crate::subscriptions::access(service, move |workspace| {
-        let zone = workspace.local_usage_zone()?;
-        let tz = TimeZone::get(&zone).map_err(|_| CommandError::StorageUnavailable)?;
-        let today_in_zone = jiff::Timestamp::now().to_zoned(tz.clone()).date();
-        let (start, today) =
-            requested_range(&args, today_in_zone).ok_or(CommandError::InvalidArguments)?;
-        let length = start
-            .until(today)
-            .map_err(|_| CommandError::InvalidArguments)?
-            .get_days()
-            + 1;
-        if args.period == Period::Hour && length > MAX_HOURLY_DAYS {
-            return Err(CommandError::InvalidArguments);
-        }
-        let next = today
-            .checked_add(Span::new().days(1))
-            .map_err(|_| CommandError::InvalidArguments)?;
-        let (Some(since_utc), Some(until_utc)) =
-            (day_start_utc(start, &tz), day_start_utc(next, &tz))
-        else {
-            return Err(CommandError::StorageUnavailable);
-        };
-        let range = workspace.local_usage_range(
-            (&start.to_string(), &today.to_string()),
-            Some((&since_utc, &until_utc)),
-        )?;
-        Ok(summarize(&range, start, today, args.period, zone))
-    })
-    .await
+    crate::subscriptions::access(service, move |workspace| load_view(workspace, &args, true)).await
 }
 
 #[cfg(test)]
@@ -535,6 +542,7 @@ mod tests {
             since: since.map(Into::into),
             until: until.map(Into::into),
             period: Period::Day,
+            scope: None,
         };
         let range =
             |a: LoadArgs| requested_range(&a, today).map(|(s, e)| (s.to_string(), e.to_string()));
@@ -731,7 +739,10 @@ mod tests {
         );
         assert_eq!(view.differences[0].tool, "claude");
         // Records: 2, 3 and 9 November have usage, so the longest run is 2 days.
-        assert_eq!((view.active_days, view.longest_streak_days), (3, 2));
+        assert_eq!(
+            (view.active_days, view.longest_streak_days),
+            (Some(3), Some(2))
+        );
         assert_eq!(
             view.busiest_day,
             Some(BusiestDay {

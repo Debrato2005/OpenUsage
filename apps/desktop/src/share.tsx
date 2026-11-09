@@ -23,7 +23,7 @@ async function png(url: string, width: number, height: number) {
 }
 
 /** A preview of each image and an explicit save, made on this device (OU-SHARE-001, OU-SHARE-003). */
-function ShareDialog({ onClose }: { onClose: () => void }) {
+function ShareDialog({ onClose, scope }: { onClose: () => void; scope: string }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [kind, setKind] = useState<ShareKind>('wrapped');
   const [branding, setBranding] = useState(true);
@@ -37,19 +37,19 @@ function ShareDialog({ onClose }: { onClose: () => void }) {
     let current = true;
     let objectUrl: string | null = null;
     setImage(null); setUrl(null); setReceipt(null); setError(null);
-    void invoke('load_share_image', { kind, branding }).then(value => {
+    void invoke('load_share_image', { kind, branding, ...(scope === 'combined' ? {} : { scope }) }).then(value => {
       if (!current) return;
       objectUrl = URL.createObjectURL(new Blob([value.svg], { type: 'image/svg+xml' }));
       setImage(value); setUrl(objectUrl);
     }).catch(() => { if (current) setError('OpenUsage could not make this image. Try again.'); });
     return () => { current = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [kind, branding]);
+  }, [kind, branding, scope]);
   async function save(format: 'svg' | 'png') {
     if (!image || !url) return;
     setBusy(true); setReceipt(null); setError(null);
     try {
       const bytes = format === 'png' ? await png(url, image.width, image.height) : null;
-      setReceipt(await invoke('save_share_image', { kind, branding, format, png: bytes }));
+      setReceipt(await invoke('save_share_image', { kind, branding, format, png: bytes, ...(scope === 'combined' ? {} : { scope }) }));
     } catch {
       setError(format === 'png' ? 'OpenUsage could not save the PNG. Try the SVG.' : 'OpenUsage could not save the image. Try again.');
     } finally { setBusy(false); }
@@ -72,10 +72,10 @@ function ShareDialog({ onClose }: { onClose: () => void }) {
   </dialog>;
 }
 
-export function ShareButton() {
+export function ShareButton({ scope = 'combined' }: { scope?: string }) {
   const [open, setOpen] = useState(false);
   return <>
     <Button variant="outline" onClick={() => setOpen(true)} data-share-open>Share</Button>
-    {open && <ShareDialog onClose={() => setOpen(false)} />}
+    {open && <ShareDialog scope={scope} onClose={() => setOpen(false)} />}
   </>;
 }

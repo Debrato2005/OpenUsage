@@ -27,3 +27,5 @@
 .local-date-range label { display: grid; gap: .25rem; }
 .local-date-range input { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--line); border-radius: .5rem; padding: .4rem .5rem; min-width: 0; }
 .local-date-range .operation-error { flex-basis: 100%; margin: 0; }
+
+.detail-row-pair { display: contents; }

@@ -1,17 +1,18 @@
 //! Share images made on this device with no network (OU-SHARE-001 to OU-SHARE-006).
 //! Rust builds each image as SVG from saved local totals. The renderer draws that SVG as PNG,
 //! and Rust checks the PNG before it saves it. Saving is always an explicit action.
-use crate::workspace::{CommandError, local_logs::LocalUsageRange};
+use crate::workspace::CommandError;
+#[cfg(test)]
+use crate::workspace::local_logs::LocalUsageRange;
 use crate::{WorkspaceService, arguments, readings_export};
 use base64::Engine;
-use jiff::{Span, civil::Date, tz::TimeZone};
+use jiff::{Span, civil::Date};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fmt::Write;
 use tauri::{AppHandle, Manager, State};
 
 const REPOSITORY: &str = "github.com/Debrato2005/OpenUsage";
-const DAYS: u16 = 365;
 /// The renderer draws PNG at twice the SVG size.
 const PNG_SCALE: u32 = 2;
 const MAX_PNG_BYTES: usize = 8 * 1024 * 1024;
@@ -54,6 +55,8 @@ enum Format {
 struct LoadArgs {
     kind: Kind,
     branding: bool,
+    #[serde(default)]
+    scope: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -64,6 +67,8 @@ struct SaveArgs {
     format: Format,
     /// Base64 PNG bytes that the renderer drew from this image. Only with the PNG format.
     png: Option<String>,
+    #[serde(default)]
+    scope: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -90,7 +95,7 @@ pub(crate) struct ShareReceipt {
 struct Stats {
     start: String,
     end: String,
-    days: Vec<(String, u128)>,
+    days: Vec<(String, Option<u128>)>,
     total: u128,
     active_days: usize,
     longest_streak: usize,
@@ -101,69 +106,83 @@ struct Stats {
     estimate_complete: bool,
 }
 
-fn stats(range: &LocalUsageRange, start: Date, end: Date) -> Stats {
-    let mut by_day: BTreeMap<String, u128> = BTreeMap::new();
-    let mut by_tool: BTreeMap<String, u128> = BTreeMap::new();
-    let mut by_model: BTreeMap<String, u128> = BTreeMap::new();
-    let (mut priced, mut unpriced) = (0u128, 0usize);
-    for day in &range.days {
-        let row = &day.counts;
-        let total = u128::from(row.total_tokens);
-        *by_day.entry(row.local_date.clone()).or_default() += total;
-        *by_tool.entry(row.tool.clone()).or_default() += total;
-        *by_model.entry(row.model.clone()).or_default() += total;
-        match row.estimated_value_usd_micros {
-            Some(value) => priced += u128::from(value),
-            None => unpriced += 1,
-        }
+fn stats(view: &crate::local_usage::LocalUsageView) -> Result<Stats, CommandError> {
+    if !view.available || !view.dated {
+        return Err(CommandError::InvalidArguments);
     }
-    let mut days = Vec::new();
-    let (mut streak, mut longest) = (0usize, 0usize);
+    let number = |value: &str| {
+        value
+            .parse::<u128>()
+            .map_err(|_| CommandError::StorageUnavailable)
+    };
+    let mut by_day: BTreeMap<String, u128> = BTreeMap::new();
+    for bucket in &view.buckets {
+        *by_day.entry(bucket.start_date.clone()).or_default() += number(&bucket.total_tokens)?;
+    }
+    let start = view
+        .start_date
+        .parse::<Date>()
+        .map_err(|_| CommandError::StorageUnavailable)?;
+    let end = view
+        .end_date
+        .parse::<Date>()
+        .map_err(|_| CommandError::StorageUnavailable)?;
     let mut cursor = start;
+    let mut days = Vec::new();
     while cursor <= end {
         let key = cursor.to_string();
-        let total = by_day.get(&key).copied().unwrap_or(0);
-        streak = if total > 0 { streak + 1 } else { 0 };
-        longest = longest.max(streak);
-        days.push((key, total));
-        let Ok(next) = cursor.checked_add(Span::new().days(1)) else {
-            break;
-        };
-        cursor = next;
+        days.push((key.clone(), by_day.get(&key).copied()));
+        cursor = cursor
+            .checked_add(Span::new().days(1))
+            .map_err(|_| CommandError::StorageUnavailable)?;
     }
-    let busiest = days
-        .iter()
-        .filter(|(_, total)| *total > 0)
-        .fold(None::<&(String, u128)>, |best, day| match best {
-            Some(best) if best.1 >= day.1 => Some(best),
-            _ => Some(day),
-        })
-        .cloned();
-    let top_model = by_model
-        .iter()
-        .fold(None::<(&String, u128)>, |best, (model, total)| match best {
-            Some(best) if best.1 >= *total => Some(best),
-            _ => Some((model, *total)),
-        })
-        .map(|(model, _)| model.clone());
-    let mut tools: Vec<_> = by_tool
-        .into_iter()
-        .filter(|(_, total)| *total > 0)
-        .collect();
+    let mut tools = Vec::new();
+    let mut priced = None;
+    let mut complete = !view.tools.is_empty();
+    for tool in &view.tools {
+        tools.push((tool.tool.clone(), number(&tool.total_tokens)?));
+        if let Some(value) = &tool.estimated_value_usd_micros {
+            priced = Some(priced.unwrap_or(0) + number(value)?);
+        }
+        complete &= tool.estimate_complete;
+    }
     tools.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
-    Stats {
-        start: start.to_string(),
-        end: end.to_string(),
-        total: days.iter().map(|(_, total)| total).sum(),
-        active_days: days.iter().filter(|(_, total)| *total > 0).count(),
-        longest_streak: longest,
+    let mut models = BTreeMap::<String, u128>::new();
+    let mut models_complete = !view.models.is_empty();
+    for model in &view.models {
+        if let Some(total) = &model.total_tokens {
+            *models.entry(model.model.clone()).or_default() += number(total)?;
+        } else {
+            models_complete = false;
+        }
+    }
+    let total = tools.iter().map(|(_, n)| n).sum();
+    models_complete &= models.values().sum::<u128>() == total;
+    let top_model = models_complete
+        .then(|| {
+            models
+                .into_iter()
+                .max_by(|a, b| a.1.cmp(&b.1).then(b.0.cmp(&a.0)))
+                .map(|(name, _)| name)
+        })
+        .flatten();
+    Ok(Stats {
+        start: view.start_date.clone(),
+        end: view.end_date.clone(),
         days,
-        busiest,
+        total,
+        active_days: view.active_days.unwrap_or(0),
+        longest_streak: view.longest_streak_days.unwrap_or(0),
+        busiest: view
+            .busiest_day
+            .as_ref()
+            .map(|d| Ok((d.date.clone(), number(&d.total_tokens)?)))
+            .transpose()?,
         top_model,
         tools,
-        estimate: (unpriced == 0 || priced > 0).then_some(priced),
-        estimate_complete: unpriced == 0,
-    }
+        estimate: priced,
+        estimate_complete: complete,
+    })
 }
 
 fn grouped(value: u128) -> String {
@@ -333,7 +352,7 @@ fn heatmap(stats: &Stats, branding: bool) -> String {
     let mut nonzero: Vec<u128> = stats
         .days
         .iter()
-        .map(|(_, t)| *t)
+        .filter_map(|(_, t)| *t)
         .filter(|t| *t > 0)
         .collect();
     nonzero.sort_unstable();
@@ -364,19 +383,24 @@ fn heatmap(stats: &Stats, branding: bool) -> String {
         let cell = index as i64 + offset;
         let (column, row) = (cell / 7, cell % 7);
         let (x, y) = (32 + column * 17, 64 + row * 17);
-        let fill = if *total == 0 {
+        let fill = if total.is_none() {
             "fill=\"none\" stroke=\"#3a3f47\"".to_string()
+        } else if *total == Some(0) {
+            "fill=\"#252932\"".to_string()
         } else {
-            let level = cuts.iter().filter(|c| *total > **c).count();
+            let level = cuts
+                .iter()
+                .filter(|c| total.is_some_and(|t| t > **c))
+                .count();
             format!("fill=\"{}\"", shades[level])
         };
         let _ = write!(
             svg,
             "<rect x=\"{x}\" y=\"{y}\" width=\"13\" height=\"13\" rx=\"3\" {fill}><title>{}</title></rect>",
-            escape(&if *total == 0 {
+            escape(&if total.is_none() {
                 format!("{date}: no saved usage")
             } else {
-                format!("{date}: {} tokens", grouped(*total))
+                format!("{date}: {} tokens", grouped(total.unwrap_or(0)))
             })
         );
     }
@@ -454,17 +478,13 @@ fn image(
     workspace: &mut crate::workspace::Workspace,
     kind: Kind,
     branding: bool,
+    scope: Option<String>,
 ) -> Result<(Stats, String), CommandError> {
-    let zone = workspace.local_usage_zone()?;
-    let today = TimeZone::get(&zone)
-        .map(|tz| jiff::Timestamp::now().to_zoned(tz).date())
-        .map_err(|_| CommandError::StorageUnavailable)?;
-    let start = today
-        .checked_sub(Span::new().days(i64::from(DAYS) - 1))
-        .map_err(|_| CommandError::StorageUnavailable)?;
-    // No session window: share images never read a session or a project name (OU-LOG-004).
-    let range = workspace.local_usage_range((&start.to_string(), &today.to_string()), None)?;
-    let stats = stats(&range, start, today);
+    let view = crate::local_usage::share_view(workspace, scope)?;
+    let stats = stats(&view)?;
+    if view.tools.is_empty() {
+        return Err(CommandError::InvalidArguments);
+    }
     let svg = match kind {
         Kind::Wrapped => wrapped(&stats, branding),
         Kind::Heatmap => heatmap(&stats, branding),
@@ -506,7 +526,7 @@ pub async fn load_share_image(
 ) -> Result<ShareImage, CommandError> {
     let args: LoadArgs = arguments(&request)?;
     crate::subscriptions::access(service, move |workspace| {
-        let (stats, svg) = image(workspace, args.kind, args.branding)?;
+        let (stats, svg) = image(workspace, args.kind, args.branding, args.scope.clone())?;
         let (width, height) = match args.kind {
             // The badge width is the first number in its SVG, set by its text.
             Kind::Badge => (
@@ -547,9 +567,10 @@ pub async fn save_share_image(
         .map_err(|_| CommandError::ExportUnavailable)?
         .join("OpenUsage");
     crate::subscriptions::access(service, move |workspace| {
+        let (_, svg) = image(workspace, args.kind, args.branding, args.scope.clone())?;
         let bytes = match png {
             Some(bytes) => bytes,
-            None => image(workspace, args.kind, args.branding)?.1.into_bytes(),
+            None => svg.into_bytes(),
         };
         let extension = if args.format == Format::Png {
             "png"
@@ -576,6 +597,17 @@ pub async fn save_share_image(
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn legacy_stats(range: &LocalUsageRange, start: Date, end: Date) -> Stats {
+        super::stats(&crate::local_usage::summarize(
+            range,
+            start,
+            end,
+            crate::local_usage::Period::Day,
+            "UTC".into(),
+        ))
+        .unwrap()
+    }
+
     use openusage_storage::{LocalUsageCoverage, LocalUsageDay, LocalUsageRow};
 
     fn day(date: &str, tool: &str, model: &str, total: u64, value: Option<u64>) -> LocalUsageDay {
@@ -610,7 +642,7 @@ mod tests {
 
     #[test]
     fn statistics_are_exact_and_streaks_count_only_days_with_usage() {
-        let stats = stats(
+        let stats = legacy_stats(
             &range(vec![
                 day(
                     "2026-11-02",
@@ -637,20 +669,20 @@ mod tests {
             (stats.estimate, stats.estimate_complete),
             (Some(111), false)
         );
-        let empty = super::stats(
+        let empty = legacy_stats(
             &range(Vec::new()),
             "2026-11-01".parse().unwrap(),
             "2026-11-02".parse().unwrap(),
         );
         assert_eq!(
             (empty.total, empty.busiest, empty.top_model, empty.estimate),
-            (0, None, None, Some(0))
+            (0, None, None, None)
         );
     }
 
     #[test]
     fn images_hold_no_private_fields_escape_text_and_keep_missing_days_distinct() {
-        let stats = stats(
+        let stats = legacy_stats(
             &range(vec![day("2026-11-03", "claude", "a<b>&'\"", 5, None)]),
             "2026-11-01".parse().unwrap(),
             "2026-11-08".parse().unwrap(),
@@ -671,7 +703,7 @@ mod tests {
 
     #[test]
     fn the_badge_fits_its_text_and_can_drop_the_name() {
-        let stats = stats(
+        let stats = legacy_stats(
             &range(vec![day("2026-11-03", "claude", "m", 1_374_682_792, None)]),
             "2026-11-01".parse().unwrap(),
             "2026-11-08".parse().unwrap(),
@@ -681,6 +713,65 @@ mod tests {
         // 12 + 7 * 9 for the name, and 12 + 7 * 21 for the count.
         assert_eq!(badge_width(&svg), Some(75 + 159));
         assert!(!badge(&stats, false).contains("OpenUsage"));
+    }
+
+    #[test]
+    fn grouped_share_totals_do_not_require_models_and_zero_is_not_missing() {
+        let mut view = crate::local_usage::summarize(
+            &range(Vec::new()),
+            "2026-11-01".parse().unwrap(),
+            "2026-11-03".parse().unwrap(),
+            crate::local_usage::Period::Day,
+            "UTC".into(),
+        );
+        view.tools.push(crate::local_usage::ToolTotals {
+            tool: "kilo".into(),
+            input_tokens: None,
+            output_tokens: None,
+            cache_write_tokens: None,
+            cache_read_tokens: None,
+            reasoning_tokens: None,
+            total_tokens: "173".into(),
+            estimated_value_usd_micros: None,
+            estimate_complete: false,
+            logs_gone: false,
+        });
+        view.models.push(crate::local_usage::ModelTotals {
+            tool: "kilo".into(),
+            model: "m".into(),
+            total_tokens: None,
+            estimated_value_usd_micros: None,
+        });
+        for (date, total) in [("2026-11-02", "0"), ("2026-11-03", "173")] {
+            view.buckets.push(crate::local_usage::Bucket {
+                start_date: date.into(),
+                tool: "kilo".into(),
+                total_tokens: total.into(),
+            });
+        }
+        view.active_days = Some(1);
+        view.longest_streak_days = Some(1);
+        let saved = super::stats(&view).unwrap();
+        assert_eq!(saved.total, 173);
+        assert_eq!(saved.top_model, None);
+        assert_eq!(saved.estimate, None);
+        assert_eq!(
+            saved.days,
+            vec![
+                ("2026-11-01".into(), None),
+                ("2026-11-02".into(), Some(0)),
+                ("2026-11-03".into(), Some(173))
+            ]
+        );
+        let svg = heatmap(&saved, false);
+        assert!(svg.contains("2026-11-01: no saved usage"));
+        assert!(svg.contains("2026-11-02: 0 tokens"));
+        assert!(svg.contains("2026-11-03: 173 tokens"));
+        view.available = false;
+        assert_eq!(super::stats(&view), Err(CommandError::InvalidArguments));
+        view.available = true;
+        view.dated = false;
+        assert_eq!(super::stats(&view), Err(CommandError::InvalidArguments));
     }
 
     #[test]

@@ -11,8 +11,9 @@ export function localUsage(days = 30, end = '2026-11-08') {
     if (i % 3 !== 0) { const x = BigInt(800_000 + ((i * 104729) % 4_000_000)); codex += x; buckets.push({ startDate: date, tool: 'codex', totalTokens: String(x) }); }
   }
   const start = new Date(endDate); start.setUTCDate(start.getUTCDate() - (days - 1));
-  const split = (total: bigint) => { const input = total / 10n, output = total / 20n, write = total / 25n; return { inputTokens: String(input), outputTokens: String(output), cacheWriteTokens: String(write), cacheReadTokens: String(total - input - output - write), totalTokens: String(total) }; };
+  const split = (total: bigint) => { const input = total / 10n, output = total / 20n, write = total / 25n; return { inputTokens: String(input), outputTokens: String(output), cacheWriteTokens: String(write), cacheReadTokens: String(total - input - output - write), reasoningTokens: null, totalTokens: String(total) }; };
   return {
+    scope: 'combined', scopes: [{ id: 'combined', kind: 'combined', tool: null, timeZone: null, folder: null, totalTokens: null }], available: true, dated: true,
     startDate: start.toISOString().slice(0, 10), endDate: end, timeZone: 'Asia/Kolkata', scannerVersions: ['20.0.48'],
     tools: [
       { tool: 'claude', ...split(claude), estimatedValueUsdMicros: '184320000', estimateComplete: false, logsGone: true },

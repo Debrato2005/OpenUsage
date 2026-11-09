@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button } from './components/ui/button';
-import { invoke, type LocalToolTotals, type LocalUsageDays, type LocalUsagePeriod, type LocalUsageRange, type LocalUsageView } from './contracts';
+import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from './components/ui/select';
+import { invoke, type LocalSavedScope, type LocalToolTotals, type LocalUsageDays, type LocalUsagePeriod, type LocalUsageRange, type LocalUsageView } from './contracts';
 import { DetailLink, Mark, useOpenDetail } from './detail-panel';
 import { BigNumber, compactCount } from './overview-charts';
 import { localLogToolNames } from './local-logs';
@@ -9,6 +10,7 @@ import './local-usage.css';
 import { localLogToolTints as toolTint } from './local-tools';
 
 const exact = new Intl.NumberFormat('en-US');
+const count = (value: string | null) => value === null ? 'Not available' : exact.format(BigInt(value));
 // Rounds millionths of a dollar to cents for display. The stored value keeps every digit.
 const dollars = (micros: string) => {
   const cents = (BigInt(micros) + 5_000n) / 10_000n;
@@ -20,20 +22,21 @@ const monthDay = (date: string) => day(date).toLocaleDateString('en-US', { month
 const monthName = (date: string) => day(date).toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
 
 /** Saved local totals. A background scan can add days, so the view reloads while it is shown. */
-export function useLocalUsage(active: boolean, range: LocalUsageRange | null, period: LocalUsagePeriod) {
+export function useLocalUsage(active: boolean, range: LocalUsageRange | null, period: LocalUsagePeriod, scope = 'combined') {
   const [view, setView] = useState<LocalUsageView | null>(null);
   const [failed, setFailed] = useState(false);
   const key = range && JSON.stringify(range);
   useEffect(() => {
     if (!active || !key) return;
     let current = true;
-    const load = () => void invoke('load_local_usage', { ...(JSON.parse(key) as LocalUsageRange), period })
-      .then(value => { if (current) { setView(value); setFailed(false); } })
+    setView(null);
+    const load = () => void invoke('load_local_usage', { ...(JSON.parse(key) as LocalUsageRange), period, ...(scope === 'combined' ? {} : { scope }) })
+      .then(value => { if (value.scope !== scope) throw new Error('Mismatched saved scope'); if (current) { setView(value); setFailed(false); } })
       .catch(() => { if (current) setFailed(true); });
     load();
     const timer = window.setInterval(load, 15_000);
     return () => { current = false; window.clearInterval(timer); };
-  }, [active, key, period]);
+  }, [active, key, period, scope]);
   return { view, failed };
 }
 
@@ -45,15 +48,17 @@ function Estimate({ totals }: { totals: LocalToolTotals }) {
 function ToolDetails({ totals, view }: { totals: LocalToolTotals; view: LocalUsageView }) {
   const differences = view.differences.filter(d => d.tool === totals.tool);
   return <dl className="detail-rows">
-    <dt>Input</dt><dd>{exact.format(BigInt(totals.inputTokens))}</dd>
-    <dt>Output</dt><dd>{exact.format(BigInt(totals.outputTokens))}</dd>
-    <dt>Cache write</dt><dd>{exact.format(BigInt(totals.cacheWriteTokens))}</dd>
-    <dt>Cache read</dt><dd>{exact.format(BigInt(totals.cacheReadTokens))}</dd>
+    <dt>Input</dt><dd>{count(totals.inputTokens)}</dd>
+    <dt>Output</dt><dd>{count(totals.outputTokens)}</dd>
+    <dt>Cache write</dt><dd>{count(totals.cacheWriteTokens)}</dd>
+    <dt>Cache read</dt><dd>{count(totals.cacheReadTokens)}</dd>
+    <dt>Reasoning</dt><dd>{count(totals.reasoningTokens)}</dd>
     <dt>Total</dt><dd>{exact.format(BigInt(totals.totalTokens))}</dd>
     <dt>Estimated value</dt><dd>{totals.estimatedValueUsdMicros === null ? 'Not available' : `${dollars(totals.estimatedValueUsdMicros)} at public API prices, not money paid`}{!totals.estimateComplete && totals.estimatedValueUsdMicros !== null && '. Some models have no price.'}</dd>
     <dt>Source</dt><dd>Local logs on this device, read by ccusage {view.scannerVersions.join(', ') || 'Not available'}</dd>
-    <dt>Dates</dt><dd>{view.startDate} to {view.endDate}, days in {view.timeZone}</dd>
-    {differences.length > 0 && <><dt>Logs gone</dt><dd><ul className="local-differences">{differences.map(d => <li key={`${d.date}:${d.model}:${d.newTotalTokens}`}>{d.date}, {d.model}: saved {exact.format(BigInt(d.savedTotalTokens))}, a later scan read {exact.format(BigInt(d.newTotalTokens))}</li>)}</ul></dd></>}
+    <dt>Dates</dt><dd>{view.dated ? `${view.startDate} to ${view.endDate}, days in ${view.timeZone}` : 'Not available'}</dd>
+    {view.scopes.filter(s => s.id === view.scope && s.folder !== null).map(s => <span className="detail-row-pair" key={s.id}><dt>Folder history</dt><dd><bdi>{s.folder}</bdi></dd></span>)}
+    {differences.length > 0 && <><dt>Logs gone</dt><dd><ul className="local-differences">{differences.map((d, index) => <li key={`${d.date}:${d.model}:${d.scanAtUtc}:${index}`}>{d.date ?? 'Not available'}, {d.model ?? 'Total'}: saved {exact.format(BigInt(d.savedTotalTokens))}, a later scan read {exact.format(BigInt(d.newTotalTokens))}</li>)}</ul></dd></>}
   </dl>;
 }
 
@@ -118,8 +123,8 @@ function LocalBars({ view, period }: { view: LocalUsageView; period: LocalUsageP
   const local = (utc: string, options: Intl.DateTimeFormatOptions) => new Date(utc).toLocaleString('en-US', { timeZone: view.timeZone, ...options });
   const when = (start: string) => hourly ? local(start, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : start;
   const columns = (hourly ? hourSlots(view) : slots(view, period)).map(start => {
-    const parts = tools.map(tool => ({ tool, tokens: totals.get(`${start}:${tool}`) ?? 0n }));
-    return { start, parts, total: parts.reduce((sum, p) => sum + p.tokens, 0n) };
+    const parts = tools.map(tool => ({ tool, tokens: totals.get(`${start}:${tool}`) ?? null }));
+    return { start, parts, total: parts.reduce((sum, p) => sum + (p.tokens ?? 0n), 0n) };
   });
   const max = columns.reduce((m, c) => c.total > m ? c.total : m, 0n);
   let unit = 1n; while (unit * 10n <= max / 4n + 1n) unit *= 10n;
@@ -143,7 +148,7 @@ function LocalBars({ view, period }: { view: LocalUsageView; period: LocalUsageP
       {columns.map((column, index) => {
         const x = left + index * slot + (slot - bar) / 2;
         let base = 0n;
-        return <g key={column.start}><title>{column.total === 0n ? `${when(column.start)}: no saved usage` : `${when(column.start)}: ${exact.format(column.total)} tokens`}</title>
+        return <g key={column.start}><title>{column.parts.every(p => p.tokens === null) ? `${when(column.start)}: no saved usage` : `${when(column.start)}: ${exact.format(column.total)} tokens`}</title>
           {column.parts.map(({ tool, tokens }) => {
             if (!tokens) return null;
             const y0 = y(base), y1 = y(base + tokens);
@@ -155,12 +160,13 @@ function LocalBars({ view, period }: { view: LocalUsageView; period: LocalUsageP
       {columns.map((column, index) => labelled(index) && <text key={`label:${column.start}`} x={left + index * slot} y={height - 6} className="overview-axis">{label(column.start)}</text>)}
     </svg>
     <table className="sr-only"><caption>Tokens per {name}</caption><thead><tr><th scope="col">Start</th>{tools.map(tool => <th key={tool} scope="col">{localLogToolNames[tool]}</th>)}</tr></thead>
-      <tbody>{columns.filter(c => c.total > 0n).map(c => <tr key={c.start}><th scope="row">{when(c.start)}</th>{c.parts.map(p => <td key={p.tool}>{exact.format(p.tokens)}</td>)}</tr>)}</tbody></table>
+      <tbody>{columns.filter(c => c.parts.some(p => p.tokens !== null)).map(c => <tr key={c.start}><th scope="row">{when(c.start)}</th>{c.parts.map(p => <td key={p.tool}>{p.tokens === null ? 'Not available' : exact.format(p.tokens)}</td>)}</tr>)}</tbody></table>
   </figure>;
 }
 
 /** Personal records for the chosen dates. Each number opens the detail panel (OU-DES-007). */
 function Records({ view }: { view: LocalUsageView }) {
+  if (view.activeDays === null || view.longestStreakDays === null) return null;
   const where = <><dt>Dates</dt><dd>{view.startDate} to {view.endDate}, days in {view.timeZone}</dd><dt>Source</dt><dd>Saved local log totals on this device</dd></>;
   const busiest = view.busiestDay;
   return <section className="local-records" aria-label="Records" data-local-records>
@@ -177,7 +183,7 @@ function Models({ view }: { view: LocalUsageView }) {
   return <section className="local-models" aria-labelledby="local-models-heading">
     <h3 id="local-models-heading">Models</h3>
     <table><thead><tr><th scope="col">Model</th><th scope="col">Tool</th><th scope="col">Tokens</th><th scope="col">Estimated value</th></tr></thead>
-      <tbody>{view.models.map(m => <tr key={`${m.tool}:${m.model}`}><th scope="row"><bdi>{m.model}</bdi></th><td>{localLogToolNames[m.tool]}</td><td>{exact.format(BigInt(m.totalTokens))}</td><td>{m.estimatedValueUsdMicros === null ? 'Not available' : dollars(m.estimatedValueUsdMicros)}</td></tr>)}</tbody></table>
+      <tbody>{view.models.map(m => <tr key={`${m.tool}:${m.model}`}><th scope="row"><bdi>{m.model}</bdi></th><td>{localLogToolNames[m.tool]}</td><td>{count(m.totalTokens)}</td><td>{m.estimatedValueUsdMicros === null ? 'Not available' : dollars(m.estimatedValueUsdMicros)}</td></tr>)}</tbody></table>
   </section>;
 }
 
@@ -197,10 +203,34 @@ function Sessions({ view }: { view: LocalUsageView }) {
   return <section className="local-models" aria-labelledby="local-sessions-heading" data-local-sessions>
     <h3 id="local-sessions-heading">Sessions</h3>
     <table><thead><tr><th scope="col">Ended</th><th scope="col">Tool</th><th scope="col">Project</th><th scope="col">Started</th><th scope="col">Tokens</th><th scope="col">Reasoning</th></tr></thead>
-      <tbody>{view.sessions.map((s, index) => <tr key={`${s.tool}:${s.key}:${index}`} data-local-session={s.tool}><th scope="row"><time dateTime={s.endUtc}>{when(s.endUtc)}</time></th><td>{localLogToolNames[s.tool]}</td>
+      <tbody>{view.sessions.map((s, index) => <tr key={`${s.tool}:${s.key}:${index}`} data-local-session={s.tool}><th scope="row">{s.endUtc === null ? 'Not available' : <time dateTime={s.endUtc}>{when(s.endUtc)}</time>}</th><td>{localLogToolNames[s.tool]}</td>
         <td>{s.project === null ? 'Not available' : <bdi>{s.project}</bdi>}</td><td>{s.startUtc === null ? 'Not available' : <time dateTime={s.startUtc}>{when(s.startUtc)}</time>}</td>
         <td>{exact.format(BigInt(s.totalTokens))}</td><td>{s.reasoningTokens === null ? 'Not available' : exact.format(BigInt(s.reasoningTokens))}</td></tr>)}</tbody></table>
   </section>;
+}
+
+function scopeName(scope: LocalSavedScope, scopes: LocalSavedScope[]) {
+  if (scope.kind === 'combined') return 'Combined history';
+  const name = scope.tool === null ? '' : localLogToolNames[scope.tool];
+  if (scope.kind === 'unplaced') return `${name} · Undated`;
+  if (scope.kind === 'grouped') return `${name} · Dated`;
+  const folders = scopes.filter(s => s.kind === 'legacy' && s.tool === scope.tool);
+  return `${name} · Folder ${folders.findIndex(s => s.id === scope.id) + 1}`;
+}
+
+function ScopeChoice({ view, scope, onChange }: { view: LocalUsageView; scope: string; onChange: (value: string) => void }) {
+  if (view.scopes.length < 2) return null;
+  const items = Object.fromEntries(view.scopes.map(s => [s.id, scopeName(s, view.scopes)]));
+  return <Select modal={false} value={scope} items={items} onValueChange={value => { if (typeof value === 'string') onChange(value); }}>
+    <SelectTrigger aria-label="Saved history"><SelectValue /></SelectTrigger>
+    <SelectPopup alignItemWithTrigger={false}>{view.scopes.map(s => <SelectItem key={s.id} value={s.id}>{items[s.id]}</SelectItem>)}</SelectPopup>
+  </Select>;
+}
+
+function UnavailableHistory({ view }: { view: LocalUsageView }) {
+  return <DetailLink className="local-record" label="Combined history: Not available" details={<dl className="detail-rows">
+    {view.scopes.filter(s => s.kind !== 'combined').map(s => <div className="detail-row-pair" key={s.id}><dt>{scopeName(s, view.scopes)}</dt><dd>{count(s.totalTokens)}{s.timeZone && <><br />{view.startDate} to {view.endDate} · {s.timeZone}</>}{s.folder && <><br /><bdi>{s.folder}</bdi></>}</dd></div>)}
+  </dl>}><span>Combined history</span><strong>Not available</strong></DetailLink>;
 }
 
 const ranges: [LocalUsageDays, string][] = [[7, '7 days'], [30, '30 days'], [90, '90 days'], [365, 'Year']];
@@ -217,29 +247,30 @@ export function LocalUsagePanel({ active }: { active: boolean }) {
   const [days, setDays] = useState<LocalUsageDays | 'custom'>(30);
   const [custom, setCustom] = useState({ start: '', end: '' });
   const [period, setPeriod] = useState<LocalUsagePeriod>('day');
+  const [scope, setScope] = useState('combined');
   const range = days === 'custom' ? customRange(custom.start, custom.end) : { days };
   // Hours cover at most 7 days. A longer range falls back to days (SC-021).
   const hourlyAllowed = !!range && ('days' in range ? range.days === 7 : (day(range.until).getTime() - day(range.since).getTime()) / 86_400_000 < 7);
   const shown = period === 'hour' && !hourlyAllowed ? 'day' : period;
-  const { view, failed } = useLocalUsage(active, range, shown);
+  const { view, failed } = useLocalUsage(active, range, shown, scope);
   const openCustom = () => { if (view && !custom.start) setCustom({ start: view.startDate, end: view.endDate }); setDays('custom'); };
   return <section className="local-usage" aria-label="This device" data-local-usage>
     <div className="overview-hero-controls">
-      <div className="overview-chips" role="group" aria-label="Dates">{ranges.map(([value, label]) => <Button key={value} variant="ghost" aria-pressed={days === value} onClick={() => setDays(value)}>{label}</Button>)}
-        <Button variant="ghost" aria-pressed={days === 'custom'} onClick={openCustom} data-local-custom>Custom</Button></div>
-      <div className="overview-chips" role="group" aria-label="Grouping">{periods.map(([value, label]) => <Button key={value} variant="ghost" aria-pressed={shown === value} disabled={value === 'hour' && !hourlyAllowed} onClick={() => setPeriod(value)}>{label}</Button>)}</div>
-      {view && view.tools.length > 0 && <ShareButton />}
+      {view && <ScopeChoice view={view} scope={scope} onChange={setScope} />}
+      {!scope.startsWith('unplaced:') && <><div className="overview-chips" role="group" aria-label="Dates">{ranges.map(([value, label]) => <Button key={value} variant="ghost" aria-pressed={days === value} disabled={scope.startsWith('unplaced:')} onClick={() => setDays(value)}>{label}</Button>)}
+        <Button variant="ghost" aria-pressed={days === 'custom'} disabled={scope.startsWith('unplaced:')} onClick={openCustom} data-local-custom>Custom</Button></div>
+      <div className="overview-chips" role="group" aria-label="Grouping">{periods.map(([value, label]) => <Button key={value} variant="ghost" aria-pressed={shown === value} disabled={scope.startsWith('unplaced:') || (value === 'hour' && !hourlyAllowed)} onClick={() => setPeriod(value)}>{label}</Button>)}</div></>}
+      {view && view.available && view.dated && view.tools.length > 0 && <ShareButton scope={view.scope} />}
     </div>
-    {days === 'custom' && <div className="local-date-range" role="group" aria-label="Custom dates">
+    {days === 'custom' && !scope.startsWith('unplaced:') && <div className="local-date-range" role="group" aria-label="Custom dates">
       <label>From<input type="date" value={custom.start} max={custom.end || undefined} onChange={e => setCustom({ ...custom, start: e.target.value })} /></label>
       <label>To<input type="date" value={custom.end} min={custom.start || undefined} onChange={e => setCustom({ ...custom, end: e.target.value })} /></label>
       {!range && <p className="operation-error" role="alert">Choose a start and an end at most 366 days apart.</p>}
     </div>}
     {failed && <p className="operation-error" role="alert">OpenUsage could not read saved local usage. Try again.</p>}
-    {!view ? !failed && <p className="overview-dim" role="status">Loading…</p> : view.tools.length === 0 ? <div className="empty-state"><h3>No saved local usage for these dates</h3></div> : <>
+    {!view ? !failed && <p className="overview-dim" role="status">Loading…</p> : !view.available ? <UnavailableHistory view={view} /> : view.tools.length === 0 && view.sessions.length === 0 ? <div className="empty-state"><h3>{view.dated ? 'No saved local usage for these dates' : 'No saved undated usage'}</h3></div> : <>
       <div className="local-tool-grid">{view.tools.map(totals => <ToolCard key={totals.tool} totals={totals} view={view} />)}</div>
-      <Records view={view} />
-      <div className="overview-days"><LocalBars view={view} period={shown} /></div>
+      {view.dated && <><Records view={view} /><div className="overview-days"><LocalBars view={view} period={shown} /></div></>}
       <Models view={view} />
       <Projects view={view} />
       <Sessions view={view} />
@@ -250,10 +281,10 @@ export function LocalUsagePanel({ active }: { active: boolean }) {
 /** The last 30 days on Overview, so first launch reaches local history with no sign-in (OU-UI-025). */
 export function LocalOverview({ active, onOpen }: { active: boolean; onOpen: () => void }) {
   const { view } = useLocalUsage(active, { days: 30 }, 'day');
-  if (!view || view.tools.length === 0) return null;
+  if (!view || (view.available && view.tools.length === 0 && view.scopes.length < 2)) return null;
   return <section className="local-overview" aria-labelledby="local-overview-heading" data-local-overview>
-    <div className="overview-section-heading"><h2 id="local-overview-heading">This device</h2><span className="local-overview-range">Last 30 days</span><ShareButton /><Button variant="outline" onClick={onOpen} data-local-overview-open>Open in Usage</Button></div>
-    <div className="local-tool-grid">{view.tools.map(totals => <ToolCard key={totals.tool} totals={totals} view={view} />)}</div>
-    <div className="overview-days"><LocalBars view={view} period="day" /></div>
+    <div className="overview-section-heading"><h2 id="local-overview-heading">This device</h2><span className="local-overview-range">Last 30 days</span><>{view.available && view.tools.length > 0 && <ShareButton />}</><Button variant="outline" onClick={onOpen} data-local-overview-open>Open in Usage</Button></div>
+    {view.available ? <><div className="local-tool-grid">{view.tools.map(totals => <ToolCard key={totals.tool} totals={totals} view={view} />)}</div>
+    {view.tools.length > 0 && <div className="overview-days"><LocalBars view={view} period="day" /></div>}</> : <UnavailableHistory view={view} />}
   </section>;
 }

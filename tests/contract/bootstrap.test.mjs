@@ -884,3 +884,17 @@ test('activity dashboard rejects forged coverage, shares, identities and non-exa
     desktopResponse(invalid);await assert.rejects(invoke('load_activity_dashboard',args),/desktop response is incompatible/);
   }
 });
+
+test('local saved views retain independent totals and nulls without enabling scanners', async () => {
+  const { localUsage } = await import('../renderer/local-usage-fixture.ts');
+  const base = localUsage();
+  const tool = { tool: 'kilo', totalTokens: '9007199254740993', inputTokens: '10', outputTokens: null, cacheWriteTokens: null, cacheReadTokens: null, reasoningTokens: null, estimatedValueUsdMicros: null, estimateComplete: false, logsGone: false };
+  const value = { ...base, tools: [tool], models: [{ tool: 'kilo', model: 'm', totalTokens: null, estimatedValueUsdMicros: null }], buckets: [], differences: [], sessions: [], projects: [], hours: [] };
+  desktopResponse(value); assert.deepEqual(await invoke('load_local_usage', { days: 30, period: 'day' }), value);
+  for (const change of [{ inputTokens: '9007199254740994' }, { outputTokens: '01' }, { reasoningTokens: '9007199254740993' }, { inputTokens: 10 }, { tool: 'unknown-tool' }]) {
+    desktopResponse({ ...value, tools: [{ ...tool, ...change }] });
+    await assert.rejects(invoke('load_local_usage', { days: 30, period: 'day' }), /desktop response is incompatible/);
+  }
+  desktopResponse({ ...value, scopes: null });
+  await assert.rejects(invoke('load_local_usage', { days: 30, period: 'day' }), /desktop response is incompatible/);
+});

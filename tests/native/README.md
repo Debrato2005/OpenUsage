@@ -312,3 +312,5 @@ Build the CLI with `cargo build -p openusage-cli --features native-test`, then r
 Run `node tests/native/share-images.mjs` with the private display and drivers above.
 
 `NATIVE-SHARE-IMAGES-001` creates a password workspace with synthetic Claude Code and Codex logs in a private home, and scans them with the real pinned `ccusage`. It opens Share from This device on Overview. A preview must save nothing. Save PNG and Save SVG must each write one file in the private Downloads/OpenUsage folder. The PNG must be 2400 by 1260 pixels, and the SVG must hold the exact total and no path, project name or password text.
+
+The native share journey also selects one saved folder and checks its exact total. Unknown and undated scopes must fail. The selected image must contain no folder path or project name.

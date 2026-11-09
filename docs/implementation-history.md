@@ -4,6 +4,10 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f10a result before L-1f10b
+
+Latest scoped result, November 9, 2026: L-1f10a adds a shared Rust read contract. It keeps grouped dated data, unplaced data, and legacy source history separate. Four focused tests and the full Rust verification plan passed. The native read-only CLI regression passed against rebuilt binaries with private synthetic data on Linux. Desktop and CLI integration remain open. [Traceability](acceptance-traceability.md) records the scope.
+
 ## L-1f9 result before L-1f10a
 
 Latest scoped result, November 9, 2026: L-1f9 adds grouped scans for the sixteen candidate tools, which remain disabled. Claude Code and Codex save all required reports in one transaction. Full Rust workspace tests, final Clippy, native database checks, the renderer build, and 56 IPC contracts passed. Four rebuilt native journeys passed with private synthetic data on Linux. [Traceability](acceptance-traceability.md) records the corrected failures and unexecuted gates.

@@ -8,8 +8,8 @@ type Usage = ReturnType<typeof localUsage>;
 type FixtureWindow = Window & { usageCalls: Record<string, unknown>[] };
 const ready = { storage: 'ready', theme: 'light', schemaVersion: 10, activeProfiles: 0, monitoring: 'stopped', provider: 'not_configured', keyProtection: 'os_store', storageIssue: null };
 
-async function open(page: Page, usage: Usage | Record<string, unknown>) {
-  await page.addInitScript(({ boot, usage }) => {
+async function open(page: Page, usage: Usage | Record<string, unknown>, scopes: Record<string, unknown> = {}) {
+  await page.addInitScript(({ boot, usage, scopes }) => {
     const calls: Record<string, unknown>[] = []; Object.assign(window, { usageCalls: calls });
     window.__TAURI__ = { core: { invoke: async <T>(command: string, args: Record<string, unknown> = {}) => {
       if (command === 'load_time_zone') return { timeZone: 'UTC' } as T;
@@ -18,10 +18,10 @@ async function open(page: Page, usage: Usage | Record<string, unknown>) {
       if (command === 'list_profiles') return { activeProfiles: 0, profiles: [] } as T;
       if (command === 'load_monitoring') return { state: 'stopped', readingRevision: '11111111-1111-4111-8111-111111111111', profiles: [] } as T;
       if (command === 'load_local_logs') return { consentRequired: false, tools: [{ tool: 'claude', detected: true, granted: true }, { tool: 'codex', detected: true, granted: true }], scan: { state: 'idle', lastScanAtUtc: null } } as T;
-      if (command === 'load_local_usage') { calls.push(args); return usage as T; }
+      if (command === 'load_local_usage') { calls.push(args); return (scopes[String(args.scope)] ?? usage) as T; }
       throw new Error(`Unexpected synthetic command ${command}`);
     } } };
-  }, { boot: ready, usage });
+  }, { boot: ready, usage, scopes });
   await page.goto('/');
 }
 const usageCalls = (page: Page) => page.evaluate(() => (window as unknown as FixtureWindow).usageCalls);
@@ -162,7 +162,7 @@ test('a session whose reasoning exceeds its total is refused', async ({ page }) 
 });
 
 test('no saved local usage hides the Overview section and Usage shows one empty state', async ({ page }) => {
-  await open(page, { ...localUsage(), tools: [], models: [], buckets: [], differences: [], activeDays: 0, longestStreakDays: 0, busiestDay: null });
+  await open(page, { ...localUsage(), tools: [], models: [], buckets: [], differences: [], sessions: [], projects: [], activeDays: 0, longestStreakDays: 0, busiestDay: null });
   await expect(page.getByRole('heading', { name: 'No accounts', exact: true })).toBeVisible();
   await expect(page.locator('[data-local-overview]')).toHaveCount(0);
   await navigate(page, 'usage');
@@ -176,4 +176,63 @@ test('a response whose parts do not add up is refused and shows an error, not nu
   await expect(device(page).getByRole('alert')).toHaveText('OpenUsage could not read saved local usage. Try again.');
   await expect(device(page).locator('[data-local-tool]')).toHaveCount(0);
   await expect(page.locator('[data-local-overview]')).toHaveCount(0);
+});
+
+test('undated totals and missing details stay outside date charts and share images', async ({ page }) => {
+  const duplicateKeys: string[] = [];
+  page.on('console', message => { if (message.text().includes('Encountered two children with the same key')) duplicateKeys.push(message.text()); });
+  const base = localUsage();
+  const scopes = [...base.scopes, { id: 'unplaced:opencode', kind: 'unplaced', tool: 'opencode', timeZone: null, folder: null, totalTokens: '173' }];
+  const undated = { ...base, scope: 'unplaced:opencode', scopes, dated: false, timeZone: 'UTC',
+    tools: [{ tool: 'opencode', inputTokens: null, outputTokens: null, cacheWriteTokens: null, cacheReadTokens: null, reasoningTokens: null, totalTokens: '173', estimatedValueUsdMicros: null, estimateComplete: false, logsGone: false }],
+    models: [{ tool: 'opencode', model: 'm', totalTokens: null, estimatedValueUsdMicros: null }],
+    buckets: [], differences: [100, 80].map(saved => ({ date: null, model: null, tool: 'opencode', savedTotalTokens: String(saved), newTotalTokens: '0', scanAtUtc: '2026-11-08T12:00:00.000Z' })), activeDays: null, longestStreakDays: null, busiestDay: null, projects: [], startUtc: null, endUtc: null, hours: [], hourTools: [],
+    sessions: [{ key: 'synthetic', tool: 'opencode', project: null, startUtc: null, endUtc: null, totalTokens: '999', reasoningTokens: null, estimatedValueUsdMicros: null }],
+  };
+  await open(page, { ...base, scopes }, { 'unplaced:opencode': undated });
+  await navigate(page, 'usage');
+  await device(page).getByRole('combobox', { name: 'Saved history' }).click();
+  await page.getByRole('option', { name: 'OpenCode · Undated', exact: true }).click();
+  await expect(device(page).locator('[data-local-tool-total="173"]')).toBeVisible();
+  await expect(device(page).locator('[data-local-bars], [data-local-records], [data-share-open]')).toHaveCount(0);
+  await expect(device(page).getByRole('group', { name: 'Dates', exact: true })).toHaveCount(0);
+  await expect(device(page).getByRole('group', { name: 'Grouping', exact: true })).toHaveCount(0);
+  await expect(device(page).locator('[data-local-sessions] time')).toHaveCount(0);
+  await expect(device(page).locator('[data-local-session]')).toContainText('Not available');
+  await expect(device(page).getByRole('row', { name: /^m / })).toContainText('Not availableNot available');
+  await device(page).locator('[data-local-tool-total]').click();
+  await expect(page.locator('[data-detail-panel][open]')).toContainText('InputNot available');
+  await expect(page.locator('[data-detail-panel][open]')).toContainText('Total173');
+  await expect(page.locator('[data-detail-panel][open] .local-differences li')).toHaveCount(2);
+  expect(duplicateKeys).toEqual([]);
+  expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations).toEqual([]);
+});
+
+test('ambiguous history exposes each folder in the detail panel without a combined number', async ({ page }) => {
+  const base = localUsage();
+  const ids = ['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'];
+  const scopes = [...base.scopes, ...ids.map((id, index) => ({ id: `legacy:${id}`, kind: 'legacy', tool: 'claude', timeZone: index ? 'Asia/Kolkata' : 'UTC', folder: `/synthetic/folder-${index + 1}`, totalTokens: '100' }))];
+  const unavailable = { ...base, scopes, available: false, tools: [], models: [], buckets: [], sessions: [], projects: [], differences: [], hours: [], activeDays: null, longestStreakDays: null, busiestDay: null };
+  const selected = { ...base, scopes, scope: scopes[1]!.id, tools: [{ ...base.tools[0]!, inputTokens: '100', outputTokens: '0', cacheWriteTokens: '0', cacheReadTokens: '0', totalTokens: '100' }], models: [], buckets: [], differences: [] };
+  await open(page, unavailable, { [selected.scope]: selected });
+  await navigate(page, 'usage');
+  await device(page).getByRole('button', { name: 'Combined history: Not available', exact: true }).click();
+  const panel = page.locator('[data-detail-panel][open]');
+  await expect(panel).toContainText('/synthetic/folder-1'); await expect(panel).toContainText('/synthetic/folder-2');
+  await expect(panel).toContainText('2026-10-10 to 2026-11-08 · Asia/Kolkata');
+  await page.keyboard.press('Escape');
+  await expect(device(page).locator('[data-share-open], [data-local-bars]')).toHaveCount(0);
+  await device(page).getByRole('combobox', { name: 'Saved history' }).click();
+  await page.getByRole('option', { name: 'Claude Code · Folder 1', exact: true }).click();
+  await expect(device(page).locator('[data-local-tool-total="100"]')).toBeVisible();
+  expect((await usageCalls(page)).at(-1)).toEqual({ days: 30, period: 'day', scope: selected.scope });
+});
+
+test('a saved zero day has a value while an absent tool-day remains unavailable', async ({ page }) => {
+  const base = localUsage();
+  await open(page, { ...base, buckets: [{ startDate: '2026-11-08', tool: 'claude', totalTokens: '0' }] });
+  await navigate(page, 'usage');
+  const chart = device(page).locator('[data-local-bars]');
+  await expect(chart.locator('title').filter({ hasText: /^2026-11-08:/ })).toHaveText('2026-11-08: 0 tokens');
+  await expect(chart.locator('table tbody tr')).toHaveText('2026-11-080Not available');
 });
