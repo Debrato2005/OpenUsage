@@ -56,6 +56,58 @@ fn four_recorded_daily_reports_preserve_independent_totals() {
 }
 
 #[test]
+fn recorded_kilo_qualification_gaps_stay_disabled_and_keep_unknown_metrics() {
+    let cases: Value = serde_json::from_slice(include_bytes!(
+        "fixtures/remaining-tools/kilo-qualification.json"
+    ))
+    .unwrap();
+    assert!(
+        !openusage_locallogs::tools()
+            .iter()
+            .find(|t| t.id == "kilo")
+            .unwrap()
+            .enabled
+    );
+    // The parser cannot recover identities or omitted rows from an aggregate report.
+    // Matching these reports does not qualify their duplicate handling.
+    for (name, reports) in cases.as_object().unwrap() {
+        let expected = reports["daily"]["totals"]["totalTokens"].as_u64().unwrap();
+        let daily = parse("kilo", &reports["daily"]).unwrap();
+        let sessions =
+            parse_agent_sessions("kilo", &serde_json::to_vec(&reports["session"]).unwrap())
+                .unwrap();
+        if matches!(name.as_str(), "empty" | "missing_time") {
+            assert!(daily.is_none());
+            assert!(sessions.is_none());
+            continue;
+        }
+        let daily = daily.unwrap();
+        let sessions = sessions.unwrap();
+        assert_eq!(daily.total_tokens, expected, "{name}");
+        assert_eq!(sessions.total_tokens, expected, "{name}");
+        assert_eq!(daily.details, TokenDetails::default());
+        assert_eq!(sessions.details, TokenDetails::default());
+        assert_eq!(daily.estimated_value_micros, None);
+        assert_eq!(sessions.estimated_value_micros, None);
+        for period in &daily.periods {
+            assert_eq!(period.details, TokenDetails::default());
+            assert_eq!(period.estimated_value_micros, None);
+        }
+        for session in &sessions.sessions {
+            assert_eq!(session.details, TokenDetails::default());
+            assert_eq!(session.estimated_value_micros, None);
+            assert_eq!(session.first_activity_utc, None);
+            assert_eq!(session.last_activity_utc, None);
+            assert_eq!(session.project, None);
+        }
+        for model in daily.models.iter().chain(&sessions.models) {
+            assert_eq!(model.details, TokenDetails::default());
+            assert_eq!(model.estimated_value_micros, None);
+        }
+    }
+}
+
+#[test]
 fn the_other_twelve_tools_use_only_an_explicit_unplaced_scope() {
     let mut unplaced = Vec::new();
     for tool in openusage_locallogs::tools().iter().filter(|t| !t.enabled) {

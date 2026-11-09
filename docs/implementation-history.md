@@ -4,6 +4,10 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## R-1 result before L-1f11a
+
+Latest scoped result, November 10, 2026: R-1 fixes a race in synthetic executable creation. A captured process-spawn error, the fixture source, and Linux/Rust sources identify inherited writable handles as the cause of the reproduced failure. Test-only helpers wait for those handles to close, with a deadline. The focused regression, eight fixed stress samples, full Rust plan, and rebuilt native provider-lifecycle journey passed on Linux. The original cleanup failure's OS error was not captured. Its cause remains unconfirmed. L-1f11 qualification is next.
+
 ## L-1f10c result before R-1
 
 Latest scoped result, November 10, 2026: L-1f10c connects the CLI to separate saved scopes and completes shared-read round trips. JSON version 2 preserves missing measurements and record times. CLI report scans each tool's detected roots together and saves nothing. Final Rust and six native journeys passed with synthetic data on Linux. [Traceability](acceptance-traceability.md) records a cleanup-test failure whose cause remains unconfirmed. The next task isolates the intermittent fixture startup failure, before L-1f11 qualification.

@@ -26,7 +26,7 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scoped result, November 10, 2026: R-1 fixes a race in synthetic executable creation. A captured process-spawn error, the fixture source, and Linux/Rust sources identify inherited writable handles as the cause of the reproduced failure. Test-only helpers wait for those handles to close, with a deadline. The focused regression, eight fixed stress samples, full Rust plan, and rebuilt native provider-lifecycle journey passed on Linux. The original cleanup failure's OS error was not captured. Its cause remains unconfirmed. L-1f11 qualification is next.
+Latest scoped result, November 10, 2026: L-1f11a records 16 Kilo cases against the pinned scanner and Kilo's own storage source. Legacy copies and forks double tokens. Conflicts depend on root order, and incomplete reads can appear successful. Replay and the tested compaction case count correctly. Kilo stays disabled. The regression checks preserve unavailable prices, details, and session metadata. Full selected checks and native consent passed with private synthetic data on Linux. AT-65 remains failed for Kilo.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -152,7 +152,7 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 
 ## Current assignment
 
-The next assignment is [L-1f11a](implementation-slices.md#next-assignment-l-1f11a): qualify Kilo with copied, forked, replayed, and compacted synthetic fixtures. R-1 and L-1f10 are complete. L-1f11 remains open for all sixteen candidate tools. [SC-024](srs-clarifications.md#sc-024-legacy-local-usage-during-grouped-migration) keeps legacy records and zones separate from grouped totals.
+The next assignment is [L-1f11b](implementation-slices.md#next-assignment-l-1f11b): qualify ZCode against its pinned source and actual scanner reports. Kilo's count defects need a scanner candidate with proven identities and complete reads. No tool or production pin changes during this slice. The Amp candidate stays unpublished. L-1f11 remains open for all sixteen candidates.
 
 L-1f0 through L-1f10 are complete within their recorded scope. Only Claude Code and Codex are enabled. The Amp patch is a local candidate, and the production scanner pin is unchanged.
 
