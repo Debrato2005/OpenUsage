@@ -111,7 +111,7 @@ Updated November 9, 2026. The owner asked to keep this list and to build down it
 - [x] L-1f5: add the strict common session parser and nullable metric types for the sixteen disabled tools. Eight focused tests cover recorded reports, incomplete model attribution, empty reports, reported zero totals, and malformed values. The diagnostic workspace run, formatting, Clippy, renderer build, IPC contracts, and rebuilt native consent journey passed on Linux. The initial workspace failure did not recur and its cause remains unconfirmed. Storage and scanner integration remain open.
 - [x] L-1f6: prepare and test an unpublished Amp duplicate patch against the pinned source. Stable-ID copies count once. Conflicts and incomplete reads fail. All 28 adapter tests and 210 scanner comparisons passed. The production pin stays unchanged. Remaining AT-65 and integration gates remain open. See the [candidate record](reviews/2026-11-08-amp-dedup-design.md#local-candidate-after-review).
 - [x] L-1f7: preserve independent period totals and nullable details in a strict report contract. Amp, Pi, Kilo, and ZCode use daily reports. The other twelve tools stay unplaced. Seven focused tests, full Rust checks, 98 scanner comparisons, and the rebuilt native consent journey passed with synthetic data on Linux. No tool or production pin changed.
-- [ ] L-1f8: store coherent period totals and model details, with nullable session times and a tested migration. Preserve older backups and accepted history. Resolve legacy overlap and conflicting-zone questions before the migration.
+- [ ] L-1f8: store coherent period totals and model details, with nullable session times and a tested migration. Preserve older backups and accepted history. Resolve the legacy-history decision in [SC-024](srs-clarifications.md#sc-024-legacy-local-usage-during-grouped-migration) before the migration.
 - [ ] L-1f9: group consented roots by tool in the scanner and save each accepted result once. Validate every root and all required reports before saving. Preserve prior data when any required report fails.
 - [ ] L-1f10: carry the new totals and unavailable fields through desktop, CLI, export, backup, restore, and sharing. Keep unplaced usage out of dated views. Run the affected renderer and native gates.
 - [ ] L-1f11: qualify each tool with copied, forked, replayed, and compacted fixtures under AT-65. Complete the Amp candidate gates before any pin change. Enable only qualified tools. L-1f stays open until all sixteen pass their required checks.
@@ -188,7 +188,7 @@ Stopping condition: the contract and checks are complete, with one local commit 
 
 Goal: store independent period totals and nullable details without losing accepted history. Follow OU-LOG-003, OU-LOG-010 to OU-LOG-013, OU-LOG-017, and [SC-022](srs-clarifications.md#sc-022-incomplete-metrics-from-the-other-local-tools).
 
-Scope: Rust storage, a forward migration, backup compatibility, and synthetic storage fixtures. Resolve legacy overlap and conflicting pinned zones before changing saved records. The [storage proposal](reviews/2026-11-08-incomplete-local-metrics.md) remains design input.
+Scope: Rust storage, a forward migration, backup compatibility, and synthetic storage fixtures. The legacy-history decision in [SC-024](srs-clarifications.md#sc-024-legacy-local-usage-during-grouped-migration) must precede the migration. The [storage proposal](reviews/2026-11-08-incomplete-local-metrics.md) remains design input.
 
 Acceptance:
 

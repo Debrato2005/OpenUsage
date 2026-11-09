@@ -148,7 +148,9 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 
 ## Current assignment
 
-The next assignment is [L-1f8](implementation-slices.md#next-assignment-l-1f8): store independent period totals and nullable details. L-1f0 through L-1f7 are complete within their recorded scope. Only Claude Code and Codex are enabled. The Amp patch is a local candidate, and the production scanner pin is unchanged.
+The next assignment is [L-1f8](implementation-slices.md#next-assignment-l-1f8): store independent period totals and nullable details. Source review found a legacy-history decision in [SC-024](srs-clarifications.md#sc-024-legacy-local-usage-during-grouped-migration). The migration waits for that decision.
+
+L-1f0 through L-1f7 are complete within their recorded scope. Only Claude Code and Codex are enabled. The Amp patch is a local candidate, and the production scanner pin is unchanged.
 
 The [build checklist](implementation-slices.md#build-checklist) defines L-1f8 through L-1f11 and their order. [SC-022](srs-clarifications.md#sc-022-incomplete-metrics-from-the-other-local-tools) governs missing metrics. The [storage proposal](reviews/2026-11-08-incomplete-local-metrics.md) remains design input. Resolve its migration questions before changing stored history. [SC-023](srs-clarifications.md#sc-023-copied-amp-usage-in-the-pinned-scanner) holds the Amp qualification limits. OQ-1 and the owner release gates remain open.
 
