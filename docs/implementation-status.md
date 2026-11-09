@@ -26,7 +26,7 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scoped result, November 10, 2026: L-1f11g makes the local Pi candidate build daily and session reports from one captured entry set. OpenUsage rejects invalid envelopes and has no fallback to separate commands. All 67 Pi tests, 96 CLI parser tests, nine candidate Python tests, and 32 local-log unit tests passed. Full Python/Rust verification and rebuilt native consent passed on synthetic Linux data. The [review](reviews/2026-11-10-pi-snapshot-candidate.md) records controlled writes, failures, and remaining gates. Pi stays disabled. The production pin and Amp patch are unchanged.
+Latest scoped result, November 10, 2026: L-1f11h preserves reported Pi zero observations and rejects absent required usage, totals, or times. Seventy synthetic cases distinguish zero, empty input, and unavailable data. All 70 adapter tests, ten candidate Python tests, five snapshot parser tests, and the storage regression passed. Full Python/Rust verification and rebuilt native consent passed on private synthetic Linux data. The [review](reviews/2026-11-10-pi-observations-candidate.md) records source evidence and remaining gates. Pi stays disabled. The production pin and Amp patch are unchanged.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -154,7 +154,7 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 
 ## Current assignment
 
-The next assignment is [L-1f11h](implementation-slices.md#next-assignment-l-1f11h): qualify Pi observations with zero usage or absent times. Distinguish measured zero from unavailable data and empty inputs. Preserve independent totals without invented dates or token categories. Keep candidates disabled and the production and Amp boundaries unchanged.
+The next assignment is [L-1f11i](implementation-slices.md#next-assignment-l-1f11i): qualify Pi output from the pinned producer under controlled local writes. Use private synthetic sessions without provider calls. Preserve the single-capture report boundary and saved history. Keep candidates disabled and the production and Amp boundaries unchanged.
 
 L-1f0 through L-1f10 are complete within their recorded scope. Only Claude Code and Codex are enabled. The Amp patch is a local candidate, and the production scanner pin is unchanged.
 

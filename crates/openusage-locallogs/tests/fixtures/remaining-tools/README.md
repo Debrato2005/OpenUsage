@@ -58,3 +58,15 @@ identity, format, and filesystem matrices. Source hashes stay unchanged.
 Rust tests preserve nullable details and reject incomplete, inconsistent, or
 duplicate-field envelopes. The [review](../../../../../docs/reviews/2026-11-10-pi-snapshot-candidate.md)
 owns the controlled-write evidence and remaining gates. Pi stays disabled.
+
+## Pi observation candidate
+
+`pi-observation-candidate.json` records seventy cases from the sixth local Pi
+patch. Thirty return reports and forty return unavailable. Explicit zero has
+rows, empty sources have none, and missing required measurements reject the scan.
+The test checks independent totals, row counts, and reported entry times before
+it compares recorded output. The inherited tests preserve the prior matrices,
+other tools, private homes, and source hashes. Rust tests cover nullable fields,
+zero records, and saved-history retention. The
+[review](../../../../../docs/reviews/2026-11-10-pi-observations-candidate.md)
+owns source evidence, digests, failures, and remaining gates. Pi stays disabled.

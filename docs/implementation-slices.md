@@ -123,11 +123,12 @@ Updated November 10, 2026. Each completed item has one local commit and scoped e
 - [x] L-1f11c: record 29 Pi cases and preserve missing fields in Rust. Copy, branch, and omitted-usage defects fail AT-65. Pi stays disabled. See the [qualification](reviews/2026-11-10-pi-qualification.md).
 - [x] L-1f11d: prepare a separate local Pi usage patch. Summary and standalone usage counts match. Identity and completeness gates remain open, so Pi stays disabled. See the [candidate](reviews/2026-11-10-pi-usage-candidate.md).
 - [x] L-1f11e: prepare a separate Pi identity patch. Scoped IDs and proven lineage count copies once and retain distinct calls. Ambiguous and unsupported inputs reject the scan. Completeness gates remain open. See the [candidate](reviews/2026-11-10-pi-identity-candidate.md).
-- [x] L-1f11f: scoped Pi format and filesystem corrections. Controlled changes and input limits pass. Zero-usage observations, absent times, producer execution, and release-scale performance remain qualification gates under L-1f11.
+- [x] L-1f11f: scoped Pi format and filesystem corrections. Controlled changes and input limits pass. L-1f11h covers observation semantics. Producer execution and release-scale performance remain qualification gates under L-1f11.
 - [x] L-1f11f0: map validated Pi records, preserve escaped JSON keys, reject ambiguous shapes, and keep independent assistant totals outside missing categories. See the [format candidate](reviews/2026-11-10-pi-format-candidate.md).
 - [x] L-1f11f1: bound Linux source reads and reject omitted or changed inputs. See the [filesystem candidate](reviews/2026-11-10-pi-filesystem-candidate.md).
 - [x] L-1f11g: build Pi daily and session views from one captured entry set and require a strict snapshot envelope. See the [candidate](reviews/2026-11-10-pi-snapshot-candidate.md).
-- [ ] L-1f11h: qualify explicit zero usage, absent measurements, and absent times. Keep unsupported observations unavailable and preserve saved history.
+- [x] L-1f11h: preserve reported zero observations and reject absent required usage, totals, or times. Seventy synthetic cases and saved-history checks passed. See the [candidate](reviews/2026-11-10-pi-observations-candidate.md).
+- [ ] L-1f11i: qualify the Pi candidate against pinned producer execution and bounded concurrent writes with private synthetic sessions.
 - [x] R-2: reuse the bounded writer in desktop synthetic fixtures. The inherited-writer regression, 22 provider tests, full Rust, and native provider-lifecycle passed. The original cooldown failure remains unexplained. See the [review](reviews/2026-11-10-desktop-fixture-writes.md).
 - [x] R-1: use bounded test-fixture writes to prevent inherited writable handles from blocking execution. Full Rust and native provider-lifecycle checks passed. See the [investigation](reviews/2026-11-10-executable-fixture-race.md).
 - [x] L-1g1: sessions, projects and the reasoning count from the `ccusage` session report of each tool, at schema 11 (OU-LOG-017, [SC-021](srs-clarifications.md#sc-021-sessions-projects-hours-and-reasoning-from-the-pinned-ccusage)).
@@ -424,7 +425,7 @@ Acceptance:
 
 Stopping condition: one verified report-consistency result, owning docs, a local commit, and a Graphify update. Then continue the next unresolved qualification issue.
 
-### Next assignment: L-1f11h
+### L-1f11h: Pi observation semantics (complete within scope)
 
 Goal: qualify the Pi candidate's handling of zero usage and absent times. Preserve the completed single-capture report boundary and saved history.
 
@@ -437,6 +438,20 @@ Acceptance:
 - Run doctor, focused adapter/parser comparisons, the selected verification plan, and affected native acceptance. Record failures, interruptions, and unexecuted checks.
 
 Stopping condition: one bounded observation-semantics result, updated owning docs and handoffs, a local commit, and a Graphify update. Report the next open slice and stop.
+
+### Next assignment: L-1f11i
+
+Goal: qualify the Pi candidate against pinned producer execution and controlled concurrent writes. Use private synthetic sessions without real accounts or provider calls.
+
+Acceptance:
+
+- Run the pinned producer's session writer with synthetic append, summary, branch, and fork operations. Compare its files with independent usage expectations.
+- Exercise bounded, controlled writes during candidate collection. Each result must contain a reliable complete report or return unavailable without replacement data.
+- Preserve zero observations, missing measurements, source isolation, duplicate handling, and the single-capture report boundary. Preserve saved history after rejected scans.
+- Keep Pi disabled, the other twelve tools unplaced, the production scanner pin unchanged, and the Amp patch unpublished. Record any unresolved contract or runtime gap.
+- Run doctor, focused comparisons, the selected verification plan, and affected native checks. Record failures and unexecuted checks without automatic retries.
+
+Stopping condition: one bounded producer-execution result, updated owning docs and handoffs, one local commit, and a Graphify update. Report the next open slice and stop.
 
 ## Order
 

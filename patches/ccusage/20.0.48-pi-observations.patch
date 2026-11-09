@@ -1,0 +1,154 @@
+diff --git a/rust/adapters/pi/src/identity.rs b/rust/adapters/pi/src/identity.rs
+--- a/rust/adapters/pi/src/identity.rs
++++ b/rust/adapters/pi/src/identity.rs
+@@ -165,6 +165,9 @@
+     }
+     let usage = fields.get("usage");
+     let Some(usage) = usage else {
++        if kind == "usage" {
++            return Err(unavailable());
++        }
+         return Ok(());
+     };
+     if !matches!(kind, "message" | "usage" | "compaction" | "branch_summary") || !usage.is_object()
+@@ -172,22 +175,19 @@
+         return Err(unavailable());
+     }
+     let mut sum = 0u64;
+-    let mut reported = false;
+     for field in ["input", "output", "cacheRead", "cacheWrite"] {
+         if let Some(count) = usage.get(field) {
+-            reported = true;
+             sum = sum
+                 .checked_add(count.as_u64().ok_or_else(unavailable)?)
+                 .ok_or_else(unavailable)?;
+         }
+     }
+-    if let Some(total) = usage.get("totalTokens") {
+-        reported = true;
+-        if total.as_u64().ok_or_else(unavailable)? < sum {
+-            return Err(unavailable());
+-        }
+-    }
+-    if !reported {
++    // Category subtotals cannot establish an absent independent total.
++    let total = usage
++        .get("totalTokens")
++        .and_then(Value::as_u64)
++        .ok_or_else(unavailable)?;
++    if total < sum {
+         return Err(unavailable());
+     }
+     Ok(())
+diff --git a/rust/adapters/pi/src/parser.rs b/rust/adapters/pi/src/parser.rs
+--- a/rust/adapters/pi/src/parser.rs
++++ b/rust/adapters/pi/src/parser.rs
+@@ -385,9 +385,6 @@
+         };
+         // The independent total never identifies a missing token category.
+         let extra_total_tokens = total.saturating_sub(crate::total_usage_tokens(usage));
+-        if crate::total_usage_tokens(usage) + extra_total_tokens == 0 {
+-            continue;
+-        }
+         let raw_model = raw_model.map(str::to_owned);
+         let display_cost = usage_value.cost.as_ref().and_then(|cost| cost.total);
+         let model = raw_model
+diff --git a/rust/adapters/pi/src/snapshot_tests.rs b/rust/adapters/pi/src/snapshot_tests.rs
+--- a/rust/adapters/pi/src/snapshot_tests.rs
++++ b/rust/adapters/pi/src/snapshot_tests.rs
+@@ -97,3 +97,95 @@
+     assert_eq!(report["daily"]["totals"]["totalTokens"], 0);
+     assert_eq!(report["session"]["totals"]["totalTokens"], 0);
+ }
++
++#[test]
++fn snapshot_preserves_reported_zero_as_an_observation() {
++    let fixture = Fixture::new();
++    write(
++        &fixture,
++        "sessions/root.jsonl",
++        header("root", None),
++        &[event("aaaaaaaa", None, 0)],
++    );
++    let entries = load(&[fixture.path("sessions")]).unwrap();
++    let report = snapshot_from_entries(&entries, &SharedArgs::with_defaults()).unwrap();
++    assert_eq!(report["daily"]["daily"].as_array().unwrap().len(), 1);
++    assert_eq!(report["daily"]["daily"][0]["totalTokens"], 0);
++    assert_eq!(report["session"]["sessions"].as_array().unwrap().len(), 1);
++    assert_eq!(report["session"]["sessions"][0]["sessionId"], "root");
++    assert_eq!(report["session"]["sessions"][0]["totalTokens"], 0);
++}
++
++#[test]
++fn absent_required_usage_or_total_cannot_be_a_complete_scan() {
++    for kind in ["message", "usage", "compaction", "branch_summary"] {
++        for missing in ["usage", "totalTokens"] {
++            if missing == "usage" && matches!(kind, "compaction" | "branch_summary") {
++                continue;
++            }
++            let fixture = Fixture::new();
++            let mut row = event("aaaaaaaa", None, 120);
++            row["type"] = json!(kind);
++            if kind != "message" {
++                row["usage"] = row["message"]["usage"].clone();
++                row.as_object_mut().unwrap().remove("message");
++            }
++            let fields = if kind == "message" {
++                &mut row["message"]
++            } else {
++                &mut row
++            };
++            if missing == "usage" {
++                fields.as_object_mut().unwrap().remove("usage");
++            } else {
++                fields["usage"]
++                    .as_object_mut()
++                    .unwrap()
++                    .remove("totalTokens");
++            }
++            write(
++                &fixture,
++                "sessions/root.jsonl",
++                header("root", None),
++                &[row],
++            );
++            assert!(
++                load(&[fixture.path("sessions")]).is_err(),
++                "{kind}: {missing}"
++            );
++        }
++    }
++}
++
++#[test]
++fn zero_copies_and_forks_keep_one_observation_and_distinct_calls() {
++    let fixture = Fixture::new();
++    let zero = event("aaaaaaaa", None, 0);
++    let parent = write(
++        &fixture,
++        "sessions/root.jsonl",
++        header("root", None),
++        std::slice::from_ref(&zero),
++    );
++    std::fs::copy(&parent, fixture.path("sessions/copy.jsonl")).unwrap();
++    write(
++        &fixture,
++        "sessions/fork.jsonl",
++        header("fork", Some(&parent)),
++        &[zero],
++    );
++    let entries = load(&[fixture.path("sessions")]).unwrap();
++    assert_eq!(entries.len(), 1);
++    assert_eq!(entries[0].session_id.as_ref(), "root");
++    write(
++        &fixture,
++        "sessions/distinct.jsonl",
++        header("distinct", None),
++        &[event("aaaaaaaa", None, 0)],
++    );
++    let entries = load(&[fixture.path("sessions")]).unwrap();
++    assert_eq!(entries.len(), 2);
++    let report = snapshot_from_entries(&entries, &SharedArgs::with_defaults()).unwrap();
++    assert_eq!(report["session"]["sessions"].as_array().unwrap().len(), 2);
++    assert_eq!(report["daily"]["daily"].as_array().unwrap().len(), 1);
++}

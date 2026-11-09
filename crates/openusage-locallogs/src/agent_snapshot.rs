@@ -127,4 +127,79 @@ mod tests {
         incomplete["session"] = reports["empty"]["session"].clone();
         assert!(parse_pi_snapshot(&serde_json::to_vec(&incomplete).unwrap()).is_err());
     }
+
+    #[test]
+    fn observed_zero_is_a_record_and_missing_measurements_stay_unavailable() {
+        let reports: Value = serde_json::from_slice(include_bytes!(
+            "../tests/fixtures/remaining-tools/pi-observation-candidate.json"
+        ))
+        .unwrap();
+        for case in [
+            "message_zero",
+            "message_zero_total_only",
+            "zero_unattributed",
+        ] {
+            let result = parse_pi_snapshot(&serde_json::to_vec(&reports[case]).unwrap()).unwrap();
+            assert_eq!(result.periods.len(), 1, "{case}");
+            assert_eq!(result.sessions.len(), 1, "{case}");
+            assert_eq!(result.periods[0].total_tokens, 0);
+            assert_eq!(result.sessions[0].total_tokens, 0);
+            assert_eq!(result.periods[0].details, crate::TokenDetails::default());
+            assert_eq!(result.sessions[0].details, crate::TokenDetails::default());
+            assert_eq!(result.periods[0].estimated_value_micros, None);
+            assert_eq!(result.sessions[0].estimated_value_micros, None);
+        }
+        let mut zero = reports["message_zero_total_only"].clone();
+        zero["session"]["sessions"][0]["firstActivity"] = Value::Null;
+        zero["session"]["sessions"][0]["lastActivity"] = Value::Null;
+        let result = parse_pi_snapshot(&serde_json::to_vec(&zero).unwrap()).unwrap();
+        assert_eq!(result.sessions[0].first_activity_utc, None);
+        assert_eq!(result.sessions[0].last_activity_utc, None);
+        zero["session"] = reports["empty"]["session"].clone();
+        assert!(parse_pi_snapshot(&serde_json::to_vec(&zero).unwrap()).is_err());
+    }
+
+    #[test]
+    fn all_supported_observation_reports_preserve_independent_totals() {
+        let reports: Value = serde_json::from_slice(include_bytes!(
+            "../tests/fixtures/remaining-tools/pi-observation-candidate.json"
+        ))
+        .unwrap();
+        let mut supported = 0;
+        for (case, report) in reports.as_object().unwrap() {
+            if report.get("unavailable").is_some() {
+                continue;
+            }
+            let result = parse_pi_snapshot(&serde_json::to_vec(report).unwrap()).unwrap();
+            let expected = match case.as_str() {
+                "nested_time_absent"
+                | "nested_time_is_not_entry_time"
+                | "entry_offset"
+                | "zero_then_positive" => 162,
+                name if name.ends_with("_total_only") && !name.contains("zero") => 162,
+                name if name.ends_with("_partial") => 162,
+                _ => 0,
+            };
+            assert_eq!(
+                result
+                    .periods
+                    .iter()
+                    .map(|day| day.total_tokens)
+                    .sum::<u64>(),
+                expected,
+                "{case}"
+            );
+            assert_eq!(
+                result
+                    .sessions
+                    .iter()
+                    .map(|session| session.total_tokens)
+                    .sum::<u64>(),
+                expected,
+                "{case}"
+            );
+            supported += 1;
+        }
+        assert_eq!(supported, 30);
+    }
 }

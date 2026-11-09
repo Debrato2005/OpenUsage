@@ -108,6 +108,87 @@ fn independent_totals_nullable_details_and_scope_survive_reopen() {
     let storage = Storage::open(&dir.path().join("usage.db"), &KEY).unwrap();
     assert_eq!(storage.local_periods("amp").unwrap(), saved);
 }
+
+#[test]
+fn pi_zero_observations_and_absent_times_survive_reopen_and_lower_scans() {
+    let reports: serde_json::Value = serde_json::from_slice(include_bytes!(
+        "../../../openusage-locallogs/tests/fixtures/remaining-tools/pi-observation-candidate.json"
+    ))
+    .unwrap();
+    let parse = |case: &str| {
+        let report = &reports[case];
+        let periods = openusage_locallogs::parse_agent_periods(
+            "pi",
+            &serde_json::to_vec(&report["daily"]).unwrap(),
+        )
+        .unwrap()
+        .map(|r| r.periods)
+        .unwrap_or_default();
+        let sessions = openusage_locallogs::parse_agent_sessions(
+            "pi",
+            &serde_json::to_vec(&report["session"]).unwrap(),
+        )
+        .unwrap()
+        .map(|r| r.sessions)
+        .unwrap_or_default();
+        (periods, sessions)
+    };
+    let (dir, mut storage, sources) = setup("pi");
+    let (empty_days, empty_sessions) = parse("empty");
+    storage
+        .save_grouped_local_scan(&scan("pi", &sources, &empty_days, Some(&empty_sessions)))
+        .unwrap();
+    assert!(storage.local_periods("pi").unwrap().is_empty());
+    let (zero_days, mut zero_sessions) = parse("message_zero_total_only");
+    zero_sessions[0].first_activity_utc = None;
+    zero_sessions[0].last_activity_utc = None;
+    storage
+        .save_grouped_local_scan(&scan("pi", &sources, &zero_days, Some(&zero_sessions)))
+        .unwrap();
+    drop(storage);
+    let mut storage = Storage::open(&dir.path().join("usage.db"), &KEY).unwrap();
+    let saved_zero = storage.local_periods("pi").unwrap();
+    assert_eq!(saved_zero.len(), 1);
+    assert_eq!(saved_zero[0].period, zero_days[0]);
+    assert_eq!(saved_zero[0].period.details, TokenDetails::default());
+    assert_eq!(saved_zero[0].period.estimated_value_micros, None);
+    assert_eq!(
+        storage.grouped_local_sessions("pi").unwrap()[0].session,
+        zero_sessions[0]
+    );
+    let (days, sessions) = parse("message_partial");
+    storage
+        .save_grouped_local_scan(&scan("pi", &sources, &days, Some(&sessions)))
+        .unwrap();
+    let accepted = storage.local_periods("pi").unwrap()[0].period.clone();
+    for (days, sessions) in [(&zero_days, &zero_sessions), (&empty_days, &empty_sessions)] {
+        storage
+            .save_grouped_local_scan(&scan("pi", &sources, days, Some(sessions)))
+            .unwrap();
+        assert_eq!(storage.local_periods("pi").unwrap()[0].period, accepted);
+        assert_eq!(
+            storage.grouped_local_sessions("pi").unwrap()[0]
+                .session
+                .total_tokens,
+            162
+        );
+    }
+    let mut invalid = days;
+    invalid[0].details.input_tokens = Some(163);
+    assert_eq!(
+        storage.save_grouped_local_scan(&scan("pi", &sources, &invalid, Some(&zero_sessions))),
+        Err(LocalLogError::InvalidInput)
+    );
+    assert_eq!(storage.local_periods("pi").unwrap()[0].period, accepted);
+    assert!(
+        storage
+            .local_scan_differences("pi")
+            .unwrap()
+            .iter()
+            .any(|d| d.saved_total_tokens == 162 && d.new_total_tokens == 0)
+    );
+    validate_connection(&storage.connection, CURRENT_SCHEMA_VERSION).unwrap();
+}
 #[test]
 fn equal_or_higher_replaces_whole_snapshot_lower_keeps_it_once() {
     let (_dir, mut storage, sources) = setup("pi");

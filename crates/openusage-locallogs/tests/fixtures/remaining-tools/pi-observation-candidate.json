@@ -1,0 +1,2896 @@
+{
+  "empty": {
+    "daily": {
+      "daily": [],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": -0.0,
+        "totalTokens": 0
+      }
+    },
+    "schemaVersion": 1,
+    "session": {
+      "sessions": [],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": -0.0,
+        "totalTokens": 0
+      }
+    },
+    "tool": "pi"
+  },
+  "header_only": {
+    "daily": {
+      "daily": [],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": -0.0,
+        "totalTokens": 0
+      }
+    },
+    "schemaVersion": 1,
+    "session": {
+      "sessions": [],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": -0.0,
+        "totalTokens": 0
+      }
+    },
+    "tool": "pi"
+  },
+  "message_zero": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "pi",
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "inputTokens": 0,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 0,
+                  "cost": 0.0,
+                  "inputTokens": 0,
+                  "modelName": "[pi] gpt-5",
+                  "outputTokens": 0
+                }
+              ],
+              "modelsUsed": [
+                "[pi] gpt-5"
+              ],
+              "outputTokens": 0,
+              "totalCost": 0.0,
+              "totalTokens": 0
+            }
+          ],
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 0,
+          "metadata": {
+            "agents": [
+              "pi"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.0,
+              "inputTokens": 0,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 0
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 0,
+          "period": "2026-05-28",
+          "totalCost": 0.0,
+          "totalTokens": 0
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": 0.0,
+        "totalTokens": 0
+      }
+    },
+    "schemaVersion": 1,
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 0,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.0,
+              "inputTokens": 0,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 0
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 0,
+          "projectPath": "/synthetic/project",
+          "sessionId": "root",
+          "totalCost": 0.0,
+          "totalTokens": 0
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": 0.0,
+        "totalTokens": 0
+      }
+    },
+    "tool": "pi"
+  },
+  "message_zero_total_only": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "pi",
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "inputTokens": 0,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 0,
+                  "cost": 0.0,
+                  "inputTokens": 0,
+                  "modelName": "[pi] gpt-5",
+                  "outputTokens": 0
+                }
+              ],
+              "modelsUsed": [
+                "[pi] gpt-5"
+              ],
+              "outputTokens": 0,
+              "totalCost": 0.0,
+              "totalTokens": 0
+            }
+          ],
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 0,
+          "metadata": {
+            "agents": [
+              "pi"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.0,
+              "inputTokens": 0,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 0
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 0,
+          "period": "2026-05-28",
+          "totalCost": 0.0,
+          "totalTokens": 0
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": 0.0,
+        "totalTokens": 0
+      }
+    },
+    "schemaVersion": 1,
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 0,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.0,
+              "inputTokens": 0,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 0
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 0,
+          "projectPath": "/synthetic/project",
+          "sessionId": "root",
+          "totalCost": 0.0,
+          "totalTokens": 0
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": 0.0,
+        "totalTokens": 0
+      }
+    },
+    "tool": "pi"
+  },
+  "message_total_only": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "pi",
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "inputTokens": 0,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 0,
+                  "cost": 0.0,
+                  "inputTokens": 0,
+                  "modelName": "[pi] gpt-5",
+                  "outputTokens": 0
+                }
+              ],
+              "modelsUsed": [
+                "[pi] gpt-5"
+              ],
+              "outputTokens": 0,
+              "totalCost": 0.0,
+              "totalTokens": 162
+            }
+          ],
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 0,
+          "metadata": {
+            "agents": [
+              "pi"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.0,
+              "inputTokens": 0,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 0
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 0,
+          "period": "2026-05-28",
+          "totalCost": 0.0,
+          "totalTokens": 162
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": 0.0,
+        "totalTokens": 162
+      }
+    },
+    "schemaVersion": 1,
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 0,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.0,
+              "inputTokens": 0,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 0
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 0,
+          "projectPath": "/synthetic/project",
+          "sessionId": "root",
+          "totalCost": 0.0,
+          "totalTokens": 162
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": 0.0,
+        "totalTokens": 162
+      }
+    },
+    "tool": "pi"
+  },
+  "message_partial": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "pi",
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "inputTokens": 100,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 0,
+                  "cost": 0.000125,
+                  "inputTokens": 100,
+                  "modelName": "[pi] gpt-5",
+                  "outputTokens": 0
+                }
+              ],
+              "modelsUsed": [
+                "[pi] gpt-5"
+              ],
+              "outputTokens": 0,
+              "totalCost": 0.000125,
+              "totalTokens": 162
+            }
+          ],
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 100,
+          "metadata": {
+            "agents": [
+              "pi"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.000125,
+              "inputTokens": 100,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 0
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 0,
+          "period": "2026-05-28",
+          "totalCost": 0.000125,
+          "totalTokens": 162
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 100,
+        "outputTokens": 0,
+        "totalCost": 0.000125,
+        "totalTokens": 162
+      }
+    },
+    "schemaVersion": 1,
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 100,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.000125,
+              "inputTokens": 100,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 0
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 0,
+          "projectPath": "/synthetic/project",
+          "sessionId": "root",
+          "totalCost": 0.000125,
+          "totalTokens": 162
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 100,
+        "outputTokens": 0,
+        "totalCost": 0.000125,
+        "totalTokens": 162
+      }
+    },
+    "tool": "pi"
+  },
+  "message_absent": {
+    "unavailable": true
+  },
+  "message_null": {
+    "unavailable": true
+  },
+  "message_empty_usage": {
+    "unavailable": true
+  },
+  "message_missing_total": {
+    "unavailable": true
+  },
+  "message_partial_no_total": {
+    "unavailable": true
+  },
+  "message_zero_no_total": {
+    "unavailable": true
+  },
+  "message_inconsistent_zero": {
+    "unavailable": true
+  },
+  "usage_zero": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "pi",
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "inputTokens": 0,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 0,
+                  "cost": 0.0,
+                  "inputTokens": 0,
+                  "modelName": "[pi] gpt-5",
+                  "outputTokens": 0
+                }
+              ],
+              "modelsUsed": [
+                "[pi] gpt-5"
+              ],
+              "outputTokens": 0,
+              "totalCost": 0.0,
+              "totalTokens": 0
+            }
+          ],
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 0,
+          "metadata": {
+            "agents": [
+              "pi"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.0,
+              "inputTokens": 0,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 0
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 0,
+          "period": "2026-05-28",
+          "totalCost": 0.0,
+          "totalTokens": 0
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": 0.0,
+        "totalTokens": 0
+      }
+    },
+    "schemaVersion": 1,
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 0,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.0,
+              "inputTokens": 0,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 0
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 0,
+          "projectPath": "/synthetic/project",
+          "sessionId": "root",
+          "totalCost": 0.0,
+          "totalTokens": 0
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": 0.0,
+        "totalTokens": 0
+      }
+    },
+    "tool": "pi"
+  },
+  "usage_zero_total_only": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "pi",
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "inputTokens": 0,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 0,
+                  "cost": 0.0,
+                  "inputTokens": 0,
+                  "modelName": "[pi] gpt-5",
+                  "outputTokens": 0
+                }
+              ],
+              "modelsUsed": [
+                "[pi] gpt-5"
+              ],
+              "outputTokens": 0,
+              "totalCost": 0.0,
+              "totalTokens": 0
+            }
+          ],
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 0,
+          "metadata": {
+            "agents": [
+              "pi"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.0,
+              "inputTokens": 0,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 0
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 0,
+          "period": "2026-05-28",
+          "totalCost": 0.0,
+          "totalTokens": 0
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": 0.0,
+        "totalTokens": 0
+      }
+    },
+    "schemaVersion": 1,
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 0,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.0,
+              "inputTokens": 0,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 0
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 0,
+          "projectPath": "/synthetic/project",
+          "sessionId": "root",
+          "totalCost": 0.0,
+          "totalTokens": 0
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": 0.0,
+        "totalTokens": 0
+      }
+    },
+    "tool": "pi"
+  },
+  "usage_total_only": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "pi",
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "inputTokens": 0,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 0,
+                  "cost": 0.0,
+                  "inputTokens": 0,
+                  "modelName": "[pi] gpt-5",
+                  "outputTokens": 0
+                }
+              ],
+              "modelsUsed": [
+                "[pi] gpt-5"
+              ],
+              "outputTokens": 0,
+              "totalCost": 0.0,
+              "totalTokens": 162
+            }
+          ],
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 0,
+          "metadata": {
+            "agents": [
+              "pi"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.0,
+              "inputTokens": 0,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 0
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 0,
+          "period": "2026-05-28",
+          "totalCost": 0.0,
+          "totalTokens": 162
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": 0.0,
+        "totalTokens": 162
+      }
+    },
+    "schemaVersion": 1,
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 0,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.0,
+              "inputTokens": 0,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 0
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 0,
+          "projectPath": "/synthetic/project",
+          "sessionId": "root",
+          "totalCost": 0.0,
+          "totalTokens": 162
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": 0.0,
+        "totalTokens": 162
+      }
+    },
+    "tool": "pi"
+  },
+  "usage_partial": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "pi",
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "inputTokens": 100,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 0,
+                  "cost": 0.000125,
+                  "inputTokens": 100,
+                  "modelName": "[pi] gpt-5",
+                  "outputTokens": 0
+                }
+              ],
+              "modelsUsed": [
+                "[pi] gpt-5"
+              ],
+              "outputTokens": 0,
+              "totalCost": 0.000125,
+              "totalTokens": 162
+            }
+          ],
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 100,
+          "metadata": {
+            "agents": [
+              "pi"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.000125,
+              "inputTokens": 100,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 0
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 0,
+          "period": "2026-05-28",
+          "totalCost": 0.000125,
+          "totalTokens": 162
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 100,
+        "outputTokens": 0,
+        "totalCost": 0.000125,
+        "totalTokens": 162
+      }
+    },
+    "schemaVersion": 1,
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 100,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.000125,
+              "inputTokens": 100,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 0
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 0,
+          "projectPath": "/synthetic/project",
+          "sessionId": "root",
+          "totalCost": 0.000125,
+          "totalTokens": 162
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 100,
+        "outputTokens": 0,
+        "totalCost": 0.000125,
+        "totalTokens": 162
+      }
+    },
+    "tool": "pi"
+  },
+  "usage_absent": {
+    "unavailable": true
+  },
+  "usage_null": {
+    "unavailable": true
+  },
+  "usage_empty_usage": {
+    "unavailable": true
+  },
+  "usage_missing_total": {
+    "unavailable": true
+  },
+  "usage_partial_no_total": {
+    "unavailable": true
+  },
+  "usage_zero_no_total": {
+    "unavailable": true
+  },
+  "usage_inconsistent_zero": {
+    "unavailable": true
+  },
+  "compaction_zero": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "pi",
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "inputTokens": 0,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 0,
+                  "cost": 0.0,
+                  "inputTokens": 0,
+                  "modelName": "[pi] gpt-5",
+                  "outputTokens": 0
+                }
+              ],
+              "modelsUsed": [
+                "[pi] gpt-5"
+              ],
+              "outputTokens": 0,
+              "totalCost": 0.0,
+              "totalTokens": 0
+            }
+          ],
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 0,
+          "metadata": {
+            "agents": [
+              "pi"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.0,
+              "inputTokens": 0,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 0
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 0,
+          "period": "2026-05-28",
+          "totalCost": 0.0,
+          "totalTokens": 0
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": 0.0,
+        "totalTokens": 0
+      }
+    },
+    "schemaVersion": 1,
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 0,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.0,
+              "inputTokens": 0,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 0
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 0,
+          "projectPath": "/synthetic/project",
+          "sessionId": "root",
+          "totalCost": 0.0,
+          "totalTokens": 0
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": 0.0,
+        "totalTokens": 0
+      }
+    },
+    "tool": "pi"
+  },
+  "compaction_zero_total_only": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "pi",
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "inputTokens": 0,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 0,
+                  "cost": 0.0,
+                  "inputTokens": 0,
+                  "modelName": "[pi] gpt-5",
+                  "outputTokens": 0
+                }
+              ],
+              "modelsUsed": [
+                "[pi] gpt-5"
+              ],
+              "outputTokens": 0,
+              "totalCost": 0.0,
+              "totalTokens": 0
+            }
+          ],
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 0,
+          "metadata": {
+            "agents": [
+              "pi"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.0,
+              "inputTokens": 0,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 0
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 0,
+          "period": "2026-05-28",
+          "totalCost": 0.0,
+          "totalTokens": 0
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": 0.0,
+        "totalTokens": 0
+      }
+    },
+    "schemaVersion": 1,
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 0,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.0,
+              "inputTokens": 0,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 0
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 0,
+          "projectPath": "/synthetic/project",
+          "sessionId": "root",
+          "totalCost": 0.0,
+          "totalTokens": 0
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": 0.0,
+        "totalTokens": 0
+      }
+    },
+    "tool": "pi"
+  },
+  "compaction_total_only": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "pi",
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "inputTokens": 0,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 0,
+                  "cost": 0.0,
+                  "inputTokens": 0,
+                  "modelName": "[pi] gpt-5",
+                  "outputTokens": 0
+                }
+              ],
+              "modelsUsed": [
+                "[pi] gpt-5"
+              ],
+              "outputTokens": 0,
+              "totalCost": 0.0,
+              "totalTokens": 162
+            }
+          ],
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 0,
+          "metadata": {
+            "agents": [
+              "pi"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.0,
+              "inputTokens": 0,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 0
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 0,
+          "period": "2026-05-28",
+          "totalCost": 0.0,
+          "totalTokens": 162
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": 0.0,
+        "totalTokens": 162
+      }
+    },
+    "schemaVersion": 1,
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 0,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.0,
+              "inputTokens": 0,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 0
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 0,
+          "projectPath": "/synthetic/project",
+          "sessionId": "root",
+          "totalCost": 0.0,
+          "totalTokens": 162
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": 0.0,
+        "totalTokens": 162
+      }
+    },
+    "tool": "pi"
+  },
+  "compaction_partial": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "pi",
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "inputTokens": 100,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 0,
+                  "cost": 0.000125,
+                  "inputTokens": 100,
+                  "modelName": "[pi] gpt-5",
+                  "outputTokens": 0
+                }
+              ],
+              "modelsUsed": [
+                "[pi] gpt-5"
+              ],
+              "outputTokens": 0,
+              "totalCost": 0.000125,
+              "totalTokens": 162
+            }
+          ],
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 100,
+          "metadata": {
+            "agents": [
+              "pi"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.000125,
+              "inputTokens": 100,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 0
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 0,
+          "period": "2026-05-28",
+          "totalCost": 0.000125,
+          "totalTokens": 162
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 100,
+        "outputTokens": 0,
+        "totalCost": 0.000125,
+        "totalTokens": 162
+      }
+    },
+    "schemaVersion": 1,
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 100,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.000125,
+              "inputTokens": 100,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 0
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 0,
+          "projectPath": "/synthetic/project",
+          "sessionId": "root",
+          "totalCost": 0.000125,
+          "totalTokens": 162
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 100,
+        "outputTokens": 0,
+        "totalCost": 0.000125,
+        "totalTokens": 162
+      }
+    },
+    "tool": "pi"
+  },
+  "compaction_absent": {
+    "daily": {
+      "daily": [],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": -0.0,
+        "totalTokens": 0
+      }
+    },
+    "schemaVersion": 1,
+    "session": {
+      "sessions": [],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": -0.0,
+        "totalTokens": 0
+      }
+    },
+    "tool": "pi"
+  },
+  "compaction_null": {
+    "unavailable": true
+  },
+  "compaction_empty_usage": {
+    "unavailable": true
+  },
+  "compaction_missing_total": {
+    "unavailable": true
+  },
+  "compaction_partial_no_total": {
+    "unavailable": true
+  },
+  "compaction_zero_no_total": {
+    "unavailable": true
+  },
+  "compaction_inconsistent_zero": {
+    "unavailable": true
+  },
+  "branch_summary_zero": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "pi",
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "inputTokens": 0,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 0,
+                  "cost": 0.0,
+                  "inputTokens": 0,
+                  "modelName": "[pi] gpt-5",
+                  "outputTokens": 0
+                }
+              ],
+              "modelsUsed": [
+                "[pi] gpt-5"
+              ],
+              "outputTokens": 0,
+              "totalCost": 0.0,
+              "totalTokens": 0
+            }
+          ],
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 0,
+          "metadata": {
+            "agents": [
+              "pi"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.0,
+              "inputTokens": 0,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 0
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 0,
+          "period": "2026-05-28",
+          "totalCost": 0.0,
+          "totalTokens": 0
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": 0.0,
+        "totalTokens": 0
+      }
+    },
+    "schemaVersion": 1,
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 0,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.0,
+              "inputTokens": 0,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 0
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 0,
+          "projectPath": "/synthetic/project",
+          "sessionId": "root",
+          "totalCost": 0.0,
+          "totalTokens": 0
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": 0.0,
+        "totalTokens": 0
+      }
+    },
+    "tool": "pi"
+  },
+  "branch_summary_zero_total_only": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "pi",
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "inputTokens": 0,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 0,
+                  "cost": 0.0,
+                  "inputTokens": 0,
+                  "modelName": "[pi] gpt-5",
+                  "outputTokens": 0
+                }
+              ],
+              "modelsUsed": [
+                "[pi] gpt-5"
+              ],
+              "outputTokens": 0,
+              "totalCost": 0.0,
+              "totalTokens": 0
+            }
+          ],
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 0,
+          "metadata": {
+            "agents": [
+              "pi"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.0,
+              "inputTokens": 0,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 0
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 0,
+          "period": "2026-05-28",
+          "totalCost": 0.0,
+          "totalTokens": 0
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": 0.0,
+        "totalTokens": 0
+      }
+    },
+    "schemaVersion": 1,
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 0,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.0,
+              "inputTokens": 0,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 0
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 0,
+          "projectPath": "/synthetic/project",
+          "sessionId": "root",
+          "totalCost": 0.0,
+          "totalTokens": 0
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": 0.0,
+        "totalTokens": 0
+      }
+    },
+    "tool": "pi"
+  },
+  "branch_summary_total_only": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "pi",
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "inputTokens": 0,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 0,
+                  "cost": 0.0,
+                  "inputTokens": 0,
+                  "modelName": "[pi] gpt-5",
+                  "outputTokens": 0
+                }
+              ],
+              "modelsUsed": [
+                "[pi] gpt-5"
+              ],
+              "outputTokens": 0,
+              "totalCost": 0.0,
+              "totalTokens": 162
+            }
+          ],
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 0,
+          "metadata": {
+            "agents": [
+              "pi"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.0,
+              "inputTokens": 0,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 0
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 0,
+          "period": "2026-05-28",
+          "totalCost": 0.0,
+          "totalTokens": 162
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": 0.0,
+        "totalTokens": 162
+      }
+    },
+    "schemaVersion": 1,
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 0,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.0,
+              "inputTokens": 0,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 0
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 0,
+          "projectPath": "/synthetic/project",
+          "sessionId": "root",
+          "totalCost": 0.0,
+          "totalTokens": 162
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": 0.0,
+        "totalTokens": 162
+      }
+    },
+    "tool": "pi"
+  },
+  "branch_summary_partial": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "pi",
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "inputTokens": 100,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 0,
+                  "cost": 0.000125,
+                  "inputTokens": 100,
+                  "modelName": "[pi] gpt-5",
+                  "outputTokens": 0
+                }
+              ],
+              "modelsUsed": [
+                "[pi] gpt-5"
+              ],
+              "outputTokens": 0,
+              "totalCost": 0.000125,
+              "totalTokens": 162
+            }
+          ],
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 100,
+          "metadata": {
+            "agents": [
+              "pi"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.000125,
+              "inputTokens": 100,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 0
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 0,
+          "period": "2026-05-28",
+          "totalCost": 0.000125,
+          "totalTokens": 162
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 100,
+        "outputTokens": 0,
+        "totalCost": 0.000125,
+        "totalTokens": 162
+      }
+    },
+    "schemaVersion": 1,
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 100,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.000125,
+              "inputTokens": 100,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 0
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 0,
+          "projectPath": "/synthetic/project",
+          "sessionId": "root",
+          "totalCost": 0.000125,
+          "totalTokens": 162
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 100,
+        "outputTokens": 0,
+        "totalCost": 0.000125,
+        "totalTokens": 162
+      }
+    },
+    "tool": "pi"
+  },
+  "branch_summary_absent": {
+    "daily": {
+      "daily": [],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": -0.0,
+        "totalTokens": 0
+      }
+    },
+    "schemaVersion": 1,
+    "session": {
+      "sessions": [],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": -0.0,
+        "totalTokens": 0
+      }
+    },
+    "tool": "pi"
+  },
+  "branch_summary_null": {
+    "unavailable": true
+  },
+  "branch_summary_empty_usage": {
+    "unavailable": true
+  },
+  "branch_summary_missing_total": {
+    "unavailable": true
+  },
+  "branch_summary_partial_no_total": {
+    "unavailable": true
+  },
+  "branch_summary_zero_no_total": {
+    "unavailable": true
+  },
+  "branch_summary_inconsistent_zero": {
+    "unavailable": true
+  },
+  "header_time_absent": {
+    "unavailable": true
+  },
+  "header_time_null": {
+    "unavailable": true
+  },
+  "header_time_empty": {
+    "unavailable": true
+  },
+  "header_time_number": {
+    "unavailable": true
+  },
+  "header_time_invalid": {
+    "unavailable": true
+  },
+  "header_time_calendar": {
+    "unavailable": true
+  },
+  "header_time_no_zone": {
+    "unavailable": true
+  },
+  "entry_time_absent": {
+    "unavailable": true
+  },
+  "entry_time_null": {
+    "unavailable": true
+  },
+  "entry_time_empty": {
+    "unavailable": true
+  },
+  "entry_time_number": {
+    "unavailable": true
+  },
+  "entry_time_invalid": {
+    "unavailable": true
+  },
+  "entry_time_calendar": {
+    "unavailable": true
+  },
+  "entry_time_no_zone": {
+    "unavailable": true
+  },
+  "nested_time_is_not_entry_time": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "pi",
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 30,
+              "inputTokens": 100,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 5,
+                  "cacheReadTokens": 30,
+                  "cost": 0.0003365625,
+                  "inputTokens": 100,
+                  "modelName": "[pi] gpt-5",
+                  "outputTokens": 20
+                }
+              ],
+              "modelsUsed": [
+                "[pi] gpt-5"
+              ],
+              "outputTokens": 20,
+              "totalCost": 0.0003365625,
+              "totalTokens": 162
+            }
+          ],
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 30,
+          "inputTokens": 100,
+          "metadata": {
+            "agents": [
+              "pi"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 30,
+              "cost": 0.0003365625,
+              "inputTokens": 100,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 20,
+          "period": "2026-05-28",
+          "totalCost": 0.0003365625,
+          "totalTokens": 162
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 30,
+        "inputTokens": 100,
+        "outputTokens": 20,
+        "totalCost": 0.0003365625,
+        "totalTokens": 162
+      }
+    },
+    "schemaVersion": 1,
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 30,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 100,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 30,
+              "cost": 0.0003365625,
+              "inputTokens": 100,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 20,
+          "projectPath": "/synthetic/project",
+          "sessionId": "root",
+          "totalCost": 0.0003365625,
+          "totalTokens": 162
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 30,
+        "inputTokens": 100,
+        "outputTokens": 20,
+        "totalCost": 0.0003365625,
+        "totalTokens": 162
+      }
+    },
+    "tool": "pi"
+  },
+  "nested_time_absent": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "pi",
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 30,
+              "inputTokens": 100,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 5,
+                  "cacheReadTokens": 30,
+                  "cost": 0.0003365625,
+                  "inputTokens": 100,
+                  "modelName": "[pi] gpt-5",
+                  "outputTokens": 20
+                }
+              ],
+              "modelsUsed": [
+                "[pi] gpt-5"
+              ],
+              "outputTokens": 20,
+              "totalCost": 0.0003365625,
+              "totalTokens": 162
+            }
+          ],
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 30,
+          "inputTokens": 100,
+          "metadata": {
+            "agents": [
+              "pi"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 30,
+              "cost": 0.0003365625,
+              "inputTokens": 100,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 20,
+          "period": "2026-05-28",
+          "totalCost": 0.0003365625,
+          "totalTokens": 162
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 30,
+        "inputTokens": 100,
+        "outputTokens": 20,
+        "totalCost": 0.0003365625,
+        "totalTokens": 162
+      }
+    },
+    "schemaVersion": 1,
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 30,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 100,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 30,
+              "cost": 0.0003365625,
+              "inputTokens": 100,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 20,
+          "projectPath": "/synthetic/project",
+          "sessionId": "root",
+          "totalCost": 0.0003365625,
+          "totalTokens": 162
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 30,
+        "inputTokens": 100,
+        "outputTokens": 20,
+        "totalCost": 0.0003365625,
+        "totalTokens": 162
+      }
+    },
+    "tool": "pi"
+  },
+  "entry_offset": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "pi",
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 30,
+              "inputTokens": 100,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 5,
+                  "cacheReadTokens": 30,
+                  "cost": 0.0003365625,
+                  "inputTokens": 100,
+                  "modelName": "[pi] gpt-5",
+                  "outputTokens": 20
+                }
+              ],
+              "modelsUsed": [
+                "[pi] gpt-5"
+              ],
+              "outputTokens": 20,
+              "totalCost": 0.0003365625,
+              "totalTokens": 162
+            }
+          ],
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 30,
+          "inputTokens": 100,
+          "metadata": {
+            "agents": [
+              "pi"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 30,
+              "cost": 0.0003365625,
+              "inputTokens": 100,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 20,
+          "period": "2026-05-28",
+          "totalCost": 0.0003365625,
+          "totalTokens": 162
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 30,
+        "inputTokens": 100,
+        "outputTokens": 20,
+        "totalCost": 0.0003365625,
+        "totalTokens": 162
+      }
+    },
+    "schemaVersion": 1,
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 30,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 100,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 30,
+              "cost": 0.0003365625,
+              "inputTokens": 100,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 20,
+          "projectPath": "/synthetic/project",
+          "sessionId": "root",
+          "totalCost": 0.0003365625,
+          "totalTokens": 162
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 30,
+        "inputTokens": 100,
+        "outputTokens": 20,
+        "totalCost": 0.0003365625,
+        "totalTokens": 162
+      }
+    },
+    "tool": "pi"
+  },
+  "reported_zero_stop": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "pi",
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "inputTokens": 0,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 0,
+                  "cost": 0.0,
+                  "inputTokens": 0,
+                  "modelName": "[pi] gpt-5",
+                  "outputTokens": 0
+                }
+              ],
+              "modelsUsed": [
+                "[pi] gpt-5"
+              ],
+              "outputTokens": 0,
+              "totalCost": 0.0,
+              "totalTokens": 0
+            }
+          ],
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 0,
+          "metadata": {
+            "agents": [
+              "pi"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.0,
+              "inputTokens": 0,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 0
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 0,
+          "period": "2026-05-28",
+          "totalCost": 0.0,
+          "totalTokens": 0
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": 0.0,
+        "totalTokens": 0
+      }
+    },
+    "schemaVersion": 1,
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 0,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.0,
+              "inputTokens": 0,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 0
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 0,
+          "projectPath": "/synthetic/project",
+          "sessionId": "root",
+          "totalCost": 0.0,
+          "totalTokens": 0
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": 0.0,
+        "totalTokens": 0
+      }
+    },
+    "tool": "pi"
+  },
+  "reported_zero_error": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "pi",
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "inputTokens": 0,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 0,
+                  "cost": 0.0,
+                  "inputTokens": 0,
+                  "modelName": "[pi] gpt-5",
+                  "outputTokens": 0
+                }
+              ],
+              "modelsUsed": [
+                "[pi] gpt-5"
+              ],
+              "outputTokens": 0,
+              "totalCost": 0.0,
+              "totalTokens": 0
+            }
+          ],
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 0,
+          "metadata": {
+            "agents": [
+              "pi"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.0,
+              "inputTokens": 0,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 0
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 0,
+          "period": "2026-05-28",
+          "totalCost": 0.0,
+          "totalTokens": 0
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": 0.0,
+        "totalTokens": 0
+      }
+    },
+    "schemaVersion": 1,
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 0,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.0,
+              "inputTokens": 0,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 0
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 0,
+          "projectPath": "/synthetic/project",
+          "sessionId": "root",
+          "totalCost": 0.0,
+          "totalTokens": 0
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": 0.0,
+        "totalTokens": 0
+      }
+    },
+    "tool": "pi"
+  },
+  "reported_zero_aborted": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "pi",
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "inputTokens": 0,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 0,
+                  "cost": 0.0,
+                  "inputTokens": 0,
+                  "modelName": "[pi] gpt-5",
+                  "outputTokens": 0
+                }
+              ],
+              "modelsUsed": [
+                "[pi] gpt-5"
+              ],
+              "outputTokens": 0,
+              "totalCost": 0.0,
+              "totalTokens": 0
+            }
+          ],
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 0,
+          "metadata": {
+            "agents": [
+              "pi"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.0,
+              "inputTokens": 0,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 0
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 0,
+          "period": "2026-05-28",
+          "totalCost": 0.0,
+          "totalTokens": 0
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": 0.0,
+        "totalTokens": 0
+      }
+    },
+    "schemaVersion": 1,
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 0,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.0,
+              "inputTokens": 0,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 0
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 0,
+          "projectPath": "/synthetic/project",
+          "sessionId": "root",
+          "totalCost": 0.0,
+          "totalTokens": 0
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": 0.0,
+        "totalTokens": 0
+      }
+    },
+    "tool": "pi"
+  },
+  "non_usage_message": {
+    "daily": {
+      "daily": [],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": -0.0,
+        "totalTokens": 0
+      }
+    },
+    "schemaVersion": 1,
+    "session": {
+      "sessions": [],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": -0.0,
+        "totalTokens": 0
+      }
+    },
+    "tool": "pi"
+  },
+  "zero_unattributed": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "pi",
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "inputTokens": 0,
+              "modelBreakdowns": [],
+              "modelsUsed": [],
+              "outputTokens": 0,
+              "totalCost": 0.0,
+              "totalTokens": 0
+            }
+          ],
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 0,
+          "metadata": {
+            "agents": [
+              "pi"
+            ]
+          },
+          "modelBreakdowns": [],
+          "modelsUsed": [],
+          "outputTokens": 0,
+          "period": "2026-05-28",
+          "totalCost": 0.0,
+          "totalTokens": 0
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": 0.0,
+        "totalTokens": 0
+      }
+    },
+    "schemaVersion": 1,
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 0,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [],
+          "modelsUsed": [],
+          "outputTokens": 0,
+          "projectPath": "/synthetic/project",
+          "sessionId": "root",
+          "totalCost": 0.0,
+          "totalTokens": 0
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": 0.0,
+        "totalTokens": 0
+      }
+    },
+    "tool": "pi"
+  },
+  "zero_replay": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "pi",
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "inputTokens": 0,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 0,
+                  "cost": 0.0,
+                  "inputTokens": 0,
+                  "modelName": "[pi] gpt-5",
+                  "outputTokens": 0
+                }
+              ],
+              "modelsUsed": [
+                "[pi] gpt-5"
+              ],
+              "outputTokens": 0,
+              "totalCost": 0.0,
+              "totalTokens": 0
+            }
+          ],
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 0,
+          "metadata": {
+            "agents": [
+              "pi"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.0,
+              "inputTokens": 0,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 0
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 0,
+          "period": "2026-05-28",
+          "totalCost": 0.0,
+          "totalTokens": 0
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": 0.0,
+        "totalTokens": 0
+      }
+    },
+    "schemaVersion": 1,
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 0,
+          "lastActivity": "2026-05-28T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.0,
+              "inputTokens": 0,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 0
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 0,
+          "projectPath": "/synthetic/project",
+          "sessionId": "root",
+          "totalCost": 0.0,
+          "totalTokens": 0
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 0,
+        "cacheReadTokens": 0,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "totalCost": 0.0,
+        "totalTokens": 0
+      }
+    },
+    "tool": "pi"
+  },
+  "zero_then_positive": {
+    "daily": {
+      "daily": [
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "pi",
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "inputTokens": 0,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 0,
+                  "cost": 0.0,
+                  "inputTokens": 0,
+                  "modelName": "[pi] gpt-5",
+                  "outputTokens": 0
+                }
+              ],
+              "modelsUsed": [
+                "[pi] gpt-5"
+              ],
+              "outputTokens": 0,
+              "totalCost": 0.0,
+              "totalTokens": 0
+            }
+          ],
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 0,
+          "metadata": {
+            "agents": [
+              "pi"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "cost": 0.0,
+              "inputTokens": 0,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 0
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 0,
+          "period": "2026-05-28",
+          "totalCost": 0.0,
+          "totalTokens": 0
+        },
+        {
+          "agent": "all",
+          "agents": [
+            {
+              "agent": "pi",
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 30,
+              "inputTokens": 100,
+              "modelBreakdowns": [
+                {
+                  "cacheCreationTokens": 5,
+                  "cacheReadTokens": 30,
+                  "cost": 0.0003365625,
+                  "inputTokens": 100,
+                  "modelName": "[pi] gpt-5",
+                  "outputTokens": 20
+                }
+              ],
+              "modelsUsed": [
+                "[pi] gpt-5"
+              ],
+              "outputTokens": 20,
+              "totalCost": 0.0003365625,
+              "totalTokens": 162
+            }
+          ],
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 30,
+          "inputTokens": 100,
+          "metadata": {
+            "agents": [
+              "pi"
+            ]
+          },
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 30,
+              "cost": 0.0003365625,
+              "inputTokens": 100,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 20,
+          "period": "2026-05-29",
+          "totalCost": 0.0003365625,
+          "totalTokens": 162
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 30,
+        "inputTokens": 100,
+        "outputTokens": 20,
+        "totalCost": 0.0003365625,
+        "totalTokens": 162
+      }
+    },
+    "schemaVersion": 1,
+    "session": {
+      "sessions": [
+        {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 30,
+          "firstActivity": "2026-05-28T20:26:40.000Z",
+          "inputTokens": 100,
+          "lastActivity": "2026-05-29T20:26:40.000Z",
+          "modelBreakdowns": [
+            {
+              "cacheCreationTokens": 5,
+              "cacheReadTokens": 30,
+              "cost": 0.0003365625,
+              "inputTokens": 100,
+              "modelName": "[pi] gpt-5",
+              "outputTokens": 20
+            }
+          ],
+          "modelsUsed": [
+            "[pi] gpt-5"
+          ],
+          "outputTokens": 20,
+          "projectPath": "/synthetic/project",
+          "sessionId": "root",
+          "totalCost": 0.0003365625,
+          "totalTokens": 162
+        }
+      ],
+      "totals": {
+        "cacheCreationTokens": 5,
+        "cacheReadTokens": 30,
+        "inputTokens": 100,
+        "outputTokens": 20,
+        "totalCost": 0.0003365625,
+        "totalTokens": 162
+      }
+    },
+    "tool": "pi"
+  }
+}
