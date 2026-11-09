@@ -36,6 +36,14 @@ The catalog holds each report's metadata policy. Only Pi and ZCode retain activi
 
 The parser rejects unknown fields, invalid metadata, repeated keys, excessive counts, and totals that disagree with their rows. It accepts Qwen's null empty totals but rejects missing totals. Empty reports differ from sessions with a reported zero. All sixteen recorded fixtures and malformed-report cases exercise this boundary. Storage, process integration, and duplicate qualification remain open.
 
+## Additional period reports
+
+`parse_agent_periods` returns independent period totals and nullable model details for the sixteen disabled tools. Amp, Pi, Kilo, and ZCode use daily reports. The other twelve tools use full session reports for one explicit unplaced period. Daily reports from unplaced tools are rejected. Session totals must never be added to period totals.
+
+The daily parser checks the redundant day and tool fields, strict calendar dates, ordered days, model names, bounded counts, and report totals. An incomplete model breakdown leaves model totals unavailable within that scope. Token categories and estimates stay unavailable under SC-022. No remainder becomes reasoning, a model, or an activity time. Empty reports differ from a reported zero.
+
+`UsagePeriod` distinguishes a scanner day from unplaced usage. The caller owns the pinned zone and consented scan scope. This contract does not change storage, run a scanner, or enable a tool.
+
 ## The hourly report
 
 `parse_hours` reads one-hour blocks. Each block must start and end on a whole UTC hour, in order, with counts that add up to its total. A gap must be empty and gives no row. The parser keeps no cost, because a block does not mark an unpriced model.

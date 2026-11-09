@@ -139,18 +139,18 @@ struct Model {
     stored_cost: Field<f64>,
 }
 
-fn shape(message: &str) -> ReportError {
+pub(crate) fn shape(message: &str) -> ReportError {
     ReportError::Shape(message.into())
 }
-fn inconsistent(message: &str) -> ReportError {
+pub(crate) fn inconsistent(message: &str) -> ReportError {
     ReportError::Inconsistent(message.into())
 }
-fn add(a: u64, b: u64) -> Result<u64, ReportError> {
+pub(crate) fn add(a: u64, b: u64) -> Result<u64, ReportError> {
     a.checked_add(b)
         .filter(|value| *value <= MAX_COUNT)
         .ok_or_else(|| inconsistent("count out of range"))
 }
-fn bounded(total: u64, sum: Sum) -> Result<(), ReportError> {
+pub(crate) fn bounded(total: u64, sum: Sum) -> Result<(), ReportError> {
     if total > MAX_COUNT || sum.total()? > total {
         return Err(inconsistent(
             "reported total is below its token subtotal or out of range",
@@ -167,7 +167,7 @@ fn credits(value: &Field<f64>) -> Result<(), ReportError> {
     }
     Ok(())
 }
-fn model_name(value: &str, policy: &AgentReportPolicy) -> Result<String, ReportError> {
+pub(crate) fn model_name(value: &str, policy: &AgentReportPolicy) -> Result<String, ReportError> {
     let name = match policy.model_prefix.as_deref() {
         Some(prefix) => value
             .strip_prefix(prefix)
@@ -179,7 +179,7 @@ fn model_name(value: &str, policy: &AgentReportPolicy) -> Result<String, ReportE
     }
     Ok(name.into())
 }
-fn model_names(
+pub(crate) fn model_names(
     values: &[String],
     policy: &AgentReportPolicy,
 ) -> Result<BTreeSet<String>, ReportError> {

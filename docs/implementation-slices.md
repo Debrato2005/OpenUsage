@@ -110,7 +110,7 @@ Updated November 9, 2026. The owner asked to keep this list and to build down it
 - [x] L-1f4: reject malformed Unicode timestamps without a panic and reject impossible calendar dates (OU-LOG-007). Session and hourly parsers share the UTC check. The date check covers month lengths and leap years. Synthetic regressions first reproduced both Unicode panics and acceptance of February 30. Full Rust checks and the rebuilt native consent journey passed on Linux.
 - [x] L-1f5: add the strict common session parser and nullable metric types for the sixteen disabled tools. Eight focused tests cover recorded reports, incomplete model attribution, empty reports, reported zero totals, and malformed values. The diagnostic workspace run, formatting, Clippy, renderer build, IPC contracts, and rebuilt native consent journey passed on Linux. The initial workspace failure did not recur and its cause remains unconfirmed. Storage and scanner integration remain open.
 - [x] L-1f6: prepare and test an unpublished Amp duplicate patch against the pinned source. Stable-ID copies count once. Conflicts and incomplete reads fail. All 28 adapter tests and 210 scanner comparisons passed. The production pin stays unchanged. Remaining AT-65 and integration gates remain open. See the [candidate record](reviews/2026-11-08-amp-dedup-design.md#local-candidate-after-review).
-- [ ] L-1f7: preserve independent period totals and nullable details in a strict report contract. Add daily parsing for the four dated candidates. Keep the other twelve tools in an explicit unplaced scope. This is the next assignment.
+- [x] L-1f7: preserve independent period totals and nullable details in a strict report contract. Amp, Pi, Kilo, and ZCode use daily reports. The other twelve tools stay unplaced. Seven focused tests, full Rust checks, 98 scanner comparisons, and the rebuilt native consent journey passed with synthetic data on Linux. No tool or production pin changed.
 - [ ] L-1f8: store coherent period totals and model details, with nullable session times and a tested migration. Preserve older backups and accepted history. Resolve legacy overlap and conflicting-zone questions before the migration.
 - [ ] L-1f9: group consented roots by tool in the scanner and save each accepted result once. Validate every root and all required reports before saving. Preserve prior data when any required report fails.
 - [ ] L-1f10: carry the new totals and unavailable fields through desktop, CLI, export, backup, restore, and sharing. Keep unplaced usage out of dated views. Run the affected renderer and native gates.
@@ -169,7 +169,7 @@ Updated November 9, 2026. The owner asked to keep this list and to build down it
 
 - [ ] The slices in [Order](#order). Stage 1 needs every mandatory requirement (SRS Section 0.4). The next launch item is L-1f. S-03c remains the first item after the launch track with no owner gate.
 
-### Next assignment: L-1f7
+### Completed assignment: L-1f7
 
 Goal: finish the typed report contract that storage integration needs. Follow OU-LOG-007, OU-LOG-013, OU-LOG-017, and [approved SC-022](srs-clarifications.md#sc-022-incomplete-metrics-from-the-other-local-tools).
 
@@ -183,6 +183,21 @@ Acceptance:
 - Pass focused fixtures and the full Rust workspace checks. Update the owning documents with the executed scope.
 
 Stopping condition: the contract and checks are complete, with one local commit and a Graphify update. Storage integration starts in L-1f8. This slice enables no tool and changes no production pin.
+
+### Next assignment: L-1f8
+
+Goal: store independent period totals and nullable details without losing accepted history. Follow OU-LOG-003, OU-LOG-010 to OU-LOG-013, OU-LOG-017, and [SC-022](srs-clarifications.md#sc-022-incomplete-metrics-from-the-other-local-tools).
+
+Scope: Rust storage, a forward migration, backup compatibility, and synthetic storage fixtures. Resolve legacy overlap and conflicting pinned zones before changing saved records. The [storage proposal](reviews/2026-11-08-incomplete-local-metrics.md) remains design input.
+
+Acceptance:
+
+- Keep period totals separate from model details. Replace each accepted snapshot coherently, without adding independent model maxima.
+- Preserve older backups, exact accepted history, and lower-scan differences. Keep absent categories, estimates, projects, and session times absent.
+- Keep one unplaced period per accounting scope. Never assign it an activity date or include it in dated views.
+- Pass migration, backup, restore, full Rust workspace, and affected native checks.
+
+Stopping condition: one verified storage slice, owning docs, a local commit, and a Graphify update. Grouped scans start in L-1f9.
 
 ## Order
 

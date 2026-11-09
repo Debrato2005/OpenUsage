@@ -4,6 +4,10 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f4 and fixture results before L-1f7
+
+Latest scoped result, November 8, 2026: the full Rust workspace verification plan passed after the fixture portability fix. The rebuilt app and CLI passed native consent and read-only status journeys with tracked synthetic input on Linux. The full renderer milestone passed after the countdown fixture fix. [Traceability](acceptance-traceability.md) holds the exact scope.
+
 ## Hosted CI state before the quota readiness fix
 
 - Hosted CI for `b1b8d84` passed Linux lint, then failed the synthetic quota test at its temporary-path assertion. Native oracle checks were skipped. Renderer results remain pending. [Run 42483593712](https://github.com/Debrato2005/OpenUsage/actions/runs/42483593712) holds the hosted evidence. The full renderer milestone passed locally after the countdown fixture fix. The complete hosted gate remains unverified. OU-NFR-012 also needs Windows and macOS, planned for S-15.

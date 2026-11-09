@@ -26,7 +26,7 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scoped result, November 8, 2026: the full Rust workspace verification plan passed after the fixture portability fix. The rebuilt app and CLI passed native consent and read-only status journeys with tracked synthetic input on Linux. The full renderer milestone passed after the countdown fixture fix. [Traceability](acceptance-traceability.md) holds the exact scope.
+Latest scoped result, November 9, 2026: L-1f7 passed seven period tests, full Rust workspace checks, 98 pinned-scanner comparisons, and the rebuilt native consent journey. All data was synthetic on Linux. The renderer build and all 56 IPC contracts passed. The full renderer suite did not run for this parser-only slice. [Traceability](acceptance-traceability.md) holds the exact scope.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -54,6 +54,8 @@ Kept from baseline 2.0:
 - Wake handling: OU-PROC-013, OU-MON-013.
 
 ## Partial
+
+- Local logs (5C), L-1f7, November 9, 2026: independent period reports preserve reported totals and unavailable details for all sixteen disabled tools. The four dated candidates use strict daily reports. The other twelve use full session reports for one unplaced period. The [crate contract](../crates/openusage-locallogs/README.md#additional-period-reports) owns the parser rules. Storage and scanner integration remain open.
 
 - Quota fixture readiness, November 9, 2026: the fixture saves its runtime path before it exposes its PID. The controlled regression and original Rust cancellation test passed. The full workspace checks passed, with Clippy completed separately after the verification runner ended with signal 15. [Traceability](acceptance-traceability.md) holds the execution limits. The production code is unchanged.
 
@@ -146,8 +148,8 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 
 ## Current assignment
 
-The next assignment is [L-1f7](implementation-slices.md#next-assignment-l-1f7): finish the report contract needed by the remaining tools before storage integration. L-1f0 through L-1f6 are complete within their recorded scope. Only Claude Code and Codex are enabled. The Amp patch is a local candidate, and the production scanner pin is unchanged.
+The next assignment is [L-1f8](implementation-slices.md#next-assignment-l-1f8): store independent period totals and nullable details. L-1f0 through L-1f7 are complete within their recorded scope. Only Claude Code and Codex are enabled. The Amp patch is a local candidate, and the production scanner pin is unchanged.
 
-The [build checklist](implementation-slices.md#build-checklist) defines L-1f7 through L-1f11 and their order. [SC-022](srs-clarifications.md#sc-022-incomplete-metrics-from-the-other-local-tools) governs missing metrics. The [storage proposal](reviews/2026-11-08-incomplete-local-metrics.md) remains design input. Resolve its migration questions before changing stored history. [SC-023](srs-clarifications.md#sc-023-copied-amp-usage-in-the-pinned-scanner) holds the Amp qualification limits. OQ-1 and the owner release gates remain open.
+The [build checklist](implementation-slices.md#build-checklist) defines L-1f8 through L-1f11 and their order. [SC-022](srs-clarifications.md#sc-022-incomplete-metrics-from-the-other-local-tools) governs missing metrics. The [storage proposal](reviews/2026-11-08-incomplete-local-metrics.md) remains design input. Resolve its migration questions before changing stored history. [SC-023](srs-clarifications.md#sc-023-copied-amp-usage-in-the-pinned-scanner) holds the Amp qualification limits. OQ-1 and the owner release gates remain open.
 
 The exact working checkpoint, if one exists, is in the local `.recovery/active-checkpoint.json`.

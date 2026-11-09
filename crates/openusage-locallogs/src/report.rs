@@ -33,63 +33,63 @@ pub enum ReportError {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
-struct Report {
-    daily: Vec<Day>,
-    totals: Counts,
+pub(crate) struct Report {
+    pub(crate) daily: Vec<Day>,
+    pub(crate) totals: Counts,
 }
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
-struct Counts {
-    cache_creation_tokens: u64,
-    cache_read_tokens: u64,
-    input_tokens: u64,
-    output_tokens: u64,
-    total_cost: f64,
-    total_tokens: u64,
+pub(crate) struct Counts {
+    pub(crate) cache_creation_tokens: u64,
+    pub(crate) cache_read_tokens: u64,
+    pub(crate) input_tokens: u64,
+    pub(crate) output_tokens: u64,
+    pub(crate) total_cost: f64,
+    pub(crate) total_tokens: u64,
     /// Present only when some model has no price.
     #[serde(default)]
-    unpriced_models: Vec<String>,
+    pub(crate) unpriced_models: Vec<String>,
 }
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
-struct Day {
-    agent: String,
-    agents: Vec<Agent>,
-    cache_creation_tokens: u64,
-    cache_read_tokens: u64,
-    input_tokens: u64,
-    metadata: Metadata,
-    model_breakdowns: Vec<Model>,
-    models_used: Vec<String>,
-    output_tokens: u64,
-    period: String,
-    total_cost: f64,
-    total_tokens: u64,
+pub(crate) struct Day {
+    pub(crate) agent: String,
+    pub(crate) agents: Vec<Agent>,
+    pub(crate) cache_creation_tokens: u64,
+    pub(crate) cache_read_tokens: u64,
+    pub(crate) input_tokens: u64,
+    pub(crate) metadata: Metadata,
+    pub(crate) model_breakdowns: Vec<Model>,
+    pub(crate) models_used: Vec<String>,
+    pub(crate) output_tokens: u64,
+    pub(crate) period: String,
+    pub(crate) total_cost: f64,
+    pub(crate) total_tokens: u64,
 }
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct Metadata {
-    agents: Vec<String>,
+pub(crate) struct Metadata {
+    pub(crate) agents: Vec<String>,
 }
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
-struct Agent {
-    agent: String,
-    cache_creation_tokens: u64,
-    cache_read_tokens: u64,
-    input_tokens: u64,
-    model_breakdowns: Vec<Model>,
-    models_used: Vec<String>,
-    output_tokens: u64,
-    total_cost: f64,
-    total_tokens: u64,
+pub(crate) struct Agent {
+    pub(crate) agent: String,
+    pub(crate) cache_creation_tokens: u64,
+    pub(crate) cache_read_tokens: u64,
+    pub(crate) input_tokens: u64,
+    pub(crate) model_breakdowns: Vec<Model>,
+    pub(crate) models_used: Vec<String>,
+    pub(crate) output_tokens: u64,
+    pub(crate) total_cost: f64,
+    pub(crate) total_tokens: u64,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, PartialEq)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub(crate) struct Model {
     pub(crate) cache_creation_tokens: u64,
