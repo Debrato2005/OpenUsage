@@ -209,6 +209,7 @@ fn schema_four_migration_and_archive_normalization_do_not_replay_reset_history()
     let confirmed = next(&original, 1);
     storage.accept_quota(confirmed.clone(), None).unwrap();
     // Reproduce an exact v4 catalog with real encrypted quota proof, before alert recording existed.
+    crate::local_periods::drop_tables_for_legacy_fixture(&storage.connection, "main");
     storage
         .connection
         .execute_batch("DROP TABLE local_usage_hours;DROP TABLE local_usage_sessions;DROP TABLE local_usage_differences;DROP TABLE local_usage_days;DROP TABLE log_sources;DROP TABLE subscriptions;DROP TABLE operational_alert_events;DROP TABLE operational_alert_outcomes;DROP TABLE operational_alert_state;DROP TABLE operational_alert_overrides;DROP TABLE operational_alert_preferences;DROP TABLE threshold_alert_events;DROP TABLE threshold_alert_preferences;DROP TABLE threshold_alert_overrides;DROP TABLE reset_notification_outbox;DROP TABLE reset_notification_receipts;DROP TABLE reset_alert_overrides;DROP TABLE reset_alert_preferences;DROP TABLE alert_events;DROP TABLE notification_event_ids;PRAGMA user_version=4")

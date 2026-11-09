@@ -180,6 +180,9 @@ impl Storage {
                     })
                     .map_err(|_| RestoreError::WriteFailed)?;
                 transaction
+                    .execute_batch(crate::local_periods::DELETE_RECORDS)
+                    .map_err(|_| RestoreError::WriteFailed)?;
+                transaction
                     .execute_batch(
                         "DELETE FROM local_usage_hours; DELETE FROM local_usage_sessions; DELETE FROM local_usage_differences; DELETE FROM local_usage_days; DELETE FROM log_sources; DELETE FROM subscriptions; DELETE FROM reset_notification_outbox; DELETE FROM operational_alert_events; DELETE FROM operational_alert_outcomes; DELETE FROM operational_alert_overrides; DELETE FROM operational_alert_preferences; DELETE FROM threshold_alert_events; DELETE FROM threshold_alert_overrides; DELETE FROM threshold_alert_preferences; DELETE FROM reset_alert_overrides; DELETE FROM reset_alert_preferences; DELETE FROM alert_events; DELETE FROM notification_event_ids; DELETE FROM quota_reset_assessments; DELETE FROM current_quota; DELETE FROM current_quota_readings; DELETE FROM credit_snapshots; DELETE FROM quota_limits; UPDATE quota_snapshots SET previous_quota_run_id=NULL; DELETE FROM quota_snapshots; DELETE FROM profile_bindings; DELETE FROM activity_day_history; DELETE FROM current_activity_days;
                          DELETE FROM current_activity; DELETE FROM activity_summaries;

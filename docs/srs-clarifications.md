@@ -29,11 +29,11 @@ This is the record of how requirements were read. Entries keep their original da
 | SC-021 | Sessions, projects, hours and reasoning from the pinned `ccusage` | In force, amended at L-1g2; quota movement waits for OQ-1 |
 | SC-022 | Incomplete metrics from the other local tools | Owner approved; implementation pending |
 | SC-023 | Copied Amp usage in the pinned scanner | Confirmed AT-65 gap |
-| SC-024 | Legacy local usage during grouped migration | Owner decision required |
+| SC-024 | Legacy local usage during grouped migration | Resolved under owner execution direction |
 
 ## SC-024: legacy local usage during grouped migration
 
-Status: owner decision required, November 9, 2026. L-1f8 migration has not started. The SRS stays unchanged.
+Status: resolved, November 9, 2026, under the owner's instruction to compare the evidence, resolve the issues, and continue. The SRS stays unchanged.
 
 OU-LOG-011 preserves accepted totals after log deletion. AT-65 requires copied usage to count once. Schema 10 stores per-folder, per-model summaries without event identities. The writer retains each model maximum independently.
 
@@ -41,16 +41,18 @@ A later grouped report cannot establish how much deleted usage overlaps those su
 
 Each source also pins its own zone. The scanner keeps that source zone. Sources added after a display-zone change can therefore hold different day boundaries. Moving their old dates into one zone would violate OU-LOG-010.
 
-Proposed resolution for owner review:
+Resolution:
 
 - Preserve all legacy records, differences, source membership, and original zones in encrypted history, export, and backup.
 - Start grouped accounting separately. Never add legacy totals to grouped totals or claim that a maximum reconstructs deleted unique usage.
 - Show Not available for a combined historical total when overlap or incompatible day boundaries prevent proof. Keep the original source values accessible in the existing detail panel.
 - Pin the new accounting scope at its first grouped scan. Keep legacy dates and zones unchanged. A rescan cannot silently replace legacy history.
 
-The decision changes which historical total the main view can claim. SC-022 authorizes unavailable measurements from incomplete scanner reports, but does not explicitly settle this legacy-history case. Confirm this reading before implementing the migration. No real database or logs were inspected.
+The main view cannot claim a combined historical total without proof of overlap and common day boundaries. SC-022 governs missing measurements. This reading extends the same rule to legacy history. No real database or logs were inspected.
 
-Source basis: [schema 10](../crates/openusage-storage/src/schema_v10.sql), [saved maxima and zones](../crates/openusage-storage/src/local_logs.rs), and the [per-source scanner](../apps/desktop/src-tauri/src/local_logs.rs). These are source findings, not an executed migration or a real-account result.
+Source basis: [schema 10](../crates/openusage-storage/src/schema_v10.sql), [saved maxima and zones](../crates/openusage-storage/src/local_logs.rs), and the [per-source scanner](../apps/desktop/src-tauri/src/local_logs.rs). Source review establishes this rationale. [Acceptance traceability](acceptance-traceability.md) records the synthetic migration checks.
+
+Comparison evidence: [ccusage Codex guidance](https://ccusage.com/guide/codex/) explains gaps after local log removal. [CodexBar request identities](https://github.com/steipete/CodexBar/blob/7447bc77c2497323d9c41e40164ce705533493c8/Sources/CodexBarCore/Vendored/CostUsage/CostUsageScanner%2BRequestIdentity.swift) suppress duplicate requests from event evidence. Its [release notes](https://github.com/steipete/CodexBar/releases) preserve a valid cache when roots cannot be read. These examples support keeping history and stating gaps. They give no proof that a merge of legacy sums is correct.
 
 ## SC-023: copied Amp usage in the pinned scanner
 

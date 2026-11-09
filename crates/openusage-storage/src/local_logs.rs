@@ -172,7 +172,7 @@ fn valid_tool(tool: &str) -> bool {
             .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
 }
 
-fn valid_model(model: &str) -> bool {
+pub(crate) fn valid_model(model: &str) -> bool {
     (1..=128).contains(&model.len())
         && model
             .bytes()
@@ -199,7 +199,7 @@ fn valid_folder(folder: &str) -> bool {
             == path.as_os_str()
 }
 
-fn valid_version(version: &str) -> bool {
+pub(crate) fn valid_version(version: &str) -> bool {
     (1..=32).contains(&version.len()) && version.bytes().all(|b| b.is_ascii_digit() || b == b'.')
 }
 

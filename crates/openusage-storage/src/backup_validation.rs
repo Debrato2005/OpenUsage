@@ -185,7 +185,7 @@ pub(crate) fn with_validated_snapshot<T, E: From<BackupValidationError>>(
 
 pub(crate) fn supported_schema_version(version: u32) -> bool {
     // A later migration must add explicit content/copy support before becoming restorable.
-    matches!(version, 1..=12) && version <= CURRENT_SCHEMA_VERSION
+    matches!(version, 1..=13) && version <= CURRENT_SCHEMA_VERSION
 }
 
 fn validate_size(size: u64) -> Result<()> {
@@ -350,6 +350,9 @@ pub(crate) fn validate_schema_connection(
     }
     if manifest_version >= 10 {
         crate::local_logs::validate(connection, schema, manifest_version)?;
+    }
+    if manifest_version >= 13 {
+        crate::local_periods::validate(connection, schema)?;
     }
     if !settings_supported || !accounts_supported {
         return Err(BackupValidationError::UnsupportedContent);
@@ -668,6 +671,11 @@ pub(crate) fn copy_activity_records(
             columns,
             columns,
         )?;
+    }
+    if version >= 13 {
+        for (table, columns) in crate::local_periods::TABLES {
+            copy_fields(source, target, schema, table, columns, columns)?;
+        }
     }
     if version >= 6 {
         crate::reset_notifications::copy_records(source, target, schema, restore, version)?;

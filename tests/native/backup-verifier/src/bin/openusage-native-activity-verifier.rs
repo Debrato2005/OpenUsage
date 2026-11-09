@@ -63,7 +63,7 @@ fn constrain(connection: &Connection) {
         .query_row("PRAGMA cipher_version", [], |r| r.get(0))
         .unwrap();
     assert!(version.starts_with("4."));
-    assert!([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].contains(&schema_version(connection)));
+    assert!([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13].contains(&schema_version(connection)));
     assert_eq!(
         connection
             .query_row("PRAGMA integrity_check", [], |r| r.get::<_, String>(0))
@@ -155,6 +155,19 @@ fn state(connection: &Connection, include_profile_state: bool) -> Value {
     }
     if schema_version(connection) >= 12 {
         selected.push(("local_usage_hours", "id"));
+    }
+    if schema_version(connection) >= 13 {
+        selected.extend([
+            ("local_usage_scopes", "tool"),
+            ("local_usage_scans", "id"),
+            ("local_usage_scan_roots", "scan_id,log_source_id"),
+            ("local_usage_records", "id"),
+            ("local_usage_record_models", "record_id,model"),
+            (
+                "local_usage_scan_differences",
+                "record_id,saved_total_tokens,new_total_tokens",
+            ),
+        ]);
     }
     if include_profile_state {
         selected.extend([("profiles", "id"), ("settings", "id"), ("accounts", "id")]);
@@ -268,7 +281,9 @@ fn main() {
             free_bytes(stage),
         )
         .expect("Synthetic archive did not authenticate.");
-        assert!([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].contains(&verified.manifest().schema_version));
+        assert!(
+            [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13].contains(&verified.manifest().schema_version)
+        );
         assert_eq!(verified.manifest().entries.len(), 1);
         assert_eq!(verified.manifest().entries[0].name, "records.sqlite");
         verified.copy_payload(&mut *payload).unwrap();
@@ -331,8 +346,8 @@ fn main() {
     }
     if include_profile_state {
         assert!(
-            [4, 5, 6, 7, 8, 9, 10, 11, 12].contains(&schema_version),
-            "Profile-state verification requires schema 4 through 12."
+            [4, 5, 6, 7, 8, 9, 10, 11, 12, 13].contains(&schema_version),
+            "Profile-state verification requires schema 4 through 13."
         );
     }
     let actual = state(&connection, include_profile_state);

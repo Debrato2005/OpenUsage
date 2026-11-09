@@ -314,7 +314,7 @@ mod tests {
         assert_eq!(document["schemaVersion"], crate::CURRENT_SCHEMA_VERSION);
         assert_eq!(document["exportedAt"], WHEN);
         assert_eq!(document["integerEncoding"], "decimal-string");
-        assert_eq!(summary.table_count, 36);
+        assert_eq!(summary.table_count, 42);
         let mut records = 0;
         for table in document["tables"].as_array().unwrap() {
             let name = table["name"].as_str().unwrap();
@@ -533,7 +533,7 @@ mod tests {
         let summary = storage
             .write_application_export(&mut io::sink(), WHEN)
             .unwrap();
-        assert_eq!(summary.table_count, 36);
+        assert_eq!(summary.table_count, 42);
         assert_eq!(summary.record_count, 50_002);
     }
 }

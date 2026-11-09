@@ -4,6 +4,12 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f7 and earlier native results before L-1f8
+
+Latest scoped result, November 9, 2026: L-1f7 passed seven period tests, full Rust workspace checks, 98 pinned-scanner comparisons, and the rebuilt native consent journey. All data was synthetic on Linux. The renderer build and all 56 IPC contracts passed. The full renderer suite did not run for this parser-only slice. [Traceability](acceptance-traceability.md) holds the exact scope.
+
+- L-1g2, November 8, 2026: 24 journeys now expect schema 12. 14 journeys ran on the native-test build on a private display and passed: `local-log-consent`, `share-images`, `cli-status`, `backup`, `backup-inspection`, `restore-preview`, `restore-apply`, `restore-checkpoint`, `application-export`, `local-data-deletion`, `persistence`, `subscriptions`, `activity-persistence` and `account-signout`. These 12 did not run on this build: `activity-history`, `activity-history-export`, `alert-history`, `collection`, `companion-onboarding`, `device-login`, `first-account-read`, `monitoring`, `onboarding-discovery`, `operational-alerts`, `quota-read` and `reset-notifications`.
+
 ## L-1f4 and fixture results before L-1f7
 
 Latest scoped result, November 8, 2026: the full Rust workspace verification plan passed after the fixture portability fix. The rebuilt app and CLI passed native consent and read-only status journeys with tracked synthetic input on Linux. The full renderer milestone passed after the countdown fixture fix. [Traceability](acceptance-traceability.md) holds the exact scope.

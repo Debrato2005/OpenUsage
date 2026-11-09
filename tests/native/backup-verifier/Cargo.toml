@@ -23,6 +23,9 @@ libc = "=0.2.191"
 rusqlite = { version = "=0.40.1", features = ["bundled-sqlcipher-vendored-openssl", "serialize"] }
 zeroize = "=1.9.1"
 
+[dev-dependencies]
+openusage-locallogs = { path = "../../../crates/openusage-locallogs" }
+
 [features]
 native-test = ["openusage-storage/native-test"]
 

@@ -12,7 +12,7 @@ The app runs on Linux only. Results below use synthetic data unless they say oth
 
 | Area | State |
 |---|---|
-| Storage | SQLCipher 4 with WAL at schema 12, with OS key store and passphrase fallback |
+| Storage | SQLCipher 4 with WAL at schema 13, with OS key store and passphrase fallback |
 | Accounts | Up to 10 Codex profiles, device-code sign-in, sign-out, and archive |
 | Quotas | Reported windows, reset countdowns, conservative reset confirmation, and history |
 | Token activity | Provider daily buckets, heatmaps, and Individual and Profile sum views |
@@ -26,12 +26,12 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scoped result, November 9, 2026: L-1f7 passed seven period tests, full Rust workspace checks, 98 pinned-scanner comparisons, and the rebuilt native consent journey. All data was synthetic on Linux. The renderer build and all 56 IPC contracts passed. The full renderer suite did not run for this parser-only slice. [Traceability](acceptance-traceability.md) holds the exact scope.
+Latest scoped result, November 9, 2026: L-1f8 stores independent totals and nullable details at schema 13. The full verification plan and nine native journeys passed with synthetic data on Linux. [Traceability](acceptance-traceability.md) records the checks, corrected failures, and unexecuted gates.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
 - 426 workspace tests passed, with 1 intentional ignore. The verify plan and Clippy passed.
-- 14 native journeys passed at schema 12 on a private display. [Failing or stale tests](#failing-or-stale-tests) names the 12 that did not run.
+- 14 native journeys passed at schema 12 on a private display. [History](implementation-history.md#l-1f7-and-earlier-native-results-before-l-1f8) lists the executed and unexecuted journeys.
 - The full Chromium and WebKit renderer suite passed after the countdown fixture fix on November 8.
 - The last run of all native journeys was on November 4, after S-03b: 46 of 48 passed.
 
@@ -55,7 +55,7 @@ Kept from baseline 2.0:
 
 ## Partial
 
-- Local logs (5C), L-1f7, November 9, 2026: independent period reports preserve reported totals and unavailable details for all sixteen disabled tools. The four dated candidates use strict daily reports. The other twelve use full session reports for one unplaced period. The [crate contract](../crates/openusage-locallogs/README.md#additional-period-reports) owns the parser rules. Storage and scanner integration remain open.
+- Local logs (5C), L-1f7, November 9, 2026: independent period reports preserve reported totals and unavailable details for all sixteen disabled tools. The four dated candidates use strict daily reports. The other twelve use full session reports for one unplaced period. The [crate contract](../crates/openusage-locallogs/README.md#additional-period-reports) owns the parser rules. Grouped storage is complete. Scanner and surface integration remain open.
 
 - Quota fixture readiness, November 9, 2026: the fixture saves its runtime path before it exposes its PID. The controlled regression and original Rust cancellation test passed. The full workspace checks passed, with Clippy completed separately after the verification runner ended with signal 15. [Traceability](acceptance-traceability.md) holds the execution limits. The production code is unchanged.
 
@@ -128,7 +128,7 @@ Kept from baseline 2.0:
 
 ## Failing or stale tests
 
-- L-1g2, November 8, 2026: 24 journeys now expect schema 12. 14 journeys ran on the native-test build on a private display and passed: `local-log-consent`, `share-images`, `cli-status`, `backup`, `backup-inspection`, `restore-preview`, `restore-apply`, `restore-checkpoint`, `application-export`, `local-data-deletion`, `persistence`, `subscriptions`, `activity-persistence` and `account-signout`. These 12 did not run on this build: `activity-history`, `activity-history-export`, `alert-history`, `collection`, `companion-onboarding`, `device-login`, `first-account-read`, `monitoring`, `onboarding-discovery`, `operational-alerts`, `quota-read` and `reset-notifications`.
+- L-1f8, November 9, 2026: 24 native journeys now expect schema 13. Nine passed on the final native-test build: `local-log-consent`, `backup`, `backup-inspection`, `restore-preview`, `restore-apply`, `restore-checkpoint`, `application-export`, `local-data-deletion`, and `persistence`. The other native journeys did not run for this slice. The full renderer suite, hosted CI, real accounts, Windows, and macOS also remain unexecuted for this source scope.
 - S-03d, November 6, 2026: the slice updated the 19 journeys that touch Overview and ran them on a private display. 17 passed, 16 on the native-test build and `provider-keyring` on the companion build. `reference-visual` passes every Overview check and keeps its recorded digit-width reason on Usage. `heatmap-window` keeps its window-manager reason. The other journeys did not run on this build.
 
 As of November 3, 2026, on Linux. 43 journeys ran on the native-test build and 4 on the production build. No failure names an app defect.
@@ -148,10 +148,10 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 
 ## Current assignment
 
-The next assignment is [L-1f8](implementation-slices.md#next-assignment-l-1f8): store independent period totals and nullable details. Source review found a legacy-history decision in [SC-024](srs-clarifications.md#sc-024-legacy-local-usage-during-grouped-migration). The migration waits for that decision.
+The next assignment is [L-1f9](implementation-slices.md#next-assignment-l-1f9): group consented roots by tool and save each complete result once. [SC-024](srs-clarifications.md#sc-024-legacy-local-usage-during-grouped-migration) resolves legacy history. Its records and zones stay separate from grouped totals.
 
-L-1f0 through L-1f7 are complete within their recorded scope. Only Claude Code and Codex are enabled. The Amp patch is a local candidate, and the production scanner pin is unchanged.
+L-1f0 through L-1f8 are complete within their recorded scope. Only Claude Code and Codex are enabled. The Amp patch is a local candidate, and the production scanner pin is unchanged.
 
-The [build checklist](implementation-slices.md#build-checklist) defines L-1f8 through L-1f11 and their order. [SC-022](srs-clarifications.md#sc-022-incomplete-metrics-from-the-other-local-tools) governs missing metrics. The [storage proposal](reviews/2026-11-08-incomplete-local-metrics.md) remains design input. Resolve its migration questions before changing stored history. [SC-023](srs-clarifications.md#sc-023-copied-amp-usage-in-the-pinned-scanner) holds the Amp qualification limits. OQ-1 and the owner release gates remain open.
+The [build checklist](implementation-slices.md#build-checklist) defines L-1f9 through L-1f11 and their order. [SC-022](srs-clarifications.md#sc-022-incomplete-metrics-from-the-other-local-tools) governs missing metrics. The [storage proposal](reviews/2026-11-08-incomplete-local-metrics.md) remains design input. The implemented storage boundary is in [architecture](architecture.md). [SC-023](srs-clarifications.md#sc-023-copied-amp-usage-in-the-pinned-scanner) holds the Amp qualification limits. OQ-1 and the owner release gates remain open.
 
 The exact working checkpoint, if one exists, is in the local `.recovery/active-checkpoint.json`.

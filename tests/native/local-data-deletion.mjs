@@ -48,7 +48,7 @@ async function ready(protection) {
   try { await waitFor(async () => (await call('bootstrap')).storage === 'ready', 'ready private workspace'); }
   catch (error) { await unlockDiagnostic('ready-timeout'); throw error; }
   assert.equal((await call('bootstrap')).keyProtection, protection);
-  assert.equal((await call('bootstrap')).schemaVersion, 12);
+  assert.equal((await call('bootstrap')).schemaVersion, 13);
 }
 async function nativeKey(value) {
   await driver.request('POST', `/session/${driver.session}/actions`, { actions: [{ type: 'key', id: 'local-deletion-keyboard', actions: [{ type: 'keyDown', value }, { type: 'keyUp', value }] }] });

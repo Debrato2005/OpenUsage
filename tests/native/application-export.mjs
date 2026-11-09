@@ -15,7 +15,7 @@ const providerDigest = '53a853b737ceca311649e9f1d9ebd1341154a5f782efd8e915f7f834
 const verifierDigest = 'a2e4a64707081a9943f3c04f8237c2b16bea673e974e96393d6a8a7d9357f975';
 const secretSentinel = 'Synthetic provider-only credential sentinel; never export this file.';
 const hash = async path => createHash('sha256').update(await readFile(path)).digest('hex');
-const evidence = { requirement: 'NATIVE-APPLICATION-DATA-EXPORT-001', result: 'failed', scope: 'Actual Linux Tauri full JSON application-record export from a private SQLCipher4/WAL schema8 workspace. Two explicit synthetic sign-ins and automatic readings,21strictly marked additional history snapshots, archived profile and genuine restart. An independent read-only encrypted-copy oracle establishes all 31 table rowsets and every populated field with exact decimal integers. Empty-table columns receive structural checks; storage tests qualify the trusted schema. Explicit identifiable plaintext consent, private files, no credential-home export, locked/invalid refusal and source preservation are checked. No real-provider or other-platform acceptance.', exports: [], oracles: [], closes: [], screenshots: [] };
+const evidence = { requirement: 'NATIVE-APPLICATION-DATA-EXPORT-001', result: 'failed', scope: 'Actual Linux Tauri full JSON application-record export from a private SQLCipher4/WAL schema 13 workspace. Two explicit synthetic sign-ins and automatic readings, 21 strictly marked additional history snapshots, archived profile and genuine restart. An independent read-only encrypted-copy oracle establishes all 42 table rowsets and every populated field with exact decimal integers. Empty-table columns receive structural checks; storage tests qualify the trusted schema. Explicit identifiable plaintext consent, private files, no credential-home export, locked/invalid refusal and source preservation are checked. No real-provider or other-platform acceptance.', exports: [], oracles: [], closes: [], screenshots: [] };
 let fixture, driver, sequence = 0;
 const profiles = [];
 const call = async (command, args) => { const response = await driver.invoke(command, args); assert.equal(response.ok, true, `${command}: ${JSON.stringify(response)}`); return response.value; };
@@ -47,7 +47,7 @@ async function open(setup = false) {
   await driver.type('#workspace-passphrase', password); if (setup) await driver.type('#workspace-confirmation', password);
   assert.equal(await driver.execute('return document.activeElement.value.length;'), password.length); await key('\uE007');
   await waitFor(async () => (await call('bootstrap')).storage === 'ready', 'ready application export workspace');
-  assert.equal((await call('bootstrap')).schemaVersion, 12);
+  assert.equal((await call('bootstrap')).schemaVersion, 13);
 }
 async function close() {
   const queue = [driver.child.pid]; let owned;
@@ -78,14 +78,14 @@ async function oracle(label) {
     // Preserve every SQLite INTEGER token before JavaScript could round an i64.
     const report = JSON.parse(execFileSync('/usr/bin/python3', ['-c', 'import json,sys; print(json.dumps(json.load(sys.stdin,parse_int=str),separators=(",",":")))'], { input: raw, encoding: 'utf8', timeout: 10000, maxBuffer: 8 * 1024 * 1024, env: { PATH: '/usr/bin:/bin' } }));
     for (const field of ['verified', 'readOnly', 'inputUnchanged', 'keyEnvelopeUnchanged', 'walRecordsUnchanged']) assert.equal(report[field], true);
-    assert.equal(report.schemaVersion, '12'); assert.equal(report.plaintextDiskStaging, false); assert.equal(Object.keys(report.state.tables).length, 36); assert.deepEqual(await liveHashes(), before);
+    assert.equal(report.schemaVersion, '13'); assert.equal(report.plaintextDiskStaging, false); assert.equal(Object.keys(report.state.tables).length, 42); assert.deepEqual(await liveHashes(), before);
     evidence.oracles.push({ label, tables: Object.fromEntries(Object.entries(report.state.tables).map(([name, rows]) => [name, { rows: rows.length, sha256: createHash('sha256').update(JSON.stringify(rows)).digest('hex') }])) });
     return report.state.tables;
   } finally { await rm(temporary, { recursive: true, force: true }); }
 }
 function tableRows(payload) {
   const tables = {};
-  assert.equal(payload.tables.length, 36);
+  assert.equal(payload.tables.length, 42);
   for (const table of payload.tables) {
     assert.deepEqual(Object.keys(table).sort(), ['columns', 'name', 'rows']); assert.equal(typeof table.name, 'string'); assert.equal(Object.hasOwn(tables, table.name), false);
     assert.ok(table.columns.length > 0); const columns = table.columns.map(column => { assert.deepEqual(Object.keys(column).sort(), ['name', 'type']); assert.equal(typeof column.name, 'string'); assert.ok(['TEXT', 'INTEGER'].includes(column.type)); return column.name; });
@@ -104,16 +104,16 @@ async function readExport(fileName, expected, receipt) {
   const path = join(exportDirectory(), fileName), metadata = await lstat(path); assert.equal(metadata.isSymbolicLink(), false); assert.equal(metadata.mode & 0o777, 0o600); assert.equal(metadata.nlink, 1); assert.equal((await lstat(exportDirectory())).mode & 0o777, 0o700);
   const text = await readFile(path, 'utf8'), payload = JSON.parse(text);
   assert.deepEqual(Object.keys(payload).sort(), ['format', 'formatVersion', 'schemaVersion', 'exportedAt', 'integerEncoding', 'tables'].sort());
-  assert.equal(payload.format, 'openusage.application-records'); assert.equal(payload.formatVersion, 1); assert.equal(payload.schemaVersion, 12); assert.equal(payload.integerEncoding, 'decimal-string'); assert.ok(Number.isFinite(Date.parse(payload.exportedAt)));
+  assert.equal(payload.format, 'openusage.application-records'); assert.equal(payload.formatVersion, 1); assert.equal(payload.schemaVersion, 13); assert.equal(payload.integerEncoding, 'decimal-string'); assert.ok(Number.isFinite(Date.parse(payload.exportedAt)));
   const tables = tableRows(payload); matchesOracle(tables, expected);
   const recordCount = payload.tables.reduce((sum, table) => sum + BigInt(table.rows.length), 0n).toString();
   if (receipt) {
     assert.deepEqual(Object.keys(receipt).sort(), ['fileName', 'directory', 'format', 'schemaVersion', 'tableCount', 'recordCount', 'byteCount', 'exportedAt'].sort());
-    assert.equal(receipt.fileName, fileName); assert.equal(receipt.directory, exportDirectory()); assert.equal(receipt.format, 'json'); assert.equal(receipt.schemaVersion, 12); assert.equal(receipt.tableCount, 36); assert.equal(receipt.recordCount, recordCount); assert.equal(receipt.byteCount, String(Buffer.byteLength(text))); assert.equal(receipt.exportedAt, payload.exportedAt);
+    assert.equal(receipt.fileName, fileName); assert.equal(receipt.directory, exportDirectory()); assert.equal(receipt.format, 'json'); assert.equal(receipt.schemaVersion, 13); assert.equal(receipt.tableCount, 42); assert.equal(receipt.recordCount, recordCount); assert.equal(receipt.byteCount, String(Buffer.byteLength(text))); assert.equal(receipt.exportedAt, payload.exportedAt);
   }
   for (const forbidden of [password, secretSentinel, fixture.root, 'database-key.v1', CODEX_SENTINEL.trim()]) assert.equal(text.includes(forbidden), false, 'Provider files, keys and machine paths must stay outside the export.');
   assert.equal((await exportNames()).some(name => name.endsWith('.pending')), false);
-  evidence.exports.push({ fileName, tableCount: 36, recordCount, byteCount: String(Buffer.byteLength(text)), sha256: await hash(path), privatePlaintextFile: true });
+  evidence.exports.push({ fileName, tableCount: 42, recordCount, byteCount: String(Buffer.byteLength(text)), sha256: await hash(path), privatePlaintextFile: true });
   return tables;
 }
 async function guiExport(expected, capture = false) {
@@ -184,14 +184,14 @@ try {
   const current = await call('export_saved_readings', { profileIds: [profiles[1].id], format: 'json', includeIdentifiers: true, confirmed: true });
   assert.equal(current.directory, exportDirectory()); const latest = JSON.parse(await readFile(join(current.directory, current.fileName), 'utf8'));
   assert.equal(latest.records.every(row => row.profile_id === profiles[1].id), true); assert.ok(latest.records.some(row => row.record_kind === 'quota_summary')); assert.ok(latest.records.some(row => row.record_kind === 'activity_summary')); assert.equal(JSON.stringify(latest).includes(secretSentinel), false);
-  assert.deepEqual(await liveHashes(), before); assert.deepEqual(await oracle('exports and invalid requests preserve all 36 tables'), source); assert.deepEqual(await sessions(), sessionsBefore);
+  assert.deepEqual(await liveHashes(), before); assert.deepEqual(await oracle('exports and invalid requests preserve all 42 tables'), source); assert.deepEqual(await sessions(), sessionsBefore);
   await close(); await open();
   const restartBefore = await liveHashes(), restart = await oracle('genuine restart before complete export'); matchesOracle(restart, source);
   const receipt = await call('export_application_data', { confirmed: true }); await readExport(receipt.fileName, restart, receipt);
   assert.deepEqual(await liveHashes(), restartBefore); assert.deepEqual(await oracle('restarted full export remains read-only'), restart); assert.deepEqual(await sessions(), sessionsBefore);
   assert.equal(await readFile(join(fixture.dirs.codex, 'synthetic-fixture.txt'), 'utf8'), CODEX_SENTINEL);
   for (const profile of profiles) assert.equal(await readFile(join(dirname(fixture.database), 'profiles', profile.id, 'synthetic-private-credential-sentinel.txt'), 'utf8'), secretSentinel);
-  evidence.acceptance = { emptyWorkspace: true, actualSyntheticSignIns: 2, allTables: 36, everyPopulatedFieldComparedExactly: true, emptyTableColumns: 'structural_checks_and_storage_schema_tests', archivedAndPriorConnections: true, exactI64NullZero: true, explicitIdentifiablePlaintextConsent: true, providerFilesExcluded: true, invalidAndLockedRequestsCreateNoFiles: true, sourceDatabaseWalWrappedKeyUnchanged: true, genuineRestart: true, providerSessions: sessionsBefore, newProviderSessionsDuringExport: 0, latestSharedPublisherRoute: true };
+  evidence.acceptance = { emptyWorkspace: true, actualSyntheticSignIns: 2, allTables: 42, everyPopulatedFieldComparedExactly: true, emptyTableColumns: 'structural_checks_and_storage_schema_tests', archivedAndPriorConnections: true, exactI64NullZero: true, explicitIdentifiablePlaintextConsent: true, providerFilesExcluded: true, invalidAndLockedRequestsCreateNoFiles: true, sourceDatabaseWalWrappedKeyUnchanged: true, genuineRestart: true, providerSessions: sessionsBefore, newProviderSessionsDuringExport: 0, latestSharedPublisherRoute: true };
   assert.equal(await hash(application), evidence.applicationSha256); assert.equal(await hash(seeder), evidence.seederSha256); assert.equal(await hash(executable), providerDigest); await close(); evidence.result = 'passed';
 } catch (error) { evidence.error = error.stack ?? String(error); process.exitCode = 1; }
 finally { try { await driver?.stop(); } finally { stopGroup(fixture?.bus, 'SIGKILL'); if (fixture) await rm(fixture.root, { recursive: true, force: true }); await writeFile(join(output, 'result.json'), JSON.stringify(evidence, null, 2) + '\n', { mode: 0o600 }); } }

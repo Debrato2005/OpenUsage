@@ -118,6 +118,31 @@ fn current_schema_is_explicit_and_mismatch_refusal_preserves_the_synthetic_works
     storage
         .create_profile(id, "Synthetic current-schema profile", id)
         .unwrap();
+    let source = storage
+        .set_log_source(
+            "amp",
+            "/srv/synthetic/amp",
+            openusage_storage::LogConsent::Granted,
+            "2026-11-09T12:00:00.000Z",
+        )
+        .unwrap();
+    storage
+        .save_grouped_local_scan(&openusage_storage::GroupedLocalScan {
+            tool: "amp",
+            source_ids: &[source.id],
+            time_zone: Some("UTC"),
+            scanner_version: "20.0.48",
+            observed_at_utc: "2026-11-09T12:00:00.000Z",
+            periods: &[openusage_locallogs::AgentPeriod {
+                period: openusage_locallogs::UsagePeriod::Day("2026-11-08".into()),
+                total_tokens: 173,
+                details: Default::default(),
+                estimated_value_micros: None,
+                models: vec![],
+            }],
+            sessions: None,
+        })
+        .unwrap();
     storage.create_encrypted_checkpoint(&checkpoint).unwrap();
     assert!(!fs::read(&live).unwrap().starts_with(b"SQLite format 3\0"));
     assert!(
@@ -283,7 +308,8 @@ fn current_schema_is_explicit_and_mismatch_refusal_preserves_the_synthetic_works
             assert_eq!(report["plaintextDiskStaging"], false);
             let mut tables = report["state"]["tables"].as_object().unwrap().clone();
             if flag.is_none() {
-                assert_eq!(tables.len(), 33);
+                assert_eq!(tables.len(), 39);
+                assert_eq!(tables["log_sources"].as_array().unwrap().len(), 1);
                 assert_eq!(tables.get("subscriptions"), Some(&json!([])));
                 assert_eq!(tables.get("alert_events"), Some(&json!([])));
                 for table in [
@@ -300,7 +326,6 @@ fn current_schema_is_explicit_and_mismatch_refusal_preserves_the_synthetic_works
                     "operational_alert_events",
                     "operational_alert_preferences",
                     "operational_alert_overrides",
-                    "log_sources",
                     "local_usage_days",
                     "local_usage_differences",
                     "local_usage_sessions",
@@ -311,7 +336,13 @@ fn current_schema_is_explicit_and_mismatch_refusal_preserves_the_synthetic_works
                 assert!(!tables.contains_key("profiles"));
                 default_tables = Some(tables);
             } else {
-                assert_eq!(tables.len(), 36);
+                assert_eq!(tables.len(), 42);
+                let records = tables["local_usage_records"].as_array().unwrap();
+                assert_eq!(records.len(), 1);
+                assert_eq!(records[0]["total_tokens"], "173");
+                assert!(records[0]["input_tokens"].is_null());
+                assert!(records[0]["last_activity_utc"].is_null());
+
                 let profiles = tables.remove("profiles").unwrap();
                 assert_eq!(profiles.as_array().unwrap().len(), 1);
                 let profile = &profiles[0];

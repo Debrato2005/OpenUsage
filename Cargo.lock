@@ -2832,6 +2832,7 @@ dependencies = [
  "getrandom 0.4.3",
  "jiff",
  "libc",
+ "openusage-locallogs",
  "rusqlite",
  "serde_json",
  "tempfile",

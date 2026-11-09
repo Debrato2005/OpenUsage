@@ -52,7 +52,7 @@ async function open(setup) {
   await driver.type('#workspace-passphrase', password); if (setup) await driver.type('#workspace-confirmation', password);
   await key('');
   await waitFor(async () => (await call('bootstrap')).storage === 'ready', 'ready local log workspace');
-  assert.equal((await call('bootstrap')).schemaVersion, 12);
+  assert.equal((await call('bootstrap')).schemaVersion, 13);
 }
 async function scanned(after) {
   let view;
@@ -81,7 +81,7 @@ async function oracle(label) {
     const database = join(temporary, 'database.db'); await copyFile(fixture.database, database); await chmod(database, 0o600);
     try { await copyFile(`${fixture.database}-wal`, `${database}-wal`); await chmod(`${database}-wal`, 0o600); } catch (error) { if (error.code !== 'ENOENT') throw error; }
     const report = JSON.parse(execFileSync(verifier, ['database', database, join(dirname(fixture.database), 'database-key.v1'), '--profile-state'], { input: JSON.stringify({ passphrase: password }), encoding: 'utf8', env: fixture.environment, timeout: 30000, maxBuffer: 8 * 1024 * 1024 }));
-    assert.equal(report.verified, true); assert.equal(Number(report.schemaVersion), 12);
+    assert.equal(report.verified, true); assert.equal(Number(report.schemaVersion), 13);
     const tables = report.state.tables;
     const sources = tables.log_sources.map(s => ({ tool: s.tool, consent: s.consent, zone: s.time_zone }));
     const days = tables.local_usage_days.map(d => ({ date: d.local_date, tool: d.tool, model: d.model, total: d.total_tokens, value: d.estimated_value_usd_micros, coverage: d.coverage, scanner: d.scanner_version }))

@@ -111,7 +111,7 @@ Updated November 9, 2026. The owner asked to keep this list and to build down it
 - [x] L-1f5: add the strict common session parser and nullable metric types for the sixteen disabled tools. Eight focused tests cover recorded reports, incomplete model attribution, empty reports, reported zero totals, and malformed values. The diagnostic workspace run, formatting, Clippy, renderer build, IPC contracts, and rebuilt native consent journey passed on Linux. The initial workspace failure did not recur and its cause remains unconfirmed. Storage and scanner integration remain open.
 - [x] L-1f6: prepare and test an unpublished Amp duplicate patch against the pinned source. Stable-ID copies count once. Conflicts and incomplete reads fail. All 28 adapter tests and 210 scanner comparisons passed. The production pin stays unchanged. Remaining AT-65 and integration gates remain open. See the [candidate record](reviews/2026-11-08-amp-dedup-design.md#local-candidate-after-review).
 - [x] L-1f7: preserve independent period totals and nullable details in a strict report contract. Amp, Pi, Kilo, and ZCode use daily reports. The other twelve tools stay unplaced. Seven focused tests, full Rust checks, 98 scanner comparisons, and the rebuilt native consent journey passed with synthetic data on Linux. No tool or production pin changed.
-- [ ] L-1f8: store coherent period totals and model details, with nullable session times and a tested migration. Preserve older backups and accepted history. Resolve the legacy-history decision in [SC-024](srs-clarifications.md#sc-024-legacy-local-usage-during-grouped-migration) before the migration.
+- [x] L-1f8: store independent period totals, coherent model details, and nullable session metadata at schema 13. Preserve legacy history and zones under [SC-024](srs-clarifications.md#sc-024-legacy-local-usage-during-grouped-migration). Migration, backup, restore, full Rust checks, and nine native journeys passed on synthetic Linux data.
 - [ ] L-1f9: group consented roots by tool in the scanner and save each accepted result once. Validate every root and all required reports before saving. Preserve prior data when any required report fails.
 - [ ] L-1f10: carry the new totals and unavailable fields through desktop, CLI, export, backup, restore, and sharing. Keep unplaced usage out of dated views. Run the affected renderer and native gates.
 - [ ] L-1f11: qualify each tool with copied, forked, replayed, and compacted fixtures under AT-65. Complete the Amp candidate gates before any pin change. Enable only qualified tools. L-1f stays open until all sixteen pass their required checks.
@@ -184,11 +184,11 @@ Acceptance:
 
 Stopping condition: the contract and checks are complete, with one local commit and a Graphify update. Storage integration starts in L-1f8. This slice enables no tool and changes no production pin.
 
-### Next assignment: L-1f8
+### L-1f8 storage contract (complete)
 
 Goal: store independent period totals and nullable details without losing accepted history. Follow OU-LOG-003, OU-LOG-010 to OU-LOG-013, OU-LOG-017, and [SC-022](srs-clarifications.md#sc-022-incomplete-metrics-from-the-other-local-tools).
 
-Scope: Rust storage, a forward migration, backup compatibility, and synthetic storage fixtures. The legacy-history decision in [SC-024](srs-clarifications.md#sc-024-legacy-local-usage-during-grouped-migration) must precede the migration. The [storage proposal](reviews/2026-11-08-incomplete-local-metrics.md) remains design input.
+Scope: Rust storage, a forward migration, backup compatibility, and synthetic storage fixtures. [SC-024](srs-clarifications.md#sc-024-legacy-local-usage-during-grouped-migration) governs legacy history. The [storage proposal](reviews/2026-11-08-incomplete-local-metrics.md) remains design input.
 
 Acceptance:
 
@@ -198,6 +198,22 @@ Acceptance:
 - Pass migration, backup, restore, full Rust workspace, and affected native checks.
 
 Stopping condition: one verified storage slice, owning docs, a local commit, and a Graphify update. Grouped scans start in L-1f9.
+
+### Next assignment: L-1f9
+
+Goal: group consented roots by tool and save each complete result once. Follow OU-LOG-001, OU-LOG-003, OU-LOG-006 to OU-LOG-013, OU-LOG-017, OU-DUP-008, SC-021, SC-022, and SC-024.
+
+Scope: Rust scanner grouping, required report validation, atomic storage, and synthetic fixtures. Preserve the working Claude Code and Codex paths while the new consumers are prepared. Keep the Amp candidate unpublished and the production pin unchanged.
+
+Acceptance:
+
+- Group only the selected roots of one tool. Check resolved roots and consent again before saving.
+- Use the pinned scanner and the approved period rules. Keep session and hourly readings separate from period totals.
+- Save complete results with their scope and root membership. A failed required report must preserve accepted values.
+- Test copied roots, empty reports, malformed data, revoked consent, changed paths, and zones with synthetic inputs.
+- Pass the selected Rust and native checks. Enable no extra tool in this slice.
+
+Stopping condition: one verified scanner slice, owning docs, a local commit, and a Graphify update. Consumer integration follows in L-1f10.
 
 ## Order
 
