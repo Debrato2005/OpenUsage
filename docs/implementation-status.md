@@ -2,7 +2,7 @@
 
 # Implementation status
 
-Updated: November 8, 2026. This page holds the current state only. [History](implementation-history.md) holds past work, and [traceability](acceptance-traceability.md) holds exact evidence.
+Updated: November 9, 2026. This page holds the current state only. [History](implementation-history.md) holds past work, and [traceability](acceptance-traceability.md) holds exact evidence.
 
 OpenUsage is in development against [SRS baseline 3.0](SRS.md). There is no release. Baseline 3.0 was adopted on November 2, 2026. [Not built](#not-built) lists what is missing, and [Current assignment](#current-assignment) gives the launch state.
 
@@ -54,6 +54,8 @@ Kept from baseline 2.0:
 - Wake handling: OU-PROC-013, OU-MON-013.
 
 ## Partial
+
+- Quota fixture readiness, November 9, 2026: the fixture saves its runtime path before it exposes its PID. The controlled regression and original Rust cancellation test passed. The full workspace checks passed, with Clippy completed separately after the verification runner ended with signal 15. [Traceability](acceptance-traceability.md) holds the execution limits. The production code is unchanged.
 
 - Local logs (5C), L-1f6, November 8, 2026: a local ccusage patch fixes equal stable-ID Amp copies and rejects conflicting or incomplete scans. All 28 adapter tests and 210 scanner comparisons passed on Linux with synthetic input. The [candidate record](reviews/2026-11-08-amp-dedup-design.md#local-candidate-after-review) holds exact scope. The production pin is unchanged, Amp stays disabled, and the patch remains unpublished.
 
@@ -117,7 +119,7 @@ Kept from baseline 2.0:
 
 ## Not yet run
 
-- Hosted CI for `b1b8d84` passed Linux lint, then failed the synthetic quota test at its temporary-path assertion. Native oracle checks were skipped. Renderer results remain pending. [Run 42483593712](https://github.com/Debrato2005/OpenUsage/actions/runs/42483593712) holds the hosted evidence. The full renderer milestone passed locally after the countdown fixture fix. The complete hosted gate remains unverified. OU-NFR-012 also needs Windows and macOS, planned for S-15.
+- [Hosted CI for `b1b8d84`](https://github.com/Debrato2005/OpenUsage/actions/runs/42483593712) passed all 456 renderer tests. The Linux job passed lint, then failed the synthetic quota test at its temporary-path assertion. Native oracle checks were skipped. The local fixture now saves its runtime path before it signals readiness, and both focused regressions pass. The complete hosted gate still needs a later run. OU-NFR-012 also needs Windows and macOS, planned for S-15.
 - Windows and macOS have never run. The owner has a real Windows PC and Mac for this.
 - Windows and macOS need their own pinned Codex companion. Only Linux x86_64 is qualified.
 - Sleep and wake, packaging, and release-scale performance are unmeasured.

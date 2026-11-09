@@ -12,8 +12,8 @@ if sys.argv[1:] == ["--version"]:
     sys.exit(0)
 assert not any(name in os.environ for name in ["OPENAI_API_KEY", "OPENAI_ACCESS_TOKEN", "DBUS_SESSION_BUS_ADDRESS"])
 home = pathlib.Path(os.environ["CODEX_HOME"])
-(home / "synthetic-child-pid").write_text(str(os.getpid()))
 (home / "synthetic-runtime-home").write_text(os.environ["HOME"])
+(home / "synthetic-child-pid").write_text(str(os.getpid()))
 
 
 def read_request():

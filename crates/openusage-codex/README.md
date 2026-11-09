@@ -15,6 +15,10 @@ Sources:
 - [Official app-server documentation](https://learn.chatgpt.com/docs/app-server)
 - [Versioned protocol schemas](https://github.com/openai/codex/tree/rust-v0.163.0/codex-rs/app-server-protocol/schema/typescript)
 
+## Synthetic quota readiness
+
+The quota fixture now writes its runtime path before it exposes the child process ID (PID). This makes the PID a safe cancellation point. The existing cleanup and process-ownership assertions stay unchanged. The controlled regression in `tests/tools/test_provider_readiness.py` pauses the path write before it permits cancellation.
+
 ## Isolated provider probe
 
 `session::probe_account` takes an approved absolute executable path and an existing private managed directory. It creates fresh temporary homes. A successful probe removes those homes. Cleanup failure returns a typed error. It never opens an existing provider home.
