@@ -4,6 +4,7 @@
 pub mod agent_period;
 pub mod agent_report;
 pub mod detect;
+pub mod grouped;
 pub mod hours;
 pub mod report;
 pub mod runner;
@@ -15,11 +16,13 @@ pub use agent_report::{
     AgentSession, AgentSessionReport, ModelDetail, TokenDetails, parse_agent_sessions,
 };
 pub use detect::{Detected, detect};
+pub use grouped::{GroupedScanRequest, GroupedScanResult, scan_grouped, scan_grouped_with_check};
 pub use hours::{HourRow, parse_hours};
 pub use report::{ReportError, UsageRow, parse_daily_by_agent};
 pub use runner::{
     BINARY_NAME, CCUSAGE_VERSION, DEFAULT_MAX_OUTPUT, DEFAULT_TIMEOUT, ScanError, ScanRequest,
     pinned_sha256, pinned_sha256_here, scan, scan_hours, scan_sessions, sha256_hex,
+    valid_resolved_folder,
 };
 pub use session::{SessionRow, parse_sessions};
 pub use tools::{MarkerKind, SessionShape, Tool, enabled_tools, hour_tools, tool, tools};

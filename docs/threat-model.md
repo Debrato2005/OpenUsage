@@ -32,7 +32,7 @@ OpenUsage does not protect against an attacker with full control of your unlocke
 | Duplicate identities | An email gives only provisional identity, and a missing email gives unknown identity. Provisional identities are never added into one total. | The SRS stable identity contract is not approved yet. |
 | Corrupted updates | OpenUsage has no updater. All pending migrations run in one database transaction, and a database from a newer version is refused, not changed. Restore makes a checkpoint first. | The opt-in update check (OU-PLAT-009) is not built. |
 | Log leakage | The app writes no log file and no telemetry. Secrets stay out of errors, exports and test evidence. The leaderboard keeps no request logs, IP addresses or GitHub tokens. | A crash report from the OS or WebKit is outside the app's control. |
-| Unauthorized filesystem access | Workspace folders are 0700 and files are 0600. The renderer has no file access. `ccusage` gets an empty private home and one folder variable for each run. | `ccusage` can still read any file that you can read. The Windows folder modes are not qualified. |
+| Unauthorized filesystem access | Workspace folders are 0700 and files are 0600. The renderer has no file access. `ccusage` gets an empty private home and one tool variable for each run. Rust validates each root before it forms a bounded list. The worker checks consent and resolved paths before each report and before the save. | `ccusage` can still read any file that you can read. The Windows folder modes are not qualified. |
 
 ## Review
 

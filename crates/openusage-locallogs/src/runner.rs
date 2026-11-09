@@ -47,7 +47,9 @@ pub fn pinned_sha256_here() -> Option<&'static str> {
 pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(120);
 pub const DEFAULT_MAX_OUTPUT: usize = 64 * 1024 * 1024;
 
-static ONE_RUN: Mutex<()> = Mutex::new(());
+pub(super) static ONE_RUN: Mutex<()> = Mutex::new(());
+#[cfg(test)]
+pub(super) static TEST_RUNS: Mutex<()> = Mutex::new(());
 
 pub struct ScanRequest<'a> {
     pub binary: &'a Path,
@@ -102,7 +104,7 @@ fn valid_since(since: &str) -> bool {
         })
 }
 
-fn valid_folder(folder: &Path) -> bool {
+pub fn valid_resolved_folder(folder: &Path) -> bool {
     let Some(text) = folder.to_str() else {
         return false;
     };
@@ -168,9 +170,20 @@ pub fn scan_hours(request: &ScanRequest<'_>) -> Result<Vec<HourRow>, ScanError> 
 /// Runs the pinned binary once with fixed arguments and returns its output (OU-LOG-006).
 fn run(request: &ScanRequest<'_>, fixed: &[&str]) -> Result<Vec<u8>, ScanError> {
     let _one = ONE_RUN.try_lock().map_err(|_| ScanError::Busy)?;
-    let variable = tool(request.tool)
+    tool(request.tool)
         .filter(|tool| tool.enabled)
-        .and_then(|tool| tool.folder_variable.as_deref());
+        .ok_or(ScanError::InvalidRequest)?;
+    run_roots(request, fixed, &[request.folder])
+}
+
+// The caller holds ONE_RUN and checks tool enablement. Tests can exercise disabled adapters here.
+pub(super) fn run_roots(
+    request: &ScanRequest<'_>,
+    fixed: &[&str],
+    folders: &[&Path],
+) -> Result<Vec<u8>, ScanError> {
+    let definition = tool(request.tool).ok_or(ScanError::InvalidRequest)?;
+    let variable = definition.folder_variable.as_deref();
     let empty =
         std::fs::read_dir(request.empty_home).is_ok_and(|mut entries| entries.next().is_none());
     let (Some(variable), true) = (variable, empty) else {
@@ -179,10 +192,19 @@ fn run(request: &ScanRequest<'_>, fixed: &[&str]) -> Result<Vec<u8>, ScanError> 
     if !valid_timezone(request.timezone)
         || request.since.is_some_and(|since| !valid_since(since))
         || !request.empty_home.is_absolute()
-        || !valid_folder(request.folder)
+        || !(1..=64).contains(&folders.len())
+        || folders.iter().any(|folder| !valid_resolved_folder(folder))
     {
         return Err(ScanError::InvalidRequest);
     }
+    let roots: std::collections::BTreeSet<_> = folders
+        .iter()
+        .map(|folder| folder.to_str().ok_or(ScanError::InvalidRequest))
+        .collect::<Result<_, _>>()?;
+    if definition.root_mode == crate::tools::RootMode::Single && roots.len() != 1 {
+        return Err(ScanError::InvalidRequest);
+    }
+    let roots = roots.into_iter().collect::<Vec<_>>().join(",");
     let bytes = std::fs::read(request.binary).map_err(|_| ScanError::Unavailable)?;
     if sha256_hex(&bytes) != request.expected_sha256 {
         return Err(ScanError::Digest);
@@ -199,7 +221,7 @@ fn run(request: &ScanRequest<'_>, fixed: &[&str]) -> Result<Vec<u8>, ScanError> 
         .args(&args)
         .env_clear()
         .env("HOME", request.empty_home)
-        .env(variable, request.folder)
+        .env(variable, roots)
         .env("NO_COLOR", "1")
         .env("TZ", "UTC")
         .current_dir(request.empty_home)
@@ -322,6 +344,7 @@ mod tests {
     // One test, because scans share one process-wide lock.
     #[test]
     fn runner_refuses_unsafe_runs_and_returns_parsed_rows() {
+        let _test = TEST_RUNS.lock().unwrap();
         let d = dirs();
         let bin = d.bin.as_path();
 

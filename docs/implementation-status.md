@@ -26,7 +26,7 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scoped result, November 9, 2026: L-1f8 stores independent totals and nullable details at schema 13. The full verification plan and nine native journeys passed with synthetic data on Linux. [Traceability](acceptance-traceability.md) records the checks, corrected failures, and unexecuted gates.
+Latest scoped result, November 9, 2026: L-1f9 adds grouped scans for the sixteen candidate tools, which remain disabled. Claude Code and Codex save all required reports in one transaction. Full Rust workspace tests, final Clippy, native database checks, the renderer build, and 56 IPC contracts passed. Four rebuilt native journeys passed with private synthetic data on Linux. [Traceability](acceptance-traceability.md) records the corrected failures and unexecuted gates.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -55,7 +55,9 @@ Kept from baseline 2.0:
 
 ## Partial
 
-- Local logs (5C), L-1f7, November 9, 2026: independent period reports preserve reported totals and unavailable details for all sixteen disabled tools. The four dated candidates use strict daily reports. The other twelve use full session reports for one unplaced period. The [crate contract](../crates/openusage-locallogs/README.md#additional-period-reports) owns the parser rules. Grouped storage is complete. Scanner and surface integration remain open.
+- Local logs (5C), L-1f9, November 9, 2026: the [grouped runner](../crates/openusage-locallogs/README.md#grouped-scans) checks report policies, root modes, consent, resolved paths, and pinned zones. It saves each complete result once. The pinned copied-root fixtures expose limits in Pi and Amp. Kilo counts its copied fixture once. Consumer integration and full tool qualification remain open. No additional tool is enabled.
+
+- Local logs (5C), L-1f7, November 9, 2026: independent period reports preserve reported totals and unavailable details for all sixteen disabled tools. The four dated candidates use strict daily reports. The other twelve use full session reports for one unplaced period. The [crate contract](../crates/openusage-locallogs/README.md#additional-period-reports) owns the parser rules. Grouped storage and the scanner path are complete. Consumer integration remains open.
 
 - Quota fixture readiness, November 9, 2026: the fixture saves its runtime path before it exposes its PID. The controlled regression and original Rust cancellation test passed. The full workspace checks passed, with Clippy completed separately after the verification runner ended with signal 15. [Traceability](acceptance-traceability.md) holds the execution limits. The production code is unchanged.
 
@@ -63,7 +65,7 @@ Kept from baseline 2.0:
 
 - Codex fixture portability: the Rust fixture test and two native journeys now copy tracked synthetic input into private homes. They no longer depend on an ignored `.codex` directory in the checkout. Secret exclusions and hooks stay intact.
 
-- Local logs (5C), L-1f5, November 8, 2026: the common session parser reads recorded reports for all sixteen disabled tools. It keeps independent totals and unavailable metrics under [SC-022](srs-clarifications.md#sc-022-incomplete-metrics-from-the-other-local-tools). It rejects malformed shapes, metadata, counts, and inconsistent totals. Storage and process integration remain open. No additional tool is enabled.
+- Local logs (5C), L-1f5, November 8, 2026: the common session parser reads recorded reports for all sixteen disabled tools. It keeps independent totals and unavailable metrics under [SC-022](srs-clarifications.md#sc-022-incomplete-metrics-from-the-other-local-tools). It rejects malformed shapes, metadata, counts, and inconsistent totals. See the current assignment for remaining integration. No additional tool is enabled.
 
 - Local logs (5C), L-1f4, November 8, 2026: The parsers require real calendar days, including leap-year rules. Session and hourly timestamps must be ASCII before byte slicing. Malformed Unicode returns a report error instead of a panic. The full Rust checks and rebuilt native consent journey passed with synthetic logs on Linux.
 
@@ -148,10 +150,10 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 
 ## Current assignment
 
-The next assignment is [L-1f9](implementation-slices.md#next-assignment-l-1f9): group consented roots by tool and save each complete result once. [SC-024](srs-clarifications.md#sc-024-legacy-local-usage-during-grouped-migration) resolves legacy history. Its records and zones stay separate from grouped totals.
+The next assignment is [L-1f10](implementation-slices.md#next-assignment-l-1f10): carry independent totals and unavailable fields through desktop, CLI, export, backup, restore, and sharing. [SC-024](srs-clarifications.md#sc-024-legacy-local-usage-during-grouped-migration) resolves legacy history. Its records and zones stay separate from grouped totals.
 
-L-1f0 through L-1f8 are complete within their recorded scope. Only Claude Code and Codex are enabled. The Amp patch is a local candidate, and the production scanner pin is unchanged.
+L-1f0 through L-1f9 are complete within their recorded scope. Only Claude Code and Codex are enabled. The Amp patch is a local candidate, and the production scanner pin is unchanged.
 
-The [build checklist](implementation-slices.md#build-checklist) defines L-1f9 through L-1f11 and their order. [SC-022](srs-clarifications.md#sc-022-incomplete-metrics-from-the-other-local-tools) governs missing metrics. The [storage proposal](reviews/2026-11-08-incomplete-local-metrics.md) remains design input. The implemented storage boundary is in [architecture](architecture.md). [SC-023](srs-clarifications.md#sc-023-copied-amp-usage-in-the-pinned-scanner) holds the Amp qualification limits. OQ-1 and the owner release gates remain open.
+The [build checklist](implementation-slices.md#build-checklist) defines L-1f10 and L-1f11 and their order. [SC-022](srs-clarifications.md#sc-022-incomplete-metrics-from-the-other-local-tools) governs missing metrics. The [storage proposal](reviews/2026-11-08-incomplete-local-metrics.md) remains design input. The implemented storage boundary is in [architecture](architecture.md). [SC-023](srs-clarifications.md#sc-023-copied-amp-usage-in-the-pinned-scanner) holds the Amp qualification limits. OQ-1 and the owner release gates remain open.
 
 The exact working checkpoint, if one exists, is in the local `.recovery/active-checkpoint.json`.

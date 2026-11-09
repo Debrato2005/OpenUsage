@@ -1,11 +1,14 @@
 //! Local log sources and scans in the encrypted store (SRS Section 5C).
 use super::*;
-use openusage_locallogs::{CCUSAGE_VERSION, HourRow, SessionRow, UsageRow};
+use crate::local_logs::ScanGroup;
+use openusage_locallogs::{self as locallogs, CCUSAGE_VERSION, HourRow, SessionRow, UsageRow};
 use openusage_storage::{
     LocalHourScan, LocalSessionScan, LocalUsageDay, LocalUsageDifference, LocalUsageHour,
     LocalUsageRow, LocalUsageScan, LocalUsageSession, LogConsent, LogSource, SavedLocalHour,
     SavedLocalSession,
 };
+use std::collections::BTreeMap;
+use std::path::Path;
 
 pub(crate) struct LocalUsageRange {
     pub days: Vec<LocalUsageDay>,
@@ -59,28 +62,65 @@ impl Workspace {
         Ok(())
     }
 
-    /// The granted sources and the display zone, which a source without a pinned zone uses.
-    pub(crate) fn local_log_scan_plan(&mut self) -> Result<(Vec<LogSource>, String), CommandError> {
+    /// Additional tools use one scope. Legacy consumers keep their source zones until L-1f10.
+    pub(crate) fn local_log_scan_plan(&mut self) -> Result<Vec<ScanGroup>, CommandError> {
         let storage = self.local_logs_storage()?;
         let zone = storage
             .time_zone()
             .map_err(|_| CommandError::StorageUnavailable)?;
         let sources = storage
             .log_sources()
-            .map_err(|_| CommandError::StorageUnavailable)?
-            .into_iter()
-            .filter(|source| source.consent == LogConsent::Granted)
-            .collect();
-        Ok((sources, zone))
+            .map_err(|_| CommandError::StorageUnavailable)?;
+        scan_groups(
+            storage,
+            sources
+                .into_iter()
+                .filter(|s| locallogs::tool(&s.tool).is_some_and(|t| t.enabled))
+                .collect(),
+            &zone,
+        )
     }
 
-    /// Saves one run of one source in one transaction (SRS Section 18.3, OU-LOG-011).
-    pub(crate) fn save_local_log_scan(
+    pub(crate) fn save_grouped_log_reports(
         &mut self,
-        source_id: &str,
+        group: &ScanGroup,
+        scanned_at: &str,
+        report: &locallogs::GroupedScanResult,
+    ) -> Result<(), CommandError> {
+        let storage = self.local_logs_storage()?;
+        validate_sources(storage, &group.sources, true)?;
+        let ids: Vec<_> = group.sources.iter().map(|s| s.id.clone()).collect();
+        storage
+            .save_grouped_local_scan(&openusage_storage::GroupedLocalScan {
+                tool: &group.sources[0].tool,
+                source_ids: &ids,
+                time_zone: group.zone.as_deref(),
+                scanner_version: CCUSAGE_VERSION,
+                observed_at_utc: scanned_at,
+                periods: &report.periods,
+                sessions: Some(&report.sessions),
+            })
+            .map(|_| ())
+            .map_err(|_| CommandError::StorageUnavailable)
+    }
+
+    pub(crate) fn check_local_scan_sources(
+        &mut self,
+        sources: &[LogSource],
+        grouped: bool,
+    ) -> Result<(), CommandError> {
+        validate_sources(self.local_logs_storage()?, sources, grouped)
+    }
+
+    /// Save days, sessions and required hours together after the final consent check.
+    pub(crate) fn save_complete_log_reports(
+        &mut self,
+        source: &LogSource,
         zone: &str,
         scanned_at_utc: &str,
         rows: &[UsageRow],
+        session_rows: &[SessionRow],
+        hour_rows: Option<&[HourRow]>,
     ) -> Result<(), CommandError> {
         let rows: Vec<LocalUsageRow> = rows
             .iter()
@@ -96,27 +136,7 @@ impl Workspace {
                 estimated_value_usd_micros: row.estimated_value_micros,
             })
             .collect();
-        self.local_logs_storage()?
-            .save_local_usage_scan(&LocalUsageScan {
-                log_source_ids: &[source_id.to_string()],
-                scanner_version: CCUSAGE_VERSION,
-                time_zone: zone,
-                since: None,
-                scanned_at_utc,
-                rows: &rows,
-            })
-            .map(|_| ())
-            .map_err(|_| CommandError::StorageUnavailable)
-    }
-
-    /// Saves the sessions of one run of one source in one transaction (SC-021).
-    pub(crate) fn save_local_session_scan(
-        &mut self,
-        source_id: &str,
-        scanned_at_utc: &str,
-        rows: &[SessionRow],
-    ) -> Result<(), CommandError> {
-        let sessions: Vec<LocalUsageSession> = rows
+        let sessions: Vec<LocalUsageSession> = session_rows
             .iter()
             .map(|row| LocalUsageSession {
                 tool: row.tool.into(),
@@ -133,25 +153,8 @@ impl Workspace {
                 estimated_value_usd_micros: row.estimated_value_micros,
             })
             .collect();
-        self.local_logs_storage()?
-            .save_local_sessions(&LocalSessionScan {
-                log_source_id: source_id,
-                scanner_version: CCUSAGE_VERSION,
-                scanned_at_utc,
-                sessions: &sessions,
-            })
-            .map(|_| ())
-            .map_err(|_| CommandError::StorageUnavailable)
-    }
-
-    /// Saves the hours of one run of one source in one transaction (SC-021).
-    pub(crate) fn save_local_hour_scan(
-        &mut self,
-        source_id: &str,
-        scanned_at_utc: &str,
-        rows: &[HourRow],
-    ) -> Result<(), CommandError> {
-        let hours: Vec<LocalUsageHour> = rows
+        let hours: Vec<LocalUsageHour> = hour_rows
+            .unwrap_or_default()
             .iter()
             .map(|row| LocalUsageHour {
                 tool: row.tool.into(),
@@ -163,14 +166,33 @@ impl Workspace {
                 total_tokens: row.total_tokens,
             })
             .collect();
-        self.local_logs_storage()?
-            .save_local_hours(&LocalHourScan {
-                log_source_id: source_id,
-                scanner_version: CCUSAGE_VERSION,
-                scanned_at_utc,
-                hours: &hours,
-            })
-            .map(|_| ())
+        let storage = self.local_logs_storage()?;
+        validate_sources(storage, std::slice::from_ref(source), false)?;
+        storage
+            .save_complete_local_scan(
+                &LocalUsageScan {
+                    log_source_ids: std::slice::from_ref(&source.id),
+                    scanner_version: CCUSAGE_VERSION,
+                    time_zone: zone,
+                    since: None,
+                    scanned_at_utc,
+                    rows: &rows,
+                },
+                &LocalSessionScan {
+                    log_source_id: &source.id,
+                    scanner_version: CCUSAGE_VERSION,
+                    scanned_at_utc,
+                    sessions: &sessions,
+                },
+                hour_rows
+                    .map(|_| LocalHourScan {
+                        log_source_id: &source.id,
+                        scanner_version: CCUSAGE_VERSION,
+                        scanned_at_utc,
+                        hours: &hours,
+                    })
+                    .as_ref(),
+            )
             .map_err(|_| CommandError::StorageUnavailable)
     }
 
@@ -221,5 +243,224 @@ impl Workspace {
             .unwrap()
             .local_usage_days("2000-01-01", "2099-12-31")
             .unwrap()
+    }
+}
+
+// Run under the workspace lock immediately before the storage transaction.
+fn validate_sources(
+    storage: &Storage,
+    selected: &[LogSource],
+    grouped: bool,
+) -> Result<(), CommandError> {
+    let first = selected.first().ok_or(CommandError::InvalidArguments)?;
+    let current = storage
+        .log_sources()
+        .map_err(|_| CommandError::StorageUnavailable)?;
+    if selected.iter().any(|source| {
+        source.tool != first.tool
+            || !locallogs::valid_resolved_folder(Path::new(&source.folder))
+            || !current.iter().any(|s| {
+                s.id == source.id
+                    && s.tool == source.tool
+                    && s.folder == source.folder
+                    && s.consent == LogConsent::Granted
+            })
+    }) || (grouped
+        && current.iter().any(|s| {
+            s.tool == first.tool
+                && s.consent == LogConsent::Granted
+                && Path::new(&s.folder).exists()
+                && !selected.iter().any(|x| x.id == s.id)
+        }))
+    {
+        return Err(CommandError::InvalidArguments);
+    }
+    Ok(())
+}
+
+fn scan_groups(
+    storage: &Storage,
+    sources: Vec<LogSource>,
+    zone: &str,
+) -> Result<Vec<ScanGroup>, CommandError> {
+    let mut grouped: BTreeMap<String, Vec<LogSource>> = BTreeMap::new();
+    let mut plan = Vec::new();
+    for source in sources
+        .into_iter()
+        .filter(|s| s.consent == LogConsent::Granted)
+    {
+        let Some(tool) = locallogs::tool(&source.tool) else {
+            continue;
+        };
+        // Missing roots do not erase accepted history. Invalid extant roots fail validation.
+        if !Path::new(&source.folder).exists() {
+            continue;
+        }
+        if tool.agent_report.is_some() {
+            grouped.entry(source.tool.clone()).or_default().push(source);
+        } else {
+            plan.push(ScanGroup {
+                zone: Some(source.time_zone.clone().unwrap_or_else(|| zone.to_string())),
+                sources: vec![source],
+            });
+        }
+    }
+    for (tool_id, mut sources) in grouped {
+        sources.sort_by(|a, b| a.folder.cmp(&b.folder));
+        let dated = locallogs::tool(&tool_id)
+            .and_then(|t| t.agent_report.as_ref())
+            .is_some_and(|p| p.period == locallogs::tools::PeriodPolicy::Day);
+        let pinned = storage
+            .local_tool_scope(&tool_id)
+            .map_err(|_| CommandError::StorageUnavailable)?;
+        plan.push(ScanGroup {
+            sources,
+            zone: if dated {
+                Some(
+                    pinned
+                        .and_then(|s| s.time_zone)
+                        .unwrap_or_else(|| zone.to_string()),
+                )
+            } else {
+                None
+            },
+        });
+    }
+    Ok(plan)
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+    use std::os::unix::fs::{PermissionsExt, symlink};
+    const NOW: &str = "2026-11-09T10:00:00.000Z";
+
+    #[test]
+    fn grouped_plans_pin_zones_and_recheck_membership_consent_and_resolved_paths() {
+        let dir = tempfile::Builder::new()
+            .permissions(std::fs::Permissions::from_mode(0o700))
+            .tempdir()
+            .unwrap();
+        let mut workspace = Workspace::new(dir.path().join("workspace")).unwrap();
+        workspace.storage = Some(Storage::create(&dir.path().join("test.db"), &[43; 32]).unwrap());
+        let mut sources = Vec::new();
+        for name in ["b", "a"] {
+            let folder = dir.path().join(name);
+            std::fs::create_dir(&folder).unwrap();
+            sources.push(
+                workspace
+                    .storage
+                    .as_mut()
+                    .unwrap()
+                    .set_log_source("amp", folder.to_str().unwrap(), LogConsent::Granted, NOW)
+                    .unwrap(),
+            );
+        }
+        let mut plan = scan_groups(
+            workspace.storage.as_ref().unwrap(),
+            sources.clone(),
+            "Asia/Kolkata",
+        )
+        .unwrap();
+        assert_eq!(plan.len(), 1);
+        let group = plan.pop().unwrap();
+        assert!(group.sources[0].folder < group.sources[1].folder);
+        assert_eq!(group.zone.as_deref(), Some("Asia/Kolkata"));
+        // The actual worker still refuses every disabled tool.
+        assert!(workspace.local_log_scan_plan().unwrap().is_empty());
+        let report = locallogs::GroupedScanResult {
+            periods: vec![],
+            sessions: vec![],
+        };
+        workspace
+            .save_grouped_log_reports(&group, NOW, &report)
+            .unwrap();
+        let saved = workspace
+            .storage
+            .as_ref()
+            .unwrap()
+            .local_tool_scope("amp")
+            .unwrap()
+            .unwrap();
+        assert_eq!(saved.latest_scan.source_ids.len(), 2);
+        let plan = scan_groups(
+            workspace.storage.as_ref().unwrap(),
+            sources.clone(),
+            "America/New_York",
+        )
+        .unwrap();
+        assert_eq!(plan[0].zone, group.zone);
+        let incomplete = ScanGroup {
+            sources: vec![sources[0].clone()],
+            zone: group.zone.clone(),
+        };
+        assert!(
+            workspace
+                .save_grouped_log_reports(&incomplete, NOW, &report)
+                .is_err()
+        );
+        workspace
+            .storage
+            .as_mut()
+            .unwrap()
+            .set_log_source("amp", &sources[0].folder, LogConsent::Withdrawn, NOW)
+            .unwrap();
+        assert!(
+            workspace
+                .save_grouped_log_reports(&group, NOW, &report)
+                .is_err()
+        );
+        workspace
+            .storage
+            .as_mut()
+            .unwrap()
+            .set_log_source("amp", &sources[0].folder, LogConsent::Granted, NOW)
+            .unwrap();
+        std::fs::remove_dir(&sources[0].folder).unwrap();
+        symlink(&sources[1].folder, &sources[0].folder).unwrap();
+        assert!(
+            workspace
+                .save_grouped_log_reports(&group, NOW, &report)
+                .is_err()
+        );
+        assert_eq!(
+            workspace
+                .storage
+                .as_ref()
+                .unwrap()
+                .local_tool_scope("amp")
+                .unwrap(),
+            Some(saved)
+        );
+        std::fs::remove_file(&sources[0].folder).unwrap();
+        // A removed root reduces membership, without adding any saved root totals.
+        let remaining = scan_groups(workspace.storage.as_ref().unwrap(), sources, "UTC").unwrap();
+        assert_eq!(remaining[0].sources.len(), 1);
+        workspace
+            .save_grouped_log_reports(&remaining[0], NOW, &report)
+            .unwrap();
+        let folder = dir.path().join("unplaced");
+        std::fs::create_dir(&folder).unwrap();
+        let source = workspace
+            .storage
+            .as_mut()
+            .unwrap()
+            .set_log_source(
+                "opencode",
+                folder.to_str().unwrap(),
+                LogConsent::Granted,
+                NOW,
+            )
+            .unwrap();
+        let unplaced = scan_groups(
+            workspace.storage.as_ref().unwrap(),
+            vec![source],
+            "Asia/Kolkata",
+        )
+        .unwrap();
+        assert_eq!(unplaced[0].zone, None);
+        workspace
+            .save_grouped_log_reports(&unplaced[0], NOW, &report)
+            .unwrap();
     }
 }

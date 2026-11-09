@@ -42,6 +42,13 @@ pub enum PeriodPolicy {
     Unplaced,
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum RootMode {
+    CommaList,
+    Single,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct AgentReportPolicy {
@@ -63,6 +70,7 @@ pub struct Tool {
     pub tint: u8,
     pub enabled: bool,
     pub folder_variable: Option<String>,
+    pub root_mode: RootMode,
     pub roots: Vec<Root>,
     pub session_shape: Option<SessionShape>,
     pub hours: bool,

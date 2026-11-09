@@ -19,7 +19,8 @@
     ],
     "sessionShape": "claude",
     "hours": true,
-    "agentReport": null
+    "agentReport": null,
+    "rootMode": "comma_list"
   },
   "codex": {
     "name": "Codex",
@@ -36,14 +37,15 @@
     ],
     "sessionShape": "codex",
     "hours": false,
-    "agentReport": null
+    "agentReport": null,
+    "rootMode": "comma_list"
   },
   "opencode": {
     "name": "OpenCode",
     "order": 2,
     "tint": 3,
     "enabled": false,
-    "folderVariable": null,
+    "folderVariable": "OPENCODE_DATA_DIR",
     "roots": [],
     "sessionShape": "agent",
     "hours": false,
@@ -54,14 +56,15 @@
       "modelPrefix": null,
       "nullEmptyTotals": false,
       "period": "unplaced"
-    }
+    },
+    "rootMode": "comma_list"
   },
   "amp": {
     "name": "Amp",
     "order": 3,
     "tint": 4,
     "enabled": false,
-    "folderVariable": null,
+    "folderVariable": "AMP_DATA_DIR",
     "roots": [],
     "sessionShape": "agent",
     "hours": false,
@@ -72,14 +75,15 @@
       "modelPrefix": null,
       "nullEmptyTotals": false,
       "period": "day"
-    }
+    },
+    "rootMode": "comma_list"
   },
   "droid": {
     "name": "Droid",
     "order": 4,
     "tint": 5,
     "enabled": false,
-    "folderVariable": null,
+    "folderVariable": "DROID_SESSIONS_DIR",
     "roots": [],
     "sessionShape": "agent",
     "hours": false,
@@ -90,14 +94,15 @@
       "modelPrefix": null,
       "nullEmptyTotals": false,
       "period": "unplaced"
-    }
+    },
+    "rootMode": "comma_list"
   },
   "codebuff": {
     "name": "Codebuff",
     "order": 5,
     "tint": 0,
     "enabled": false,
-    "folderVariable": null,
+    "folderVariable": "CODEBUFF_DATA_DIR",
     "roots": [],
     "sessionShape": "agent",
     "hours": false,
@@ -108,14 +113,15 @@
       "modelPrefix": null,
       "nullEmptyTotals": false,
       "period": "unplaced"
-    }
+    },
+    "rootMode": "comma_list"
   },
   "hermes": {
     "name": "Hermes",
     "order": 6,
     "tint": 1,
     "enabled": false,
-    "folderVariable": null,
+    "folderVariable": "HERMES_HOME",
     "roots": [],
     "sessionShape": "agent",
     "hours": false,
@@ -126,14 +132,15 @@
       "modelPrefix": null,
       "nullEmptyTotals": false,
       "period": "unplaced"
-    }
+    },
+    "rootMode": "comma_list"
   },
   "pi": {
     "name": "Pi",
     "order": 7,
     "tint": 2,
     "enabled": false,
-    "folderVariable": null,
+    "folderVariable": "PI_AGENT_DIR",
     "roots": [],
     "sessionShape": "agent",
     "hours": false,
@@ -144,14 +151,15 @@
       "modelPrefix": "[pi] ",
       "nullEmptyTotals": false,
       "period": "day"
-    }
+    },
+    "rootMode": "comma_list"
   },
   "goose": {
     "name": "Goose",
     "order": 8,
     "tint": 3,
     "enabled": false,
-    "folderVariable": null,
+    "folderVariable": "GOOSE_PATH_ROOT",
     "roots": [],
     "sessionShape": "agent",
     "hours": false,
@@ -162,14 +170,15 @@
       "modelPrefix": null,
       "nullEmptyTotals": false,
       "period": "unplaced"
-    }
+    },
+    "rootMode": "single"
   },
   "kilo": {
     "name": "Kilo",
     "order": 9,
     "tint": 4,
     "enabled": false,
-    "folderVariable": null,
+    "folderVariable": "KILO_DATA_DIR",
     "roots": [],
     "sessionShape": "agent",
     "hours": false,
@@ -180,14 +189,15 @@
       "modelPrefix": null,
       "nullEmptyTotals": false,
       "period": "day"
-    }
+    },
+    "rootMode": "comma_list"
   },
   "copilot": {
     "name": "GitHub Copilot",
     "order": 10,
     "tint": 5,
     "enabled": false,
-    "folderVariable": null,
+    "folderVariable": "COPILOT_HOME",
     "roots": [],
     "sessionShape": "agent",
     "hours": false,
@@ -198,14 +208,15 @@
       "modelPrefix": null,
       "nullEmptyTotals": false,
       "period": "unplaced"
-    }
+    },
+    "rootMode": "single"
   },
   "gemini": {
     "name": "Gemini CLI",
     "order": 11,
     "tint": 0,
     "enabled": false,
-    "folderVariable": null,
+    "folderVariable": "GEMINI_DATA_DIR",
     "roots": [],
     "sessionShape": "agent",
     "hours": false,
@@ -216,14 +227,15 @@
       "modelPrefix": null,
       "nullEmptyTotals": false,
       "period": "unplaced"
-    }
+    },
+    "rootMode": "comma_list"
   },
   "antigravity": {
     "name": "Antigravity",
     "order": 12,
     "tint": 1,
     "enabled": false,
-    "folderVariable": null,
+    "folderVariable": "ANTIGRAVITY_DATA_DIR",
     "roots": [],
     "sessionShape": "agent",
     "hours": false,
@@ -234,14 +246,15 @@
       "modelPrefix": null,
       "nullEmptyTotals": false,
       "period": "unplaced"
-    }
+    },
+    "rootMode": "comma_list"
   },
   "kimi": {
     "name": "Kimi",
     "order": 13,
     "tint": 2,
     "enabled": false,
-    "folderVariable": null,
+    "folderVariable": "KIMI_DATA_DIR",
     "roots": [],
     "sessionShape": "agent",
     "hours": false,
@@ -252,14 +265,15 @@
       "modelPrefix": null,
       "nullEmptyTotals": false,
       "period": "unplaced"
-    }
+    },
+    "rootMode": "comma_list"
   },
   "qwen": {
     "name": "Qwen Code",
     "order": 14,
     "tint": 3,
     "enabled": false,
-    "folderVariable": null,
+    "folderVariable": "QWEN_DATA_DIR",
     "roots": [],
     "sessionShape": "agent",
     "hours": false,
@@ -270,14 +284,15 @@
       "modelPrefix": null,
       "nullEmptyTotals": true,
       "period": "unplaced"
-    }
+    },
+    "rootMode": "comma_list"
   },
   "openclaw": {
     "name": "OpenClaw",
     "order": 15,
     "tint": 4,
     "enabled": false,
-    "folderVariable": null,
+    "folderVariable": "OPENCLAW_DIR",
     "roots": [],
     "sessionShape": "agent",
     "hours": false,
@@ -288,14 +303,15 @@
       "modelPrefix": "[openclaw] ",
       "nullEmptyTotals": false,
       "period": "unplaced"
-    }
+    },
+    "rootMode": "comma_list"
   },
   "grok": {
     "name": "Grok",
     "order": 16,
     "tint": 5,
     "enabled": false,
-    "folderVariable": null,
+    "folderVariable": "GROK_HOME",
     "roots": [],
     "sessionShape": "agent",
     "hours": false,
@@ -306,14 +322,15 @@
       "modelPrefix": null,
       "nullEmptyTotals": false,
       "period": "unplaced"
-    }
+    },
+    "rootMode": "single"
   },
   "zcode": {
     "name": "ZCode",
     "order": 17,
     "tint": 0,
     "enabled": false,
-    "folderVariable": null,
+    "folderVariable": "ZCODE_HOME",
     "roots": [],
     "sessionShape": "agent",
     "hours": false,
@@ -324,6 +341,7 @@
       "modelPrefix": null,
       "nullEmptyTotals": false,
       "period": "day"
-    }
+    },
+    "rootMode": "comma_list"
   }
 }

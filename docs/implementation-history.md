@@ -4,6 +4,10 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f8 result before L-1f9
+
+Latest scoped result, November 9, 2026: L-1f8 stores independent totals and nullable details at schema 13. The full verification plan and nine native journeys passed with synthetic data on Linux. [Traceability](acceptance-traceability.md) records the checks, corrected failures, and unexecuted gates.
+
 ## L-1f7 and earlier native results before L-1f8
 
 Latest scoped result, November 9, 2026: L-1f7 passed seven period tests, full Rust workspace checks, 98 pinned-scanner comparisons, and the rebuilt native consent journey. All data was synthetic on Linux. The renderer build and all 56 IPC contracts passed. The full renderer suite did not run for this parser-only slice. [Traceability](acceptance-traceability.md) holds the exact scope.

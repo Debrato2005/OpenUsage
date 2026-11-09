@@ -130,6 +130,21 @@ class FormatComparisons:
 
 
 class CcusageFormatTests(FormatComparisons, unittest.TestCase):
+    def test_copied_roots_record_adapter_limits_without_enabling_tools(self):
+        # Pi's minimal fixture has no entry ID. Equal totals cannot prove event identity.
+        for tool, total in [('pi', 324), ('kilo', 173), ('amp', 324)]:
+            with self.subTest(tool=tool), tempfile.TemporaryDirectory(prefix='openusage-roots-') as temporary:
+                root = Path(temporary)
+                fixture = self.inputs[tool]
+                first = make_source(root / 'first', fixture)
+                second = root / 'second'
+                shutil.copytree(first, second)
+                before = file_hashes(root)
+                for kind in ('daily', 'session'):
+                    report = self.run_report(root, tool, fixture, f'{first},{second}', kind)
+                    self.assertEqual(report['totals']['totalTokens'], total)
+                self.assertEqual(file_hashes(root), before)
+
     def test_pinned_amp_counts_a_copied_thread_twice(self):
         # This records an upstream limit. It does not qualify Amp for AT-65.
         with tempfile.TemporaryDirectory(prefix='openusage-amp-copy-') as temporary:

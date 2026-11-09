@@ -4,7 +4,7 @@
 
 use crate::backup_validation::canonical_uuid;
 use crate::{Storage, activity, valid_time_zone};
-use rusqlite::{OptionalExtension, Row, TransactionBehavior, params};
+use rusqlite::{Connection, OptionalExtension, Row, TransactionBehavior, params};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Component, Path};
 
@@ -571,6 +571,37 @@ fn all_valid<T>(
 }
 
 impl Storage {
+    /// Commit all required reports of one legacy source together (OU-LOG-007, SC-021).
+    pub fn save_complete_local_scan(
+        &mut self,
+        days: &LocalUsageScan<'_>,
+        sessions: &LocalSessionScan<'_>,
+        hours: Option<&LocalHourScan<'_>>,
+    ) -> Result<()> {
+        if days.log_source_ids != [sessions.log_source_id]
+            || days.scanner_version != sessions.scanner_version
+            || days.scanned_at_utc != sessions.scanned_at_utc
+            || days.since.is_some()
+            || hours.is_some_and(|h| {
+                h.log_source_id != sessions.log_source_id
+                    || h.scanner_version != sessions.scanner_version
+                    || h.scanned_at_utc != sessions.scanned_at_utc
+            })
+        {
+            return Err(LocalLogError::InvalidInput);
+        }
+        let tx = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|_| LocalLogError::WriteFailed)?;
+        save_days(&tx, days)?;
+        save_sessions(&tx, sessions)?;
+        if let Some(hours) = hours {
+            save_hours(&tx, hours)?;
+        }
+        tx.commit().map_err(|_| LocalLogError::WriteFailed)
+    }
+
     /// Grants or withdraws consent for one tool folder (OU-LOG-001, OU-LOG-002).
     /// A withdrawn source keeps its saved totals.
     pub fn set_log_source(
@@ -632,163 +663,12 @@ impl Storage {
         &mut self,
         scan: &LocalUsageScan<'_>,
     ) -> Result<LocalUsageScanSummary> {
-        let unique_sources: BTreeSet<&String> = scan.log_source_ids.iter().collect();
-        if !valid_version(scan.scanner_version)
-            || !valid_time_zone(scan.time_zone)
-            || scan
-                .since
-                .is_some_and(|since| !activity::activity_date(since))
-            || !activity::activity_utc_timestamp(scan.scanned_at_utc)
-            || scan.rows.len() > MAX_ROWS
-            || scan.log_source_ids.is_empty()
-            || scan.log_source_ids.len() > MAX_SOURCES
-            || unique_sources.len() != scan.log_source_ids.len()
-            || scan.log_source_ids.iter().any(|id| !canonical_uuid(id))
-        {
-            return Err(LocalLogError::InvalidInput);
-        }
-        let mut keys = BTreeSet::new();
-        for row in scan.rows {
-            if !valid_row(row) || !keys.insert((&row.tool, &row.local_date, &row.model)) {
-                return Err(LocalLogError::InvalidInput);
-            }
-        }
-        let write = |_| LocalLogError::WriteFailed;
         let tx = self
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
-            .map_err(write)?;
-        // Tool name to source ID, for the sources that this run read.
-        let mut sources = BTreeMap::new();
-        for id in scan.log_source_ids {
-            let source: Option<(String, String, Option<String>)> = tx
-                .query_row(
-                    "SELECT tool,consent,time_zone FROM log_sources WHERE id=?1",
-                    [id],
-                    |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
-                )
-                .optional()
-                .map_err(|_| LocalLogError::ReadFailed)?;
-            let Some((tool, consent, zone)) = source else {
-                return Err(LocalLogError::NotConsented);
-            };
-            if consent != "granted" {
-                return Err(LocalLogError::NotConsented);
-            }
-            if zone.is_some_and(|zone| zone != scan.time_zone) {
-                return Err(LocalLogError::TimeZoneMismatch);
-            }
-            if sources.insert(tool, id.as_str()).is_some() {
-                return Err(LocalLogError::InvalidInput);
-            }
-        }
-        let mut summary = LocalUsageScanSummary::default();
-        let save_difference = |source: &str,
-                               date: &str,
-                               model: &str,
-                               saved: u64,
-                               new: u64|
-         -> Result<()> {
-            let id = activity::new_uuid().map_err(|_| LocalLogError::WriteFailed)?;
-            tx.execute(
-                    "INSERT INTO local_usage_differences(id,log_source_id,local_date,model,saved_total_tokens,new_total_tokens,scan_at_utc)
-                     VALUES(?1,?2,?3,?4,?5,?6,?7)
-                     ON CONFLICT(log_source_id,local_date,model,saved_total_tokens,new_total_tokens) DO NOTHING",
-                    params![id, source, date, model, saved.to_string(), new.to_string(), scan.scanned_at_utc],
-                )
-                .map_err(write)?;
-            tx.execute(
-                "UPDATE local_usage_days SET coverage='logs_gone',updated_at_utc=?4
-                     WHERE log_source_id=?1 AND local_date=?2 AND model=?3",
-                params![source, date, model, scan.scanned_at_utc],
-            )
-            .map_err(write)?;
-            Ok(())
-        };
-        for row in scan.rows {
-            let source = *sources.get(&row.tool).ok_or(LocalLogError::InvalidInput)?;
-            let saved: Option<String> = tx
-                .query_row(
-                    "SELECT total_tokens FROM local_usage_days WHERE log_source_id=?1 AND local_date=?2 AND model=?3",
-                    params![source, row.local_date, row.model],
-                    |r| r.get(0),
-                )
-                .optional()
-                .map_err(|_| LocalLogError::ReadFailed)?;
-            let saved = saved
-                .map(|text| token(&text).ok_or(LocalLogError::ReadFailed))
-                .transpose()?;
-            let (input, output, cache_write, cache_read, total) = (
-                row.input_tokens.to_string(),
-                row.output_tokens.to_string(),
-                row.cache_write_tokens.to_string(),
-                row.cache_read_tokens.to_string(),
-                row.total_tokens.to_string(),
-            );
-            let estimate = row.estimated_value_usd_micros.map(|v| v.to_string());
-            match saved {
-                None => {
-                    let id = activity::new_uuid().map_err(|_| LocalLogError::WriteFailed)?;
-                    tx.execute(
-                        "INSERT INTO local_usage_days(id,log_source_id,tool,model,local_date,input_tokens,output_tokens,cache_write_tokens,cache_read_tokens,total_tokens,estimated_value_usd_micros,scanner_version,coverage,created_at_utc,updated_at_utc)
-                         VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,'complete',?13,?13)",
-                        params![id, source, row.tool, row.model, row.local_date, input, output, cache_write, cache_read, total, estimate, scan.scanner_version, scan.scanned_at_utc],
-                    )
-                    .map_err(write)?;
-                    summary.inserted += 1;
-                }
-                Some(saved) if row.total_tokens >= saved => {
-                    tx.execute(
-                        "UPDATE local_usage_days SET input_tokens=?4,output_tokens=?5,cache_write_tokens=?6,cache_read_tokens=?7,total_tokens=?8,
-                         estimated_value_usd_micros=?9,scanner_version=?10,coverage='complete',updated_at_utc=?11
-                         WHERE log_source_id=?1 AND local_date=?2 AND model=?3",
-                        params![source, row.local_date, row.model, input, output, cache_write, cache_read, total, estimate, scan.scanner_version, scan.scanned_at_utc],
-                    )
-                    .map_err(write)?;
-                    if row.total_tokens > saved {
-                        summary.raised += 1;
-                    } else {
-                        summary.unchanged += 1;
-                    }
-                }
-                Some(saved) => {
-                    save_difference(source, &row.local_date, &row.model, saved, row.total_tokens)?;
-                    summary.kept_higher += 1;
-                }
-            }
-        }
-        // A saved day inside the scanned range that the scan did not read lost its logs.
-        for (tool, source) in &sources {
-            let saved: Vec<(String, String, String)> = {
-                let mut statement = tx
-                    .prepare(
-                        "SELECT local_date,model,total_tokens FROM local_usage_days
-                         WHERE log_source_id=?1 AND local_date>=?2 ORDER BY local_date,model",
-                    )
-                    .map_err(|_| LocalLogError::ReadFailed)?;
-                statement
-                    .query_map(params![source, scan.since.unwrap_or("")], |r| {
-                        Ok((r.get(0)?, r.get(1)?, r.get(2)?))
-                    })
-                    .and_then(|rows| rows.collect())
-                    .map_err(|_| LocalLogError::ReadFailed)?
-            };
-            for (date, model, total) in saved {
-                let total = token(&total).ok_or(LocalLogError::ReadFailed)?;
-                if total > 0 && !keys.contains(&(tool, &date, &model)) {
-                    save_difference(source, &date, &model, total, 0)?;
-                    summary.kept_higher += 1;
-                }
-            }
-        }
-        for source in sources.values() {
-            tx.execute(
-                "UPDATE log_sources SET time_zone=coalesce(time_zone,?2),last_scan_at_utc=?3,updated_at_utc=?3 WHERE id=?1",
-                params![source, scan.time_zone, scan.scanned_at_utc],
-            )
-            .map_err(write)?;
-        }
-        tx.commit().map_err(write)?;
+            .map_err(|_| LocalLogError::WriteFailed)?;
+        let summary = save_days(&tx, scan)?;
+        tx.commit().map_err(|_| LocalLogError::WriteFailed)?;
         Ok(summary)
     }
 
@@ -798,175 +678,24 @@ impl Storage {
         &mut self,
         scan: &LocalSessionScan<'_>,
     ) -> Result<LocalUsageScanSummary> {
-        let mut keys = BTreeSet::new();
-        if !canonical_uuid(scan.log_source_id)
-            || !valid_version(scan.scanner_version)
-            || !activity::activity_utc_timestamp(scan.scanned_at_utc)
-            || scan.sessions.len() > MAX_ROWS
-            || scan
-                .sessions
-                .iter()
-                .any(|s| !valid_session(s) || !keys.insert(s.session_key.as_str()))
-        {
-            return Err(LocalLogError::InvalidInput);
-        }
-        let write = |_| LocalLogError::WriteFailed;
         let tx = self
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
-            .map_err(write)?;
-        let source: Option<(String, String)> = tx
-            .query_row(
-                "SELECT tool,consent FROM log_sources WHERE id=?1",
-                [scan.log_source_id],
-                |r| Ok((r.get(0)?, r.get(1)?)),
-            )
-            .optional()
-            .map_err(|_| LocalLogError::ReadFailed)?;
-        let Some((tool, "granted")) = source.as_ref().map(|(t, c)| (t, c.as_str())) else {
-            return Err(LocalLogError::NotConsented);
-        };
-        if scan.sessions.iter().any(|s| &s.tool != tool) {
-            return Err(LocalLogError::InvalidInput);
-        }
-        let mut summary = LocalUsageScanSummary::default();
-        for session in scan.sessions {
-            let saved: Option<String> = tx
-                .query_row(
-                    "SELECT total_tokens FROM local_usage_sessions WHERE log_source_id=?1 AND session_key=?2",
-                    params![scan.log_source_id, session.session_key],
-                    |r| r.get(0),
-                )
-                .optional()
-                .map_err(|_| LocalLogError::ReadFailed)?;
-            let saved = saved
-                .map(|text| token(&text).ok_or(LocalLogError::ReadFailed))
-                .transpose()?;
-            let values = (
-                session.input_tokens.to_string(),
-                session.output_tokens.to_string(),
-                session.cache_write_tokens.to_string(),
-                session.cache_read_tokens.to_string(),
-                session.reasoning_tokens.map(|v| v.to_string()),
-                session.total_tokens.to_string(),
-                session.estimated_value_usd_micros.map(|v| v.to_string()),
-            );
-            match saved {
-                None => {
-                    let id = activity::new_uuid().map_err(|_| LocalLogError::WriteFailed)?;
-                    tx.execute(
-                        "INSERT INTO local_usage_sessions(id,log_source_id,tool,session_key,project_name,log_account_key,start_utc,end_utc,input_tokens,output_tokens,cache_write_tokens,cache_read_tokens,reasoning_tokens,total_tokens,estimated_value_usd_micros,scanner_version,created_at_utc,updated_at_utc)
-                         VALUES(?1,?2,?3,?4,?5,NULL,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?16)",
-                        params![id, scan.log_source_id, session.tool, session.session_key, session.project_name, session.start_utc, session.end_utc,
-                            values.0, values.1, values.2, values.3, values.4, values.5, values.6, scan.scanner_version, scan.scanned_at_utc],
-                    )
-                    .map_err(write)?;
-                    summary.inserted += 1;
-                }
-                Some(saved) if session.total_tokens >= saved => {
-                    tx.execute(
-                        "UPDATE local_usage_sessions SET project_name=?3,start_utc=?4,end_utc=?5,input_tokens=?6,output_tokens=?7,cache_write_tokens=?8,
-                         cache_read_tokens=?9,reasoning_tokens=?10,total_tokens=?11,estimated_value_usd_micros=?12,scanner_version=?13,updated_at_utc=?14
-                         WHERE log_source_id=?1 AND session_key=?2",
-                        params![scan.log_source_id, session.session_key, session.project_name, session.start_utc, session.end_utc,
-                            values.0, values.1, values.2, values.3, values.4, values.5, values.6, scan.scanner_version, scan.scanned_at_utc],
-                    )
-                    .map_err(write)?;
-                    if session.total_tokens > saved {
-                        summary.raised += 1;
-                    } else {
-                        summary.unchanged += 1;
-                    }
-                }
-                Some(_) => summary.kept_higher += 1,
-            }
-        }
-        tx.commit().map_err(write)?;
+            .map_err(|_| LocalLogError::WriteFailed)?;
+        let summary = save_sessions(&tx, scan)?;
+        tx.commit().map_err(|_| LocalLogError::WriteFailed)?;
         Ok(summary)
     }
 
     /// Saves the hours of one run in one transaction. An hour is new, rises or stays, or keeps its
     /// higher saved counts when this run read less (OU-LOG-011, SC-021).
     pub fn save_local_hours(&mut self, scan: &LocalHourScan<'_>) -> Result<LocalUsageScanSummary> {
-        let mut keys = BTreeSet::new();
-        if !canonical_uuid(scan.log_source_id)
-            || !valid_version(scan.scanner_version)
-            || !activity::activity_utc_timestamp(scan.scanned_at_utc)
-            || scan.hours.len() > MAX_ROWS
-            || scan
-                .hours
-                .iter()
-                .any(|h| !valid_hour(h) || !keys.insert(h.hour_start_utc.as_str()))
-        {
-            return Err(LocalLogError::InvalidInput);
-        }
-        let write = |_| LocalLogError::WriteFailed;
         let tx = self
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
-            .map_err(write)?;
-        let source: Option<(String, String)> = tx
-            .query_row(
-                "SELECT tool,consent FROM log_sources WHERE id=?1",
-                [scan.log_source_id],
-                |r| Ok((r.get(0)?, r.get(1)?)),
-            )
-            .optional()
-            .map_err(|_| LocalLogError::ReadFailed)?;
-        let Some((tool, "granted")) = source.as_ref().map(|(t, c)| (t, c.as_str())) else {
-            return Err(LocalLogError::NotConsented);
-        };
-        if scan.hours.iter().any(|h| &h.tool != tool) {
-            return Err(LocalLogError::InvalidInput);
-        }
-        let mut summary = LocalUsageScanSummary::default();
-        for hour in scan.hours {
-            let saved: Option<String> = tx
-                .query_row(
-                    "SELECT total_tokens FROM local_usage_hours WHERE log_source_id=?1 AND hour_start_utc=?2",
-                    params![scan.log_source_id, hour.hour_start_utc],
-                    |r| r.get(0),
-                )
-                .optional()
-                .map_err(|_| LocalLogError::ReadFailed)?;
-            let saved = saved
-                .map(|text| token(&text).ok_or(LocalLogError::ReadFailed))
-                .transpose()?;
-            let values = [
-                hour.input_tokens.to_string(),
-                hour.output_tokens.to_string(),
-                hour.cache_write_tokens.to_string(),
-                hour.cache_read_tokens.to_string(),
-                hour.total_tokens.to_string(),
-            ];
-            match saved {
-                None => {
-                    let id = activity::new_uuid().map_err(|_| LocalLogError::WriteFailed)?;
-                    tx.execute(
-                        "INSERT INTO local_usage_hours(id,log_source_id,tool,hour_start_utc,input_tokens,output_tokens,cache_write_tokens,cache_read_tokens,total_tokens,scanner_version,created_at_utc,updated_at_utc)
-                         VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?11)",
-                        params![id, scan.log_source_id, hour.tool, hour.hour_start_utc, values[0], values[1], values[2], values[3], values[4], scan.scanner_version, scan.scanned_at_utc],
-                    )
-                    .map_err(write)?;
-                    summary.inserted += 1;
-                }
-                Some(saved) if hour.total_tokens >= saved => {
-                    tx.execute(
-                        "UPDATE local_usage_hours SET input_tokens=?3,output_tokens=?4,cache_write_tokens=?5,cache_read_tokens=?6,total_tokens=?7,scanner_version=?8,updated_at_utc=?9
-                         WHERE log_source_id=?1 AND hour_start_utc=?2",
-                        params![scan.log_source_id, hour.hour_start_utc, values[0], values[1], values[2], values[3], values[4], scan.scanner_version, scan.scanned_at_utc],
-                    )
-                    .map_err(write)?;
-                    if hour.total_tokens > saved {
-                        summary.raised += 1;
-                    } else {
-                        summary.unchanged += 1;
-                    }
-                }
-                Some(_) => summary.kept_higher += 1,
-            }
-        }
-        tx.commit().map_err(write)?;
+            .map_err(|_| LocalLogError::WriteFailed)?;
+        let summary = save_hours(&tx, scan)?;
+        tx.commit().map_err(|_| LocalLogError::WriteFailed)?;
         Ok(summary)
     }
 
@@ -1072,6 +801,323 @@ impl Storage {
         rows.map(|row| row.ok().flatten().ok_or(LocalLogError::ReadFailed))
             .collect()
     }
+}
+
+fn save_days(tx: &Connection, scan: &LocalUsageScan<'_>) -> Result<LocalUsageScanSummary> {
+    let unique_sources: BTreeSet<&String> = scan.log_source_ids.iter().collect();
+    if !valid_version(scan.scanner_version)
+        || !valid_time_zone(scan.time_zone)
+        || scan
+            .since
+            .is_some_and(|since| !activity::activity_date(since))
+        || !activity::activity_utc_timestamp(scan.scanned_at_utc)
+        || scan.rows.len() > MAX_ROWS
+        || scan.log_source_ids.is_empty()
+        || scan.log_source_ids.len() > MAX_SOURCES
+        || unique_sources.len() != scan.log_source_ids.len()
+        || scan.log_source_ids.iter().any(|id| !canonical_uuid(id))
+    {
+        return Err(LocalLogError::InvalidInput);
+    }
+    let mut keys = BTreeSet::new();
+    for row in scan.rows {
+        if !valid_row(row) || !keys.insert((&row.tool, &row.local_date, &row.model)) {
+            return Err(LocalLogError::InvalidInput);
+        }
+    }
+    let write = |_| LocalLogError::WriteFailed;
+    // Tool name to source ID, for the sources that this run read.
+    let mut sources = BTreeMap::new();
+    for id in scan.log_source_ids {
+        let source: Option<(String, String, Option<String>)> = tx
+            .query_row(
+                "SELECT tool,consent,time_zone FROM log_sources WHERE id=?1",
+                [id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .optional()
+            .map_err(|_| LocalLogError::ReadFailed)?;
+        let Some((tool, consent, zone)) = source else {
+            return Err(LocalLogError::NotConsented);
+        };
+        if consent != "granted" {
+            return Err(LocalLogError::NotConsented);
+        }
+        if zone.is_some_and(|zone| zone != scan.time_zone) {
+            return Err(LocalLogError::TimeZoneMismatch);
+        }
+        if sources.insert(tool, id.as_str()).is_some() {
+            return Err(LocalLogError::InvalidInput);
+        }
+    }
+    let mut summary = LocalUsageScanSummary::default();
+    let save_difference = |source: &str,
+                           date: &str,
+                           model: &str,
+                           saved: u64,
+                           new: u64|
+     -> Result<()> {
+        let id = activity::new_uuid().map_err(|_| LocalLogError::WriteFailed)?;
+        tx.execute(
+                    "INSERT INTO local_usage_differences(id,log_source_id,local_date,model,saved_total_tokens,new_total_tokens,scan_at_utc)
+                     VALUES(?1,?2,?3,?4,?5,?6,?7)
+                     ON CONFLICT(log_source_id,local_date,model,saved_total_tokens,new_total_tokens) DO NOTHING",
+                    params![id, source, date, model, saved.to_string(), new.to_string(), scan.scanned_at_utc],
+                )
+                .map_err(write)?;
+        tx.execute(
+            "UPDATE local_usage_days SET coverage='logs_gone',updated_at_utc=?4
+                     WHERE log_source_id=?1 AND local_date=?2 AND model=?3",
+            params![source, date, model, scan.scanned_at_utc],
+        )
+        .map_err(write)?;
+        Ok(())
+    };
+    for row in scan.rows {
+        let source = *sources.get(&row.tool).ok_or(LocalLogError::InvalidInput)?;
+        let saved: Option<String> = tx
+                .query_row(
+                    "SELECT total_tokens FROM local_usage_days WHERE log_source_id=?1 AND local_date=?2 AND model=?3",
+                    params![source, row.local_date, row.model],
+                    |r| r.get(0),
+                )
+                .optional()
+                .map_err(|_| LocalLogError::ReadFailed)?;
+        let saved = saved
+            .map(|text| token(&text).ok_or(LocalLogError::ReadFailed))
+            .transpose()?;
+        let (input, output, cache_write, cache_read, total) = (
+            row.input_tokens.to_string(),
+            row.output_tokens.to_string(),
+            row.cache_write_tokens.to_string(),
+            row.cache_read_tokens.to_string(),
+            row.total_tokens.to_string(),
+        );
+        let estimate = row.estimated_value_usd_micros.map(|v| v.to_string());
+        match saved {
+            None => {
+                let id = activity::new_uuid().map_err(|_| LocalLogError::WriteFailed)?;
+                tx.execute(
+                        "INSERT INTO local_usage_days(id,log_source_id,tool,model,local_date,input_tokens,output_tokens,cache_write_tokens,cache_read_tokens,total_tokens,estimated_value_usd_micros,scanner_version,coverage,created_at_utc,updated_at_utc)
+                         VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,'complete',?13,?13)",
+                        params![id, source, row.tool, row.model, row.local_date, input, output, cache_write, cache_read, total, estimate, scan.scanner_version, scan.scanned_at_utc],
+                    )
+                    .map_err(write)?;
+                summary.inserted += 1;
+            }
+            Some(saved) if row.total_tokens >= saved => {
+                tx.execute(
+                        "UPDATE local_usage_days SET input_tokens=?4,output_tokens=?5,cache_write_tokens=?6,cache_read_tokens=?7,total_tokens=?8,
+                         estimated_value_usd_micros=?9,scanner_version=?10,coverage='complete',updated_at_utc=?11
+                         WHERE log_source_id=?1 AND local_date=?2 AND model=?3",
+                        params![source, row.local_date, row.model, input, output, cache_write, cache_read, total, estimate, scan.scanner_version, scan.scanned_at_utc],
+                    )
+                    .map_err(write)?;
+                if row.total_tokens > saved {
+                    summary.raised += 1;
+                } else {
+                    summary.unchanged += 1;
+                }
+            }
+            Some(saved) => {
+                save_difference(source, &row.local_date, &row.model, saved, row.total_tokens)?;
+                summary.kept_higher += 1;
+            }
+        }
+    }
+    // A saved day inside the scanned range that the scan did not read lost its logs.
+    for (tool, source) in &sources {
+        let saved: Vec<(String, String, String)> = {
+            let mut statement = tx
+                .prepare(
+                    "SELECT local_date,model,total_tokens FROM local_usage_days
+                         WHERE log_source_id=?1 AND local_date>=?2 ORDER BY local_date,model",
+                )
+                .map_err(|_| LocalLogError::ReadFailed)?;
+            statement
+                .query_map(params![source, scan.since.unwrap_or("")], |r| {
+                    Ok((r.get(0)?, r.get(1)?, r.get(2)?))
+                })
+                .and_then(|rows| rows.collect())
+                .map_err(|_| LocalLogError::ReadFailed)?
+        };
+        for (date, model, total) in saved {
+            let total = token(&total).ok_or(LocalLogError::ReadFailed)?;
+            if total > 0 && !keys.contains(&(tool, &date, &model)) {
+                save_difference(source, &date, &model, total, 0)?;
+                summary.kept_higher += 1;
+            }
+        }
+    }
+    for source in sources.values() {
+        tx.execute(
+                "UPDATE log_sources SET time_zone=coalesce(time_zone,?2),last_scan_at_utc=?3,updated_at_utc=?3 WHERE id=?1",
+                params![source, scan.time_zone, scan.scanned_at_utc],
+            )
+            .map_err(write)?;
+    }
+    Ok(summary)
+}
+
+fn save_sessions(tx: &Connection, scan: &LocalSessionScan<'_>) -> Result<LocalUsageScanSummary> {
+    let mut keys = BTreeSet::new();
+    if !canonical_uuid(scan.log_source_id)
+        || !valid_version(scan.scanner_version)
+        || !activity::activity_utc_timestamp(scan.scanned_at_utc)
+        || scan.sessions.len() > MAX_ROWS
+        || scan
+            .sessions
+            .iter()
+            .any(|s| !valid_session(s) || !keys.insert(s.session_key.as_str()))
+    {
+        return Err(LocalLogError::InvalidInput);
+    }
+    let write = |_| LocalLogError::WriteFailed;
+    let source: Option<(String, String)> = tx
+        .query_row(
+            "SELECT tool,consent FROM log_sources WHERE id=?1",
+            [scan.log_source_id],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .optional()
+        .map_err(|_| LocalLogError::ReadFailed)?;
+    let Some((tool, "granted")) = source.as_ref().map(|(t, c)| (t, c.as_str())) else {
+        return Err(LocalLogError::NotConsented);
+    };
+    if scan.sessions.iter().any(|s| &s.tool != tool) {
+        return Err(LocalLogError::InvalidInput);
+    }
+    let mut summary = LocalUsageScanSummary::default();
+    for session in scan.sessions {
+        let saved: Option<String> = tx
+                .query_row(
+                    "SELECT total_tokens FROM local_usage_sessions WHERE log_source_id=?1 AND session_key=?2",
+                    params![scan.log_source_id, session.session_key],
+                    |r| r.get(0),
+                )
+                .optional()
+                .map_err(|_| LocalLogError::ReadFailed)?;
+        let saved = saved
+            .map(|text| token(&text).ok_or(LocalLogError::ReadFailed))
+            .transpose()?;
+        let values = (
+            session.input_tokens.to_string(),
+            session.output_tokens.to_string(),
+            session.cache_write_tokens.to_string(),
+            session.cache_read_tokens.to_string(),
+            session.reasoning_tokens.map(|v| v.to_string()),
+            session.total_tokens.to_string(),
+            session.estimated_value_usd_micros.map(|v| v.to_string()),
+        );
+        match saved {
+            None => {
+                let id = activity::new_uuid().map_err(|_| LocalLogError::WriteFailed)?;
+                tx.execute(
+                        "INSERT INTO local_usage_sessions(id,log_source_id,tool,session_key,project_name,log_account_key,start_utc,end_utc,input_tokens,output_tokens,cache_write_tokens,cache_read_tokens,reasoning_tokens,total_tokens,estimated_value_usd_micros,scanner_version,created_at_utc,updated_at_utc)
+                         VALUES(?1,?2,?3,?4,?5,NULL,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?16)",
+                        params![id, scan.log_source_id, session.tool, session.session_key, session.project_name, session.start_utc, session.end_utc,
+                            values.0, values.1, values.2, values.3, values.4, values.5, values.6, scan.scanner_version, scan.scanned_at_utc],
+                    )
+                    .map_err(write)?;
+                summary.inserted += 1;
+            }
+            Some(saved) if session.total_tokens >= saved => {
+                tx.execute(
+                        "UPDATE local_usage_sessions SET project_name=?3,start_utc=?4,end_utc=?5,input_tokens=?6,output_tokens=?7,cache_write_tokens=?8,
+                         cache_read_tokens=?9,reasoning_tokens=?10,total_tokens=?11,estimated_value_usd_micros=?12,scanner_version=?13,updated_at_utc=?14
+                         WHERE log_source_id=?1 AND session_key=?2",
+                        params![scan.log_source_id, session.session_key, session.project_name, session.start_utc, session.end_utc,
+                            values.0, values.1, values.2, values.3, values.4, values.5, values.6, scan.scanner_version, scan.scanned_at_utc],
+                    )
+                    .map_err(write)?;
+                if session.total_tokens > saved {
+                    summary.raised += 1;
+                } else {
+                    summary.unchanged += 1;
+                }
+            }
+            Some(_) => summary.kept_higher += 1,
+        }
+    }
+    Ok(summary)
+}
+
+fn save_hours(tx: &Connection, scan: &LocalHourScan<'_>) -> Result<LocalUsageScanSummary> {
+    let mut keys = BTreeSet::new();
+    if !canonical_uuid(scan.log_source_id)
+        || !valid_version(scan.scanner_version)
+        || !activity::activity_utc_timestamp(scan.scanned_at_utc)
+        || scan.hours.len() > MAX_ROWS
+        || scan
+            .hours
+            .iter()
+            .any(|h| !valid_hour(h) || !keys.insert(h.hour_start_utc.as_str()))
+    {
+        return Err(LocalLogError::InvalidInput);
+    }
+    let write = |_| LocalLogError::WriteFailed;
+    let source: Option<(String, String)> = tx
+        .query_row(
+            "SELECT tool,consent FROM log_sources WHERE id=?1",
+            [scan.log_source_id],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .optional()
+        .map_err(|_| LocalLogError::ReadFailed)?;
+    let Some((tool, "granted")) = source.as_ref().map(|(t, c)| (t, c.as_str())) else {
+        return Err(LocalLogError::NotConsented);
+    };
+    if scan.hours.iter().any(|h| &h.tool != tool) {
+        return Err(LocalLogError::InvalidInput);
+    }
+    let mut summary = LocalUsageScanSummary::default();
+    for hour in scan.hours {
+        let saved: Option<String> = tx
+                .query_row(
+                    "SELECT total_tokens FROM local_usage_hours WHERE log_source_id=?1 AND hour_start_utc=?2",
+                    params![scan.log_source_id, hour.hour_start_utc],
+                    |r| r.get(0),
+                )
+                .optional()
+                .map_err(|_| LocalLogError::ReadFailed)?;
+        let saved = saved
+            .map(|text| token(&text).ok_or(LocalLogError::ReadFailed))
+            .transpose()?;
+        let values = [
+            hour.input_tokens.to_string(),
+            hour.output_tokens.to_string(),
+            hour.cache_write_tokens.to_string(),
+            hour.cache_read_tokens.to_string(),
+            hour.total_tokens.to_string(),
+        ];
+        match saved {
+            None => {
+                let id = activity::new_uuid().map_err(|_| LocalLogError::WriteFailed)?;
+                tx.execute(
+                        "INSERT INTO local_usage_hours(id,log_source_id,tool,hour_start_utc,input_tokens,output_tokens,cache_write_tokens,cache_read_tokens,total_tokens,scanner_version,created_at_utc,updated_at_utc)
+                         VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?11)",
+                        params![id, scan.log_source_id, hour.tool, hour.hour_start_utc, values[0], values[1], values[2], values[3], values[4], scan.scanner_version, scan.scanned_at_utc],
+                    )
+                    .map_err(write)?;
+                summary.inserted += 1;
+            }
+            Some(saved) if hour.total_tokens >= saved => {
+                tx.execute(
+                        "UPDATE local_usage_hours SET input_tokens=?3,output_tokens=?4,cache_write_tokens=?5,cache_read_tokens=?6,total_tokens=?7,scanner_version=?8,updated_at_utc=?9
+                         WHERE log_source_id=?1 AND hour_start_utc=?2",
+                        params![scan.log_source_id, hour.hour_start_utc, values[0], values[1], values[2], values[3], values[4], scan.scanner_version, scan.scanned_at_utc],
+                    )
+                    .map_err(write)?;
+                if hour.total_tokens > saved {
+                    summary.raised += 1;
+                } else {
+                    summary.unchanged += 1;
+                }
+            }
+            Some(_) => summary.kept_higher += 1,
+        }
+    }
+    Ok(summary)
 }
 
 #[cfg(test)]
@@ -1467,6 +1513,53 @@ mod tests {
             scanned_at_utc: LATER,
             hours,
         }
+    }
+
+    #[test]
+    fn complete_scan_rolls_back_days_when_a_later_report_cannot_save() {
+        let (_dir, mut storage, claude, _codex) = setup();
+        let ids = [claude.clone()];
+        let rows = [row("2026-11-04", "claude", "sonnet", 10, None)];
+        let days = scan(&ids, "UTC", None, &rows);
+        let sessions = session_scan(&claude, &[]);
+        let hours = [hour("2026-11-04T09:00:00.000Z", 10)];
+        let hours = hour_scan(&claude, &hours);
+        storage.connection.execute_batch("CREATE TEMP TRIGGER fail_hours BEFORE INSERT ON local_usage_hours BEGIN SELECT RAISE(ABORT,'synthetic failure'); END;").unwrap();
+        assert_eq!(
+            storage.save_complete_local_scan(&days, &sessions, Some(&hours)),
+            Err(LocalLogError::WriteFailed)
+        );
+        assert!(totals(&storage).is_empty());
+        let source = storage
+            .log_sources()
+            .unwrap()
+            .into_iter()
+            .find(|s| s.id == claude)
+            .unwrap();
+        assert!(source.time_zone.is_none() && source.last_scan_at_utc.is_none());
+        storage
+            .connection
+            .execute_batch("DROP TRIGGER fail_hours;")
+            .unwrap();
+        storage
+            .save_complete_local_scan(&days, &sessions, Some(&hours))
+            .unwrap();
+        let saved = totals(&storage);
+        let raised = [row("2026-11-04", "claude", "sonnet", 100, None)];
+        let bad_session = LocalUsageSession {
+            total_tokens: u64::MAX,
+            ..session("claude", "invalid", "2026-11-05T10:00:00.000Z", 10, None)
+        };
+        let bad = [bad_session];
+        assert_eq!(
+            storage.save_complete_local_scan(
+                &scan(&ids, "UTC", None, &raised),
+                &session_scan(&claude, &bad),
+                Some(&hours)
+            ),
+            Err(LocalLogError::InvalidInput)
+        );
+        assert_eq!(totals(&storage), saved);
     }
 
     #[test]

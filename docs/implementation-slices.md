@@ -112,7 +112,7 @@ Updated November 9, 2026. The owner asked to keep this list and to build down it
 - [x] L-1f6: prepare and test an unpublished Amp duplicate patch against the pinned source. Stable-ID copies count once. Conflicts and incomplete reads fail. All 28 adapter tests and 210 scanner comparisons passed. The production pin stays unchanged. Remaining AT-65 and integration gates remain open. See the [candidate record](reviews/2026-11-08-amp-dedup-design.md#local-candidate-after-review).
 - [x] L-1f7: preserve independent period totals and nullable details in a strict report contract. Amp, Pi, Kilo, and ZCode use daily reports. The other twelve tools stay unplaced. Seven focused tests, full Rust checks, 98 scanner comparisons, and the rebuilt native consent journey passed with synthetic data on Linux. No tool or production pin changed.
 - [x] L-1f8: store independent period totals, coherent model details, and nullable session metadata at schema 13. Preserve legacy history and zones under [SC-024](srs-clarifications.md#sc-024-legacy-local-usage-during-grouped-migration). Migration, backup, restore, full Rust checks, and nine native journeys passed on synthetic Linux data.
-- [ ] L-1f9: group consented roots by tool in the scanner and save each accepted result once. Validate every root and all required reports before saving. Preserve prior data when any required report fails.
+- [x] L-1f9: group consented roots by tool in the scanner and save each accepted result once. Validate every root and all required reports before saving. Preserve prior data when any required report fails.
 - [ ] L-1f10: carry the new totals and unavailable fields through desktop, CLI, export, backup, restore, and sharing. Keep unplaced usage out of dated views. Run the affected renderer and native gates.
 - [ ] L-1f11: qualify each tool with copied, forked, replayed, and compacted fixtures under AT-65. Complete the Amp candidate gates before any pin change. Enable only qualified tools. L-1f stays open until all sixteen pass their required checks.
 - [x] L-1g1: sessions, projects and the reasoning count from the `ccusage` session report of each tool, at schema 11 (OU-LOG-017, [SC-021](srs-clarifications.md#sc-021-sessions-projects-hours-and-reasoning-from-the-pinned-ccusage)).
@@ -199,7 +199,7 @@ Acceptance:
 
 Stopping condition: one verified storage slice, owning docs, a local commit, and a Graphify update. Grouped scans start in L-1f9.
 
-### Next assignment: L-1f9
+### L-1f9: grouped scans (complete)
 
 Goal: group consented roots by tool and save each complete result once. Follow OU-LOG-001, OU-LOG-003, OU-LOG-006 to OU-LOG-013, OU-LOG-017, OU-DUP-008, SC-021, SC-022, and SC-024.
 
@@ -214,6 +214,20 @@ Acceptance:
 - Pass the selected Rust and native checks. Enable no extra tool in this slice.
 
 Stopping condition: one verified scanner slice, owning docs, a local commit, and a Graphify update. Consumer integration follows in L-1f10.
+
+### Next assignment: L-1f10
+
+Goal: carry independent totals and unavailable fields through desktop, CLI, export, backup, restore, and sharing. Follow SC-022 and SC-024, with the owning local usage, data safety, CLI, and sharing requirements. Keep legacy history separate and preserve the working Claude Code and Codex paths.
+
+Acceptance:
+
+- Use independent totals. Preserve nullable details, model attribution, and session times through each boundary.
+- Keep unplaced usage out of date filters, charts, heatmaps, streaks, hourly sums, and dated shares.
+- Preserve legacy source details and zones. Never sum legacy records with grouped snapshots or claim a combined history without proof.
+- Preserve working Claude Code and Codex session and hourly views. Show missing fields as unavailable. Infer no account identity.
+- Pass affected Rust, renderer, contract, and native checks. Verify export, backup, restore, and share privacy. Enable no extra tool.
+
+Stopping condition: one verified consumer slice, owning docs, a local commit, and a Graphify update. AT-65 qualification follows in L-1f11.
 
 ## Order
 

@@ -2,7 +2,7 @@
 
 Reads local usage totals through the pinned official `ccusage` binary (SRS Section 5C).
 
-The shared catalog in `sources/tools.json` defines each tool's name, order, color, enabled state, folder variable, known roots, and report capabilities. Rust embeds this file at compile time. The renderer imports it at build time. Neither reads a catalog from the user's disk. Detection, consent, process arguments, and report selection use its enabled entries. A declaration alone does not enable a tool. Claude Code and Codex remain the only enabled tools. The other 16 entries await adapter and fixture checks.
+The shared catalog in `sources/tools.json` defines each tool's name, order, color, enabled state, folder variable, root mode, known roots, and report capabilities. Rust embeds this file at compile time. The renderer imports it at build time. Neither reads a catalog from the user's disk. Detection, consent, process arguments, and report selection use its enabled entries. A declaration alone does not enable a tool. Claude Code and Codex remain the only enabled tools. The other 16 entries await adapter and fixture checks.
 
 ## The pin
 
@@ -16,7 +16,7 @@ The shared catalog in `sources/tools.json` defines each tool's name, order, colo
 
 Every report also receives `--mode calculate`. For the enabled tools, estimates use token prices from the pinned offline data instead of stored charges. A zero stored charge does not make the estimate zero. An unknown model keeps its tokens and has no estimate (OU-LOG-013, OU-LOG-014). This claim does not extend to the 16 tools that remain disabled. The [source review](../../docs/reviews/2026-11-08-l1f-formats-a.md) found exceptions to `--mode calculate` in some of those tools.
 
-Each run reads one consented folder of one tool. `HOME` and the working directory are an empty private directory, so the default folders of other tools do not exist for `ccusage`, and no user `ccusage` config is found. The environment holds only `HOME`, `NO_COLOR`, `TZ` and the folder variable from the catalog: `CLAUDE_CONFIG_DIR` for Claude Code and `CODEX_HOME` for Codex. A row of another tool rejects the run.
+Each legacy run reads one consented folder of one tool. `HOME` and the working directory are an empty private directory, so the default folders of other tools do not exist for `ccusage`, and no user `ccusage` config is found. The environment holds only `HOME`, `NO_COLOR`, `TZ` and the folder variable from the catalog: `CLAUDE_CONFIG_DIR` for Claude Code and `CODEX_HOME` for Codex. A row of another tool rejects the run.
 
 Before any process starts, the folder must be an absolute UTF-8 path that still equals its resolved path. Commas and trailing whitespace are refused, because ccusage can interpret them as a list of roots or another root. Spaces inside the path and Unicode names remain valid. Detection resolves links before consent; a saved root that later becomes a link to another folder fails the scan. This checks the root before launch. It does not sandbox ccusage.
 
@@ -34,7 +34,7 @@ Before any process starts, the folder must be an absolute UTF-8 path that still 
 
 The catalog holds each report's metadata policy. Only Pi and ZCode retain activity times. Pi, Qwen, Grok, and ZCode retain reported projects, with Pi's fallback `unknown` omitted. Other fields remain unavailable under [SC-022](../../docs/srs-clarifications.md#sc-022-incomplete-metrics-from-the-other-local-tools). Token categories and estimates remain unavailable because the pinned report loses their presence and derivation. A model total is available only when all tokens in its enclosing session or report have model attribution. A remainder never becomes reasoning or an invented model.
 
-The parser rejects unknown fields, invalid metadata, repeated keys, excessive counts, and totals that disagree with their rows. It accepts Qwen's null empty totals but rejects missing totals. Empty reports differ from sessions with a reported zero. All sixteen recorded fixtures and malformed-report cases exercise this boundary. Storage, process integration, and duplicate qualification remain open.
+The parser rejects unknown fields, invalid metadata, repeated keys, excessive counts, and totals that disagree with their rows. It accepts Qwen's null empty totals but rejects missing totals. Empty reports differ from sessions with a reported zero. All sixteen recorded fixtures and malformed-report cases exercise this boundary. Grouped storage and the process path are implemented. Consumer integration and duplicate qualification remain open.
 
 ## Additional period reports
 
@@ -43,6 +43,16 @@ The parser rejects unknown fields, invalid metadata, repeated keys, excessive co
 The daily parser checks the redundant day and tool fields, strict calendar dates, ordered days, model names, bounded counts, and report totals. An incomplete model breakdown leaves model totals unavailable within that scope. Token categories and estimates stay unavailable under SC-022. No remainder becomes reasoning, a model, or an activity time. Empty reports differ from a reported zero.
 
 `UsagePeriod` distinguishes a scanner day from unplaced usage. The caller owns the pinned zone and consented scan scope. This contract does not change storage, run a scanner, or enable a tool.
+
+## Grouped scans
+
+`scan_grouped_with_check` prepares the sixteen candidate tools. They remain disabled. The desktop worker groups available, granted roots by tool. It checks consent and resolved paths before each report and before the save. It stores each complete group once, with its root membership. A changed selection, invalid root, failed report, or failed write preserves accepted data.
+
+The runner sorts roots and removes repeated paths. A `comma_list` adapter receives one bounded list of validated roots. The pinned [Goose](https://github.com/ccusage/ccusage/blob/8995f3b7fd7110b8f37564f7d0468acc7a7d6b20/rust/adapters/goose/src/paths.rs), [Copilot](https://github.com/ccusage/ccusage/blob/8995f3b7fd7110b8f37564f7d0468acc7a7d6b20/rust/adapters/copilot/src/paths.rs), and [Grok](https://github.com/ccusage/ccusage/blob/8995f3b7fd7110b8f37564f7d0468acc7a7d6b20/rust/adapters/grok/src/paths.rs) adapters accept one root. Their `single` mode rejects a request with more than one root. These capabilities do not prove duplicate handling.
+
+Amp, Pi, Kilo, and ZCode require daily and session reports. The other twelve tools use one session report for separate unplaced and session records. Session totals are never added to period totals. The group has one process lock, one deadline, and one combined output bound. Every process checks the binary digest and uses fixed offline arguments and an empty private home.
+
+The first grouped day scan pins its zone. Unplaced usage has no day zone. Old source records keep their zones under SC-024. Claude Code and Codex keep their existing source views. Their required daily, session, and hourly reports now commit together. A failed later report cannot update an earlier report. The CLI and grouped views follow in L-1f10.
 
 ## The hourly report
 

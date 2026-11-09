@@ -39,14 +39,14 @@ Today Codex is the only source, and its path has no general adapter layer. The p
 
 The [local tool catalog](../crates/openusage-locallogs/sources/tools.json) defines tool names, order, colors, enabled state, roots, folder variables, and report capabilities. Rust embeds it at compile time. The renderer imports it at build time. Detection, consent, the runner, and both interfaces use this one definition. Adapter and fixture checks must pass before a tool is enabled.
 
-The local logs crate owns the [additional period contract](../crates/openusage-locallogs/README.md#additional-period-reports) in `agent_period.rs`. The storage contract below is separate from process integration.
+The local logs crate owns the [additional period contract](../crates/openusage-locallogs/README.md#additional-period-reports) in `agent_period.rs`. The [grouped runner](../crates/openusage-locallogs/README.md#grouped-scans) collects all required reports before storage.
 
 Schema 13 adds six tables for grouped scopes, scans, root membership, records, model details, and lower-scan differences. Legacy tables stay unchanged. One tool has one stable scope. Only day records enter dated queries. Period and session totals stay separate. Every accepted record points to the scan that produced it. A lower scan keeps the whole saved record and its model details. An equal or higher scan replaces them together.
  A complete scan with an absent saved period records an observed zero difference. Missing measurements remain null.
 
 The writer checks every root's tool and consent in the save transaction. Scope zones stay pinned. Backup checks enforce the same bounds and metric rules as a write. Restore copies only declared fields. Migration adds empty grouped tables and leaves all legacy records intact. No legacy model sum becomes a new scanner total.
 
-See [SC-024](srs-clarifications.md#sc-024-legacy-local-usage-during-grouped-migration) for the legacy-history rule. `local_periods.rs` owns these Rust APIs. Desktop and CLI use the legacy APIs until the grouped-scan and surface slices.
+See [SC-024](srs-clarifications.md#sc-024-legacy-local-usage-during-grouped-migration) for the legacy-history rule. `local_periods.rs` owns these Rust APIs. The desktop worker has a grouped path for candidate tools. They remain disabled. Claude Code and Codex keep their source views, with one transaction for all required reports. The CLI and grouped views follow in L-1f10.
 
 ## Boundaries
 

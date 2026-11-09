@@ -18,6 +18,16 @@ use tauri::State;
 const SCAN_INTERVAL: Duration = Duration::from_secs(600);
 const LOCKED_RETRY: Duration = Duration::from_secs(2);
 
+fn empty_scan_home() -> std::io::Result<tempfile::TempDir> {
+    let mut builder = tempfile::Builder::new();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        builder.permissions(std::fs::Permissions::from_mode(0o700));
+    }
+    builder.tempdir()
+}
+
 fn detect_user_home() -> Vec<Detected> {
     // A native-test build never looks at the real home: a journey names a synthetic one.
     #[cfg(feature = "native-test")]
@@ -66,22 +76,34 @@ enum Outcome {
     Scanned { failed: bool, at: Option<String> },
 }
 
-/// Scans every granted source once. No workspace lock is held while ccusage runs.
+pub(crate) struct ScanGroup {
+    pub sources: Vec<LogSource>,
+    pub zone: Option<String>,
+}
+
+/// No workspace lock is held while ccusage runs.
 fn scan_all(workspace: &Mutex<Option<Workspace>>, scanner: &Scanner) -> Outcome {
     let plan = workspace
         .lock()
         .ok()
         .and_then(|mut state| state.as_mut().map(Workspace::local_log_scan_plan));
-    let Some(Ok((sources, display_zone))) = plan else {
+    let Some(Ok(groups)) = plan else {
         return Outcome::Locked;
     };
     let (mut failed, mut at) = (false, None);
-    for source in sources {
-        // A folder that no longer exists is skipped, so its saved days are not judged.
-        if !Path::new(&source.folder).is_dir() {
-            continue;
-        }
-        match scan_source(workspace, scanner, &source, &display_zone) {
+    for group in groups {
+        let result =
+            if locallogs::tool(&group.sources[0].tool).is_some_and(|t| t.agent_report.is_some()) {
+                scan_group(workspace, scanner, &group)
+            } else {
+                scan_source(
+                    workspace,
+                    scanner,
+                    &group.sources[0],
+                    group.zone.as_deref().unwrap_or("UTC"),
+                )
+            };
+        match result {
             Some(scanned_at) => at = Some(scanned_at),
             None => failed = true,
         }
@@ -89,76 +111,103 @@ fn scan_all(workspace: &Mutex<Option<Workspace>>, scanner: &Scanner) -> Outcome 
     Outcome::Scanned { failed, at }
 }
 
-/// One run of one source, saved in one transaction.
-fn scan_source(
+fn scan_group(
     workspace: &Mutex<Option<Workspace>>,
     scanner: &Scanner,
-    source: &LogSource,
-    display_zone: &str,
+    group: &ScanGroup,
 ) -> Option<String> {
-    let folder = Path::new(&source.folder);
-    let zone = source.time_zone.as_deref().unwrap_or(display_zone);
-    let empty_home = tempfile::tempdir().ok()?;
-    let rows = locallogs::scan(&locallogs::ScanRequest {
-        binary: &scanner.binary,
-        expected_sha256: &scanner.digest,
-        tool: &source.tool,
-        folder,
-        empty_home: empty_home.path(),
-        timezone: zone,
-        since: None,
-        timeout: locallogs::DEFAULT_TIMEOUT,
-        max_output: locallogs::DEFAULT_MAX_OUTPUT,
-    })
+    let empty_home = empty_scan_home().ok()?;
+    let folders: Vec<_> = group.sources.iter().map(|s| Path::new(&s.folder)).collect();
+    let report = locallogs::scan_grouped_with_check(
+        &locallogs::GroupedScanRequest {
+            binary: &scanner.binary,
+            expected_sha256: &scanner.digest,
+            tool: &group.sources[0].tool,
+            folders: &folders,
+            empty_home: empty_home.path(),
+            timezone: group.zone.as_deref().unwrap_or("UTC"),
+            timeout: locallogs::DEFAULT_TIMEOUT,
+            max_output: locallogs::DEFAULT_MAX_OUTPUT,
+        },
+        || sources_consented(workspace, &group.sources, true),
+    )
     .ok()?;
     let scanned_at = now_utc();
     workspace
         .lock()
         .ok()?
         .as_mut()?
-        .save_local_log_scan(&source.id, zone, &scanned_at, &rows)
+        .save_grouped_log_reports(group, &scanned_at, &report)
         .ok()?;
-    // The session report runs in its own empty home, outside the workspace lock (SC-021).
-    let empty_home = tempfile::tempdir().ok()?;
-    let sessions = locallogs::scan_sessions(&locallogs::ScanRequest {
+    Some(scanned_at)
+}
+
+fn sources_consented(
+    workspace: &Mutex<Option<Workspace>>,
+    sources: &[LogSource],
+    grouped: bool,
+) -> bool {
+    workspace
+        .lock()
+        .ok()
+        .and_then(|mut state| {
+            state
+                .as_mut()
+                .map(|w| w.check_local_scan_sources(sources, grouped).is_ok())
+        })
+        .unwrap_or(false)
+}
+
+/// Read all required reports before the single save. A failed report cannot publish part of a scan.
+fn scan_source(
+    workspace: &Mutex<Option<Workspace>>,
+    scanner: &Scanner,
+    source: &LogSource,
+    zone: &str,
+) -> Option<String> {
+    let empty_home = empty_scan_home().ok()?;
+    let request = locallogs::ScanRequest {
         binary: &scanner.binary,
         expected_sha256: &scanner.digest,
         tool: &source.tool,
-        folder,
+        folder: Path::new(&source.folder),
         empty_home: empty_home.path(),
         timezone: zone,
         since: None,
         timeout: locallogs::DEFAULT_TIMEOUT,
         max_output: locallogs::DEFAULT_MAX_OUTPUT,
-    })
-    .ok()?;
+    };
+    let check = || sources_consented(workspace, std::slice::from_ref(source), false);
+    if !check() {
+        return None;
+    }
+    let rows = locallogs::scan(&request).ok()?;
+    if !check() {
+        return None;
+    }
+    let sessions = locallogs::scan_sessions(&request).ok()?;
+    let hours = if locallogs::tool(&source.tool).is_some_and(|t| t.enabled && t.hours) {
+        if !check() {
+            return None;
+        }
+        Some(locallogs::scan_hours(&request).ok()?)
+    } else {
+        None
+    };
+    let scanned_at = now_utc();
     workspace
         .lock()
         .ok()?
         .as_mut()?
-        .save_local_session_scan(&source.id, &scanned_at, &sessions)
+        .save_complete_log_reports(
+            source,
+            zone,
+            &scanned_at,
+            &rows,
+            &sessions,
+            hours.as_deref(),
+        )
         .ok()?;
-    if locallogs::tool(&source.tool).is_some_and(|tool| tool.enabled && tool.hours) {
-        let empty_home = tempfile::tempdir().ok()?;
-        let hours = locallogs::scan_hours(&locallogs::ScanRequest {
-            binary: &scanner.binary,
-            expected_sha256: &scanner.digest,
-            tool: &source.tool,
-            folder,
-            empty_home: empty_home.path(),
-            timezone: zone,
-            since: None,
-            timeout: locallogs::DEFAULT_TIMEOUT,
-            max_output: locallogs::DEFAULT_MAX_OUTPUT,
-        })
-        .ok()?;
-        workspace
-            .lock()
-            .ok()?
-            .as_mut()?
-            .save_local_hour_scan(&source.id, &scanned_at, &hours)
-            .ok()?;
-    }
     Some(scanned_at)
 }
 
@@ -549,6 +598,34 @@ mod tests {
         ));
         assert!(!marker.exists());
         assert_eq!(totals(shared.lock().unwrap().as_mut().unwrap()), saved);
+
+        // Failure of a later required report must not update days or their scan time.
+        let before = shared
+            .lock()
+            .unwrap()
+            .as_mut()
+            .unwrap()
+            .log_sources()
+            .unwrap();
+        for argument in ["session", "blocks"] {
+            let partial = scanner(
+                &bin,
+                "partial",
+                &format!(
+                    "if [ \"$1\" = {argument} ] || [ \"$2\" = {argument} ]; then echo malformed; elif [ \"$2\" = session ]; then cat {CLAUDE_SESSIONS}; elif [ \"$1\" = blocks ]; then cat {CLAUDE_BLOCKS}; else cat {CLAUDE_REPORT}; fi"
+                ),
+            );
+            assert!(matches!(
+                scan_all(&shared, &partial),
+                Outcome::Scanned {
+                    failed: true,
+                    at: None
+                }
+            ));
+            let mut state = shared.lock().unwrap();
+            assert_eq!(state.as_mut().unwrap().log_sources().unwrap(), before);
+            assert_eq!(totals(state.as_mut().unwrap()), saved);
+        }
 
         // A locked workspace runs nothing.
         assert_eq!(scan_all(&Mutex::new(None), &ok), Outcome::Locked);
