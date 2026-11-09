@@ -83,6 +83,20 @@ fn scan_grouped_checked(
         remaining_output -= output.len();
         Ok::<_, ScanError>(output)
     };
+    if request.tool == "pi" {
+        let output = run(&["pi", "snapshot", "--json", "--offline", "--no-color"])?;
+        let result =
+            crate::agent_snapshot::parse_pi_snapshot(&output).map_err(ScanError::Report)?;
+        if !check()
+            || request
+                .folders
+                .iter()
+                .any(|folder| !crate::runner::valid_resolved_folder(folder))
+        {
+            return Err(ScanError::InvalidRequest);
+        }
+        return Ok(result);
+    }
     let dated = if policy.period == PeriodPolicy::Day {
         let output = run(&["daily", "--json", "--offline", "--by-agent", "--no-color"])?;
         Some(parse_agent_periods(request.tool, &output).map_err(ScanError::Report)?)

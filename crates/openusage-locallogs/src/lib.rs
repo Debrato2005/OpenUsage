@@ -3,6 +3,7 @@
 
 pub mod agent_period;
 pub mod agent_report;
+mod agent_snapshot;
 pub mod detect;
 pub mod grouped;
 pub mod hours;

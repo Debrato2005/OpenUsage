@@ -1,0 +1,356 @@
+diff --git a/docs/guide/pi/index.md b/docs/guide/pi/index.md
+index 6c905b2..6956e19 100644
+--- a/docs/guide/pi/index.md
++++ b/docs/guide/pi/index.md
+@@ -40,6 +40,13 @@ metadata are checked again before parsing. This is not an atomic snapshot across
+ report commands. Other platforms, producer concurrency, and release-scale
+ performance remain unqualified. This candidate is unpublished.
+ 
++The local candidate also offers `ccusage pi snapshot --json --offline`. It
++loads source entries once and returns daily and session views in one versioned
++envelope. Both views use that captured input even if files change afterward.
++It rejects date filters, `--last`, `--jq`, `--no-cost`, and online mode. It does
++not make an operating-system atomic snapshot or qualify continuous producer
++writes. The ordinary report commands still load their inputs separately.
++
+ 
+ Usage includes assistant messages, compaction calls, branch-summary calls, and standalone usage entries such as cache warming. Context sizes such as `tokensBefore` do not add tokens. A summary without a reported model stays outside model attribution. Missing token categories do not establish measured zeros, and an independent total does not identify output or reasoning tokens.
+ 
+diff --git a/rust/adapters/pi/src/README.md b/rust/adapters/pi/src/README.md
+index 67eabd2..5e13fdf 100644
+--- a/rust/adapters/pi/src/README.md
++++ b/rust/adapters/pi/src/README.md
+@@ -76,3 +76,11 @@ are not an operating-system atomic snapshot or a shared snapshot across report
+ commands. Producer concurrency and release-scale performance remain unqualified.
+ Selected Pi roots on other platforms return unavailable; an older Linux kernel
+ without `openat2` does the same. No fallback follows links or skips errors.
++
++The local `pi snapshot --json --offline` command loads entries once and builds
++both daily and session reports from that same vector. Its envelope has
++`schemaVersion: 1`, `tool: "pi"`, `daily`, and `session`. The daily member uses
++the existing daily-by-agent shape; the session member uses the Pi session shape.
++The command rejects date filters, `--last`, `--jq`, `--no-cost`, and online mode.
++It writes no raw-log copies and does not reload files between report views.
++Controlled writes after capture affect the next scan, not either captured view.
+diff --git a/rust/adapters/pi/src/lib.rs b/rust/adapters/pi/src/lib.rs
+index 47b920a..40d31b7 100644
+--- a/rust/adapters/pi/src/lib.rs
++++ b/rust/adapters/pi/src/lib.rs
+@@ -7,6 +7,8 @@ mod loader;
+ mod parser;
+ mod paths;
+ mod report;
++#[cfg(all(test, target_os = "linux"))]
++mod snapshot_tests;
+ mod strict_json;
+ 
+ #[cfg(test)]
+@@ -33,6 +35,13 @@ pub fn run(args: AgentCommandArgs) -> Result<()> {
+         args.shared.pricing_overrides.iter(),
+     );
+     let mut entries = load_entries(&args.shared, args.pi_path.as_deref(), Some(&pricing))?;
++    if args.sections.is_some() {
++        return print_json_or_jq(
++            report::snapshot_from_entries(&entries, &args.shared)?,
++            None,
++            false,
++        );
++    }
+     filter_loaded_entries_by_date(&mut entries, &args.shared);
+     let mut rows = summarize_entries(&entries, args.kind)?;
+     sort_summaries(&mut rows, &args.shared.order, |row| {
+diff --git a/rust/adapters/pi/src/report.rs b/rust/adapters/pi/src/report.rs
+index 195458d..d073a0e 100644
+--- a/rust/adapters/pi/src/report.rs
++++ b/rust/adapters/pi/src/report.rs
+@@ -73,6 +73,35 @@ fn rows_key(kind: AgentReportKind) -> &'static str {
+     }
+ }
+ 
++/// Both views use the same validated entries. This function has no source path.
++pub(crate) fn snapshot_from_entries(
++    entries: &[LoadedEntry],
++    shared: &crate::cli::SharedArgs,
++) -> Result<Value> {
++    let mut days = summarize_entries(entries, AgentReportKind::Daily)?;
++    let mut sessions = summarize_entries(entries, AgentReportKind::Session)?;
++    for rows in [&mut days, &mut sessions] {
++        crate::sort_summaries(rows, &shared.order, crate::summary_period);
++    }
++    let mut daily = report_from_rows(&days, AgentReportKind::Daily);
++    for row in daily["daily"].as_array_mut().expect("daily report array") {
++        let object = row.as_object_mut().expect("daily report row");
++        let date = object.remove("date").expect("daily report date");
++        object.insert("agent".into(), json!("pi"));
++        let agent = Value::Object(object.clone());
++        object.insert("agent".into(), json!("all"));
++        object.insert("period".into(), date);
++        object.insert("metadata".into(), json!({"agents":["pi"]}));
++        object.insert("agents".into(), json!([agent]));
++    }
++    Ok(json!({
++        "schemaVersion": 1,
++        "tool": "pi",
++        "daily": daily,
++        "session": report_from_rows(&sessions, AgentReportKind::Session),
++    }))
++}
++
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+diff --git a/rust/adapters/pi/src/snapshot_tests.rs b/rust/adapters/pi/src/snapshot_tests.rs
+new file mode 100644
+index 0000000..e88750f
+--- /dev/null
++++ b/rust/adapters/pi/src/snapshot_tests.rs
+@@ -0,0 +1,99 @@
++use crate::identity_tests::{event, header, load, write};
++use crate::{cli::SharedArgs, report::snapshot_from_entries};
++use ccusage_test_support::Fixture;
++use serde_json::json;
++
++#[test]
++fn snapshot_keeps_captured_entries_after_append_rewrite_replace_or_delete() {
++    for change in ["append", "rewrite", "replace", "delete"] {
++        let fixture = Fixture::new();
++        let source = write(
++            &fixture,
++            "sessions/root.jsonl",
++            header("root", None),
++            &[event("aaaaaaaa", None, 120)],
++        );
++        let entries = load(&[fixture.path("sessions")]).unwrap();
++        match change {
++            "append" => {
++                write(
++                    &fixture,
++                    "sessions/root.jsonl",
++                    header("root", None),
++                    &[
++                        event("aaaaaaaa", None, 120),
++                        event("bbbbbbbb", Some("aaaaaaaa"), 17),
++                    ],
++                );
++            }
++            "rewrite" => {
++                write(
++                    &fixture,
++                    "sessions/root.jsonl",
++                    header("root", None),
++                    &[event("aaaaaaaa", None, 40)],
++                );
++            }
++            "replace" => {
++                let replacement = write(
++                    &fixture,
++                    "sessions/new.jsonl",
++                    header("new", None),
++                    &[event("cccccccc", None, 120)],
++                );
++                std::fs::rename(replacement, &source).unwrap();
++            }
++            "delete" => std::fs::remove_file(&source).unwrap(),
++            _ => unreachable!(),
++        }
++        let report = snapshot_from_entries(&entries, &SharedArgs::with_defaults()).unwrap();
++        assert_eq!(report["schemaVersion"], 1);
++        assert_eq!(report["tool"], "pi");
++        assert_eq!(report["daily"]["totals"]["totalTokens"], 120);
++        assert_eq!(report["session"]["totals"]["totalTokens"], 120);
++        assert_eq!(report["session"]["sessions"][0]["sessionId"], "root");
++        let next = load(&[fixture.path("sessions")]).unwrap();
++        let next = snapshot_from_entries(&next, &SharedArgs::with_defaults()).unwrap();
++        let expected = match change {
++            "append" => 137,
++            "rewrite" => 40,
++            "replace" => 120,
++            "delete" => 0,
++            _ => unreachable!(),
++        };
++        assert_eq!(next["daily"]["totals"]["totalTokens"], expected);
++        assert_eq!(next["session"]["totals"]["totalTokens"], expected);
++    }
++}
++
++#[test]
++fn snapshot_keeps_missing_categories_out_of_the_independent_total() {
++    let fixture = Fixture::new();
++    let mut row = event("aaaaaaaa", None, 120);
++    row["message"]["usage"] = json!({"totalTokens": 162});
++    write(
++        &fixture,
++        "sessions/root.jsonl",
++        header("root", None),
++        &[row],
++    );
++    let entries = load(&[fixture.path("sessions")]).unwrap();
++    let report = snapshot_from_entries(&entries, &SharedArgs::with_defaults()).unwrap();
++    for kind in ["daily", "session"] {
++        assert_eq!(report[kind]["totals"]["totalTokens"], 162);
++        assert_eq!(report[kind]["totals"]["outputTokens"], 0);
++    }
++    assert_eq!(
++        report["daily"]["daily"][0]["metadata"],
++        json!({"agents":["pi"]})
++    );
++}
++
++#[test]
++fn snapshot_empty_source_has_two_empty_reports() {
++    let report = snapshot_from_entries(&[], &SharedArgs::with_defaults()).unwrap();
++    assert_eq!(report["daily"]["daily"], json!([]));
++    assert_eq!(report["session"]["sessions"], json!([]));
++    assert_eq!(report["daily"]["totals"]["totalTokens"], 0);
++    assert_eq!(report["session"]["totals"]["totalTokens"], 0);
++}
+diff --git a/rust/crates/ccusage-cli-parser/README.md b/rust/crates/ccusage-cli-parser/README.md
+index 2a94f6b..4b29e1f 100644
+--- a/rust/crates/ccusage-cli-parser/README.md
++++ b/rust/crates/ccusage-cli-parser/README.md
+@@ -16,6 +16,11 @@ Only the `ccusage` binary depends on this crate. The argument types themselves
+ stay in `ccusage-cli`, so editing help text does not reach `ccusage-core` or any
+ adapter.
+ 
++The local Pi candidate adds `pi snapshot --json --offline`. It uses the existing
++`AgentCommandArgs.sections` field for daily and session views. Parsing rejects
++filters and output transformations so the adapter receives one complete report
++request. The [Pi source contract](../../adapters/pi/src/README.md) owns its shape.
++
+ ## Depends on
+ 
+ - `ccusage-cli`
+diff --git a/rust/crates/ccusage-cli-parser/src/cli-commands.json b/rust/crates/ccusage-cli-parser/src/cli-commands.json
+index 7ac0eb7..9533aaf 100644
+--- a/rust/crates/ccusage-cli-parser/src/cli-commands.json
++++ b/rust/crates/ccusage-cli-parser/src/cli-commands.json
+@@ -458,6 +458,10 @@
+ 			"description": "Usage reports for pi.",
+ 			"usage": "ccusage pi <COMMANDS>",
+ 			"commands": [
++				{
++					"name": "snapshot",
++					"description": "Read complete daily and session JSON from one record set"
++				},
+ 				{
+ 					"name": "daily",
+ 					"description": "Show pi-agent usage grouped by date"
+@@ -472,6 +476,12 @@
+ 				}
+ 			]
+ 		},
++		{
++			"path": ["pi", "snapshot"],
++			"description": "Read complete Pi daily and session JSON from one captured record set",
++			"usage": "ccusage pi snapshot --json --offline <OPTIONS>",
++			"options": "pi_period_options"
++		},
+ 		{
+ 			"path": ["pi", "daily"],
+ 			"description": "Show pi-agent usage grouped by date",
+diff --git a/rust/crates/ccusage-cli-parser/src/parser.rs b/rust/crates/ccusage-cli-parser/src/parser.rs
+index b75aab7..f54fe55 100644
+--- a/rust/crates/ccusage-cli-parser/src/parser.rs
++++ b/rust/crates/ccusage-cli-parser/src/parser.rs
+@@ -664,7 +664,13 @@ fn parse_pi_command(
+     mut shared: SharedArgs,
+     config: &dyn CliConfig,
+ ) -> Result<Command, String> {
+-    let kind = parse_agent_report_kind(parser, "pi", STANDARD_AGENT_REPORTS)?;
++    let snapshot = parser.peek() == Some("snapshot");
++    let kind = if snapshot {
++        parser.next();
++        AgentReportKind::Daily
++    } else {
++        parse_agent_report_kind(parser, "pi", STANDARD_AGENT_REPORTS)?
++    };
+     let mut pi_path = None;
+     let mut codex_speed = CodexSpeed::Auto;
+     config.apply_agent_args(&mut codex_speed, Some(&mut pi_path), None);
+@@ -677,11 +683,25 @@ fn parse_pi_command(
+             flag => return Err(format!("Unknown pi option '{flag}'")),
+         }
+     }
++    if snapshot
++        && (!shared.json
++            || !shared.offline
++            || shared.no_offline
++            || shared.jq.is_some()
++            || shared.no_cost
++            || shared.since.is_some()
++            || shared.until.is_some()
++            || shared.last.is_some())
++    {
++        return Err(
++            "Pi snapshot requires --json --offline and complete, unmodified reports.".into(),
++        );
++    }
+     Ok(Command::Pi(AgentCommandArgs {
+         shared,
+         kind,
+         session_id: None,
+-        sections: None,
++        sections: snapshot.then_some(vec![AgentReportKind::Daily, AgentReportKind::Session]),
+         by_agent: false,
+         pi_path,
+         open_claw_path: None,
+@@ -1008,8 +1028,9 @@ fn agent_report_supported(agent: &str, report: &str) -> bool {
+         ),
+         "codex" => matches!(report, "daily" | "monthly" | "session"),
+         "opencode" => matches!(report, "daily" | "weekly" | "monthly" | "session"),
+-        "amp" | "droid" | "codebuff" | "hermes" | "pi" | "goose" | "kilo" | "copilot"
+-        | "gemini" | "antigravity" | "kimi" | "qwen" | "openclaw" | "grok" | "zcode" => {
++        "pi" => matches!(report, "daily" | "monthly" | "session" | "snapshot"),
++        "amp" | "droid" | "codebuff" | "hermes" | "goose" | "kilo" | "copilot" | "gemini"
++        | "antigravity" | "kimi" | "qwen" | "openclaw" | "grok" | "zcode" => {
+             matches!(report, "daily" | "monthly" | "session")
+         }
+         _ => false,
+diff --git a/rust/crates/ccusage-cli-parser/src/tests.rs b/rust/crates/ccusage-cli-parser/src/tests.rs
+index 3dd173c..731d6e7 100644
+--- a/rust/crates/ccusage-cli-parser/src/tests.rs
++++ b/rust/crates/ccusage-cli-parser/src/tests.rs
+@@ -1748,3 +1748,43 @@ fn preserves_configured_order_and_cli_precedence() {
+         assert_eq!(report.shared.order_explicit, explicit, "{config_json}");
+     }
+ }
++
++#[test]
++fn pi_snapshot_parses_as_one_full_json_report() {
++    let cli = parse(&["ccusage", "pi", "snapshot", "--json", "--offline"]);
++    let Some(Command::Pi(args)) = cli.command else {
++        panic!("Pi snapshot command");
++    };
++    assert_eq!(
++        args.sections,
++        Some(vec![AgentReportKind::Daily, AgentReportKind::Session])
++    );
++    assert!(args.shared.json && args.shared.offline);
++}
++
++#[test]
++fn pi_snapshot_rejects_partial_or_modified_output() {
++    for flags in [
++        vec![],
++        vec!["--json"],
++        vec!["--offline"],
++        vec!["--json", "--offline", "--since", "2026-05-28"],
++        vec!["--json", "--offline", "--until", "2026-05-28"],
++        vec!["--json", "--offline", "--last", "2"],
++        vec!["--json", "--offline", "--jq", ".totals"],
++        vec!["--json", "--offline", "--no-cost"],
++        vec!["--json", "--offline", "--no-offline"],
++    ] {
++        let mut args = vec!["ccusage", "pi", "snapshot"];
++        args.extend(flags);
++        assert!(!parse_error(&args).is_empty());
++    }
++    assert!(
++        parse_error(&["ccusage", "amp", "snapshot", "--json", "--offline"])
++            .contains("not available")
++    );
++    assert!(
++        help_text_for_args(&["pi".into(), "snapshot".into(), "--help".into()])
++            .contains("one captured record set")
++    );
++}

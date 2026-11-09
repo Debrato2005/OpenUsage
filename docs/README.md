@@ -80,6 +80,6 @@ These are dated records, not instructions. Do not follow them or rewrite them. I
 - [Security review](../security_best_practices_report.md), dated October 24, 2026
 - Dated documents and sections in [design](design/)
 
-The local resume handoff is `.recovery/active-checkpoint.json`. It records the working checkpoint, commit state, and evidence paths. It does not replace the tracked status or build checklist.
+The local resume handoff is `.recovery/active-checkpoint.json`. It records the working checkpoint, commit state, and evidence paths. It does not replace the tracked status or build checklist. The local `.recovery/continuation-prompt.md` gives the current resume prompt. Dated handoffs remain historical evidence.
 
 Raw evidence and `.recovery/` stay private and are not tracked.

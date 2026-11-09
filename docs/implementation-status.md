@@ -26,7 +26,7 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scoped result, November 10, 2026: L-1f11f1 adds bounded Linux reads to the separate Pi candidate. Missing or unreadable explicit roots, links, special files, changed inputs, and exceeded limits return unavailable. All 64 adapter tests and seven candidate Python tests passed. Sixteen new cases record 32 report outcomes. Full Python/Rust verification and rebuilt native consent passed on Linux. The [review](reviews/2026-11-10-pi-filesystem-candidate.md) records failures, limits, and unexecuted checks. Pi stays disabled. The production pin and Amp patch are unchanged.
+Latest scoped result, November 10, 2026: L-1f11g makes the local Pi candidate build daily and session reports from one captured entry set. OpenUsage rejects invalid envelopes and has no fallback to separate commands. All 67 Pi tests, 96 CLI parser tests, nine candidate Python tests, and 32 local-log unit tests passed. Full Python/Rust verification and rebuilt native consent passed on synthetic Linux data. The [review](reviews/2026-11-10-pi-snapshot-candidate.md) records controlled writes, failures, and remaining gates. Pi stays disabled. The production pin and Amp patch are unchanged.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -55,9 +55,9 @@ Kept from baseline 2.0:
 
 ## Partial
 
-- Local logs (5C), L-1f9, November 9, 2026: the [grouped runner](../crates/openusage-locallogs/README.md#grouped-scans) checks report policies, root modes, consent, resolved paths, and pinned zones. It saves each complete result once. The pinned copied-root fixtures expose limits in Pi and Amp. Kilo counts its copied fixture once. Consumer integration and full tool qualification remain open. No additional tool is enabled.
+- Local logs (5C), L-1f9, November 9, 2026: the [grouped runner](../crates/openusage-locallogs/README.md#grouped-scans) checks report policies, root modes, consent, resolved paths, and pinned zones. It saves each complete result once. The pinned copied-root fixtures expose limits in Pi and Amp. Kilo counts its copied fixture once. Consumer integration is complete within the L-1f10 scope. Full tool qualification remains open. No additional tool is enabled.
 
-- Local logs (5C), L-1f7, November 9, 2026: independent period reports preserve reported totals and unavailable details for all sixteen disabled tools. The four dated candidates use strict daily reports. The other twelve use full session reports for one unplaced period. The [crate contract](../crates/openusage-locallogs/README.md#additional-period-reports) owns the parser rules. Grouped storage and the scanner path are complete. Consumer integration remains open.
+- Local logs (5C), L-1f7, November 9, 2026: independent period reports preserve reported totals and unavailable details for all sixteen disabled tools. The four dated candidates use strict daily reports. The other twelve use full session reports for one unplaced period. The [crate contract](../crates/openusage-locallogs/README.md#additional-period-reports) owns the parser rules. Grouped storage, the scanner path, and consumer integration are complete within their recorded scopes. Tool qualification remains open.
 
 - Quota fixture readiness, November 9, 2026: the fixture saves its runtime path before it exposes its PID. The controlled regression and original Rust cancellation test passed. The full workspace checks passed, with Clippy completed separately after the verification runner ended with signal 15. [Traceability](acceptance-traceability.md) holds the execution limits. The production code is unchanged.
 
@@ -130,7 +130,7 @@ Kept from baseline 2.0:
 
 ## Failing or stale tests
 
-- R-2, November 10, 2026: desktop synthetic fixtures now reuse the bounded executable writer from R-1. The deterministic inherited-writer test, 22 provider tests, full Rust checks, and native provider-lifecycle passed. The earlier cooldown failure returned ProviderUnavailable but did not expose its underlying cause. Focused diagnostics did not reproduce it. The [review](reviews/2026-11-10-desktop-fixture-writes.md) keeps that distinction explicit. Pi filesystem verification resumes next.
+- R-2, November 10, 2026: desktop synthetic fixtures now reuse the bounded executable writer from R-1. The deterministic inherited-writer test, 22 provider tests, full Rust checks, and native provider-lifecycle passed. The earlier cooldown failure returned ProviderUnavailable but did not expose its underlying cause. Focused diagnostics did not reproduce it. The [review](reviews/2026-11-10-desktop-fixture-writes.md) keeps that distinction explicit. The later Pi filesystem verification passed; its evidence remains separate.
 
 - R-1, November 10, 2026: a captured ETXTBSY startup error now has a bounded test-fixture fix. Full Rust checks and the native provider-lifecycle journey passed. The original cleanup failure did not capture its OS error, so its cause remains unconfirmed. See the [investigation](reviews/2026-11-10-executable-fixture-race.md) for the distinction and diagnostic results.
 
@@ -154,7 +154,7 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 
 ## Current assignment
 
-The next assignment is [L-1f11g](implementation-slices.md#next-assignment-l-1f11g): qualify consistency between Pi daily and session reports. Compare stable inputs and controlled changes between commands. Preserve saved data when the reports cannot establish a complete scan. Keep the candidate disabled and the production and Amp boundaries unchanged.
+The next assignment is [L-1f11h](implementation-slices.md#next-assignment-l-1f11h): qualify Pi observations with zero usage or absent times. Distinguish measured zero from unavailable data and empty inputs. Preserve independent totals without invented dates or token categories. Keep candidates disabled and the production and Amp boundaries unchanged.
 
 L-1f0 through L-1f10 are complete within their recorded scope. Only Claude Code and Codex are enabled. The Amp patch is a local candidate, and the production scanner pin is unchanged.
 

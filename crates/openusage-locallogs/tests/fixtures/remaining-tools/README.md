@@ -47,3 +47,14 @@ private-home isolation. Permission checks require an unprivileged Linux process.
 The [review](../../../../../docs/reviews/2026-11-10-pi-filesystem-candidate.md)
 owns limits, source evidence, digests, and remaining gates. No production pin or
 enabled tool changes.
+
+## Pi snapshot candidate
+
+`pi-snapshot-candidate.json` records five cases from the fifth local Pi patch.
+Four return envelopes: baseline, independent total with absent categories,
+unattributed usage, and empty input. Malformed input returns unavailable.
+The explicit candidate test also applies the snapshot command to the previous
+identity, format, and filesystem matrices. Source hashes stay unchanged.
+Rust tests preserve nullable details and reject incomplete, inconsistent, or
+duplicate-field envelopes. The [review](../../../../../docs/reviews/2026-11-10-pi-snapshot-candidate.md)
+owns the controlled-write evidence and remaining gates. Pi stays disabled.

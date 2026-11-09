@@ -82,7 +82,7 @@ The other slices below follow the launch, unless a launch slice needs part of on
 
 ## Build checklist
 
-Updated November 10, 2026. The owner asked to keep this list and to build down it with no stop between items. Each item ends with one local commit, which ticks the item. Owner items wait for the owner.
+Updated November 10, 2026. Each completed item has one local commit and scoped evidence. This handoff closes L-1f11g. The next bounded assignment is below. Owner items wait for the owner.
 
 **Verification before release**
 
@@ -123,9 +123,11 @@ Updated November 10, 2026. The owner asked to keep this list and to build down i
 - [x] L-1f11c: record 29 Pi cases and preserve missing fields in Rust. Copy, branch, and omitted-usage defects fail AT-65. Pi stays disabled. See the [qualification](reviews/2026-11-10-pi-qualification.md).
 - [x] L-1f11d: prepare a separate local Pi usage patch. Summary and standalone usage counts match. Identity and completeness gates remain open, so Pi stays disabled. See the [candidate](reviews/2026-11-10-pi-usage-candidate.md).
 - [x] L-1f11e: prepare a separate Pi identity patch. Scoped IDs and proven lineage count copies once and retain distinct calls. Ambiguous and unsupported inputs reject the scan. Completeness gates remain open. See the [candidate](reviews/2026-11-10-pi-identity-candidate.md).
-- [x] L-1f11f: scoped Pi format and filesystem corrections. Controlled changes and input limits pass. Paired reports, producer execution, and release-scale performance remain qualification gates under L-1f11.
+- [x] L-1f11f: scoped Pi format and filesystem corrections. Controlled changes and input limits pass. Zero-usage observations, absent times, producer execution, and release-scale performance remain qualification gates under L-1f11.
 - [x] L-1f11f0: map validated Pi records, preserve escaped JSON keys, reject ambiguous shapes, and keep independent assistant totals outside missing categories. See the [format candidate](reviews/2026-11-10-pi-format-candidate.md).
 - [x] L-1f11f1: bound Linux source reads and reject omitted or changed inputs. See the [filesystem candidate](reviews/2026-11-10-pi-filesystem-candidate.md).
+- [x] L-1f11g: build Pi daily and session views from one captured entry set and require a strict snapshot envelope. See the [candidate](reviews/2026-11-10-pi-snapshot-candidate.md).
+- [ ] L-1f11h: qualify explicit zero usage, absent measurements, and absent times. Keep unsupported observations unavailable and preserve saved history.
 - [x] R-2: reuse the bounded writer in desktop synthetic fixtures. The inherited-writer regression, 22 provider tests, full Rust, and native provider-lifecycle passed. The original cooldown failure remains unexplained. See the [review](reviews/2026-11-10-desktop-fixture-writes.md).
 - [x] R-1: use bounded test-fixture writes to prevent inherited writable handles from blocking execution. Full Rust and native provider-lifecycle checks passed. See the [investigation](reviews/2026-11-10-executable-fixture-race.md).
 - [x] L-1g1: sessions, projects and the reasoning count from the `ccusage` session report of each tool, at schema 11 (OU-LOG-017, [SC-021](srs-clarifications.md#sc-021-sessions-projects-hours-and-reasoning-from-the-pinned-ccusage)).
@@ -408,7 +410,7 @@ Acceptance:
 
 Stopping condition: one verified local filesystem correction, owning docs, a local commit, and a Graphify update. Then continue the next unresolved qualification issue.
 
-### Next assignment: L-1f11g
+### L-1f11g: Pi report consistency (complete within scope)
 
 Goal: make the Pi required-report boundary reject an inconsistent scan. Preserve the usage, identity, format, and filesystem corrections.
 
@@ -421,6 +423,20 @@ Acceptance:
 - Keep candidates disabled, the production pin unchanged, and the Amp patch unpublished. Run doctor, focused checks, the selected verification plan, and affected native acceptance.
 
 Stopping condition: one verified report-consistency result, owning docs, a local commit, and a Graphify update. Then continue the next unresolved qualification issue.
+
+### Next assignment: L-1f11h
+
+Goal: qualify the Pi candidate's handling of zero usage and absent times. Preserve the completed single-capture report boundary and saved history.
+
+Acceptance:
+
+- Compare the pinned producer contract, candidate source, and independent synthetic expectations for explicit zero, absent usage, absent categories, and absent or invalid times.
+- Keep empty sources, measured zero, and unavailable measurements distinct. Never infer a timestamp, token category, reasoning count, or account identity.
+- Correct supported cases within the approved requirements. Reject cases that cannot yield a reliable required report. Preserve saved data and document any unresolved requirement conflict.
+- Preserve valid copy/fork results and the single-capture report boundary. Keep the other twelve tools unplaced, all candidates disabled, the production pin unchanged, and the Amp patch unpublished.
+- Run doctor, focused adapter/parser comparisons, the selected verification plan, and affected native acceptance. Record failures, interruptions, and unexecuted checks.
+
+Stopping condition: one bounded observation-semantics result, updated owning docs and handoffs, a local commit, and a Graphify update. Report the next open slice and stop.
 
 ## Order
 

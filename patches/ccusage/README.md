@@ -54,3 +54,17 @@ Set `OPENUSAGE_CCUSAGE_PI_FILESYSTEM_CANDIDATE` and
 `20.0.48-openusage.pi-filesystem-candidate.1`. Keep earlier candidate variables
 unset for this binary. The candidate remains local and unpublished. Pi stays
 disabled; the production pin and Amp patch are unchanged.
+
+## Separate Pi snapshot candidate
+
+Apply `20.0.48-pi-snapshot.patch` after the usage, identity, format, and filesystem
+patches. It adds `pi snapshot --json --offline` and builds both required reports
+from one captured entry set. The [review](../../docs/reviews/2026-11-10-pi-snapshot-candidate.md)
+owns evidence, digests, and remaining gates. No lockfile changes in this layer.
+
+Set `OPENUSAGE_CCUSAGE_PI_SNAPSHOT_CANDIDATE` and
+`OPENUSAGE_CCUSAGE_PI_SNAPSHOT_CANDIDATE_SHA256` for
+`test_ccusage_pi_snapshot.py`. Use build version
+`20.0.48-openusage.pi-snapshot-candidate.1`. Keep earlier candidate variables
+unset for this binary. Pi stays disabled. All candidate patches remain local
+and unpublished; the production pin and Amp patch are unchanged.

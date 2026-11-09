@@ -52,6 +52,10 @@ The runner sorts roots and removes repeated paths. A `comma_list` adapter receiv
 
 Amp, Pi, Kilo, and ZCode require daily and session reports. The other twelve tools use one session report for separate unplaced and session records. Session totals are never added to period totals. The group has one process lock, one deadline, and one combined output bound. Every process checks the binary digest and uses fixed offline arguments and an empty private home.
 
+Pi requires the local candidate's `pi snapshot --json --offline` command. It returns both reports from one captured entry set. `agent_snapshot.rs` checks the versioned envelope and passes each original JSON fragment to the strict parsers. This preserves duplicate-field detection. Empty reports must agree, and nonempty reports must have equal independent totals. Equal totals alone do not prove common input; the pinned candidate implementation supplies that guarantee. An unsupported command or invalid envelope fails without a fallback to separate scans. This path remains disabled in the public catalog.
+
+The common input rule applies to a new scan. Saved records may come from different accepted scans because lower values preserve prior history under OU-LOG-011. Saved session totals must not be used to reconstruct saved period totals.
+
 The first grouped day scan pins its zone. Unplaced usage has no day zone. Old source records keep their zones under SC-024. Claude Code and Codex keep their existing source views. Their required daily, session, and hourly reports now commit together. A failed later report cannot update an earlier report. Desktop, sharing, and CLI consumers read saved scopes without adding legacy history to grouped records.
 
 ## The hourly report

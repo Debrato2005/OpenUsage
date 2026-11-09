@@ -9,7 +9,7 @@ publish = false
 # Runs the pinned ccusage binary against local logs and parses its report (SRS Section 5C).
 [dependencies]
 serde = { version = "=1.0.229", features = ["derive"] }
-serde_json = "=1.0.154"
+serde_json = { version = "=1.0.154", features = ["raw_value"] }
 sha2 = "=0.10.9"
 
 [dev-dependencies]

@@ -41,6 +41,8 @@ The [local tool catalog](../crates/openusage-locallogs/sources/tools.json) defin
 
 The local logs crate owns the [additional period contract](../crates/openusage-locallogs/README.md#additional-period-reports) in `agent_period.rs`. The [grouped runner](../crates/openusage-locallogs/README.md#grouped-scans) collects all required reports before storage.
 
+The disabled Pi path requires one candidate snapshot command. `agent_snapshot.rs` validates its envelope and both reports before the grouped runner returns data. The candidate derives both views from the same captured entries. A failed command or report returns no accepted scan and preserves saved history.
+
 Schema 13 adds six tables for grouped scopes, scans, root membership, records, model details, and lower-scan differences. Legacy tables stay unchanged. One tool has one stable scope. Only day records enter dated queries. Period and session totals stay separate. Every accepted record points to the scan that produced it. A lower scan keeps the whole saved record and its model details. An equal or higher scan replaces them together.
  A complete scan with an absent saved period records an observed zero difference. Missing measurements remain null.
 

@@ -1,2 +1,2 @@
-# Unified diffs keep a space on empty context lines.
-*.patch whitespace=-blank-at-eol
+# Unified diffs keep context spaces, including before upstream source tabs.
+*.patch whitespace=-blank-at-eol,-space-before-tab

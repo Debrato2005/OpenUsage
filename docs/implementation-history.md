@@ -4,6 +4,10 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f11f1 result before L-1f11g
+
+Latest scoped result, November 10, 2026: L-1f11f1 adds bounded Linux reads to the separate Pi candidate. Missing or unreadable explicit roots, links, special files, changed inputs, and exceeded limits return unavailable. All 64 adapter tests and seven candidate Python tests passed. Sixteen new cases record 32 report outcomes. Full Python/Rust verification and rebuilt native consent passed on Linux. The [review](reviews/2026-11-10-pi-filesystem-candidate.md) records failures, limits, and unexecuted checks. Pi stays disabled. The production pin and Amp patch are unchanged.
+
 ## L-1f11f0 result before L-1f11f1
 
 Latest scoped result, November 10, 2026: L-1f11f0 adds a separate Pi format correction. Reports use validated records, retain escaped JSON keys, and reject ambiguous objects or invalid present fields. Independent assistant totals stay outside missing token categories. All 50 adapter tests, six candidate Python tests, thirteen OpenUsage period tests, full Python/Rust verification, and rebuilt native consent passed on Linux. Nineteen new cases record five accepted outcomes and fourteen unavailable outcomes. The earlier identity matrix keeps its counts. The [review](reviews/2026-11-10-pi-format-candidate.md) records failures and remaining gates. Pi stays disabled. The production pin and Amp patch are unchanged.
