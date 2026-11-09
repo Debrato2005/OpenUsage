@@ -1,0 +1,2571 @@
+diff --git a/docs/guide/pi/index.md b/docs/guide/pi/index.md
+index 5bab85e..a1a6038 100644
+--- a/docs/guide/pi/index.md
++++ b/docs/guide/pi/index.md
+@@ -296,7 +296,7 @@ Sessions are sorted by last activity:
+ 
+ ### Session Identification
+ 
+-Sessions are identified by the project folder name from `~/.pi/agent/sessions/{project}/`.
++The local identity candidate uses the source session ID and reported working directory. An absent working directory stays unknown. Version 2 and 3 trees require entry IDs and valid parent links. Copied sessions count once after renames. Forks require their parent file in the selected folders. Legacy records without IDs, conflicting records, and ambiguous lineage fail the scan without a partial report. This candidate is unpublished.
+ 
+ Long project names are truncated to 25 characters with `...` suffix for readability.
+ 
+diff --git a/rust/adapters/pi/src/README.md b/rust/adapters/pi/src/README.md
+index 595509e..71ed497 100644
+--- a/rust/adapters/pi/src/README.md
++++ b/rust/adapters/pi/src/README.md
+@@ -30,18 +30,23 @@ known categories stays in the independent extra total, never in an inferred
+ output or reasoning category. Missing category values still use the shared
+ numeric report shape; they do not establish a measured zero.
+ 
+-Forked session files may replay the usage history of their parent. For Pi's
+-tree-format sessions, the parent candidate follows the root-to-leaf path ending
+-at the final physical entry rather than physical JSONL order; abandoned sibling
+-and disconnected-root branches stay counted in the parent. The candidate includes
+-only raw records at or before the child fork timestamp. The loader removes only a
+-leading prefix that matches that candidate,
+-and only when the parent file was discovered in the same store. Matching
+-includes the timestamp, model, all token fields, the effective total-token
+-fallback, and the effective billed cost in Display or Auto mode. The first
+-mismatch and all later records remain in the child session. Missing, malformed,
+-self-referential, or cyclic lineage is left unchanged so usage is not discarded
+-speculatively.
++The local identity candidate accepts version 2 and 3 session trees with source
++session and entry IDs. Session names and projects come from the header, not the
++file location. An absent project stays unknown. Copies with the same session ID
++count once, even after a rename. Distinct entry IDs keep equal-sized calls.
++
++An explicit `parentSession` link must resolve to a selected file in the same
++store. The loader checks all recorded branches. Copied entries keep their source
++session; new child entries stay in the child. Pi can remove label records and
++change `parentId` during a fork, so cross-session comparison excludes that link
++field. Other source fields must agree. Short IDs in unrelated sessions stay
++separate. Time and token counts alone never prove a copy.
++
++Missing IDs, unsupported versions, conflicting source fields, invalid trees,
++missing parents, and malformed records fail the scan without a partial report.
++Legacy version 1 and headerless transcripts are unsupported by this candidate.
++A parent path never authorizes a read outside the selected files. Directory read
++errors and concurrent writes still need a separate completeness review.
+ 
+ pi-subagents writes derived debug transcripts under `subagent-artifacts/`
+ directories inside the sessions tree. Those transcripts duplicate calls already
+diff --git a/rust/adapters/pi/src/identity.rs b/rust/adapters/pi/src/identity.rs
+new file mode 100644
+index 0000000..f86742e
+--- /dev/null
++++ b/rust/adapters/pi/src/identity.rs
+@@ -0,0 +1,165 @@
++use std::collections::{BTreeMap, HashSet};
++
++use serde_json::Value;
++
++use crate::Result;
++
++#[derive(Debug, PartialEq, Eq)]
++pub(crate) struct Header {
++    pub id: String,
++    pub version: u64,
++    pub timestamp: String,
++    pub cwd: Option<String>,
++    pub parent_session: Option<String>,
++}
++
++#[derive(Debug, PartialEq, Eq)]
++pub(crate) struct Record {
++    pub parent: Option<String>,
++    // Forks preserve source records but can change parentId after removing labels.
++    // Keep the source fields, including absent metrics. Never print this value.
++    pub source: Value,
++}
++
++pub(crate) struct Source {
++    pub header: Header,
++    pub records: BTreeMap<String, Record>,
++}
++
++pub(crate) fn unavailable() -> crate::CliError {
++    crate::cli_error("Pi source identity is unsupported, incomplete, or conflicting")
++}
++
++fn text(value: Option<&Value>) -> Result<String> {
++    value
++        .and_then(Value::as_str)
++        .filter(|s| !s.trim().is_empty())
++        .map(str::to_owned)
++        .ok_or_else(unavailable)
++}
++
++fn optional_text(value: Option<&Value>) -> Result<Option<String>> {
++    value.map(|value| text(Some(value))).transpose()
++}
++
++fn timestamp(value: Option<&Value>) -> Result<String> {
++    let value = text(value)?;
++    crate::parse_ts_timestamp(&value).ok_or_else(unavailable)?;
++    Ok(value)
++}
++
++pub(crate) fn parse(content: &[u8]) -> Result<Source> {
++    let mut lines = content
++        .split(|byte| *byte == b'\n')
++        .filter(|line| !line.iter().all(u8::is_ascii_whitespace));
++    let header: Value =
++        serde_json::from_slice(lines.next().ok_or_else(unavailable)?).map_err(|_| unavailable())?;
++    if header.get("type").and_then(Value::as_str) != Some("session") {
++        return Err(unavailable());
++    }
++    let version = header
++        .get("version")
++        .and_then(Value::as_u64)
++        .ok_or_else(unavailable)?;
++    if !matches!(version, 2 | 3) {
++        return Err(unavailable());
++    }
++    let header = Header {
++        id: text(header.get("id"))?,
++        version,
++        timestamp: timestamp(header.get("timestamp"))?,
++        cwd: optional_text(header.get("cwd"))?,
++        parent_session: optional_text(header.get("parentSession"))?,
++    };
++    let mut records = BTreeMap::new();
++    for line in lines {
++        let mut value: Value = serde_json::from_slice(line).map_err(|_| unavailable())?;
++        let kind = text(value.get("type"))?;
++        if kind == "session" {
++            return Err(unavailable());
++        }
++        let id = text(value.get("id"))?;
++        timestamp(value.get("timestamp"))?;
++        let parent = match value.get("parentId") {
++            Some(Value::Null) => None,
++            Some(value) => Some(text(Some(value))?),
++            None => return Err(unavailable()),
++        };
++        validate_usage(&value, &kind)?;
++        value
++            .as_object_mut()
++            .ok_or_else(unavailable)?
++            .remove("parentId");
++        let record = Record {
++            parent,
++            source: value,
++        };
++        if let Some(previous) = records.get(&id) {
++            if previous != &record {
++                return Err(unavailable());
++            }
++        } else {
++            records.insert(id, record);
++        }
++    }
++    validate_links(&records)?;
++    Ok(Source { header, records })
++}
++
++fn validate_usage(value: &Value, kind: &str) -> Result<()> {
++    let usage = if kind == "message" {
++        let message = value.get("message").ok_or_else(unavailable)?;
++        if message.get("role").and_then(Value::as_str) != Some("assistant") {
++            return Ok(());
++        }
++        Some(message.get("usage").ok_or_else(unavailable)?)
++    } else {
++        value.get("usage")
++    };
++    let Some(usage) = usage else {
++        return Ok(());
++    };
++    if !matches!(kind, "message" | "usage" | "compaction" | "branch_summary") || !usage.is_object()
++    {
++        return Err(unavailable());
++    }
++    let mut sum = 0u64;
++    let mut reported = false;
++    for field in ["input", "output", "cacheRead", "cacheWrite"] {
++        if let Some(count) = usage.get(field) {
++            reported = true;
++            sum = sum
++                .checked_add(count.as_u64().ok_or_else(unavailable)?)
++                .ok_or_else(unavailable)?;
++        }
++    }
++    if let Some(total) = usage.get("totalTokens") {
++        reported = true;
++        if total.as_u64().ok_or_else(unavailable)? < sum {
++            return Err(unavailable());
++        }
++    }
++    if !reported {
++        return Err(unavailable());
++    }
++    Ok(())
++}
++
++fn validate_links(records: &BTreeMap<String, Record>) -> Result<()> {
++    let mut validated = HashSet::new();
++    for start in records.keys() {
++        let mut path = HashSet::new();
++        let mut current = Some(start.as_str());
++        while let Some(id) = current {
++            if validated.contains(id) {
++                break;
++            }
++            if !path.insert(id) {
++                return Err(unavailable());
++            }
++            current = records.get(id).ok_or_else(unavailable)?.parent.as_deref();
++        }
++        validated.extend(path);
++    }
++    Ok(())
++}
+diff --git a/rust/adapters/pi/src/identity_tests.rs b/rust/adapters/pi/src/identity_tests.rs
+new file mode 100644
+index 0000000..ace6418
+--- /dev/null
++++ b/rust/adapters/pi/src/identity_tests.rs
+@@ -0,0 +1,534 @@
++use crate::{
++    LoadedEntry, Result,
++    cli::{CostMode, SharedArgs},
++    loader,
++};
++use ccusage_test_support::Fixture;
++use serde_json::{Value, json};
++use std::path::{Path, PathBuf};
++
++fn header(id: &str, parent: Option<&Path>) -> Value {
++    let mut record = json!({"type":"session","version":3,"id":id,
++        "timestamp":"2026-05-28T00:00:00.000Z","cwd":"/synthetic/project"});
++    if let Some(parent) = parent {
++        record["parentSession"] = json!(parent.to_string_lossy());
++        record["timestamp"] = json!("2026-05-28T21:00:00.000Z");
++    }
++    record
++}
++
++fn event(id: &str, parent: Option<&str>, total: u64) -> Value {
++    json!({"type":"message","id":id,"parentId":parent,
++        "timestamp":"2026-05-28T20:26:40.000Z",
++        "message":{"role":"assistant","model":"gpt-5","provider":"openai",
++            "usage":{"input":total.saturating_sub(5),"output":total.min(5),
++                "cacheRead":0,"cacheWrite":0,"totalTokens":total}}})
++}
++
++fn write(fixture: &Fixture, path: &str, header: Value, events: &[Value]) -> PathBuf {
++    let content = std::iter::once(header)
++        .chain(events.iter().cloned())
++        .map(|record| record.to_string())
++        .collect::<Vec<_>>()
++        .join("\n");
++    fixture.write_file(path, content)
++}
++
++fn load(roots: &[PathBuf]) -> Result<Vec<LoadedEntry>> {
++    let paths = roots
++        .iter()
++        .map(|p| p.to_string_lossy())
++        .collect::<Vec<_>>()
++        .join(",");
++    loader::load_entries(
++        &SharedArgs {
++            mode: CostMode::Calculate,
++            offline: true,
++            json: true,
++            ..SharedArgs::default()
++        },
++        Some(&paths),
++        None,
++    )
++}
++
++#[test]
++fn copies_keep_session_identity_when_paths_change() {
++    let fixture = Fixture::new();
++    let source = write(
++        &fixture,
++        "first/sessions/project-a/root.jsonl",
++        header("source-session", None),
++        &[event("aaaaaaaa", None, 120)],
++    );
++    let other = fixture.create_dir_all("second/sessions/project-b");
++    std::fs::copy(source, other.join("renamed.jsonl")).unwrap();
++    let entries = load(&[
++        fixture.path("first/sessions"),
++        fixture.path("second/sessions"),
++    ])
++    .unwrap();
++    assert_eq!(entries.len(), 1);
++    assert_eq!(entries[0].session_id.as_ref(), "source-session");
++    assert_eq!(entries[0].project_path.as_ref(), "/synthetic/project");
++}
++
++#[test]
++fn distinct_entries_with_equal_usage_are_both_retained() {
++    let fixture = Fixture::new();
++    write(
++        &fixture,
++        "sessions/project-a/root.jsonl",
++        header("source-session", None),
++        &[
++            event("aaaaaaaa", None, 120),
++            event("bbbbbbbb", Some("aaaaaaaa"), 120),
++        ],
++    );
++    assert_eq!(load(&[fixture.path("sessions")]).unwrap().len(), 2);
++}
++
++#[test]
++fn independent_sessions_keep_coincident_short_ids_separate() {
++    let fixture = Fixture::new();
++    write(
++        &fixture,
++        "sessions/project-a/first.jsonl",
++        header("first-session", None),
++        &[event("aaaaaaaa", None, 120)],
++    );
++    write(
++        &fixture,
++        "sessions/project-a/second.jsonl",
++        header("second-session", None),
++        &[event("aaaaaaaa", None, 120)],
++    );
++    assert_eq!(load(&[fixture.path("sessions")]).unwrap().len(), 2);
++}
++
++#[test]
++fn conflicting_usage_in_one_session_fails() {
++    let fixture = Fixture::new();
++    write(
++        &fixture,
++        "sessions/project-a/root.jsonl",
++        header("source-session", None),
++        &[event("aaaaaaaa", None, 120), event("aaaaaaaa", None, 150)],
++    );
++    assert!(load(&[fixture.path("sessions")]).is_err());
++}
++
++#[test]
++fn fork_of_an_inactive_branch_counts_its_copied_entries_once() {
++    let fixture = Fixture::new();
++    let events = [
++        event("aaaaaaaa", None, 120),
++        event("bbbbbbbb", Some("aaaaaaaa"), 17),
++        event("cccccccc", Some("aaaaaaaa"), 23),
++    ];
++    let parent = write(
++        &fixture,
++        "sessions/project-a/parent.jsonl",
++        header("parent", None),
++        &events,
++    );
++    write(
++        &fixture,
++        "sessions/project-a/child.jsonl",
++        header("child", Some(&parent)),
++        &events[..2],
++    );
++    assert_eq!(load(&[fixture.path("sessions")]).unwrap().len(), 3);
++}
++
++#[test]
++fn full_branched_clone_counts_all_copied_entries_once() {
++    let fixture = Fixture::new();
++    let events = [
++        event("aaaaaaaa", None, 120),
++        event("bbbbbbbb", Some("aaaaaaaa"), 17),
++        event("cccccccc", Some("aaaaaaaa"), 23),
++    ];
++    let parent = write(
++        &fixture,
++        "sessions/project-a/parent.jsonl",
++        header("parent", None),
++        &events,
++    );
++    write(
++        &fixture,
++        "sessions/project-a/child.jsonl",
++        header("child", Some(&parent)),
++        &events,
++    );
++    assert_eq!(load(&[fixture.path("sessions")]).unwrap().len(), 3);
++}
++
++#[test]
++fn parent_link_does_not_merge_distinct_entry_ids() {
++    let fixture = Fixture::new();
++    let parent = write(
++        &fixture,
++        "sessions/project-a/parent.jsonl",
++        header("parent", None),
++        &[event("aaaaaaaa", None, 120)],
++    );
++    let mut child_header = header("child", Some(&parent));
++    child_header["timestamp"] = json!("2026-05-28T20:26:40.000Z");
++    write(
++        &fixture,
++        "sessions/project-a/child.jsonl",
++        child_header,
++        &[event("bbbbbbbb", None, 120)],
++    );
++    assert_eq!(load(&[fixture.path("sessions")]).unwrap().len(), 2);
++}
++
++#[test]
++fn conflicting_usage_on_a_parent_link_fails() {
++    let fixture = Fixture::new();
++    let parent = write(
++        &fixture,
++        "sessions/project-a/parent.jsonl",
++        header("parent", None),
++        &[event("aaaaaaaa", None, 120)],
++    );
++    write(
++        &fixture,
++        "sessions/project-a/child.jsonl",
++        header("child", Some(&parent)),
++        &[event("aaaaaaaa", None, 150)],
++    );
++    assert!(load(&[fixture.path("sessions")]).is_err());
++}
++
++#[test]
++fn missing_or_invalid_identity_is_unavailable() {
++    for variant in [
++        "version-one",
++        "future-version",
++        "headerless",
++        "entry-id",
++        "parent-id",
++        "dangling",
++        "cycle",
++        "missing-parent",
++        "self-parent",
++        "malformed-parent",
++    ] {
++        let fixture = Fixture::new();
++        let mut head = header("root", None);
++        let mut row = event("aaaaaaaa", None, 120);
++        match variant {
++            "version-one" => head["version"] = json!(1),
++            "future-version" => head["version"] = json!(4),
++            "headerless" => head = row.clone(),
++            "entry-id" => {
++                row.as_object_mut().unwrap().remove("id");
++            }
++            "parent-id" => {
++                row.as_object_mut().unwrap().remove("parentId");
++            }
++            "dangling" => row["parentId"] = json!("absent"),
++            "cycle" => row["parentId"] = json!("aaaaaaaa"),
++            "missing-parent" => head["parentSession"] = json!(fixture.path("outside.jsonl")),
++            "self-parent" => head["parentSession"] = json!(fixture.path("sessions/root.jsonl")),
++            "malformed-parent" => head["parentSession"] = json!(42),
++            _ => unreachable!(),
++        }
++        write(&fixture, "sessions/root.jsonl", head, &[row]);
++        assert!(load(&[fixture.path("sessions")]).is_err(), "{variant}");
++    }
++}
++
++#[test]
++fn conflicts_include_fields_that_do_not_change_the_reported_total() {
++    for field in [
++        "provider",
++        "model",
++        "cost",
++        "missing-category",
++        "parent",
++        "zero",
++    ] {
++        let fixture = Fixture::new();
++        let first = event("aaaaaaaa", None, 120);
++        let mut changed = first.clone();
++        match field {
++            "provider" => changed["message"]["provider"] = json!("another-provider"),
++            "model" => changed["message"]["model"] = json!("another-model"),
++            "cost" => changed["message"]["usage"]["cost"] = json!({"total":0}),
++            "missing-category" => {
++                changed["message"]["usage"]
++                    .as_object_mut()
++                    .unwrap()
++                    .remove("cacheRead");
++            }
++            "parent" => changed["parentId"] = json!("aaaaaaaa"),
++            "zero" => changed = event("aaaaaaaa", None, 0),
++            _ => unreachable!(),
++        }
++        write(
++            &fixture,
++            "sessions/root.jsonl",
++            header("root", None),
++            &[first, changed],
++        );
++        assert!(load(&[fixture.path("sessions")]).is_err(), "{field}");
++    }
++}
++
++#[test]
++fn root_order_and_growing_copies_do_not_change_totals_or_attribution() {
++    let fixture = Fixture::new();
++    let first = event("aaaaaaaa", None, 120);
++    let later = event("bbbbbbbb", Some("aaaaaaaa"), 17);
++    let parent = write(
++        &fixture,
++        "first/sessions/a/root.jsonl",
++        header("parent", None),
++        std::slice::from_ref(&first),
++    );
++    write(
++        &fixture,
++        "second/sessions/b/renamed.jsonl",
++        header("parent", None),
++        &[first.clone(), later.clone()],
++    );
++    write(
++        &fixture,
++        "third/sessions/c/child.jsonl",
++        header("child", Some(&parent)),
++        &[first, later],
++    );
++    let roots = [
++        fixture.path("first/sessions"),
++        fixture.path("second/sessions"),
++        fixture.path("third/sessions"),
++    ];
++    let expected = load(&roots).unwrap();
++    let actual = load(&roots.into_iter().rev().collect::<Vec<_>>()).unwrap();
++    assert_eq!(expected.len(), 2);
++    assert_eq!(actual.len(), 2);
++    for (a, b) in expected.iter().zip(actual.iter()) {
++        assert_eq!(a.session_id, b.session_id);
++        assert_eq!(a.data.message.id, b.data.message.id);
++        assert_eq!(a.session_id.as_ref(), "parent");
++    }
++}
++
++#[test]
++fn nested_forks_keep_each_new_call_in_its_source_session() {
++    let fixture = Fixture::new();
++    let mut rows = vec![event("aaaaaaaa", None, 120)];
++    let root = write(&fixture, "sessions/root.jsonl", header("root", None), &rows);
++    rows.push(event("bbbbbbbb", Some("aaaaaaaa"), 17));
++    let child = write(
++        &fixture,
++        "sessions/child.jsonl",
++        header("child", Some(&root)),
++        &rows,
++    );
++    rows.push(event("cccccccc", Some("bbbbbbbb"), 23));
++    write(
++        &fixture,
++        "sessions/grandchild.jsonl",
++        header("grandchild", Some(&child)),
++        &rows,
++    );
++    let entries = load(&[fixture.path("sessions")]).unwrap();
++    assert_eq!(entries.len(), 3);
++    for (id, source) in [
++        ("aaaaaaaa", "root"),
++        ("bbbbbbbb", "child"),
++        ("cccccccc", "grandchild"),
++    ] {
++        assert_eq!(
++            entries
++                .iter()
++                .find(|e| e.data.message.id.as_deref() == Some(id))
++                .unwrap()
++                .session_id
++                .as_ref(),
++            source
++        );
++    }
++}
++
++#[test]
++fn sibling_new_calls_with_the_same_short_id_remain_separate() {
++    let fixture = Fixture::new();
++    let root = write(
++        &fixture,
++        "sessions/root.jsonl",
++        header("root", None),
++        &[event("aaaaaaaa", None, 120)],
++    );
++    for name in ["first", "second"] {
++        write(
++            &fixture,
++            &format!("sessions/{name}.jsonl"),
++            header(name, Some(&root)),
++            &[event("bbbbbbbb", None, 17)],
++        );
++    }
++    assert_eq!(load(&[fixture.path("sessions")]).unwrap().len(), 3);
++}
++
++#[test]
++fn fork_can_remove_labels_and_change_entry_parent_links() {
++    let fixture = Fixture::new();
++    let first = event("aaaaaaaa", None, 120);
++    let label = json!({"type":"label","id":"label","parentId":"aaaaaaaa","timestamp":"2026-05-28T20:26:40.000Z","targetId":"aaaaaaaa","label":"synthetic"});
++    let last = event("bbbbbbbb", Some("label"), 17);
++    let root = write(
++        &fixture,
++        "sessions/root.jsonl",
++        header("root", None),
++        &[first.clone(), label, last],
++    );
++    write(
++        &fixture,
++        "sessions/child.jsonl",
++        header("child", Some(&root)),
++        &[first, event("bbbbbbbb", Some("aaaaaaaa"), 17)],
++    );
++    assert_eq!(load(&[fixture.path("sessions")]).unwrap().len(), 2);
++}
++
++#[test]
++fn copied_session_headers_must_agree() {
++    for field in ["cwd", "timestamp", "version"] {
++        let fixture = Fixture::new();
++        let rows = [event("aaaaaaaa", None, 120)];
++        let mut changed = header("root", None);
++        changed[field] = match field {
++            "version" => json!(2),
++            "timestamp" => json!("2026-05-27T00:00:00Z"),
++            _ => json!("/different"),
++        };
++        write(
++            &fixture,
++            "first/sessions/root.jsonl",
++            header("root", None),
++            &rows,
++        );
++        write(&fixture, "second/sessions/copy.jsonl", changed, &rows);
++        assert!(
++            load(&[
++                fixture.path("first/sessions"),
++                fixture.path("second/sessions")
++            ])
++            .is_err(),
++            "{field}"
++        );
++    }
++}
++
++#[test]
++fn cyclic_session_links_are_unavailable() {
++    let fixture = Fixture::new();
++    let first = fixture.path("sessions/first.jsonl");
++    let second = fixture.path("sessions/second.jsonl");
++    write(
++        &fixture,
++        "sessions/first.jsonl",
++        header("first", Some(&second)),
++        &[event("aaaaaaaa", None, 120)],
++    );
++    write(
++        &fixture,
++        "sessions/second.jsonl",
++        header("second", Some(&first)),
++        &[event("aaaaaaaa", None, 120)],
++    );
++    assert!(load(&[fixture.path("sessions")]).is_err());
++}
++
++#[test]
++fn incomplete_records_do_not_return_a_partial_success() {
++    for suffix in ["{", "{\"type\":\"message\",\"id\":\"private-marker\"}"] {
++        let fixture = Fixture::new();
++        let file = write(
++            &fixture,
++            "sessions/root.jsonl",
++            header("root", None),
++            &[event("aaaaaaaa", None, 120)],
++        );
++        let mut bytes = std::fs::read(&file).unwrap();
++        bytes.extend_from_slice(format!("\n{suffix}").as_bytes());
++        std::fs::write(&file, bytes).unwrap();
++        let error = load(&[fixture.path("sessions")]).err().unwrap().to_string();
++        assert!(!error.contains("private-marker"));
++        assert!(!error.contains(file.to_str().unwrap()));
++    }
++}
++
++#[test]
++fn only_derived_artifacts_are_excluded() {
++    let fixture = Fixture::new();
++    write(
++        &fixture,
++        "sessions/root.jsonl",
++        header("root", None),
++        &[event("aaaaaaaa", None, 120)],
++    );
++    let _ = fixture.write_file(
++        "sessions/subagent-artifacts/transcript.jsonl",
++        "not a source session",
++    );
++    write(
++        &fixture,
++        "sessions/run-1/child.jsonl",
++        header("child", None),
++        &[event("bbbbbbbb", None, 17)],
++    );
++    assert_eq!(load(&[fixture.path("sessions")]).unwrap().len(), 2);
++}
++
++#[test]
++fn named_stores_use_the_same_copy_rules_and_keep_their_model_scope() {
++    let fixture = Fixture::new();
++    let rows = [event("aaaaaaaa", None, 120)];
++    write(&fixture, "first/root.jsonl", header("root", None), &rows);
++    write(&fixture, "second/copy.jsonl", header("root", None), &rows);
++    for name in ["store-a", "store-b"] {
++        for single_thread in [false, true] {
++            let entries = loader::load_entries_for_store_paths(
++                &SharedArgs {
++                    mode: CostMode::Calculate,
++                    offline: true,
++                    json: true,
++                    single_thread,
++                    ..SharedArgs::default()
++                },
++                vec![fixture.path("first"), fixture.path("second")],
++                name,
++                None,
++            )
++            .unwrap();
++            assert_eq!(entries.len(), 1);
++            assert_eq!(
++                entries[0].model.as_deref(),
++                Some(format!("[{name}] gpt-5").as_str())
++            );
++        }
++    }
++}
++
++#[test]
++fn replayed_records_count_once_and_missing_project_stays_unknown() {
++    let fixture = Fixture::new();
++    let mut head = header("root", None);
++    head.as_object_mut().unwrap().remove("cwd");
++    let row = event("aaaaaaaa", None, 120);
++    write(
++        &fixture,
++        "sessions/suggested-project/root.jsonl",
++        head,
++        &[row.clone(), row],
++    );
++    let entries = load(&[fixture.path("sessions")]).unwrap();
++    assert_eq!(entries.len(), 1);
++    assert_eq!(entries[0].project_path.as_ref(), "unknown");
++}
+diff --git a/rust/adapters/pi/src/lib.rs b/rust/adapters/pi/src/lib.rs
+index 2ec3985..2ded45a 100644
+--- a/rust/adapters/pi/src/lib.rs
++++ b/rust/adapters/pi/src/lib.rs
+@@ -3,11 +3,15 @@ use ccusage_adapter_common::{
+ };
+ use ccusage_core::*;
+ 
++mod identity;
+ mod loader;
+ mod parser;
+ mod paths;
+ mod report;
+ 
++#[cfg(test)]
++mod identity_tests;
++
+ use crate::{
+     Result, cli::AgentCommandArgs, print_json_or_jq, print_usage_table, sort_summaries, wants_json,
+ };
+diff --git a/rust/adapters/pi/src/loader.rs b/rust/adapters/pi/src/loader.rs
+index 43e409b..1d59d72 100644
+--- a/rust/adapters/pi/src/loader.rs
++++ b/rust/adapters/pi/src/loader.rs
+@@ -1,14 +1,14 @@
+ use std::{
+-    collections::{HashMap, HashSet},
++    collections::{BTreeMap, HashMap, HashSet},
+     path::{Component, Path, PathBuf},
+ };
+ 
+ use crate::{
+-    LoadedEntry, PricingMap, Result, cli::SharedArgs, collect_files_with_extension, debug_log,
+-    parse_tz, read_files_parallel,
++    LoadedEntry, PricingMap, Result, cli::SharedArgs, collect_files_with_extension, parse_tz,
++    read_files_parallel,
+ };
+ 
+-use super::{parser, paths};
++use super::{identity, parser, paths};
+ 
+ pub fn load_entries(
+     shared: &SharedArgs,
+@@ -77,13 +77,6 @@ impl<'a> PiLoadScope<'a> {
+             Self::Named { store_name } => store_name,
+         }
+     }
+-
+-    fn debug_label(self) -> String {
+-        match self {
+-            Self::Default => "pi".to_string(),
+-            Self::Named { store_name } => format!("pi-format store '{store_name}'"),
+-        }
+-    }
+ }
+ 
+ fn load_entries_from_paths(
+@@ -93,190 +86,139 @@ fn load_entries_from_paths(
+     scope: PiLoadScope<'_>,
+ ) -> Result<Vec<LoadedEntry>> {
+     let tz = parse_tz(shared.timezone.as_deref());
+-    let mut entries = Vec::new();
+-    let mut seen = HashSet::new();
+-    let mut discovered_files = Vec::new();
+-    let mut loaded_files = Vec::new();
++    let mut files = Vec::new();
++    let mut loaded = Vec::new();
+     for path in paths {
+-        let mut files = Vec::new();
+-        collect_files_with_extension(&path, "jsonl", &mut files);
+-        // pi-subagents writes derived debug transcripts under a
+-        // `subagent-artifacts/` directory inside the sessions tree. They are
+-        // pure copies of calls already recorded in the primary session files
+-        // (no session header, no entry ids), so neither the replay suppression
+-        // below nor entry-id dedup can collapse them. Skip them here instead.
+-        // `run-*/` fresh-context child sessions are the primary record for
+-        // those children and must keep counting.
+-        files.retain(|file| !is_subagent_artifact_transcript(file));
+-        // Read session files in parallel; the first-wins dedup runs sequentially
+-        // over the original file order so the surviving record per id matches the
+-        // single-threaded read.
+-        let loaded = read_files_parallel(&files, shared.single_thread, |file| {
+-            let result = match scope {
+-                PiLoadScope::Default => {
+-                    parser::read_session_file_data(file, tz.as_ref(), shared.mode, pricing)
+-                }
+-                PiLoadScope::Named { store_name } => parser::read_session_file_data_for_store(
+-                    file,
+-                    &path,
+-                    tz.as_ref(),
+-                    shared.mode,
+-                    pricing,
+-                    store_name,
+-                ),
+-            };
+-            match result {
+-                Ok(data) => Some(data),
+-                Err(error) => {
+-                    let label = scope.debug_label();
+-                    debug_log(
+-                        shared,
+-                        format!(
+-                            "Failed to read {label} session file {}: {error}",
+-                            file.display()
+-                        ),
+-                    );
+-                    None
+-                }
++        let mut selected = Vec::new();
++        collect_files_with_extension(&path, "jsonl", &mut selected);
++        selected.retain(|file| !is_subagent_artifact_transcript(file));
++        let results = read_files_parallel(&selected, shared.single_thread, |file| match scope {
++            PiLoadScope::Default => {
++                parser::read_session_file_data(file, tz.as_ref(), shared.mode, pricing)
+             }
++            PiLoadScope::Named { store_name } => parser::read_session_file_data_for_store(
++                file,
++                &path,
++                tz.as_ref(),
++                shared.mode,
++                pricing,
++                store_name,
++            ),
+         });
+-        discovered_files.extend(files.into_iter().map(|file| DiscoveredFile { path: file }));
+-        loaded_files.extend(loaded);
++        for result in results {
++            // Do not include source paths or contents in an error.
++            let data = result.map_err(|_| identity::unavailable())?;
++            loaded.push((data.identity, data.entries));
++        }
++        files.extend(selected);
+     }
+-
+-    let replay_plan = PiReplayPlan::new(&discovered_files, &loaded_files);
+-    for (index, (_file, data)) in discovered_files.into_iter().zip(loaded_files).enumerate() {
+-        let Some(data) = data else {
+-            continue;
+-        };
+-        for entry in data
+-            .entries
+-            .into_iter()
+-            .skip(replay_plan.skip_prefix(index))
++    let files_by_path = files
++        .iter()
++        .enumerate()
++        .map(|(index, path)| (normalize_path(path), index))
++        .collect::<HashMap<_, _>>();
++    let mut parents = BTreeMap::new();
++    for (index, (source, _)) in loaded.iter().enumerate() {
++        let parent = source
++            .header
++            .parent_session
++            .as_ref()
++            .map(|path| -> Result<String> {
++                let index = resolve_parent_index(Path::new(path), &files[index], &files_by_path)
++                    .ok_or_else(identity::unavailable)?;
++                Ok(loaded[index].0.header.id.clone())
++            })
++            .transpose()?;
++        if let Some(previous) = parents.insert(source.header.id.clone(), parent.clone())
++            && previous != parent
+         {
+-            let id = match scope {
+-                PiLoadScope::Default => parser::entry_id(&entry),
+-                PiLoadScope::Named { .. } => parser::entry_id_for_store(scope.store_name(), &entry),
+-            };
+-            if seen.insert(id) {
+-                entries.push(entry);
+-            }
++            return Err(identity::unavailable());
+         }
+     }
+-    entries.sort_by_key(|entry| entry.timestamp);
+-    Ok(entries)
+-}
+-
+-struct DiscoveredFile {
+-    path: PathBuf,
+-}
+-
+-struct ParentReplay {
+-    parent_index: usize,
+-    fork_timestamp: crate::TimestampMs,
+-}
+-
+-struct PiReplayPlan {
+-    skip_by_file: HashMap<usize, usize>,
+-}
+-
+-impl PiReplayPlan {
+-    fn new(files: &[DiscoveredFile], loaded: &[Option<parser::PiSessionData>]) -> Self {
+-        let mut files_by_path = HashMap::new();
+-        for (index, file) in files.iter().enumerate() {
+-            files_by_path
+-                .entry(normalize_path(&file.path))
+-                .or_insert(index);
+-        }
+-
+-        let mut invalid_lineage = HashSet::new();
+-        for (index, data) in loaded.iter().enumerate() {
+-            let Some(header) = data.as_ref().and_then(|data| data.header.as_ref()) else {
+-                invalid_lineage.insert(index);
+-                continue;
+-            };
+-            if header.timestamp.is_none() || header.parent_session_is_malformed {
+-                invalid_lineage.insert(index);
++    validate_session_links(&parents)?;
++    let mut sessions: BTreeMap<String, identity::Source> = BTreeMap::new();
++    let mut entries = Vec::new();
++    for (source, records) in loaded {
++        entries.extend(records);
++        if let Some(previous) = sessions.get_mut(&source.header.id) {
++            if previous.header != source.header {
++                return Err(identity::unavailable());
+             }
+-        }
+-
+-        let mut parent_by_child = HashMap::new();
+-        for (child_index, data) in loaded.iter().enumerate() {
+-            let Some(header) = data.as_ref().and_then(|data| data.header.as_ref()) else {
+-                continue;
+-            };
+-            let Some(parent_path) = header.parent_session.as_ref() else {
+-                continue;
+-            };
+-            let Some(fork_timestamp) = header.timestamp else {
+-                continue;
+-            };
+-            let Some(parent_index) =
+-                resolve_parent_index(parent_path, &files[child_index].path, &files_by_path)
+-            else {
+-                invalid_lineage.insert(child_index);
+-                continue;
+-            };
+-            if parent_index == child_index {
+-                invalid_lineage.insert(child_index);
+-                continue;
++            for (id, record) in source.records {
++                if let Some(known) = previous.records.get(&id) {
++                    if known != &record {
++                        return Err(identity::unavailable());
++                    }
++                } else {
++                    previous.records.insert(id, record);
++                }
+             }
+-            parent_by_child.insert(
+-                child_index,
+-                ParentReplay {
+-                    parent_index,
+-                    fork_timestamp,
+-                },
+-            );
++        } else {
++            sessions.insert(source.header.id.clone(), source);
+         }
+-
+-        let mut skip_by_file = HashMap::new();
+-        for (&child_index, replay) in &parent_by_child {
+-            if !has_valid_lineage(child_index, &parent_by_child, &invalid_lineage) {
+-                continue;
+-            }
+-            let Some(parent) = loaded
+-                .get(replay.parent_index)
+-                .and_then(|data| data.as_ref())
+-            else {
+-                continue;
+-            };
+-            let Some(child) = loaded.get(child_index).and_then(|data| data.as_ref()) else {
+-                continue;
+-            };
+-            let Some(matched) = parent.matching_replay_prefix(child, replay.fork_timestamp) else {
+-                continue;
+-            };
+-            if matched > 0 {
+-                skip_by_file.insert(child_index, matched);
++    }
++    // Check all records, including reported zero usage and non-usage tree links.
++    // Equal short IDs prove a copy only through an explicit parent session.
++    for (id, source) in &sessions {
++        if let Some(parent) = parents.get(id).and_then(Option::as_ref) {
++            let parent = sessions.get(parent).ok_or_else(identity::unavailable)?;
++            for (id, record) in &source.records {
++                if let Some(original) = parent.records.get(id)
++                    && original.source != record.source
++                {
++                    return Err(identity::unavailable());
++                }
+             }
+         }
+-
+-        Self { skip_by_file }
+-    }
+-
+-    fn skip_prefix(&self, file_index: usize) -> usize {
+-        self.skip_by_file.get(&file_index).copied().unwrap_or(0)
+     }
+-}
+-
+-fn has_valid_lineage(
+-    child_index: usize,
+-    parent_by_child: &HashMap<usize, ParentReplay>,
+-    invalid_lineage: &HashSet<usize>,
+-) -> bool {
+-    let mut visited = HashSet::new();
+-    let mut current = child_index;
+-    while let Some(replay) = parent_by_child.get(&current) {
+-        if invalid_lineage.contains(&current) {
++    entries.sort_by(|a, b| {
++        (a.timestamp, &a.session_id, &a.data.message.id).cmp(&(
++            b.timestamp,
++            &b.session_id,
++            &b.data.message.id,
++        ))
++    });
++    let mut seen = HashSet::new();
++    entries.retain(|entry| {
++        let Some(id) = entry.data.message.id.as_ref() else {
+             return false;
+-        }
+-        if !visited.insert(current) {
++        };
++        let session = entry.session_id.as_ref();
++        // A copied record is emitted by its parent. New calls stay in the child.
++        if let Some(parent) = parents.get(session).and_then(Option::as_ref)
++            && sessions[parent].records.contains_key(id)
++        {
+             return false;
+         }
+-        current = replay.parent_index;
++        seen.insert((
++            scope.store_name().to_owned(),
++            session.to_owned(),
++            id.clone(),
++        ))
++    });
++    Ok(entries)
++}
++
++fn validate_session_links(parents: &BTreeMap<String, Option<String>>) -> Result<()> {
++    let mut validated = HashSet::new();
++    for start in parents.keys() {
++        let mut path = HashSet::new();
++        let mut current = Some(start.as_str());
++        while let Some(id) = current {
++            if validated.contains(id) {
++                break;
++            }
++            if !path.insert(id) {
++                return Err(identity::unavailable());
++            }
++            current = parents
++                .get(id)
++                .ok_or_else(identity::unavailable)?
++                .as_deref();
++        }
++        validated.extend(path);
+     }
+-    !invalid_lineage.contains(&current)
++    Ok(())
+ }
+ 
+ fn resolve_parent_index(
+@@ -322,1035 +264,3 @@ fn normalize_path(path: &Path) -> PathBuf {
+     }
+     normalized
+ }
+-
+-#[cfg(test)]
+-mod tests {
+-    use super::*;
+-    use crate::cli::{CostMode, SharedArgs};
+-    use ccusage_test_support::Fixture;
+-    use serde_json::json;
+-    use std::path::Path;
+-
+-    fn session_line(id: &str, timestamp: &str, parent: Option<&Path>) -> String {
+-        let mut line = json!({
+-            "type": "session",
+-            "id": id,
+-            "timestamp": timestamp,
+-        });
+-        if let Some(parent) = parent {
+-            line["parentSession"] = json!(parent.to_string_lossy().to_string());
+-        }
+-        line.to_string()
+-    }
+-
+-    fn usage_line_with_model_and_total(
+-        timestamp: &str,
+-        model: &str,
+-        input: u64,
+-        output: u64,
+-        cache_read: u64,
+-        cache_write: u64,
+-        total_tokens: u64,
+-    ) -> String {
+-        json!({
+-            "type": "message",
+-            "timestamp": timestamp,
+-            "message": {
+-                "role": "assistant",
+-                "model": model,
+-                "usage": {
+-                    "input": input,
+-                    "output": output,
+-                    "cacheRead": cache_read,
+-                    "cacheWrite": cache_write,
+-                    "totalTokens": total_tokens,
+-                },
+-            },
+-        })
+-        .to_string()
+-    }
+-
+-    fn usage_line(
+-        timestamp: &str,
+-        input: u64,
+-        output: u64,
+-        cache_read: u64,
+-        cache_write: u64,
+-    ) -> String {
+-        usage_line_with_model_and_total(
+-            timestamp,
+-            "gpt-5",
+-            input,
+-            output,
+-            cache_read,
+-            cache_write,
+-            input + output + cache_read + cache_write,
+-        )
+-    }
+-
+-    fn linked_usage_line(id: &str, parent_id: Option<&str>, timestamp: &str, input: u64) -> String {
+-        let mut line = json!({
+-            "type": "message",
+-            "id": id,
+-            "timestamp": timestamp,
+-            "message": {
+-                "role": "assistant",
+-                "model": "gpt-5",
+-                "usage": {
+-                    "input": input,
+-                    "output": 10,
+-                    "cacheRead": 20,
+-                    "cacheWrite": 3,
+-                    "totalTokens": input + 33,
+-                },
+-            },
+-        });
+-        line["parentId"] = parent_id.map_or(serde_json::Value::Null, |parent_id| json!(parent_id));
+-        line.to_string()
+-    }
+-
+-    fn usage_line_with_display_cost(timestamp: &str, display_cost: f64) -> String {
+-        json!({
+-            "type": "message",
+-            "timestamp": timestamp,
+-            "message": {
+-                "role": "assistant",
+-                "model": "gpt-5",
+-                "usage": {
+-                    "input": 10,
+-                    "output": 20,
+-                    "cacheRead": 30,
+-                    "cacheWrite": 40,
+-                    "totalTokens": 100,
+-                    "cost": {"total": display_cost},
+-                },
+-            },
+-        })
+-        .to_string()
+-    }
+-
+-    #[test]
+-    fn skips_replayed_parent_prefix_but_keeps_child_usage() {
+-        let fixture = Fixture::new();
+-        let parent = fixture.write_file(
+-            "sessions/project-a/root.jsonl",
+-            [
+-                session_line("root", "2026-01-01T00:00:00.000Z", None),
+-                usage_line("2026-01-02T10:00:00.000Z", 100, 10, 20, 3),
+-                usage_line("2026-01-03T00:00:00.000Z", 200, 20, 30, 4),
+-                usage_line("2026-01-04T00:00:00.000Z", 50, 5, 6, 1),
+-            ]
+-            .join("\n"),
+-        );
+-        let _child_a = fixture.write_file(
+-            "sessions/project-a/child-a.jsonl",
+-            [
+-                session_line("child-a", "2026-01-03T00:00:00.000Z", Some(&parent)),
+-                usage_line("2026-01-02T10:00:00.000Z", 100, 10, 20, 3),
+-                usage_line("2026-01-03T00:00:00.000Z", 200, 20, 30, 4),
+-                usage_line("2026-01-04T00:00:00.000Z", 50, 5, 6, 1),
+-            ]
+-            .join("\n"),
+-        );
+-        let _child_b = fixture.write_file(
+-            "sessions/project-a/child-b.jsonl",
+-            [
+-                session_line("child-b", "2026-01-03T00:00:00.000Z", Some(&parent)),
+-                usage_line("2026-01-02T10:00:00.000Z", 100, 10, 20, 3),
+-                usage_line("2026-01-03T00:00:00.000Z", 200, 20, 30, 999),
+-                usage_line("2026-01-03T01:00:00.000Z", 70, 7, 8, 2),
+-            ]
+-            .join("\n"),
+-        );
+-
+-        for single_thread in [true, false] {
+-            let shared = SharedArgs {
+-                mode: CostMode::Display,
+-                single_thread,
+-                ..SharedArgs::default()
+-            };
+-            let entries = load_entries_from_paths(
+-                &shared,
+-                vec![fixture.path("sessions")],
+-                None,
+-                PiLoadScope::Default,
+-            )
+-            .unwrap();
+-
+-            assert_eq!(entries.len(), 6, "single_thread={single_thread}");
+-            let child_a_entries = entries
+-                .iter()
+-                .filter(|entry| entry.session_id.as_ref() == "child-a")
+-                .collect::<Vec<_>>();
+-            assert_eq!(child_a_entries.len(), 1, "single_thread={single_thread}");
+-            assert_eq!(
+-                child_a_entries[0].data.message.usage.input_tokens, 50,
+-                "single_thread={single_thread}"
+-            );
+-            let child_b_entries = entries
+-                .iter()
+-                .filter(|entry| entry.session_id.as_ref() == "child-b")
+-                .collect::<Vec<_>>();
+-            assert_eq!(child_b_entries.len(), 2, "single_thread={single_thread}");
+-            assert_eq!(
+-                child_b_entries[0]
+-                    .data
+-                    .message
+-                    .usage
+-                    .cache_creation_input_tokens,
+-                999,
+-                "single_thread={single_thread}"
+-            );
+-        }
+-    }
+-
+-    #[test]
+-    fn skips_the_copied_active_parent_branch_after_an_abandoned_sibling() {
+-        let fixture = Fixture::new();
+-        let parent = fixture.write_file(
+-            "sessions/project-a/root.jsonl",
+-            [
+-                session_line("root", "2026-01-01T00:00:00.000Z", None),
+-                linked_usage_line("a", None, "2026-01-02T10:00:00.000Z", 100),
+-                linked_usage_line("x", Some("a"), "2026-01-02T11:00:00.000Z", 200),
+-                linked_usage_line("y", Some("a"), "2026-01-02T12:00:00.000Z", 300),
+-                linked_usage_line("z", Some("y"), "2026-01-02T13:00:00.000Z", 400),
+-            ]
+-            .join("\n"),
+-        );
+-        let _ = fixture.write_file(
+-            "sessions/project-a/child.jsonl",
+-            [
+-                session_line("child", "2026-01-03T00:00:00.000Z", Some(&parent)),
+-                linked_usage_line("copy-a", None, "2026-01-02T10:00:00.000Z", 100),
+-                linked_usage_line("copy-y", Some("copy-a"), "2026-01-02T12:00:00.000Z", 300),
+-                linked_usage_line("copy-z", Some("copy-y"), "2026-01-02T13:00:00.000Z", 400),
+-                linked_usage_line(
+-                    "child-only",
+-                    Some("copy-z"),
+-                    "2026-01-03T01:00:00.000Z",
+-                    500,
+-                ),
+-            ]
+-            .join("\n"),
+-        );
+-
+-        for single_thread in [true, false] {
+-            let shared = SharedArgs {
+-                mode: CostMode::Display,
+-                single_thread,
+-                ..SharedArgs::default()
+-            };
+-            let entries = load_entries_from_paths(
+-                &shared,
+-                vec![fixture.path("sessions")],
+-                None,
+-                PiLoadScope::Default,
+-            )
+-            .unwrap();
+-
+-            assert_eq!(entries.len(), 5, "single_thread={single_thread}");
+-            assert!(entries.iter().any(|entry| {
+-                entry.session_id.as_ref() == "root" && entry.data.message.usage.input_tokens == 200
+-            }));
+-            let child_entries = entries
+-                .iter()
+-                .filter(|entry| entry.session_id.as_ref() == "child")
+-                .collect::<Vec<_>>();
+-            assert_eq!(child_entries.len(), 1, "single_thread={single_thread}");
+-            assert_eq!(
+-                child_entries[0].data.message.usage.input_tokens, 500,
+-                "single_thread={single_thread}"
+-            );
+-        }
+-    }
+-
+-    #[test]
+-    fn skips_copied_branch_when_parent_has_multiple_disconnected_roots() {
+-        let fixture = Fixture::new();
+-        let parent = fixture.write_file(
+-            "sessions/project-a/root.jsonl",
+-            [
+-                session_line("root", "2026-01-01T00:00:00.000Z", None),
+-                linked_usage_line("unrelated-root", None, "2026-01-02T09:00:00.000Z", 50),
+-                linked_usage_line("active-root", None, "2026-01-02T10:00:00.000Z", 100),
+-                linked_usage_line(
+-                    "active-leaf",
+-                    Some("active-root"),
+-                    "2026-01-02T11:00:00.000Z",
+-                    200,
+-                ),
+-            ]
+-            .join("\n"),
+-        );
+-        let _ = fixture.write_file(
+-            "sessions/project-a/child.jsonl",
+-            [
+-                session_line("child", "2026-01-03T00:00:00.000Z", Some(&parent)),
+-                linked_usage_line("copy-root", None, "2026-01-02T10:00:00.000Z", 100),
+-                linked_usage_line(
+-                    "copy-leaf",
+-                    Some("copy-root"),
+-                    "2026-01-02T11:00:00.000Z",
+-                    200,
+-                ),
+-                linked_usage_line(
+-                    "child-only",
+-                    Some("copy-leaf"),
+-                    "2026-01-03T01:00:00.000Z",
+-                    300,
+-                ),
+-            ]
+-            .join("\n"),
+-        );
+-
+-        for single_thread in [true, false] {
+-            let shared = SharedArgs {
+-                mode: CostMode::Display,
+-                single_thread,
+-                ..SharedArgs::default()
+-            };
+-            let entries = load_entries_from_paths(
+-                &shared,
+-                vec![fixture.path("sessions")],
+-                None,
+-                PiLoadScope::Default,
+-            )
+-            .unwrap();
+-
+-            assert_eq!(entries.len(), 4, "single_thread={single_thread}");
+-            assert!(entries.iter().any(|entry| {
+-                entry.session_id.as_ref() == "root" && entry.data.message.usage.input_tokens == 50
+-            }));
+-            let child_entries = entries
+-                .iter()
+-                .filter(|entry| entry.session_id.as_ref() == "child")
+-                .collect::<Vec<_>>();
+-            assert_eq!(child_entries.len(), 1, "single_thread={single_thread}");
+-            assert_eq!(
+-                child_entries[0].data.message.usage.input_tokens, 300,
+-                "single_thread={single_thread}"
+-            );
+-        }
+-    }
+-
+-    #[test]
+-    fn fails_open_for_missing_malformed_and_unrelated_same_token_sessions() {
+-        let fixture = Fixture::new();
+-        let missing_parent = fixture.path("sessions/project-a/missing.jsonl");
+-        let malformed_parent = fixture.path("sessions/project-a/malformed-parent.jsonl");
+-        let outside_parent = fixture.write_file(
+-            "outside/root.jsonl",
+-            [
+-                session_line("outside", "2026-01-01T00:00:00.000Z", None),
+-                usage_line("2026-01-02T10:00:00.000Z", 100, 10, 20, 3),
+-            ]
+-            .join("\n"),
+-        );
+-        let _ = fixture.write_file(
+-            "sessions/project-a/missing-child.jsonl",
+-            [
+-                session_line(
+-                    "missing-child",
+-                    "2026-01-03T00:00:00.000Z",
+-                    Some(&missing_parent),
+-                ),
+-                usage_line("2026-01-02T10:00:00.000Z", 100, 10, 20, 3),
+-            ]
+-            .join("\n"),
+-        );
+-        let _ = fixture.write_file(
+-            "sessions/project-a/outside-parent-child.jsonl",
+-            [
+-                session_line(
+-                    "outside-parent-child",
+-                    "2026-01-03T00:00:00.000Z",
+-                    Some(&outside_parent),
+-                ),
+-                usage_line("2026-01-02T10:00:00.000Z", 100, 10, 20, 3),
+-            ]
+-            .join("\n"),
+-        );
+-        let _ = fixture.write_file(
+-            "sessions/project-a/malformed-parent.jsonl",
+-            [
+-                "not json".to_string(),
+-                usage_line("2026-01-02T10:00:00.000Z", 100, 10, 20, 3),
+-            ]
+-            .join("\n"),
+-        );
+-        let _ = fixture.write_file(
+-            "sessions/project-a/malformed-parent-child.jsonl",
+-            [
+-                session_line(
+-                    "malformed-parent-child",
+-                    "2026-01-03T00:00:00.000Z",
+-                    Some(&malformed_parent),
+-                ),
+-                usage_line("2026-01-02T10:00:00.000Z", 100, 10, 20, 3),
+-            ]
+-            .join("\n"),
+-        );
+-        let _ = fixture.write_file(
+-            "sessions/project-a/malformed-parent-grandchild.jsonl",
+-            [
+-                session_line(
+-                    "malformed-parent-grandchild",
+-                    "2026-01-04T00:00:00.000Z",
+-                    Some(&fixture.path("sessions/project-a/malformed-parent-child.jsonl")),
+-                ),
+-                usage_line("2026-01-02T10:00:00.000Z", 100, 10, 20, 3),
+-            ]
+-            .join("\n"),
+-        );
+-        let _ = fixture.write_file(
+-            "sessions/project-a/malformed-child.jsonl",
+-            [
+-                "not json".to_string(),
+-                usage_line("2026-01-02T10:00:00.000Z", 100, 10, 20, 3),
+-            ]
+-            .join("\n"),
+-        );
+-        let _ = fixture.write_file(
+-            "sessions/project-a/regular-a.jsonl",
+-            usage_line("2026-01-02T11:00:00.000Z", 100, 10, 20, 3),
+-        );
+-        let _ = fixture.write_file(
+-            "sessions/project-a/regular-b.jsonl",
+-            usage_line("2026-01-02T11:00:00.000Z", 100, 10, 20, 3),
+-        );
+-
+-        for single_thread in [true, false] {
+-            let shared = SharedArgs {
+-                mode: CostMode::Display,
+-                single_thread,
+-                ..SharedArgs::default()
+-            };
+-            let entries = load_entries_from_paths(
+-                &shared,
+-                vec![fixture.path("sessions")],
+-                None,
+-                PiLoadScope::Default,
+-            )
+-            .unwrap();
+-
+-            assert_eq!(entries.len(), 8, "single_thread={single_thread}");
+-            assert_eq!(
+-                entries
+-                    .iter()
+-                    .filter(|entry| entry.session_id.as_ref() == "missing-child")
+-                    .count(),
+-                1,
+-                "single_thread={single_thread}"
+-            );
+-            assert_eq!(
+-                entries
+-                    .iter()
+-                    .filter(|entry| entry.session_id.as_ref() == "outside-parent-child")
+-                    .count(),
+-                1,
+-                "single_thread={single_thread}"
+-            );
+-            assert_eq!(
+-                entries
+-                    .iter()
+-                    .filter(|entry| entry.session_id.as_ref() == "regular-a")
+-                    .count(),
+-                1,
+-                "single_thread={single_thread}"
+-            );
+-            assert_eq!(
+-                entries
+-                    .iter()
+-                    .filter(|entry| entry.session_id.as_ref() == "regular-b")
+-                    .count(),
+-                1,
+-                "single_thread={single_thread}"
+-            );
+-            assert_eq!(
+-                entries
+-                    .iter()
+-                    .filter(|entry| entry.session_id.as_ref() == "malformed-parent-grandchild")
+-                    .count(),
+-                1,
+-                "single_thread={single_thread}"
+-            );
+-        }
+-    }
+-
+-    #[test]
+-    fn fails_open_for_self_referential_and_cyclic_sessions() {
+-        let fixture = Fixture::new();
+-        let self_path = fixture.path("sessions/project-a/self.jsonl");
+-        let cycle_a = fixture.path("sessions/project-a/cycle-a.jsonl");
+-        let cycle_b = fixture.path("sessions/project-a/cycle-b.jsonl");
+-        let _ = fixture.write_file(
+-            "sessions/project-a/self.jsonl",
+-            [
+-                session_line("self", "2026-01-03T00:00:00.000Z", Some(&self_path)),
+-                usage_line("2026-01-02T10:00:00.000Z", 100, 10, 20, 3),
+-            ]
+-            .join("\n"),
+-        );
+-        let _ = fixture.write_file(
+-            "sessions/project-a/cycle-a.jsonl",
+-            [
+-                session_line("cycle-a", "2026-01-03T00:00:00.000Z", Some(&cycle_b)),
+-                usage_line("2026-01-02T10:00:00.000Z", 200, 20, 30, 4),
+-            ]
+-            .join("\n"),
+-        );
+-        let _ = fixture.write_file(
+-            "sessions/project-a/cycle-b.jsonl",
+-            [
+-                session_line("cycle-b", "2026-01-03T00:00:00.000Z", Some(&cycle_a)),
+-                usage_line("2026-01-02T10:00:00.000Z", 200, 20, 30, 4),
+-            ]
+-            .join("\n"),
+-        );
+-
+-        for single_thread in [true, false] {
+-            let shared = SharedArgs {
+-                mode: CostMode::Display,
+-                single_thread,
+-                ..SharedArgs::default()
+-            };
+-            let entries = load_entries_from_paths(
+-                &shared,
+-                vec![fixture.path("sessions")],
+-                None,
+-                PiLoadScope::Default,
+-            )
+-            .unwrap();
+-
+-            assert_eq!(entries.len(), 3, "single_thread={single_thread}");
+-        }
+-    }
+-
+-    #[test]
+-    fn uses_raw_parent_stream_for_nested_forks() {
+-        let fixture = Fixture::new();
+-        let root = fixture.write_file(
+-            "sessions/project-a/root.jsonl",
+-            [
+-                session_line("root", "2026-01-01T00:00:00.000Z", None),
+-                usage_line("2026-01-02T10:00:00.000Z", 100, 10, 20, 3),
+-                usage_line("2026-01-02T11:00:00.000Z", 200, 20, 30, 4),
+-            ]
+-            .join("\n"),
+-        );
+-        let child = fixture.write_file(
+-            "sessions/project-a/child.jsonl",
+-            [
+-                session_line("child", "2026-01-03T00:00:00.000Z", Some(&root)),
+-                usage_line("2026-01-02T10:00:00.000Z", 100, 10, 20, 3),
+-                usage_line("2026-01-02T11:00:00.000Z", 200, 20, 30, 4),
+-                usage_line("2026-01-03T01:00:00.000Z", 300, 30, 40, 5),
+-            ]
+-            .join("\n"),
+-        );
+-        let _ = fixture.write_file(
+-            "sessions/project-a/grandchild.jsonl",
+-            [
+-                session_line("grandchild", "2026-01-04T00:00:00.000Z", Some(&child)),
+-                usage_line("2026-01-02T10:00:00.000Z", 100, 10, 20, 3),
+-                usage_line("2026-01-02T11:00:00.000Z", 200, 20, 30, 4),
+-                usage_line("2026-01-03T01:00:00.000Z", 300, 30, 40, 5),
+-                usage_line("2026-01-04T01:00:00.000Z", 400, 40, 50, 6),
+-            ]
+-            .join("\n"),
+-        );
+-
+-        for single_thread in [true, false] {
+-            let shared = SharedArgs {
+-                mode: CostMode::Display,
+-                single_thread,
+-                ..SharedArgs::default()
+-            };
+-            let entries = load_entries_from_paths(
+-                &shared,
+-                vec![fixture.path("sessions")],
+-                None,
+-                PiLoadScope::Default,
+-            )
+-            .unwrap();
+-
+-            assert_eq!(entries.len(), 4, "single_thread={single_thread}");
+-            assert_eq!(
+-                entries
+-                    .iter()
+-                    .filter(|entry| entry.session_id.as_ref() == "child")
+-                    .count(),
+-                1,
+-                "single_thread={single_thread}"
+-            );
+-            assert_eq!(
+-                entries
+-                    .iter()
+-                    .filter(|entry| entry.session_id.as_ref() == "grandchild")
+-                    .count(),
+-                1,
+-                "single_thread={single_thread}"
+-            );
+-            assert_eq!(
+-                entries
+-                    .iter()
+-                    .find(|entry| entry.session_id.as_ref() == "grandchild")
+-                    .unwrap()
+-                    .data
+-                    .message
+-                    .usage
+-                    .input_tokens,
+-                400,
+-                "single_thread={single_thread}"
+-            );
+-        }
+-    }
+-
+-    #[test]
+-    fn compares_every_effective_usage_field_before_suppressing_replay() {
+-        let fixture = Fixture::new();
+-        let parent = fixture.write_file(
+-            "sessions/project-a/root.jsonl",
+-            [
+-                session_line("root", "2026-01-01T00:00:00.000Z", None),
+-                usage_line_with_model_and_total(
+-                    "2026-01-02T10:00:00.000Z",
+-                    "gpt-5",
+-                    10,
+-                    20,
+-                    30,
+-                    40,
+-                    100,
+-                ),
+-            ]
+-            .join("\n"),
+-        );
+-        let variants = [
+-            ("input", "gpt-5", 11, 20, 30, 40, 101),
+-            ("output", "gpt-5", 10, 21, 30, 40, 101),
+-            ("cache-read", "gpt-5", 10, 20, 31, 40, 101),
+-            ("cache-write", "gpt-5", 10, 20, 30, 41, 101),
+-            ("model", "gpt-5-mini", 10, 20, 30, 40, 100),
+-            ("total-fallback", "gpt-5", 10, 20, 30, 40, 110),
+-        ];
+-        for (name, model, input, output, cache_read, cache_write, total_tokens) in variants {
+-            let _ = fixture.write_file(
+-                format!("sessions/project-a/child-{name}.jsonl"),
+-                [
+-                    session_line(name, "2026-01-03T00:00:00.000Z", Some(&parent)),
+-                    usage_line_with_model_and_total(
+-                        "2026-01-02T10:00:00.000Z",
+-                        model,
+-                        input,
+-                        output,
+-                        cache_read,
+-                        cache_write,
+-                        total_tokens,
+-                    ),
+-                    usage_line("2026-01-03T01:00:00.000Z", 1, 2, 3, 4),
+-                ]
+-                .join("\n"),
+-            );
+-        }
+-
+-        let shared = SharedArgs {
+-            mode: CostMode::Display,
+-            single_thread: false,
+-            ..SharedArgs::default()
+-        };
+-        let entries = load_entries_from_paths(
+-            &shared,
+-            vec![fixture.path("sessions")],
+-            None,
+-            PiLoadScope::Default,
+-        )
+-        .unwrap();
+-
+-        assert_eq!(entries.len(), 1 + variants.len() * 2);
+-        for (name, ..) in variants {
+-            let session_id = format!("child-{name}");
+-            assert_eq!(
+-                entries
+-                    .iter()
+-                    .filter(|entry| entry.session_id.as_ref() == session_id)
+-                    .count(),
+-                2,
+-                "variant={name}"
+-            );
+-        }
+-    }
+-
+-    #[test]
+-    fn keeps_child_usage_when_display_cost_differs() {
+-        let fixture = Fixture::new();
+-        let parent = fixture.write_file(
+-            "sessions/project-a/root.jsonl",
+-            [
+-                session_line("root", "2026-01-01T00:00:00.000Z", None),
+-                usage_line_with_display_cost("2026-01-02T10:00:00.000Z", 1.0),
+-            ]
+-            .join("\n"),
+-        );
+-        let _ = fixture.write_file(
+-            "sessions/project-a/child.jsonl",
+-            [
+-                session_line("child", "2026-01-03T00:00:00.000Z", Some(&parent)),
+-                usage_line_with_display_cost("2026-01-02T10:00:00.000Z", 2.0),
+-            ]
+-            .join("\n"),
+-        );
+-
+-        for mode in [CostMode::Display, CostMode::Auto] {
+-            let shared = SharedArgs {
+-                mode,
+-                ..SharedArgs::default()
+-            };
+-            let entries = load_entries_from_paths(
+-                &shared,
+-                vec![fixture.path("sessions")],
+-                None,
+-                PiLoadScope::Default,
+-            )
+-            .unwrap();
+-
+-            assert_eq!(entries.len(), 2, "mode={mode:?}");
+-            assert_eq!(
+-                entries
+-                    .iter()
+-                    .find(|entry| entry.session_id.as_ref() == "child")
+-                    .unwrap()
+-                    .cost,
+-                2.0,
+-                "mode={mode:?}"
+-            );
+-        }
+-    }
+-
+-    #[test]
+-    fn ignores_stored_display_cost_when_calculating_replay_identity() {
+-        let fixture = Fixture::new();
+-        let parent = fixture.write_file(
+-            "sessions/project-a/root.jsonl",
+-            [
+-                session_line("root", "2026-01-01T00:00:00.000Z", None),
+-                usage_line_with_display_cost("2026-01-02T10:00:00.000Z", 1.0),
+-            ]
+-            .join("\n"),
+-        );
+-        let _ = fixture.write_file(
+-            "sessions/project-a/child.jsonl",
+-            [
+-                session_line("child", "2026-01-03T00:00:00.000Z", Some(&parent)),
+-                usage_line_with_display_cost("2026-01-02T10:00:00.000Z", 2.0),
+-            ]
+-            .join("\n"),
+-        );
+-        let shared = SharedArgs {
+-            mode: CostMode::Calculate,
+-            ..SharedArgs::default()
+-        };
+-        let entries = load_entries_from_paths(
+-            &shared,
+-            vec![fixture.path("sessions")],
+-            None,
+-            PiLoadScope::Default,
+-        )
+-        .unwrap();
+-
+-        assert_eq!(entries.len(), 1);
+-        assert_eq!(entries[0].session_id.as_ref(), "root");
+-    }
+-
+-    #[test]
+-    fn treats_signed_zero_display_costs_as_equal_replay_identity() {
+-        let fixture = Fixture::new();
+-        let parent = fixture.write_file(
+-            "sessions/project-a/root.jsonl",
+-            [
+-                session_line("root", "2026-01-01T00:00:00.000Z", None),
+-                usage_line_with_display_cost("2026-01-02T10:00:00.000Z", 0.0),
+-            ]
+-            .join("\n"),
+-        );
+-        let _ = fixture.write_file(
+-            "sessions/project-a/child.jsonl",
+-            [
+-                session_line("child", "2026-01-03T00:00:00.000Z", Some(&parent)),
+-                usage_line_with_display_cost("2026-01-02T10:00:00.000Z", -0.0),
+-            ]
+-            .join("\n"),
+-        );
+-
+-        for mode in [CostMode::Display, CostMode::Auto] {
+-            let shared = SharedArgs {
+-                mode,
+-                ..SharedArgs::default()
+-            };
+-            let entries = load_entries_from_paths(
+-                &shared,
+-                vec![fixture.path("sessions")],
+-                None,
+-                PiLoadScope::Default,
+-            )
+-            .unwrap();
+-
+-            assert_eq!(entries.len(), 1, "mode={mode:?}");
+-            assert_eq!(entries[0].session_id.as_ref(), "root", "mode={mode:?}");
+-        }
+-    }
+-
+-    #[test]
+-    fn treats_missing_and_zero_display_costs_as_equal_replay_identity() {
+-        let fixture = Fixture::new();
+-        let parent = fixture.write_file(
+-            "sessions/project-a/root.jsonl",
+-            [
+-                session_line("root", "2026-01-01T00:00:00.000Z", None),
+-                usage_line_with_model_and_total(
+-                    "2026-01-02T10:00:00.000Z",
+-                    "gpt-5",
+-                    10,
+-                    20,
+-                    30,
+-                    40,
+-                    100,
+-                ),
+-            ]
+-            .join("\n"),
+-        );
+-        let _ = fixture.write_file(
+-            "sessions/project-a/child.jsonl",
+-            [
+-                session_line("child", "2026-01-03T00:00:00.000Z", Some(&parent)),
+-                usage_line_with_display_cost("2026-01-02T10:00:00.000Z", 0.0),
+-            ]
+-            .join("\n"),
+-        );
+-        let shared = SharedArgs {
+-            mode: CostMode::Display,
+-            ..SharedArgs::default()
+-        };
+-        let entries = load_entries_from_paths(
+-            &shared,
+-            vec![fixture.path("sessions")],
+-            None,
+-            PiLoadScope::Default,
+-        )
+-        .unwrap();
+-
+-        assert_eq!(entries.len(), 1);
+-        assert_eq!(entries[0].session_id.as_ref(), "root");
+-    }
+-
+-    #[test]
+-    fn dedupes_replay_when_raw_total_underreports_billable_usage() {
+-        let fixture = Fixture::new();
+-        let parent = fixture.write_file(
+-            "sessions/project-a/root.jsonl",
+-            [
+-                session_line("root", "2026-01-01T00:00:00.000Z", None),
+-                usage_line_with_model_and_total(
+-                    "2026-01-02T10:00:00.000Z",
+-                    "gpt-5",
+-                    10,
+-                    20,
+-                    30,
+-                    40,
+-                    100,
+-                ),
+-            ]
+-            .join("\n"),
+-        );
+-        let _ = fixture.write_file(
+-            "sessions/project-a/child.jsonl",
+-            [
+-                session_line("child", "2026-01-03T00:00:00.000Z", Some(&parent)),
+-                usage_line_with_model_and_total(
+-                    "2026-01-02T10:00:00.000Z",
+-                    "gpt-5",
+-                    10,
+-                    20,
+-                    30,
+-                    40,
+-                    99,
+-                ),
+-                usage_line("2026-01-03T01:00:00.000Z", 1, 2, 3, 4),
+-            ]
+-            .join("\n"),
+-        );
+-
+-        for single_thread in [true, false] {
+-            let shared = SharedArgs {
+-                mode: CostMode::Display,
+-                single_thread,
+-                ..SharedArgs::default()
+-            };
+-            let entries = load_entries_from_paths(
+-                &shared,
+-                vec![fixture.path("sessions")],
+-                None,
+-                PiLoadScope::Default,
+-            )
+-            .unwrap();
+-
+-            assert_eq!(entries.len(), 2, "single_thread={single_thread}");
+-            let child_entries = entries
+-                .iter()
+-                .filter(|entry| entry.session_id.as_ref() == "child")
+-                .collect::<Vec<_>>();
+-            assert_eq!(child_entries.len(), 1, "single_thread={single_thread}");
+-            assert_eq!(
+-                child_entries[0].data.message.usage.input_tokens, 1,
+-                "single_thread={single_thread}"
+-            );
+-        }
+-    }
+-
+-    #[test]
+-    fn matches_parent_files_across_multiple_paths_of_one_named_store() {
+-        let fixture = Fixture::new();
+-        let first_store = fixture.create_dir_all("first");
+-        let second_store = fixture.create_dir_all("second");
+-        let parent = fixture.write_file(
+-            "first/project-a/root.jsonl",
+-            [
+-                session_line("root", "2026-01-01T00:00:00.000Z", None),
+-                usage_line("2026-01-02T10:00:00.000Z", 100, 10, 20, 3),
+-            ]
+-            .join("\n"),
+-        );
+-        let _ = fixture.write_file(
+-            "second/project-a/child.jsonl",
+-            [
+-                session_line("child", "2026-01-03T00:00:00.000Z", Some(&parent)),
+-                usage_line("2026-01-02T10:00:00.000Z", 100, 10, 20, 3),
+-                usage_line("2026-01-03T01:00:00.000Z", 50, 5, 6, 1),
+-            ]
+-            .join("\n"),
+-        );
+-
+-        let shared = SharedArgs {
+-            mode: CostMode::Display,
+-            single_thread: false,
+-            ..SharedArgs::default()
+-        };
+-        let entries =
+-            load_entries_for_store_paths(&shared, vec![first_store, second_store], "omp", None)
+-                .unwrap();
+-
+-        assert_eq!(entries.len(), 2);
+-        assert_eq!(
+-            entries
+-                .iter()
+-                .filter(|entry| entry.session_id.as_ref() == "child")
+-                .count(),
+-            1
+-        );
+-        assert_eq!(entries[1].model.as_deref(), Some("[omp] gpt-5"));
+-    }
+-
+-    #[test]
+-    fn skips_subagent_artifact_transcripts_but_keeps_fresh_context_child_sessions() {
+-        let fixture = Fixture::new();
+-        let _ = fixture.write_file(
+-            "sessions/project-a/root.jsonl",
+-            [
+-                session_line("root", "2026-01-01T00:00:00.000Z", None),
+-                usage_line("2026-01-02T10:00:00.000Z", 100, 10, 20, 3),
+-            ]
+-            .join("\n"),
+-        );
+-        // Nested placement: `<session>/subagent-artifacts/*_transcript.jsonl`.
+-        let _ = fixture.write_file(
+-            "sessions/project-a/root/subagent-artifacts/run1_agent_0_transcript.jsonl",
+-            usage_line("2026-01-02T10:00:00.000Z", 100, 10, 20, 3),
+-        );
+-        // Sibling placement: a stray `subagent-artifacts/` segment elsewhere.
+-        let _ = fixture.write_file(
+-            "sessions/project-a/subagent-artifacts/other_transcript.jsonl",
+-            usage_line("2026-01-02T10:00:00.000Z", 100, 10, 20, 3),
+-        );
+-        // Fresh-context children are the primary record and must keep counting.
+-        let _ = fixture.write_file(
+-            "sessions/project-a/root/run-abc/run-0/session.jsonl",
+-            usage_line("2026-01-03T01:00:00.000Z", 50, 5, 6, 1),
+-        );
+-
+-        for single_thread in [true, false] {
+-            let shared = SharedArgs {
+-                mode: CostMode::Display,
+-                single_thread,
+-                ..SharedArgs::default()
+-            };
+-            let entries = load_entries_from_paths(
+-                &shared,
+-                vec![fixture.path("sessions")],
+-                None,
+-                PiLoadScope::Default,
+-            )
+-            .unwrap();
+-
+-            assert_eq!(entries.len(), 2, "single_thread={single_thread}");
+-            assert!(
+-                entries
+-                    .iter()
+-                    .any(|entry| entry.data.message.usage.input_tokens == 100),
+-                "single_thread={single_thread}"
+-            );
+-            assert!(
+-                entries
+-                    .iter()
+-                    .any(|entry| entry.data.message.usage.input_tokens == 50),
+-                "single_thread={single_thread}"
+-            );
+-            assert!(
+-                !entries
+-                    .iter()
+-                    .any(|entry| entry.session_id.as_ref().contains("transcript")),
+-                "single_thread={single_thread}"
+-            );
+-        }
+-    }
+-
+-    #[test]
+-    fn skips_subagent_artifact_transcripts_for_named_stores() {
+-        let fixture = Fixture::new();
+-        let store = fixture.create_dir_all("store");
+-        let _ = fixture.write_file(
+-            "store/project-a/root.jsonl",
+-            [
+-                session_line("root", "2026-01-01T00:00:00.000Z", None),
+-                usage_line("2026-01-02T10:00:00.000Z", 100, 10, 20, 3),
+-            ]
+-            .join("\n"),
+-        );
+-        let _ = fixture.write_file(
+-            "store/project-a/root/subagent-artifacts/run1_agent_0_transcript.jsonl",
+-            usage_line("2026-01-02T10:00:00.000Z", 100, 10, 20, 3),
+-        );
+-
+-        let shared = SharedArgs {
+-            mode: CostMode::Display,
+-            single_thread: false,
+-            ..SharedArgs::default()
+-        };
+-        let entries = load_entries_for_store_paths(&shared, vec![store], "omp", None).unwrap();
+-
+-        assert_eq!(entries.len(), 1);
+-        assert_eq!(entries[0].data.message.usage.input_tokens, 100);
+-    }
+-
+-    #[test]
+-    fn detects_subagent_artifact_path_segments() {
+-        assert!(is_subagent_artifact_transcript(Path::new(
+-            "sessions/project-a/root/subagent-artifacts/run1_agent_0_transcript.jsonl"
+-        )));
+-        assert!(!is_subagent_artifact_transcript(Path::new(
+-            "sessions/project-a/root/run-abc/run-0/session.jsonl"
+-        )));
+-        assert!(!is_subagent_artifact_transcript(Path::new(
+-            "sessions/project-a/root.jsonl"
+-        )));
+-    }
+-}
+diff --git a/rust/adapters/pi/src/parser.rs b/rust/adapters/pi/src/parser.rs
+index ba57323..3c9a03c 100644
+--- a/rust/adapters/pi/src/parser.rs
++++ b/rust/adapters/pi/src/parser.rs
+@@ -1,9 +1,4 @@
+-use std::{
+-    collections::{HashMap, HashSet},
+-    fs,
+-    path::{Path, PathBuf},
+-    sync::Arc,
+-};
++use std::{fs, path::Path, sync::Arc};
+ 
+ use jiff::tz::TimeZone as JiffTimeZone;
+ use serde::Deserialize;
+@@ -24,33 +19,14 @@ struct PiLine {
+     r#type: Option<String>,
+     #[serde(default, deserialize_with = "jsonl::non_empty_string")]
+     timestamp: Option<String>,
+-    #[serde(
+-        rename = "parentSession",
+-        default,
+-        deserialize_with = "jsonl::non_empty_string"
+-    )]
+-    parent_session: Option<String>,
+     #[serde(default, deserialize_with = "jsonl::non_empty_string")]
+     id: Option<String>,
+     message: Option<PiMessage>,
+     #[serde(default, deserialize_with = "jsonl::non_empty_string")]
+     model: Option<String>,
+     usage: Option<PiUsage>,
+-}
+-
+-/// The link fields carried by every tree-format pi session entry.
+-#[derive(Debug, Deserialize)]
+-struct PiEntryLink {
+-    #[serde(default, deserialize_with = "jsonl::non_empty_string")]
+-    r#type: Option<String>,
+     #[serde(default, deserialize_with = "jsonl::non_empty_string")]
+-    id: Option<String>,
+-    #[serde(
+-        rename = "parentId",
+-        default,
+-        deserialize_with = "jsonl::non_empty_string"
+-    )]
+-    parent_id: Option<String>,
++    cwd: Option<String>,
+ }
+ 
+ /// The pi `message` block carried by assistant records.
+@@ -98,79 +74,34 @@ struct PiCost {
+ }
+ 
+ #[derive(Debug, Clone)]
+-pub(crate) struct PiSessionHeader {
+-    pub(crate) parent_session: Option<PathBuf>,
+-    pub(crate) parent_session_is_malformed: bool,
+-    pub(crate) timestamp: Option<crate::TimestampMs>,
+-}
+-
+-#[derive(Debug, Clone, PartialEq, Eq)]
+-struct PiUsageSignature {
+-    timestamp: crate::TimestampMs,
+-    model: Option<String>,
+-    input_tokens: u64,
+-    output_tokens: u64,
+-    cache_creation_input_tokens: u64,
+-    cache_read_input_tokens: u64,
+-    effective_total_tokens: u64,
+-    billed_cost_bits: Option<u64>,
+-}
+-
+-struct PiUsageRecord {
+-    signature: PiUsageSignature,
+-    entry_id: Option<String>,
+-}
+-
+-enum PiReplayUsagePath {
+-    Linear,
+-    Active(Vec<usize>),
+-    Invalid,
++struct PiSessionHeader {
++    id: Option<String>,
++    cwd: Option<String>,
+ }
+ 
+ pub(crate) struct PiSessionData {
+-    pub(crate) header: Option<PiSessionHeader>,
+-    usage: Vec<PiUsageRecord>,
+-    replay_usage_path: PiReplayUsagePath,
++    pub(crate) identity: super::identity::Source,
+     pub(crate) entries: Vec<LoadedEntry>,
+ }
+ 
+-impl PiSessionData {
+-    pub(crate) fn matching_replay_prefix(
+-        &self,
+-        child: &Self,
+-        fork_timestamp: crate::TimestampMs,
+-    ) -> Option<usize> {
+-        if matches!(&child.replay_usage_path, PiReplayUsagePath::Invalid) {
+-            return None;
+-        }
+-
+-        match &self.replay_usage_path {
+-            PiReplayUsagePath::Linear => Some(matching_replay_prefix(
+-                child.usage.iter().map(|usage| &usage.signature),
+-                self.usage.iter().map(|usage| &usage.signature),
+-                fork_timestamp,
+-            )),
+-            PiReplayUsagePath::Active(indices) => Some(matching_replay_prefix(
+-                child.usage.iter().map(|usage| &usage.signature),
+-                indices.iter().map(|&index| &self.usage[index].signature),
+-                fork_timestamp,
+-            )),
+-            PiReplayUsagePath::Invalid => None,
+-        }
+-    }
+-}
+-
+-#[cfg_attr(not(test), allow(dead_code))]
++#[cfg(test)]
+ pub fn read_session_file(
+     path: &Path,
+     tz: Option<&JiffTimeZone>,
+     mode: CostMode,
+     pricing: Option<&PricingMap>,
+ ) -> Result<Vec<LoadedEntry>> {
+-    Ok(read_session_file_data(path, tz, mode, pricing)?.entries)
++    parse_session_entries(
++        &fs::read(path)?,
++        path,
++        tz,
++        mode,
++        pricing,
++        PiStoreContext::Default,
++    )
+ }
+ 
+-#[cfg_attr(not(test), allow(dead_code))]
++#[cfg(test)]
+ fn read_session_file_for_store(
+     path: &Path,
+     store_root: &Path,
+@@ -179,7 +110,17 @@ fn read_session_file_for_store(
+     pricing: Option<&PricingMap>,
+     store_name: &str,
+ ) -> Result<Vec<LoadedEntry>> {
+-    Ok(read_session_file_data_for_store(path, store_root, tz, mode, pricing, store_name)?.entries)
++    parse_session_entries(
++        &fs::read(path)?,
++        path,
++        tz,
++        mode,
++        pricing,
++        PiStoreContext::Named {
++            root: store_root,
++            name: store_name,
++        },
++    )
+ }
+ 
+ pub(crate) fn read_session_file_data(
+@@ -311,15 +252,34 @@ fn read_session_file_data_with_context(
+     context: PiStoreContext<'_>,
+ ) -> Result<PiSessionData> {
+     let content = fs::read(path)?;
+-    let project = context.project(path);
+-    let session_id = extract_session_id(path);
+-    let header = parse_session_header(&content);
++    // Validate identity and counts before a lenient report mapper can discard data.
++    let identity = super::identity::parse(&content)?;
++    let entries = parse_session_entries(&content, path, tz, mode, pricing, context)?;
++    Ok(PiSessionData { identity, entries })
++}
++
++fn parse_session_entries(
++    content: &[u8],
++    path: &Path,
++    tz: Option<&JiffTimeZone>,
++    mode: CostMode,
++    pricing: Option<&PricingMap>,
++    context: PiStoreContext<'_>,
++) -> Result<Vec<LoadedEntry>> {
++    let header = parse_session_header(content);
++    let project = header.as_ref().map_or_else(
++        || context.project(path),
++        |header| header.cwd.clone().unwrap_or_else(|| "unknown".into()),
++    );
++    let session_id = header
++        .as_ref()
++        .and_then(|header| header.id.clone())
++        .unwrap_or_else(|| extract_session_id(path));
+     // Usage can belong to an assistant message, a summary, or a standalone record.
+     let prefilter = LinePrefilter::all(&[br#""usage""#]);
+     let mut entries = Vec::new();
+-    let mut usage_records = Vec::new();
+ 
+-    for record in jsonl::records::<PiLine>(&content, Some(&prefilter)) {
++    for record in jsonl::records::<PiLine>(content, Some(&prefilter)) {
+         let Some((raw_model, usage_value)) = usage_fields(&record) else {
+             continue;
+         };
+@@ -373,20 +333,6 @@ fn read_session_file_data_with_context(
+             mode,
+             pricing,
+         );
+-        usage_records.push(PiUsageRecord {
+-            signature: PiUsageSignature {
+-                timestamp,
+-                model: raw_model.clone(),
+-                input_tokens: usage.input_tokens,
+-                output_tokens: usage.output_tokens,
+-                cache_creation_input_tokens: usage.cache_creation_input_tokens,
+-                cache_read_input_tokens: usage.cache_read_input_tokens,
+-                effective_total_tokens: crate::total_usage_tokens(usage)
+-                    .saturating_add(extra_total_tokens),
+-                billed_cost_bits: replay_billed_cost_bits(mode, cost),
+-            },
+-            entry_id: record.id.clone(),
+-        });
+         let missing_pricing_model = context.missing_pricing_model(
+             raw_model.as_deref(),
+             model.as_deref(),
+@@ -409,7 +355,7 @@ fn read_session_file_data_with_context(
+             message: UsageMessage {
+                 usage,
+                 model: model.clone(),
+-                id: None,
++                id: record.id.clone(),
+             },
+             cost_usd: display_cost,
+             request_id: None,
+@@ -433,142 +379,17 @@ fn read_session_file_data_with_context(
+             stored_cost,
+         });
+     }
+-    Ok(PiSessionData {
+-        header,
+-        replay_usage_path: replay_usage_path(&content, &usage_records),
+-        usage: usage_records,
+-        entries,
+-    })
+-}
+-
+-fn matching_replay_prefix<'a>(
+-    child_usage: impl Iterator<Item = &'a PiUsageSignature>,
+-    parent_usage: impl Iterator<Item = &'a PiUsageSignature>,
+-    fork_timestamp: crate::TimestampMs,
+-) -> usize {
+-    child_usage
+-        .zip(parent_usage.take_while(|usage| usage.timestamp <= fork_timestamp))
+-        .take_while(|(child, parent)| child == parent)
+-        .count()
+-}
+-
+-fn replay_usage_path(content: &[u8], usage: &[PiUsageRecord]) -> PiReplayUsagePath {
+-    let links = jsonl::records::<PiEntryLink>(content, None)
+-        .filter(|link| link.r#type.as_deref() != Some("session"))
+-        .collect::<Vec<_>>();
+-    if links
+-        .iter()
+-        .all(|link| link.id.is_none() && link.parent_id.is_none())
+-    {
+-        // Version 1 sessions predate entry links, so their physical order is
+-        // the only available linear history.
+-        return PiReplayUsagePath::Linear;
+-    }
+-
+-    let mut parents_by_id = HashMap::new();
+-    let mut leaf_id = None;
+-    for link in links {
+-        // A partially linked session cannot identify an active branch safely.
+-        let Some(id) = link.id else {
+-            return PiReplayUsagePath::Invalid;
+-        };
+-        if parents_by_id.insert(id.clone(), link.parent_id).is_some() {
+-            return PiReplayUsagePath::Invalid;
+-        }
+-        leaf_id = Some(id);
+-    }
+-    let Some(mut entry_id) = leaf_id else {
+-        return PiReplayUsagePath::Linear;
+-    };
+-    if parents_by_id
+-        .values()
+-        .flatten()
+-        .any(|parent| !parents_by_id.contains_key(parent))
+-        || has_cyclic_entry_links(&parents_by_id)
+-    {
+-        return PiReplayUsagePath::Invalid;
+-    }
+-
+-    let usage_by_id = usage
+-        .iter()
+-        .enumerate()
+-        .filter_map(|(index, usage)| usage.entry_id.as_deref().map(|id| (id, index)))
+-        .collect::<HashMap<_, _>>();
+-    let mut active_usage = Vec::new();
+-    let mut visited = HashSet::new();
+-    loop {
+-        // Pi writes the current leaf last; walking its parents excludes sibling
+-        // branches that remain earlier in the same physical JSONL file.
+-        if !visited.insert(entry_id.clone()) {
+-            return PiReplayUsagePath::Invalid;
+-        }
+-        if let Some(&usage_index) = usage_by_id.get(entry_id.as_str()) {
+-            active_usage.push(usage_index);
+-        }
+-        let Some(parent_id) = parents_by_id.get(&entry_id) else {
+-            return PiReplayUsagePath::Invalid;
+-        };
+-        let Some(parent_id) = parent_id else {
+-            break;
+-        };
+-        entry_id = parent_id.clone();
+-    }
+-    active_usage.reverse();
+-    PiReplayUsagePath::Active(active_usage)
+-}
+-
+-fn has_cyclic_entry_links(parents_by_id: &HashMap<String, Option<String>>) -> bool {
+-    let mut validated = HashSet::new();
+-    for start in parents_by_id.keys() {
+-        if validated.contains(start) {
+-            continue;
+-        }
+-
+-        let mut path = HashSet::new();
+-        let mut entry_id = start.clone();
+-        while !validated.contains(&entry_id) {
+-            if !path.insert(entry_id.clone()) {
+-                return true;
+-            }
+-            let Some(parent_id) = parents_by_id.get(&entry_id) else {
+-                return true;
+-            };
+-            let Some(parent_id) = parent_id else {
+-                break;
+-            };
+-            entry_id = parent_id.clone();
+-        }
+-        validated.extend(path);
+-    }
+-    false
+-}
+-
+-fn replay_billed_cost_bits(mode: CostMode, cost: f64) -> Option<u64> {
+-    if mode == CostMode::Calculate {
+-        return None;
+-    }
+-    Some(if cost == 0.0 {
+-        0.0_f64.to_bits()
+-    } else {
+-        cost.to_bits()
+-    })
++    Ok(entries)
+ }
+ 
+ fn parse_session_header(content: &[u8]) -> Option<PiSessionHeader> {
+-    let first_line = content.split(|byte| *byte == b'\n').next()?;
+-    let value = serde_json::from_slice::<serde_json::Value>(first_line).ok()?;
+-    let header = serde_json::from_value::<PiLine>(value.clone()).ok()?;
+-    (header.r#type.as_deref() == Some("session")).then(|| PiSessionHeader {
+-        parent_session: header.parent_session.map(PathBuf::from),
+-        parent_session_is_malformed: value.get("parentSession").is_some_and(|parent| {
+-            !parent
+-                .as_str()
+-                .is_some_and(|parent| !parent.trim().is_empty())
+-        }),
+-        timestamp: header
+-            .timestamp
+-            .as_deref()
+-            .and_then(crate::parse_ts_timestamp),
++    let first_line = content
++        .split(|byte| *byte == b'\n')
++        .find(|line| !line.iter().all(u8::is_ascii_whitespace))?;
++    let header = serde_json::from_slice::<PiLine>(first_line).ok()?;
++    (header.r#type.as_deref() == Some("session")).then_some(PiSessionHeader {
++        id: header.id,
++        cwd: header.cwd,
+     })
+ }
+ 
+@@ -618,6 +439,7 @@ fn extract_project_for_store(path: &Path, store_root: &Path) -> String {
+     extract_project(path)
+ }
+ 
++#[cfg(test)]
+ pub(crate) fn entry_id(entry: &LoadedEntry) -> String {
+     entry_id_for_store("pi", entry)
+ }
+@@ -734,7 +556,14 @@ fn store_pricing_at(
+         .or_else(|| raw_model.and_then(|model| pricing.find_at(model, timestamp)))
+ }
+ 
++#[cfg(test)]
+ pub(crate) fn entry_id_for_store(store_name: &str, entry: &LoadedEntry) -> String {
++    if let Some(id) = &entry.data.message.id {
++        return format!(
++            "entry-id:{}",
++            serde_json::json!([store_name, entry.session_id.as_ref(), id])
++        );
++    }
+     [
+         store_name,
+         entry.project.as_ref(),

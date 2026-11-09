@@ -27,3 +27,9 @@ The checks require the official pinned binary as a reference. They use private s
 `20.0.48-pi-usage.patch` adds summary and standalone usage to the same pinned source. It does not include the Amp changes. The [Pi candidate record](../../docs/reviews/2026-11-10-pi-usage-candidate.md) owns its evidence and remaining gates. Apply the patch to the exact source commit and set `CCUSAGE_VERSION=20.0.48-openusage.pi-candidate.1` when building.
 
 Run `test_ccusage_pi_candidate.py` with `OPENUSAGE_CCUSAGE_PI_CANDIDATE` and `OPENUSAGE_CCUSAGE_PI_CANDIDATE_SHA256`. Its separate variables prevent accidental selection for the Amp checks. This candidate also remains local and unpublished.
+
+## Separate Pi identity candidate
+
+Apply `20.0.48-pi-identity.patch` after `20.0.48-pi-usage.patch` on the same pinned source. It requires source IDs and proven parent links, counts copies once, and rejects ambiguous input. Version 1 and headerless data are unsupported. This patch is local and unpublished; it does not replace the production pin or Amp candidate. The [review](../../docs/reviews/2026-11-10-pi-identity-candidate.md) owns the source evidence, digests, checks, and remaining gates.
+
+Set `OPENUSAGE_CCUSAGE_PI_IDENTITY_CANDIDATE` and `OPENUSAGE_CCUSAGE_PI_IDENTITY_CANDIDATE_SHA256` to run `test_ccusage_pi_identity.py`. Use version `20.0.48-openusage.pi-identity-candidate.1` for its build. Keep the earlier usage-candidate variables unset for this binary. Its stricter identity boundary intentionally rejects their headerless fixtures.

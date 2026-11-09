@@ -4,6 +4,10 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f11d result before L-1f11e
+
+Latest scoped result, November 10, 2026: L-1f11d adds a separate local Pi scanner patch for summary and standalone usage. Compaction and branch-summary fixtures now total 211, and standalone usage fixtures total 179. A total without categories stays independent. All 38 adapter tests, candidate comparisons, full OpenUsage checks, and native consent passed with synthetic Linux data. Pi remains disabled because identity and completeness defects remain. The production pin and unpublished Amp patch are unchanged.
+
 ## L-1f11c result before L-1f11d
 
 Latest scoped result, November 10, 2026: L-1f11c records 29 Pi cases against the pinned scanner and Pi's own session source. Copies can double counts, distinct calls can collapse, and some branched forks count twice. The scanner also omits summary and standalone usage. The Rust regression preserves unavailable fields and known activity times. Full Python/Rust checks and native consent passed with private synthetic data on Linux. Pi remains disabled. No production code or scanner pin changed.

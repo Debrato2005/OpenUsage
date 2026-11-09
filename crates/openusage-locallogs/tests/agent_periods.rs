@@ -108,6 +108,57 @@ fn recorded_kilo_qualification_gaps_stay_disabled_and_keep_unknown_metrics() {
 }
 
 #[test]
+fn local_pi_identity_candidate_keeps_source_sessions_and_nullable_details() {
+    let cases: Value = serde_json::from_slice(include_bytes!(
+        "fixtures/remaining-tools/pi-identity-candidate.json"
+    ))
+    .unwrap();
+    assert_eq!(cases.as_object().unwrap().len(), 40);
+    let mut unavailable = 0;
+    for (name, reports) in cases.as_object().unwrap() {
+        if reports["daily"]["unavailable"] == true {
+            assert_eq!(reports["session"]["unavailable"], true);
+            unavailable += 1;
+            continue;
+        }
+        let total = reports["daily"]["totals"]["totalTokens"].as_u64().unwrap();
+        let daily = parse("pi", &reports["daily"]).unwrap();
+        let sessions =
+            parse_agent_sessions("pi", &serde_json::to_vec(&reports["session"]).unwrap()).unwrap();
+        if name == "empty" {
+            assert!(daily.is_none());
+            assert!(sessions.is_none());
+            continue;
+        }
+        let daily = daily.unwrap();
+        let sessions = sessions.unwrap();
+        assert_eq!(daily.total_tokens, total, "{name}");
+        assert_eq!(sessions.total_tokens, total, "{name}");
+        assert_eq!(daily.details, TokenDetails::default());
+        assert_eq!(sessions.details, TokenDetails::default());
+        assert_eq!(daily.estimated_value_micros, None);
+        assert_eq!(sessions.estimated_value_micros, None);
+        if matches!(name.as_str(), "unattributed" | "missing_model") {
+            assert!(daily.models.is_empty());
+            assert!(sessions.models.is_empty());
+        }
+        for session in &sessions.sessions {
+            assert_eq!(session.details, TokenDetails::default());
+            assert_eq!(session.estimated_value_micros, None);
+            let project = (name != "absent_project").then_some("/synthetic/project");
+            assert_eq!(session.project.as_deref(), project, "{name}");
+            for time in [&session.first_activity_utc, &session.last_activity_utc] {
+                assert!(matches!(
+                    time.as_deref(),
+                    Some("2026-05-28T20:26:40.000Z" | "2026-05-28T22:00:00.000Z")
+                ));
+            }
+        }
+    }
+    assert_eq!(unavailable, 15);
+}
+
+#[test]
 fn local_pi_usage_candidate_preserves_totals_without_inventing_details() {
     let cases: Value = serde_json::from_slice(include_bytes!(
         "fixtures/remaining-tools/pi-usage-candidate.json"

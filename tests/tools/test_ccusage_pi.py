@@ -81,7 +81,7 @@ def cases():
         'malformed_peer': case({root: original, 'second/sessions/project-b/bad.jsonl': ['@malformed']}, None),
         'invalid_utf8_peer': case({root: original, 'second/sessions/project-b/bad.jsonl': ['@invalid-utf8']}, None),
         'subagent_artifact': case({root: original, 'first/sessions/project-a/subagent-artifacts/copy.jsonl': [no_id]}, 162),
-        'fresh_child': case({root: original, 'first/sessions/project-a/run-a/run-0/session.jsonl': [header('session'), extra]}, 179),
+        'fresh_child': case({root: original, 'first/sessions/project-a/run-a/run-0/session.jsonl': [header('session'), extra | {'parentId': None}]}, 179),
         'missing_project': case({'first/custom/project-a/root.jsonl': original}, 162, custom=True),
         'empty': case({root: [header()]}, 0),
     }

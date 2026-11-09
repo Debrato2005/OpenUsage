@@ -122,6 +122,7 @@ Updated November 10, 2026. The owner asked to keep this list and to build down i
 - [x] L-1f11b: remove ZCode's fallback project label and record 19 qualification cases. Copy, fork-transcript, replay, and compaction counts match. Conflicts and incomplete reads keep ZCode disabled. See the [qualification](reviews/2026-11-10-zcode-qualification.md).
 - [x] L-1f11c: record 29 Pi cases and preserve missing fields in Rust. Copy, branch, and omitted-usage defects fail AT-65. Pi stays disabled. See the [qualification](reviews/2026-11-10-pi-qualification.md).
 - [x] L-1f11d: prepare a separate local Pi usage patch. Summary and standalone usage counts match. Identity and completeness gates remain open, so Pi stays disabled. See the [candidate](reviews/2026-11-10-pi-usage-candidate.md).
+- [x] L-1f11e: prepare a separate Pi identity patch. Scoped IDs and proven lineage count copies once and retain distinct calls. Ambiguous and unsupported inputs reject the scan. Completeness gates remain open. See the [candidate](reviews/2026-11-10-pi-identity-candidate.md).
 - [x] R-1: use bounded test-fixture writes to prevent inherited writable handles from blocking execution. Full Rust and native provider-lifecycle checks passed. See the [investigation](reviews/2026-11-10-executable-fixture-race.md).
 - [x] L-1g1: sessions, projects and the reasoning count from the `ccusage` session report of each tool, at schema 11 (OU-LOG-017, [SC-021](srs-clarifications.md#sc-021-sessions-projects-hours-and-reasoning-from-the-pinned-ccusage)).
 - [x] L-1g2: hourly ranges for Claude Code from `ccusage blocks`, at schema 12 (OU-LOG-017, SC-021).
@@ -348,7 +349,7 @@ Acceptance:
 
 Stopping condition: one verified local candidate change, owning docs, a local commit, and a Graphify update. Then continue the next unresolved qualification issue.
 
-### Next assignment: L-1f11e
+### L-1f11e: local Pi identity candidate (complete within scope)
 
 Goal: make the local Pi candidate count copied ID-bearing records once while retaining distinct calls. Check forks against proven session lineage. Preserve the usage correction from L-1f11d.
 
@@ -361,6 +362,20 @@ Acceptance:
 - Run doctor, focused adapter and CLI comparisons, the selected OpenUsage verification plan, and affected acceptance checks.
 
 Stopping condition: one verified local identity correction, owning docs, a local commit, and a Graphify update. Then continue the next unresolved qualification issue.
+
+### Next assignment: L-1f11f
+
+Goal: prevent the Pi candidate from accepting partial totals after omitted, changed, or unsupported source inputs. Preserve the identity and usage corrections.
+
+Acceptance:
+
+- Trace discovery and parsing from the consented roots through the recorded reports. Triangulate each gap against producer source and synthetic behavior.
+- Reject incomplete selected roots and file reads. Read no extra parent path or real source. Preserve saved history when a required scan fails.
+- Check coherent input under controlled changes and bounded handling of large or malformed records. Do not add automatic retries.
+- Test escaped JSON fields, unsupported versions and shapes, absent times, and missing metrics. Use explicit unavailable outcomes where the contract lacks reliable data.
+- Keep all candidates disabled, the production scanner pin unchanged, and the Amp patch unpublished. Run doctor, focused checks, the selected verification plan, and affected native acceptance.
+
+Stopping condition: one verified local completeness change, owning docs, a local commit, and a Graphify update. Then continue the next unresolved qualification issue.
 
 ## Order
 
