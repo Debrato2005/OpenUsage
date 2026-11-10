@@ -4,6 +4,10 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f11m result before L-1f11n
+
+November 11, 2026. The pinned Pi candidate refused a synthetic 1 GiB history on Linux. Separate reports lost the evidence needed to resolve copies and conflicts. The [design decision](decisions/2026-11-11-pi-large-history.md) selected one bounded capture for a prototype. Pi stayed disabled.
+
 ## L-1f11l result before L-1f11m
 
 November 10, 2026. L-1f11l measured the pinned Pi candidate on five synthetic Linux workloads. The [performance report](performance-report.md#pi-candidate-on-linux) records exact totals, scan time, memory, and refusal at the tested bounds. Pi stayed disabled.

@@ -51,5 +51,7 @@
     "node_modules/which/which.js": "76845e1fe7851267fb7ee72b18f2d916996d330150e31e48f4657a79e9b46b5b"
   },
   "scannerVersion": "20.0.48-openusage.pi-observations-candidate.1",
-  "scannerSha256": "3b95f48181b0bca981924c4cdea6fe6a98d27b90b785e964899bf9962251f844"
+  "scannerSha256": "3b95f48181b0bca981924c4cdea6fe6a98d27b90b785e964899bf9962251f844",
+  "boundedScannerVersion": "20.0.48-openusage.pi-bounded-prototype.1",
+  "boundedScannerSha256": "e222aa4d854e4f29f72da74b4f80452a3b2c90124c43aa0e0c765c33500477d4"
 }

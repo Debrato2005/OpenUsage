@@ -85,3 +85,41 @@ Windows, and macOS remain unmeasured.
 
 The [large-history decision](decisions/2026-11-11-pi-large-history.md) records
 why separate bounded reports cannot meet the capture contract.
+
+## Pi bounded capture prototype
+
+L-1f11n, November 11, 2026. The [prototype](reviews/2026-11-11-pi-bounded-capture.md)
+and the observation candidate ran as debug builds on the Linux host above.
+The [test](engineering-workflow.md#pi-bounded-capture-prototype) used private
+synthetic files with a warm filesystem cache. It timed the child separately
+from the grouped runner and SQLCipher save.
+
+On a matched 93,528,000-byte input with 100,000 records, both builds produced
+the same daily and session reports, with exactly 12,000,000 tokens. The table
+gives the wall-time range and the highest peak resident memory across three
+runs per build.
+
+| Build | Child wall (s) | Peak child RSS (KiB) | Output bytes |
+|---|---:|---:|---:|
+| Observation candidate | 2.916–3.309 | 676,396 | 3,436,143 |
+| Bounded prototype | 4.623–4.879 | 189,724 | 3,436,143 |
+
+The prototype used 72% less peak child memory on the matched fixture. Its
+median child run took 1.8 seconds longer. It also passed these two 1 GiB cases.
+
+| Workload | Records | Exact tokens | Child wall (s) | Peak child RSS (KiB) |
+|---|---:|---:|---:|---:|
+| 32 padded copies across eight roots | 128 | 120 | 5.987 | 53,456 |
+| 64 distinct sessions across eight roots | 65,536 | 7,864,320 | 9.126 | 118,316 |
+
+Each 1 GiB case had one sample. The distinct-session fixture used 15,500 bytes
+of synthetic text per usage record and padding to reach the exact byte cap.
+The observation candidate refused the copied fixture. The prototype scanned
+the distinct-session fixture through the grouped runner in 9.465 seconds and
+saved it in 0.057 seconds. SQLCipher schema 13 returned the exact totals after
+reopen. One additional blank byte in an existing file caused a refusal and
+preserved the saved scan.
+
+These timings cover scanner and storage work. They exclude consent, workspace
+creation, and display. The reference machine, release build, user interface
+latency, real histories, Windows, and macOS remain untested for the prototype.

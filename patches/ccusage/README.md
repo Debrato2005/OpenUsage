@@ -68,3 +68,14 @@ Set `OPENUSAGE_CCUSAGE_PI_SNAPSHOT_CANDIDATE` and
 `20.0.48-openusage.pi-snapshot-candidate.1`. Keep earlier candidate variables
 unset for this binary. Pi stays disabled. All candidate patches remain local
 and unpublished; the production pin and Amp patch are unchanged.
+
+## Pi bounded capture prototype
+
+Apply `20.0.48-pi-bounded.patch` after the observation patch and its prior
+layers. Build with `CCUSAGE_VERSION=20.0.48-openusage.pi-bounded-prototype.1`
+and the verified pricing input. The patch uses the locked Ring 0.17.14
+dependency for SHA-256. The [prototype record](../../docs/reviews/2026-11-11-pi-bounded-capture.md)
+owns the capture limits and evidence.
+
+Use the [prototype checks](../../docs/engineering-workflow.md#pi-bounded-capture-prototype)
+with the two explicit binary paths. Pi stays disabled.

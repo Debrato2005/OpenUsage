@@ -93,7 +93,7 @@ def compare_batches(binary, source, root):
                             'isolatedForkRefused': True, 'jointForkAndCopyTokens': forked}
 
 
-def check_byte_limit(binary, root, original, home):
+def padded_copies(root, original):
     # Keep file, record and directory counts below their caps. Only source bytes grow.
     batches = [root / f'batch-{index}' for index in range(8)]
     files = []
@@ -104,6 +104,11 @@ def check_byte_limit(binary, root, original, home):
             shutil.copyfile(original, path)
             pad(path, 32 * MIB)
             files.append(path)
+    return batches, files
+
+
+def check_byte_limit(binary, root, original, home):
+    batches, files = padded_copies(root, original)
     size = sum(path.stat().st_size for path in files)
     assert size == 1024 * MIB
     before = [digest(path) for path in files]

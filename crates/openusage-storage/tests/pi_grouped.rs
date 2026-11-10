@@ -93,6 +93,11 @@ fn pi_candidate_flows_from_pinned_writer_to_encrypted_history() {
         "../../../tests/tools/fixtures/pi-producer/pin.json"
     ))
     .unwrap();
+    let digest_key = match env::var("OPENUSAGE_PI_QUALIFICATION_VARIANT").as_deref() {
+        Err(env::VarError::NotPresent) => "scannerSha256",
+        Ok("bounded") => "boundedScannerSha256",
+        _ => panic!("Unknown Pi qualification variant"),
+    };
     let temp = tempfile::Builder::new()
         .permissions(fs::Permissions::from_mode(0o700))
         .tempdir()
@@ -109,7 +114,7 @@ fn pi_candidate_flows_from_pinned_writer_to_encrypted_history() {
     let decoy_bytes = fs::read(&decoy_file).unwrap();
     let request = GroupedScanRequest {
         binary: &binary,
-        expected_sha256: pin["scannerSha256"].as_str().unwrap(),
+        expected_sha256: pin[digest_key].as_str().unwrap(),
         tool: "pi",
         folders: &[copies.as_path(), sessions.as_path(), copies.as_path()],
         empty_home: &empty_home,

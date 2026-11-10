@@ -26,7 +26,7 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scoped result, November 11, 2026. The pinned Pi candidate refused a synthetic 1 GiB history on Linux. Separate reports lost the evidence needed to resolve copies and conflicts. The [design decision](decisions/2026-11-11-pi-large-history.md) selects one bounded capture for a prototype. Pi stays disabled.
+Latest scoped result, November 11, 2026. The bounded Pi prototype scanned and saved an exact 1 GiB synthetic history on Linux. The [performance report](performance-report.md#pi-bounded-capture-prototype) records the memory and time tradeoff. Pi stays disabled.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -154,7 +154,7 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 
 ## Current assignment
 
-[L-1f11](implementation-slices.md#build-checklist) remains open for tool qualification. The next Pi step is a [bounded capture prototype](decisions/2026-11-11-pi-large-history.md#prototype-boundary) under OU-NFR-020.
+[L-1f11](implementation-slices.md#build-checklist) remains open for tool qualification. The next Pi step is to test the [bounded prototype](reviews/2026-11-11-pi-bounded-capture.md) in a release build and measure consent to visible history under OU-NFR-020.
 
 L-1f0 through L-1f10 are complete within their recorded scope. Only Claude Code and Codex are enabled. The Amp patch is a local candidate, and the production scanner pin is unchanged.
 

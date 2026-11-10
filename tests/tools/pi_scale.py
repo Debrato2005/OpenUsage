@@ -31,12 +31,12 @@ def row(value):
     return (json.dumps(value, separators=(',', ':')) + '\n').encode()
 
 
-def session(path, header, message, index, records):
+def session(path, header, message, index, records, *, message_bytes=512):
     stamp = datetime(2025, 1, 1, tzinfo=timezone.utc) + timedelta(days=index % 365)
     iso = stamp.isoformat(timespec='milliseconds').replace('+00:00', 'Z')
     first = dict(header, id=f's-{index:05}', timestamp=iso, cwd='/synthetic/project')
     body = dict(message['message'], timestamp=int(stamp.timestamp()) * 1000,
-                content=[{'type': 'text', 'text': 'x' * 512}])
+                content=[{'type': 'text', 'text': 'x' * message_bytes}])
     with path.open('xb') as stream:
         stream.write(row(first))
         parent = None
@@ -65,7 +65,7 @@ def shape(roots, records):
             'records': records, 'bytes': sum(path.stat().st_size for path in sources)}
 
 
-def measure_scanner(binary, root, roots, timeout, output_bound):
+def measure_scanner(binary, root, roots, timeout, output_bound, *, inspect_report=None):
     home = root / 'empty-home'
     env = {'HOME': str(home), 'PI_AGENT_DIR': ','.join(map(str, roots)),
            'NO_COLOR': '1', 'TZ': 'UTC'}
@@ -88,6 +88,9 @@ def measure_scanner(binary, root, roots, timeout, output_bound):
         size = os.fstat(output.fileno()).st_size
         if child.returncode or not 0 < size <= output_bound:
             raise RuntimeError(f'The direct scanner returned {child.returncode} and {size} bytes')
+        if inspect_report is not None:
+            output.seek(0)
+            inspect_report(json.load(output))
     return {'wallSeconds': elapsed, 'userSeconds': usage.ru_utime, 'systemSeconds': usage.ru_stime,
             'peakRssKiB': usage.ru_maxrss, 'outputBytes': size}
 

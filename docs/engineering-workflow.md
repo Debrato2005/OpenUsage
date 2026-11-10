@@ -76,3 +76,21 @@ timeout 180 python3 tests/tools/pi_large_history.py
 
 The experiment checks the joint byte limit and compares copy, conflict, and
 fork outcomes across root selections. It retains only run metadata.
+
+### Pi bounded capture prototype
+
+Set `OPENUSAGE_PI_OBSERVATION_BIN` to the observation candidate. Set
+`OPENUSAGE_PI_QUALIFICATION_BIN` to the [bounded prototype](reviews/2026-11-11-pi-bounded-capture.md).
+Use the same pinned writer path and shared Cargo target. Run from the project
+root on Linux.
+
+```sh
+timeout 450 python3 tests/tools/pi_bounded_capture.py
+```
+
+The harness checks both digests. It compares the complete reports and child
+memory on a shared fixture. It also checks two 1 GiB histories and uses the
+grouped scanner to save one in SQLCipher. Only run metadata remains.
+
+Use `OPENUSAGE_PI_QUALIFICATION_VARIANT=bounded` for the grouped integration
+test with the prototype. Leave this variable unset for the observation candidate.

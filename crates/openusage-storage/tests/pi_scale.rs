@@ -24,6 +24,11 @@ fn pi_scale_workload() {
         "../../../tests/tools/fixtures/pi-producer/pin.json"
     ))
     .unwrap();
+    let digest_key = match env::var("OPENUSAGE_PI_QUALIFICATION_VARIANT").as_deref() {
+        Err(env::VarError::NotPresent) => "scannerSha256",
+        Ok("bounded") => "boundedScannerSha256",
+        _ => panic!("Unknown Pi qualification variant"),
+    };
     let root = PathBuf::from(field("root"));
     let home = root.join("empty-home");
     let database = root.join(field("database"));
@@ -35,7 +40,7 @@ fn pi_scale_workload() {
     let folders: Vec<_> = roots.iter().map(|path| path.as_path()).collect();
     let request = GroupedScanRequest {
         binary: &binary,
-        expected_sha256: pin["scannerSha256"].as_str().unwrap(),
+        expected_sha256: pin[digest_key].as_str().unwrap(),
         tool: "pi",
         folders: &folders,
         empty_home: &home,
