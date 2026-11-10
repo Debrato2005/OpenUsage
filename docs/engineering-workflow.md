@@ -34,3 +34,20 @@ Logs retain commands, timing, exit codes and fixed diagnostic counters. They dis
 The `CI` workflow in `.github/workflows/ci.yml` runs the full set on Linux for pull requests and `main` in two parallel jobs of at most 60 minutes. Linux checks runs dependency policy, whitespace, tool tests, Git safety, renderer build and TypeScript check, IPC contracts, Rust format, Clippy and workspace tests, and native oracle tests. Renderer installs only Node, Bun and Playwright's browsers and runs the renderer suite in both engines. Apt retries stalled downloads, because the runner's package mirror alone once took 74 minutes. It installs Rust 1.99.1, Node 22.23.2, Bun 1.3.14 and Gitleaks 8.30.1 from their official archives and checks their pinned digests. The Git safety tests and hooks find Gitleaks through `GITLEAKS_BIN`. Bun installs the frozen lockfile and runs package scripts; Vite, Playwright and the contract tests still run on Node. `package.json` names `playwright-core` at the same version as `@playwright/test`, so the axe checks and the test runner share one Playwright. An empty `trustedDependencies` keeps dependency lifecycle scripts blocked, as `ignore-scripts` did under npm. Native GUI journeys stay a local gate. Windows and macOS join in S-15.
 
 Reuse `scripts/storage.py check` and `clean` for storage measurement and bounded cleanup. Cleanup previews by default. Existing secret hooks remain mandatory. CI runs Python tool tests, whitespace and tracked-ignore checks with a five-minute deadline. Hosted Windows/macOS results remain unverified until CI runs.
+
+## Pi candidate integration
+
+On Linux, set `OPENUSAGE_PI_QUALIFICATION_BIN` to the absolute path of the
+[observation candidate](reviews/2026-11-10-pi-observations-candidate.md#build-and-remaining-gates).
+Set `OPENUSAGE_PI_PRODUCER_SOURCE` to the absolute path of the
+[pinned writer source](../tests/tools/fixtures/pi-producer/README.md).
+Run as an unprivileged user. The test needs Node, Python, and Bubblewrap.
+
+```sh
+timeout 180 cargo test --locked -p openusage-storage --features pi-qualification --test pi_grouped -- --ignored
+```
+
+Use the shared Cargo target. The test checks the candidate digest and the
+writer source pins. It runs the writer offline in private fixtures. The
+feature exposes the grouped runner only for Pi qualification. The desktop and
+CLI use the normal catalog gate.

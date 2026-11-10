@@ -23,3 +23,8 @@ tempfile = "3"
 [features]
 default = []
 native-test = []
+pi-qualification = ["openusage-locallogs/pi-qualification"]
+
+[[test]]
+name = "pi_grouped"
+required-features = ["pi-qualification"]

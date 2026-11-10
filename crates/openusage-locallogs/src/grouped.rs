@@ -42,6 +42,18 @@ pub fn scan_grouped_with_check(
     scan_grouped_checked(request, check)
 }
 
+/// Exercise the grouped path for the disabled Pi candidate in the qualification harness.
+#[cfg(feature = "pi-qualification")]
+pub fn qualify_pi_candidate(
+    request: &GroupedScanRequest<'_>,
+    check: impl FnMut() -> bool,
+) -> Result<GroupedScanResult, ScanError> {
+    if request.tool != "pi" {
+        return Err(ScanError::InvalidRequest);
+    }
+    scan_grouped_checked(request, check)
+}
+
 fn scan_grouped_checked(
     request: &GroupedScanRequest<'_>,
     mut check: impl FnMut() -> bool,

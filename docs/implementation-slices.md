@@ -130,7 +130,8 @@ Updated November 10, 2026. Each completed item has one local commit and scoped e
 - [x] L-1f11h: preserve reported zero observations and reject absent required usage, totals, or times. Seventy synthetic cases and saved-history checks passed. See the [candidate](reviews/2026-11-10-pi-observations-candidate.md).
 - [x] L-1f11i: run the pinned Pi writer and fourteen controlled schedules. Stable operations and twelve overlap rejections pass. SC-025 corrects the earlier classification of two valid prefixes. Pi stays disabled. See the [original review](reviews/2026-11-10-pi-producer-qualification.md).
 - [x] L-1f11j: select the captured-record boundary under SC-025. Correct the earlier producer-completion qualification assumption and test a separate completion protocol. See the [decision](decisions/2026-11-10-pi-capture-boundary.md).
-- [ ] L-1f11k: qualify the actual Pi candidate through the grouped Rust scanner and storage path under SC-025. Preserve saved history and keep Pi disabled.
+- [x] L-1f11k: qualify the pinned Pi candidate through the grouped Rust scanner and storage path under SC-025. See the [executed evidence](acceptance-traceability.md#evidence-log).
+- [ ] L-1f11l: measure the Linux Pi candidate at release scale. Keep Pi disabled.
 - [x] R-2: reuse the bounded writer in desktop synthetic fixtures. The inherited-writer regression, 22 provider tests, full Rust, and native provider-lifecycle passed. The original cooldown failure remains unexplained. See the [review](reviews/2026-11-10-desktop-fixture-writes.md).
 - [x] R-1: use bounded test-fixture writes to prevent inherited writable handles from blocking execution. Full Rust and native provider-lifecycle checks passed. See the [investigation](reviews/2026-11-10-executable-fixture-race.md).
 - [x] L-1g1: sessions, projects and the reasoning count from the `ccusage` session report of each tool, at schema 11 (OU-LOG-017, [SC-021](srs-clarifications.md#sc-021-sessions-projects-hours-and-reasoning-from-the-pinned-ccusage)).
@@ -469,7 +470,7 @@ Acceptance:
 
 Stopping condition: one supported-boundary decision with executed evidence, updated docs and handoffs, one local commit, and a Graphify update. Report and stop.
 
-### Next assignment: L-1f11k
+### L-1f11k: Pi grouped scanner and storage integration (complete within scope)
 
 Goal: verify the Pi candidate through the grouped Rust scanner and storage path at the captured-record boundary in SC-025.
 
@@ -482,6 +483,23 @@ Acceptance:
 - Run doctor, focused integration checks, the selected verification plan, and affected native acceptance. Record remaining qualification and release gates accurately.
 
 Stopping condition: one verified scanner/storage integration result, updated docs and handoffs, one local commit, and a Graphify update. Report and stop.
+
+### Next assignment: L-1f11l
+
+Goal: measure the pinned Linux Pi candidate through the grouped scan and save
+path with large, private synthetic histories.
+
+Acceptance:
+
+- Record the root, file, entry, and byte counts for each workload. Check exact
+  totals at representative sizes and safe refusal at the existing limits.
+- Measure scanner wall time, CPU, and peak memory separately from the app.
+  Compare with the runner deadline and output bound.
+- Preserve higher saved history after a failed scan. Keep Pi disabled and the
+  production pin unchanged.
+
+Stopping condition: one Linux performance record, an updated handoff, and one
+local commit. Report and stop.
 
 ## Order
 
