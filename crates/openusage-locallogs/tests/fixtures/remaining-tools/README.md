@@ -70,3 +70,16 @@ other tools, private homes, and source hashes. Rust tests cover nullable fields,
 zero records, and saved-history retention. The
 [review](../../../../../docs/reviews/2026-11-10-pi-observations-candidate.md)
 owns source evidence, digests, failures, and remaining gates. Pi stays disabled.
+
+## Pi producer qualification
+
+`pi-producer-candidate.json` records thirteen cases from the pinned producer's
+session writer. `pi-producer-schedules.json` records twelve rejected overlapping
+scans and two accepted incomplete prefixes. The latter explicitly carry
+`qualified: false`. The test preserves that known qualification failure.
+Recorded paths and generated branch IDs are normalized. Only price fields round
+to 12 decimal places. Counts, times, and other fields remain exact.
+The [harness](../../../../../tests/tools/fixtures/pi-producer/README.md) defines
+runtime setup and isolation. The
+[review](../../../../../docs/reviews/2026-11-10-pi-producer-qualification.md)
+owns source evidence and the failed completeness gate. Pi stays disabled.

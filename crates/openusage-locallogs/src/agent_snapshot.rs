@@ -202,4 +202,69 @@ mod tests {
         }
         assert_eq!(supported, 30);
     }
+
+    #[test]
+    fn pinned_producer_reports_keep_counts_and_unavailable_measurements() {
+        let reports: Value = serde_json::from_slice(include_bytes!(
+            "../tests/fixtures/remaining-tools/pi-producer-candidate.json"
+        ))
+        .unwrap();
+        for (case, expected, sessions) in [
+            ("setup_only", 0, 0),
+            ("user_only", 0, 0),
+            ("assistant", 120, 1),
+            ("append_after_reopen", 137, 1),
+            ("summaries_and_usage", 203, 1),
+            ("optional_summary_usage", 120, 1),
+            ("inactive_branch", 160, 1),
+            ("branched_session", 191, 2),
+            ("fork_new_usage", 151, 2),
+            ("reported_zero", 0, 1),
+            ("absent_categories", 162, 1),
+            ("buffered_flush", 137, 1),
+            ("copied_producer_file", 120, 1),
+        ] {
+            let result = parse_pi_snapshot(&serde_json::to_vec(&reports[case]).unwrap()).unwrap();
+            assert_eq!(result.sessions.len(), sessions, "{case}");
+            assert_eq!(
+                result.periods.iter().map(|p| p.total_tokens).sum::<u64>(),
+                expected,
+                "{case}"
+            );
+            assert_eq!(
+                result.sessions.iter().map(|s| s.total_tokens).sum::<u64>(),
+                expected,
+                "{case}"
+            );
+            for session in result.sessions {
+                assert_eq!(session.details, crate::TokenDetails::default());
+                assert_eq!(session.estimated_value_micros, None);
+                assert_eq!(
+                    session.first_activity_utc.as_deref(),
+                    Some("2026-05-28T20:26:40.000Z")
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn valid_report_shape_cannot_prove_a_producer_finished_its_write() {
+        let reports: Value = serde_json::from_slice(include_bytes!(
+            "../tests/fixtures/remaining-tools/pi-producer-schedules.json"
+        ))
+        .unwrap();
+        for (case, prefix_total) in [("paused_writer_header", 0), ("paused_writer_usage", 17)] {
+            let record = &reports[case];
+            assert_eq!(record["qualified"], false);
+            let prefix =
+                parse_pi_snapshot(&serde_json::to_vec(&record["observedPrefix"]).unwrap()).unwrap();
+            let complete =
+                parse_pi_snapshot(&serde_json::to_vec(&record["completed"]).unwrap()).unwrap();
+            assert_eq!(
+                prefix.periods.iter().map(|p| p.total_tokens).sum::<u64>(),
+                prefix_total
+            );
+            assert_eq!(complete.periods[0].total_tokens, 137);
+        }
+    }
 }

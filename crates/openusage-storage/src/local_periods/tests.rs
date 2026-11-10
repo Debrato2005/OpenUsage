@@ -189,6 +189,68 @@ fn pi_zero_observations_and_absent_times_survive_reopen_and_lower_scans() {
     );
     validate_connection(&storage.connection, CURRENT_SCHEMA_VERSION).unwrap();
 }
+
+#[test]
+fn pi_incomplete_producer_prefixes_do_not_lower_saved_history() {
+    let snapshots: serde_json::Value = serde_json::from_slice(include_bytes!(
+        "../../../openusage-locallogs/tests/fixtures/remaining-tools/pi-producer-schedules.json"
+    ))
+    .unwrap();
+    let baseline: serde_json::Value = serde_json::from_slice(include_bytes!(
+        "../../../openusage-locallogs/tests/fixtures/remaining-tools/pi-producer-candidate.json"
+    ))
+    .unwrap();
+    let parse = |report: &serde_json::Value| {
+        let days = openusage_locallogs::parse_agent_periods(
+            "pi",
+            &serde_json::to_vec(&report["daily"]).unwrap(),
+        )
+        .unwrap()
+        .map(|r| r.periods)
+        .unwrap_or_default();
+        let sessions = openusage_locallogs::parse_agent_sessions(
+            "pi",
+            &serde_json::to_vec(&report["session"]).unwrap(),
+        )
+        .unwrap()
+        .map(|r| r.sessions)
+        .unwrap_or_default();
+        (days, sessions)
+    };
+    let (_dir, mut storage, sources) = setup("pi");
+    let (days, sessions) = parse(&baseline["assistant"]);
+    storage
+        .save_grouped_local_scan(&scan("pi", &sources, &days, Some(&sessions)))
+        .unwrap();
+    for case in ["paused_writer_header", "paused_writer_usage"] {
+        let (prefix_days, prefix_sessions) = parse(&snapshots[case]["observedPrefix"]);
+        let outcome = storage
+            .save_grouped_local_scan(&scan("pi", &sources, &prefix_days, Some(&prefix_sessions)))
+            .unwrap();
+        assert_eq!(outcome.kept_higher, 2);
+        assert_eq!(storage.local_periods("pi").unwrap()[0].period, days[0]);
+        assert_eq!(
+            storage.grouped_local_sessions("pi").unwrap()[0].session,
+            sessions[0]
+        );
+    }
+    assert_eq!(storage.local_scan_differences("pi").unwrap().len(), 4);
+    let (days, sessions) = parse(&snapshots["paused_writer_usage"]["completed"]);
+    storage
+        .save_grouped_local_scan(&scan("pi", &sources, &days, Some(&sessions)))
+        .unwrap();
+    assert_eq!(
+        storage.local_periods("pi").unwrap()[0].period.total_tokens,
+        137
+    );
+    assert_eq!(
+        storage.grouped_local_sessions("pi").unwrap()[0]
+            .session
+            .total_tokens,
+        137
+    );
+    validate_connection(&storage.connection, CURRENT_SCHEMA_VERSION).unwrap();
+}
 #[test]
 fn equal_or_higher_replaces_whole_snapshot_lower_keeps_it_once() {
     let (_dir, mut storage, sources) = setup("pi");

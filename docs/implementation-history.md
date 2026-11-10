@@ -4,6 +4,10 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f11h result before L-1f11i
+
+Latest scoped result, November 10, 2026: L-1f11h preserves reported Pi zero observations and rejects absent required usage, totals, or times. Seventy synthetic cases distinguish zero, empty input, and unavailable data. All 70 adapter tests, ten candidate Python tests, five snapshot parser tests, and the storage regression passed. Full Python/Rust verification and rebuilt native consent passed on private synthetic Linux data. The [review](reviews/2026-11-10-pi-observations-candidate.md) records source evidence and remaining gates. Pi stays disabled. The production pin and Amp patch are unchanged.
+
 ## L-1f11g result before L-1f11h
 
 Latest scoped result, November 10, 2026: L-1f11g makes the local Pi candidate build daily and session reports from one captured entry set. OpenUsage rejects invalid envelopes and has no fallback to separate commands. All 67 Pi tests, 96 CLI parser tests, nine candidate Python tests, and 32 local-log unit tests passed. Full Python/Rust verification and rebuilt native consent passed on synthetic Linux data. The [review](reviews/2026-11-10-pi-snapshot-candidate.md) records controlled writes, failures, and remaining gates. Pi stays disabled. The production pin and Amp patch are unchanged.

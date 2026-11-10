@@ -56,6 +56,8 @@ Pi requires the local candidate's `pi snapshot --json --offline` command. It ret
 
 The observation candidate preserves explicit zero records. Required usage without an independent total, or with missing or invalid source times, fails the scan. Optional summary records without usage add no measurement. OpenUsage keeps missing categories and estimates unavailable, including for zero totals. Nullable report times remain nullable. The [observation review](../../docs/reviews/2026-11-10-pi-observations-candidate.md) owns the producer contract and qualification scope.
 
+Pinned producer execution exposed a remaining Pi qualification gap. A writer paused after a valid prefix can yield a successful incomplete report. The single-capture envelope cannot prove writer completion. Pi stays disabled. The [producer review](../../docs/reviews/2026-11-10-pi-producer-qualification.md) owns the controlled schedules and remaining gate.
+
 The common input rule applies to a new scan. Saved records may come from different accepted scans because lower values preserve prior history under OU-LOG-011. Saved session totals must not be used to reconstruct saved period totals.
 
 The first grouped day scan pins its zone. Unplaced usage has no day zone. Old source records keep their zones under SC-024. Claude Code and Codex keep their existing source views. Their required daily, session, and hourly reports now commit together. A failed later report cannot update an earlier report. Desktop, sharing, and CLI consumers read saved scopes without adding legacy history to grouped records.
