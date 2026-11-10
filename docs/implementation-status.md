@@ -26,7 +26,7 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scoped result, November 10, 2026: L-1f11i runs the pinned Pi session writer with private synthetic input. Thirteen completed-producer cases match independent counts. Twelve writes during collection return unavailable. Two paused writes expose accepted incomplete prefixes, so Pi still fails completeness qualification and stays disabled. Twelve candidate Python tests, seven snapshot parser tests, and the saved-history regression passed. Full Python/Rust verification and rebuilt native consent passed on synthetic Linux. The [review](reviews/2026-11-10-pi-producer-qualification.md) records the failed gate and execution limits. The production pin, Pi candidate, and Amp patch are unchanged.
+Latest scoped result, November 10, 2026: L-1f11j distinguishes captured local records from producer completion under [SC-025](srs-clarifications.md#sc-025-captured-local-records-and-producer-completion). The two L-1f11i prefixes are valid captured observations, not proof that Pi finished writing. A separate completion protocol passed ten tests across 21 controlled cases. It remains a test-only experiment. The selected verification plan and native consent passed on synthetic Linux. The [decision](decisions/2026-11-10-pi-capture-boundary.md) records the corrected interpretation and remaining limits. Pi stays disabled. The production pin, Pi candidate, and Amp patch are unchanged.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -154,7 +154,7 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 
 ## Current assignment
 
-The next assignment is [L-1f11j](implementation-slices.md#next-assignment-l-1f11j): determine a supported Pi completion boundary from the producer-write evidence. A stable valid prefix and matching report totals cannot prove a completed write. Keep Pi disabled while this gate remains unresolved. Preserve the existing candidates, source isolation, saved history, and production pin.
+The next assignment is [L-1f11k](implementation-slices.md#next-assignment-l-1f11k): exercise Pi through the grouped Rust scanner and storage path under SC-025. Use the actual candidate with private synthetic producer input. Preserve unavailable measurements, saved history, and the one-capture report boundary. Keep Pi disabled and all production pins unchanged.
 
 L-1f0 through L-1f10 are complete within their recorded scope. Only Claude Code and Codex are enabled. The Amp patch is a local candidate, and the production scanner pin is unchanged.
 

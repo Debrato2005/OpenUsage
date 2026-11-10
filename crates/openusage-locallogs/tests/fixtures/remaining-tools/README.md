@@ -75,11 +75,11 @@ owns source evidence, digests, failures, and remaining gates. Pi stays disabled.
 
 `pi-producer-candidate.json` records thirteen cases from the pinned producer's
 session writer. `pi-producer-schedules.json` records twelve rejected overlapping
-scans and two accepted incomplete prefixes. The latter explicitly carry
-`qualified: false`. The test preserves that known qualification failure.
-Recorded paths and generated branch IDs are normalized. Only price fields round
-to 12 decimal places. Counts, times, and other fields remain exact.
-The [harness](../../../../../tests/tools/fixtures/pi-producer/README.md) defines
-runtime setup and isolation. The
-[review](../../../../../docs/reviews/2026-11-10-pi-producer-qualification.md)
-owns source evidence and the failed completeness gate. Pi stays disabled.
+scans and two valid complete-record prefixes. Their historical `qualified: false`
+fields refer to the stronger producer-completion expectation recorded in L-1f11i.
+[SC-025](../../../../../docs/srs-clarifications.md#sc-025-captured-local-records-and-producer-completion)
+supersedes their classification as failures of ordinary log capture. Source
+reports stay unchanged. Recorded paths and generated branch IDs are normalized.
+Only price fields round to 12 decimal places. Counts, times, and other fields
+remain exact. The [harness](../../../../../tests/tools/fixtures/pi-producer/README.md)
+defines runtime setup and isolation. Pi stays disabled pending remaining checks.

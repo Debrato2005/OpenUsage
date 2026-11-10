@@ -30,6 +30,39 @@ This is the record of how requirements were read. Entries keep their original da
 | SC-022 | Incomplete metrics from the other local tools | Owner approved; contract and consumers implemented; qualification pending |
 | SC-023 | Copied Amp usage in the pinned scanner | Confirmed AT-65 gap |
 | SC-024 | Legacy local usage during grouped migration | Resolved under owner execution direction |
+| SC-025 | Captured local records and producer completion | Implementation reading recorded; SRS unchanged |
+
+## SC-025: captured local records and producer completion
+
+Status: implementation reading recorded under autonomous execution direction,
+November 10, 2026. The SRS stays unchanged.
+
+OU-LOG-007 requires strict report parsing. OU-LOG-011 preserves saved totals after
+lower scans, and OU-LOG-012 requires repeatable totals from unchanged logs.
+These rules describe observations from local logs. They do not require proof
+that the source tool finished a writer operation or became idle.
+
+L-1f11i applied a stronger test: refuse every report until Pi finished its entire
+buffered write. That qualification assumption exceeded the local-log contract.
+A captured header with no usage means no observation. A captured complete usage
+record with 17 reported tokens is an observation of 17 tokens. Neither result
+proves that no later record remains in Pi's memory. The completed writer's later
+137-token report does not invalidate the earlier observation.
+
+A valid capture must still cover every selected source within its bounds, reject
+unknown or incomplete records and conflicting identities, and use one captured
+input for its required reports. Changed or failed reads return unavailable.
+Empty input remains distinct from measured zero. Missing categories, times,
+and estimates remain unavailable under SC-022. Saved higher history and original
+zones remain intact under SC-024. No delay, unchanged file, or equal total can
+establish producer completion.
+
+This reading supersedes L-1f11i's classification of the two valid prefixes as a
+failure of ordinary log capture. The recorded reports and stronger test failures
+remain historical evidence. It does not enable Pi or complete its remaining
+qualification. The [boundary decision](decisions/2026-11-10-pi-capture-boundary.md)
+records the alternative protocol for an explicit producer-completion guarantee.
+
 
 ## SC-024: legacy local usage during grouped migration
 

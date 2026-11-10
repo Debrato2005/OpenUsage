@@ -123,13 +123,14 @@ Updated November 10, 2026. Each completed item has one local commit and scoped e
 - [x] L-1f11c: record 29 Pi cases and preserve missing fields in Rust. Copy, branch, and omitted-usage defects fail AT-65. Pi stays disabled. See the [qualification](reviews/2026-11-10-pi-qualification.md).
 - [x] L-1f11d: prepare a separate local Pi usage patch. Summary and standalone usage counts match. Identity and completeness gates remain open, so Pi stays disabled. See the [candidate](reviews/2026-11-10-pi-usage-candidate.md).
 - [x] L-1f11e: prepare a separate Pi identity patch. Scoped IDs and proven lineage count copies once and retain distinct calls. Ambiguous and unsupported inputs reject the scan. Completeness gates remain open. See the [candidate](reviews/2026-11-10-pi-identity-candidate.md).
-- [x] L-1f11f: scoped Pi format and filesystem corrections. Controlled changes and input limits pass. L-1f11h covers observation semantics. Producer completeness and release-scale performance remain qualification gates under L-1f11.
+- [x] L-1f11f: scoped Pi format and filesystem corrections. Controlled changes and input limits pass. L-1f11h covers observation semantics. Candidate integration and release-scale performance remain qualification gates under L-1f11.
 - [x] L-1f11f0: map validated Pi records, preserve escaped JSON keys, reject ambiguous shapes, and keep independent assistant totals outside missing categories. See the [format candidate](reviews/2026-11-10-pi-format-candidate.md).
 - [x] L-1f11f1: bound Linux source reads and reject omitted or changed inputs. See the [filesystem candidate](reviews/2026-11-10-pi-filesystem-candidate.md).
 - [x] L-1f11g: build Pi daily and session views from one captured entry set and require a strict snapshot envelope. See the [candidate](reviews/2026-11-10-pi-snapshot-candidate.md).
 - [x] L-1f11h: preserve reported zero observations and reject absent required usage, totals, or times. Seventy synthetic cases and saved-history checks passed. See the [candidate](reviews/2026-11-10-pi-observations-candidate.md).
-- [x] L-1f11i: run the pinned Pi writer and fourteen controlled schedules. Stable operations and twelve overlap rejections pass. Two accepted incomplete prefixes fail completeness qualification. Pi stays disabled. See the [review](reviews/2026-11-10-pi-producer-qualification.md).
-- [ ] L-1f11j: determine a supported completion boundary for Pi writes before enablement. Keep unresolved scans unavailable without timing guesses.
+- [x] L-1f11i: run the pinned Pi writer and fourteen controlled schedules. Stable operations and twelve overlap rejections pass. SC-025 corrects the earlier classification of two valid prefixes. Pi stays disabled. See the [original review](reviews/2026-11-10-pi-producer-qualification.md).
+- [x] L-1f11j: select the captured-record boundary under SC-025. Correct the earlier producer-completion qualification assumption and test a separate completion protocol. See the [decision](decisions/2026-11-10-pi-capture-boundary.md).
+- [ ] L-1f11k: qualify the actual Pi candidate through the grouped Rust scanner and storage path under SC-025. Preserve saved history and keep Pi disabled.
 - [x] R-2: reuse the bounded writer in desktop synthetic fixtures. The inherited-writer regression, 22 provider tests, full Rust, and native provider-lifecycle passed. The original cooldown failure remains unexplained. See the [review](reviews/2026-11-10-desktop-fixture-writes.md).
 - [x] R-1: use bounded test-fixture writes to prevent inherited writable handles from blocking execution. Full Rust and native provider-lifecycle checks passed. See the [investigation](reviews/2026-11-10-executable-fixture-race.md).
 - [x] L-1g1: sessions, projects and the reasoning count from the `ccusage` session report of each tool, at schema 11 (OU-LOG-017, [SC-021](srs-clarifications.md#sc-021-sessions-projects-hours-and-reasoning-from-the-pinned-ccusage)).
@@ -440,7 +441,7 @@ Acceptance:
 
 Stopping condition: one bounded observation-semantics result, updated owning docs and handoffs, a local commit, and a Graphify update. Report the next open slice and stop.
 
-### L-1f11i: Pi producer qualification (investigation complete, qualification failed)
+### L-1f11i: Pi producer qualification (investigation complete, capture scope clarified by SC-025)
 
 Goal: qualify the Pi candidate against pinned producer execution and controlled concurrent writes. Use private synthetic sessions without real accounts or provider calls.
 
@@ -454,7 +455,7 @@ Acceptance:
 
 Stopping condition: one bounded producer-execution result, updated owning docs and handoffs, one local commit, and a Graphify update. Report the next open slice and stop.
 
-### Next assignment: L-1f11j
+### L-1f11j: Pi capture boundary (decision complete)
 
 Goal: determine whether Pi can expose a reliable write-completion boundary. Resolve the incomplete-prefix gate without weakening SC-022 or saved-history rules.
 
@@ -467,6 +468,20 @@ Acceptance:
 - Record the supported path or remaining dependency. Run doctor, relevant focused checks, the selected verification plan, and affected native checks for any correction.
 
 Stopping condition: one supported-boundary decision with executed evidence, updated docs and handoffs, one local commit, and a Graphify update. Report and stop.
+
+### Next assignment: L-1f11k
+
+Goal: verify the Pi candidate through the grouped Rust scanner and storage path at the captured-record boundary in SC-025.
+
+Acceptance:
+
+- Use the actual digest-pinned candidate and private producer fixtures. Carry its snapshot through the grouped Rust runner, strict parser, and storage APIs.
+- Check empty input, measured zero, a valid complete-record prefix, absent categories, and the later completed write. Never claim producer idleness or invent a missing metric.
+- Reject a partial or malformed record, changed consent, failed source read, and conflicting identity. Preserve accepted totals and original zones after failure or lower scans.
+- Preserve copy/fork handling, source isolation, and the shared input for required reports. Keep Pi disabled, the other twelve tools unplaced, the production pin unchanged, and Amp unpublished.
+- Run doctor, focused integration checks, the selected verification plan, and affected native acceptance. Record remaining qualification and release gates accurately.
+
+Stopping condition: one verified scanner/storage integration result, updated docs and handoffs, one local commit, and a Graphify update. Report and stop.
 
 ## Order
 

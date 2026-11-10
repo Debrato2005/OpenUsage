@@ -4,6 +4,10 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f11i result before L-1f11j
+
+Latest scoped result, November 10, 2026: L-1f11i runs the pinned Pi session writer with private synthetic input. Thirteen completed-producer cases match independent counts. Twelve writes during collection return unavailable. Two paused writes expose accepted incomplete prefixes, so Pi still fails completeness qualification and stays disabled. Twelve candidate Python tests, seven snapshot parser tests, and the saved-history regression passed. Full Python/Rust verification and rebuilt native consent passed on synthetic Linux. The [review](reviews/2026-11-10-pi-producer-qualification.md) records the failed gate and execution limits. The production pin, Pi candidate, and Amp patch are unchanged.
+
 ## L-1f11h result before L-1f11i
 
 Latest scoped result, November 10, 2026: L-1f11h preserves reported Pi zero observations and rejects absent required usage, totals, or times. Seventy synthetic cases distinguish zero, empty input, and unavailable data. All 70 adapter tests, ten candidate Python tests, five snapshot parser tests, and the storage regression passed. Full Python/Rust verification and rebuilt native consent passed on private synthetic Linux data. The [review](reviews/2026-11-10-pi-observations-candidate.md) records source evidence and remaining gates. Pi stays disabled. The production pin and Amp patch are unchanged.

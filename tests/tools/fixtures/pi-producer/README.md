@@ -44,5 +44,22 @@ It changes no syscall result. Every process has a deadline and cleanup.
 
 The recorded reports normalize temporary paths, the random branch ID, and only
 float cost precision. Every count remains exact. OpenUsage keeps these costs
-unavailable. The two paused-writer cases remain failed completeness evidence.
-See the [review](../../../../docs/reviews/2026-11-10-pi-producer-qualification.md).
+unavailable. The two paused-writer cases prove that capture cannot establish
+producer completion. [SC-025](../../../../docs/srs-clarifications.md#sc-025-captured-local-records-and-producer-completion)
+corrects their earlier classification as failures of ordinary capture. The
+[original investigation](../../../../docs/reviews/2026-11-10-pi-producer-qualification.md)
+remains historical evidence.
+
+## Optional publication experiment
+
+With the same explicit source and candidate variables, run:
+
+```sh
+python3 -m unittest discover -s tests/tools -p test_pi_publication.py
+```
+
+The probe uses only private synthetic files. It tests a proposed single-file
+completion record, shared/exclusive leases, stale revisions, and controlled
+process exits. It is not integrated into the producer, scanner, or application.
+The [decision](../../../../docs/decisions/2026-11-10-pi-capture-boundary.md)
+defines its limits and the normal captured-record boundary.

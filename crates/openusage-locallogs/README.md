@@ -56,7 +56,7 @@ Pi requires the local candidate's `pi snapshot --json --offline` command. It ret
 
 The observation candidate preserves explicit zero records. Required usage without an independent total, or with missing or invalid source times, fails the scan. Optional summary records without usage add no measurement. OpenUsage keeps missing categories and estimates unavailable, including for zero totals. Nullable report times remain nullable. The [observation review](../../docs/reviews/2026-11-10-pi-observations-candidate.md) owns the producer contract and qualification scope.
 
-Pinned producer execution exposed a remaining Pi qualification gap. A writer paused after a valid prefix can yield a successful incomplete report. The single-capture envelope cannot prove writer completion. Pi stays disabled. The [producer review](../../docs/reviews/2026-11-10-pi-producer-qualification.md) owns the controlled schedules and remaining gate.
+The capture boundary follows [SC-025](../../docs/srs-clarifications.md#sc-025-captured-local-records-and-producer-completion). A valid complete-record prefix describes observed on-disk usage. It does not prove that the producer finished writing. Empty input has no observations. Partial records, changed reads, and unknown shapes reject the scan. The [boundary decision](../../docs/decisions/2026-11-10-pi-capture-boundary.md) corrects the earlier qualification assumption and separates the optional publication experiment from normal capture.
 
 The common input rule applies to a new scan. Saved records may come from different accepted scans because lower values preserve prior history under OU-LOG-011. Saved session totals must not be used to reconstruct saved period totals.
 
