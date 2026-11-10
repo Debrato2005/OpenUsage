@@ -82,3 +82,6 @@ target in OU-NFR-020 remains open. These measurements used a debug candidate,
 a different host from the SRS reference machine, and synthetic inputs. The
 release build, 1 GiB reference test, UI latency under load, real Pi histories,
 Windows, and macOS remain unmeasured.
+
+The [large-history decision](decisions/2026-11-11-pi-large-history.md) records
+why separate bounded reports cannot meet the capture contract.

@@ -4,6 +4,10 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f11l result before L-1f11m
+
+November 10, 2026. L-1f11l measured the pinned Pi candidate on five synthetic Linux workloads. The [performance report](performance-report.md#pi-candidate-on-linux) records exact totals, scan time, memory, and refusal at the tested bounds. Pi stayed disabled.
+
 ## L-1f11k result before L-1f11l
 
 Latest scoped result, November 10, 2026. L-1f11k passed with the pinned Pi candidate and synthetic Linux input. The grouped Rust scanner saved one snapshot of daily and session totals in SQLCipher. See the [executed evidence](acceptance-traceability.md#evidence-log). Pi stays disabled.

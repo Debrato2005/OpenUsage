@@ -64,3 +64,15 @@ timeout 600 python3 tests/tools/pi_scale.py
 The test writes three samples per workload. It checks exact totals through the
 grouped scanner and SQLCipher, then checks refusal at the selected limits.
 Only run metadata remains in the private diagnostic directory.
+
+### Pi large-history experiment
+
+Use the same candidate and writer paths. The private fixture uses 1 GiB of
+logical source bytes. Run from the project root.
+
+```sh
+timeout 180 python3 tests/tools/pi_large_history.py
+```
+
+The experiment checks the joint byte limit and compares copy, conflict, and
+fork outcomes across root selections. It retains only run metadata.

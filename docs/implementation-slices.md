@@ -132,7 +132,7 @@ Updated November 10, 2026. Each completed item has one local commit and scoped e
 - [x] L-1f11j: select the captured-record boundary under SC-025. Correct the earlier producer-completion qualification assumption and test a separate completion protocol. See the [decision](decisions/2026-11-10-pi-capture-boundary.md).
 - [x] L-1f11k: qualify the pinned Pi candidate through the grouped Rust scanner and storage path under SC-025. See the [executed evidence](acceptance-traceability.md#evidence-log).
 - [x] L-1f11l: measure the pinned Linux Pi candidate through the grouped scan and save path. See the [performance report](performance-report.md#pi-candidate-on-linux).
-- [ ] L-1f11m: evaluate how Pi could handle large histories under OU-NFR-020. Keep Pi disabled.
+- [x] L-1f11m: test the Pi input cap and whether separate reports can preserve identity. Select a [bounded capture design](decisions/2026-11-11-pi-large-history.md) for a prototype. Pi stays disabled.
 - [x] R-2: reuse the bounded writer in desktop synthetic fixtures. The inherited-writer regression, 22 provider tests, full Rust, and native provider-lifecycle passed. The original cooldown failure remains unexplained. See the [review](reviews/2026-11-10-desktop-fixture-writes.md).
 - [x] R-1: use bounded test-fixture writes to prevent inherited writable handles from blocking execution. Full Rust and native provider-lifecycle checks passed. See the [investigation](reviews/2026-11-10-executable-fixture-race.md).
 - [x] L-1g1: sessions, projects and the reasoning count from the `ccusage` session report of each tool, at schema 11 (OU-LOG-017, [SC-021](srs-clarifications.md#sc-021-sessions-projects-hours-and-reasoning-from-the-pinned-ccusage)).
@@ -502,7 +502,7 @@ Acceptance:
 Stopping condition: one Linux performance record, an updated handoff, and one
 local commit. Report and stop.
 
-### Next assignment: L-1f11m
+### L-1f11m: Pi large histories (complete)
 
 Goal: evaluate how a bounded Pi scan could serve large histories under
 OU-NFR-020.
