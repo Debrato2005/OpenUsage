@@ -4,6 +4,10 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f11k result before L-1f11l
+
+Latest scoped result, November 10, 2026. L-1f11k passed with the pinned Pi candidate and synthetic Linux input. The grouped Rust scanner saved one snapshot of daily and session totals in SQLCipher. See the [executed evidence](acceptance-traceability.md#evidence-log). Pi stays disabled.
+
 ## L-1f11j result before L-1f11k
 
 Latest scoped result, November 10, 2026: L-1f11j distinguishes captured local records from producer completion under [SC-025](srs-clarifications.md#sc-025-captured-local-records-and-producer-completion). The two L-1f11i prefixes are valid captured observations, not proof that Pi finished writing. A separate completion protocol passed ten tests across 21 controlled cases. It remains a test-only experiment. The selected verification plan and native consent passed on synthetic Linux. The [decision](decisions/2026-11-10-pi-capture-boundary.md) records the corrected interpretation and remaining limits. Pi stays disabled. The production pin, Pi candidate, and Amp patch are unchanged.

@@ -13,6 +13,7 @@ One fact has one home. Change it there, and link to it from anywhere else.
 | What is next? | [Implementation slices](implementation-slices.md) |
 | Where do I resume? | [Current assignment](implementation-status.md#current-assignment), with the local checkpoint below |
 | What proves it? | [Acceptance traceability](acceptance-traceability.md) |
+| What does it cost in time and memory? | [Performance report](performance-report.md) |
 | Why was a requirement read this way? | [SRS clarifications](srs-clarifications.md) |
 | Why was a service built this way? | [Decisions](decisions/) |
 | How should it look? | [Design foundations](design/desktop-foundations.md) |

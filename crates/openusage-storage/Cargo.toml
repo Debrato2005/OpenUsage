@@ -28,3 +28,7 @@ pi-qualification = ["openusage-locallogs/pi-qualification"]
 [[test]]
 name = "pi_grouped"
 required-features = ["pi-qualification"]
+
+[[test]]
+name = "pi_scale"
+required-features = ["pi-qualification"]

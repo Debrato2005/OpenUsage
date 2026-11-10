@@ -131,7 +131,8 @@ Updated November 10, 2026. Each completed item has one local commit and scoped e
 - [x] L-1f11i: run the pinned Pi writer and fourteen controlled schedules. Stable operations and twelve overlap rejections pass. SC-025 corrects the earlier classification of two valid prefixes. Pi stays disabled. See the [original review](reviews/2026-11-10-pi-producer-qualification.md).
 - [x] L-1f11j: select the captured-record boundary under SC-025. Correct the earlier producer-completion qualification assumption and test a separate completion protocol. See the [decision](decisions/2026-11-10-pi-capture-boundary.md).
 - [x] L-1f11k: qualify the pinned Pi candidate through the grouped Rust scanner and storage path under SC-025. See the [executed evidence](acceptance-traceability.md#evidence-log).
-- [ ] L-1f11l: measure the Linux Pi candidate at release scale. Keep Pi disabled.
+- [x] L-1f11l: measure the pinned Linux Pi candidate through the grouped scan and save path. See the [performance report](performance-report.md#pi-candidate-on-linux).
+- [ ] L-1f11m: evaluate how Pi could handle large histories under OU-NFR-020. Keep Pi disabled.
 - [x] R-2: reuse the bounded writer in desktop synthetic fixtures. The inherited-writer regression, 22 provider tests, full Rust, and native provider-lifecycle passed. The original cooldown failure remains unexplained. See the [review](reviews/2026-11-10-desktop-fixture-writes.md).
 - [x] R-1: use bounded test-fixture writes to prevent inherited writable handles from blocking execution. Full Rust and native provider-lifecycle checks passed. See the [investigation](reviews/2026-11-10-executable-fixture-race.md).
 - [x] L-1g1: sessions, projects and the reasoning count from the `ccusage` session report of each tool, at schema 11 (OU-LOG-017, [SC-021](srs-clarifications.md#sc-021-sessions-projects-hours-and-reasoning-from-the-pinned-ccusage)).
@@ -484,7 +485,7 @@ Acceptance:
 
 Stopping condition: one verified scanner/storage integration result, updated docs and handoffs, one local commit, and a Graphify update. Report and stop.
 
-### Next assignment: L-1f11l
+### L-1f11l: Pi scale test (complete on synthetic Linux)
 
 Goal: measure the pinned Linux Pi candidate through the grouped scan and save
 path with large, private synthetic histories.
@@ -499,6 +500,23 @@ Acceptance:
   production pin unchanged.
 
 Stopping condition: one Linux performance record, an updated handoff, and one
+local commit. Report and stop.
+
+### Next assignment: L-1f11m
+
+Goal: evaluate how a bounded Pi scan could serve large histories under
+OU-NFR-020.
+
+Acceptance:
+
+- Compare the pinned candidate limits with the proposed 1 GiB first-history
+  target. Identify which limit prevents a complete observation.
+- Evaluate a bounded approach that preserves copy and fork handling, private
+  source selection, exact totals, and one captured input for required reports.
+- Test the deciding assumption with private synthetic input. Record the limits
+  of the result. Keep Pi disabled and preserve the production pin.
+
+Stopping condition: one evidence-backed decision, an updated handoff, and one
 local commit. Report and stop.
 
 ## Order

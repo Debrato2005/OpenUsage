@@ -26,7 +26,7 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scoped result, November 10, 2026. L-1f11k passed with the pinned Pi candidate and synthetic Linux input. The grouped Rust scanner saved one snapshot of daily and session totals in SQLCipher. See the [executed evidence](acceptance-traceability.md#evidence-log). Pi stays disabled.
+Latest scoped result, November 10, 2026. L-1f11l measured the pinned Pi candidate on five synthetic Linux workloads. The [performance report](performance-report.md#pi-candidate-on-linux) records exact totals, scan time, memory, and refusal at the tested bounds. Pi stays disabled.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -146,7 +146,7 @@ As of November 3, 2026, on Linux. 43 journeys ran on the native-test build and 4
 
 ## Missing release documents
 
-SRS Section 20 requires these documents, which do not exist yet: data contracts, identity contract, provider capabilities, security and privacy, compatibility matrix, performance report, and provider evidence. The [threat model](threat-model.md) exists since L-7b, and `scripts/sbom.py` writes the SBOM since L-7c.
+SRS Section 20 requires these documents, which do not exist yet: data contracts, identity contract, provider capabilities, security and privacy, compatibility matrix, and provider evidence. The [performance report](performance-report.md) starts with the Pi candidate on synthetic Linux. Full release measurements remain open. The [threat model](threat-model.md) exists since L-7b, and `scripts/sbom.py` writes the SBOM since L-7c.
 
 ## Open items
 
@@ -154,7 +154,7 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 
 ## Current assignment
 
-The next assignment is [L-1f11l](implementation-slices.md#next-assignment-l-1f11l). Measure the pinned Linux Pi candidate with large synthetic histories. Keep Pi disabled and preserve all production pins.
+The next assignment is [L-1f11m](implementation-slices.md#next-assignment-l-1f11m). Evaluate how a bounded Pi scan could serve large histories under OU-NFR-020. Keep Pi disabled.
 
 L-1f0 through L-1f10 are complete within their recorded scope. Only Claude Code and Codex are enabled. The Amp patch is a local candidate, and the production scanner pin is unchanged.
 

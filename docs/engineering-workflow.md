@@ -51,3 +51,16 @@ Use the shared Cargo target. The test checks the candidate digest and the
 writer source pins. It runs the writer offline in private fixtures. The
 feature exposes the grouped runner only for Pi qualification. The desktop and
 CLI use the normal catalog gate.
+
+### Pi scale test
+
+Use the same candidate and writer paths. Run from the project root with the
+shared Cargo target.
+
+```sh
+timeout 600 python3 tests/tools/pi_scale.py
+```
+
+The test writes three samples per workload. It checks exact totals through the
+grouped scanner and SQLCipher, then checks refusal at the selected limits.
+Only run metadata remains in the private diagnostic directory.
