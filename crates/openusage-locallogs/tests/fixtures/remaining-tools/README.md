@@ -29,6 +29,13 @@ records 26 cases and 52 reports in `opencode-qualification.json`. Run
 required observations. Conflicts, incomplete reads, missing evidence, and lost
 zero observations keep OpenCode disabled. The fixture records those failures.
 
+The [OpenCode observation candidate](../../../../../docs/reviews/2026-11-11-opencode-observation-candidate.md)
+corrects its three lost-observation cases. `opencode-observation-candidate.json`
+records those corrected reports. `test_ccusage_opencode_candidate.py` compares
+the other 23 results with the pinned baseline. It also checks all sixteen
+format baselines and enabled Claude Code and Codex behavior. Eleven source
+capture failures remain open.
+
 The [Pi qualification](../../../../../docs/reviews/2026-11-10-pi-qualification.md) records 29 cases and 58 reports in `pi-qualification.json`. Run `test_ccusage_pi.py` through the same command. It covers stable entry IDs, copies, branches, replay, non-message usage, missing fields, and incomplete reads. Copies can double counts, distinct calls can collapse, and summary or standalone usage can disappear. The Rust regression preserves unavailable fields and reported activity times. Pi stays disabled, and AT-65 remains failed.
 
 The separate [Pi usage candidate](../../../../../docs/reviews/2026-11-10-pi-usage-candidate.md) records five corrected or added cases in `pi-usage-candidate.json`. Its five JSON/table views are in `pi-usage-candidate-cli.json`. The explicit candidate test preserves the production baseline and checks that only the scoped usage cases change. These outputs do not qualify the remaining identity or completeness failures and do not replace the production pin.

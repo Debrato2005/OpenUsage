@@ -4,6 +4,10 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f11p result before L-1f11q
+
+November 11, 2026. Twenty-six synthetic OpenCode cases ran on Linux with the pinned scanner. Fourteen failed qualification because of conflicts, incomplete reads, missing evidence, or lost observations. The [qualification record](reviews/2026-11-11-opencode-qualification.md) gives the exact scope. OpenCode stayed disabled.
+
 ## L-1f11o result before L-1f11p
 
 November 11, 2026. The release Pi candidate passed three synthetic 1 GiB captures and saves on Linux. The release desktop displayed enabled Claude Code history within 60 seconds in three native samples. The [performance report](performance-report.md#linux-release-local-history) records exact timing and reference-condition limits. Pi stayed disabled.

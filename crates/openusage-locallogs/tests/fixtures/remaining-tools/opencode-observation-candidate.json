@@ -1,0 +1,80 @@
+{
+  "missing_model": {
+    "requiredTokens": 173,
+    "reports": {
+      "daily": {
+        "tokens": 173,
+        "rows": [
+          [
+            "2026-11-08",
+            173
+          ]
+        ],
+        "sha256": "4903e54656bf83c697c8dd9af344bda981a85bab7499648a4a83ac31d93362f2"
+      },
+      "session": {
+        "tokens": 173,
+        "rows": [
+          [
+            "session-z",
+            173
+          ]
+        ],
+        "sha256": "3e2d5fa648fa14bd97a922f6c733679f951f04d2fa45542f3e2f436bc0258fa9"
+      }
+    },
+    "qualified": true
+  },
+  "missing_provider": {
+    "requiredTokens": 173,
+    "reports": {
+      "daily": {
+        "tokens": 173,
+        "rows": [
+          [
+            "2026-11-08",
+            173
+          ]
+        ],
+        "sha256": "52a59c526726d41714486b255bc9e538944ca2b682d3c8cd67ec8dda69a0bb0c"
+      },
+      "session": {
+        "tokens": 173,
+        "rows": [
+          [
+            "session-z",
+            173
+          ]
+        ],
+        "sha256": "74b101c788ee9cdfc4a74a2456285a3ed48f890f15f76345cede6aa8ebdf8b44"
+      }
+    },
+    "qualified": true
+  },
+  "reported_zero": {
+    "requiredTokens": 0,
+    "reports": {
+      "daily": {
+        "tokens": 0,
+        "rows": [
+          [
+            "2026-11-08",
+            0
+          ]
+        ],
+        "sha256": "a81091806d0fbc085d78575abaf6c39ecacb9717f71e3329c23938c14560d9dd"
+      },
+      "session": {
+        "tokens": 0,
+        "rows": [
+          [
+            "session-z",
+            0
+          ]
+        ],
+        "sha256": "490b563a76cbe8c41986bbf8b7260cc2276b5cee29165ceef01931c675f3ad27"
+      }
+    },
+    "qualified": true
+  }
+}

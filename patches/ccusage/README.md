@@ -79,3 +79,15 @@ owns the capture limits and evidence.
 
 Use the [prototype checks](../../docs/engineering-workflow.md#pi-bounded-capture-prototype)
 with the two explicit binary paths. Pi stays disabled.
+
+## OpenCode observation candidate
+
+Apply `20.0.48-opencode-observations.patch` to the pinned ccusage source commit
+above. Set `CCUSAGE_VERSION=20.0.48-openusage.opencode-observations-candidate.1`
+for the build with the verified pricing input and the shared target.
+The [candidate record](../../docs/reviews/2026-11-11-opencode-observation-candidate.md)
+owns the source boundary, digests, and remaining qualification limits.
+
+Set `OPENUSAGE_CCUSAGE_OPENCODE_CANDIDATE` and
+`OPENUSAGE_CCUSAGE_OPENCODE_CANDIDATE_SHA256` to run
+`test_ccusage_opencode_candidate.py`. OpenCode stays disabled.

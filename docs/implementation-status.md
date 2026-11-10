@@ -26,7 +26,7 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scoped result, November 11, 2026. Twenty-six synthetic OpenCode cases ran on Linux with the pinned scanner. Fourteen failed qualification because of conflicts, incomplete reads, missing evidence, or lost observations. The [qualification record](reviews/2026-11-11-opencode-qualification.md) gives the exact scope. OpenCode stays disabled.
+Latest scoped result, November 11, 2026. The OpenCode observation candidate preserves valid totals without model or provider labels and keeps explicit zero observations. It corrects three of the pinned scanner's fourteen failing cases. The [candidate record](reviews/2026-11-11-opencode-observation-candidate.md) gives the exact scope. OpenCode stays disabled.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -154,7 +154,7 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 
 ## Current assignment
 
-[L-1f11](implementation-slices.md#build-checklist) remains open for tool qualification. The next OpenCode step is a strict scanner candidate that rejects conflicts and incomplete captures while it preserves the valid cases in the [qualification record](reviews/2026-11-11-opencode-qualification.md). Keep the tool disabled until its required checks pass.
+[L-1f11](implementation-slices.md#build-checklist) remains open for tool qualification. The next OpenCode step is a strict source capture that rejects conflicts and incomplete reads while it preserves the observation candidate's valid cases. Keep the tool disabled until its required checks pass.
 
 L-1f0 through L-1f10 are complete within their recorded scope. Only Claude Code and Codex are enabled. The Amp patch is a local candidate, and the production scanner pin is unchanged.
 
