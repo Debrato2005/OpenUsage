@@ -4,6 +4,10 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f11q result before L-1f11r
+
+Latest scoped result, November 11, 2026. The OpenCode observation candidate preserves valid totals without model or provider labels and keeps explicit zero observations. It corrects three of the pinned scanner's fourteen failing cases. The [candidate record](reviews/2026-11-11-opencode-observation-candidate.md) gives the exact scope. OpenCode stays disabled.
+
 ## L-1f11p result before L-1f11q
 
 November 11, 2026. Twenty-six synthetic OpenCode cases ran on Linux with the pinned scanner. Fourteen failed qualification because of conflicts, incomplete reads, missing evidence, or lost observations. The [qualification record](reviews/2026-11-11-opencode-qualification.md) gives the exact scope. OpenCode stayed disabled.

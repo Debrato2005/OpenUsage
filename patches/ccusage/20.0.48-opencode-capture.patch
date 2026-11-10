@@ -1,0 +1,3780 @@
+diff --git a/rust/Cargo.lock b/rust/Cargo.lock
+index 40e8f3c..c03a5e8 100644
+--- a/rust/Cargo.lock
++++ b/rust/Cargo.lock
+@@ -389,9 +389,11 @@ dependencies = [
+  "ccusage-test-support",
+  "insta",
+  "jiff",
++ "rustix",
+  "serde",
+  "serde_json",
+  "sqlite",
++ "sqlite3-sys",
+ ]
+
+ [[package]]
+diff --git a/rust/adapters/opencode/Cargo.toml b/rust/adapters/opencode/Cargo.toml
+index c3cd5d8..7c0f45c 100644
+--- a/rust/adapters/opencode/Cargo.toml
++++ b/rust/adapters/opencode/Cargo.toml
+@@ -11,6 +11,10 @@ jiff.workspace = true
+ serde.workspace = true
+ serde_json.workspace = true
+ sqlite.workspace = true
++sqlite3-sys = { version = "=0.18.2", default-features = false }
++
++[target.'cfg(target_os = "linux")'.dependencies]
++rustix = { version = "=1.1.5", features = ["fs"] }
+
+ [dev-dependencies]
+ ccusage-core = { workspace = true, features = ["test-snapshots"] }
+diff --git a/rust/adapters/opencode/README.md b/rust/adapters/opencode/README.md
+index f2f8b22..0912d77 100644
+--- a/rust/adapters/opencode/README.md
++++ b/rust/adapters/opencode/README.md
+@@ -5,7 +5,10 @@ into the usage entries the reports render.
+
+ ## Owns
+
+-- `loader.rs` — reading the source, dedupe, and date filtering.
++- `loader.rs` — capture coordination and date filtering.
++- `files.rs` — bounded source discovery and stable capture.
++- `database.rs` and `sqlite_snapshot.rs` — read-only SQLite capture.
++- `records.rs` and `strict_json.rs` — source identity and input validation.
+ - `parser.rs` — raw record parsing, token mapping, and model naming.
+ - `paths.rs` — environment variables, default directories, and file discovery.
+ - `report.rs` — the JSON and table shapes where they differ from the shared ones.
+@@ -37,6 +40,8 @@ most adapters do not.
+ - `serde`
+ - `serde_json`
+ - `sqlite`
++- `sqlite3-sys`
++- `rustix` on Linux
+
+ ## Build layer
+
+diff --git a/rust/adapters/opencode/src/README.md b/rust/adapters/opencode/src/README.md
+index 52e0638..c555962 100644
+--- a/rust/adapters/opencode/src/README.md
++++ b/rust/adapters/opencode/src/README.md
+@@ -12,9 +12,19 @@ ${XDG_DATA_HOME:-$HOME/.local/share}/opencode/opencode.db
+ ${XDG_DATA_HOME:-$HOME/.local/share}/opencode/opencode-*.db
+ ```
+
+-SQLite databases are the primary source. Legacy JSON messages under `storage/message/` are loaded as a fallback and deduplicated behind database rows.
++The Linux capture reads every selected database and legacy message file under `storage/message/`. It returns no report when any selected source fails. It compares stable IDs and canonical source fields before it removes copies. A database row never hides a conflicting JSON file. Missing IDs, malformed JSON, duplicate keys, invalid counts, and incomplete token blocks without an explicit total cause refusal.
+
+-OpenCode v2 forks copy the parent's `session_message` rows with new ids but the same `seq`. When `session_v2.fork_session_id` and `fork_boundary` resolve against the parent's rows, fork rows at or below the last copied `seq` (the boundary for `through`, the parent's last row before it for `before`) are skipped as inherited history. The fork's `session_v2` counters start at zero and hold only fork-local usage, so they remain a valid session fallback. Unresolvable boundaries and pre-`seq` schemas keep every row.
++An explicit total remains independent of token categories. Its remainder stays in `extraTotalTokens`. Missing timestamps retain the existing epoch representation for unplaced session reports. Session aggregates remain a fallback for unbounded session reports. Date filters run after complete capture and validation.
++
++OpenCode v2 forks must resolve their parent, boundary, and sequence positions. Copied rows must match the parent's source fields after ID and session normalization. Conflicting fork metadata across roots, cycles, missing sequence columns, and unresolved boundaries cause refusal.
++
++The capture opens roots and descendants with Linux `openat2`. It rejects symbolic links, hard links, special files, unreadable peers, changed bytes, and changed manifests. It reads no source path through SQLite. A private SQLite VFS serves captured bytes and rejects writes, deletes, attachments, sidecars, and temporary files. Each connection uses a read-only transaction. The VFS registration, name, image descriptor, and backing bytes outlive that connection. Raw source contents remain in memory.
++
++SQLite WAL mode remains unsupported, including a checkpointed database with WAL header bytes. Any `-wal`, `-shm`, or `-journal` peer also causes refusal. The capture never discards committed WAL data to obtain a report. SQLite errors use one fixed message without paths, identifiers, or source text. The VFS enforces these restrictions even when the pinned SQLite build omits safety PRAGMAs.
++
++Fixed limits apply across the selected roots: 64 roots, 32,768 directory entries, 8,192 files, directory depth 64, and 256 MiB of source bytes. Each database is at most 64 MiB. Each JSON file or database text field is at most 1 MiB. The loader permits at most 100,000 record visits and 64 MiB of canonical identity data. Session metadata visits count toward the record limit. Each database permits at most 1,024 schema objects and 256 columns. Fork chains stop at 64 links. Excess limits cause refusal. Nonempty selections on other platforms remain unavailable.
++
++An explicit `OPENCODE_DATA_DIR` always reaches validation, including in unified reports. A selected empty directory returns zero entries. Unified detection lists the explicitly selected OpenCode source even when that directory is empty.
+
+ The Claude Agent provider (`claude-agent`) runs Claude Code, which also writes its own transcript. Its v2 rows record that Claude Code session as `content[].native.sessionID`, which `load_entries_with_native_sessions` returns with each entry. Unified daily-family reports drop a row when the Claude source counted main-thread usage of that session on the row's date, in the Claude source's timezone and date range; session reports match whole sessions, since a Claude session row holds all of its usage, using the session ID the transcript records rather than its file name. A resumed or forked transcript repeats earlier turns, sometimes under the original session ID, and Claude's dedup keeps one copy of each. `should_replace_deduped_entry` prefers main-thread copies, then more tokens, then a copy with speed metadata over one without (the daily loader's `should_replace_deduped_daily_entry` compares cost before speed); only among copies equal on all of these does the first read win, with files sorted by path and named by UUID, so which transcript keeps a turn is effectively arbitrary; when all of them are reported, the choice does not affect the total. A session with surviving main-thread usage under its own recorded ID counts as included when the report includes every transcript holding that usage; copies it lost to other sessions are not consulted. A session with no surviving main-thread usage of its own counts as included when every transcript holding its kept copies is included. When a Claude date window includes only some of the transcripts involved, a repeated turn can go either way: a skipped session's rows for it are dropped although its kept copy is in an excluded transcript, or a session keeps its rows when the usage that decides it (its own surviving main-thread usage, or its kept copies when it has none) spans included and excluded transcripts, so the turns Claude counts in the included transcript are counted twice. The usage is then priced by the resolved model ID rather than the `opus`/`sonnet` alias OpenCode stores. The match is per session or session day, not per turn: `native.messageID` is the transcript line `uuid`, and one OpenCode row sums several API calls, so rows do not map one-to-one to Claude entries. This relies on the transcript holding every main-thread turn OpenCode records for that session; it also holds turns OpenCode drops, such as interrupted steps saved with `tokens: null`. A row is dated by its turn's start while Claude dates each call, so in daily-family reports a turn that crosses midnight in the Claude source's timezone is counted by both sources when Claude has no usage of that session on the earlier day, and with `--until` on that day the calls Claude logs after midnight are left out although OpenCode dates the whole turn on the earlier day. Only v2 `session_message` rows can carry the link: OpenCode added the provider after moving to SQLite v2, so legacy JSON messages and the v1 `message` table hold no `claude-agent` rows. `ccusage opencode` keeps every row.
+
+diff --git a/rust/adapters/opencode/src/capture_tests.rs b/rust/adapters/opencode/src/capture_tests.rs
+new file mode 100644
+index 0000000..b02f640
+--- /dev/null
++++ b/rust/adapters/opencode/src/capture_tests.rs
+@@ -0,0 +1,257 @@
++#![cfg(target_os = "linux")]
++use crate::{
++    cli::{AgentReportKind, CostMode, SharedArgs},
++    loader::load_paths,
++};
++use ccusage_test_support::Fixture;
++use std::{fs, os::unix::fs::symlink, path::PathBuf};
++
++const MESSAGE: &str = r#"{"id":"message","sessionID":"session","modelID":"model","providerID":"provider","tokens":{"input":10,"output":5,"cache":{"read":0,"write":0},"total":15}}"#;
++
++fn load(paths: &[PathBuf]) -> crate::Result<Vec<crate::LinkedEntry>> {
++    load_paths(
++        paths,
++        &SharedArgs {
++            mode: CostMode::Display,
++            offline: true,
++            ..SharedArgs::default()
++        },
++        AgentReportKind::Session,
++    )
++}
++
++#[test]
++fn refuses_bad_peers_without_partial_results_or_source_details() {
++    for peer in [b"{".as_slice(), b"\xff", b"{\"id\":1,\"id\":2}", b"[]"] {
++        let fixture = Fixture::new();
++        let _ = fixture.write_file("storage/message/good.json", MESSAGE);
++        fs::write(fixture.path("storage/message/private-peer.json"), peer).unwrap();
++        let error = load(&[fixture.root().to_owned()]).unwrap_err().to_string();
++        assert_eq!(error, "OpenCode source capture is unavailable");
++    }
++}
++
++#[test]
++fn compares_source_identity_before_dedup_in_either_order() {
++    let first = Fixture::new();
++    let second = Fixture::new();
++    let _ = first.write_file("storage/message/one.json", MESSAGE);
++    let _ = second.write_file("storage/message/two.json", MESSAGE);
++    assert_eq!(
++        load(&[first.root().to_owned(), second.root().to_owned()])
++            .unwrap()
++            .len(),
++        1
++    );
++    let _ = second.write_file(
++        "storage/message/two.json",
++        MESSAGE.replace("\"input\":10", "\"input\":9"),
++    );
++    for paths in [
++        [first.root().to_owned(), second.root().to_owned()],
++        [second.root().to_owned(), first.root().to_owned()],
++    ] {
++        assert!(load(&paths).is_err());
++    }
++}
++
++#[test]
++fn validates_present_counts_and_does_not_guess_missing_buckets() {
++    for tokens in [
++        r#"{"input":10}"#,
++        r#"{"input":-1,"total":15}"#,
++        r#"{"input":1.5,"total":15}"#,
++        r#"{"input":"10","total":15}"#,
++        r#"{"input":null,"total":15}"#,
++        r#"{"input":16,"total":15}"#,
++        r#"{"cache":{"read":true},"total":15}"#,
++        r#"{"input":18446744073709551615,"output":1,"total":18446744073709551615}"#,
++    ] {
++        let fixture = Fixture::new();
++        let mut value: serde_json::Value = serde_json::from_str(MESSAGE).unwrap();
++        value["tokens"] = serde_json::from_str(tokens).unwrap();
++        let _ = fixture.write_file("storage/message/one.json", value.to_string());
++        assert!(load(&[fixture.root().to_owned()]).is_err(), "{tokens}");
++    }
++    let fixture = Fixture::new();
++    let _ = fixture.write_file("storage/message/one.json", r#"{"id":"one","sessionID":"session","modelID":"model","providerID":"provider","tokens":{"total":15}}"#);
++    let entries = load(&[fixture.root().to_owned()]).unwrap();
++    assert_eq!(entries[0].0.data.message.usage.output_tokens, 0);
++    assert_eq!(entries[0].0.extra_total_tokens, 15);
++}
++
++#[test]
++fn rejects_links_and_special_files_without_reading_them() {
++    for target in [
++        "storage",
++        "storage/message",
++        "storage/message/one.json",
++        "opencode.db",
++    ] {
++        let fixture = Fixture::new();
++        let outside = Fixture::new();
++        let _ = outside.write_file("marker", MESSAGE);
++        let path = fixture.path(target);
++        fs::create_dir_all(path.parent().unwrap()).unwrap();
++        symlink(outside.root(), path).unwrap();
++        assert!(load(&[fixture.root().to_owned()]).is_err());
++    }
++    let fixture = Fixture::new();
++    let directory = fixture.create_dir_all("storage/message");
++    rustix::fs::mkfifoat(
++        rustix::fs::CWD,
++        directory.join("pipe.json"),
++        rustix::fs::Mode::RUSR,
++    )
++    .unwrap();
++    assert!(load(&[fixture.root().to_owned()]).is_err());
++}
++
++#[test]
++fn rejects_committed_wal_and_checkpointed_wal_mode() {
++    let fixture = Fixture::new();
++    let db = sqlite::open(fixture.path("opencode.db")).unwrap();
++    db.execute(
++        "PRAGMA journal_mode=WAL; CREATE TABLE message(id TEXT, session_id TEXT, data TEXT)",
++    )
++    .unwrap();
++    let mut insert = db
++        .prepare("INSERT INTO message VALUES ('message','session',?1)")
++        .unwrap();
++    insert.bind((1, MESSAGE)).unwrap();
++    insert.next().unwrap();
++    assert!(fixture.path("opencode.db-wal").metadata().unwrap().len() > 0);
++    assert!(load(&[fixture.root().to_owned()]).is_err());
++    drop(insert);
++    drop(db);
++    assert!(!fixture.path("opencode.db-wal").exists());
++    assert!(load(&[fixture.root().to_owned()]).is_err());
++}
++
++#[test]
++fn rejects_every_journal_peer_even_when_empty() {
++    for suffix in ["-wal", "-shm", "-journal"] {
++        let fixture = Fixture::new();
++        let _ = fixture.write_file("storage/message/good.json", MESSAGE);
++        let _ = fixture.write_file(format!("opencode-beta.db{suffix}"), "");
++        assert!(load(&[fixture.root().to_owned()]).is_err());
++    }
++}
++
++#[test]
++fn rejects_file_and_root_replacements_and_changed_bytes() {
++    use crate::files::linux::{Limits, Stage, read_with};
++    for change in 0..4 {
++        let fixture = Fixture::new();
++        let _ = fixture.write_file("root/storage/message/one.json", MESSAGE);
++        let selected = fixture.path("root");
++        let source = selected.join("storage/message/one.json");
++        let result = read_with(
++            std::slice::from_ref(&selected),
++            Limits::default(),
++            |stage| {
++                if stage != Stage::BeforeVerify {
++                    return;
++                }
++                match change {
++                    0 => {
++                        fs::write(&source, MESSAGE.replace("\"input\":10", "\"input\":11"))
++                            .unwrap();
++                    }
++                    1 => {
++                        fs::rename(&source, source.with_extension("old")).unwrap();
++                        fs::write(&source, MESSAGE).unwrap();
++                    }
++                    2 => {
++                        fs::rename(&selected, fixture.path("old-root")).unwrap();
++                        fs::create_dir(&selected).unwrap();
++                    }
++                    _ => {
++                        fs::write(selected.join("storage/message/new.json"), MESSAGE).unwrap();
++                    }
++                }
++            },
++            |_, _, _| Ok(()),
++        );
++        assert!(result.is_err());
++    }
++}
++
++#[test]
++fn checks_discovery_limits_jointly_across_roots() {
++    use crate::files::linux::{Limits, read_with};
++    let first = Fixture::new();
++    let second = Fixture::new();
++    for fixture in [&first, &second] {
++        let _ = fixture.write_file("storage/message/one.json", MESSAGE);
++    }
++    let paths = [first.root().to_owned(), second.root().to_owned()];
++    for limits in [
++        Limits {
++            roots: 1,
++            ..Limits::default()
++        },
++        Limits {
++            entries: 5,
++            ..Limits::default()
++        },
++        Limits {
++            files: 1,
++            ..Limits::default()
++        },
++        Limits {
++            depth: 1,
++            ..Limits::default()
++        },
++        Limits {
++            file_bytes: 1,
++            ..Limits::default()
++        },
++        Limits {
++            total_bytes: MESSAGE.len() as u64,
++            ..Limits::default()
++        },
++    ] {
++        assert!(read_with(&paths, limits, |_| {}, |_, _, _| Ok(())).is_err());
++    }
++}
++
++#[test]
++fn rejects_missing_roots_and_keeps_explicit_empty_roots() {
++    let fixture = Fixture::new();
++    assert!(load(&[fixture.path("missing")]).is_err());
++    assert!(load(&[fixture.root().to_owned()]).unwrap().is_empty());
++}
++
++#[test]
++fn rejects_invalid_sqlite_text_and_count_types() {
++    for sql in [
++        "CREATE TABLE session_v2 (id TEXT, tokens_input, tokens_output, tokens_cache_read, tokens_cache_write); INSERT INTO session_v2 VALUES ('session', '10', 5, 0, 0)",
++        "CREATE TABLE session_v2 (id TEXT, tokens_input, tokens_output, tokens_cache_read, tokens_cache_write); INSERT INTO session_v2 VALUES ('session', 10.5, 5, 0, 0)",
++    ] {
++        let fixture = Fixture::new();
++        sqlite::open(fixture.path("opencode.db"))
++            .unwrap()
++            .execute(sql)
++            .unwrap();
++        assert!(load(&[fixture.root().to_owned()]).is_err());
++    }
++}
++
++#[test]
++fn checks_overflow_after_covered_aggregates_are_removed() {
++    let fixture = Fixture::new();
++    let _ = fixture.write_file(
++        "storage/message/one.json",
++        r#"{"id":"one","sessionID":"session","tokens":{"total":18446744073709551615}}"#,
++    );
++    sqlite::open(fixture.path("opencode.db")).unwrap().execute("CREATE TABLE session_v2 (id TEXT, tokens_input, tokens_output, tokens_cache_read, tokens_cache_write); INSERT INTO session_v2 VALUES ('session', 1, 0, 0, 0)").unwrap();
++    let entries = load(&[fixture.root().to_owned()]).unwrap();
++    assert_eq!(entries.len(), 1);
++    assert_eq!(entries[0].0.extra_total_tokens, u64::MAX);
++    let _ = fixture.write_file(
++        "storage/message/two.json",
++        MESSAGE.replace("\"message\"", "\"another\""),
++    );
++    assert!(load(&[fixture.root().to_owned()]).is_err());
++}
+diff --git a/rust/adapters/opencode/src/database.rs b/rust/adapters/opencode/src/database.rs
+new file mode 100644
+index 0000000..97f7007
+--- /dev/null
++++ b/rust/adapters/opencode/src/database.rs
+@@ -0,0 +1,492 @@
++fn parse_session_model(value: Option<&str>) -> Option<(String, String)> {
++    let value = value?.trim();
++    if value.is_empty() {
++        return None;
++    }
++    if let Ok(json) = serde_json::from_str::<serde_json::Value>(value) {
++        if let Some(model) = json
++            .as_str()
++            .map(str::trim)
++            .filter(|model| !model.is_empty())
++        {
++            return Some((model.to_string(), "unknown".to_string()));
++        }
++        if let Some(object) = json.as_object() {
++            let model = object
++                .get("id")
++                .and_then(serde_json::Value::as_str)
++                .or_else(|| object.get("modelID").and_then(serde_json::Value::as_str))
++                .map(str::trim)
++                .filter(|model| !model.is_empty())?;
++            let provider = object
++                .get("providerID")
++                .and_then(serde_json::Value::as_str)
++                .or_else(|| object.get("provider").and_then(serde_json::Value::as_str))
++                .map(str::trim)
++                .filter(|provider| !provider.is_empty())
++                .unwrap_or("unknown");
++            return Some((model.to_string(), provider.to_string()));
++        }
++    }
++    Some((value.to_string(), "unknown".to_string()))
++}
++
++use crate::{
++    Result,
++    loader::Context,
++    parser::{OpenCodeSessionAggregate, session_value_to_entry},
++    records::{Kind, MAX_RECORD_BYTES, identifier, validate},
++    unavailable,
++};
++use serde_json::{Value, json};
++use std::{
++    collections::{BTreeMap, HashSet},
++    sync::Arc,
++};
++
++#[cfg(target_os = "linux")]
++pub(crate) fn read(bytes: &[u8], context: &mut Context<'_>) -> Result<()> {
++    // Never omit committed WAL pages. WAL databases and all journal peers are refused.
++    if bytes.len() < 100 || &bytes[..16] != b"SQLite format 3\0" || bytes[18..20] != [1, 1] {
++        return Err(unavailable());
++    }
++    super::sqlite_snapshot::with_connection(bytes, |db| {
++        for (kind, limit) in [
++            (sqlite3_sys::SQLITE_LIMIT_LENGTH, MAX_RECORD_BYTES as i32),
++            (sqlite3_sys::SQLITE_LIMIT_COLUMN, 256),
++            (sqlite3_sys::SQLITE_LIMIT_EXPR_DEPTH, 100),
++            (sqlite3_sys::SQLITE_LIMIT_VDBE_OP, 100_000),
++        ] {
++            // SAFETY: db remains live, and these documented limits take bounded nonnegative integers.
++            if unsafe { sqlite3_sys::sqlite3_limit(db.as_raw(), kind, limit) } < 0 {
++                return Err(unavailable());
++            }
++        }
++        db.execute("PRAGMA temp_store=MEMORY; PRAGMA cache_size=-8192; PRAGMA mmap_size=0; PRAGMA trusted_schema=OFF; PRAGMA query_only=ON; BEGIN")
++        .map_err(|_| unavailable())?;
++        read_connection(db, context)?;
++        db.execute("COMMIT").map_err(|_| unavailable())
++    })
++}
++
++#[cfg(not(target_os = "linux"))]
++pub(crate) fn read(_: &[u8], _: &mut Context<'_>) -> Result<()> {
++    Err(unavailable())
++}
++
++fn text(statement: &sqlite::Statement<'_>, index: usize) -> Result<String> {
++    if statement.column_type(index).map_err(|_| unavailable())? != sqlite::Type::String {
++        return Err(unavailable());
++    }
++    let bytes = statement
++        .read::<Vec<u8>, _>(index)
++        .map_err(|_| unavailable())?;
++    if bytes.len() > MAX_RECORD_BYTES {
++        return Err(unavailable());
++    }
++    String::from_utf8(bytes).map_err(|_| unavailable())
++}
++
++fn integer(statement: &sqlite::Statement<'_>, index: usize) -> Result<i64> {
++    if statement.column_type(index).map_err(|_| unavailable())? != sqlite::Type::Integer {
++        return Err(unavailable());
++    }
++    statement.read(index).map_err(|_| unavailable())
++}
++
++fn optional_integer(statement: &sqlite::Statement<'_>, index: usize) -> Result<Option<i64>> {
++    if statement.column_type(index).map_err(|_| unavailable())? == sqlite::Type::Null {
++        Ok(None)
++    } else {
++        integer(statement, index).map(Some)
++    }
++}
++
++fn optional_text(statement: &sqlite::Statement<'_>, index: usize) -> Result<Option<String>> {
++    if statement.column_type(index).map_err(|_| unavailable())? == sqlite::Type::Null {
++        Ok(None)
++    } else {
++        text(statement, index).map(Some)
++    }
++}
++
++fn prepare<'a>(db: &'a sqlite::Connection, sql: &str) -> Result<sqlite::Statement<'a>> {
++    db.prepare(sql).map_err(|_| unavailable())
++}
++
++fn next(statement: &mut sqlite::Statement<'_>) -> Result<bool> {
++    statement
++        .next()
++        .map(|state| state == sqlite::State::Row)
++        .map_err(|_| unavailable())
++}
++
++fn columns(db: &sqlite::Connection, table: &str) -> Result<HashSet<String>> {
++    let statement = prepare(db, &format!("SELECT * FROM {table} LIMIT 0"))?;
++    if statement.column_count() > 256 {
++        return Err(unavailable());
++    }
++    (0..statement.column_count())
++        .map(|index| {
++            statement
++                .column_name(index)
++                .map(str::to_owned)
++                .map_err(|_| unavailable())
++        })
++        .collect()
++}
++
++struct Row {
++    id: String,
++    session: String,
++    seq: Option<i64>,
++    value: Value,
++    native: Option<Arc<str>>,
++}
++
++fn read_connection(db: &sqlite::Connection, context: &mut Context<'_>) -> Result<()> {
++    let mut schema = prepare(db, "SELECT name, type, sql FROM sqlite_master LIMIT 1025")?;
++    let mut tables = HashSet::new();
++    let mut schema_count = 0;
++    while next(&mut schema)? {
++        schema_count += 1;
++        if schema_count > 1024 {
++            return Err(unavailable());
++        }
++        let name = text(&schema, 0)?;
++        if ["message", "session_message", "session", "session_v2"].contains(&name.as_str()) {
++            if text(&schema, 1)? != "table"
++                || !text(&schema, 2)?
++                    .to_ascii_uppercase()
++                    .starts_with("CREATE TABLE")
++            {
++                return Err(unavailable());
++            }
++            let mut info = prepare(db, &format!("PRAGMA table_xinfo({name})"))?;
++            let mut column_count = 0;
++            while next(&mut info)? {
++                column_count += 1;
++                if column_count > 256 || integer(&info, 6)? != 0 {
++                    return Err(unavailable());
++                }
++            }
++            tables.insert(name);
++        }
++    }
++    if !tables.contains("message")
++        && !tables.contains("session_message")
++        && !tables.contains("session_v2")
++    {
++        return Err(unavailable());
++    }
++    if tables.contains("message") {
++        let mut statement = prepare(db, "SELECT id, session_id, data FROM message LIMIT 100001")?;
++        while next(&mut statement)? {
++            context.records.count()?;
++            let id = text(&statement, 0)?;
++            let session = text(&statement, 1)?;
++            let mut value = super::strict_json::parse(text(&statement, 2)?.as_bytes())?;
++            let object = value.as_object_mut().ok_or_else(unavailable)?;
++            for (key, column) in [("id", id), ("sessionID", session)] {
++                if object
++                    .get(key)
++                    .is_some_and(|value| value.as_str() != Some(&column))
++                {
++                    return Err(unavailable());
++                }
++                object.insert(key.into(), Value::String(column));
++            }
++            context.message(value, None, false)?;
++        }
++    }
++    let mut rows = Vec::new();
++    if tables.contains("session_message") {
++        let cols = columns(db, "session_message")?;
++        let time = if cols.contains("time_created") {
++            "time_created"
++        } else {
++            "NULL"
++        };
++        let seq = if cols.contains("seq") { "seq" } else { "NULL" };
++        let mut statement = prepare(
++            db,
++            &format!(
++                "SELECT id, session_id, type, data, {time}, {seq} FROM session_message LIMIT 100001"
++            ),
++        )?;
++        while next(&mut statement)? {
++            context.records.count()?;
++            let id = text(&statement, 0)?;
++            let session = text(&statement, 1)?;
++            let role = text(&statement, 2)?;
++            let data = text(&statement, 3)?;
++            let created = optional_integer(&statement, 4)?;
++            let seq = optional_integer(&statement, 5)?;
++            let mut value = super::strict_json::parse(data.as_bytes())?;
++            let object = value.as_object_mut().ok_or_else(unavailable)?;
++            object.insert("id".into(), id.clone().into());
++            object.insert("sessionID".into(), session.clone().into());
++            object.insert("role".into(), role.into());
++            if let Some(model) = object.remove("model") {
++                let model = model.as_object().ok_or_else(unavailable)?;
++                for (source, destination) in [
++                    ("id", "modelID"),
++                    ("modelID", "modelID"),
++                    ("providerID", "providerID"),
++                ] {
++                    if let Some(field) = model.get(source) {
++                        identifier(Some(field))?;
++                        if object
++                            .get(destination)
++                            .is_some_and(|previous| previous != field)
++                        {
++                            return Err(unavailable());
++                        }
++                        object.insert(destination.into(), field.clone());
++                    }
++                }
++            }
++            if !object.contains_key("time")
++                && let Some(created) = created
++            {
++                object.insert("time".into(), json!({"created": created}));
++            }
++            validate(&value)?;
++            let native = if value["providerID"] == "claude-agent" {
++                super::parser::native_session_id(&data)
++            } else {
++                None
++            };
++            rows.push(Row {
++                id,
++                session,
++                seq,
++                value,
++                native,
++            });
++        }
++    }
++    let inherited = fork_copies(db, &tables, &rows, context)?;
++    for (index, row) in rows.into_iter().enumerate() {
++        context.message(row.value, row.native, inherited.contains(&index))?;
++    }
++    for table in ["session_v2", "session"] {
++        if tables.contains(table) {
++            aggregates(db, table, context)?;
++        }
++    }
++    Ok(())
++}
++
++fn fork_copies(
++    db: &sqlite::Connection,
++    tables: &HashSet<String>,
++    rows: &[Row],
++    context: &mut Context<'_>,
++) -> Result<HashSet<usize>> {
++    let mut inherited = HashSet::new();
++    if !tables.contains("session_v2") {
++        return Ok(inherited);
++    }
++    let cols = columns(db, "session_v2")?;
++    if !cols.contains("fork_session_id") && !cols.contains("fork_boundary") {
++        return Ok(inherited);
++    }
++    if !cols.contains("fork_session_id") || !cols.contains("fork_boundary") {
++        return Err(unavailable());
++    }
++    let mut ids = BTreeMap::new();
++    let mut seqs = BTreeMap::new();
++    for (index, row) in rows.iter().enumerate() {
++        if ids
++            .insert((row.session.as_str(), row.id.as_str()), index)
++            .is_some()
++        {
++            return Err(unavailable());
++        }
++        if let Some(seq) = row.seq
++            && (seq < 0 || seqs.insert((row.session.as_str(), seq), index).is_some())
++        {
++            return Err(unavailable());
++        }
++    }
++    let mut forks = BTreeMap::new();
++    let mut statement = prepare(
++        db,
++        "SELECT id, fork_session_id, fork_boundary FROM session_v2 LIMIT 100001",
++    )?;
++    while next(&mut statement)? {
++        context.records.count()?;
++        let id = text(&statement, 0)?;
++        let parent = optional_text(&statement, 1)?;
++        let boundary = optional_text(&statement, 2)?;
++        let (parent, boundary) = match (parent, boundary) {
++            (None, None) => continue,
++            (Some(parent), Some(boundary)) => (parent, boundary),
++            _ => return Err(unavailable()),
++        };
++        identifier(Some(&Value::String(id.clone())))?;
++        identifier(Some(&Value::String(parent.clone())))?;
++        let boundary = super::strict_json::parse(boundary.as_bytes())?;
++        context.records.insert(
++            &json!({"id": id, "sessionID": id, "parent": parent, "boundary": boundary}),
++            None,
++            Kind::Fork,
++        )?;
++        let boundary_id = identifier(boundary.get("messageID"))?;
++        let row = rows
++            .get(
++                *ids.get(&(parent.as_str(), boundary_id))
++                    .ok_or_else(unavailable)?,
++            )
++            .ok_or_else(unavailable)?;
++        let seq = row.seq.ok_or_else(unavailable)?;
++        let cutoff = match boundary.get("type").and_then(Value::as_str) {
++            Some("through") => Some(seq),
++            Some("before") => seqs
++                .range((parent.as_str(), i64::MIN)..(parent.as_str(), seq))
++                .next_back()
++                .map(|((_, seq), _)| *seq),
++            _ => return Err(unavailable()),
++        };
++        if forks.insert(id, (parent, cutoff)).is_some() {
++            return Err(unavailable());
++        }
++    }
++    // Resolve chains before suppression. A cycle or excessive chain is not source identity.
++    for id in forks.keys() {
++        let mut seen = HashSet::new();
++        let mut current = id;
++        while let Some((parent, _)) = forks.get(current) {
++            if !seen.insert(current) || seen.len() > 64 {
++                return Err(unavailable());
++            }
++            current = parent;
++        }
++    }
++    for (index, row) in rows.iter().enumerate() {
++        let Some((parent, cutoff)) = forks.get(&row.session) else {
++            continue;
++        };
++        let seq = row.seq.ok_or_else(unavailable)?;
++        if cutoff.is_some_and(|cutoff| seq <= cutoff) {
++            let parent = &rows[*seqs.get(&(parent.as_str(), seq)).ok_or_else(unavailable)?];
++            let mut copy = row.value.clone();
++            let mut original = parent.value.clone();
++            for value in [&mut copy, &mut original] {
++                let object = value.as_object_mut().ok_or_else(unavailable)?;
++                object.remove("id");
++                object.remove("sessionID");
++            }
++            if copy != original {
++                return Err(unavailable());
++            }
++            inherited.insert(index);
++        }
++    }
++    Ok(inherited)
++}
++
++fn aggregates(db: &sqlite::Connection, table: &str, context: &mut Context<'_>) -> Result<()> {
++    let cols = columns(db, table)?;
++    let required = [
++        "tokens_input",
++        "tokens_output",
++        "tokens_cache_read",
++        "tokens_cache_write",
++    ];
++    if !required.iter().any(|column| cols.contains(*column)) {
++        return Ok(());
++    }
++    if !required.iter().all(|column| cols.contains(*column)) {
++        return Err(unavailable());
++    }
++    let reasoning = if cols.contains("tokens_reasoning") {
++        "tokens_reasoning"
++    } else {
++        "0"
++    };
++    let model = if cols.contains("model") {
++        "model"
++    } else {
++        "NULL"
++    };
++    let time = if cols.contains("time_created") {
++        "time_created"
++    } else {
++        "NULL"
++    };
++    let cost = if cols.contains("cost") {
++        "cost"
++    } else {
++        "NULL"
++    };
++    let mut statement = prepare(
++        db,
++        &format!(
++            "SELECT id, {time}, {cost}, tokens_input, tokens_output, tokens_cache_read, tokens_cache_write, {reasoning}, {model} FROM {table} LIMIT 100001"
++        ),
++    )?;
++    while next(&mut statement)? {
++        context.records.count()?;
++        let id = text(&statement, 0)?;
++        identifier(Some(&Value::String(id.clone())))?;
++        let counts = (3..8)
++            .map(|index| optional_integer(&statement, index))
++            .collect::<Result<Vec<_>>>()?;
++        // A metadata-only session row does not claim any token observation.
++        if counts[..4].iter().all(Option::is_none) && counts[4].is_none_or(|count| count == 0) {
++            continue;
++        }
++        let counts = counts
++            .into_iter()
++            .map(|count| {
++                count
++                    .and_then(|count| u64::try_from(count).ok())
++                    .ok_or_else(unavailable)
++            })
++            .collect::<Result<Vec<_>>>()?;
++        let total = counts.iter().try_fold(0u64, |sum, count| {
++            sum.checked_add(*count).ok_or_else(unavailable)
++        })?;
++        let created = optional_integer(&statement, 1)?.unwrap_or(0);
++        if created < 0 {
++            return Err(unavailable());
++        }
++        let cost = match statement.column_type(2).map_err(|_| unavailable())? {
++            sqlite::Type::Null => None,
++            sqlite::Type::Integer | sqlite::Type::Float => {
++                Some(statement.read::<f64, _>(2).map_err(|_| unavailable())?)
++                    .filter(|cost| cost.is_finite() && *cost >= 0.0)
++                    .ok_or_else(unavailable)
++                    .map(Some)?
++            }
++            _ => return Err(unavailable()),
++        };
++        let raw_model = optional_text(&statement, 8)?;
++        let (model, provider) = parse_session_model(raw_model.as_deref())
++            .unwrap_or_else(|| ("unknown".into(), "unknown".into()));
++        let canonical = json!({"id": id, "sessionID": id, "time": created, "cost": cost, "model": raw_model,
++            "tokens": counts, "total": total});
++        let entry = session_value_to_entry(
++            OpenCodeSessionAggregate {
++                session_id: id,
++                created,
++                model,
++                provider,
++                input_tokens: counts[0],
++                output_tokens: counts[1],
++                cache_read_tokens: counts[2],
++                cache_write_tokens: counts[3],
++                reasoning_tokens: counts[4],
++                cost,
++            },
++            context.tz,
++            context.mode,
++            context.pricing,
++        )
++        .map(|entry| (entry, None));
++        context.records.insert(&canonical, entry, Kind::Aggregate)?;
++    }
++    Ok(())
++}
+diff --git a/rust/adapters/opencode/src/files.rs b/rust/adapters/opencode/src/files.rs
+new file mode 100644
+index 0000000..01b3672
+--- /dev/null
++++ b/rust/adapters/opencode/src/files.rs
+@@ -0,0 +1,298 @@
++use std::path::PathBuf;
++
++use crate::Result;
++
++pub(crate) const MAX_ROOTS: usize = 64;
++pub(crate) const MAX_RECORDS: usize = 100_000;
++
++pub(crate) fn read(
++    paths: &[PathBuf],
++    visit: impl FnMut(&std::path::Path, &std::path::Path, &[u8]) -> Result<()>,
++) -> Result<()> {
++    if paths.is_empty() {
++        return Ok(());
++    }
++    #[cfg(target_os = "linux")]
++    {
++        linux::read_with(paths, linux::Limits::default(), |_| {}, visit)
++    }
++    #[cfg(not(target_os = "linux"))]
++    {
++        let _ = visit;
++        Err(super::unavailable())
++    }
++}
++
++#[cfg(target_os = "linux")]
++pub(crate) mod linux {
++    use super::super::unavailable;
++    use crate::Result;
++    use rustix::{
++        fd::OwnedFd,
++        fs::{self, AtFlags, CWD, Dir, FileType, Mode, OFlags, ResolveFlags, Stat},
++    };
++    use std::{
++        collections::BTreeMap,
++        ffi::OsStr,
++        fs::File,
++        io::Read,
++        os::unix::ffi::OsStrExt,
++        path::{Path, PathBuf},
++    };
++
++    #[derive(Clone, Copy)]
++    pub(crate) struct Limits {
++        pub roots: usize,
++        pub entries: usize,
++        pub files: usize,
++        pub depth: usize,
++        pub file_bytes: u64,
++        pub total_bytes: u64,
++    }
++
++    impl Default for Limits {
++        fn default() -> Self {
++            Self {
++                roots: super::MAX_ROOTS,
++                entries: 32768,
++                files: 8192,
++                depth: 64,
++                file_bytes: 64 << 20,
++                total_bytes: 256 << 20,
++            }
++        }
++    }
++
++    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
++    pub(crate) enum Stage {
++        Discovered,
++        Read(usize),
++        BeforeVerify,
++    }
++
++    #[derive(Clone, Debug, PartialEq, Eq)]
++    struct Stamp {
++        device: u64,
++        inode: u64,
++        mode: u32,
++        size: i64,
++        modified: (i128, i128),
++        changed: (i128, i128),
++    }
++
++    impl From<Stat> for Stamp {
++        fn from(stat: Stat) -> Self {
++            Self {
++                device: stat.st_dev,
++                inode: stat.st_ino,
++                mode: stat.st_mode,
++                size: stat.st_size,
++                modified: (stat.st_mtime.into(), stat.st_mtime_nsec.into()),
++                changed: (stat.st_ctime.into(), stat.st_ctime_nsec.into()),
++            }
++        }
++    }
++
++    struct Root {
++        path: PathBuf,
++        fd: OwnedFd,
++        stamp: Stamp,
++    }
++    type Manifest = BTreeMap<(usize, PathBuf), Stamp>;
++
++    fn root(path: &Path) -> Result<Root> {
++        let fd = fs::openat2(
++            CWD,
++            path,
++            OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC,
++            Mode::empty(),
++            ResolveFlags::NO_SYMLINKS | ResolveFlags::NO_MAGICLINKS,
++        )
++        .map_err(|_| unavailable())?;
++        let stamp = fs::fstat(&fd).map_err(|_| unavailable())?.into();
++        Ok(Root {
++            path: path.to_owned(),
++            fd,
++            stamp,
++        })
++    }
++
++    fn open(root: &Root, path: &Path, flags: OFlags) -> Result<OwnedFd> {
++        let path = if path.as_os_str().is_empty() {
++            Path::new(".")
++        } else {
++            path
++        };
++        fs::openat2(
++            &root.fd,
++            path,
++            flags | OFlags::CLOEXEC | OFlags::NONBLOCK,
++            Mode::empty(),
++            ResolveFlags::BENEATH | ResolveFlags::NO_SYMLINKS | ResolveFlags::NO_MAGICLINKS,
++        )
++        .map_err(|_| unavailable())
++    }
++
++    fn manifest(roots: &[Root], limits: Limits) -> Result<Manifest> {
++        let mut result = BTreeMap::new();
++        let mut entries = 0usize;
++        let mut files = 0usize;
++        let mut bytes = 0u64;
++        for (index, root) in roots.iter().enumerate() {
++            let mut pending = vec![(PathBuf::new(), 0usize)];
++            while let Some((path, depth)) = pending.pop() {
++                if depth > limits.depth {
++                    return Err(unavailable());
++                }
++                let fd = open(root, &path, OFlags::RDONLY | OFlags::DIRECTORY)?;
++                let before: Stamp = fs::fstat(&fd).map_err(|_| unavailable())?.into();
++                result.insert((index, path.clone()), before.clone());
++                let directory = Dir::read_from(&fd).map_err(|_| unavailable())?;
++                for item in directory {
++                    let item = item.map_err(|_| unavailable())?;
++                    let name = item.file_name().to_bytes();
++                    if name == b"." || name == b".." {
++                        continue;
++                    }
++                    entries = entries.checked_add(1).ok_or_else(unavailable)?;
++                    if entries > limits.entries {
++                        return Err(unavailable());
++                    }
++                    let child = path.join(OsStr::from_bytes(name));
++                    if path.as_os_str().is_empty() && super::super::database_peer(name) {
++                        return Err(unavailable());
++                    }
++                    let selected = if path.as_os_str().is_empty() {
++                        name == b"storage" || super::super::database_name(name)
++                    } else if path == Path::new("storage") {
++                        name == b"message"
++                    } else {
++                        true
++                    };
++                    if !selected {
++                        continue;
++                    }
++                    let stat = fs::statat(&fd, item.file_name(), AtFlags::SYMLINK_NOFOLLOW)
++                        .map_err(|_| unavailable())?;
++                    match FileType::from_raw_mode(stat.st_mode) {
++                        FileType::Directory => {
++                            if super::super::is_source(&child) {
++                                return Err(unavailable());
++                            }
++                            pending.push((child, depth + 1));
++                        }
++                        FileType::RegularFile => {
++                            if child == Path::new("storage")
++                                || child == Path::new("storage/message")
++                                || stat.st_nlink != 1
++                            {
++                                return Err(unavailable());
++                            }
++                            if !super::super::is_source(&child) {
++                                continue;
++                            }
++                            files = files.checked_add(1).ok_or_else(unavailable)?;
++                            let size = u64::try_from(stat.st_size).map_err(|_| unavailable())?;
++                            bytes = bytes.checked_add(size).ok_or_else(unavailable)?;
++                            if files > limits.files
++                                || size > limits.file_bytes
++                                || (child.extension().is_some_and(|ext| ext == "json")
++                                    && size > 1 << 20)
++                                || bytes > limits.total_bytes
++                            {
++                                return Err(unavailable());
++                            }
++                            result.insert((index, child), stat.into());
++                        }
++                        _ => return Err(unavailable()),
++                    }
++                }
++                if Stamp::from(fs::fstat(&fd).map_err(|_| unavailable())?) != before {
++                    return Err(unavailable());
++                }
++            }
++        }
++        Ok(result)
++    }
++
++    fn read_file(
++        root: &Root,
++        path: &Path,
++        expected: &Stamp,
++        content: &mut Vec<u8>,
++        after_read: impl FnOnce(),
++    ) -> Result<()> {
++        let mut file = File::from(open(root, path, OFlags::RDONLY)?);
++        if Stamp::from(fs::fstat(&file).map_err(|_| unavailable())?) != *expected {
++            return Err(unavailable());
++        }
++        content.clear();
++        content
++            .try_reserve_exact(expected.size as usize + 1)
++            .map_err(|_| unavailable())?;
++        (&mut file)
++            .take(expected.size as u64 + 1)
++            .read_to_end(content)
++            .map_err(|_| unavailable())?;
++        after_read();
++        if content.len() as u64 != expected.size as u64
++            || Stamp::from(fs::fstat(&file).map_err(|_| unavailable())?) != *expected
++        {
++            return Err(unavailable());
++        }
++        Ok(())
++    }
++
++    pub(crate) fn read_with(
++        paths: &[PathBuf],
++        limits: Limits,
++        mut hook: impl FnMut(Stage),
++        mut visit: impl FnMut(&Path, &Path, &[u8]) -> Result<()>,
++    ) -> Result<()> {
++        if paths.len() > limits.roots {
++            return Err(unavailable());
++        }
++        let roots = paths
++            .iter()
++            .map(|path| root(path))
++            .collect::<Result<Vec<_>>>()?;
++        let before = manifest(&roots, limits)?;
++        hook(Stage::Discovered);
++        let files = before
++            .iter()
++            .filter(|(_, stamp)| FileType::from_raw_mode(stamp.mode) == FileType::RegularFile);
++        let mut captured = Vec::new();
++        let mut content = Vec::new();
++        for ((index, path), stamp) in files.clone() {
++            let selected = &roots[*index];
++            read_file(selected, path, stamp, &mut content, || {
++                hook(Stage::Read(captured.len()));
++            })?;
++            visit(path, &selected.path, &content)?;
++            captured.push(std::mem::take(&mut content));
++        }
++
++        hook(Stage::BeforeVerify);
++        verify_roots(&roots)?;
++        // A same-size rewrite can escape a coarse timestamp. Recheck bytes before publication.
++        for (((index, path), stamp), expected_bytes) in files.zip(captured) {
++            read_file(&roots[*index], path, stamp, &mut content, || {})?;
++            if content != expected_bytes {
++                return Err(unavailable());
++            }
++        }
++        if manifest(&roots, limits)? != before {
++            return Err(unavailable());
++        }
++        verify_roots(&roots)
++    }
++
++    fn verify_roots(roots: &[Root]) -> Result<()> {
++        for selected in roots {
++            if root(&selected.path)?.stamp != selected.stamp {
++                return Err(unavailable());
++            }
++        }
++        Ok(())
++    }
++}
+diff --git a/rust/adapters/opencode/src/lib.rs b/rust/adapters/opencode/src/lib.rs
+index 477a467..badd8e6 100644
+--- a/rust/adapters/opencode/src/lib.rs
++++ b/rust/adapters/opencode/src/lib.rs
+@@ -1,12 +1,15 @@
+-use ccusage_adapter_common::{
+-    collect_files_with_extension, filter_loaded_entries_by_date, read_files_parallel,
+-};
++use ccusage_adapter_common::filter_loaded_entries_by_date;
+ use ccusage_core::*;
+
++mod database;
++mod files;
+ mod loader;
+ mod parser;
+ mod paths;
++mod records;
+ mod report;
++mod sqlite_snapshot;
++mod strict_json;
+
+ pub use loader::{LinkedEntry, load_entries_with_native_sessions};
+ pub use report::{report_json, summarize_entries};
+@@ -22,6 +25,9 @@ use crate::{
+ /// `--since`/`--until` as it reads, so an out-of-range query cannot answer that
+ /// question from the loaded entries alone.
+ pub fn has_data() -> bool {
++    if std::env::var_os("OPENCODE_DATA_DIR").is_some() {
++        return true;
++    }
+     paths::paths().is_ok_and(|paths| paths.iter().any(|path| loader::has_source(path)))
+ }
+
+@@ -49,3 +55,38 @@ pub fn run(args: AgentCommandArgs) -> Result<()> {
+     )?;
+     Ok(())
+ }
++
++fn unavailable() -> CliError {
++    cli_error("OpenCode source capture is unavailable")
++}
++
++fn database_name(name: &[u8]) -> bool {
++    name == b"opencode.db"
++        || name
++            .strip_prefix(b"opencode-")
++            .and_then(|name| name.strip_suffix(b".db"))
++            .is_some_and(|name| {
++                !name.is_empty()
++                    && name
++                        .iter()
++                        .all(|byte| byte.is_ascii_alphanumeric() || *byte == b'_' || *byte == b'-')
++            })
++}
++
++fn database_peer(name: &[u8]) -> bool {
++    [b"-wal".as_slice(), b"-shm", b"-journal"]
++        .iter()
++        .any(|suffix| name.strip_suffix(*suffix).is_some_and(database_name))
++}
++
++fn is_source(path: &std::path::Path) -> bool {
++    if path.components().count() == 1 {
++        return path
++            .file_name()
++            .is_some_and(|name| database_name(name.as_encoded_bytes()));
++    }
++    path.starts_with("storage/message") && path.extension().is_some_and(|ext| ext == "json")
++}
++
++#[cfg(test)]
++mod capture_tests;
+diff --git a/rust/adapters/opencode/src/loader.rs b/rust/adapters/opencode/src/loader.rs
+index 85e3df6..22267ca 100644
+--- a/rust/adapters/opencode/src/loader.rs
++++ b/rust/adapters/opencode/src/loader.rs
+@@ -1,1000 +1,172 @@
+-use std::{
+-    collections::{HashMap, HashSet},
+-    fs,
+-    path::{Path, PathBuf},
+-    sync::Arc,
+-};
+-
+-use jiff::tz::TimeZone as JiffTimeZone;
+-
+ use super::{
+-    parser::{
+-        OpenCodeMessage, OpenCodeSessionAggregate, message_value_to_entry,
+-        session_message_value_to_entry, session_value_to_entry,
+-    },
++    parser::{OpenCodeMessage, message_value_to_entry},
+     paths::paths,
++    records::{Kind, Records, validate},
+ };
+ use crate::{
+     LoadedEntry, PricingMap, Result,
+     cli::{AgentReportKind, CostMode, SharedArgs},
+-    collect_files_with_extension, date_range_bounds_ms, debug_log, parse_tz, read_files_parallel,
++    parse_tz, unavailable,
+ };
++use jiff::tz::TimeZone as JiffTimeZone;
++use serde_json::Value;
++use std::{
++    path::{Path, PathBuf},
++    sync::Arc,
++};
++
++pub type LinkedEntry = (LoadedEntry, Option<Arc<str>>);
+
+ pub(crate) fn load_entries(
+     shared: &SharedArgs,
+     report_kind: AgentReportKind,
+ ) -> Result<Vec<LoadedEntry>> {
+     load_entries_with_native_sessions(shared, report_kind)
+-        .map(|entries| entries.into_iter().map(|(entry, _)| entry).collect())
++        .map(|entries| entries.into_iter().map(|entry| entry.0).collect())
+ }
+
+-/// An entry and the Claude Code session its `claude-agent` row ran in.
+-pub type LinkedEntry = (LoadedEntry, Option<Arc<str>>);
+-
+-/// Loads OpenCode usage entries, each paired with the Claude Code session its
+-/// `claude-agent` row ran in, so a unified report can skip the turns the
+-/// Claude source already counts.
+ pub fn load_entries_with_native_sessions(
+     shared: &SharedArgs,
+     report_kind: AgentReportKind,
+ ) -> Result<Vec<LinkedEntry>> {
+-    let allow_aggregate_fallback = report_kind == AgentReportKind::Session;
+     crate::progress::track_usage_load(
+         crate::progress::UsageLoadAgent("OpenCode"),
+         shared.json,
+-        || load_entries_inner(shared, allow_aggregate_fallback),
++        || load_paths(&paths()?, shared, report_kind),
+     )
+ }
+
+-fn load_entries_inner(
+-    shared: &SharedArgs,
+-    allow_aggregate_fallback: bool,
+-) -> Result<Vec<LinkedEntry>> {
+-    let mut entries = Vec::new();
+-    let mut seen = HashSet::new();
+-    let mut message_sessions = HashSet::new();
+-    let mut aggregate_entries = Vec::new();
+-    for path in paths()? {
+-        let directory_entries =
+-            load_entries_from_directory_parts(&path, shared, allow_aggregate_fallback)?;
+-        for linked in directory_entries.message_entries {
+-            message_sessions.insert(linked.0.session_id.to_string());
+-            if let Some(id) = entry_id(&linked.0)
+-                && !seen.insert(id.to_string())
+-            {
+-                continue;
+-            }
+-            entries.push(linked);
+-        }
+-        aggregate_entries.extend(directory_entries.aggregate_entries);
+-    }
+-    append_aggregate_entries(
+-        &mut entries,
+-        &mut seen,
+-        &message_sessions,
+-        aggregate_entries,
+-    );
+-    entries.sort_by_key(|(entry, _)| entry.timestamp);
+-    Ok(entries)
++pub(crate) struct Context<'a> {
++    pub(crate) tz: Option<&'a JiffTimeZone>,
++    pub(crate) mode: CostMode,
++    pub(crate) pricing: Option<&'a PricingMap>,
++    pub(crate) records: Records,
+ }
+
+-#[cfg(test)]
+-fn load_entries_from_directory(
+-    opencode_dir: &Path,
+-    shared: &SharedArgs,
+-) -> Result<Vec<LoadedEntry>> {
+-    load_entries_from_directory_for_report(opencode_dir, shared, AgentReportKind::Daily)
++impl Context<'_> {
++    pub(crate) fn message(
++        &mut self,
++        value: Value,
++        native: Option<Arc<str>>,
++        inherited: bool,
++    ) -> Result<()> {
++        let has_usage = validate(&value)?;
++        let entry = if has_usage {
++            let value: OpenCodeMessage =
++                serde_json::from_value(value.clone()).map_err(|_| unavailable())?;
++            Some((
++                message_value_to_entry(&value, None, None, self.tz, self.mode, self.pricing)
++                    .ok_or_else(unavailable)?,
++                native,
++            ))
++        } else {
++            None
++        };
++        self.records
++            .insert(&value, if inherited { None } else { entry }, Kind::Message)
++    }
+ }
+
+-#[cfg(test)]
+-fn load_entries_from_directory_for_report(
+-    opencode_dir: &Path,
++pub(crate) fn load_paths(
++    paths: &[PathBuf],
+     shared: &SharedArgs,
+     report_kind: AgentReportKind,
+-) -> Result<Vec<LoadedEntry>> {
+-    let directory_entries = load_entries_from_directory_parts(
+-        opencode_dir,
+-        shared,
+-        report_kind == AgentReportKind::Session,
+-    )?;
+-    let message_sessions = message_session_ids(&directory_entries.message_entries);
+-    let mut seen = entry_ids(&directory_entries.message_entries);
+-    let mut entries = directory_entries.message_entries;
+-    append_aggregate_entries(
+-        &mut entries,
+-        &mut seen,
+-        &message_sessions,
+-        directory_entries.aggregate_entries,
+-    );
+-    entries.sort_by_key(|(entry, _)| entry.timestamp);
+-    Ok(entries.into_iter().map(|(entry, _)| entry).collect())
+-}
+-
+-fn load_entries_from_directory_parts(
+-    opencode_dir: &Path,
+-    shared: &SharedArgs,
+-    allow_aggregate_fallback: bool,
+-) -> Result<DirectoryLoadResult> {
+-    let pricing = if shared.mode == CostMode::Display {
+-        None
+-    } else {
+-        Some(PricingMap::load_with_overrides(
++) -> Result<Vec<LinkedEntry>> {
++    let pricing = (shared.mode != CostMode::Display).then(|| {
++        PricingMap::load_with_overrides(
+             shared.offline,
+             crate::log_level() != Some(0),
+             shared.pricing_overrides.iter(),
+-        ))
+-    };
+-    let tz = parse_tz(shared.timezone.as_deref());
+-    let window = DateWindow::from_shared(shared, tz.as_ref());
+-    let mut message_entries = Vec::new();
+-    let mut seen = HashSet::new();
+-    let mut aggregate_entries = Vec::new();
+-    if let Some(db_path) = db_path(opencode_dir) {
+-        let database_entries = load_entries_from_database(
+-            &db_path,
+-            tz.as_ref(),
+-            shared.mode,
+-            pricing.as_ref(),
+-            shared,
+-            window,
+-            allow_aggregate_fallback,
+-        );
+-        for linked in database_entries.message_entries {
+-            if let Some(id) = entry_id(&linked.0)
+-                && !seen.insert(id.to_string())
+-            {
+-                continue;
+-            }
+-            message_entries.push(linked);
+-        }
+-        aggregate_entries = database_entries.aggregate_entries;
+-    }
+-
+-    let messages_dir = opencode_dir.join("storage").join("message");
+-    let mut files = Vec::new();
+-    collect_files_with_extension(&messages_dir, "json", &mut files);
+-
+-    // Skip files the DB pass already covered. Message files are stored as
+-    // `storage/message/<sessionID>/<messageID>.json`, so the file stem is the
+-    // message id used for dedup. When the DB already contributed that id, the
+-    // file would be discarded by the id dedup below anyway — drop it here so we
+-    // never pay the read. Files whose stem is not a known id (or that have no
+-    // usable stem) are kept and parsed normally.
+-    if !seen.is_empty() {
+-        files.retain(|file| {
+-            file.file_stem()
+-                .and_then(|stem| stem.to_str())
+-                .is_none_or(|stem| !seen.contains(stem))
+-        });
+-    }
+-
+-    // Read the surviving files in parallel, then run the sequential id dedup
+-    // over the results in their original file order so parallelism never changes
+-    // which duplicate survives.
+-    let loaded = read_files_parallel(&files, shared.single_thread, |file| {
+-        read_message_file(
+-            file,
+-            tz.as_ref(),
+-            shared.mode,
+-            pricing.as_ref(),
+-            shared,
+-            window,
+         )
+     });
+-    for entry in loaded.into_iter().flatten() {
+-        if let Some(id) = entry_id(&entry)
+-            && !seen.insert(id.to_string())
+-        {
+-            continue;
+-        }
+-        message_entries.push((entry, None));
+-    }
+-
+-    Ok(DirectoryLoadResult {
+-        message_entries,
+-        aggregate_entries,
+-    })
+-}
+-
+-/// Reports whether `opencode_dir` holds any usage source at all: the SQLite
+-/// database, or at least one message file.
+-///
+-/// Detection has to ignore `--since`/`--until` because the loader applies the
+-/// window while reading, so an out-of-range query returns no entries even on an
+-/// install full of logs. Stops at the first message file rather than collecting
+-/// them all, so this stays cheap next to a large legacy dump.
+-pub(crate) fn has_source(opencode_dir: &Path) -> bool {
+-    if db_path(opencode_dir).is_some() {
+-        return true;
+-    }
+-    has_json_file(&opencode_dir.join("storage").join("message"))
+-}
+-
+-// Mirrors `collect_files_with_extension`: judge entries by `file_type()` so
+-// symlinks are neither followed nor counted. Following them would let detection
+-// claim files the collection pass then refuses to read, and a symlinked cycle
+-// would recurse until the stack gives out.
+-fn has_json_file(dir: &Path) -> bool {
+-    let Ok(entries) = fs::read_dir(dir) else {
+-        return false;
+-    };
+-    entries.filter_map(std::result::Result::ok).any(|entry| {
+-        let Ok(file_type) = entry.file_type() else {
+-            return false;
+-        };
+-        let path = entry.path();
+-        if file_type.is_file() {
+-            path.extension()
+-                .is_some_and(|extension| extension == "json")
+-        } else {
+-            file_type.is_dir() && has_json_file(&path)
+-        }
+-    })
+-}
+-
+-fn db_path(opencode_dir: &Path) -> Option<PathBuf> {
+-    let default_path = opencode_dir.join("opencode.db");
+-    if default_path.is_file() {
+-        return Some(default_path);
+-    }
+-    let mut candidates = fs::read_dir(opencode_dir)
+-        .ok()?
+-        .filter_map(std::result::Result::ok)
+-        .map(|entry| entry.path())
+-        .filter(|path| {
+-            path.is_file()
+-                && path
+-                    .file_name()
+-                    .and_then(|name| name.to_str())
+-                    .is_some_and(is_channel_db_name)
+-        })
+-        .collect::<Vec<_>>();
+-    candidates.sort();
+-    candidates.into_iter().next()
+-}
+-
+-fn is_channel_db_name(name: &str) -> bool {
+-    name.starts_with("opencode-")
+-        && name.ends_with(".db")
+-        && name["opencode-".len()..name.len() - ".db".len()]
+-            .chars()
+-            .all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-')
+-}
+-
+-struct DatabaseLoadContext<'a> {
+-    tz: Option<&'a JiffTimeZone>,
+-    mode: CostMode,
+-    pricing: Option<&'a PricingMap>,
+-    window: DateWindow,
+-    shared: &'a SharedArgs,
+-    db_path: &'a Path,
+-}
+-
+-#[derive(Default)]
+-struct DatabaseLoadResult {
+-    message_entries: Vec<LinkedEntry>,
+-    aggregate_entries: Vec<LinkedEntry>,
+-}
+-
+-#[derive(Default)]
+-struct DirectoryLoadResult {
+-    message_entries: Vec<LinkedEntry>,
+-    aggregate_entries: Vec<LinkedEntry>,
+-}
+-
+-fn load_entries_from_database(
+-    db_path: &Path,
+-    tz: Option<&JiffTimeZone>,
+-    mode: CostMode,
+-    pricing: Option<&PricingMap>,
+-    shared: &SharedArgs,
+-    window: DateWindow,
+-    allow_aggregate_fallback: bool,
+-) -> DatabaseLoadResult {
+-    let Ok(connection) =
+-        sqlite::Connection::open_with_flags(db_path, sqlite::OpenFlags::new().with_read_only())
+-    else {
+-        debug_log(
+-            shared,
+-            format!("Failed to open OpenCode database: {}", db_path.display()),
+-        );
+-        return DatabaseLoadResult::default();
++    let tz = parse_tz(shared.timezone.as_deref());
++    let mut context = Context {
++        tz: tz.as_ref(),
++        mode: shared.mode,
++        pricing: pricing.as_ref(),
++        records: Records::default(),
+     };
+-    let mut message_entries = Vec::new();
+-
+-    let mut seen_message_ids = HashSet::new();
+-    let mut message_sessions = HashSet::new();
+-    let fork_copies = fork_copy_cutoffs(&connection);
+-
+-    if table_exists(&connection, "message") {
+-        // Push the window into SQL only while a sample of `time_created` still
+-        // looks millisecond-scaled. The payload check remains authoritative.
+-        let pushdown =
+-            if window.is_unbounded() || time_created_looks_like_millis(&connection, "message") {
+-                window.widened_for_pushdown()
+-            } else {
+-                debug_log(
+-                    shared,
+-                    format!(
+-                        "OpenCode time_created is not millisecond-scale; scanning unfiltered: {}",
+-                        db_path.display()
+-                    ),
+-                );
+-                DateWindow::UNBOUNDED
+-            };
+-        let statement = prepare_message_query(&connection, pushdown).or_else(|| {
+-            // A pre-SQLite-era schema has no `time_created` column, so the
+-            // filtered query cannot prepare. Scan unfiltered instead.
+-            debug_log(
+-                shared,
+-                format!(
+-                    "Failed to prepare filtered OpenCode query; scanning unfiltered: {}",
+-                    db_path.display()
+-                ),
+-            );
+-            prepare_message_query(&connection, DateWindow::UNBOUNDED)
+-        });
+-        if let Some(mut statement) = statement {
+-            loop {
+-                match statement.next() {
+-                    Ok(sqlite::State::Row) => {
+-                        let Ok(id) = statement.read::<String, _>(0) else {
+-                            continue;
+-                        };
+-                        let Ok(session_id) = statement.read::<String, _>(1) else {
+-                            continue;
+-                        };
+-                        let Ok(data) = statement.read::<String, _>(2) else {
+-                            continue;
+-                        };
+-                        if !window.is_unbounded()
+-                            && let Some(millis) = extract_message_timestamp(&data)
+-                            && !window.contains(millis)
+-                        {
+-                            continue;
+-                        }
+-                        let Ok(value) = serde_json::from_str::<OpenCodeMessage>(&data) else {
+-                            continue;
+-                        };
+-                        if let Some(entry) = message_value_to_entry(
+-                            &value,
+-                            Some(id),
+-                            Some(session_id),
+-                            tz,
+-                            mode,
+-                            pricing,
+-                        ) {
+-                            let session_key = entry.session_id.to_string();
+-                            message_sessions.insert(session_key);
+-                            push_unique_entry(
+-                                &mut message_entries,
+-                                &mut seen_message_ids,
+-                                (entry, None),
+-                            );
+-                        }
+-                    }
+-                    Ok(sqlite::State::Done) => break,
+-                    Err(_) => {
+-                        debug_log(
+-                            shared,
+-                            format!("Failed to query OpenCode database: {}", db_path.display()),
+-                        );
+-                        break;
+-                    }
+-                }
+-            }
++    super::files::read(paths, |path, _, bytes| {
++        if path.extension().is_some_and(|ext| ext == "db") {
++            super::database::read(bytes, &mut context)
+         } else {
+-            debug_log(
+-                shared,
+-                format!("Failed to read OpenCode database: {}", db_path.display()),
+-            );
+-        }
+-    }
+-
+-    let has_session_messages = table_exists(&connection, "session_message");
+-    if has_session_messages {
+-        let pushdown = if window.is_unbounded()
+-            || time_created_looks_like_millis(&connection, "session_message")
+-        {
+-            window.widened_for_pushdown()
+-        } else {
+-            DateWindow::UNBOUNDED
+-        };
+-        let statement = prepare_session_message_query(&connection, pushdown).or_else(|| {
+-            debug_log(
+-                shared,
+-                format!(
+-                    "Failed to prepare filtered OpenCode v2 query; scanning unfiltered: {}",
+-                    db_path.display()
+-                ),
+-            );
+-            prepare_session_message_query(&connection, DateWindow::UNBOUNDED)
+-        });
+-        let mut v2_rows = 0;
+-        let mut v2_entries = 0;
+-        if let Some(mut statement) = statement {
+-            loop {
+-                match statement.next() {
+-                    Ok(sqlite::State::Row) => {
+-                        v2_rows += 1;
+-                        let Ok(id) = statement.read::<String, _>(0) else {
+-                            continue;
+-                        };
+-                        let Ok(session_id) = statement.read::<String, _>(1) else {
+-                            continue;
+-                        };
+-                        let Ok(message_type) = statement.read::<String, _>(2) else {
+-                            continue;
+-                        };
+-                        if message_type != "assistant" {
+-                            continue;
+-                        }
+-                        let Ok(data) = statement.read::<String, _>(3) else {
+-                            continue;
+-                        };
+-                        let created = statement
+-                            .read::<i64, _>(4)
+-                            .ok()
+-                            .or_else(|| statement.read::<f64, _>(4).ok().map(|value| value as i64))
+-                            .unwrap_or(0);
+-                        // Copies neither count nor mark the fork as covered:
+-                        // the fork's `session_v2` counters start at zero and
+-                        // only hold fork-local usage, so they stay a valid
+-                        // fallback when every fork-local row is gone.
+-                        if is_fork_copy(&fork_copies, &session_id, &statement) {
+-                            continue;
+-                        }
+-                        if !window.is_unbounded()
+-                            && let Some(millis) = extract_message_timestamp(&data)
+-                            && !window.contains(millis)
+-                        {
+-                            continue;
+-                        }
+-                        let Some(linked) = session_message_value_to_entry(
+-                            &data, id, session_id, created, tz, mode, pricing,
+-                        ) else {
+-                            continue;
+-                        };
+-                        let session_key = linked.0.session_id.to_string();
+-                        v2_entries += 1;
+-                        message_sessions.insert(session_key);
+-                        push_unique_entry(&mut message_entries, &mut seen_message_ids, linked);
+-                    }
+-                    Ok(sqlite::State::Done) => break,
+-                    Err(_) => {
+-                        debug_log(
+-                            shared,
+-                            format!(
+-                                "Failed to query OpenCode v2 database: {}",
+-                                db_path.display()
+-                            ),
+-                        );
+-                        break;
+-                    }
+-                }
+-            }
+-        }
+-        if v2_rows > 0 && v2_entries == 0 {
+-            debug_log(
+-                shared,
+-                format!(
+-                    "OpenCode v2 rows produced no usage entries: {v2_rows} rows in {}",
+-                    db_path.display()
+-                ),
+-            );
+-        }
+-    }
+-
+-    let mut aggregate_entries = Vec::new();
+-    if allow_aggregate_fallback && !has_temporal_filter(shared) {
+-        // Session aggregates are cumulative and cannot be sliced safely for a
+-        // bounded report, so only unbounded reports may use this fallback.
+-        let mut aggregate_tables = Vec::new();
+-        if table_exists(&connection, "session_v2") {
+-            aggregate_tables.push("session_v2");
+-        }
+-        if has_session_messages && table_exists(&connection, "session") {
+-            aggregate_tables.push("session");
++            context.records.count()?;
++            context.message(super::strict_json::parse(bytes)?, None, false)
+         }
+-        let aggregate_context = DatabaseLoadContext {
+-            tz,
+-            mode,
+-            pricing,
+-            window,
+-            shared,
+-            db_path,
+-        };
+-        for table in aggregate_tables {
+-            for entry in load_session_aggregate_entries(&connection, table, &aggregate_context) {
+-                if message_sessions.contains(entry.session_id.as_ref()) {
+-                    continue;
+-                }
+-                push_unique_entry(&mut aggregate_entries, &mut seen_message_ids, (entry, None));
+-            }
+-        }
+-    }
+-
+-    DatabaseLoadResult {
+-        message_entries,
+-        aggregate_entries,
+-    }
+-}
+-
+-fn read_message_file(
+-    path: &Path,
+-    tz: Option<&JiffTimeZone>,
+-    mode: CostMode,
+-    pricing: Option<&PricingMap>,
+-    shared: &SharedArgs,
+-    window: DateWindow,
+-) -> Option<LoadedEntry> {
+-    let content = match fs::read(path) {
+-        Ok(content) => content,
+-        Err(error) => {
+-            debug_log(
+-                shared,
+-                format!(
+-                    "Failed to read OpenCode message file {}: {error}",
+-                    path.display()
+-                ),
+-            );
+-            return None;
+-        }
+-    };
+-    // Skip out-of-range entries before the full parse. Extraction works on the
+-    // raw text and fails open (non-UTF-8 or missing timestamp -> full parse).
+-    if !window.is_unbounded()
+-        && let Ok(text) = std::str::from_utf8(&content)
+-        && let Some(millis) = extract_message_timestamp(text)
+-        && !window.contains(millis)
+-    {
+-        return None;
+-    }
+-    let value = serde_json::from_slice::<OpenCodeMessage>(&content).ok()?;
+-    message_value_to_entry(&value, None, None, tz, mode, pricing)
+-}
+-
+-fn push_unique_entry(
+-    entries: &mut Vec<LinkedEntry>,
+-    seen_message_ids: &mut HashSet<String>,
+-    entry: LinkedEntry,
+-) -> bool {
+-    if let Some(id) = entry_id(&entry.0)
+-        && !seen_message_ids.insert(id.to_string())
+-    {
+-        return false;
+-    }
+-    entries.push(entry);
+-    true
++    })?;
++    let allow_aggregates = report_kind == AgentReportKind::Session
++        && shared.since.is_none()
++        && shared.until.is_none()
++        && shared.last.is_none();
++    let mut entries = context.records.finish(allow_aggregates)?;
++    let (start, end) = crate::date_range_bounds_ms(
++        shared.since.as_deref(),
++        shared.until.as_deref(),
++        tz.as_ref(),
++    );
++    entries.retain(|entry| {
++        start.is_none_or(|start| entry.0.timestamp.as_millis() >= start)
++            && end.is_none_or(|end| entry.0.timestamp.as_millis() < end)
++    });
++    Ok(entries)
+ }
+
+ #[cfg(test)]
+-fn entry_ids(entries: &[LinkedEntry]) -> HashSet<String> {
+-    entries
+-        .iter()
+-        .filter_map(|(entry, _)| entry_id(entry))
+-        .map(str::to_string)
+-        .collect()
++fn load_entries_from_directory(path: &Path, shared: &SharedArgs) -> Result<Vec<LoadedEntry>> {
++    load_entries_from_directory_for_report(path, shared, AgentReportKind::Daily)
+ }
+
+ #[cfg(test)]
+-fn message_session_ids(entries: &[LinkedEntry]) -> HashSet<String> {
+-    entries
+-        .iter()
+-        .map(|(entry, _)| entry.session_id.to_string())
+-        .collect()
++fn load_entries_from_directory_for_report(
++    path: &Path,
++    shared: &SharedArgs,
++    kind: AgentReportKind,
++) -> Result<Vec<LoadedEntry>> {
++    load_paths(&[path.to_owned()], shared, kind)
++        .map(|entries| entries.into_iter().map(|entry| entry.0).collect())
+ }
+
+-fn append_aggregate_entries(
+-    entries: &mut Vec<LinkedEntry>,
+-    seen: &mut HashSet<String>,
+-    message_sessions: &HashSet<String>,
+-    aggregate_entries: Vec<LinkedEntry>,
+-) {
+-    for linked in aggregate_entries {
+-        if message_sessions.contains(linked.0.session_id.as_ref()) {
+-            continue;
+-        }
+-        if let Some(id) = entry_id(&linked.0)
+-            && !seen.insert(id.to_string())
+-        {
+-            continue;
++pub(crate) fn has_source(path: &Path) -> bool {
++    // Detection does not read file contents. Collection makes the authoritative checks.
++    fn find(path: &Path, depth: usize, budget: &mut usize) -> bool {
++        if depth > 64 {
++            return false;
+         }
+-        entries.push(linked);
+-    }
+-}
+-
+-fn table_exists(connection: &sqlite::Connection, table: &str) -> bool {
+-    let Ok(mut statement) = connection
+-        .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?1 LIMIT 1")
+-    else {
+-        return false;
+-    };
+-    if statement.bind((1, table)).is_err() {
+-        return false;
+-    }
+-    matches!(statement.next(), Ok(sqlite::State::Row))
+-}
+-
+-/// Fork sessions whose leading `seq` range is a copy of the parent history.
+-///
+-/// Returns the largest `seq` that is still copied history for each fork
+-/// session, so the v2 row scan can drop inherited assistant usage while
+-/// keeping what the fork generated itself. `session_v2` carries the fork
+-/// link (`fork_session_id`) plus the boundary message; `session_message`
+-/// carries the `seq` the fork kept when it copied the parent's rows.
+-fn fork_copy_cutoffs(connection: &sqlite::Connection) -> HashMap<String, i64> {
+-    let mut cutoffs = HashMap::new();
+-    if !table_exists(connection, "session_v2") || !table_exists(connection, "session_message") {
+-        return cutoffs;
+-    }
+-    let v2_columns = table_columns(connection, "session_v2");
+-    if !["id", "fork_session_id", "fork_boundary"]
+-        .into_iter()
+-        .all(|column| v2_columns.contains(column))
+-    {
+-        return cutoffs;
+-    }
+-    let message_columns = table_columns(connection, "session_message");
+-    if !["id", "session_id", "seq"]
+-        .into_iter()
+-        .all(|column| message_columns.contains(column))
+-    {
+-        return cutoffs;
+-    }
+-    let Ok(mut forks) = connection.prepare(
+-        "SELECT id, fork_session_id, fork_boundary FROM session_v2 \
+-         WHERE fork_session_id IS NOT NULL AND fork_boundary IS NOT NULL",
+-    ) else {
+-        return cutoffs;
+-    };
+-    while matches!(forks.next(), Ok(sqlite::State::Row)) {
+-        let Ok(fork_id) = forks.read::<String, _>(0) else {
+-            continue;
+-        };
+-        let Ok(parent_id) = forks.read::<String, _>(1) else {
+-            continue;
+-        };
+-        let Ok(boundary) = forks.read::<String, _>(2) else {
+-            continue;
++        let Ok(entries) = std::fs::read_dir(path) else {
++            return false;
+         };
+-        if fork_id.is_empty() || parent_id.is_empty() {
+-            continue;
+-        }
+-        if let Some(cutoff) = fork_copy_cutoff(connection, &parent_id, &boundary) {
+-            cutoffs.insert(fork_id, cutoff);
+-        }
+-    }
+-    cutoffs
+-}
+-
+-/// Largest copied `seq` for one fork: the parent's boundary `seq` for a
+-/// `through` fork, or the parent's last `seq` below the boundary for a
+-/// `before` fork.
+-///
+-/// Returns `None` when the boundary cannot be resolved — a missing parent
+-/// row, a missing boundary row, or an unparsable boundary payload — so the
+-/// fork keeps all of its rows instead of being dropped on a guess.
+-fn fork_copy_cutoff(
+-    connection: &sqlite::Connection,
+-    parent_id: &str,
+-    boundary: &str,
+-) -> Option<i64> {
+-    let boundary: serde_json::Value = serde_json::from_str(boundary).ok()?;
+-    let boundary_type = boundary.get("type")?.as_str()?;
+-    // The boundary names the parent's message id, which the fork copy does
+-    // not reuse (every copy gets a new id), so the lookup has to run against
+-    // the parent session's rows and then compare by the preserved `seq`.
+-    let parent_message_id = boundary.get("messageID")?.as_str()?;
+-    let Ok(mut statement) = connection
+-        .prepare("SELECT seq FROM session_message WHERE session_id = ?1 AND id = ?2 LIMIT 1")
+-    else {
+-        return None;
+-    };
+-    statement.bind((1, parent_id)).ok()?;
+-    statement.bind((2, parent_message_id)).ok()?;
+-    let boundary_seq = match statement.next() {
+-        Ok(sqlite::State::Row) => statement.read::<i64, _>(0).ok()?,
+-        _ => return None,
+-    };
+-    match boundary_type {
+-        "through" => Some(boundary_seq),
+-        // `seq` is sparse and the fork's own rows continue right after the
+-        // last copied row, so `boundary_seq - 1` could swallow them.
+-        "before" => last_parent_seq_before(connection, parent_id, boundary_seq),
+-        _ => None,
+-    }
+-}
+-
+-fn last_parent_seq_before(
+-    connection: &sqlite::Connection,
+-    parent_id: &str,
+-    boundary_seq: i64,
+-) -> Option<i64> {
+-    let Ok(mut statement) = connection
+-        .prepare("SELECT MAX(seq) FROM session_message WHERE session_id = ?1 AND seq < ?2")
+-    else {
+-        return None;
+-    };
+-    statement.bind((1, parent_id)).ok()?;
+-    statement.bind((2, boundary_seq)).ok()?;
+-    match statement.next() {
+-        // `MAX` over no rows is NULL: nothing was copied, so nothing is skipped.
+-        Ok(sqlite::State::Row) => statement.read::<Option<i64>, _>(0).ok()?,
+-        _ => None,
+-    }
+-}
+-
+-fn is_fork_copy(
+-    fork_copies: &HashMap<String, i64>,
+-    session_id: &str,
+-    statement: &sqlite::Statement,
+-) -> bool {
+-    let Some(cutoff) = fork_copies.get(session_id) else {
+-        return false;
+-    };
+-    // Without a readable `seq` the row cannot be classified, so it stays.
+-    statement
+-        .read::<i64, _>(5)
+-        .ok()
+-        .is_some_and(|seq| seq <= *cutoff)
+-}
+-
+-fn table_columns(connection: &sqlite::Connection, table: &str) -> HashSet<String> {
+-    let sql = match table {
+-        "message" => "SELECT * FROM message LIMIT 0",
+-        "session" => "SELECT * FROM session LIMIT 0",
+-        "session_v2" => "SELECT * FROM session_v2 LIMIT 0",
+-        "session_message" => "SELECT * FROM session_message LIMIT 0",
+-        _ => return HashSet::new(),
+-    };
+-    let Ok(statement) = connection.prepare(sql) else {
+-        return HashSet::new();
+-    };
+-    let mut columns = HashSet::new();
+-    for index in 0..statement.column_count() {
+-        if let Ok(name) = statement.column_name(index) {
+-            columns.insert(name.to_string());
+-        }
+-    }
+-    columns
+-}
+-
+-fn prepare_session_message_query(
+-    connection: &sqlite::Connection,
+-    window: DateWindow,
+-) -> Option<sqlite::Statement<'_>> {
+-    let columns = table_columns(connection, "session_message");
+-    if !["id", "session_id", "type", "data"]
+-        .into_iter()
+-        .all(|column| columns.contains(column))
+-    {
+-        return None;
+-    }
+-    let has_time_created = columns.contains("time_created");
+-    let has_seq = columns.contains("seq");
+-    // `seq` is position 5 only when the column exists; `is_fork_copy`
+-    // falls back to keeping the row when it cannot read a `seq`.
+-    let seq_column = if has_seq { ", seq" } else { "" };
+-    let time_created = if has_time_created {
+-        "time_created"
+-    } else {
+-        "NULL"
+-    };
+-    let select = format!(
+-        "SELECT id, session_id, type, data, {time_created}{seq_column} FROM session_message"
+-    );
+-    let sql = if has_time_created {
+-        match (window.start, window.end) {
+-            (Some(_), Some(_)) => {
+-                format!("{select} WHERE time_created >= ?1 AND time_created < ?2",)
++        for entry in entries {
++            if *budget == 0 {
++                return false;
+             }
+-            (Some(_), None) => format!("{select} WHERE time_created >= ?1",),
+-            (None, Some(_)) => format!("{select} WHERE time_created < ?1",),
+-            (None, None) => select.clone(),
+-        }
+-    } else {
+-        select.clone()
+-    };
+-    let mut statement = connection.prepare(&sql).ok()?;
+-    if has_time_created {
+-        for (index, bound) in [window.start, window.end].into_iter().flatten().enumerate() {
+-            statement.bind((index + 1, bound)).ok()?;
+-        }
+-    }
+-    Some(statement)
+-}
+-
+-fn prepare_session_aggregate_query<'a>(
+-    connection: &'a sqlite::Connection,
+-    table: &str,
+-) -> Option<sqlite::Statement<'a>> {
+-    let table = match table {
+-        "session" => "session",
+-        "session_v2" => "session_v2",
+-        _ => return None,
+-    };
+-    let columns = table_columns(connection, table);
+-    if ![
+-        "id",
+-        "time_created",
+-        "cost",
+-        "tokens_input",
+-        "tokens_output",
+-        "tokens_cache_read",
+-        "tokens_cache_write",
+-    ]
+-    .into_iter()
+-    .all(|column| columns.contains(column))
+-    {
+-        return None;
+-    }
+-    let reasoning = if columns.contains("tokens_reasoning") {
+-        "tokens_reasoning"
+-    } else {
+-        "0"
+-    };
+-    let model = if columns.contains("model") {
+-        "model"
+-    } else {
+-        "NULL"
+-    };
+-    let sql = format!(
+-        "SELECT id, time_created, cost, tokens_input, tokens_output, \
+-         tokens_cache_read, tokens_cache_write, {reasoning}, {model} FROM {table}"
+-    );
+-    connection.prepare(&sql).ok()
+-}
+-
+-fn load_session_aggregate_entries(
+-    connection: &sqlite::Connection,
+-    table: &str,
+-    context: &DatabaseLoadContext<'_>,
+-) -> Vec<LoadedEntry> {
+-    let Some(mut statement) = prepare_session_aggregate_query(connection, table) else {
+-        debug_log(
+-            context.shared,
+-            format!(
+-                "Failed to read OpenCode {table} table: {}",
+-                context.db_path.display()
+-            ),
+-        );
+-        return Vec::new();
+-    };
+-    let mut entries = Vec::new();
+-    loop {
+-        match statement.next() {
+-            Ok(sqlite::State::Row) => {
+-                let Ok(session_id) = statement.read::<String, _>(0) else {
+-                    continue;
+-                };
+-                let Some(created) = read_f64(&statement, 1)
+-                    .filter(|value| value.is_finite())
+-                    .map(|value| value.trunc() as i64)
+-                else {
+-                    continue;
+-                };
+-                if !context.window.is_unbounded() && !context.window.contains(created) {
+-                    continue;
+-                }
+-                let cost = read_f64(&statement, 2);
+-                let input_tokens = read_u64(&statement, 3);
+-                let output_tokens = read_u64(&statement, 4);
+-                let cache_read_tokens = read_u64(&statement, 5);
+-                let cache_write_tokens = read_u64(&statement, 6);
+-                let reasoning_tokens = read_u64(&statement, 7);
+-                let model = statement.read::<String, _>(8).ok();
+-                let (model, provider) = parse_session_model(model.as_deref())
+-                    .unwrap_or_else(|| ("unknown".to_string(), "unknown".to_string()));
+-                if let Some(entry) = session_value_to_entry(
+-                    OpenCodeSessionAggregate {
+-                        session_id,
+-                        created,
+-                        model,
+-                        provider,
+-                        input_tokens,
+-                        output_tokens,
+-                        reasoning_tokens,
+-                        cache_read_tokens,
+-                        cache_write_tokens,
+-                        cost,
+-                    },
+-                    context.tz,
+-                    context.mode,
+-                    context.pricing,
+-                ) {
+-                    entries.push(entry);
+-                }
++            *budget -= 1;
++            let Ok(entry) = entry else {
++                return false;
++            };
++            let Ok(kind) = entry.file_type() else {
++                return false;
++            };
++            if kind.is_file() && entry.path().extension().is_some_and(|ext| ext == "json") {
++                return true;
+             }
+-            Ok(sqlite::State::Done) => break,
+-            Err(_) => {
+-                debug_log(
+-                    context.shared,
+-                    format!(
+-                        "Failed to query OpenCode {table} table: {}",
+-                        context.db_path.display()
+-                    ),
+-                );
+-                break;
++            if kind.is_dir() && find(&entry.path(), depth + 1, budget) {
++                return true;
+             }
+         }
++        false
+     }
+-    entries
+-}
+-
+-fn parse_session_model(value: Option<&str>) -> Option<(String, String)> {
+-    let value = value?.trim();
+-    if value.is_empty() {
+-        return None;
+-    }
+-    if let Ok(json) = serde_json::from_str::<serde_json::Value>(value) {
+-        if let Some(model) = json
+-            .as_str()
+-            .map(str::trim)
+-            .filter(|model| !model.is_empty())
+-        {
+-            return Some((model.to_string(), "unknown".to_string()));
+-        }
+-        if let Some(object) = json.as_object() {
+-            let model = object
+-                .get("id")
+-                .and_then(serde_json::Value::as_str)
+-                .or_else(|| object.get("modelID").and_then(serde_json::Value::as_str))
+-                .map(str::trim)
+-                .filter(|model| !model.is_empty())?;
+-            let provider = object
+-                .get("providerID")
+-                .and_then(serde_json::Value::as_str)
+-                .or_else(|| object.get("provider").and_then(serde_json::Value::as_str))
+-                .map(str::trim)
+-                .filter(|provider| !provider.is_empty())
+-                .unwrap_or("unknown");
+-            return Some((model.to_string(), provider.to_string()));
+-        }
+-    }
+-    Some((value.to_string(), "unknown".to_string()))
+-}
+-
+-fn read_u64(statement: &sqlite::Statement<'_>, index: usize) -> u64 {
+-    statement
+-        .read::<i64, _>(index)
+-        .ok()
+-        .and_then(|value| u64::try_from(value.max(0)).ok())
+-        .or_else(|| {
+-            statement
+-                .read::<f64, _>(index)
+-                .ok()
+-                .filter(|value| value.is_finite() && *value > 0.0)
+-                .map(|value| value.trunc() as u64)
+-        })
+-        .unwrap_or(0)
+-}
+-
+-fn read_f64(statement: &sqlite::Statement<'_>, index: usize) -> Option<f64> {
+-    statement
+-        .read::<f64, _>(index)
+-        .ok()
+-        .filter(|value| value.is_finite())
+-        .or_else(|| {
+-            statement
+-                .read::<i64, _>(index)
+-                .ok()
+-                .map(|value| value as f64)
++    if std::fs::read_dir(path).is_ok_and(|entries| {
++        entries.filter_map(std::result::Result::ok).any(|entry| {
++            super::database_name(entry.file_name().as_encoded_bytes())
++                && entry.file_type().is_ok_and(|kind| kind.is_file())
+         })
++    }) {
++        return true;
++    }
++    find(&path.join("storage/message"), 0, &mut 32768)
+ }
+
+-fn entry_id(entry: &LoadedEntry) -> Option<&str> {
+-    entry.data.message.id.as_deref().filter(|id| !id.is_empty())
+-}
+-
+-/// Pulls `time.created` millis from raw JSON to skip rows before a full parse.
+-///
+-/// Only the canonical `"time": { ... "created": <digits> ... }` shape is
+-/// recognized, and the search for `created` never leaves that object, so a
+-/// `time` object belonging to something else in the payload cannot contribute a
+-/// number. Everything else returns `None` and the caller falls back to a full
+-/// parse: a scan that gives up costs time, whereas a scan that guesses wrong
+-/// would silently drop an in-range entry.
++#[cfg(test)]
+ fn extract_message_timestamp(data: &str) -> Option<i64> {
+     const TIME_KEY: &str = "\"time\":";
+     const CREATED_KEY: &str = "\"created\":";
+@@ -1010,134 +182,6 @@ fn extract_message_timestamp(data: &str) -> Option<i64> {
+     after_key[..end].parse::<i64>().ok()
+ }
+
+-/// Half-open millisecond window derived from `--since`/`--until`, used to skip
+-/// rows and files before they are parsed.
+-///
+-/// A `None` bound is not narrowed, either because the option was absent or
+-/// because it is not a full date. The window is deliberately equivalent to the
+-/// authoritative `date_within_range` check applied to loaded entries: both
+-/// resolve the bounds in the reporting timezone, so pre-filtering can never drop
+-/// an entry the report would have kept.
+-#[derive(Clone, Copy, PartialEq, Eq)]
+-struct DateWindow {
+-    start: Option<i64>,
+-    end: Option<i64>,
+-}
+-
+-fn has_temporal_filter(shared: &SharedArgs) -> bool {
+-    shared.since.is_some() || shared.until.is_some() || shared.last.is_some()
+-}
+-
+-impl DateWindow {
+-    const UNBOUNDED: Self = Self {
+-        start: None,
+-        end: None,
+-    };
+-
+-    fn from_shared(shared: &SharedArgs, tz: Option<&JiffTimeZone>) -> Self {
+-        let (start, end) =
+-            date_range_bounds_ms(shared.since.as_deref(), shared.until.as_deref(), tz);
+-        Self { start, end }
+-    }
+-
+-    fn is_unbounded(self) -> bool {
+-        self == Self::UNBOUNDED
+-    }
+-
+-    /// Same window, widened by a day on each side for the SQL push-down.
+-    ///
+-    /// SQL filters on `message.time_created` while the report filters on the
+-    /// payload's `time.created`. They hold the same value on every OpenCode
+-    /// build checked here, but the column is only a proxy for the payload, so
+-    /// the pushed-down window is kept loose: a column drifting from its payload
+-    /// by up to a day costs a few extra rows to scan instead of excluding a row
+-    /// the report wanted. Drift past a day is still excluded — ruling that out
+-    /// would take the full-column scan this push-down exists to avoid. The exact
+-    /// window is applied per row either way.
+-    fn widened_for_pushdown(self) -> Self {
+-        Self {
+-            start: self.start.map(|start| start - crate::MILLIS_PER_DAY),
+-            end: self.end.map(|end| end + crate::MILLIS_PER_DAY),
+-        }
+-    }
+-
+-    fn contains(self, millis: i64) -> bool {
+-        self.start.is_none_or(|start| millis >= start) && self.end.is_none_or(|end| millis < end)
+-    }
+-}
+-
+-/// Prepares the `message` scan, narrowed to `window` where its bounds are set.
+-///
+-/// Returns `None` when the statement cannot be prepared, which is what a schema
+-/// without a `time_created` column looks like.
+-///
+-/// The bounds are applied through a subquery that selects only `id`. OpenCode's
+-/// index is `(session_id, time_created, id)`, so a bare `time_created` range
+-/// cannot seek it and scans the table, reading every `data` blob on the way. The
+-/// subquery is answered from that index alone, leaving only in-range rows to be
+-/// fetched by primary key — the difference is what keeps a narrow window off the
+-/// gigabytes of payload it does not need.
+-fn prepare_message_query(
+-    connection: &sqlite::Connection,
+-    window: DateWindow,
+-) -> Option<sqlite::Statement<'_>> {
+-    let sql = match (window.start, window.end) {
+-        (Some(_), Some(_)) => {
+-            "SELECT id, session_id, data FROM message WHERE id IN \
+-             (SELECT id FROM message WHERE time_created >= ?1 AND time_created < ?2)"
+-        }
+-        (Some(_), None) => {
+-            "SELECT id, session_id, data FROM message WHERE id IN \
+-             (SELECT id FROM message WHERE time_created >= ?1)"
+-        }
+-        (None, Some(_)) => {
+-            "SELECT id, session_id, data FROM message WHERE id IN \
+-             (SELECT id FROM message WHERE time_created < ?1)"
+-        }
+-        (None, None) => "SELECT id, session_id, data FROM message",
+-    };
+-    let mut statement = connection.prepare(sql).ok()?;
+-    for (index, bound) in [window.start, window.end].into_iter().flatten().enumerate() {
+-        statement.bind((index + 1, bound)).ok()?;
+-    }
+-    Some(statement)
+-}
+-
+-/// Smallest value treated as millisecond scale: any Unix timestamp after 1973
+-/// needs at least 12 digits, while second-scale values stay far below it.
+-const MIN_MILLIS_SCALE: i64 = 100_000_000_000;
+-
+-/// Reports whether a sample of `message.time_created` looks like Unix
+-/// milliseconds, the scale the payload's `time.created` uses.
+-///
+-/// Sampling keeps this cheap on databases tens of gigabytes in size, and proves
+-/// nothing about the rows it did not read: a column with mixed scales can still
+-/// slip through, and matching scales say nothing about matching values. What it
+-/// does catch is a build that stored seconds, or left the column at zero, where
+-/// millisecond bounds would otherwise exclude every row — those disable the
+-/// push-down and leave the payload check to filter.
+-fn time_created_looks_like_millis(connection: &sqlite::Connection, table: &str) -> bool {
+-    let sql = match table {
+-        "message" => "SELECT max(time_created) FROM (SELECT time_created FROM message LIMIT 8)",
+-        "session_message" => {
+-            "SELECT max(time_created) FROM (SELECT time_created FROM session_message LIMIT 8)"
+-        }
+-        _ => return false,
+-    };
+-    if !table_columns(connection, table).contains("time_created") {
+-        return false;
+-    }
+-    let Ok(mut statement) = connection.prepare(sql) else {
+-        return false;
+-    };
+-    match statement.next() {
+-        Ok(sqlite::State::Row) => statement
+-            .read::<i64, _>(0)
+-            .is_ok_and(|max| max >= MIN_MILLIS_SCALE),
+-        _ => false,
+-    }
+-}
+-
+ #[cfg(test)]
+ mod tests {
+     use std::{ffi::OsString, path::Path};
+@@ -1497,7 +541,7 @@ mod tests {
+             "v2-session",
+             "assistant",
+             1_767_312_000_000,
+-            r#"{"model":{"id":"gpt-test","providerID":"openai"},"time":{"created":1767312000000},"tokens":{"input":2,"output":3},"cost":0.01}"#,
++            r#"{"model":{"id":"gpt-test","providerID":"openai"},"time":{"created":1767312000000},"tokens":{"input":2,"output":3,"cache":{"read":0,"write":0}},"cost":0.01}"#,
+             false,
+         );
+
+@@ -1520,14 +564,14 @@ mod tests {
+     }
+
+     #[test]
+-    fn deduplicates_legacy_and_v2_rows_by_message_id() {
++    fn rejects_conflicting_legacy_and_v2_ids() {
+         let fixture = fs_fixture!({});
+         let db_path = fixture.path("opencode.db");
+         create_db_message(
+             &db_path,
+             "msg-shared",
+             "legacy-session",
+-            r#"{"providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000000},"tokens":{"input":120,"output":60},"cost":0.03}"#,
++            r#"{"providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000000},"tokens":{"input":120,"output":60,"cache":{"read":0,"write":0}},"cost":0.03}"#,
+         );
+         create_db_session_message_table(&db_path, true);
+         insert_db_session_message(
+@@ -1536,29 +580,15 @@ mod tests {
+             "v2-session",
+             "assistant",
+             1_767_312_000_000,
+-            r#"{"model":{"id":"gpt-test","providerID":"openai"},"time":{"created":1767312000000},"tokens":{"input":999,"output":999},"cost":9.99}"#,
++            r#"{"model":{"id":"gpt-test","providerID":"openai"},"time":{"created":1767312000000},"tokens":{"input":999,"output":999,"cache":{"read":0,"write":0}},"cost":9.99}"#,
+             true,
+         );
+
+-        let entries = load_entries_from_directory(
+-            fixture.root(),
+-            &SharedArgs {
+-                mode: CostMode::Display,
+-                timezone: Some("UTC".to_string()),
+-                ..SharedArgs::default()
+-            },
+-        )
+-        .unwrap();
+-
+-        assert_eq!(entries.len(), 1);
+-        assert_eq!(entries[0].session_id.as_ref(), "legacy-session");
+-        assert_eq!(entries[0].data.message.usage.input_tokens, 120);
+-        assert_eq!(entries[0].cost, 0.03);
++        assert!(load_entries_from_directory(fixture.root(), &SharedArgs::default()).is_err());
+     }
+-
+     fn assistant_payload(input: u64, output: u64, cost: f64) -> String {
+         format!(
+-            r#"{{"model":{{"id":"gpt-test","providerID":"openai"}},"time":{{"created":1767312000000}},"tokens":{{"input":{input},"output":{output}}},"cost":{cost}}}"#,
++            r#"{{"model":{{"id":"gpt-test","providerID":"openai"}},"time":{{"created":1767312000000}},"tokens":{{"input":{input},"output":{output},"cache":{{"read":0,"write":0}}}},"cost":{cost}}}"#,
+         )
+     }
+
+@@ -1639,6 +669,27 @@ mod tests {
+         .unwrap()
+     }
+
++    #[test]
++    fn rejects_fork_classification_conflicts_across_roots_in_either_order() {
++        let first = fs_fixture!({});
++        let second = fs_fixture!({});
++        for (fixture, boundary) in [(&first, "through"), (&second, "before")] {
++            let db = fixture.path("opencode.db");
++            create_db_session_message_table(&db, true);
++            insert_fork_history(&db, "parent", "fork", boundary, "boundary-msg");
++            assert!(load_entries_from_directory(fixture.root(), &SharedArgs::default()).is_ok());
++        }
++        for paths in [
++            [first.root().to_owned(), second.root().to_owned()],
++            [second.root().to_owned(), first.root().to_owned()],
++        ] {
++            assert!(
++                super::load_paths(&paths, &SharedArgs::default(), AgentReportKind::Session)
++                    .is_err()
++            );
++        }
++    }
++
+     #[test]
+     fn excludes_copied_history_through_the_fork_boundary() {
+         let fixture = fs_fixture!({});
+@@ -1687,7 +738,7 @@ mod tests {
+     }
+
+     #[test]
+-    fn keeps_fork_rows_when_the_boundary_cannot_be_resolved() {
++    fn rejects_fork_rows_when_the_boundary_cannot_be_resolved() {
+         let fixture = fs_fixture!({});
+         let db_path = fixture.path("opencode.db");
+         create_db_session_message_table(&db_path, true);
+@@ -1700,16 +751,7 @@ mod tests {
+         )
+         .unwrap();
+
+-        let entries = fork_entries(&db_path);
+-
+-        assert_eq!(entries.len(), 8);
+-        assert_eq!(
+-            entries
+-                .iter()
+-                .filter(|entry| entry.session_id.as_ref() == "fork")
+-                .count(),
+-            4
+-        );
++        assert!(load_entries_from_directory(fixture.root(), &SharedArgs::default()).is_err());
+     }
+
+     #[test]
+@@ -1728,7 +770,7 @@ mod tests {
+     }
+
+     #[test]
+-    fn keeps_fork_rows_when_session_messages_have_no_seq_column() {
++    fn rejects_fork_rows_when_session_messages_have_no_seq_column() {
+         let fixture = fs_fixture!({});
+         let db_path = fixture.path("opencode.db");
+         sqlite::open(&db_path)
+@@ -1761,10 +803,7 @@ mod tests {
+             r#"{"type":"through","messageID":"parent-msg"}"#,
+         );
+
+-        let entries = fork_entries(&db_path);
+-
+-        // Pre-`seq` schemas cannot tell copies apart, so every row stays.
+-        assert_eq!(entries.len(), 3);
++        assert!(load_entries_from_directory(fixture.root(), &SharedArgs::default()).is_err());
+     }
+
+     #[test]
+@@ -1775,11 +814,11 @@ mod tests {
+         insert_fork_history(&db_path, "parent", "fork", "through", "boundary-msg");
+         // The grandchild copies the fork's rows (including the fork's own
+         // turn) and names the fork's own message as its boundary.
+-        for (copy_id, seq) in [
+-            ("grand-copy-1", 0),
+-            ("grand-copy-2", 1),
+-            ("grand-copy-boundary", 2),
+-            ("grand-copy-fork-own", 4),
++        for (copy_id, seq, input, output, cost) in [
++            ("grand-copy-1", 0, 100, 10, 0.01),
++            ("grand-copy-2", 1, 200, 10, 0.01),
++            ("grand-copy-boundary", 2, 300, 10, 0.01),
++            ("grand-copy-fork-own", 4, 40, 4, 0.02),
+         ] {
+             insert_db_session_message(
+                 &db_path,
+@@ -1787,7 +826,7 @@ mod tests {
+                 "grandchild",
+                 "assistant",
+                 1_767_312_000_000 + seq,
+-                assistant_payload(100, 10, 0.01).as_str(),
++                assistant_payload(input, output, cost).as_str(),
+                 true,
+             );
+             set_db_session_message_seq(&db_path, copy_id, seq);
+@@ -1913,7 +952,7 @@ mod tests {
+     #[test]
+     fn suppresses_session_aggregate_when_legacy_json_has_message() {
+         let fixture = fs_fixture!({
+-            "storage/message/legacy-json-session/legacy-json-message.json": r#"{"id":"legacy-json-message","sessionID":"legacy-json-session","providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000000},"tokens":{"input":120,"output":60},"cost":0.03}"#,
++            "storage/message/legacy-json-session/legacy-json-message.json": r#"{"id":"legacy-json-message","sessionID":"legacy-json-session","providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000000},"tokens":{"input":120,"output":60,"cache":{"read":0,"write":0}},"cost":0.03}"#,
+         });
+         let db_path = fixture.path("opencode.db");
+         create_db_session_aggregate_table(&db_path, "session_v2");
+@@ -2045,7 +1084,7 @@ mod tests {
+             &db_path,
+             "partial-since-message",
+             "partial-since-message-session",
+-            r#"{"providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000000},"tokens":{"input":1,"output":1},"cost":0.01}"#,
++            r#"{"providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000000},"tokens":{"input":1,"output":1,"cache":{"read":0,"write":0}},"cost":0.01}"#,
+         );
+         create_db_session_aggregate_table(&db_path, "session_v2");
+         insert_db_session_aggregate(
+@@ -2091,7 +1130,7 @@ mod tests {
+             &db_path,
+             "partial-until-message",
+             "partial-until-message-session",
+-            r#"{"providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000000},"tokens":{"input":1,"output":1},"cost":0.01}"#,
++            r#"{"providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000000},"tokens":{"input":1,"output":1,"cache":{"read":0,"write":0}},"cost":0.01}"#,
+         );
+         create_db_session_aggregate_table(&db_path, "session_v2");
+         insert_db_session_aggregate(
+@@ -2150,7 +1189,7 @@ mod tests {
+             },
+         );
+         let message_fixture = fs_fixture!({
+-            "storage/message/cross-directory-session/cross-directory-message.json": r#"{"id":"cross-directory-message","sessionID":"cross-directory-session","providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000000},"tokens":{"input":12,"output":6},"cost":0.03}"#,
++            "storage/message/cross-directory-session/cross-directory-message.json": r#"{"id":"cross-directory-message","sessionID":"cross-directory-session","providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000000},"tokens":{"input":12,"output":6,"cache":{"read":0,"write":0}},"cost":0.03}"#,
+         });
+         let _guard = EnvVarsGuard::set_many([(
+             "OPENCODE_DATA_DIR",
+@@ -2187,7 +1226,7 @@ mod tests {
+             &db_path,
+             "period-message",
+             "period-message-session",
+-            r#"{"providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000000},"tokens":{"input":1,"output":1},"cost":0.01}"#,
++            r#"{"providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000000},"tokens":{"input":1,"output":1,"cache":{"read":0,"write":0}},"cost":0.01}"#,
+         );
+         create_db_session_aggregate_table(&db_path, "session_v2");
+         insert_db_session_aggregate(
+@@ -2244,12 +1283,12 @@ mod tests {
+             (
+                 "agent",
+                 "agent-session",
+-                r#"{"time":{"created":1767312000000},"model":{"id":"opus","providerID":"claude-agent"},"content":[{"type":"tool","native":{"sessionID":"claude-a","messageID":"m"}}],"tokens":{"input":100},"cost":0}"#,
++                r#"{"time":{"created":1767312000000},"model":{"id":"opus","providerID":"claude-agent"},"content":[{"type":"tool","native":{"sessionID":"claude-a","messageID":"m"}}],"tokens":{"input":100,"output":0,"cache":{"read":0,"write":0}},"cost":0}"#,
+             ),
+             (
+                 "plain",
+                 "plain-session",
+-                r#"{"time":{"created":1767312000000},"model":{"id":"gpt-test","providerID":"openai"},"content":[{"type":"text","text":"\"native\": not a part"}],"tokens":{"input":5},"cost":0}"#,
++                r#"{"time":{"created":1767312000000},"model":{"id":"gpt-test","providerID":"openai"},"content":[{"type":"text","text":"\"native\": not a part"}],"tokens":{"input":5,"output":0,"cache":{"read":0,"write":0}},"cost":0}"#,
+             ),
+         ] {
+             insert_db_session_message(
+@@ -2354,7 +1393,7 @@ mod tests {
+             &fixture.path("opencode-beta.db"),
+             "channel-msg-1",
+             "channel-session-a",
+-            r#"{"providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000000},"tokens":{"input":80,"output":40}}"#,
++            r#"{"providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000000},"tokens":{"input":80,"output":40,"cache":{"read":0,"write":0}}}"#,
+         );
+
+         let entries = load_entries_from_directory(fixture.root(), &SharedArgs::default()).unwrap();
+@@ -2365,75 +1404,54 @@ mod tests {
+     }
+
+     #[test]
+-    fn prefers_database_messages_over_duplicate_json_files() {
++    fn rejects_conflicting_database_and_json_ids() {
+         let fixture = fs_fixture!({
+-            "storage/message/message.json": r#"{"id":"msg-1","sessionID":"json-session-a","providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000000},"tokens":{"input":999,"output":999},"cost":0.99}"#,
++            "storage/message/message.json": r#"{"id":"msg-1","sessionID":"json-session-a","providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000000},"tokens":{"input":999,"output":999,"cache":{"read":0,"write":0}},"cost":0.99}"#,
+         });
+         create_db_message(
+             &fixture.path("opencode.db"),
+             "msg-1",
+             "db-session-a",
+-            r#"{"providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000000},"tokens":{"input":120,"output":60},"cost":0.03}"#,
++            r#"{"providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000000},"tokens":{"input":120,"output":60,"cache":{"read":0,"write":0}},"cost":0.03}"#,
+         );
+
+         let shared = SharedArgs {
+             mode: CostMode::Display,
+             ..SharedArgs::default()
+         };
+-        let entries = load_entries_from_directory(fixture.root(), &shared).unwrap();
+-
+-        assert_eq!(entries.len(), 1);
+-        assert_eq!(entries[0].session_id.as_ref(), "db-session-a");
+-        assert_eq!(entries[0].data.message.usage.input_tokens, 120);
+-        assert_eq!(entries[0].cost, 0.03);
++        assert!(load_entries_from_directory(fixture.root(), &shared).is_err());
+     }
+
+     #[test]
+-    fn skips_message_files_already_covered_by_database() {
++    fn checks_files_even_when_database_has_the_same_id() {
+         // Real OpenCode message files live at
+         // `storage/message/<sessionID>/<messageID>.json`, so the file stem is
+         // the message id. The DB pass contributes `msg-db`, so the matching
+         // file must be dropped (DB wins) while the file that the DB does not
+         // cover is still loaded.
+         let fixture = fs_fixture!({
+-            "storage/message/ses_a/msg-db.json": r#"{"id":"msg-db","sessionID":"json-session","providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000000},"tokens":{"input":999,"output":999},"cost":0.99}"#,
+-            "storage/message/ses_a/msg-file.json": r#"{"id":"msg-file","sessionID":"file-session","providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000001},"tokens":{"input":50,"output":25},"cost":0.01}"#,
++            "storage/message/ses_a/msg-db.json": r#"{"id":"msg-db","sessionID":"json-session","providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000000},"tokens":{"input":999,"output":999,"cache":{"read":0,"write":0}},"cost":0.99}"#,
++            "storage/message/ses_a/msg-file.json": r#"{"id":"msg-file","sessionID":"file-session","providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000001},"tokens":{"input":50,"output":25,"cache":{"read":0,"write":0}},"cost":0.01}"#,
+         });
+         create_db_message(
+             &fixture.path("opencode.db"),
+             "msg-db",
+             "db-session",
+-            r#"{"providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000000},"tokens":{"input":120,"output":60},"cost":0.03}"#,
++            r#"{"providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000000},"tokens":{"input":120,"output":60,"cache":{"read":0,"write":0}},"cost":0.03}"#,
+         );
+
+         let shared = SharedArgs {
+             mode: CostMode::Display,
+             ..SharedArgs::default()
+         };
+-        let entries = load_entries_from_directory(fixture.root(), &shared).unwrap();
+-
+-        assert_eq!(entries.len(), 2);
+-        // The DB-covered id keeps the DB row, not the file's inflated tokens.
+-        let db_entry = entries
+-            .iter()
+-            .find(|entry| entry.data.message.id.as_deref() == Some("msg-db"))
+-            .expect("db-covered message present");
+-        assert_eq!(db_entry.session_id.as_ref(), "db-session");
+-        assert_eq!(db_entry.data.message.usage.input_tokens, 120);
+-        // The file the DB does not cover is still read and parsed.
+-        let file_entry = entries
+-            .iter()
+-            .find(|entry| entry.data.message.id.as_deref() == Some("msg-file"))
+-            .expect("db-uncovered message present");
+-        assert_eq!(file_entry.session_id.as_ref(), "file-session");
+-        assert_eq!(file_entry.data.message.usage.input_tokens, 50);
++        assert!(load_entries_from_directory(fixture.root(), &shared).is_err());
+     }
+
+     #[test]
+     fn dedup_is_stable_across_thread_counts() {
+         // Build a directory with many files spread over several sessions, some
+         // sharing ids with each other and with the DB, so the file pass has to
+-        // dedup. Parallel reads must not change which duplicate survives or the
++        // dedup. Parallel reads must not change the
+         // final ordering compared to the single-threaded read.
+         let fixture = ccusage_test_support::Fixture::new();
+         for session in 0..4 {
+@@ -2442,24 +1460,24 @@ mod tests {
+                 let created = 1_767_312_000_000_i64 + i64::from(session * 100 + message);
+                 let path = format!("storage/message/ses_{session}/{id}.json");
+                 let data = format!(
+-                    r#"{{"id":"{id}","sessionID":"ses_{session}","providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{{"created":{created}}},"tokens":{{"input":{input},"output":10}}}}"#,
++                    r#"{{"id":"{id}","sessionID":"ses_{session}","providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{{"created":{created}}},"tokens":{{"input":{input},"output":10,"cache":{{"read":0,"write":0}}}}}}"#,
+                     input = 100 + message,
+                 );
+                 let _ = fixture.write_file(path, data);
+             }
+         }
+-        // A duplicate file (same id, later timestamp) to force the file-vs-file
++        // A duplicate file (same id and source content) to force the file-vs-file
+         // dedup path under both thread counts.
+         let _ = fixture.write_file(
+             "storage/message/ses_dup/msg-0-0.json",
+-            r#"{"id":"msg-0-0","sessionID":"ses_dup","providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312999999},"tokens":{"input":7777,"output":10}}"#,
++            r#"{"id":"msg-0-0","sessionID":"ses_0","providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000000},"tokens":{"input":100,"output":10,"cache":{"read":0,"write":0}}}"#,
+         );
+
+         create_db_message(
+             &fixture.path("opencode.db"),
+             "msg-1-1",
+-            "db-session",
+-            r#"{"providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000000},"tokens":{"input":120,"output":60}}"#,
++            "ses_1",
++            r#"{"providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000101},"tokens":{"input":101,"output":10,"cache":{"read":0,"write":0}}}"#,
+         );
+
+         let single = SharedArgs {
+@@ -2502,7 +1520,7 @@ mod tests {
+             "msg-old",
+             "session-old",
+             1_767_139_200_000,
+-            r#"{"providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767139200000},"tokens":{"input":1,"output":1}}"#,
++            r#"{"providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767139200000},"tokens":{"input":1,"output":1,"cache":{"read":0,"write":0}}}"#,
+         );
+         // 2026-01-04 00:00 UTC, in range for since=20260103
+         create_db_message_with_time(
+@@ -2510,7 +1528,7 @@ mod tests {
+             "msg-new",
+             "session-new",
+             1_767_484_800_000,
+-            r#"{"providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767484800000},"tokens":{"input":2,"output":2}}"#,
++            r#"{"providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767484800000},"tokens":{"input":2,"output":2,"cache":{"read":0,"write":0}}}"#,
+         );
+
+         let shared = SharedArgs {
+@@ -2534,7 +1552,7 @@ mod tests {
+             "msg-early",
+             "session-early",
+             1_767_312_000_000,
+-            r#"{"providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000000},"tokens":{"input":1,"output":1}}"#,
++            r#"{"providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000000},"tokens":{"input":1,"output":1,"cache":{"read":0,"write":0}}}"#,
+         );
+         // 2026-01-11 00:00 UTC, out of range for until=20260105
+         create_db_message_with_time(
+@@ -2542,7 +1560,7 @@ mod tests {
+             "msg-late",
+             "session-late",
+             1_768_089_600_000,
+-            r#"{"providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1768089600000},"tokens":{"input":2,"output":2}}"#,
++            r#"{"providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1768089600000},"tokens":{"input":2,"output":2,"cache":{"read":0,"write":0}}}"#,
+         );
+
+         let shared = SharedArgs {
+@@ -2565,7 +1583,7 @@ mod tests {
+             "msg-in-range",
+             "session-a",
+             // payload date 2026-01-05, inside the requested window
+-            r#"{"providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767571200000},"tokens":{"input":3,"output":3}}"#,
++            r#"{"providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767571200000},"tokens":{"input":3,"output":3,"cache":{"read":0,"write":0}}}"#,
+         );
+
+         let shared = SharedArgs {
+@@ -2589,7 +1607,7 @@ mod tests {
+             "msg-out-of-range",
+             "session-a",
+             // payload date 2026-01-02, before since=20260103
+-            r#"{"providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000000},"tokens":{"input":3,"output":3}}"#,
++            r#"{"providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000000},"tokens":{"input":3,"output":3,"cache":{"read":0,"write":0}}}"#,
+         );
+
+         let shared = SharedArgs {
+@@ -2610,7 +1628,7 @@ mod tests {
+     #[test]
+     fn filters_json_file_entries_by_until() {
+         let fixture = fs_fixture!({
+-            "storage/message/message.json": r#"{"id":"msg-1","sessionID":"session-a","providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000000},"tokens":{"input":100,"output":50},"cost":0.02}"#,
++            "storage/message/message.json": r#"{"id":"msg-1","sessionID":"session-a","providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000000},"tokens":{"input":100,"output":50,"cache":{"read":0,"write":0}},"cost":0.02}"#,
+         });
+
+         let shared = SharedArgs {
+@@ -2629,7 +1647,7 @@ mod tests {
+     #[test]
+     fn filters_json_file_entries_by_since() {
+         let fixture = fs_fixture!({
+-            "storage/message/message.json": r#"{"id":"msg-1","sessionID":"session-a","providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000000},"tokens":{"input":100,"output":50},"cost":0.02}"#,
++            "storage/message/message.json": r#"{"id":"msg-1","sessionID":"session-a","providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000000},"tokens":{"input":100,"output":50,"cache":{"read":0,"write":0}},"cost":0.02}"#,
+         });
+
+         let shared = SharedArgs {
+@@ -2648,7 +1666,7 @@ mod tests {
+     #[test]
+     fn includes_entries_when_since_until_bracket_date() {
+         let fixture = fs_fixture!({
+-            "storage/message/message.json": r#"{"id":"msg-1","sessionID":"session-a","providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000000},"tokens":{"input":100,"output":50},"cost":0.02}"#,
++            "storage/message/message.json": r#"{"id":"msg-1","sessionID":"session-a","providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000000},"tokens":{"input":100,"output":50,"cache":{"read":0,"write":0}},"cost":0.02}"#,
+         });
+
+         let shared = SharedArgs {
+@@ -2669,7 +1687,7 @@ mod tests {
+     #[test]
+     fn includes_entries_when_since_exact_match() {
+         let fixture = fs_fixture!({
+-            "storage/message/message.json": r#"{"id":"msg-1","sessionID":"session-a","providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000000},"tokens":{"input":100,"output":50},"cost":0.02}"#,
++            "storage/message/message.json": r#"{"id":"msg-1","sessionID":"session-a","providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000000},"tokens":{"input":100,"output":50,"cache":{"read":0,"write":0}},"cost":0.02}"#,
+         });
+
+         let shared = SharedArgs {
+@@ -2689,7 +1707,7 @@ mod tests {
+     #[test]
+     fn includes_entries_when_until_exact_match() {
+         let fixture = fs_fixture!({
+-            "storage/message/message.json": r#"{"id":"msg-1","sessionID":"session-a","providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000000},"tokens":{"input":100,"output":50},"cost":0.02}"#,
++            "storage/message/message.json": r#"{"id":"msg-1","sessionID":"session-a","providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000000},"tokens":{"input":100,"output":50,"cache":{"read":0,"write":0}},"cost":0.02}"#,
+         });
+
+         let shared = SharedArgs {
+@@ -2721,7 +1739,8 @@ mod tests {
+   },
+   "tokens": {
+     "input": 100,
+-    "output": 50
++    "output": 50,
++    "cache": {"read": 0, "write": 0}
+   },
+   "cost": 0.02
+ }"#;
+@@ -2765,10 +1784,10 @@ mod tests {
+
+     // 2026-01-01 12:00 UTC, which is 2026-01-02 in UTC+14 and therefore only
+     // kept when the lower bound is resolved in the reporting timezone.
+-    const NOON_UTC_2026_01_01: &str = r#"{"providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767268800000},"tokens":{"input":1,"output":1}}"#;
++    const NOON_UTC_2026_01_01: &str = r#"{"providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767268800000},"tokens":{"input":1,"output":1,"cache":{"read":0,"write":0}}}"#;
+
+     // 2026-01-02 06:00 UTC, which is still 2026-01-01 in UTC-12.
+-    const EARLY_UTC_2026_01_02: &str = r#"{"providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767333600000},"tokens":{"input":1,"output":1}}"#;
++    const EARLY_UTC_2026_01_02: &str = r#"{"providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767333600000},"tokens":{"input":1,"output":1,"cache":{"read":0,"write":0}}}"#;
+
+     #[test]
+     fn since_bound_follows_local_midnight_in_the_reporting_timezone() {
+@@ -2833,7 +1852,7 @@ mod tests {
+             "msg-drifted",
+             "session-a",
+             1_767_312_000_000 + 26 * 60 * 60 * 1000,
+-            r#"{"providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000000},"tokens":{"input":1,"output":1}}"#,
++            r#"{"providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000000},"tokens":{"input":1,"output":1,"cache":{"read":0,"write":0}}}"#,
+         );
+
+         let shared = SharedArgs {
+@@ -2863,7 +1882,7 @@ mod tests {
+             "msg-seconds",
+             "session-a",
+             1_767_312_000,
+-            r#"{"providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000000},"tokens":{"input":1,"output":1}}"#,
++            r#"{"providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000000},"tokens":{"input":1,"output":1,"cache":{"read":0,"write":0}}}"#,
+         );
+
+         let shared = SharedArgs {
+@@ -2890,7 +1909,7 @@ mod tests {
+             &fixture.path("opencode.db"),
+             "msg-1",
+             "session-a",
+-            r#"{"providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000000},"tokens":{"input":1,"output":1}}"#,
++            r#"{"providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000000},"tokens":{"input":1,"output":1,"cache":{"read":0,"write":0}}}"#,
+         );
+
+         let shared = SharedArgs {
+@@ -2921,7 +1940,7 @@ mod tests {
+             &db_only.path("opencode.db"),
+             "msg-1",
+             "session-a",
+-            r#"{"providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000000},"tokens":{"input":1,"output":1}}"#,
++            r#"{"providerID":"anthropic","modelID":"claude-sonnet-4-20250514","time":{"created":1767312000000},"tokens":{"input":1,"output":1,"cache":{"read":0,"write":0}}}"#,
+         );
+         assert!(super::has_source(db_only.root()));
+
+diff --git a/rust/adapters/opencode/src/parser.rs b/rust/adapters/opencode/src/parser.rs
+index 8652753..95cd127 100644
+--- a/rust/adapters/opencode/src/parser.rs
++++ b/rust/adapters/opencode/src/parser.rs
+@@ -4,9 +4,8 @@ use jiff::tz::TimeZone as JiffTimeZone;
+ use serde::Deserialize;
+
+ use crate::{
+-    LoadedEntry, PricingMap, TokenUsageRaw, UsageEntry, UsageMessage, apply_total_token_fallback,
+-    calculate_cost_for_usage_at, cli::CostMode, format_date_tz,
+-    missing_pricing_model_for_candidates, stored_cost_for_mode,
++    LoadedEntry, PricingMap, TokenUsageRaw, UsageEntry, UsageMessage, calculate_cost_for_usage_at,
++    cli::CostMode, format_date_tz, missing_pricing_model_for_candidates, stored_cost_for_mode,
+ };
+ use ccusage_adapter_common::jsonl;
+
+@@ -82,6 +81,7 @@ struct OpenCodeTime {
+ }
+
+ #[derive(Debug, Default, Deserialize)]
++#[cfg(test)]
+ struct OpenCodeModelReference {
+     #[serde(default, deserialize_with = "jsonl::non_empty_string")]
+     id: Option<String>,
+@@ -100,6 +100,7 @@ struct OpenCodeModelReference {
+ }
+
+ #[derive(Debug, Default, Deserialize)]
++#[cfg(test)]
+ struct OpenCodeV2Message {
+     #[serde(default, deserialize_with = "jsonl::lenient_object")]
+     model: Option<OpenCodeModelReference>,
+@@ -151,7 +152,7 @@ type OpenCodeNativeLinks = jsonl::FirstField<
+
+ /// The Claude Code session a `claude-agent` row ran in, which names the
+ /// Claude transcript holding the same turns.
+-fn native_session_id(data: &str) -> Option<Arc<str>> {
++pub(crate) fn native_session_id(data: &str) -> Option<Arc<str>> {
+     serde_json::from_str::<OpenCodeNativeLinks>(data)
+         .ok()?
+         .0?
+@@ -163,6 +164,7 @@ fn native_session_id(data: &str) -> Option<Arc<str>> {
+         .map(Arc::from)
+ }
+
++#[cfg(test)]
+ impl OpenCodeV2Message {
+     fn provider(&self) -> Option<&str> {
+         self.model
+@@ -244,17 +246,16 @@ fn message_value_to_entry_inner(
+         cache_creation: None,
+     };
+     let missing_attribution = value.model_id.is_none() || value.provider_id.is_none();
+-    let (usage, extra_total_tokens) = if missing_attribution {
+-        let total_tokens = tokens.total?;
+-        // Keep the independent total without assigning its remainder to output.
+-        let extra = total_tokens
++    let extra_total_tokens = if let Some(total_tokens) = tokens.total {
++        total_tokens
+             .checked_sub(usage.input_tokens)?
+             .checked_sub(usage.output_tokens)?
+             .checked_sub(usage.cache_creation_input_tokens)?
+-            .checked_sub(usage.cache_read_input_tokens)?;
+-        (usage, extra)
++            .checked_sub(usage.cache_read_input_tokens)?
++    } else if missing_attribution {
++        return None;
+     } else {
+-        apply_total_token_fallback(usage, tokens.reasoning, tokens.total.unwrap_or_default())
++        tokens.reasoning
+     };
+     if usage.input_tokens == 0
+         && usage.output_tokens == 0
+@@ -287,11 +288,7 @@ fn message_value_to_entry_inner(
+         is_sidechain: None,
+     };
+     let cost_usage = TokenUsageRaw {
+-        output_tokens: usage.output_tokens.saturating_add(if missing_attribution {
+-            tokens.reasoning
+-        } else {
+-            extra_total_tokens
+-        }),
++        output_tokens: usage.output_tokens.checked_add(tokens.reasoning)?,
+         cache_creation: None,
+         ..usage
+     };
+@@ -337,6 +334,7 @@ fn message_value_to_entry_inner(
+     })
+ }
+
++#[cfg(test)]
+ pub(crate) fn session_message_value_to_entry(
+     data: &str,
+     id: String,
+@@ -1037,8 +1035,8 @@ mod tests {
+         )
+         .unwrap();
+
+-        assert_eq!(entry.data.message.usage.output_tokens, 123);
+-        assert_eq!(entry.extra_total_tokens, 0);
++        assert_eq!(entry.data.message.usage.output_tokens, 0);
++        assert_eq!(entry.extra_total_tokens, 123);
+     }
+
+     #[test]
+diff --git a/rust/adapters/opencode/src/paths.rs b/rust/adapters/opencode/src/paths.rs
+index 1bc91f0..0eaf403 100644
+--- a/rust/adapters/opencode/src/paths.rs
++++ b/rust/adapters/opencode/src/paths.rs
+@@ -19,7 +19,10 @@ pub(super) fn paths() -> Result<Vec<PathBuf>> {
+             Err(env_path) => vec![PathBuf::from(env_path)],
+         };
+         for path in configured_paths {
+-            if path.is_dir() && seen.insert(path.clone()) {
++            if !path.is_dir() {
++                return Err(super::unavailable());
++            }
++            if seen.insert(path.clone()) {
+                 paths.push(path);
+             }
+         }
+@@ -103,11 +106,10 @@ mod tests {
+         let first = fixture.path("configured/first");
+         let second = fixture.path("configured/second");
+         let raw = format!(
+-            " {}, {}, {}, {} ",
++            " {}, {}, {} ",
+             first.display(),
+             second.display(),
+-            first.display(),
+-            fixture.path("missing").display()
++            first.display()
+         );
+         let _guard = isolated_env(
+             Some(OsString::from(raw)),
+@@ -129,7 +131,7 @@ mod tests {
+             None,
+         );
+
+-        assert!(paths().unwrap().is_empty());
++        assert!(paths().is_err());
+     }
+
+     #[cfg(target_os = "linux")]
+diff --git a/rust/adapters/opencode/src/records.rs b/rust/adapters/opencode/src/records.rs
+new file mode 100644
+index 0000000..6c7b91f
+--- /dev/null
++++ b/rust/adapters/opencode/src/records.rs
+@@ -0,0 +1,185 @@
++use crate::{Result, loader::LinkedEntry, unavailable};
++use serde_json::Value;
++use std::collections::{BTreeMap, HashSet};
++
++pub(crate) const MAX_RECORD_BYTES: usize = 1 << 20;
++const MAX_INDEX_BYTES: usize = 64 << 20;
++
++#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
++pub(crate) enum Kind {
++    Message,
++    Aggregate,
++    Fork,
++}
++
++#[derive(Default)]
++pub(crate) struct Records {
++    seen: BTreeMap<(Kind, String), (String, bool)>,
++    pub(crate) messages: Vec<LinkedEntry>,
++    pub(crate) aggregates: Vec<LinkedEntry>,
++    records: usize,
++    bytes: usize,
++}
++
++impl Records {
++    pub(crate) fn count(&mut self) -> Result<()> {
++        self.records = self.records.checked_add(1).ok_or_else(unavailable)?;
++        if self.records > super::files::MAX_RECORDS {
++            return Err(unavailable());
++        }
++        Ok(())
++    }
++
++    pub(crate) fn insert(
++        &mut self,
++        value: &Value,
++        entry: Option<LinkedEntry>,
++        kind: Kind,
++    ) -> Result<()> {
++        let id = identifier(value.get("id"))?.to_owned();
++        identifier(value.get("sessionID"))?;
++        let canonical = serde_json::to_string(value).map_err(|_| unavailable())?;
++        if let Some(previous) = self.seen.get(&(kind, id.clone())) {
++            return if previous == &(canonical, entry.is_some()) {
++                Ok(())
++            } else {
++                Err(unavailable())
++            };
++        }
++        self.bytes = self
++            .bytes
++            .checked_add(canonical.len() + id.len())
++            .ok_or_else(unavailable)?;
++        if self.bytes > MAX_INDEX_BYTES {
++            return Err(unavailable());
++        }
++        self.seen.insert((kind, id), (canonical, entry.is_some()));
++        if let Some(entry) = entry {
++            if kind == Kind::Aggregate {
++                self.aggregates.push(entry);
++            } else {
++                self.messages.push(entry);
++            }
++        }
++        Ok(())
++    }
++
++    pub(crate) fn finish(mut self, allow_aggregates: bool) -> Result<Vec<LinkedEntry>> {
++        if allow_aggregates {
++            let sessions: HashSet<_> = self
++                .messages
++                .iter()
++                .map(|entry| entry.0.session_id.clone())
++                .collect();
++            self.messages.extend(
++                self.aggregates
++                    .into_iter()
++                    .filter(|entry| !sessions.contains(&entry.0.session_id)),
++            );
++        }
++        let mut total = 0u64;
++        for (entry, _) in &self.messages {
++            let usage = &entry.data.message.usage;
++            for count in [
++                usage.input_tokens,
++                usage.output_tokens,
++                usage.cache_read_input_tokens,
++                usage.cache_creation_input_tokens,
++                entry.extra_total_tokens,
++            ] {
++                total = total.checked_add(count).ok_or_else(unavailable)?;
++            }
++        }
++        self.messages.sort_by(|left, right| {
++            (left.0.timestamp, &left.0.data.message.id)
++                .cmp(&(right.0.timestamp, &right.0.data.message.id))
++        });
++        Ok(self.messages)
++    }
++}
++
++pub(crate) fn identifier(value: Option<&Value>) -> Result<&str> {
++    value
++        .and_then(Value::as_str)
++        .filter(|id| !id.trim().is_empty() && id.len() <= 4096)
++        .ok_or_else(unavailable)
++}
++
++pub(crate) fn validate(value: &Value) -> Result<bool> {
++    let object = value.as_object().ok_or_else(unavailable)?;
++    identifier(object.get("id"))?;
++    identifier(object.get("sessionID"))?;
++    for field in ["modelID", "providerID"] {
++        if let Some(value) = object.get(field) {
++            identifier(Some(value))?;
++        }
++    }
++    if let Some(time) = object.get("time") {
++        let time = time.as_object().ok_or_else(unavailable)?;
++        if let Some(created) = time.get("created") {
++            created
++                .as_i64()
++                .filter(|time| *time >= 0)
++                .ok_or_else(unavailable)?;
++        }
++    }
++    if let Some(cost) = object.get("cost") {
++        cost.as_f64()
++            .filter(|cost| cost.is_finite() && *cost >= 0.0)
++            .ok_or_else(unavailable)?;
++    }
++    if let Some(role) = object.get("role") {
++        match role.as_str() {
++            Some("user" | "system" | "tool") if !object.contains_key("tokens") => return Ok(false),
++            Some("assistant" | "user" | "system" | "tool") => {}
++            _ => return Err(unavailable()),
++        }
++    }
++    let tokens = object
++        .get("tokens")
++        .and_then(Value::as_object)
++        .ok_or_else(unavailable)?;
++    let mut known = 0u64;
++    for field in ["input", "output"] {
++        if let Some(value) = tokens.get(field) {
++            known = known
++                .checked_add(value.as_u64().ok_or_else(unavailable)?)
++                .ok_or_else(unavailable)?;
++        }
++    }
++    let cache = tokens
++        .get("cache")
++        .map(|cache| cache.as_object().ok_or_else(unavailable))
++        .transpose()?;
++    if let Some(cache) = cache {
++        for field in ["read", "write"] {
++            if let Some(value) = cache.get(field) {
++                known = known
++                    .checked_add(value.as_u64().ok_or_else(unavailable)?)
++                    .ok_or_else(unavailable)?;
++            }
++        }
++    }
++    let total = tokens
++        .get("total")
++        .map(|value| value.as_u64().ok_or_else(unavailable))
++        .transpose()?;
++    let reasoning = tokens
++        .get("reasoning")
++        .map(|value| value.as_u64().ok_or_else(unavailable))
++        .transpose()?
++        .unwrap_or(0);
++    if total.is_none() {
++        known = known.checked_add(reasoning).ok_or_else(unavailable)?;
++    }
++    let complete = tokens.contains_key("input")
++        && tokens.contains_key("output")
++        && cache.is_some_and(|cache| cache.contains_key("read") && cache.contains_key("write"));
++    if total.is_some_and(|total| total < known) || (!complete && total.is_none()) {
++        return Err(unavailable());
++    }
++    if (!object.contains_key("modelID") || !object.contains_key("providerID")) && total.is_none() {
++        return Err(unavailable());
++    }
++    Ok(true)
++}
+diff --git a/rust/adapters/opencode/src/snapshots/ccusage_adapter_opencode__parser__tests__snapshots_message_to_entry_variants_and_model_candidates.snap b/rust/adapters/opencode/src/snapshots/ccusage_adapter_opencode__parser__tests__snapshots_message_to_entry_variants_and_model_candidates.snap
+index bb59c8b..74f8aed 100644
+--- a/rust/adapters/opencode/src/snapshots/ccusage_adapter_opencode__parser__tests__snapshots_message_to_entry_variants_and_model_candidates.snap
++++ b/rust/adapters/opencode/src/snapshots/ccusage_adapter_opencode__parser__tests__snapshots_message_to_entry_variants_and_model_candidates.snap
+@@ -1,6 +1,7 @@
+ ---
+-source: crates/ccusage/src/adapter/opencode/parser.rs
+-expression: "json!({\n    \"calculated\": entry_snapshot(&calculated), \"displayCost\":\n    entry_snapshot(&display_cost), \"candidates\":\n    {\n        \"anthropic\":\n        open_code_model_candidates(\"claude-sonnet-4.5\", \"anthropic\"),\n        \"copilot\":\n        open_code_model_candidates(\"claude-sonnet-4.5\", \"github-copilot\"),\n        \"geminiAlias\":\n        open_code_model_candidates(\"gemini-3-pro-high\", \"google\"),\n        \"unknownProvider\": open_code_model_candidates(\"gpt-test\", \"unknown\"),\n    }\n})"
++source: adapters/opencode/src/parser.rs
++assertion_line: 1142
++expression: "json!({\n    \"calculated\": entry_snapshot(&calculated), \"displayCost\":\n    entry_snapshot(&display_cost), \"candidates\":\n    {\n        \"anthropic\":\n        open_code_model_candidates(\"claude-sonnet-4.5\", Some(\"anthropic\")),\n        \"copilot\":\n        open_code_model_candidates(\"claude-sonnet-4.5\",\n        Some(\"github-copilot\")), \"geminiAlias\":\n        open_code_model_candidates(\"gemini-3-pro-high\", Some(\"google\")),\n        \"unknownProvider\":\n        open_code_model_candidates(\"gpt-test\", Some(\"unknown\")),\n    }\n})"
+ ---
+ {
+   "calculated": {
+@@ -61,7 +62,7 @@ expression: "json!({\n    \"calculated\": entry_snapshot(&calculated), \"display
+           "cacheCreationInputTokens": 0,
+           "cacheReadInputTokens": 0,
+           "inputTokens": 0,
+-          "outputTokens": 123
++          "outputTokens": 0
+         }
+       },
+       "sessionId": "explicit-session",
+@@ -69,7 +70,7 @@ expression: "json!({\n    \"calculated\": entry_snapshot(&calculated), \"display
+       "version": null
+     },
+     "date": "1970-01-01",
+-    "extraTotalTokens": 0,
++    "extraTotalTokens": 123,
+     "model": "gpt-test",
+     "project": "opencode",
+     "projectPath": "OpenCode",
+diff --git a/rust/adapters/opencode/src/sqlite_snapshot.rs b/rust/adapters/opencode/src/sqlite_snapshot.rs
+new file mode 100644
+index 0000000..06cf4ab
+--- /dev/null
++++ b/rust/adapters/opencode/src/sqlite_snapshot.rs
+@@ -0,0 +1,355 @@
++//! A private, immutable SQLite VFS. No callback accesses the operating system.
++use crate::{Result, unavailable};
++use sqlite3_sys as ffi;
++use std::{
++    ffi::{CStr, CString, c_char, c_int, c_void},
++    marker::PhantomData,
++    ptr,
++    sync::atomic::{AtomicU64, Ordering},
++};
++
++static NEXT_NAME: AtomicU64 = AtomicU64::new(0);
++const DATABASE: &[u8] = b"captured.db\0";
++
++struct Image {
++    data: *const u8,
++    length: usize,
++}
++
++#[repr(C)]
++struct MemoryFile {
++    base: ffi::sqlite3_file,
++    image: *const Image,
++}
++
++struct Registration<'a> {
++    vfs: Box<ffi::sqlite3_vfs>,
++    _name: CString,
++    _image: Box<Image>,
++    _bytes: PhantomData<&'a [u8]>,
++    registered: bool,
++}
++
++impl Drop for Registration<'_> {
++    fn drop(&mut self) {
++        if self.registered {
++            // SAFETY: this registration owns the stable VFS address. Its connection already closed.
++            // SQLite unregisters even when an earlier operation returned an error.
++            unsafe {
++                ffi::sqlite3_vfs_unregister(&mut *self.vfs);
++            }
++        }
++    }
++}
++
++pub(crate) fn with_connection<T>(
++    bytes: &[u8],
++    visit: impl FnOnce(&sqlite::Connection) -> Result<T>,
++) -> Result<T> {
++    let sequence = NEXT_NAME
++        .try_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
++            value.checked_add(1)
++        })
++        .map_err(|_| unavailable())?;
++    let name = CString::new(format!("opencode-capture-{sequence}")).map_err(|_| unavailable())?;
++    let mut image = Box::new(Image {
++        data: bytes.as_ptr(),
++        length: bytes.len(),
++    });
++    // SAFETY: the C VFS structure consists of integers, raw pointers, and nullable function pointers.
++    let mut vfs: Box<ffi::sqlite3_vfs> = Box::new(unsafe { std::mem::zeroed() });
++    vfs.iVersion = 1;
++    vfs.szOsFile = c_int::try_from(std::mem::size_of::<MemoryFile>()).map_err(|_| unavailable())?;
++    vfs.mxPathname = 64;
++    vfs.zName = name.as_ptr();
++    vfs.pAppData = (&mut *image as *mut Image).cast();
++    vfs.xOpen = Some(open);
++    vfs.xDelete = Some(delete);
++    vfs.xAccess = Some(access);
++    vfs.xFullPathname = Some(full_path);
++    vfs.xRandomness = Some(randomness);
++    vfs.xSleep = Some(sleep);
++    vfs.xCurrentTime = Some(current_time);
++    let mut registration = Registration {
++        vfs,
++        _name: name,
++        _image: image,
++        _bytes: PhantomData,
++        registered: false,
++    };
++    // SAFETY: all pointed-to allocations remain stable until after unregister. This is never the default VFS.
++    if unsafe { ffi::sqlite3_vfs_register(&mut *registration.vfs, 0) } != ffi::SQLITE_OK {
++        return Err(unavailable());
++    }
++    registration.registered = true;
++    // The borrowed bytes outlive this function. The connection closes its MemoryFile before unregister,
++    // then registration drops the VFS, its name, and its Image. Error returns use the same drop order.
++    let connection = sqlite::Connection::open_with_flags_and_vfs(
++        "captured.db",
++        sqlite::OpenFlags::new().with_read_only(),
++        Some(registration._name.to_str().map_err(|_| unavailable())?),
++    )
++    .map_err(|_| unavailable())?;
++    let result = visit(&connection);
++    drop(connection);
++    // SAFETY: no connection or MemoryFile can refer to this VFS after the explicit drop above.
++    if unsafe { ffi::sqlite3_vfs_unregister(&mut *registration.vfs) } != ffi::SQLITE_OK {
++        return Err(unavailable());
++    }
++    registration.registered = false;
++    result
++}
++
++// All callbacks receive SQLite-owned pointers under its VFS ABI. They allocate no memory and never panic.
++unsafe extern "C" fn open(
++    vfs: *mut ffi::sqlite3_vfs,
++    name: *const c_char,
++    file: *mut ffi::sqlite3_file,
++    flags: c_int,
++    out_flags: *mut c_int,
++) -> c_int {
++    if vfs.is_null() || file.is_null() || name.is_null() {
++        return ffi::SQLITE_CANTOPEN;
++    }
++    // SAFETY: SQLite supplies a NUL-terminated name, a live VFS, and szOsFile bytes aligned for a file.
++    unsafe {
++        (*file).pMethods = ptr::null();
++        if flags != ffi::SQLITE_OPEN_MAIN_DB | ffi::SQLITE_OPEN_READONLY
++            || CStr::from_ptr(name).to_bytes_with_nul() != DATABASE
++        {
++            return ffi::SQLITE_CANTOPEN;
++        }
++        ptr::write(
++            file.cast::<MemoryFile>(),
++            MemoryFile {
++                base: ffi::sqlite3_file { pMethods: &METHODS },
++                image: (*vfs).pAppData.cast(),
++            },
++        );
++        if !out_flags.is_null() {
++            *out_flags = ffi::SQLITE_OPEN_READONLY;
++        }
++    }
++    ffi::SQLITE_OK
++}
++unsafe extern "C" fn close(file: *mut ffi::sqlite3_file) -> c_int {
++    // SAFETY: SQLite closes only a MemoryFile opened by this VFS. The borrowed Image stays with registration.
++    unsafe {
++        (*file).pMethods = ptr::null();
++    }
++    ffi::SQLITE_OK
++}
++unsafe extern "C" fn read(
++    file: *mut ffi::sqlite3_file,
++    output: *mut c_void,
++    amount: c_int,
++    offset: i64,
++) -> c_int {
++    let (Ok(amount), Ok(offset)) = (usize::try_from(amount), usize::try_from(offset)) else {
++        return ffi::SQLITE_IOERR_READ;
++    };
++    if output.is_null() || file.is_null() {
++        return ffi::SQLITE_IOERR_READ;
++    }
++    // SAFETY: SQLite supplies amount writable bytes. MemoryFile points at the live, immutable capture.
++    unsafe {
++        let image = &*(*file.cast::<MemoryFile>()).image;
++        let available = image.length.saturating_sub(offset).min(amount);
++        ptr::write_bytes(output.cast::<u8>(), 0, amount);
++        if available > 0 {
++            ptr::copy_nonoverlapping(image.data.add(offset), output.cast(), available);
++        }
++        if available == amount {
++            ffi::SQLITE_OK
++        } else {
++            ffi::SQLITE_IOERR_SHORT_READ
++        }
++    }
++}
++unsafe extern "C" fn write(_: *mut ffi::sqlite3_file, _: *const c_void, _: c_int, _: i64) -> c_int {
++    ffi::SQLITE_READONLY
++}
++unsafe extern "C" fn truncate(_: *mut ffi::sqlite3_file, _: i64) -> c_int {
++    ffi::SQLITE_READONLY
++}
++unsafe extern "C" fn sync(_: *mut ffi::sqlite3_file, _: c_int) -> c_int {
++    ffi::SQLITE_READONLY
++}
++unsafe extern "C" fn file_size(file: *mut ffi::sqlite3_file, output: *mut i64) -> c_int {
++    // SAFETY: SQLite supplies a live MemoryFile and writable output. Captures are at most 64 MiB.
++    unsafe {
++        let Ok(length) = i64::try_from((*(*file.cast::<MemoryFile>()).image).length) else {
++            return ffi::SQLITE_IOERR_FSTAT;
++        };
++        *output = length;
++    }
++    ffi::SQLITE_OK
++}
++unsafe extern "C" fn lock(_: *mut ffi::sqlite3_file, _: c_int) -> c_int {
++    ffi::SQLITE_OK
++}
++unsafe extern "C" fn reserved(_: *mut ffi::sqlite3_file, output: *mut c_int) -> c_int {
++    // SAFETY: SQLite supplies writable output. A private immutable image has no writer.
++    unsafe {
++        *output = 0;
++    }
++    ffi::SQLITE_OK
++}
++unsafe extern "C" fn control(_: *mut ffi::sqlite3_file, _: c_int, _: *mut c_void) -> c_int {
++    ffi::SQLITE_NOTFOUND
++}
++unsafe extern "C" fn sector(_: *mut ffi::sqlite3_file) -> c_int {
++    4096
++}
++unsafe extern "C" fn characteristics(_: *mut ffi::sqlite3_file) -> c_int {
++    ffi::SQLITE_IOCAP_IMMUTABLE
++}
++unsafe extern "C" fn delete(_: *mut ffi::sqlite3_vfs, _: *const c_char, _: c_int) -> c_int {
++    ffi::SQLITE_READONLY
++}
++unsafe extern "C" fn access(
++    _: *mut ffi::sqlite3_vfs,
++    name: *const c_char,
++    flags: c_int,
++    output: *mut c_int,
++) -> c_int {
++    if name.is_null() || output.is_null() {
++        return ffi::SQLITE_IOERR_ACCESS;
++    }
++    // SAFETY: SQLite supplies a NUL-terminated name and writable output. Sidecars never exist in this VFS.
++    unsafe {
++        *output = c_int::from(
++            flags != ffi::SQLITE_ACCESS_READWRITE
++                && CStr::from_ptr(name).to_bytes_with_nul() == DATABASE,
++        );
++    }
++    ffi::SQLITE_OK
++}
++unsafe extern "C" fn full_path(
++    _: *mut ffi::sqlite3_vfs,
++    name: *const c_char,
++    size: c_int,
++    output: *mut c_char,
++) -> c_int {
++    if name.is_null() || output.is_null() || size < DATABASE.len() as c_int {
++        return ffi::SQLITE_CANTOPEN;
++    }
++    // SAFETY: SQLite supplies a NUL-terminated name and size writable bytes. Only the private literal is accepted.
++    unsafe {
++        if CStr::from_ptr(name).to_bytes_with_nul() != DATABASE {
++            return ffi::SQLITE_CANTOPEN;
++        }
++        ptr::copy_nonoverlapping(DATABASE.as_ptr().cast::<c_char>(), output, DATABASE.len());
++    }
++    ffi::SQLITE_OK
++}
++unsafe extern "C" fn randomness(_: *mut ffi::sqlite3_vfs, _: c_int, _: *mut c_char) -> c_int {
++    0
++}
++unsafe extern "C" fn sleep(_: *mut ffi::sqlite3_vfs, _: c_int) -> c_int {
++    0
++}
++unsafe extern "C" fn current_time(_: *mut ffi::sqlite3_vfs, _: *mut f64) -> c_int {
++    ffi::SQLITE_ERROR
++}
++
++static METHODS: ffi::sqlite3_io_methods = ffi::sqlite3_io_methods {
++    iVersion: 1,
++    xClose: Some(close),
++    xRead: Some(read),
++    xWrite: Some(write),
++    xTruncate: Some(truncate),
++    xSync: Some(sync),
++    xFileSize: Some(file_size),
++    xLock: Some(lock),
++    xUnlock: Some(lock),
++    xCheckReservedLock: Some(reserved),
++    xFileControl: Some(control),
++    xSectorSize: Some(sector),
++    xDeviceCharacteristics: Some(characteristics),
++    xShmMap: None,
++    xShmLock: None,
++    xShmBarrier: None,
++    xShmUnmap: None,
++    xFetch: None,
++    xUnfetch: None,
++};
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn allows_only_the_captured_read_only_main_image() {
++        let fixture = ccusage_test_support::Fixture::new();
++        let source = fixture.path("source.db");
++        sqlite::open(&source)
++            .unwrap()
++            .execute("CREATE TABLE observation(value INTEGER); INSERT INTO observation VALUES (7)")
++            .unwrap();
++        let bytes = std::fs::read(source).unwrap();
++        let outside = fixture.path("never-created.db");
++        with_connection(&bytes, |db| {
++            let mut statement = db.prepare("SELECT value FROM observation").unwrap();
++            assert_eq!(statement.next().unwrap(), sqlite::State::Row);
++            assert_eq!(statement.read::<i64, _>(0).unwrap(), 7);
++            drop(statement);
++            assert!(db.execute("UPDATE observation SET value = 8").is_err());
++            assert!(db.execute("CREATE TABLE forbidden(value INTEGER)").is_err());
++            let mut attach = db.prepare("ATTACH DATABASE ?1 AS outside").unwrap();
++            attach.bind((1, outside.to_str().unwrap())).unwrap();
++            assert!(attach.next().is_err());
++            Ok(())
++        })
++        .unwrap();
++        assert!(!outside.exists());
++        // The file interface itself rejects temp/sidecar opens, even when SQLite omits query-only PRAGMAs.
++        let mut image = Image {
++            data: bytes.as_ptr(),
++            length: bytes.len(),
++        };
++        // SAFETY: these test structures have the exact C ABI and live for every callback below.
++        let mut vfs: ffi::sqlite3_vfs = unsafe { std::mem::zeroed() };
++        vfs.pAppData = (&mut image as *mut Image).cast();
++        for flags in [
++            ffi::SQLITE_OPEN_TEMP_DB,
++            ffi::SQLITE_OPEN_TEMP_JOURNAL,
++            ffi::SQLITE_OPEN_MAIN_JOURNAL,
++            ffi::SQLITE_OPEN_WAL,
++            ffi::SQLITE_OPEN_MAIN_DB | ffi::SQLITE_OPEN_READWRITE,
++        ] {
++            let mut file = MemoryFile {
++                base: ffi::sqlite3_file {
++                    pMethods: ptr::null(),
++                },
++                image: ptr::null(),
++            };
++            // SAFETY: file is a complete writable MemoryFile and the literal is NUL-terminated.
++            assert_eq!(
++                unsafe {
++                    open(
++                        &mut vfs,
++                        c"captured.db".as_ptr(),
++                        &mut file.base,
++                        flags,
++                        ptr::null_mut(),
++                    )
++                },
++                ffi::SQLITE_CANTOPEN
++            );
++            assert!(file.base.pMethods.is_null());
++        }
++        // SAFETY: delete does not dereference its arguments or access any filesystem.
++        assert_eq!(
++            unsafe { delete(&mut vfs, c"captured.db".as_ptr(), 0) },
++            ffi::SQLITE_READONLY
++        );
++        // A failed visitor closes its connection and unregisters before the next capture starts.
++        assert!(with_connection(&bytes, |_| Err::<(), _>(unavailable())).is_err());
++        with_connection(&bytes, |db| {
++            db.execute("SELECT * FROM observation")
++                .map_err(|_| unavailable())
++        })
++        .unwrap();
++    }
++}
+diff --git a/rust/adapters/opencode/src/strict_json.rs b/rust/adapters/opencode/src/strict_json.rs
+new file mode 100644
+index 0000000..b4df7b0
+--- /dev/null
++++ b/rust/adapters/opencode/src/strict_json.rs
+@@ -0,0 +1,71 @@
++//! Reject duplicate keys at every depth before interpreting a source record.
++use std::fmt;
++
++use serde::de::{self, Deserialize, Deserializer, MapAccess, SeqAccess, Visitor};
++use serde_json::Value;
++
++struct UniqueValue(Value);
++
++impl<'de> Deserialize<'de> for UniqueValue {
++    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
++        struct UniqueVisitor;
++        impl<'de> Visitor<'de> for UniqueVisitor {
++            type Value = UniqueValue;
++            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
++                formatter.write_str("JSON with unique object keys")
++            }
++            fn visit_bool<E: de::Error>(self, value: bool) -> Result<Self::Value, E> {
++                Ok(UniqueValue(Value::Bool(value)))
++            }
++            fn visit_i64<E: de::Error>(self, value: i64) -> Result<Self::Value, E> {
++                Ok(UniqueValue(value.into()))
++            }
++            fn visit_u64<E: de::Error>(self, value: u64) -> Result<Self::Value, E> {
++                Ok(UniqueValue(value.into()))
++            }
++            fn visit_f64<E: de::Error>(self, value: f64) -> Result<Self::Value, E> {
++                serde_json::Number::from_f64(value)
++                    .map(Value::Number)
++                    .map(UniqueValue)
++                    .ok_or_else(|| E::custom("Non-finite number"))
++            }
++            fn visit_str<E: de::Error>(self, value: &str) -> Result<Self::Value, E> {
++                Ok(UniqueValue(Value::String(value.to_owned())))
++            }
++            fn visit_string<E: de::Error>(self, value: String) -> Result<Self::Value, E> {
++                Ok(UniqueValue(Value::String(value)))
++            }
++            fn visit_unit<E: de::Error>(self) -> Result<Self::Value, E> {
++                Ok(UniqueValue(Value::Null))
++            }
++            fn visit_seq<A: SeqAccess<'de>>(
++                self,
++                mut sequence: A,
++            ) -> Result<Self::Value, A::Error> {
++                let mut values = Vec::new();
++                while let Some(UniqueValue(value)) = sequence.next_element()? {
++                    values.push(value);
++                }
++                Ok(UniqueValue(Value::Array(values)))
++            }
++            fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
++                let mut values = serde_json::Map::new();
++                while let Some((key, UniqueValue(value))) =
++                    map.next_entry::<String, UniqueValue>()?
++                {
++                    if values.insert(key, value).is_some() {
++                        return Err(de::Error::custom("Duplicate object key"));
++                    }
++                }
++                Ok(UniqueValue(Value::Object(values)))
++            }
++        }
++        deserializer.deserialize_any(UniqueVisitor)
++    }
++}
++
++pub(crate) fn parse(bytes: &[u8]) -> crate::Result<Value> {
++    serde_json::from_slice::<UniqueValue>(bytes)
++        .map(|value| value.0)
++        .map_err(|_| super::unavailable())
++}

@@ -91,3 +91,10 @@ owns the source boundary, digests, and remaining qualification limits.
 Set `OPENUSAGE_CCUSAGE_OPENCODE_CANDIDATE` and
 `OPENUSAGE_CCUSAGE_OPENCODE_CANDIDATE_SHA256` to run
 `test_ccusage_opencode_candidate.py`. OpenCode stays disabled.
+
+## OpenCode capture candidate
+
+Apply `20.0.48-opencode-capture.patch` after the observation patch on the same
+pinned source. The [capture record](../../docs/reviews/2026-11-11-opencode-capture-candidate.md)
+owns limits, digests, and remaining gates. Use its separate candidate variables
+to run `test_ccusage_opencode_capture.py`. OpenCode stays disabled.
