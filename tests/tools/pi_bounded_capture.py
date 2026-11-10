@@ -85,7 +85,7 @@ def matched_history(baseline, prototype, root, header, message, usage):
     return result
 
 
-def dense_history(prototype, root, header, message, usage):
+def dense_history(prototype, root, header, message, usage, *, release=False):
     files, records_per_file = 64, 1024
     roots = history(root, header, message, files, records_per_file, 15500, padded_size=16 * MIB)
     counts = shape(roots, files * records_per_file)
@@ -95,10 +95,10 @@ def dense_history(prototype, root, header, message, usage):
     tokens = files * records_per_file * usage
     case = {'root': str(root), 'database': 'history.db', 'outcome': 'accepted',
             'days': files, 'sessions': files, 'tokens': tokens}
-    accepted = grouped(case)
+    accepted = grouped(case, release=release)
     with (roots[0] / 's-00000.jsonl').open('ab') as stream:
         stream.write(b' ')
-    refused = grouped(dict(case, outcome='candidate', scanId=accepted['scanId']))
+    refused = grouped(dict(case, outcome='candidate', scanId=accepted['scanId']), release=release)
     return {'shape': counts, 'tokens': tokens, 'prototype': measured,
             'grouped': accepted, 'overflowRefusal': refused}
 

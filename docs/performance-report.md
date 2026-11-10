@@ -123,3 +123,52 @@ preserved the saved scan.
 These timings cover scanner and storage work. They exclude consent, workspace
 creation, and display. The reference machine, release build, user interface
 latency, real histories, Windows, and macOS remain untested for the prototype.
+
+## Linux release local history
+
+L-1f11o, November 11, 2026. Both measurements used the Linux host above with
+affinity limited to four logical CPUs. The host had 15 GiB RAM. The inputs
+were synthetic and the filesystem cache was warm. OpenUsage used base commit
+`cab2344` with this change's test harnesses and schema 13.
+
+### Pi release capture
+
+The bounded Pi source used its locked release profile, Rust 1.99.1, and the
+verified offline prices. The [release harness](engineering-workflow.md#release-local-history-measurements)
+ran three samples per workload. The release binary's digest is in the
+[test pin](../tests/tools/fixtures/pi-producer/pin.json).
+
+| Workload | Exact tokens | Child wall (s) | Highest child RSS (KiB) |
+|---|---:|---:|---:|
+| 1 GiB of copied sessions | 120 | 1.159–1.160 | 48,688 |
+| 1 GiB across 64 distinct sessions | 7,864,320 | 1.533–1.573 | 114,644 |
+
+The distinct-session fixture used the same 65,536 records as the debug test.
+The grouped scan and encrypted save together took 1.577–1.744 seconds.
+Every sample returned the exact day and session totals after reopen. An extra
+blank byte caused refusal and preserved the saved scan. This measurement
+uses the Pi qualification runner. Pi stays disabled in the app.
+
+### First visible Claude Code history
+
+The [native benchmark](../tests/native/README.md#native-local-history-performance)
+used the release desktop with the `native-test` feature and the production
+scanner. Each fresh private home held 1 GiB across 64 Claude Code session
+files, with 16,384 usage records and 77,004,800 tokens. Each record contained
+64,000 bytes of synthetic text. Blank padding made the total exactly 1 GiB.
+
+The timer started before the setup action that saved consent. It stopped two
+animation frames after Overview displayed the saved exact total. It includes
+password workspace creation, scanning, saving, and rendering. Every saved
+session matched its expected total, and source hashes stayed unchanged.
+
+| Sample | Consent to visible history (s) |
+|---|---:|
+| 1 | 15.217 |
+| 2 | 15.195 |
+| 3 | 15.211 |
+
+All three samples met the 60-second target in this local scope. The test used
+zero saved profiles and more than the reference machine's 8 GiB RAM. It does
+not complete the SRS performance gate. The ten-profile reference conditions,
+interaction latency, real histories, Windows, and macOS remain open.

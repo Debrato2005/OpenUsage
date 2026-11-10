@@ -4,6 +4,10 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f11n result before L-1f11o
+
+November 11, 2026. The bounded Pi debug prototype scanned and saved an exact 1 GiB synthetic history on Linux. The [performance report](performance-report.md#pi-bounded-capture-prototype) records the memory and time tradeoff. Pi stayed disabled.
+
 ## L-1f11m result before L-1f11n
 
 November 11, 2026. The pinned Pi candidate refused a synthetic 1 GiB history on Linux. Separate reports lost the evidence needed to resolve copies and conflicts. The [design decision](decisions/2026-11-11-pi-large-history.md) selected one bounded capture for a prototype. Pi stayed disabled.

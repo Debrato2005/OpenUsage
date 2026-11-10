@@ -94,3 +94,21 @@ grouped scanner to save one in SQLCipher. Only run metadata remains.
 
 Use `OPENUSAGE_PI_QUALIFICATION_VARIANT=bounded` for the grouped integration
 test with the prototype. Leave this variable unset for the observation candidate.
+
+### Release local-history measurements
+
+Build the bounded Pi source with `--release` and
+`CCUSAGE_VERSION=20.0.48-openusage.pi-bounded-release.1`. Use the same verified
+pricing input and shared target. Set `OPENUSAGE_PI_QUALIFICATION_BIN` to that
+binary and keep the pinned writer path.
+
+```sh
+timeout 600 python3 tests/tools/pi_release_capture.py
+```
+
+The harness checks the release digest, limits CPU affinity to four slots, and
+collects three samples for each 1 GiB workload. It runs the grouped storage
+test in release mode and checks refusal after one added byte.
+
+The [native benchmark](../tests/native/README.md#native-local-history-performance)
+measures first history through the enabled Claude Code consent path.

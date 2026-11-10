@@ -27,6 +27,7 @@ fn pi_scale_workload() {
     let digest_key = match env::var("OPENUSAGE_PI_QUALIFICATION_VARIANT").as_deref() {
         Err(env::VarError::NotPresent) => "scannerSha256",
         Ok("bounded") => "boundedScannerSha256",
+        Ok("bounded-release") => "boundedReleaseScannerSha256",
         _ => panic!("Unknown Pi qualification variant"),
     };
     let root = PathBuf::from(field("root"));

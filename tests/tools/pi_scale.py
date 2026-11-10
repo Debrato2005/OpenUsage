@@ -95,10 +95,12 @@ def measure_scanner(binary, root, roots, timeout, output_bound, *, inspect_repor
             'peakRssKiB': usage.ru_maxrss, 'outputBytes': size}
 
 
-def grouped(case):
+def grouped(case, *, release=False):
     command = ['cargo', 'test', '--offline', '--locked', '-q', '-p', 'openusage-storage',
                '--features', 'pi-qualification', '--test', 'pi_scale', '--',
                '--ignored', '--nocapture']
+    if release:
+        command.insert(2, '--release')
     env = dict(os.environ, OPENUSAGE_PI_SCALE_CASE=json.dumps(case))
     result = subprocess.run(command, cwd=ROOT, env=env, stdin=subprocess.DEVNULL,
                             capture_output=True, text=True, timeout=180, check=False)

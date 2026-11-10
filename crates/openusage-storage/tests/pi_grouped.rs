@@ -96,6 +96,7 @@ fn pi_candidate_flows_from_pinned_writer_to_encrypted_history() {
     let digest_key = match env::var("OPENUSAGE_PI_QUALIFICATION_VARIANT").as_deref() {
         Err(env::VarError::NotPresent) => "scannerSha256",
         Ok("bounded") => "boundedScannerSha256",
+        Ok("bounded-release") => "boundedReleaseScannerSha256",
         _ => panic!("Unknown Pi qualification variant"),
     };
     let temp = tempfile::Builder::new()

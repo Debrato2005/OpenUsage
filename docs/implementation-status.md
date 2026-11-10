@@ -26,7 +26,7 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scoped result, November 11, 2026. The bounded Pi prototype scanned and saved an exact 1 GiB synthetic history on Linux. The [performance report](performance-report.md#pi-bounded-capture-prototype) records the memory and time tradeoff. Pi stays disabled.
+Latest scoped result, November 11, 2026. The release Pi candidate passed three synthetic 1 GiB captures and saves on Linux. The release desktop displayed enabled Claude Code history within 60 seconds in three native samples. The [performance report](performance-report.md#linux-release-local-history) records exact timing and reference-condition limits. Pi stays disabled.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -126,7 +126,7 @@ Kept from baseline 2.0:
 - [Hosted CI for `b1b8d84`](https://github.com/Debrato2005/OpenUsage/actions/runs/42483593712) passed all 456 renderer tests. The Linux job passed lint, then failed the synthetic quota test at its temporary-path assertion. Native oracle checks were skipped. The local fixture now saves its runtime path before it signals readiness, and both focused regressions pass. The complete hosted gate still needs a later run. OU-NFR-012 also needs Windows and macOS, planned for S-15.
 - Windows and macOS have never run. The owner has a real Windows PC and Mac for this.
 - Windows and macOS need their own pinned Codex companion. Only Linux x86_64 is qualified.
-- Sleep and wake, packaging, and release-scale performance are unmeasured.
+- Sleep and wake, packaging, and the full reference performance gate remain unmeasured. Local Linux measurements are in the [performance report](performance-report.md).
 
 ## Failing or stale tests
 
@@ -154,7 +154,7 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 
 ## Current assignment
 
-[L-1f11](implementation-slices.md#build-checklist) remains open for tool qualification. The next Pi step is to test the [bounded prototype](reviews/2026-11-11-pi-bounded-capture.md) in a release build and measure consent to visible history under OU-NFR-020.
+[L-1f11](implementation-slices.md#build-checklist) remains open for tool qualification. The next tool is OpenCode. Check copied, forked, replayed, and incomplete synthetic sources against the pinned scanner. Keep the tool disabled until its required checks pass.
 
 L-1f0 through L-1f10 are complete within their recorded scope. Only Claude Code and Codex are enabled. The Amp patch is a local candidate, and the production scanner pin is unchanged.
 

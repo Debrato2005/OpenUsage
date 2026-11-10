@@ -301,6 +301,19 @@ Run `node tests/native/local-log-consent.mjs` with the private display and drive
 The journey moves the copied Claude Code log days to the two days before today in UTC, so that the 30-day Overview includes them. The welcome screen must list both tools, selected. The journey unselects Codex with the keyboard and creates a password workspace. The app must grant only Claude Code and scan only its folder. With no account, Overview must show the This device section with the exact Claude Code total and no Codex card (AT-91). The saved local usage must hold the two Claude Code sessions with their project, start and end times, and no reasoning count, and the three Claude Code hours (SC-021). The verifier then checks the saved sources and the exact daily totals.
 A restart must ask no second consent, and a second scan must give the same totals. The synthetic logs must stay unchanged. This journey reads no real logs and does not establish other platforms.
 
+## Native local-history performance
+
+Build the desktop with `--release --features native-test` after the renderer
+build. Set `OPENUSAGE_NATIVE_BINARY` and `OPENUSAGE_NATIVE_EVIDENCE` to absolute
+paths. Use the private display and driver settings above. Limit the runner
+to four CPU affinity slots, then run `node tests/native/local-log-performance.mjs`.
+
+The benchmark creates three private 1 GiB Claude Code histories. It measures
+from the setup action that grants consent to two animation frames after the
+saved total appears. It checks all 64 saved sessions and unchanged source
+hashes. Each sample must finish within 60 seconds. The machine and memory
+scope remain explicit in the [performance report](../../docs/performance-report.md).
+
 ## Native CLI status
 
 Build the CLI with `cargo build -p openusage-cli --features native-test`, then run `node tests/native/cli-status.mjs` with `OPENUSAGE_NATIVE_CLI` set to that binary, the private display and drivers above, and `OPENUSAGE_SECRET_SERVICE_SDK`. The `native-test` CLI reads the separate native-test credential namespace.
