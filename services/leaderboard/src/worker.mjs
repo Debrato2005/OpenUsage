@@ -37,9 +37,27 @@ const count = value => Number.isSafeInteger(value) && value >= 0 && value <= MAX
 async function body(request) {
   const declared = Number(request.headers.get('content-length') ?? '0');
   if (declared > MAX_BODY) refuse(413, 'too_large');
-  const bytes = await request.arrayBuffer();
-  if (bytes.byteLength > MAX_BODY) refuse(413, 'too_large');
-  try { return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)); } catch { return refuse(400, 'invalid_json'); }
+  const reader = request.body?.getReader();
+  if (!reader) refuse(400, 'invalid_json');
+  const bytes = new Uint8Array(MAX_BODY);
+  let length = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!(value instanceof Uint8Array)) refuse(500, 'unavailable');
+      if (value.byteLength > MAX_BODY - length) refuse(413, 'too_large');
+      bytes.set(value, length);
+      length += value.byteLength;
+    }
+  } catch (error) {
+    // Do not wait for the source to finish cancellation.
+    void reader.cancel().catch(() => {});
+    throw error;
+  } finally {
+    reader.releaseLock();
+  }
+  try { return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(0, length))); } catch { return refuse(400, 'invalid_json'); }
 }
 
 async function sha256(text) {

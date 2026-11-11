@@ -4,6 +4,14 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f11ag result before R-5
+
+Latest scoped result, November 12, 2026. The pinned Copilot scanner doubles
+renamed copies, ignores token checkpoints, and accepts malformed peers.
+Five of forty-eight cases match both reports. The
+[qualification record](reviews/2026-11-12-copilot-qualification.md) separates
+synthetic scanner results from source contracts. Copilot stays disabled.
+
 ## R-4 result before L-1f11ag
 
 Latest scoped result, November 12, 2026. The leaderboard now enforces hourly

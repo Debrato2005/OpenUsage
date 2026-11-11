@@ -18,6 +18,10 @@ For each user and period, `estimatedValueMicros` is `null` if any included row h
 
 ## Limits
 
+The service reads request bytes into a fixed 64 KiB buffer. It cancels the stream when the next chunk exceeds the remaining space. It rejects a declared length above the cap before it reads the body. Missing or smaller length headers do not bypass the cap. Invalid JSON or UTF-8 returns `400 invalid_json`. Stream read errors return `500 unavailable`.
+
+A failed or stalled cancellation does not delay the overflow response.
+
 - The edge limiter allows 3 joins a minute for each IP address. Cloudflare's rate limiting binding counts only 10-second or 60-second periods, and the database never stores an IP address.
 - Each GitHub account can join 3 times an hour, and each user can sync 30 times an hour. These hourly counts are kept in D1 by account, not by IP address.
 - A user can have at most 5 devices.
@@ -49,4 +53,5 @@ The owner does these steps (checklist item G-L):
 `node --test services/leaderboard/test/worker.test.mjs` runs the Worker against SQLite through a small D1 stand-in, with GitHub as a stub and no network.
 
 The tests control concurrent writes to check hourly limits and the device cap. They also check token rotation, hour changes, and database errors.
-These tests use synthetic data on local SQLite. Hosted D1 and deployment remain unverified.
+The tests check exact byte limits, split UTF-8, early cancellation, stream errors, and cancellation errors for joins and authenticated syncs.
+These tests use synthetic streams and local SQLite on Linux. Hosted Workers, D1, and deployment remain unverified.

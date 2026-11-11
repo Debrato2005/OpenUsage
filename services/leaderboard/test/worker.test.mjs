@@ -60,6 +60,198 @@ async function board(e, query = '') {
   return { status: response.status, body: await response.json() };
 }
 
+const BODY_CAP = 64 * 1024;
+const encode = text => new TextEncoder().encode(text);
+function paddedJson(input, size = BODY_CAP) {
+  const text = JSON.stringify(input);
+  return encode(text + ' '.repeat(size - encode(text).length));
+}
+
+function streamedPost(path, chunks, { token, headers = {}, cancel, failAt } = {}) {
+  const stats = { pulls: 0, bytes: 0, cancels: 0 };
+  const stream = new ReadableStream({
+    pull(controller) {
+      const index = stats.pulls++;
+      if (index === failAt) return controller.error(new Error('synthetic stream failure'));
+      if (index === chunks.length) return controller.close();
+      stats.bytes += chunks[index].byteLength;
+      controller.enqueue(chunks[index]);
+    },
+    cancel() { stats.cancels++; return cancel?.(); },
+  }, { highWaterMark: 0 });
+  return {
+    stats,
+    request: new Request(`https://board.example${path}`, {
+      method: 'POST', body: stream, duplex: 'half',
+      headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}), ...headers },
+    }),
+  };
+}
+
+async function bodyTarget(path) {
+  const e = env();
+  if (path === '/v1/join') return { e, input: { githubToken: 'gho_synthetic_token_alpha_0001', deviceId: DEVICE } };
+  const { token } = (await join(e, 'gho_synthetic_token_alpha_0001')).body;
+  return { e, token, input: { deviceId: DEVICE, rows: [row('2026-11-08', 10)] } };
+}
+
+test('join and sync accept valid JSON at the exact byte cap', async () => {
+  for (const path of ['/v1/join', '/v1/sync']) {
+    for (const declared of [undefined, '1', String(BODY_CAP)]) {
+      const { e, token, input } = await bodyTarget(path);
+      const bytes = paddedJson(input);
+      const { request, stats } = streamedPost(path, [bytes.subarray(0, 123), bytes.subarray(123)], {
+        token, headers: declared === undefined ? {} : { 'content-length': declared },
+      });
+      const response = await handle(request, e, deps, NOW);
+      assert.equal(response.status, 200, `${path}, declared ${declared}`);
+      const result = await response.json();
+      if (path === '/v1/join') assert.match(result.token, /^[0-9a-f]{64}$/);
+      else assert.deepEqual(result, { accepted: 1 });
+      assert.deepEqual(stats, { pulls: 3, bytes: BODY_CAP, cancels: 0 });
+    }
+  }
+});
+
+test('join and sync cancel at one byte over the cap despite missing or smaller headers', async () => {
+  for (const path of ['/v1/join', '/v1/sync']) {
+    for (const declared of [undefined, '1', String(BODY_CAP)]) {
+      const { e, token, input } = await bodyTarget(path);
+      const { request, stats } = streamedPost(path, [paddedJson(input), encode(' '), new Uint8Array(BODY_CAP)], {
+        token, headers: declared === undefined ? {} : { 'content-length': declared },
+      });
+      const response = await handle(request, e, deps, NOW);
+      assert.equal(response.status, 413);
+      assert.deepEqual(await response.json(), { error: 'too_large' });
+      assert.deepEqual(stats, { pulls: 2, bytes: BODY_CAP + 1, cancels: 1 });
+      assert.equal(e.DB.raw.prepare('SELECT count(*) AS n FROM days').get().n, 0);
+      assert.equal(e.DB.raw.prepare('SELECT count(*) AS n FROM devices').get().n, token ? 1 : 0);
+    }
+  }
+});
+
+test('overflow cancels an oversized first chunk and stops an ongoing stream', async () => {
+  for (const path of ['/v1/join', '/v1/sync']) {
+    for (const chunkSize of [1024 * 1024, 16 * 1024]) {
+      const { e, token } = await bodyTarget(path);
+      const chunk = new Uint8Array(chunkSize);
+      const { request, stats } = streamedPost(path, Array(chunkSize > BODY_CAP ? 2 : 64).fill(chunk), { token });
+      const response = await handle(request, e, deps, NOW);
+      assert.equal(response.status, 413);
+      assert.deepEqual(await response.json(), { error: 'too_large' });
+      const pulls = Math.floor(BODY_CAP / chunkSize) + 1;
+      assert.deepEqual(stats, { pulls, bytes: pulls * chunkSize, cancels: 1 });
+    }
+  }
+});
+
+test('a declared length above the cap rejects before the first body read', async () => {
+  for (const path of ['/v1/join', '/v1/sync']) {
+    const { e, token, input } = await bodyTarget(path);
+    const { request, stats } = streamedPost(path, [encode(JSON.stringify(input))], {
+      token, headers: { 'content-length': String(BODY_CAP + 1) },
+    });
+    const response = await handle(request, e, deps, NOW);
+    assert.equal(response.status, 413);
+    assert.deepEqual(await response.json(), { error: 'too_large' });
+    assert.deepEqual(stats, { pulls: 0, bytes: 0, cancels: 0 });
+  }
+});
+
+test('the body cap counts UTF-8 bytes and permits a split character', async () => {
+  const bytes = paddedJson({ unexpected: 'é'.repeat(30_000) });
+  const split = bytes.indexOf(0xc3) + 1;
+  for (const path of ['/v1/join', '/v1/sync']) {
+    for (const excess of [0, 1]) {
+      const { e, token } = await bodyTarget(path);
+      const chunks = [bytes.subarray(0, split), bytes.subarray(split)];
+      if (excess) chunks.push(encode(' '));
+      const { request, stats } = streamedPost(path, chunks, { token });
+      const response = await handle(request, e, deps, NOW);
+      assert.equal(response.status, excess ? 413 : 400);
+      assert.deepEqual(await response.json(), { error: excess ? 'too_large' : 'invalid_request' });
+      assert.equal(stats.bytes, BODY_CAP + excess);
+      assert.equal(stats.cancels, excess);
+    }
+  }
+});
+
+test('invalid JSON and invalid UTF-8 remain invalid_json errors', async () => {
+  const invalid = [null, [], [encode('{')], [new Uint8Array([0xc3])], [encode('{"unexpected":"'), new Uint8Array([0xc3, 0x28]), encode('"}')]];
+  for (const path of ['/v1/join', '/v1/sync']) {
+    for (const chunks of invalid) {
+      const { e, token } = await bodyTarget(path);
+      const request = chunks === null ? post(path, undefined, token) : streamedPost(path, chunks, { token }).request;
+      const response = await handle(request, e, deps, NOW);
+      assert.equal(response.status, 400);
+      assert.deepEqual(await response.json(), { error: 'invalid_json' });
+    }
+  }
+});
+
+test('stream errors never accept a partial or complete JSON body', async () => {
+  for (const path of ['/v1/join', '/v1/sync']) {
+    for (const failAt of [0, 1, 2]) {
+      const { e, token, input } = await bodyTarget(path);
+      const bytes = encode(JSON.stringify(input));
+      const { request } = streamedPost(path, [bytes.subarray(0, 5), bytes.subarray(5)], { token, failAt });
+      const response = await handle(request, e, deps, NOW);
+      assert.equal(response.status, 500);
+      assert.deepEqual(await response.json(), { error: 'unavailable' });
+      assert.equal(e.DB.raw.prepare('SELECT count(*) AS n FROM days').get().n, 0);
+      assert.equal(e.DB.raw.prepare('SELECT count(*) AS n FROM devices').get().n, token ? 1 : 0);
+    }
+  }
+});
+
+test('non-byte chunks fail closed and cancel the stream', async () => {
+  for (const path of ['/v1/join', '/v1/sync']) {
+    const { e, token } = await bodyTarget(path);
+    const { request, stats } = streamedPost(path, [new Uint16Array([0x7b, 0x7d]), encode(' ')], { token });
+    const response = await handle(request, e, deps, NOW);
+    assert.equal(response.status, 500);
+    assert.deepEqual(await response.json(), { error: 'unavailable' });
+    assert.deepEqual(stats, { pulls: 1, bytes: 4, cancels: 1 });
+  }
+});
+
+test('failed or stalled cancellation cannot delay the overflow response', { timeout: 5000 }, async () => {
+  for (const path of ['/v1/join', '/v1/sync']) {
+    for (const cancel of [
+      () => { throw new Error('synthetic cancellation failure'); },
+      () => Promise.reject(new Error('synthetic cancellation rejection')),
+      () => new Promise(() => {}),
+    ]) {
+      const { e, token } = await bodyTarget(path);
+      const { request, stats } = streamedPost(path, [new Uint8Array(BODY_CAP + 1)], { token, cancel });
+      const response = await handle(request, e, deps, NOW);
+      assert.equal(response.status, 413);
+      assert.deepEqual(await response.json(), { error: 'too_large' });
+      assert.deepEqual(stats, { pulls: 1, bytes: BODY_CAP + 1, cancels: 1 });
+      await new Promise(resolve => setImmediate(resolve));
+    }
+  }
+});
+
+test('authentication and rate limits still reject before body reads', async () => {
+  for (const [path, mode, status, error] of [
+    ['/v1/join', 'missing-limiter', 503, 'limiter_unavailable'],
+    ['/v1/join', 'edge-limit', 429, 'rate_limited'],
+    ['/v1/sync', 'missing-token', 401, 'not_joined'],
+    ['/v1/sync', 'hour-limit', 429, 'rate_limited'],
+  ]) {
+    const { e, token, input } = await bodyTarget(path);
+    if (mode === 'missing-limiter') delete e.JOIN_LIMITER;
+    if (mode === 'edge-limit') e.JOIN_LIMITER.limit = async () => ({ success: false });
+    if (mode === 'hour-limit') e.DB.raw.prepare('INSERT INTO limits VALUES (?1, ?2, ?3)').run('sync:1', '2026-11-08T12', 30);
+    const { request, stats } = streamedPost(path, [encode(JSON.stringify(input))], { token: mode === 'missing-token' ? undefined : token });
+    const response = await handle(request, e, deps, NOW);
+    assert.equal(response.status, status);
+    assert.deepEqual(await response.json(), { error });
+    assert.deepEqual(stats, { pulls: 0, bytes: 0, cancels: 0 });
+  }
+});
+
 // Hold all writes until every concurrent request reaches the mutation.
 // This also forces separate reads in the old code to see the same count.
 function simultaneousWrites(pattern, participants) {

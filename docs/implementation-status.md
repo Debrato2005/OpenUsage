@@ -26,11 +26,11 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scoped result, November 12, 2026. The pinned Copilot scanner doubles
-renamed copies, ignores token checkpoints, and accepts malformed peers.
-Five of forty-eight cases match both reports. The
-[qualification record](reviews/2026-11-12-copilot-qualification.md) separates
-synthetic scanner results from source contracts. Copilot stays disabled.
+Latest scoped result, November 12, 2026. The leaderboard collects request
+bodies in a fixed 64 KiB buffer and cancels overflow. Twenty-four service tests
+passed with synthetic streams, SQLite, and a GitHub stub. The checks cover
+byte boundaries, UTF-8, stream errors, and stalled cancellation. Hosted Workers
+and D1 remain unverified.
 
 Hosted CI for `cd99e35` passed Linux and Renderer, including native oracle tests.
 The [evidence log](acceptance-traceability.md#evidence-log) records its scope.
