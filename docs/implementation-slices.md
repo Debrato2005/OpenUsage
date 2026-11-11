@@ -82,13 +82,13 @@ The other slices below follow the launch, unless a launch slice needs part of on
 
 ## Build checklist
 
-Updated November 12, 2026. Each completed item has one local commit and scoped evidence. L-1f11af records the latest result. The next bounded assignment is below. Owner items wait for the owner.
+Updated November 12, 2026. Each completed item has one local commit and scoped evidence. R-3 records the latest result. The next bounded assignment is below. Owner items wait for the owner.
 
 **Verification before release**
 
 - [x] Fix portable Codex fixtures, renderer countdown clocks, and quota fixture readiness. See [traceability](acceptance-traceability.md#evidence-log) for scope and results.
 - [x] The hosted renderer job for `b1b8d84` passed all 456 cases.
-- [ ] Pass the complete hosted Linux gate after the quota fixture fix in `d357655`. The previous job stopped before native oracle checks.
+- [x] The hosted Linux gate for `cd99e35` passed after the quota fixture fix in `d357655`, including native oracle checks. See the [record](acceptance-traceability.md#evidence-log).
 
 **L-0 First run**
 
@@ -153,6 +153,7 @@ Updated November 12, 2026. Each completed item has one local commit and scoped e
 - [x] L-1f11ae: record [Kimi qualification](reviews/2026-11-11-kimi-qualification.md). Nine of thirty-eight cases match both reports. Copied forks, skipped request scopes, and ambiguous new-format identities prevent enablement. Kimi stays disabled.
 - [x] L-1f11af: record [OpenClaw qualification](reviews/2026-11-12-openclaw-qualification.md). Fourteen of fifty-two cases match both reports. Distinct events collapse, inherited usage repeats, and unavailable metrics remain numeric. OpenClaw stays disabled.
 - [ ] L-1f11ag: qualify Copilot usage records, copies, replay, and capture failures on private synthetic input. Keep Copilot disabled until its required checks pass.
+- [x] R-3: keep a leaderboard estimate unavailable when any included row lacks it. Token totals, measured zero, ordering, and period filters stay intact. Eight local service tests passed. Hosted D1 remains unverified.
 - [x] R-2: reuse the bounded writer in desktop synthetic fixtures. The inherited-writer regression, 22 provider tests, full Rust, and native provider-lifecycle passed. The original cooldown failure remains unexplained. See the [review](reviews/2026-11-10-desktop-fixture-writes.md).
 - [x] R-1: use bounded test-fixture writes to prevent inherited writable handles from blocking execution. Full Rust and native provider-lifecycle checks passed. See the [investigation](reviews/2026-11-10-executable-fixture-race.md).
 - [x] L-1g1: sessions, projects and the reasoning count from the `ccusage` session report of each tool, at schema 11 (OU-LOG-017, [SC-021](srs-clarifications.md#sc-021-sessions-projects-hours-and-reasoning-from-the-pinned-ccusage)).
@@ -553,7 +554,7 @@ disabled and preserve the production pin. See the [prototype record](reviews/202
 |---|---|---|---|
 | S-01 | Simple screens | | Done, with one exception in [status](implementation-status.md#partial) |
 | S-02 | Native journeys | S-01 | Done, with two recorded reasons in [status](implementation-status.md#failing-or-stale-tests) |
-| S-03 | CI | S-02 | Configured. Hosted renderer passed. The Linux gate needs a new run after the quota fixture fix |
+| S-03 | CI | S-02 | Hosted Linux and Renderer passed for `cd99e35`. Other platforms follow in S-15 |
 | S-03b | Rich dashboard | S-03 | Done |
 | S-03d | Modern Overview | S-03b | Done, with two recorded reasons in [status](implementation-status.md#failing-or-stale-tests) |
 | S-03c | Keychain by default | S-03b | New workspaces use the key store (L-0). The move of a password workspace follows the launch |

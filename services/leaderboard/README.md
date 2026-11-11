@@ -14,6 +14,8 @@ The opt-in OpenUsage leaderboard (SRS Section 14A), as one Cloudflare Worker and
 
 A row holds only `date`, `tool`, `model`, `inputTokens`, `outputTokens`, `cacheReadTokens`, `cacheWriteTokens`, `totalTokens` and `estimatedValueMicros` (OU-BOARD-003). An unknown field, a wrong type, totals that do not add up, a duplicate key, a date outside the last 400 days, an unknown tool, or a model outside lowercase letters, digits, `.`, `-` and `:` rejects the whole request. A request is at most 64 KiB and 400 rows.
 
+For each user and period, `estimatedValueMicros` is `null` if any included row has no estimate. Token totals remain available. A measured zero stays `0`. Value ranks put numeric estimates before unavailable estimates, then use token totals and login to break ties.
+
 ## Limits
 
 - The edge limiter allows 3 joins a minute for each IP address. Cloudflare's rate limiting binding counts only 10-second or 60-second periods, and the database never stores an IP address.

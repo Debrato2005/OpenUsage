@@ -130,6 +130,87 @@ test('ranks sum devices, leave hidden users and flagged days out, and say Self-r
   for (const query of ['?period=1y', '?metric=money', '?period=7d&user=alpha']) assert.equal((await board(e, query)).status, 400);
 });
 
+test('ranks keep an estimate unavailable if any included row lacks it', async () => {
+  for (const [estimates, expected] of [
+    [[900, null], null],
+    [[null, null], null],
+    [[0, 0], 0],
+    [[900, 300], 1200],
+  ]) {
+    const e = env();
+    const { token } = (await join(e, 'gho_synthetic_token_alpha_0001')).body;
+    assert.deepEqual(await sync(e, token, [
+      row('2026-11-07', 10, { estimatedValueMicros: estimates[0] }),
+      row('2026-11-08', 10, { estimatedValueMicros: estimates[1] }),
+    ]), { status: 200, body: { accepted: 2 } });
+    for (const period of ['7d', '30d', 'all']) {
+      for (const metric of ['tokens', 'value']) {
+        const result = await board(e, `?period=${period}&metric=${metric}`);
+        assert.equal(result.status, 200);
+        assert.deepEqual(result.body.entries, [{ rank: 1, login: 'alpha', totalTokens: 20, estimatedValueMicros: expected }]);
+      }
+    }
+  }
+});
+
+test('ranks preserve device estimates, measured zero, and stable ties after replacement', async () => {
+  const e = env();
+  const alpha = (await join(e, 'gho_synthetic_token_alpha_0001')).body.token;
+  const alphaPhone = (await join(e, 'gho_synthetic_token_alpha_0001', SECOND)).body.token;
+  const beta = (await join(e, 'gho_synthetic_token_beta_00001')).body.token;
+  assert.equal((await sync(e, alpha, [row('2026-11-08', 10)])).status, 200);
+  assert.equal((await sync(e, alphaPhone, [row('2026-11-08', 10, { estimatedValueMicros: null })], SECOND)).status, 200);
+  assert.equal((await sync(e, beta, [row('2026-11-08', 20, { estimatedValueMicros: 0 })])).status, 200);
+  const entries = async metric => {
+    const result = await board(e, `?period=all&metric=${metric}`);
+    assert.equal(result.status, 200);
+    return result.body.entries.map(x => [x.rank, x.login, x.totalTokens, x.estimatedValueMicros]);
+  };
+  for (const metric of ['tokens', 'value']) {
+    assert.deepEqual(await entries(metric), [[1, 'beta', 20, 0], [2, 'alpha', 20, null]]);
+  }
+  assert.equal((await sync(e, beta, [row('2026-11-08', 20, { estimatedValueMicros: null })])).status, 200);
+  for (const metric of ['tokens', 'value']) {
+    assert.deepEqual(await entries(metric), [[1, 'alpha', 20, null], [2, 'beta', 20, null]]);
+  }
+  assert.equal((await sync(e, beta, [row('2026-11-08', 30, { estimatedValueMicros: null })])).status, 200);
+  for (const metric of ['tokens', 'value']) {
+    assert.deepEqual(await entries(metric), [[1, 'beta', 30, null], [2, 'alpha', 20, null]]);
+  }
+  assert.equal((await sync(e, alphaPhone, [row('2026-11-08', 10, { estimatedValueMicros: 0 })], SECOND)).status, 200);
+  assert.deepEqual(await entries('value'), [[1, 'alpha', 20, 900], [2, 'beta', 30, null]]);
+  assert.deepEqual(await entries('tokens'), [[1, 'beta', 30, null], [2, 'alpha', 20, 900]]);
+  assert.equal((await sync(e, beta, [row('2026-11-08', 20)])).status, 200);
+  for (const metric of ['tokens', 'value']) {
+    assert.deepEqual(await entries(metric), [[1, 'alpha', 20, 900], [2, 'beta', 20, 900]]);
+  }
+});
+
+test('only included dates and visible unflagged rows affect estimate availability', async () => {
+  const e = env();
+  const { token } = (await join(e, 'gho_synthetic_token_alpha_0001')).body;
+  assert.equal((await sync(e, token, [
+    row('2026-11-08', 10),
+    row('2026-11-01', 10, { estimatedValueMicros: null }),
+    row('2026-10-10', 10, { estimatedValueMicros: 0 }),
+    row('2026-10-09', 10, { estimatedValueMicros: null }),
+    row('2026-11-02', DAY_CEILING + 1, { estimatedValueMicros: null }),
+  ])).status, 200);
+  for (const [period, totalTokens, estimatedValueMicros] of [['7d', 10, 900], ['30d', 30, null], ['all', 40, null]]) {
+    for (const metric of ['tokens', 'value']) {
+      const result = await board(e, `?period=${period}&metric=${metric}`);
+      assert.equal(result.status, 200);
+      assert.deepEqual(result.body.entries, [{ rank: 1, login: 'alpha', totalTokens, estimatedValueMicros }]);
+    }
+  }
+  e.DB.raw.exec('UPDATE flags SET cleared = 1');
+  const cleared = await board(e, '?period=7d&metric=value');
+  assert.equal(cleared.status, 200);
+  assert.deepEqual(cleared.body.entries, [{ rank: 1, login: 'alpha', totalTokens: DAY_CEILING + 11, estimatedValueMicros: null }]);
+  e.DB.raw.exec("UPDATE users SET hidden = 1 WHERE login = 'alpha'");
+  for (const metric of ['tokens', 'value']) assert.deepEqual((await board(e, `?period=all&metric=${metric}`)).body.entries, []);
+});
+
 test('leaving removes every row at once, and more than five devices are refused', async () => {
   const e = env();
   const tokens = [];

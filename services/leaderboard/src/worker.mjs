@@ -162,7 +162,8 @@ export async function ranks(db, period, metric, now) {
   const since = period === 'all' ? '0000-00-00' : day(new Date(now.getTime() - (period === '7d' ? 6 : 29) * 86_400_000));
   const order = metric === 'value' ? 'value DESC, tokens DESC' : 'tokens DESC, value DESC';
   const { results } = await db.prepare(
-    `SELECT u.login AS login, sum(d.total_tokens) AS tokens, sum(coalesce(d.estimated_value_micros, 0)) AS value
+    `SELECT u.login AS login, sum(d.total_tokens) AS tokens,
+       CASE WHEN count(d.estimated_value_micros) = count(*) THEN sum(d.estimated_value_micros) ELSE NULL END AS value
      FROM days d JOIN users u ON u.id = d.user_id
      WHERE u.hidden = 0 AND d.date >= ?1
        AND NOT EXISTS (SELECT 1 FROM flags f WHERE f.user_id = d.user_id AND f.date = d.date AND f.cleared = 0)

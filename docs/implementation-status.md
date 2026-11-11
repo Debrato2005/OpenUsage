@@ -26,16 +26,15 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scoped result, November 12, 2026. The pinned OpenClaw scanner loses
-one of two distinct event IDs when time and counts match. Fourteen of
-fifty-two cases match both reports. The
-[qualification record](reviews/2026-11-12-openclaw-qualification.md) covers JSONL,
-SQLite, migration overlap, unavailable metrics, and a committed WAL read.
-OpenClaw stays disabled.
+Latest scoped result, November 12, 2026. Leaderboard aggregates now keep an
+estimate unavailable when any included row lacks it. Token totals and measured
+zero stay intact. Eight service tests passed with synthetic SQLite and a GitHub
+stub. The [service contract](../services/leaderboard/README.md#api) defines the result.
+Hosted D1 and deployment remain unverified.
 
-Hosted CI for `3ec52bc` passed Renderer. Linux stopped at package downloads
-before application checks. The [evidence log](acceptance-traceability.md#evidence-log)
-records the failure scope.
+Hosted CI for `cd99e35` passed Linux and Renderer, including native oracle tests.
+The [evidence log](acceptance-traceability.md#evidence-log) records its scope.
+This result does not certify later commits or other platforms.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 

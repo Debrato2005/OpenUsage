@@ -4,6 +4,15 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f11af result before R-3
+
+Latest scoped result, November 12, 2026. The pinned OpenClaw scanner loses
+one of two distinct event IDs when time and counts match. Fourteen of
+fifty-two cases match both reports. The
+[qualification record](reviews/2026-11-12-openclaw-qualification.md) covers JSONL,
+SQLite, migration overlap, unavailable metrics, and a committed WAL read.
+OpenClaw stays disabled.
+
 ## L-1f11ae result before L-1f11af
 
 Latest scoped result, November 11, 2026. The pinned Kimi scanner returns
