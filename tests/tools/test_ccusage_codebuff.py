@@ -1,22 +1,19 @@
 """Record the pinned Codebuff scanner outcomes on private synthetic input."""
 import copy
-import hashlib
 import json
 import os
 from pathlib import Path
 import sys
-import tempfile
 import unittest
 
-from test_ccusage_formats import FIXTURES, PIN, file_hashes
-from test_ccusage_opencode_runtime import checked_run, sandbox
+from local_log_qualification import KINDS, collect, pinned_binary
+from test_ccusage_formats import FIXTURES
 
 
 GOLDEN = Path(__file__).parent / 'fixtures/codebuff/qualification.json'
 CHAT = 'projects/project-z/chats/chat-z/chat-messages.json'
 DATED_CHAT = 'projects/project-z/chats/2026-11-08T03-04-05.006Z/chat-messages.json'
 BRANCH = 'projects/project-z/chats/chat-branch/chat-messages.json'
-KINDS = ('daily', 'session')
 
 
 def cases():
@@ -103,83 +100,12 @@ def cases():
     }
 
 
-def report(binary, root, names, kind):
-    with tempfile.TemporaryDirectory(dir=root, prefix='empty-home-') as temporary:
-        home = Path(temporary)
-        command = sandbox() + ['--ro-bind', str(binary), '/runtime/ccusage',
-                               '--bind', str(home), '/home/fixture', '--setenv', 'HOME', '/home/fixture']
-        selected = []
-        for name in names:
-            mount = '/selected/' + name
-            if (root / name).exists():
-                command.extend(['--ro-bind', str(root / name), mount])
-            selected.append(mount)
-        command.extend(['--setenv', 'CODEBUFF_DATA_DIR', ','.join(selected), '--chdir', '/home/fixture',
-                        '/runtime/ccusage', 'codebuff', kind, '--json', '--offline', '--mode',
-                        'calculate', '--timezone', 'UTC', '--no-color'])
-        result = checked_run(command, timeout=15)
-        if list(home.iterdir()):
-            raise ValueError('The scanner changed the private home.')
-        return result
-
-
-def collect(binary):
-    observations = {}
-    for name, spec in cases().items():
-        with tempfile.TemporaryDirectory(prefix='openusage-codebuff-') as temporary:
-            root = Path(temporary)
-            canary = root / 'not-selected' / CHAT
-            canary.parent.mkdir(parents=True)
-            canary.write_text('[{"id":"private-marker"}]\n')
-            for selected, files in spec['roots'].items():
-                for relative, value in (files or {}).items():
-                    path = root / selected / relative
-                    path.parent.mkdir(parents=True, exist_ok=True)
-                    path.write_bytes(value if isinstance(value, bytes) else json.dumps(value).encode() + b'\n')
-                    os.utime(path, (1767312000, 1767312000))
-            before = file_hashes(root)
-            reports = {}
-            for kind in KINDS:
-                first, second = [report(binary, root, spec['roots'], kind) for _ in range(2)]
-                if (first.returncode, first.stdout, first.stderr) != (second.returncode, second.stdout, second.stderr):
-                    raise ValueError(f'Nonrepeatable report: {name}, {kind}.')
-                if first.returncode:
-                    if first.stdout or b'private-marker' in first.stderr:
-                        raise ValueError(f'Refusal exposed source data: {name}, {kind}.')
-                    reports[kind] = {'exitCode': first.returncode, 'matchesRequired': spec['required'][kind] is None}
-                    continue
-                output = json.loads(first.stdout)
-                totals = output['totals']
-                rows = output['daily' if kind == 'daily' else 'sessions']
-                key = 'date' if kind == 'daily' else 'sessionId'
-                required = spec['required'][kind]
-                matches = required is not None and totals['totalTokens'] == required
-                matches &= len(rows) == spec['rows'].get(kind, len(rows))
-                matches &= all(totals.get(field) == value for field, value in spec['fields'].items())
-                reports[kind] = {'totals': totals, 'rows': [[row[key], row['totalTokens']] for row in rows],
-                                 'sha256': hashlib.sha256(json.dumps(output, sort_keys=True).encode()).hexdigest(),
-                                 'matchesRequired': matches}
-            if file_hashes(root) != before:
-                raise ValueError(f'The scanner changed source files: {name}.')
-            observations[name] = {'requiredTokens': spec['required'], 'requiredRows': spec['rows'],
-                                  'requiredFields': spec['fields'], 'reports': reports}
-    return observations
-
-
-def pinned_binary(path):
-    binary = Path(path).resolve(strict=True)
-    pin = json.loads(PIN.read_text())
-    if hashlib.sha256(binary.read_bytes()).hexdigest() != pin['executableSha256']:
-        raise ValueError('The scanner digest does not match the production pin.')
-    return binary
-
-
 class CodebuffQualificationTests(unittest.TestCase):
     def test_pinned_outcomes_and_limits(self):
         selected = os.environ.get('OPENUSAGE_CCUSAGE_BIN')
         if not selected or sys.platform != 'linux' or not Path('/usr/bin/bwrap').is_file():
             self.skipTest('Set OPENUSAGE_CCUSAGE_BIN on Linux with Bubblewrap.')
-        results = collect(pinned_binary(selected))
+        results = collect(pinned_binary(selected), cases(), 'codebuff', 'CODEBUFF_DATA_DIR', CHAT)
         self.assertEqual(results, json.loads(GOLDEN.read_text()))
         self.assertEqual(results['single']['reports']['session']['totals']['totalTokens'], 162)
         self.assertEqual(results['renamed_channel_copy']['reports']['session']['totals']['totalTokens'], 324)

@@ -4,6 +4,14 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f11y result before L-1f11z
+
+Latest scoped result, November 11, 2026. The pinned Codebuff scanner matches
+eight of thirty synthetic cases. A renamed copy doubles 162 tokens to 324.
+The [qualification record](reviews/2026-11-11-codebuff-qualification.md) also
+records partial reads, missing measurements, and the reviewed producer limits.
+Codebuff stays disabled.
+
 ## L-1f11x result before L-1f11y
 
 Latest scoped result, November 11, 2026. The experimental OpenCode v2 candidate
