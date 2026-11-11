@@ -4,6 +4,14 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f11ac result before L-1f11ad
+
+Latest scoped result, November 11, 2026. The pinned Gemini scanner doubles a
+copied chat from 125 to 250 tokens. Eleven of thirty-six cases match both
+reports. The [qualification record](reviews/2026-11-11-gemini-qualification.md)
+covers replay, source capture, missing counts, and the pinned producer format.
+Gemini stays disabled.
+
 ## L-1f11ab result before L-1f11ac
 
 Latest scoped result, November 11, 2026. The pinned Goose scanner reads a

@@ -65,9 +65,13 @@ def collect(binary, cases, tool, variable, canary_path):
                 rows = output['daily' if kind == 'daily' else 'sessions']
                 key = 'date' if kind == 'daily' else 'sessionId'
                 required = spec['required'][kind]
-                matches = required is not None and totals['totalTokens'] == required
+                if totals is None:
+                    matches = required == 0 and not rows
+                else:
+                    matches = required is not None and totals['totalTokens'] == required
                 matches &= len(rows) == spec['rows'].get(kind, len(rows))
-                matches &= all(totals.get(field) == value for field, value in spec['fields'].items())
+                matches &= all(totals is not None and totals.get(field) == value
+                               for field, value in spec['fields'].items())
                 reports[kind] = {'totals': totals, 'rows': [[row[key], row['totalTokens']] for row in rows],
                                  'sha256': hashlib.sha256(json.dumps(output, sort_keys=True).encode()).hexdigest(),
                                  'matchesRequired': matches}
