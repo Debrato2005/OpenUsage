@@ -26,12 +26,11 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scoped result, November 12, 2026. The native Pi qualification build uses
-consent, worker scans, grouped storage, and Overview. Copies count once. Growth
-saves 137 tokens with the full candidate version. Refused input, withdrawal,
-and a wrong binary digest preserve saved data. The ordinary build refuses Pi.
-The [qualification record](reviews/2026-11-12-pi-native-qualification.md) holds
-the executed Linux scope and remaining gates. No additional tool is enabled.
+Latest scoped result, November 12, 2026. The shared candidate matches production
+in 47 report comparisons and 188 repeated commands. Ten independent expectations
+fail in both binaries. The [comparison record](reviews/2026-11-12-shared-scanner-compatibility.md)
+separates compatibility from production qualification. Codex captured-event
+identity is the next gate. No additional tool is enabled.
 
 Hosted CI for `4e787ef` passed Linux and Renderer, including native oracle tests.
 The [evidence log](acceptance-traceability.md#evidence-log) records its scope.
@@ -163,12 +162,10 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 
 ## Current assignment
 
-[L-1f11al](implementation-slices.md#l-1f11al-shared-candidate-regression-qualification)
-compares the bounded release candidate with the production scanner for enabled
-Claude Code and Codex. Check each supported report with private fixtures and
-independent expectations. Keep copied roots, missing values, and source hashes
-in scope. Record any mismatch before a pin change. Keep the enabled catalog
-and production pin unchanged.
+[L-1f11am](implementation-slices.md#l-1f11am-codex-captured-event-identity)
+establishes the pinned Codex producer's identity contract for copied and distinct
+equal-usage records before a scanner correction. Use private synthetic producer
+output. Keep the production pin and enabled catalog unchanged.
 
 The [gate review](reviews/2026-11-12-additional-tool-gates.md) links all sixteen
 additional-tool records. Their source and capture gaps remain open.

@@ -82,7 +82,7 @@ The other slices below follow the launch, unless a launch slice needs part of on
 
 ## Build checklist
 
-Updated November 12, 2026. Each completed item has one local commit and scoped evidence. L-1f11ak records the latest result. The next bounded assignment is below. Owner items wait for the owner.
+Updated November 12, 2026. Each completed item has one local commit and scoped evidence. L-1f11al records the latest result. The next bounded assignment is below. Owner items wait for the owner.
 
 **Verification before release**
 
@@ -157,7 +157,8 @@ Updated November 12, 2026. Each completed item has one local commit and scoped e
 - [x] L-1f11ai: record [Antigravity qualification](reviews/2026-11-12-antigravity-qualification.md). Seventeen of thirty-seven session outcomes match. Conflicting maxima, missing metrics, partial reads, and an unqualified writer contract prevent enablement. Antigravity stays disabled.
 - [x] L-1f11aj: reconcile all sixteen additional-tool records with the catalog and candidate gates. The [gate review](reviews/2026-11-12-additional-tool-gates.md) selects Pi's native application path next. The production pin and enabled tools stay unchanged.
 - [x] L-1f11ak: exercise the pinned Pi candidate through a native qualification build, including consent, worker scans, exact persistence and display, provenance, refusal, and withdrawal. Keep production support unchanged.
-- [ ] L-1f11al: compare the shared bounded release candidate with the production scanner for enabled Claude Code and Codex. Keep production support unchanged.
+- [x] L-1f11al: compare the shared bounded release candidate with the production scanner for enabled Claude Code and Codex. Keep production support unchanged.
+- [ ] L-1f11am: qualify captured Codex event identity with private producer output before an isolated scanner correction.
 - [x] R-5: bound leaderboard request collection at 64 KiB. Twenty-four local service tests passed, including overflow cancellation, byte boundaries, stream errors, and the earlier aggregate and concurrency checks. Hosted Workers remain unverified.
 - [x] R-4: enforce hourly limits and the five-device cap under concurrent requests. Fourteen local service tests passed, including token rotation, hour resets, and database failures. Hosted D1 remains unverified.
 - [x] R-3: keep a leaderboard estimate unavailable when any included row lacks it. Token totals, measured zero, ordering, and period filters stay intact. Eight local service tests passed. Hosted D1 remains unverified.
@@ -595,6 +596,28 @@ Acceptance:
 
 Stopping condition: one comparison result, updated owning docs, one local
 commit, and an AST Graphify update. Report before the next bounded step.
+
+### L-1f11am: Codex captured-event identity
+
+Goal: establish the pinned Codex producer's identity contract for copied and
+distinct equal-usage records before a scanner correction.
+
+Acceptance:
+
+- Read the pinned producer and consumer boundaries. Record source fingerprints.
+  Source types alone do not prove writer execution.
+- Use private synthetic producer output. Compare renamed copies, distinct
+  sessions, replay, conflicts, and declared lineage with independent counts.
+- Never use time, equal counts, email, or folder names as identity proof.
+  Keep uncertain observations unavailable.
+- If the contract permits a correction, keep it in a separate candidate and
+  check both reports. Preserve the Pi candidate and production pins.
+- Run doctor and the selected verification plan. Run affected native and
+  workspace checks for application changes. Record unexecuted gates.
+
+Stopping condition: one verified producer-boundary result or isolated candidate
+correction, updated owning docs, one local commit, and an AST Graphify update.
+Report before the next bounded step.
 
 ## Order
 

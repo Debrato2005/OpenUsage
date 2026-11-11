@@ -120,6 +120,23 @@ test in release mode and checks refusal after one added byte.
 The [native benchmark](../tests/native/README.md#native-local-history-performance)
 measures first history through the enabled Claude Code consent path.
 
+## Shared candidate comparison
+
+
+Set `OPENUSAGE_SHARED_CANDIDATE` to the bounded Pi release candidate.
+Set `OPENUSAGE_SHARED_CANDIDATE_RESULTS` to a new private JSON path.
+The test refuses an existing result file and an executable off its pin.
+Run the command from the project root:
+
+```sh
+python3 -m unittest discover -s tests/tools -p test_ccusage_shared_candidate.py -v
+```
+
+The live test uses private synthetic input. Its seven harness checks also run
+without an executable. A successful comparison means the two artifacts match
+within this matrix. It does not mean either scanner meets every independent
+expectation. The [compatibility record](reviews/2026-11-12-shared-scanner-compatibility.md) holds those disagreements.
+
 ## Scanner candidate builds
 
 Run Cargo from the candidate source root so its `.cargo/config.toml` applies.

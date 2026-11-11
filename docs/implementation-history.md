@@ -4,6 +4,16 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f11ak result before L-1f11al
+
+Latest scoped result, November 12, 2026. The native Pi qualification build uses
+consent, worker scans, grouped storage, and Overview. Copies count once. Growth
+saves 137 tokens with the full candidate version. Refused input, withdrawal,
+and a wrong binary digest preserve saved data. The ordinary build refuses Pi.
+The [qualification record](reviews/2026-11-12-pi-native-qualification.md) holds
+the executed Linux scope and remaining gates. No additional tool is enabled.
+
+
 ## L-1f11aj result before L-1f11ak
 
 Latest scoped result, November 12, 2026. The additional-tool gate review maps
