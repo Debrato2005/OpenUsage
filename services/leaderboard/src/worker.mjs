@@ -80,11 +80,19 @@ export function validRows(rows, now) {
   return true;
 }
 
+// Check the statement result before accepting a conditional write.
+function changedOne(result) {
+  if (result?.success !== true || ![0, 1].includes(result.meta?.changes)) refuse(500, 'unavailable');
+  return result.meta.changes === 1;
+}
+
 async function limited(db, key, limit, now) {
   const window = hour(now);
-  const row = await db.prepare('SELECT count FROM limits WHERE key = ?1 AND hour = ?2').bind(key, window).first();
-  if (row && row.count >= limit) return true;
-  await db.prepare('INSERT INTO limits (key, hour, count) VALUES (?1, ?2, 1) ON CONFLICT (key, hour) DO UPDATE SET count = count + 1').bind(key, window).run();
+  const result = await db.prepare(
+    `INSERT INTO limits (key, hour, count) VALUES (?1, ?2, 1)
+     ON CONFLICT (key, hour) DO UPDATE SET count = count + 1 WHERE count < ?3`,
+  ).bind(key, window, limit).run();
+  if (!changedOne(result)) return true;
   await db.prepare('DELETE FROM limits WHERE hour < ?1').bind(hour(new Date(now.getTime() - 2 * 3600_000))).run();
   return false;
 }
@@ -112,12 +120,15 @@ async function join(request, env, deps, now) {
   await env.DB.prepare('INSERT INTO users (github_id, login, created_at) VALUES (?1, ?2, ?3) ON CONFLICT (github_id) DO UPDATE SET login = excluded.login')
     .bind(account.id, account.login, now.toISOString()).run();
   const user = await env.DB.prepare('SELECT id FROM users WHERE github_id = ?1').bind(account.id).first();
-  const known = await env.DB.prepare('SELECT 1 AS known FROM devices WHERE user_id = ?1 AND device_id = ?2').bind(user.id, input.deviceId).first();
-  const devices = await env.DB.prepare('SELECT count(*) AS n FROM devices WHERE user_id = ?1').bind(user.id).first();
-  if (!known && devices.n >= MAX_DEVICES) refuse(409, 'too_many_devices');
   const token = newToken();
-  await env.DB.prepare('INSERT INTO devices (user_id, device_id, token_hash, created_at) VALUES (?1, ?2, ?3, ?4) ON CONFLICT (user_id, device_id) DO UPDATE SET token_hash = excluded.token_hash')
-    .bind(user.id, input.deviceId, await sha256(token), now.toISOString()).run();
+  // The capacity check and write must share one SQL statement.
+  const result = await env.DB.prepare(
+    `INSERT INTO devices (user_id, device_id, token_hash, created_at) SELECT ?1, ?2, ?3, ?4
+     WHERE EXISTS (SELECT 1 FROM devices WHERE user_id = ?1 AND device_id = ?2)
+       OR (SELECT count(*) FROM devices WHERE user_id = ?1) < ?5
+     ON CONFLICT (user_id, device_id) DO UPDATE SET token_hash = excluded.token_hash`,
+  ).bind(user.id, input.deviceId, await sha256(token), now.toISOString(), MAX_DEVICES).run();
+  if (!changedOne(result)) refuse(409, 'too_many_devices');
   return json(200, { token, login: account.login });
 }
 

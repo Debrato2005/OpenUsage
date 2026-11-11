@@ -26,11 +26,10 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scoped result, November 12, 2026. Leaderboard aggregates now keep an
-estimate unavailable when any included row lacks it. Token totals and measured
-zero stay intact. Eight service tests passed with synthetic SQLite and a GitHub
-stub. The [service contract](../services/leaderboard/README.md#api) defines the result.
-Hosted D1 and deployment remain unverified.
+Latest scoped result, November 12, 2026. The leaderboard now enforces hourly
+limits and the five-device cap in single SQL statements. Fourteen service tests
+passed with synthetic SQLite and a GitHub stub. Controlled concurrent requests
+failed the old guards. Hosted D1 and deployment remain unverified.
 
 Hosted CI for `cd99e35` passed Linux and Renderer, including native oracle tests.
 The [evidence log](acceptance-traceability.md#evidence-log) records its scope.

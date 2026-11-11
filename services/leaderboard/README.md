@@ -23,6 +23,10 @@ For each user and period, `estimatedValueMicros` is `null` if any included row h
 - A user can have at most 5 devices.
 - A user day above 2 billion tokens is flagged and left out of the ranks until a maintainer clears it.
 
+Each hourly counter uses one conditional SQL update. Concurrent requests cannot spend the same remaining allowance.
+The device limit and token write use one conditional SQL statement. A known device can rejoin at the cap and rotate its token.
+Database errors return `500 unavailable`. A rejected hourly request returns `429 rate_limited`. A new device at the cap returns `409 too_many_devices`.
+
 ## Moderation
 
 The [moderation policy](MODERATION.md) says how entries are reviewed. There is no admin endpoint. Maintainers hide an entry or clear a flag with the D1 command line under their Cloudflare login, for example:
@@ -43,3 +47,6 @@ The owner does these steps (checklist item G-L):
 ## Tests
 
 `node --test services/leaderboard/test/worker.test.mjs` runs the Worker against SQLite through a small D1 stand-in, with GitHub as a stub and no network.
+
+The tests control concurrent writes to check hourly limits and the device cap. They also check token rotation, hour changes, and database errors.
+These tests use synthetic data on local SQLite. Hosted D1 and deployment remain unverified.

@@ -4,6 +4,14 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## R-3 result before R-4
+
+Latest scoped result, November 12, 2026. Leaderboard aggregates now keep an
+estimate unavailable when any included row lacks it. Token totals and measured
+zero stay intact. Eight service tests passed with synthetic SQLite and a GitHub
+stub. The [service contract](../services/leaderboard/README.md#api) defines the result.
+Hosted D1 and deployment remain unverified.
+
 ## L-1f11af result before R-3
 
 Latest scoped result, November 12, 2026. The pinned OpenClaw scanner loses

@@ -7,7 +7,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { DAY_CEILING, TITLE, handle, validRows } from '../src/worker.mjs';
 
 /** The part of the D1 binding that the Worker uses: prepare, bind, first, all, run and batch. */
-function d1() {
+function d1({ beforeRun, afterRun } = {}) {
   const db = new DatabaseSync(':memory:');
   db.exec('PRAGMA foreign_keys = ON');
   db.exec(readFileSync(new URL('../migrations/0001_init.sql', import.meta.url), 'utf8'));
@@ -15,7 +15,11 @@ function d1() {
     bind: (...values) => statement(sql, values),
     first: async () => db.prepare(sql).get(...params) ?? null,
     all: async () => ({ results: db.prepare(sql).all(...params) }),
-    run: async () => ({ meta: { changes: Number(db.prepare(sql).run(...params).changes) } }),
+    run: async () => {
+      await beforeRun?.(sql, params);
+      const result = { success: true, meta: { changes: Number(db.prepare(sql).run(...params).changes) } };
+      return afterRun ? afterRun(sql, result) : result;
+    },
     runSync: () => db.prepare(sql).run(...params),
   });
   return {
@@ -33,9 +37,9 @@ const DEVICE = '11111111-1111-4111-8111-111111111111';
 const SECOND = '22222222-2222-4222-8222-222222222222';
 const accounts = { 'gho_synthetic_token_alpha_0001': { id: 101, login: 'alpha' }, 'gho_synthetic_token_beta_00001': { id: 202, login: 'beta' } };
 const deps = { fetchGitHubUser: async token => accounts[token] ?? null };
-function env() {
+function env(hooks) {
   const allowed = { count: 0 };
-  return { DB: d1(), JOIN_LIMITER: { limit: async () => ({ success: ++allowed.count <= 50 }) }, allowed };
+  return { DB: d1(hooks), JOIN_LIMITER: { limit: async () => ({ success: ++allowed.count <= 50 }) }, allowed };
 }
 const post = (path, body, token, extra = {}) => new Request(`https://board.example${path}`, {
   method: 'POST', body: typeof body === 'string' ? body : JSON.stringify(body),
@@ -43,18 +47,143 @@ const post = (path, body, token, extra = {}) => new Request(`https://board.examp
 });
 const get = path => new Request(`https://board.example${path}`);
 const row = (date, total, extra = {}) => ({ date, tool: 'claude', model: 'claude-sonnet-4-5', inputTokens: total - 3, outputTokens: 1, cacheReadTokens: 1, cacheWriteTokens: 1, totalTokens: total, estimatedValueMicros: 900, ...extra });
-async function join(e, githubToken, deviceId = DEVICE) {
-  const response = await handle(post('/v1/join', { githubToken, deviceId }), e, deps, NOW);
+async function join(e, githubToken, deviceId = DEVICE, now = NOW) {
+  const response = await handle(post('/v1/join', { githubToken, deviceId }), e, deps, now);
   return { status: response.status, body: await response.json() };
 }
-async function sync(e, token, rows, deviceId = DEVICE) {
-  const response = await handle(post('/v1/sync', { deviceId, rows }, token), e, deps, NOW);
+async function sync(e, token, rows, deviceId = DEVICE, now = NOW) {
+  const response = await handle(post('/v1/sync', { deviceId, rows }, token), e, deps, now);
   return { status: response.status, body: await response.json() };
 }
 async function board(e, query = '') {
   const response = await handle(get(`/v1/leaderboard${query}`), e, deps, NOW);
   return { status: response.status, body: await response.json() };
 }
+
+// Hold all writes until every concurrent request reaches the mutation.
+// This also forces separate reads in the old code to see the same count.
+function simultaneousWrites(pattern, participants) {
+  const ready = Promise.withResolvers();
+  let arrivals = 0;
+  return async sql => {
+    if (!pattern.test(sql) || arrivals >= participants) return;
+    if (++arrivals === participants) ready.resolve();
+    await ready.promise;
+  };
+}
+
+test('concurrent joins obey the account limit for new and existing counters', { timeout: 5000 }, async () => {
+  for (const initial of [0, 2]) {
+    const e = env({ beforeRun: simultaneousWrites(/^INSERT INTO limits/, 8) });
+    if (initial) e.DB.raw.prepare('INSERT INTO limits VALUES (?1, ?2, ?3)').run('join:101', '2026-11-08T12', initial);
+    const responses = await Promise.all(Array.from({ length: 8 }, () => join(e, 'gho_synthetic_token_alpha_0001')));
+    assert.equal(responses.filter(x => x.status === 200).length, 3 - initial);
+    for (const refused of responses.filter(x => x.status !== 200)) {
+      assert.deepEqual(refused, { status: 429, body: { error: 'rate_limited' } });
+    }
+    assert.equal(e.DB.raw.prepare('SELECT count FROM limits WHERE key = ?1 AND hour = ?2').get('join:101', '2026-11-08T12').count, 3);
+    assert.equal((await join(e, 'gho_synthetic_token_alpha_0001')).status, 429);
+    assert.equal((await join(e, 'gho_synthetic_token_beta_00001')).status, 200);
+    assert.equal((await join(e, 'gho_synthetic_token_alpha_0001', DEVICE, new Date('2026-11-08T13:00:00Z'))).status, 200);
+    assert.equal(e.DB.raw.prepare('SELECT count FROM limits WHERE key = ?1 AND hour = ?2').get('join:101', '2026-11-08T13').count, 1);
+  }
+});
+
+test('concurrent syncs share the user limit across devices', { timeout: 5000 }, async () => {
+  for (const initial of [0, 29]) {
+    let armed = false;
+    const barrier = simultaneousWrites(/^INSERT INTO limits/, 35);
+    const e = env({ beforeRun: sql => armed ? barrier(sql) : undefined });
+    const first = (await join(e, 'gho_synthetic_token_alpha_0001')).body.token;
+    const second = (await join(e, 'gho_synthetic_token_alpha_0001', SECOND)).body.token;
+    const beta = (await join(e, 'gho_synthetic_token_beta_00001')).body.token;
+    if (initial) e.DB.raw.prepare('INSERT INTO limits VALUES (?1, ?2, ?3)').run('sync:1', '2026-11-08T12', initial);
+    armed = true;
+    const responses = await Promise.all(Array.from({ length: 35 }, (_, n) => sync(e, n % 2 ? first : second, [], n % 2 ? DEVICE : SECOND)));
+    assert.equal(responses.filter(x => x.status === 200).length, 30 - initial);
+    for (const refused of responses.filter(x => x.status !== 200)) {
+      assert.deepEqual(refused, { status: 429, body: { error: 'rate_limited' } });
+    }
+    assert.equal(e.DB.raw.prepare('SELECT count FROM limits WHERE key = ?1 AND hour = ?2').get('sync:1', '2026-11-08T12').count, 30);
+    assert.equal((await sync(e, first, [])).status, 429);
+    assert.equal((await sync(e, beta, [])).status, 200);
+    assert.equal((await sync(e, first, [], DEVICE, new Date('2026-11-08T13:00:00Z'))).status, 200);
+    assert.equal(e.DB.raw.prepare('SELECT count FROM limits WHERE key = ?1 AND hour = ?2').get('sync:1', '2026-11-08T13').count, 1);
+  }
+});
+
+test('concurrent device joins cannot exceed the cap and known devices can rejoin', { timeout: 5000 }, async () => {
+  let armed = false;
+  const barrier = simultaneousWrites(/^INSERT INTO devices/, 2);
+  const e = env({ beforeRun: sql => armed ? barrier(sql) : undefined });
+  const original = (await join(e, 'gho_synthetic_token_alpha_0001')).body.token;
+  for (let n = 0; n < 3; n++) {
+    e.DB.raw.prepare('INSERT INTO devices VALUES (1, ?1, ?2, ?3)').run(`4444444${n}-4444-4444-8444-444444444444`, String(n).repeat(64), NOW.toISOString());
+  }
+  armed = true;
+  const candidates = [SECOND, '55555555-5555-4555-8555-555555555555'];
+  const responses = await Promise.all(candidates.map(id => join(e, 'gho_synthetic_token_alpha_0001', id)));
+  assert.deepEqual(responses.map(x => x.status).sort(), [200, 409]);
+  assert.deepEqual(responses.find(x => x.status === 409).body, { error: 'too_many_devices' });
+  assert.equal(e.DB.raw.prepare('SELECT count(*) AS n FROM devices WHERE user_id = 1').get().n, 5);
+  const winner = responses.findIndex(x => x.status === 200);
+  assert.equal((await sync(e, responses[winner].body.token, [], candidates[winner])).status, 200);
+  assert.equal((await sync(e, original, [])).status, 200);
+  const nextHour = new Date('2026-11-08T13:00:00Z');
+  const rejoined = await join(e, 'gho_synthetic_token_alpha_0001', DEVICE, nextHour);
+  assert.equal(rejoined.status, 200);
+  assert.notEqual(rejoined.body.token, original);
+  assert.equal((await sync(e, original, [])).status, 401);
+  assert.equal((await sync(e, rejoined.body.token, [])).status, 200);
+  assert.equal(e.DB.raw.prepare('SELECT created_at FROM devices WHERE device_id = ?1').get(DEVICE).created_at, NOW.toISOString());
+  assert.equal((await join(e, 'gho_synthetic_token_alpha_0001', candidates[1 - winner], nextHour)).status, 409);
+  assert.equal(e.DB.raw.prepare('SELECT count(*) AS n FROM devices WHERE user_id = 1').get().n, 5);
+});
+
+test('concurrent joins for one new device preserve one row and rotate the token', { timeout: 5000 }, async () => {
+  const e = env({ beforeRun: simultaneousWrites(/^INSERT INTO devices/, 2) });
+  const responses = await Promise.all(Array.from({ length: 2 }, () => join(e, 'gho_synthetic_token_alpha_0001')));
+  assert.deepEqual(responses.map(x => x.status), [200, 200]);
+  assert.equal(e.DB.raw.prepare('SELECT count(*) AS n FROM devices').get().n, 1);
+  const tokens = responses.map(x => x.body.token);
+  assert.notEqual(tokens[0], tokens[1]);
+  const statuses = await Promise.all(tokens.map(async token => (await sync(e, token, [])).status));
+  assert.deepEqual(statuses.sort(), [200, 401]);
+});
+
+test('database failures do not issue tokens or accept syncs', async () => {
+  for (const target of ['join-limit', 'sync-limit', 'device']) {
+    let armed = false;
+    const pattern = target === 'device' ? /^INSERT INTO devices/ : /^INSERT INTO limits/;
+    const e = env({ beforeRun: sql => { if (armed && pattern.test(sql)) throw new Error('synthetic database failure'); } });
+    const original = (await join(e, 'gho_synthetic_token_alpha_0001')).body.token;
+    const before = e.DB.raw.prepare('SELECT token_hash FROM devices').get().token_hash;
+    armed = true;
+    const response = target === 'sync-limit'
+      ? await sync(e, original, [row('2026-11-08', 10)])
+      : await join(e, 'gho_synthetic_token_alpha_0001');
+    assert.deepEqual(response, { status: 500, body: { error: 'unavailable' } });
+    assert.equal(e.DB.raw.prepare('SELECT token_hash FROM devices').get().token_hash, before);
+    assert.equal(e.DB.raw.prepare('SELECT count(*) AS n FROM days').get().n, 0);
+  }
+});
+
+test('invalid write results do not issue tokens or accept syncs', async () => {
+  for (const result of [{ success: false, meta: { changes: 1 } }, { success: true }, { success: true, meta: { changes: 2 } }]) {
+    for (const target of ['join-limit', 'sync-limit', 'device']) {
+      let armed = false;
+      const pattern = target === 'device' ? /^INSERT INTO devices/ : /^INSERT INTO limits/;
+      const e = env({ afterRun: (sql, actual) => armed && pattern.test(sql) ? result : actual });
+      const original = (await join(e, 'gho_synthetic_token_alpha_0001')).body.token;
+      armed = true;
+      const response = target === 'sync-limit'
+        ? await sync(e, original, [row('2026-11-08', 10)])
+        : await join(e, 'gho_synthetic_token_alpha_0001');
+      assert.deepEqual(response, { status: 500, body: { error: 'unavailable' } });
+      assert.equal(e.DB.raw.prepare('SELECT count(*) AS n FROM days').get().n, 0);
+    }
+  }
+});
 
 test('joining stores only a token hash and the GitHub login, never the GitHub token or an IP', async () => {
   const e = env();
