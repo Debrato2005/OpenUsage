@@ -4,6 +4,15 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f11v result before L-1f11w
+
+Latest scoped result, November 11, 2026. The OpenCode validated record candidate
+now matches all seventeen real-writer outcomes. Measured zero remains visible,
+valid metadata preserves usage, and malformed records still refuse. The
+[candidate record](reviews/2026-11-11-opencode-records-candidate.md) gives the
+checks and limits. Fork, scale, and app qualification remain open. OpenCode
+stays disabled.
+
 ## L-1f11u result before L-1f11v
 
 Latest scoped result, November 11, 2026. The isolated OpenCode writer fixture

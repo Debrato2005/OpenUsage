@@ -1,0 +1,2311 @@
+{
+  "full_fork": {
+    "operation": {
+      "parentID": "s1",
+      "forkID": "s2",
+      "boundaryID": null,
+      "inheritedMessageIDs": [
+        "m4",
+        "m5",
+        "m6"
+      ],
+      "newUsage": 0
+    },
+    "sessions": [
+      {
+        "id": "s1",
+        "parentID": null,
+        "metadata": null,
+        "keys": [
+          "agent",
+          "cost",
+          "directory",
+          "id",
+          "metadata",
+          "model",
+          "parent_id",
+          "path",
+          "permission",
+          "project_id",
+          "revert",
+          "share_url",
+          "slug",
+          "summary_additions",
+          "summary_deletions",
+          "summary_diffs",
+          "summary_files",
+          "time_archived",
+          "time_compacting",
+          "time_created",
+          "time_updated",
+          "title",
+          "tokens_cache_read",
+          "tokens_cache_write",
+          "tokens_input",
+          "tokens_output",
+          "tokens_reasoning",
+          "version",
+          "workspace_id"
+        ],
+        "tokens": [
+          120,
+          30,
+          11,
+          7,
+          5
+        ]
+      },
+      {
+        "id": "s2",
+        "parentID": null,
+        "metadata": null,
+        "keys": [
+          "agent",
+          "cost",
+          "directory",
+          "id",
+          "metadata",
+          "model",
+          "parent_id",
+          "path",
+          "permission",
+          "project_id",
+          "revert",
+          "share_url",
+          "slug",
+          "summary_additions",
+          "summary_deletions",
+          "summary_diffs",
+          "summary_files",
+          "time_archived",
+          "time_compacting",
+          "time_created",
+          "time_updated",
+          "title",
+          "tokens_cache_read",
+          "tokens_cache_write",
+          "tokens_input",
+          "tokens_output",
+          "tokens_reasoning",
+          "version",
+          "workspace_id"
+        ],
+        "tokens": [
+          120,
+          30,
+          11,
+          7,
+          5
+        ]
+      }
+    ],
+    "messages": [
+      {
+        "id": "m1",
+        "sessionID": "s1",
+        "role": "user",
+        "parentID": null,
+        "keys": [
+          "agent",
+          "model",
+          "role",
+          "time"
+        ],
+        "tokens": null
+      },
+      {
+        "id": "m2",
+        "sessionID": "s1",
+        "role": "assistant",
+        "parentID": "m1",
+        "keys": [
+          "agent",
+          "cost",
+          "finish",
+          "mode",
+          "modelID",
+          "parentID",
+          "path",
+          "providerID",
+          "role",
+          "time",
+          "tokens"
+        ],
+        "tokens": {
+          "input": 120,
+          "output": 30,
+          "reasoning": 11,
+          "cache": {
+            "read": 7,
+            "write": 5
+          }
+        }
+      },
+      {
+        "id": "m3",
+        "sessionID": "s1",
+        "role": "user",
+        "parentID": null,
+        "keys": [
+          "agent",
+          "model",
+          "role",
+          "time"
+        ],
+        "tokens": null
+      },
+      {
+        "id": "m4",
+        "sessionID": "s2",
+        "role": "user",
+        "parentID": null,
+        "keys": [
+          "agent",
+          "model",
+          "role",
+          "time"
+        ],
+        "tokens": null
+      },
+      {
+        "id": "m5",
+        "sessionID": "s2",
+        "role": "assistant",
+        "parentID": "m4",
+        "keys": [
+          "agent",
+          "cost",
+          "finish",
+          "mode",
+          "modelID",
+          "parentID",
+          "path",
+          "providerID",
+          "role",
+          "time",
+          "tokens"
+        ],
+        "tokens": {
+          "input": 120,
+          "output": 30,
+          "reasoning": 11,
+          "cache": {
+            "read": 7,
+            "write": 5
+          }
+        }
+      },
+      {
+        "id": "m6",
+        "sessionID": "s2",
+        "role": "user",
+        "parentID": null,
+        "keys": [
+          "agent",
+          "model",
+          "role",
+          "time"
+        ],
+        "tokens": null
+      }
+    ],
+    "parts": [
+      {
+        "id": "p1",
+        "sessionID": "s1",
+        "messageID": "m1",
+        "type": "text",
+        "keys": [
+          "text",
+          "type"
+        ],
+        "tokens": null
+      },
+      {
+        "id": "p2",
+        "sessionID": "s1",
+        "messageID": "m2",
+        "type": "step-finish",
+        "keys": [
+          "cost",
+          "reason",
+          "tokens",
+          "type"
+        ],
+        "tokens": {
+          "input": 120,
+          "output": 30,
+          "reasoning": 11,
+          "cache": {
+            "read": 7,
+            "write": 5
+          }
+        }
+      },
+      {
+        "id": "p3",
+        "sessionID": "s1",
+        "messageID": "m3",
+        "type": "text",
+        "keys": [
+          "text",
+          "type"
+        ],
+        "tokens": null
+      },
+      {
+        "id": "p4",
+        "sessionID": "s2",
+        "messageID": "m4",
+        "type": "text",
+        "keys": [
+          "text",
+          "type"
+        ],
+        "tokens": null
+      },
+      {
+        "id": "p5",
+        "sessionID": "s2",
+        "messageID": "m5",
+        "type": "step-finish",
+        "keys": [
+          "cost",
+          "reason",
+          "tokens",
+          "type"
+        ],
+        "tokens": {
+          "input": 120,
+          "output": 30,
+          "reasoning": 11,
+          "cache": {
+            "read": 7,
+            "write": 5
+          }
+        }
+      },
+      {
+        "id": "p6",
+        "sessionID": "s2",
+        "messageID": "m6",
+        "type": "text",
+        "keys": [
+          "text",
+          "type"
+        ],
+        "tokens": null
+      }
+    ],
+    "events": [
+      {
+        "type": "session.created.1",
+        "keys": [
+          "info",
+          "sessionID"
+        ]
+      },
+      {
+        "type": "message.updated.1",
+        "keys": [
+          "info",
+          "sessionID"
+        ]
+      },
+      {
+        "type": "message.part.updated.1",
+        "keys": [
+          "part",
+          "sessionID",
+          "time"
+        ]
+      },
+      {
+        "type": "message.updated.1",
+        "keys": [
+          "info",
+          "sessionID"
+        ]
+      },
+      {
+        "type": "message.part.updated.1",
+        "keys": [
+          "part",
+          "sessionID",
+          "time"
+        ]
+      },
+      {
+        "type": "message.updated.1",
+        "keys": [
+          "info",
+          "sessionID"
+        ]
+      },
+      {
+        "type": "message.part.updated.1",
+        "keys": [
+          "part",
+          "sessionID",
+          "time"
+        ]
+      },
+      {
+        "type": "session.created.1",
+        "keys": [
+          "info",
+          "sessionID"
+        ]
+      },
+      {
+        "type": "message.updated.1",
+        "keys": [
+          "info",
+          "sessionID"
+        ]
+      },
+      {
+        "type": "message.part.updated.1",
+        "keys": [
+          "part",
+          "sessionID",
+          "time"
+        ]
+      },
+      {
+        "type": "message.updated.1",
+        "keys": [
+          "info",
+          "sessionID"
+        ]
+      },
+      {
+        "type": "message.part.updated.1",
+        "keys": [
+          "part",
+          "sessionID",
+          "time"
+        ]
+      },
+      {
+        "type": "message.updated.1",
+        "keys": [
+          "info",
+          "sessionID"
+        ]
+      },
+      {
+        "type": "message.part.updated.1",
+        "keys": [
+          "part",
+          "sessionID",
+          "time"
+        ]
+      }
+    ],
+    "eventCount": 14,
+    "v2MessageCount": 0
+  },
+  "bounded_fork": {
+    "operation": {
+      "parentID": "s1",
+      "forkID": "s2",
+      "boundaryID": "m3",
+      "inheritedMessageIDs": [
+        "m4",
+        "m5"
+      ],
+      "newUsage": 0
+    },
+    "sessions": [
+      {
+        "id": "s1",
+        "parentID": null,
+        "metadata": null,
+        "keys": [
+          "agent",
+          "cost",
+          "directory",
+          "id",
+          "metadata",
+          "model",
+          "parent_id",
+          "path",
+          "permission",
+          "project_id",
+          "revert",
+          "share_url",
+          "slug",
+          "summary_additions",
+          "summary_deletions",
+          "summary_diffs",
+          "summary_files",
+          "time_archived",
+          "time_compacting",
+          "time_created",
+          "time_updated",
+          "title",
+          "tokens_cache_read",
+          "tokens_cache_write",
+          "tokens_input",
+          "tokens_output",
+          "tokens_reasoning",
+          "version",
+          "workspace_id"
+        ],
+        "tokens": [
+          120,
+          30,
+          11,
+          7,
+          5
+        ]
+      },
+      {
+        "id": "s2",
+        "parentID": null,
+        "metadata": null,
+        "keys": [
+          "agent",
+          "cost",
+          "directory",
+          "id",
+          "metadata",
+          "model",
+          "parent_id",
+          "path",
+          "permission",
+          "project_id",
+          "revert",
+          "share_url",
+          "slug",
+          "summary_additions",
+          "summary_deletions",
+          "summary_diffs",
+          "summary_files",
+          "time_archived",
+          "time_compacting",
+          "time_created",
+          "time_updated",
+          "title",
+          "tokens_cache_read",
+          "tokens_cache_write",
+          "tokens_input",
+          "tokens_output",
+          "tokens_reasoning",
+          "version",
+          "workspace_id"
+        ],
+        "tokens": [
+          120,
+          30,
+          11,
+          7,
+          5
+        ]
+      }
+    ],
+    "messages": [
+      {
+        "id": "m1",
+        "sessionID": "s1",
+        "role": "user",
+        "parentID": null,
+        "keys": [
+          "agent",
+          "model",
+          "role",
+          "time"
+        ],
+        "tokens": null
+      },
+      {
+        "id": "m2",
+        "sessionID": "s1",
+        "role": "assistant",
+        "parentID": "m1",
+        "keys": [
+          "agent",
+          "cost",
+          "finish",
+          "mode",
+          "modelID",
+          "parentID",
+          "path",
+          "providerID",
+          "role",
+          "time",
+          "tokens"
+        ],
+        "tokens": {
+          "input": 120,
+          "output": 30,
+          "reasoning": 11,
+          "cache": {
+            "read": 7,
+            "write": 5
+          }
+        }
+      },
+      {
+        "id": "m3",
+        "sessionID": "s1",
+        "role": "user",
+        "parentID": null,
+        "keys": [
+          "agent",
+          "model",
+          "role",
+          "time"
+        ],
+        "tokens": null
+      },
+      {
+        "id": "m4",
+        "sessionID": "s2",
+        "role": "user",
+        "parentID": null,
+        "keys": [
+          "agent",
+          "model",
+          "role",
+          "time"
+        ],
+        "tokens": null
+      },
+      {
+        "id": "m5",
+        "sessionID": "s2",
+        "role": "assistant",
+        "parentID": "m4",
+        "keys": [
+          "agent",
+          "cost",
+          "finish",
+          "mode",
+          "modelID",
+          "parentID",
+          "path",
+          "providerID",
+          "role",
+          "time",
+          "tokens"
+        ],
+        "tokens": {
+          "input": 120,
+          "output": 30,
+          "reasoning": 11,
+          "cache": {
+            "read": 7,
+            "write": 5
+          }
+        }
+      }
+    ],
+    "parts": [
+      {
+        "id": "p1",
+        "sessionID": "s1",
+        "messageID": "m1",
+        "type": "text",
+        "keys": [
+          "text",
+          "type"
+        ],
+        "tokens": null
+      },
+      {
+        "id": "p2",
+        "sessionID": "s1",
+        "messageID": "m2",
+        "type": "step-finish",
+        "keys": [
+          "cost",
+          "reason",
+          "tokens",
+          "type"
+        ],
+        "tokens": {
+          "input": 120,
+          "output": 30,
+          "reasoning": 11,
+          "cache": {
+            "read": 7,
+            "write": 5
+          }
+        }
+      },
+      {
+        "id": "p3",
+        "sessionID": "s1",
+        "messageID": "m3",
+        "type": "text",
+        "keys": [
+          "text",
+          "type"
+        ],
+        "tokens": null
+      },
+      {
+        "id": "p4",
+        "sessionID": "s2",
+        "messageID": "m4",
+        "type": "text",
+        "keys": [
+          "text",
+          "type"
+        ],
+        "tokens": null
+      },
+      {
+        "id": "p5",
+        "sessionID": "s2",
+        "messageID": "m5",
+        "type": "step-finish",
+        "keys": [
+          "cost",
+          "reason",
+          "tokens",
+          "type"
+        ],
+        "tokens": {
+          "input": 120,
+          "output": 30,
+          "reasoning": 11,
+          "cache": {
+            "read": 7,
+            "write": 5
+          }
+        }
+      }
+    ],
+    "events": [
+      {
+        "type": "session.created.1",
+        "keys": [
+          "info",
+          "sessionID"
+        ]
+      },
+      {
+        "type": "message.updated.1",
+        "keys": [
+          "info",
+          "sessionID"
+        ]
+      },
+      {
+        "type": "message.part.updated.1",
+        "keys": [
+          "part",
+          "sessionID",
+          "time"
+        ]
+      },
+      {
+        "type": "message.updated.1",
+        "keys": [
+          "info",
+          "sessionID"
+        ]
+      },
+      {
+        "type": "message.part.updated.1",
+        "keys": [
+          "part",
+          "sessionID",
+          "time"
+        ]
+      },
+      {
+        "type": "message.updated.1",
+        "keys": [
+          "info",
+          "sessionID"
+        ]
+      },
+      {
+        "type": "message.part.updated.1",
+        "keys": [
+          "part",
+          "sessionID",
+          "time"
+        ]
+      },
+      {
+        "type": "session.created.1",
+        "keys": [
+          "info",
+          "sessionID"
+        ]
+      },
+      {
+        "type": "message.updated.1",
+        "keys": [
+          "info",
+          "sessionID"
+        ]
+      },
+      {
+        "type": "message.part.updated.1",
+        "keys": [
+          "part",
+          "sessionID",
+          "time"
+        ]
+      },
+      {
+        "type": "message.updated.1",
+        "keys": [
+          "info",
+          "sessionID"
+        ]
+      },
+      {
+        "type": "message.part.updated.1",
+        "keys": [
+          "part",
+          "sessionID",
+          "time"
+        ]
+      }
+    ],
+    "eventCount": 12,
+    "v2MessageCount": 0
+  },
+  "before_usage": {
+    "operation": {
+      "parentID": "s1",
+      "forkID": "s2",
+      "boundaryID": "m2",
+      "inheritedMessageIDs": [
+        "m4"
+      ],
+      "newUsage": 0
+    },
+    "sessions": [
+      {
+        "id": "s1",
+        "parentID": null,
+        "metadata": null,
+        "keys": [
+          "agent",
+          "cost",
+          "directory",
+          "id",
+          "metadata",
+          "model",
+          "parent_id",
+          "path",
+          "permission",
+          "project_id",
+          "revert",
+          "share_url",
+          "slug",
+          "summary_additions",
+          "summary_deletions",
+          "summary_diffs",
+          "summary_files",
+          "time_archived",
+          "time_compacting",
+          "time_created",
+          "time_updated",
+          "title",
+          "tokens_cache_read",
+          "tokens_cache_write",
+          "tokens_input",
+          "tokens_output",
+          "tokens_reasoning",
+          "version",
+          "workspace_id"
+        ],
+        "tokens": [
+          120,
+          30,
+          11,
+          7,
+          5
+        ]
+      },
+      {
+        "id": "s2",
+        "parentID": null,
+        "metadata": null,
+        "keys": [
+          "agent",
+          "cost",
+          "directory",
+          "id",
+          "metadata",
+          "model",
+          "parent_id",
+          "path",
+          "permission",
+          "project_id",
+          "revert",
+          "share_url",
+          "slug",
+          "summary_additions",
+          "summary_deletions",
+          "summary_diffs",
+          "summary_files",
+          "time_archived",
+          "time_compacting",
+          "time_created",
+          "time_updated",
+          "title",
+          "tokens_cache_read",
+          "tokens_cache_write",
+          "tokens_input",
+          "tokens_output",
+          "tokens_reasoning",
+          "version",
+          "workspace_id"
+        ],
+        "tokens": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    ],
+    "messages": [
+      {
+        "id": "m1",
+        "sessionID": "s1",
+        "role": "user",
+        "parentID": null,
+        "keys": [
+          "agent",
+          "model",
+          "role",
+          "time"
+        ],
+        "tokens": null
+      },
+      {
+        "id": "m2",
+        "sessionID": "s1",
+        "role": "assistant",
+        "parentID": "m1",
+        "keys": [
+          "agent",
+          "cost",
+          "finish",
+          "mode",
+          "modelID",
+          "parentID",
+          "path",
+          "providerID",
+          "role",
+          "time",
+          "tokens"
+        ],
+        "tokens": {
+          "input": 120,
+          "output": 30,
+          "reasoning": 11,
+          "cache": {
+            "read": 7,
+            "write": 5
+          }
+        }
+      },
+      {
+        "id": "m3",
+        "sessionID": "s1",
+        "role": "user",
+        "parentID": null,
+        "keys": [
+          "agent",
+          "model",
+          "role",
+          "time"
+        ],
+        "tokens": null
+      },
+      {
+        "id": "m4",
+        "sessionID": "s2",
+        "role": "user",
+        "parentID": null,
+        "keys": [
+          "agent",
+          "model",
+          "role",
+          "time"
+        ],
+        "tokens": null
+      }
+    ],
+    "parts": [
+      {
+        "id": "p1",
+        "sessionID": "s1",
+        "messageID": "m1",
+        "type": "text",
+        "keys": [
+          "text",
+          "type"
+        ],
+        "tokens": null
+      },
+      {
+        "id": "p2",
+        "sessionID": "s1",
+        "messageID": "m2",
+        "type": "step-finish",
+        "keys": [
+          "cost",
+          "reason",
+          "tokens",
+          "type"
+        ],
+        "tokens": {
+          "input": 120,
+          "output": 30,
+          "reasoning": 11,
+          "cache": {
+            "read": 7,
+            "write": 5
+          }
+        }
+      },
+      {
+        "id": "p3",
+        "sessionID": "s1",
+        "messageID": "m3",
+        "type": "text",
+        "keys": [
+          "text",
+          "type"
+        ],
+        "tokens": null
+      },
+      {
+        "id": "p4",
+        "sessionID": "s2",
+        "messageID": "m4",
+        "type": "text",
+        "keys": [
+          "text",
+          "type"
+        ],
+        "tokens": null
+      }
+    ],
+    "events": [
+      {
+        "type": "session.created.1",
+        "keys": [
+          "info",
+          "sessionID"
+        ]
+      },
+      {
+        "type": "message.updated.1",
+        "keys": [
+          "info",
+          "sessionID"
+        ]
+      },
+      {
+        "type": "message.part.updated.1",
+        "keys": [
+          "part",
+          "sessionID",
+          "time"
+        ]
+      },
+      {
+        "type": "message.updated.1",
+        "keys": [
+          "info",
+          "sessionID"
+        ]
+      },
+      {
+        "type": "message.part.updated.1",
+        "keys": [
+          "part",
+          "sessionID",
+          "time"
+        ]
+      },
+      {
+        "type": "message.updated.1",
+        "keys": [
+          "info",
+          "sessionID"
+        ]
+      },
+      {
+        "type": "message.part.updated.1",
+        "keys": [
+          "part",
+          "sessionID",
+          "time"
+        ]
+      },
+      {
+        "type": "session.created.1",
+        "keys": [
+          "info",
+          "sessionID"
+        ]
+      },
+      {
+        "type": "message.updated.1",
+        "keys": [
+          "info",
+          "sessionID"
+        ]
+      },
+      {
+        "type": "message.part.updated.1",
+        "keys": [
+          "part",
+          "sessionID",
+          "time"
+        ]
+      }
+    ],
+    "eventCount": 10,
+    "v2MessageCount": 0
+  },
+  "local_usage": {
+    "operation": {
+      "parentID": "s1",
+      "forkID": "s2",
+      "boundaryID": null,
+      "inheritedMessageIDs": [
+        "m4",
+        "m5",
+        "m6"
+      ],
+      "newUsage": 17
+    },
+    "sessions": [
+      {
+        "id": "s1",
+        "parentID": null,
+        "metadata": null,
+        "keys": [
+          "agent",
+          "cost",
+          "directory",
+          "id",
+          "metadata",
+          "model",
+          "parent_id",
+          "path",
+          "permission",
+          "project_id",
+          "revert",
+          "share_url",
+          "slug",
+          "summary_additions",
+          "summary_deletions",
+          "summary_diffs",
+          "summary_files",
+          "time_archived",
+          "time_compacting",
+          "time_created",
+          "time_updated",
+          "title",
+          "tokens_cache_read",
+          "tokens_cache_write",
+          "tokens_input",
+          "tokens_output",
+          "tokens_reasoning",
+          "version",
+          "workspace_id"
+        ],
+        "tokens": [
+          120,
+          30,
+          11,
+          7,
+          5
+        ]
+      },
+      {
+        "id": "s2",
+        "parentID": null,
+        "metadata": null,
+        "keys": [
+          "agent",
+          "cost",
+          "directory",
+          "id",
+          "metadata",
+          "model",
+          "parent_id",
+          "path",
+          "permission",
+          "project_id",
+          "revert",
+          "share_url",
+          "slug",
+          "summary_additions",
+          "summary_deletions",
+          "summary_diffs",
+          "summary_files",
+          "time_archived",
+          "time_compacting",
+          "time_created",
+          "time_updated",
+          "title",
+          "tokens_cache_read",
+          "tokens_cache_write",
+          "tokens_input",
+          "tokens_output",
+          "tokens_reasoning",
+          "version",
+          "workspace_id"
+        ],
+        "tokens": [
+          130,
+          33,
+          12,
+          9,
+          6
+        ]
+      }
+    ],
+    "messages": [
+      {
+        "id": "m1",
+        "sessionID": "s1",
+        "role": "user",
+        "parentID": null,
+        "keys": [
+          "agent",
+          "model",
+          "role",
+          "time"
+        ],
+        "tokens": null
+      },
+      {
+        "id": "m2",
+        "sessionID": "s1",
+        "role": "assistant",
+        "parentID": "m1",
+        "keys": [
+          "agent",
+          "cost",
+          "finish",
+          "mode",
+          "modelID",
+          "parentID",
+          "path",
+          "providerID",
+          "role",
+          "time",
+          "tokens"
+        ],
+        "tokens": {
+          "input": 120,
+          "output": 30,
+          "reasoning": 11,
+          "cache": {
+            "read": 7,
+            "write": 5
+          }
+        }
+      },
+      {
+        "id": "m3",
+        "sessionID": "s1",
+        "role": "user",
+        "parentID": null,
+        "keys": [
+          "agent",
+          "model",
+          "role",
+          "time"
+        ],
+        "tokens": null
+      },
+      {
+        "id": "m4",
+        "sessionID": "s2",
+        "role": "user",
+        "parentID": null,
+        "keys": [
+          "agent",
+          "model",
+          "role",
+          "time"
+        ],
+        "tokens": null
+      },
+      {
+        "id": "m5",
+        "sessionID": "s2",
+        "role": "assistant",
+        "parentID": "m4",
+        "keys": [
+          "agent",
+          "cost",
+          "finish",
+          "mode",
+          "modelID",
+          "parentID",
+          "path",
+          "providerID",
+          "role",
+          "time",
+          "tokens"
+        ],
+        "tokens": {
+          "input": 120,
+          "output": 30,
+          "reasoning": 11,
+          "cache": {
+            "read": 7,
+            "write": 5
+          }
+        }
+      },
+      {
+        "id": "m6",
+        "sessionID": "s2",
+        "role": "user",
+        "parentID": null,
+        "keys": [
+          "agent",
+          "model",
+          "role",
+          "time"
+        ],
+        "tokens": null
+      },
+      {
+        "id": "m7",
+        "sessionID": "s2",
+        "role": "assistant",
+        "parentID": "m6",
+        "keys": [
+          "agent",
+          "cost",
+          "finish",
+          "mode",
+          "modelID",
+          "parentID",
+          "path",
+          "providerID",
+          "role",
+          "time",
+          "tokens"
+        ],
+        "tokens": {
+          "input": 10,
+          "output": 3,
+          "reasoning": 1,
+          "cache": {
+            "read": 2,
+            "write": 1
+          }
+        }
+      }
+    ],
+    "parts": [
+      {
+        "id": "p1",
+        "sessionID": "s1",
+        "messageID": "m1",
+        "type": "text",
+        "keys": [
+          "text",
+          "type"
+        ],
+        "tokens": null
+      },
+      {
+        "id": "p2",
+        "sessionID": "s1",
+        "messageID": "m2",
+        "type": "step-finish",
+        "keys": [
+          "cost",
+          "reason",
+          "tokens",
+          "type"
+        ],
+        "tokens": {
+          "input": 120,
+          "output": 30,
+          "reasoning": 11,
+          "cache": {
+            "read": 7,
+            "write": 5
+          }
+        }
+      },
+      {
+        "id": "p3",
+        "sessionID": "s1",
+        "messageID": "m3",
+        "type": "text",
+        "keys": [
+          "text",
+          "type"
+        ],
+        "tokens": null
+      },
+      {
+        "id": "p4",
+        "sessionID": "s2",
+        "messageID": "m4",
+        "type": "text",
+        "keys": [
+          "text",
+          "type"
+        ],
+        "tokens": null
+      },
+      {
+        "id": "p5",
+        "sessionID": "s2",
+        "messageID": "m5",
+        "type": "step-finish",
+        "keys": [
+          "cost",
+          "reason",
+          "tokens",
+          "type"
+        ],
+        "tokens": {
+          "input": 120,
+          "output": 30,
+          "reasoning": 11,
+          "cache": {
+            "read": 7,
+            "write": 5
+          }
+        }
+      },
+      {
+        "id": "p6",
+        "sessionID": "s2",
+        "messageID": "m6",
+        "type": "text",
+        "keys": [
+          "text",
+          "type"
+        ],
+        "tokens": null
+      },
+      {
+        "id": "p7",
+        "sessionID": "s2",
+        "messageID": "m7",
+        "type": "step-finish",
+        "keys": [
+          "cost",
+          "reason",
+          "tokens",
+          "type"
+        ],
+        "tokens": {
+          "input": 10,
+          "output": 3,
+          "reasoning": 1,
+          "cache": {
+            "read": 2,
+            "write": 1
+          }
+        }
+      }
+    ],
+    "events": [
+      {
+        "type": "session.created.1",
+        "keys": [
+          "info",
+          "sessionID"
+        ]
+      },
+      {
+        "type": "message.updated.1",
+        "keys": [
+          "info",
+          "sessionID"
+        ]
+      },
+      {
+        "type": "message.part.updated.1",
+        "keys": [
+          "part",
+          "sessionID",
+          "time"
+        ]
+      },
+      {
+        "type": "message.updated.1",
+        "keys": [
+          "info",
+          "sessionID"
+        ]
+      },
+      {
+        "type": "message.part.updated.1",
+        "keys": [
+          "part",
+          "sessionID",
+          "time"
+        ]
+      },
+      {
+        "type": "message.updated.1",
+        "keys": [
+          "info",
+          "sessionID"
+        ]
+      },
+      {
+        "type": "message.part.updated.1",
+        "keys": [
+          "part",
+          "sessionID",
+          "time"
+        ]
+      },
+      {
+        "type": "session.created.1",
+        "keys": [
+          "info",
+          "sessionID"
+        ]
+      },
+      {
+        "type": "message.updated.1",
+        "keys": [
+          "info",
+          "sessionID"
+        ]
+      },
+      {
+        "type": "message.part.updated.1",
+        "keys": [
+          "part",
+          "sessionID",
+          "time"
+        ]
+      },
+      {
+        "type": "message.updated.1",
+        "keys": [
+          "info",
+          "sessionID"
+        ]
+      },
+      {
+        "type": "message.part.updated.1",
+        "keys": [
+          "part",
+          "sessionID",
+          "time"
+        ]
+      },
+      {
+        "type": "message.updated.1",
+        "keys": [
+          "info",
+          "sessionID"
+        ]
+      },
+      {
+        "type": "message.part.updated.1",
+        "keys": [
+          "part",
+          "sessionID",
+          "time"
+        ]
+      },
+      {
+        "type": "message.updated.1",
+        "keys": [
+          "info",
+          "sessionID"
+        ]
+      },
+      {
+        "type": "message.part.updated.1",
+        "keys": [
+          "part",
+          "sessionID",
+          "time"
+        ]
+      }
+    ],
+    "eventCount": 16,
+    "v2MessageCount": 0
+  },
+  "distinct_calls": {
+    "operation": {
+      "parentID": "s1",
+      "independentID": "s2",
+      "forkInvoked": false,
+      "newUsage": 173
+    },
+    "sessions": [
+      {
+        "id": "s1",
+        "parentID": null,
+        "metadata": null,
+        "keys": [
+          "agent",
+          "cost",
+          "directory",
+          "id",
+          "metadata",
+          "model",
+          "parent_id",
+          "path",
+          "permission",
+          "project_id",
+          "revert",
+          "share_url",
+          "slug",
+          "summary_additions",
+          "summary_deletions",
+          "summary_diffs",
+          "summary_files",
+          "time_archived",
+          "time_compacting",
+          "time_created",
+          "time_updated",
+          "title",
+          "tokens_cache_read",
+          "tokens_cache_write",
+          "tokens_input",
+          "tokens_output",
+          "tokens_reasoning",
+          "version",
+          "workspace_id"
+        ],
+        "tokens": [
+          120,
+          30,
+          11,
+          7,
+          5
+        ]
+      },
+      {
+        "id": "s2",
+        "parentID": null,
+        "metadata": null,
+        "keys": [
+          "agent",
+          "cost",
+          "directory",
+          "id",
+          "metadata",
+          "model",
+          "parent_id",
+          "path",
+          "permission",
+          "project_id",
+          "revert",
+          "share_url",
+          "slug",
+          "summary_additions",
+          "summary_deletions",
+          "summary_diffs",
+          "summary_files",
+          "time_archived",
+          "time_compacting",
+          "time_created",
+          "time_updated",
+          "title",
+          "tokens_cache_read",
+          "tokens_cache_write",
+          "tokens_input",
+          "tokens_output",
+          "tokens_reasoning",
+          "version",
+          "workspace_id"
+        ],
+        "tokens": [
+          120,
+          30,
+          11,
+          7,
+          5
+        ]
+      }
+    ],
+    "messages": [
+      {
+        "id": "m1",
+        "sessionID": "s1",
+        "role": "user",
+        "parentID": null,
+        "keys": [
+          "agent",
+          "model",
+          "role",
+          "time"
+        ],
+        "tokens": null
+      },
+      {
+        "id": "m2",
+        "sessionID": "s1",
+        "role": "assistant",
+        "parentID": "m1",
+        "keys": [
+          "agent",
+          "cost",
+          "finish",
+          "mode",
+          "modelID",
+          "parentID",
+          "path",
+          "providerID",
+          "role",
+          "time",
+          "tokens"
+        ],
+        "tokens": {
+          "input": 120,
+          "output": 30,
+          "reasoning": 11,
+          "cache": {
+            "read": 7,
+            "write": 5
+          }
+        }
+      },
+      {
+        "id": "m3",
+        "sessionID": "s1",
+        "role": "user",
+        "parentID": null,
+        "keys": [
+          "agent",
+          "model",
+          "role",
+          "time"
+        ],
+        "tokens": null
+      },
+      {
+        "id": "m4",
+        "sessionID": "s2",
+        "role": "user",
+        "parentID": null,
+        "keys": [
+          "agent",
+          "model",
+          "role",
+          "time"
+        ],
+        "tokens": null
+      },
+      {
+        "id": "m5",
+        "sessionID": "s2",
+        "role": "assistant",
+        "parentID": "m4",
+        "keys": [
+          "agent",
+          "cost",
+          "finish",
+          "mode",
+          "modelID",
+          "parentID",
+          "path",
+          "providerID",
+          "role",
+          "time",
+          "tokens"
+        ],
+        "tokens": {
+          "input": 120,
+          "output": 30,
+          "reasoning": 11,
+          "cache": {
+            "read": 7,
+            "write": 5
+          }
+        }
+      }
+    ],
+    "parts": [
+      {
+        "id": "p1",
+        "sessionID": "s1",
+        "messageID": "m1",
+        "type": "text",
+        "keys": [
+          "text",
+          "type"
+        ],
+        "tokens": null
+      },
+      {
+        "id": "p2",
+        "sessionID": "s1",
+        "messageID": "m2",
+        "type": "step-finish",
+        "keys": [
+          "cost",
+          "reason",
+          "tokens",
+          "type"
+        ],
+        "tokens": {
+          "input": 120,
+          "output": 30,
+          "reasoning": 11,
+          "cache": {
+            "read": 7,
+            "write": 5
+          }
+        }
+      },
+      {
+        "id": "p3",
+        "sessionID": "s1",
+        "messageID": "m3",
+        "type": "text",
+        "keys": [
+          "text",
+          "type"
+        ],
+        "tokens": null
+      },
+      {
+        "id": "p4",
+        "sessionID": "s2",
+        "messageID": "m4",
+        "type": "text",
+        "keys": [
+          "text",
+          "type"
+        ],
+        "tokens": null
+      },
+      {
+        "id": "p5",
+        "sessionID": "s2",
+        "messageID": "m5",
+        "type": "step-finish",
+        "keys": [
+          "cost",
+          "reason",
+          "tokens",
+          "type"
+        ],
+        "tokens": {
+          "input": 120,
+          "output": 30,
+          "reasoning": 11,
+          "cache": {
+            "read": 7,
+            "write": 5
+          }
+        }
+      }
+    ],
+    "events": [
+      {
+        "type": "session.created.1",
+        "keys": [
+          "info",
+          "sessionID"
+        ]
+      },
+      {
+        "type": "message.updated.1",
+        "keys": [
+          "info",
+          "sessionID"
+        ]
+      },
+      {
+        "type": "message.part.updated.1",
+        "keys": [
+          "part",
+          "sessionID",
+          "time"
+        ]
+      },
+      {
+        "type": "message.updated.1",
+        "keys": [
+          "info",
+          "sessionID"
+        ]
+      },
+      {
+        "type": "message.part.updated.1",
+        "keys": [
+          "part",
+          "sessionID",
+          "time"
+        ]
+      },
+      {
+        "type": "message.updated.1",
+        "keys": [
+          "info",
+          "sessionID"
+        ]
+      },
+      {
+        "type": "message.part.updated.1",
+        "keys": [
+          "part",
+          "sessionID",
+          "time"
+        ]
+      },
+      {
+        "type": "session.created.1",
+        "keys": [
+          "info",
+          "sessionID"
+        ]
+      },
+      {
+        "type": "message.updated.1",
+        "keys": [
+          "info",
+          "sessionID"
+        ]
+      },
+      {
+        "type": "message.part.updated.1",
+        "keys": [
+          "part",
+          "sessionID",
+          "time"
+        ]
+      },
+      {
+        "type": "message.updated.1",
+        "keys": [
+          "info",
+          "sessionID"
+        ]
+      },
+      {
+        "type": "message.part.updated.1",
+        "keys": [
+          "part",
+          "sessionID",
+          "time"
+        ]
+      }
+    ],
+    "eventCount": 12,
+    "v2MessageCount": 0
+  },
+  "replayed": {
+    "operation": {
+      "replayCount": 2
+    },
+    "sessions": [
+      {
+        "id": "s1",
+        "parentID": null,
+        "metadata": null,
+        "keys": [
+          "agent",
+          "cost",
+          "directory",
+          "id",
+          "metadata",
+          "model",
+          "parent_id",
+          "path",
+          "permission",
+          "project_id",
+          "revert",
+          "share_url",
+          "slug",
+          "summary_additions",
+          "summary_deletions",
+          "summary_diffs",
+          "summary_files",
+          "time_archived",
+          "time_compacting",
+          "time_created",
+          "time_updated",
+          "title",
+          "tokens_cache_read",
+          "tokens_cache_write",
+          "tokens_input",
+          "tokens_output",
+          "tokens_reasoning",
+          "version",
+          "workspace_id"
+        ],
+        "tokens": [
+          120,
+          30,
+          11,
+          7,
+          5
+        ]
+      },
+      {
+        "id": "s2",
+        "parentID": null,
+        "metadata": null,
+        "keys": [
+          "agent",
+          "cost",
+          "directory",
+          "id",
+          "metadata",
+          "model",
+          "parent_id",
+          "path",
+          "permission",
+          "project_id",
+          "revert",
+          "share_url",
+          "slug",
+          "summary_additions",
+          "summary_deletions",
+          "summary_diffs",
+          "summary_files",
+          "time_archived",
+          "time_compacting",
+          "time_created",
+          "time_updated",
+          "title",
+          "tokens_cache_read",
+          "tokens_cache_write",
+          "tokens_input",
+          "tokens_output",
+          "tokens_reasoning",
+          "version",
+          "workspace_id"
+        ],
+        "tokens": [
+          120,
+          30,
+          11,
+          7,
+          5
+        ]
+      }
+    ],
+    "messages": [
+      {
+        "id": "m1",
+        "sessionID": "s1",
+        "role": "user",
+        "parentID": null,
+        "keys": [
+          "agent",
+          "model",
+          "role",
+          "time"
+        ],
+        "tokens": null
+      },
+      {
+        "id": "m2",
+        "sessionID": "s1",
+        "role": "assistant",
+        "parentID": "m1",
+        "keys": [
+          "agent",
+          "cost",
+          "finish",
+          "mode",
+          "modelID",
+          "parentID",
+          "path",
+          "providerID",
+          "role",
+          "time",
+          "tokens"
+        ],
+        "tokens": {
+          "input": 120,
+          "output": 30,
+          "reasoning": 11,
+          "cache": {
+            "read": 7,
+            "write": 5
+          }
+        }
+      },
+      {
+        "id": "m3",
+        "sessionID": "s1",
+        "role": "user",
+        "parentID": null,
+        "keys": [
+          "agent",
+          "model",
+          "role",
+          "time"
+        ],
+        "tokens": null
+      },
+      {
+        "id": "m4",
+        "sessionID": "s2",
+        "role": "user",
+        "parentID": null,
+        "keys": [
+          "agent",
+          "model",
+          "role",
+          "time"
+        ],
+        "tokens": null
+      },
+      {
+        "id": "m5",
+        "sessionID": "s2",
+        "role": "assistant",
+        "parentID": "m4",
+        "keys": [
+          "agent",
+          "cost",
+          "finish",
+          "mode",
+          "modelID",
+          "parentID",
+          "path",
+          "providerID",
+          "role",
+          "time",
+          "tokens"
+        ],
+        "tokens": {
+          "input": 120,
+          "output": 30,
+          "reasoning": 11,
+          "cache": {
+            "read": 7,
+            "write": 5
+          }
+        }
+      },
+      {
+        "id": "m6",
+        "sessionID": "s2",
+        "role": "user",
+        "parentID": null,
+        "keys": [
+          "agent",
+          "model",
+          "role",
+          "time"
+        ],
+        "tokens": null
+      }
+    ],
+    "parts": [
+      {
+        "id": "p1",
+        "sessionID": "s1",
+        "messageID": "m1",
+        "type": "text",
+        "keys": [
+          "text",
+          "type"
+        ],
+        "tokens": null
+      },
+      {
+        "id": "p2",
+        "sessionID": "s1",
+        "messageID": "m2",
+        "type": "step-finish",
+        "keys": [
+          "cost",
+          "reason",
+          "tokens",
+          "type"
+        ],
+        "tokens": {
+          "input": 120,
+          "output": 30,
+          "reasoning": 11,
+          "cache": {
+            "read": 7,
+            "write": 5
+          }
+        }
+      },
+      {
+        "id": "p3",
+        "sessionID": "s1",
+        "messageID": "m3",
+        "type": "text",
+        "keys": [
+          "text",
+          "type"
+        ],
+        "tokens": null
+      },
+      {
+        "id": "p4",
+        "sessionID": "s2",
+        "messageID": "m4",
+        "type": "text",
+        "keys": [
+          "text",
+          "type"
+        ],
+        "tokens": null
+      },
+      {
+        "id": "p5",
+        "sessionID": "s2",
+        "messageID": "m5",
+        "type": "step-finish",
+        "keys": [
+          "cost",
+          "reason",
+          "tokens",
+          "type"
+        ],
+        "tokens": {
+          "input": 120,
+          "output": 30,
+          "reasoning": 11,
+          "cache": {
+            "read": 7,
+            "write": 5
+          }
+        }
+      },
+      {
+        "id": "p6",
+        "sessionID": "s2",
+        "messageID": "m6",
+        "type": "text",
+        "keys": [
+          "text",
+          "type"
+        ],
+        "tokens": null
+      }
+    ],
+    "events": [
+      {
+        "type": "session.created.1",
+        "keys": [
+          "info",
+          "sessionID"
+        ]
+      },
+      {
+        "type": "message.updated.1",
+        "keys": [
+          "info",
+          "sessionID"
+        ]
+      },
+      {
+        "type": "message.part.updated.1",
+        "keys": [
+          "part",
+          "sessionID",
+          "time"
+        ]
+      },
+      {
+        "type": "message.updated.1",
+        "keys": [
+          "info",
+          "sessionID"
+        ]
+      },
+      {
+        "type": "message.part.updated.1",
+        "keys": [
+          "part",
+          "sessionID",
+          "time"
+        ]
+      },
+      {
+        "type": "message.updated.1",
+        "keys": [
+          "info",
+          "sessionID"
+        ]
+      },
+      {
+        "type": "message.part.updated.1",
+        "keys": [
+          "part",
+          "sessionID",
+          "time"
+        ]
+      },
+      {
+        "type": "session.created.1",
+        "keys": [
+          "info",
+          "sessionID"
+        ]
+      },
+      {
+        "type": "message.updated.1",
+        "keys": [
+          "info",
+          "sessionID"
+        ]
+      },
+      {
+        "type": "message.part.updated.1",
+        "keys": [
+          "part",
+          "sessionID",
+          "time"
+        ]
+      },
+      {
+        "type": "message.updated.1",
+        "keys": [
+          "info",
+          "sessionID"
+        ]
+      },
+      {
+        "type": "message.part.updated.1",
+        "keys": [
+          "part",
+          "sessionID",
+          "time"
+        ]
+      },
+      {
+        "type": "message.updated.1",
+        "keys": [
+          "info",
+          "sessionID"
+        ]
+      },
+      {
+        "type": "message.part.updated.1",
+        "keys": [
+          "part",
+          "sessionID",
+          "time"
+        ]
+      }
+    ],
+    "eventCount": 14,
+    "v2MessageCount": 0
+  }
+}

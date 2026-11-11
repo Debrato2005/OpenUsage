@@ -1,0 +1,354 @@
+{
+  "parent_only": {
+    "requiredTokens": 173,
+    "reports": {
+      "daily": {
+        "status": "reported",
+        "totalTokens": 173,
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.0009958500000000002,
+          "totalTokens": 173
+        },
+        "rowCount": 1
+      },
+      "session": {
+        "status": "reported",
+        "totalTokens": 173,
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.0009958500000000002,
+          "totalTokens": 173
+        },
+        "rowCount": 1
+      }
+    },
+    "qualification": "exact"
+  },
+  "full_fork": {
+    "requiredTokens": 173,
+    "reports": {
+      "daily": {
+        "status": "reported",
+        "totalTokens": 346,
+        "totals": {
+          "cacheCreationTokens": 10,
+          "cacheReadTokens": 14,
+          "inputTokens": 240,
+          "outputTokens": 60,
+          "totalCost": 0.0019917000000000003,
+          "totalTokens": 346
+        },
+        "rowCount": 1
+      },
+      "session": {
+        "status": "reported",
+        "totalTokens": 346,
+        "totals": {
+          "cacheCreationTokens": 10,
+          "cacheReadTokens": 14,
+          "inputTokens": 240,
+          "outputTokens": 60,
+          "totalCost": 0.0019917000000000003,
+          "totalTokens": 346
+        },
+        "rowCount": 2
+      }
+    },
+    "qualification": "qualification-failure"
+  },
+  "bounded_fork": {
+    "requiredTokens": 173,
+    "reports": {
+      "daily": {
+        "status": "reported",
+        "totalTokens": 346,
+        "totals": {
+          "cacheCreationTokens": 10,
+          "cacheReadTokens": 14,
+          "inputTokens": 240,
+          "outputTokens": 60,
+          "totalCost": 0.0019917000000000003,
+          "totalTokens": 346
+        },
+        "rowCount": 1
+      },
+      "session": {
+        "status": "reported",
+        "totalTokens": 346,
+        "totals": {
+          "cacheCreationTokens": 10,
+          "cacheReadTokens": 14,
+          "inputTokens": 240,
+          "outputTokens": 60,
+          "totalCost": 0.0019917000000000003,
+          "totalTokens": 346
+        },
+        "rowCount": 2
+      }
+    },
+    "qualification": "qualification-failure"
+  },
+  "before_usage": {
+    "requiredTokens": 173,
+    "reports": {
+      "daily": {
+        "status": "reported",
+        "totalTokens": 173,
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.0009958500000000002,
+          "totalTokens": 173
+        },
+        "rowCount": 1
+      },
+      "session": {
+        "status": "reported",
+        "totalTokens": 173,
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.0009958500000000002,
+          "totalTokens": 173
+        },
+        "rowCount": 1
+      }
+    },
+    "qualification": "exact"
+  },
+  "local_usage": {
+    "requiredTokens": 190,
+    "reports": {
+      "daily": {
+        "status": "reported",
+        "totalTokens": 363,
+        "totals": {
+          "cacheCreationTokens": 11,
+          "cacheReadTokens": 16,
+          "inputTokens": 250,
+          "outputTokens": 63,
+          "totalCost": 0.0020860500000000003,
+          "totalTokens": 363
+        },
+        "rowCount": 1
+      },
+      "session": {
+        "status": "reported",
+        "totalTokens": 363,
+        "totals": {
+          "cacheCreationTokens": 11,
+          "cacheReadTokens": 16,
+          "inputTokens": 250,
+          "outputTokens": 63,
+          "totalCost": 0.0020860500000000003,
+          "totalTokens": 363
+        },
+        "rowCount": 2
+      }
+    },
+    "qualification": "qualification-failure"
+  },
+  "distinct_calls": {
+    "requiredTokens": 346,
+    "reports": {
+      "daily": {
+        "status": "reported",
+        "totalTokens": 346,
+        "totals": {
+          "cacheCreationTokens": 10,
+          "cacheReadTokens": 14,
+          "inputTokens": 240,
+          "outputTokens": 60,
+          "totalCost": 0.0019917000000000003,
+          "totalTokens": 346
+        },
+        "rowCount": 1
+      },
+      "session": {
+        "status": "reported",
+        "totalTokens": 346,
+        "totals": {
+          "cacheCreationTokens": 10,
+          "cacheReadTokens": 14,
+          "inputTokens": 240,
+          "outputTokens": 60,
+          "totalCost": 0.0019917000000000003,
+          "totalTokens": 346
+        },
+        "rowCount": 2
+      }
+    },
+    "qualification": "exact"
+  },
+  "replayed": {
+    "requiredTokens": 173,
+    "reports": {
+      "daily": {
+        "status": "reported",
+        "totalTokens": 346,
+        "totals": {
+          "cacheCreationTokens": 10,
+          "cacheReadTokens": 14,
+          "inputTokens": 240,
+          "outputTokens": 60,
+          "totalCost": 0.0019917000000000003,
+          "totalTokens": 346
+        },
+        "rowCount": 1
+      },
+      "session": {
+        "status": "reported",
+        "totalTokens": 346,
+        "totals": {
+          "cacheCreationTokens": 10,
+          "cacheReadTokens": 14,
+          "inputTokens": 240,
+          "outputTokens": 60,
+          "totalCost": 0.0019917000000000003,
+          "totalTokens": 346
+        },
+        "rowCount": 2
+      }
+    },
+    "qualification": "qualification-failure"
+  },
+  "copied_roots": {
+    "requiredTokens": 173,
+    "reports": {
+      "daily": {
+        "status": "reported",
+        "totalTokens": 346,
+        "totals": {
+          "cacheCreationTokens": 10,
+          "cacheReadTokens": 14,
+          "inputTokens": 240,
+          "outputTokens": 60,
+          "totalCost": 0.0019917000000000003,
+          "totalTokens": 346
+        },
+        "rowCount": 1
+      },
+      "session": {
+        "status": "reported",
+        "totalTokens": 346,
+        "totals": {
+          "cacheCreationTokens": 10,
+          "cacheReadTokens": 14,
+          "inputTokens": 240,
+          "outputTokens": 60,
+          "totalCost": 0.0019917000000000003,
+          "totalTokens": 346
+        },
+        "rowCount": 2
+      }
+    },
+    "qualification": "qualification-failure"
+  },
+  "replayed_roots": {
+    "requiredTokens": 173,
+    "reports": {
+      "daily": {
+        "status": "reported",
+        "totalTokens": 346,
+        "totals": {
+          "cacheCreationTokens": 10,
+          "cacheReadTokens": 14,
+          "inputTokens": 240,
+          "outputTokens": 60,
+          "totalCost": 0.0019917000000000003,
+          "totalTokens": 346
+        },
+        "rowCount": 1
+      },
+      "session": {
+        "status": "reported",
+        "totalTokens": 346,
+        "totals": {
+          "cacheCreationTokens": 10,
+          "cacheReadTokens": 14,
+          "inputTokens": 240,
+          "outputTokens": 60,
+          "totalCost": 0.0019917000000000003,
+          "totalTokens": 346
+        },
+        "rowCount": 2
+      }
+    },
+    "qualification": "qualification-failure"
+  },
+  "reversed_roots": {
+    "requiredTokens": 173,
+    "reports": {
+      "daily": {
+        "status": "reported",
+        "totalTokens": 346,
+        "totals": {
+          "cacheCreationTokens": 10,
+          "cacheReadTokens": 14,
+          "inputTokens": 240,
+          "outputTokens": 60,
+          "totalCost": 0.0019917000000000003,
+          "totalTokens": 346
+        },
+        "rowCount": 1
+      },
+      "session": {
+        "status": "reported",
+        "totalTokens": 346,
+        "totals": {
+          "cacheCreationTokens": 10,
+          "cacheReadTokens": 14,
+          "inputTokens": 240,
+          "outputTokens": 60,
+          "totalCost": 0.0019917000000000003,
+          "totalTokens": 346
+        },
+        "rowCount": 2
+      }
+    },
+    "qualification": "qualification-failure"
+  },
+  "parent_and_fork": {
+    "requiredTokens": 173,
+    "reports": {
+      "daily": {
+        "status": "reported",
+        "totalTokens": 346,
+        "totals": {
+          "cacheCreationTokens": 10,
+          "cacheReadTokens": 14,
+          "inputTokens": 240,
+          "outputTokens": 60,
+          "totalCost": 0.0019917000000000003,
+          "totalTokens": 346
+        },
+        "rowCount": 1
+      },
+      "session": {
+        "status": "reported",
+        "totalTokens": 346,
+        "totals": {
+          "cacheCreationTokens": 10,
+          "cacheReadTokens": 14,
+          "inputTokens": 240,
+          "outputTokens": 60,
+          "totalCost": 0.0019917000000000003,
+          "totalTokens": 346
+        },
+        "rowCount": 2
+      }
+    },
+    "qualification": "qualification-failure"
+  }
+}
