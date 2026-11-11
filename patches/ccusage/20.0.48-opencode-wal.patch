@@ -1,0 +1,779 @@
+diff --git a/rust/adapters/opencode/README.md b/rust/adapters/opencode/README.md
+index 0912d77..d7d26eb 100644
+--- a/rust/adapters/opencode/README.md
++++ b/rust/adapters/opencode/README.md
+@@ -7,7 +7,7 @@ into the usage entries the reports render.
+
+ - `loader.rs` — capture coordination and date filtering.
+ - `files.rs` — bounded source discovery and stable capture.
+-- `database.rs` and `sqlite_snapshot.rs` — read-only SQLite capture.
++- `database.rs`, `sqlite_snapshot.rs`, and `sqlite_wal.rs` — read-only SQLite capture and committed WAL reconstruction.
+ - `records.rs` and `strict_json.rs` — source identity and input validation.
+ - `parser.rs` — raw record parsing, token mapping, and model naming.
+ - `paths.rs` — environment variables, default directories, and file discovery.
+diff --git a/rust/adapters/opencode/src/README.md b/rust/adapters/opencode/src/README.md
+index c555962..e48aeae 100644
+--- a/rust/adapters/opencode/src/README.md
++++ b/rust/adapters/opencode/src/README.md
+@@ -20,7 +20,17 @@ OpenCode v2 forks must resolve their parent, boundary, and sequence positions. C
+
+ The capture opens roots and descendants with Linux `openat2`. It rejects symbolic links, hard links, special files, unreadable peers, changed bytes, and changed manifests. It reads no source path through SQLite. A private SQLite VFS serves captured bytes and rejects writes, deletes, attachments, sidecars, and temporary files. Each connection uses a read-only transaction. The VFS registration, name, image descriptor, and backing bytes outlive that connection. Raw source contents remain in memory.
+
+-SQLite WAL mode remains unsupported, including a checkpointed database with WAL header bytes. Any `-wal`, `-shm`, or `-journal` peer also causes refusal. The capture never discards committed WAL data to obtain a report. SQLite errors use one fixed message without paths, identifiers, or source text. The VFS enforces these restrictions even when the pinned SQLite build omits safety PRAGMAs.
++SQLite WAL capture reconstructs the last complete committed state in memory. It checks the WAL header, page size, salts, frame boundaries, and rolling checksums. It uses the last committed version of each page and excludes valid uncommitted frames. The private image preserves database truncation and requires every page. Only that image changes its journal-mode header before the private VFS reads it. The source bytes stay unchanged.
++
++The capture accepts checkpointed WAL headers without peers and with an empty WAL. It refuses rollback journals, orphan WAL or SHM files, and peers beside a database outside WAL mode. It pairs peers only with the exact database filename under the same held root. Channel names can contain letters, digits, dots, underscores, and hyphens.
++
++The SHM file is a transient index. The capture reads and rechecks its bytes but derives no database content from it. A change to SHM, WAL, the main file, or the selected manifest causes refusal. Invalid checksums, torn frames, and old-generation tails also cause refusal. This includes reused WAL tails that SQLite itself could recover. The capture returns no partial report and makes no automatic retry.
++
++Each WAL and SHM file shares the existing file count and source-byte limits. Each file is at most 64 MiB. Each reconstructed image is at most 64 MiB, with an additional page-offset index of at most 512 KiB. The capture checks those bounds before it allocates the image or index. It processes one image at a time and scans the WAL at most twice. The SQLite VFS, connection lifetime, and error redaction remain unchanged.
++
++The format and checksum rules come from [the SQLite file format](https://sqlite.org/fileformat.html#walformat). [SQLite's recovery rules](https://sqlite.org/walformat.html#recovery) describe the transient SHM index.
++
++SQLite errors use one fixed message without paths, identifiers, or source text. The VFS enforces these restrictions even when the pinned SQLite build omits safety PRAGMAs.
+
+ Fixed limits apply across the selected roots: 64 roots, 32,768 directory entries, 8,192 files, directory depth 64, and 256 MiB of source bytes. Each database is at most 64 MiB. Each JSON file or database text field is at most 1 MiB. The loader permits at most 100,000 record visits and 64 MiB of canonical identity data. Session metadata visits count toward the record limit. Each database permits at most 1,024 schema objects and 256 columns. Fork chains stop at 64 links. Excess limits cause refusal. Nonempty selections on other platforms remain unavailable.
+
+diff --git a/rust/adapters/opencode/src/capture_tests.rs b/rust/adapters/opencode/src/capture_tests.rs
+index b02f640..d805b7a 100644
+--- a/rust/adapters/opencode/src/capture_tests.rs
++++ b/rust/adapters/opencode/src/capture_tests.rs
+@@ -20,6 +20,23 @@ fn load(paths: &[PathBuf]) -> crate::Result<Vec<crate::LinkedEntry>> {
+     )
+ }
+
++fn wal_source(page_size: usize) -> (Fixture, sqlite::Connection) {
++    let fixture = Fixture::new();
++    let db = sqlite::open(fixture.path("opencode.db")).unwrap();
++    db.execute(format!(
++        "PRAGMA page_size={page_size}; PRAGMA journal_mode=WAL; \
++         CREATE TABLE message(id TEXT, session_id TEXT, data TEXT)"
++    ))
++    .unwrap();
++    let mut insert = db
++        .prepare("INSERT INTO message VALUES ('message','session',?1)")
++        .unwrap();
++    insert.bind((1, MESSAGE)).unwrap();
++    insert.next().unwrap();
++    drop(insert);
++    (fixture, db)
++}
++
+ #[test]
+ fn refuses_bad_peers_without_partial_results_or_source_details() {
+     for peer in [b"{".as_slice(), b"\xff", b"{\"id\":1,\"id\":2}", b"[]"] {
+@@ -108,7 +125,7 @@ fn rejects_links_and_special_files_without_reading_them() {
+ }
+
+ #[test]
+-fn rejects_committed_wal_and_checkpointed_wal_mode() {
++fn reads_committed_wal_and_checkpointed_wal_mode_without_source_changes() {
+     let fixture = Fixture::new();
+     let db = sqlite::open(fixture.path("opencode.db")).unwrap();
+     db.execute(
+@@ -121,15 +138,36 @@ fn rejects_committed_wal_and_checkpointed_wal_mode() {
+     insert.bind((1, MESSAGE)).unwrap();
+     insert.next().unwrap();
+     assert!(fixture.path("opencode.db-wal").metadata().unwrap().len() > 0);
+-    assert!(load(&[fixture.root().to_owned()]).is_err());
++    let names = ["opencode.db", "opencode.db-wal", "opencode.db-shm"];
++    let before = names.map(|name| fs::read(fixture.path(name)).unwrap());
++    assert!(
++        !before[0]
++            .windows(MESSAGE.len())
++            .any(|part| part == MESSAGE.as_bytes())
++    );
++    let entries = load(&[fixture.root().to_owned()]).unwrap();
++    assert_eq!(entries.len(), 1);
++    assert_eq!(
++        crate::total_usage_tokens(entries[0].0.data.message.usage),
++        15
++    );
++    assert_eq!(
++        names.map(|name| fs::read(fixture.path(name)).unwrap()),
++        before
++    );
+     drop(insert);
+     drop(db);
+     assert!(!fixture.path("opencode.db-wal").exists());
+-    assert!(load(&[fixture.root().to_owned()]).is_err());
++    let entries = load(&[fixture.root().to_owned()]).unwrap();
++    assert_eq!(entries.len(), 1);
++    assert_eq!(
++        crate::total_usage_tokens(entries[0].0.data.message.usage),
++        15
++    );
+ }
+
+ #[test]
+-fn rejects_every_journal_peer_even_when_empty() {
++fn rejects_orphan_peers_even_when_empty() {
+     for suffix in ["-wal", "-shm", "-journal"] {
+         let fixture = Fixture::new();
+         let _ = fixture.write_file("storage/message/good.json", MESSAGE);
+@@ -138,6 +176,253 @@ fn rejects_every_journal_peer_even_when_empty() {
+     }
+ }
+
++#[test]
++fn reads_wal_page_sizes_and_channel_copies_once_in_both_reports() {
++    for page_size in [512, 4096, 65536] {
++        let (fixture, db) = wal_source(page_size);
++        let mut update = db.prepare("UPDATE message SET data=?1").unwrap();
++        let changed = MESSAGE
++            .replace("\"input\":10", "\"input\":20")
++            .replace("\"total\":15", "\"total\":25");
++        update.bind((1, changed.as_str())).unwrap();
++        update.next().unwrap();
++        let copy = Fixture::new();
++        for suffix in ["", "-wal", "-shm"] {
++            fs::write(
++                copy.path(format!("opencode-dev.1.db{suffix}")),
++                fs::read(fixture.path(format!("opencode.db{suffix}"))).unwrap(),
++            )
++            .unwrap();
++        }
++        let paths = [fixture.root().to_owned(), copy.root().to_owned()];
++        for kind in [AgentReportKind::Daily, AgentReportKind::Session] {
++            let shared = SharedArgs {
++                mode: CostMode::Display,
++                offline: true,
++                ..SharedArgs::default()
++            };
++            let entries = load_paths(&paths, &shared, kind)
++                .unwrap()
++                .into_iter()
++                .map(|entry| entry.0)
++                .collect::<Vec<_>>();
++            let report = crate::report_json(&entries, kind, &shared.order).unwrap();
++            assert_eq!(entries.len(), 1);
++            assert_eq!(report["totals"]["totalTokens"], 25);
++        }
++    }
++}
++
++#[test]
++fn excludes_real_uncommitted_wal_spill() {
++    let (fixture, db) = wal_source(4096);
++    let before = fs::metadata(fixture.path("opencode.db-wal")).unwrap().len();
++    db.execute("BEGIN; UPDATE message SET data='invalid uncommitted JSON'")
++        .unwrap();
++    let mut insert = db
++        .prepare("INSERT INTO message VALUES (?1,'session',?2)")
++        .unwrap();
++    let malformed = "x".repeat(32 << 10);
++    for index in 0..48 {
++        insert
++            .bind((1, format!("pending-{index}").as_str()))
++            .unwrap();
++        insert.bind((2, malformed.as_str())).unwrap();
++        insert.next().unwrap();
++        insert.reset().unwrap();
++    }
++    drop(insert);
++    // SAFETY: this live test connection owns the transaction. The call flushes dirty pages to its private WAL.
++    assert_eq!(
++        unsafe { sqlite3_sys::sqlite3_db_cacheflush(db.as_raw()) },
++        sqlite3_sys::SQLITE_OK
++    );
++    assert!(fs::metadata(fixture.path("opencode.db-wal")).unwrap().len() > before);
++    let entries = load(&[fixture.root().to_owned()]).unwrap();
++    assert_eq!(entries.len(), 1);
++    assert_eq!(
++        crate::total_usage_tokens(entries[0].0.data.message.usage),
++        15
++    );
++    db.execute("ROLLBACK").unwrap();
++}
++
++#[test]
++fn reads_checkpointed_mode_with_empty_wal() {
++    let (fixture, db) = wal_source(4096);
++    // SAFETY: the connection is live. Null output pointers request no checkpoint statistics.
++    assert_eq!(
++        unsafe {
++            sqlite3_sys::sqlite3_wal_checkpoint_v2(
++                db.as_raw(),
++                std::ptr::null(),
++                sqlite3_sys::SQLITE_CHECKPOINT_TRUNCATE,
++                std::ptr::null_mut(),
++                std::ptr::null_mut(),
++            )
++        },
++        sqlite3_sys::SQLITE_OK
++    );
++    assert_eq!(
++        fs::metadata(fixture.path("opencode.db-wal")).unwrap().len(),
++        0
++    );
++    assert_eq!(load(&[fixture.root().to_owned()]).unwrap().len(), 1);
++}
++
++#[test]
++fn refuses_old_generation_tails_after_wal_reuse() {
++    let (fixture, db) = wal_source(4096);
++    let before = fs::read(fixture.path("opencode.db-wal")).unwrap();
++    // SAFETY: the live test connection has no active statements or read transactions.
++    assert_eq!(
++        unsafe { sqlite3_sys::sqlite3_wal_checkpoint(db.as_raw(), std::ptr::null()) },
++        sqlite3_sys::SQLITE_OK
++    );
++    db.execute("UPDATE message SET data=data || ' '").unwrap();
++    let after = fs::read(fixture.path("opencode.db-wal")).unwrap();
++    assert_ne!(&before[16..24], &after[16..24]);
++    assert_eq!(before.len(), after.len());
++    assert!(load(&[fixture.root().to_owned()]).is_err());
++}
++
++#[test]
++fn reads_commits_after_database_truncation_and_regrowth() {
++    let (fixture, db) = wal_source(512);
++    for content in ['x', 'y'] {
++        db.execute("CREATE TABLE filler(value TEXT)").unwrap();
++        let mut insert = db.prepare("INSERT INTO filler VALUES (?1)").unwrap();
++        let value = content.to_string().repeat(32 << 10);
++        insert.bind((1, value.as_str())).unwrap();
++        insert.next().unwrap();
++        drop(insert);
++        if content == 'x' {
++            db.execute("DROP TABLE filler; VACUUM").unwrap();
++        }
++    }
++    let entries = load(&[fixture.root().to_owned()]).unwrap();
++    assert_eq!(entries.len(), 1);
++    assert_eq!(
++        crate::total_usage_tokens(entries[0].0.data.message.usage),
++        15
++    );
++}
++
++#[test]
++fn refuses_corrupt_or_torn_wal_without_partial_results() {
++    let (source, _db) = wal_source(4096);
++    let main = fs::read(source.path("opencode.db")).unwrap();
++    let wal = fs::read(source.path("opencode.db-wal")).unwrap();
++    for mutation in 0..8 {
++        let fixture = Fixture::new();
++        let _ = fixture.write_file("storage/message/good.json", MESSAGE);
++        fs::write(fixture.path("opencode.db"), &main).unwrap();
++        let mut bad = wal.clone();
++        match mutation {
++            0 => bad[0] ^= 1,
++            1 => bad[4] ^= 1,
++            2 => bad[8] ^= 1,
++            3 => bad[24] ^= 1,
++            4 => bad[40] ^= 1,
++            5 => bad[48] ^= 1,
++            6 => {
++                bad.pop();
++            }
++            _ => bad.push(0),
++        }
++        fs::write(fixture.path("opencode.db-wal"), &bad).unwrap();
++        assert_eq!(
++            load(&[fixture.root().to_owned()]).unwrap_err().to_string(),
++            "OpenCode source capture is unavailable"
++        );
++    }
++}
++
++#[test]
++fn refuses_changed_or_replaced_wal_and_shm() {
++    use crate::files::linux::{Limits, Stage, read_with};
++    for suffix in ["-wal", "-shm"] {
++        for replace in [false, true] {
++            let (fixture, _db) = wal_source(4096);
++            let path = fixture.path(format!("opencode.db{suffix}"));
++            let result = read_with(
++                &[fixture.root().to_owned()],
++                Limits::default(),
++                |stage| {
++                    if stage == Stage::BeforeVerify {
++                        let mut bytes = fs::read(&path).unwrap();
++                        if replace {
++                            fs::rename(&path, fixture.path("old-peer")).unwrap();
++                        } else {
++                            bytes[0] ^= 1;
++                        }
++                        fs::write(&path, bytes).unwrap();
++                    }
++                },
++                |_, _, _| Ok(()),
++            );
++            assert!(result.is_err());
++        }
++    }
++}
++
++#[test]
++fn counts_wal_and_shm_against_shared_source_limits() {
++    use crate::files::linux::{Limits, read_with};
++    let (fixture, _db) = wal_source(4096);
++    let total = ["opencode.db", "opencode.db-wal", "opencode.db-shm"]
++        .into_iter()
++        .map(|name| fs::metadata(fixture.path(name)).unwrap().len())
++        .sum::<u64>();
++    for limits in [
++        Limits {
++            files: 2,
++            ..Limits::default()
++        },
++        Limits {
++            total_bytes: total - 1,
++            ..Limits::default()
++        },
++    ] {
++        assert!(
++            read_with(
++                &[fixture.root().to_owned()],
++                limits,
++                |_| {},
++                |_, _, _| Ok(())
++            )
++            .is_err()
++        );
++    }
++}
++
++#[test]
++fn refuses_journals_and_unsafe_wal_peers_beside_a_valid_database() {
++    for kind in 0..4 {
++        let (fixture, _db) = wal_source(4096);
++        let path = fixture.path("opencode.db-wal");
++        let outside = Fixture::new();
++        let _ = outside.write_file("marker", "unselected");
++        match kind {
++            0 => {
++                fs::write(fixture.path("opencode.db-journal"), "").unwrap();
++            }
++            1 => {
++                fs::remove_file(&path).unwrap();
++                symlink(outside.path("marker"), &path).unwrap();
++            }
++            2 => {
++                fs::hard_link(&path, fixture.path("second-link")).unwrap();
++            }
++            _ => {
++                fs::remove_file(&path).unwrap();
++                rustix::fs::mkfifoat(rustix::fs::CWD, &path, rustix::fs::Mode::RUSR).unwrap();
++            }
++        }
++        assert!(load(&[fixture.root().to_owned()]).is_err());
++    }
++}
++
+ #[test]
+ fn rejects_file_and_root_replacements_and_changed_bytes() {
+     use crate::files::linux::{Limits, Stage, read_with};
+diff --git a/rust/adapters/opencode/src/database.rs b/rust/adapters/opencode/src/database.rs
+index 97f7007..7baa156 100644
+--- a/rust/adapters/opencode/src/database.rs
++++ b/rust/adapters/opencode/src/database.rs
+@@ -46,7 +46,7 @@ use std::{
+
+ #[cfg(target_os = "linux")]
+ pub(crate) fn read(bytes: &[u8], context: &mut Context<'_>) -> Result<()> {
+-    // Never omit committed WAL pages. WAL databases and all journal peers are refused.
++    // The capture supplies a private main image after it applies committed WAL pages.
+     if bytes.len() < 100 || &bytes[..16] != b"SQLite format 3\0" || bytes[18..20] != [1, 1] {
+         return Err(unavailable());
+     }
+diff --git a/rust/adapters/opencode/src/files.rs b/rust/adapters/opencode/src/files.rs
+index 01b3672..9fb39c1 100644
+--- a/rust/adapters/opencode/src/files.rs
++++ b/rust/adapters/opencode/src/files.rs
+@@ -159,11 +159,17 @@ pub(crate) mod linux {
+                         return Err(unavailable());
+                     }
+                     let child = path.join(OsStr::from_bytes(name));
+-                    if path.as_os_str().is_empty() && super::super::database_peer(name) {
++                    if path.as_os_str().is_empty()
++                        && name
++                            .strip_suffix(b"-journal")
++                            .is_some_and(super::super::database_name)
++                    {
+                         return Err(unavailable());
+                     }
+                     let selected = if path.as_os_str().is_empty() {
+-                        name == b"storage" || super::super::database_name(name)
++                        name == b"storage"
++                            || super::super::database_name(name)
++                            || super::super::database_peer(name)
+                     } else if path == Path::new("storage") {
+                         name == b"message"
+                     } else {
+@@ -261,23 +267,60 @@ pub(crate) mod linux {
+         let files = before
+             .iter()
+             .filter(|(_, stamp)| FileType::from_raw_mode(stamp.mode) == FileType::RegularFile);
+-        let mut captured = Vec::new();
++        let mut captured = BTreeMap::new();
+         let mut content = Vec::new();
+         for ((index, path), stamp) in files.clone() {
+             let selected = &roots[*index];
+             read_file(selected, path, stamp, &mut content, || {
+                 hook(Stage::Read(captured.len()));
+             })?;
+-            visit(path, &selected.path, &content)?;
+-            captured.push(std::mem::take(&mut content));
++            captured.insert((*index, path.clone()), std::mem::take(&mut content));
++        }
++        // Pair only exact filenames in the same held root. No peer selects another path.
++        for ((index, path), bytes) in &captured {
++            let name = path.as_os_str().as_bytes();
++            if path.components().count() == 1 && super::super::database_peer(name) {
++                let base = name
++                    .strip_suffix(b"-wal")
++                    .or_else(|| name.strip_suffix(b"-shm"))
++                    .ok_or_else(unavailable)?;
++                let base = PathBuf::from(OsStr::from_bytes(base));
++                let main = captured
++                    .get(&(*index, base.clone()))
++                    .ok_or_else(unavailable)?;
++                if main.get(18..20) != Some(&[2, 2]) {
++                    return Err(unavailable());
++                }
++                if name.ends_with(b"-shm") {
++                    let mut wal = base.into_os_string();
++                    wal.push("-wal");
++                    if !captured.contains_key(&(*index, PathBuf::from(wal))) {
++                        return Err(unavailable());
++                    }
++                }
++                continue;
++            }
++            if path.extension().is_some_and(|extension| extension == "db") {
++                let mut wal = path.as_os_str().to_owned();
++                wal.push("-wal");
++                let wal = captured.get(&(*index, PathBuf::from(wal)));
++                let image = super::super::sqlite_wal::snapshot(
++                    bytes,
++                    wal.map(Vec::as_slice),
++                    limits.file_bytes.min(limits.total_bytes),
++                )?;
++                visit(path, &roots[*index].path, &image)?;
++            } else {
++                visit(path, &roots[*index].path, bytes)?;
++            }
+         }
+
+         hook(Stage::BeforeVerify);
+         verify_roots(&roots)?;
+         // A same-size rewrite can escape a coarse timestamp. Recheck bytes before publication.
+-        for (((index, path), stamp), expected_bytes) in files.zip(captured) {
++        for ((index, path), stamp) in files {
+             read_file(&roots[*index], path, stamp, &mut content, || {})?;
+-            if content != expected_bytes {
++            if captured.get(&(*index, path.clone())) != Some(&content) {
+                 return Err(unavailable());
+             }
+         }
+diff --git a/rust/adapters/opencode/src/lib.rs b/rust/adapters/opencode/src/lib.rs
+index badd8e6..7fd0782 100644
+--- a/rust/adapters/opencode/src/lib.rs
++++ b/rust/adapters/opencode/src/lib.rs
+@@ -9,6 +9,8 @@ mod paths;
+ mod records;
+ mod report;
+ mod sqlite_snapshot;
++#[cfg(target_os = "linux")]
++mod sqlite_wal;
+ mod strict_json;
+
+ pub use loader::{LinkedEntry, load_entries_with_native_sessions};
+@@ -69,7 +71,7 @@ fn database_name(name: &[u8]) -> bool {
+                 !name.is_empty()
+                     && name
+                         .iter()
+-                        .all(|byte| byte.is_ascii_alphanumeric() || *byte == b'_' || *byte == b'-')
++                        .all(|byte| byte.is_ascii_alphanumeric() || b"._-".contains(byte))
+             })
+ }
+
+@@ -81,9 +83,9 @@ fn database_peer(name: &[u8]) -> bool {
+
+ fn is_source(path: &std::path::Path) -> bool {
+     if path.components().count() == 1 {
+-        return path
+-            .file_name()
+-            .is_some_and(|name| database_name(name.as_encoded_bytes()));
++        return path.file_name().is_some_and(|name| {
++            database_name(name.as_encoded_bytes()) || database_peer(name.as_encoded_bytes())
++        });
+     }
+     path.starts_with("storage/message") && path.extension().is_some_and(|ext| ext == "json")
+ }
+diff --git a/rust/adapters/opencode/src/sqlite_wal.rs b/rust/adapters/opencode/src/sqlite_wal.rs
+new file mode 100644
+index 0000000..6bcbb61
+--- /dev/null
++++ b/rust/adapters/opencode/src/sqlite_wal.rs
+@@ -0,0 +1,268 @@
++//! Reconstruct committed SQLite pages from immutable captured bytes.
++//!
++//! Format and checksum rules: https://sqlite.org/fileformat.html#walformat
++//! The transient SHM index supplies no database content: https://sqlite.org/walformat.html#recovery
++use crate::{Result, unavailable};
++use std::borrow::Cow;
++
++const MAX_IMAGE_BYTES: usize = 64 << 20;
++const HEADER: usize = 32;
++const FRAME_HEADER: usize = 24;
++
++fn be32(bytes: &[u8]) -> u32 {
++    u32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]])
++}
++
++fn page_size(main: &[u8]) -> Result<usize> {
++    if main.len() < 100
++        || &main[..16] != b"SQLite format 3\0"
++        || !matches!(&main[18..20], [1, 1] | [2, 2])
++    {
++        return Err(unavailable());
++    }
++    let encoded = u16::from_be_bytes([main[16], main[17]]);
++    let size = if encoded == 1 {
++        65536
++    } else {
++        usize::from(encoded)
++    };
++    if !(512..=65536).contains(&size) || !size.is_power_of_two() {
++        return Err(unavailable());
++    }
++    Ok(size)
++}
++
++fn checksum(bytes: &[u8], big_endian: bool, state: &mut [u32; 2]) {
++    for pair in bytes.as_chunks::<8>().0 {
++        let word = |bytes: &[u8]| {
++            let word = [bytes[0], bytes[1], bytes[2], bytes[3]];
++            if big_endian {
++                u32::from_be_bytes(word)
++            } else {
++                u32::from_le_bytes(word)
++            }
++        };
++        state[0] = state[0].wrapping_add(word(pair)).wrapping_add(state[1]);
++        state[1] = state[1]
++            .wrapping_add(word(&pair[4..]))
++            .wrapping_add(state[0]);
++    }
++}
++
++fn checksum_matches(bytes: &[u8], state: [u32; 2]) -> bool {
++    be32(bytes) == state[0] && be32(&bytes[4..]) == state[1]
++}
++
++fn image_length(pages: u32, size: usize, limit: usize) -> Result<usize> {
++    let length = usize::try_from(pages)
++        .ok()
++        .and_then(|pages| pages.checked_mul(size))
++        .filter(|length| *length <= limit && *length != 0)
++        .ok_or_else(unavailable)?;
++    Ok(length)
++}
++
++pub(crate) fn snapshot<'a>(
++    main: &'a [u8],
++    wal: Option<&[u8]>,
++    limit: u64,
++) -> Result<Cow<'a, [u8]>> {
++    let limit = usize::try_from(limit)
++        .unwrap_or(usize::MAX)
++        .min(MAX_IMAGE_BYTES);
++    let size = page_size(main)?;
++    if main.len() > limit || !main.len().is_multiple_of(size) {
++        return Err(unavailable());
++    }
++    if main[18] == 1 {
++        return if wal.is_some() {
++            Err(unavailable())
++        } else {
++            Ok(Cow::Borrowed(main))
++        };
++    }
++    let wal = wal.unwrap_or_default();
++    let frame_size = size + FRAME_HEADER;
++    let mut committed = 0;
++    let mut length = main.len();
++    if !wal.is_empty() {
++        if wal.len() > limit
++            || wal.len() < HEADER
++            || !(wal.len() - HEADER).is_multiple_of(frame_size)
++            || !matches!(be32(wal), 0x377f0682 | 0x377f0683)
++            || be32(&wal[4..]) != 3_007_000
++            || usize::try_from(be32(&wal[8..])).ok() != Some(size)
++        {
++            return Err(unavailable());
++        }
++        let big_endian = be32(wal) == 0x377f0683;
++        let mut state = [0, 0];
++        checksum(&wal[..24], big_endian, &mut state);
++        if !checksum_matches(&wal[24..32], state) {
++            return Err(unavailable());
++        }
++        // Reject every invalid tail, including old generations. Never guess a torn commit boundary.
++        for (index, frame) in wal[HEADER..].chunks_exact(frame_size).enumerate() {
++            if frame[8..16] != wal[16..24] {
++                return Err(unavailable());
++            }
++            image_length(be32(frame), size, limit)?;
++            checksum(&frame[..8], big_endian, &mut state);
++            checksum(&frame[FRAME_HEADER..], big_endian, &mut state);
++            if !checksum_matches(&frame[16..24], state) {
++                return Err(unavailable());
++            }
++            let pages = be32(&frame[4..]);
++            if pages != 0 {
++                length = image_length(pages, size, limit)?;
++                committed = index + 1;
++            }
++        }
++    }
++
++    // Both allocations follow the image bound. At 512-byte pages, the offset index is at most 512 KiB.
++    let count = length / size;
++    let mut offsets = Vec::new();
++    offsets
++        .try_reserve_exact(count)
++        .map_err(|_| unavailable())?;
++    offsets.resize(count, 0u32);
++    let mut live_pages = count;
++    if committed != 0 {
++        for (index, frame) in wal[HEADER..]
++            .chunks_exact(frame_size)
++            .take(committed)
++            .enumerate()
++            .rev()
++        {
++            let committed_pages = be32(&frame[4..]) as usize;
++            if committed_pages != 0 {
++                live_pages = live_pages.min(committed_pages);
++            }
++            let page = be32(frame) as usize;
++            if page <= live_pages && offsets[page - 1] == 0 {
++                offsets[page - 1] = u32::try_from(HEADER + index * frame_size + FRAME_HEADER)
++                    .map_err(|_| unavailable())?;
++            }
++        }
++    }
++    let mut image = Vec::new();
++    image.try_reserve_exact(length).map_err(|_| unavailable())?;
++    for (index, offset) in offsets.into_iter().enumerate() {
++        // A past truncation removes old pages even when a later transaction grows the database again.
++        let page = match offset {
++            0 if index < live_pages => main.get(index * size..(index + 1) * size),
++            0 => None,
++            offset => wal.get(offset as usize..offset as usize + size),
++        }
++        .ok_or_else(unavailable)?;
++        image.extend_from_slice(page);
++    }
++    if page_size(&image)? != size || image[18..20] != [2, 2] {
++        return Err(unavailable());
++    }
++    // SQLite uses a valid header count instead of the file length. Do not let it hide committed pages.
++    let header_pages = be32(&image[28..]);
++    if header_pages != 0
++        && image[24..28] == image[92..96]
++        && image_length(header_pages, size, limit)? != length
++    {
++        return Err(unavailable());
++    }
++    // Only the private image changes. Its complete committed pages need no journal or shared memory.
++    image[18..20].copy_from_slice(&[1, 1]);
++    Ok(Cow::Owned(image))
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn checksum_matches_known_words_in_both_orders_and_wraps() {
++        for big_endian in [false, true] {
++            let bytes = (1u32..=6)
++                .flat_map(|word| {
++                    if big_endian {
++                        word.to_be_bytes()
++                    } else {
++                        word.to_le_bytes()
++                    }
++                })
++                .collect::<Vec<_>>();
++            let mut state = [0, 0];
++            checksum(&bytes, big_endian, &mut state);
++            assert_eq!(state, [26, 46]);
++            let mut state = [0, 0];
++            checksum(&[255; 8], big_endian, &mut state);
++            assert_eq!(state, [u32::MAX, u32::MAX - 1]);
++        }
++    }
++
++    fn source() -> (
++        ccusage_test_support::Fixture,
++        sqlite::Connection,
++        Vec<u8>,
++        Vec<u8>,
++    ) {
++        let fixture = ccusage_test_support::Fixture::new();
++        let db = sqlite::open(fixture.path("source.db")).unwrap();
++        db.execute(
++            "PRAGMA journal_mode=WAL; CREATE TABLE observation(value INTEGER); \
++            INSERT INTO observation VALUES (7)",
++        )
++        .unwrap();
++        let main = std::fs::read(fixture.path("source.db")).unwrap();
++        let wal = std::fs::read(fixture.path("source.db-wal")).unwrap();
++        (fixture, db, main, wal)
++    }
++
++    fn resign(wal: &mut [u8], big_endian: bool) {
++        let magic: u32 = if big_endian { 0x377f0683 } else { 0x377f0682 };
++        wal[..4].copy_from_slice(&magic.to_be_bytes());
++        let mut state = [0, 0];
++        checksum(&wal[..24], big_endian, &mut state);
++        wal[24..28].copy_from_slice(&state[0].to_be_bytes());
++        wal[28..32].copy_from_slice(&state[1].to_be_bytes());
++        let size = be32(&wal[8..]) as usize;
++        for frame in wal[HEADER..].chunks_exact_mut(size + FRAME_HEADER) {
++            checksum(&frame[..8], big_endian, &mut state);
++            checksum(&frame[FRAME_HEADER..], big_endian, &mut state);
++            frame[16..20].copy_from_slice(&state[0].to_be_bytes());
++            frame[20..24].copy_from_slice(&state[1].to_be_bytes());
++        }
++    }
++
++    #[test]
++    fn accepts_big_endian_wal_checksums() {
++        let (_fixture, _db, main, mut wal) = source();
++        resign(&mut wal, true);
++        let image = snapshot(&main, Some(&wal), MAX_IMAGE_BYTES as u64).unwrap();
++        crate::sqlite_snapshot::with_connection(&image, |db| {
++            let mut query = db.prepare("SELECT value FROM observation").unwrap();
++            assert_eq!(query.next().unwrap(), sqlite::State::Row);
++            assert_eq!(query.read::<i64, _>(0).unwrap(), 7);
++            Ok(())
++        })
++        .unwrap();
++    }
++
++    #[test]
++    fn refuses_valid_checksums_with_invalid_page_numbers_sizes_or_missing_pages() {
++        let (_fixture, _db, main, wal) = source();
++        let size = page_size(&main).unwrap();
++        let last = wal.len() - (size + FRAME_HEADER);
++        for (offset, value) in [
++            (HEADER, 0),
++            (HEADER, u32::MAX),
++            (last + 4, u32::MAX),
++            (last + 4, be32(&wal[last + 4..]) + 1),
++        ] {
++            let mut bad = wal.clone();
++            bad[offset..offset + 4].copy_from_slice(&value.to_be_bytes());
++            resign(&mut bad, false);
++            assert!(snapshot(&main, Some(&bad), MAX_IMAGE_BYTES as u64).is_err());
++        }
++        assert!(snapshot(&main, Some(&wal), (size - 1) as u64).is_err());
++    }
++}

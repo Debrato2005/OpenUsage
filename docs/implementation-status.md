@@ -26,10 +26,11 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scoped result, November 11, 2026. The OpenCode capture candidate returns
-the required total or refusal for all 26 synthetic cases on Linux. The
-[candidate record](reviews/2026-11-11-opencode-capture-candidate.md) gives its
-source limits and remaining gates. OpenCode stays disabled.
+Latest scoped result, November 11, 2026. The OpenCode WAL candidate preserves
+committed database usage and excludes uncommitted frames on synthetic Linux
+input. The [candidate record](reviews/2026-11-11-opencode-wal-candidate.md)
+gives its limits. Ordinary reused WAL tails and producer metadata remain
+qualification gaps. OpenCode stays disabled.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -126,7 +127,7 @@ Kept from baseline 2.0:
 
 ## Not yet run
 
-- [Hosted CI for `0079941`](https://github.com/Debrato2005/OpenUsage/actions/runs/42922629966) passed the Linux and renderer jobs on November 11. The native oracle checks also passed in that Linux job. This certifies that commit's hosted scope. OU-NFR-012 still needs Windows and macOS, planned for S-15.
+- [Hosted CI for `456a7a5`](https://github.com/Debrato2005/OpenUsage/actions/runs/42926292581) passed the Linux and renderer jobs on November 11. The native oracle checks also passed in that Linux job. This certifies that commit's hosted scope. OU-NFR-012 still needs Windows and macOS, planned for S-15.
 - Windows and macOS have never run. The owner has a real Windows PC and Mac for this.
 - Windows and macOS need their own pinned Codex companion. Only Linux x86_64 is qualified.
 - Sleep and wake, packaging, and the full reference performance gate remain unmeasured. Local Linux measurements are in the [performance report](performance-report.md).
@@ -157,7 +158,7 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 
 ## Current assignment
 
-[L-1f11](implementation-slices.md#build-checklist) remains open for tool qualification. The next OpenCode step is producer and WAL qualification against the captured record boundary. Keep the tool disabled until its required checks pass.
+[L-1f11](implementation-slices.md#build-checklist) remains open for tool qualification. The next OpenCode steps are ordinary WAL reuse and producer-runtime qualification, including metadata messages and fork behavior. Keep the tool disabled until its required checks pass.
 
 L-1f0 through L-1f10 are complete within their recorded scope. Only Claude Code and Codex are enabled. The Amp patch is a local candidate, and the production scanner pin is unchanged.
 

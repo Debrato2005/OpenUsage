@@ -98,3 +98,11 @@ Apply `20.0.48-opencode-capture.patch` after the observation patch on the same
 pinned source. The [capture record](../../docs/reviews/2026-11-11-opencode-capture-candidate.md)
 owns limits, digests, and remaining gates. Use its separate candidate variables
 to run `test_ccusage_opencode_capture.py`. OpenCode stays disabled.
+
+## OpenCode WAL candidate
+
+Apply `20.0.48-opencode-wal.patch` after the observation and capture patches.
+The [WAL record](../../docs/reviews/2026-11-11-opencode-wal-candidate.md) owns
+the exact bounds, digests, source evidence, and remaining qualification limits.
+Use its separate variables to run `test_ccusage_opencode_wal.py`. OpenCode stays
+disabled. This layer adds no dependency.

@@ -1,0 +1,23 @@
+{
+  "repository": "https://github.com/anomalyco/opencode",
+  "tag": "v1.19.5",
+  "commit": "810c0eba1a7348036f8bdf61e6632d0c36c6876c",
+  "license": "MIT",
+  "scope": "Storage-schema evidence only. This fixture does not execute the producer runtime.",
+  "files": {
+    "LICENSE": "625f0f619133f89bbbb2abe37369613dfa1885eba1e50d02170deb62bb42cb6b",
+    "package.json": "889a89bf4b914323e7af206a854bd400d30395f04c377afbbfd65042f15f7288",
+    "packages/opencode/package.json": "65ec3d533de3c7b1d78572955863a87e25f17895bc0f4bcc1571fcc07abec99f",
+    "packages/core/package.json": "ec367e16b9528957d07e3889478d449c9eead3df2a8f0082e35c20b3d2243022",
+    "packages/core/src/database/database.ts": "47abea8f7ae0a5c5d8c1f179f03eedddc69941b44e9920f208a9773b9f41a9c3",
+    "packages/core/src/database/sqlite.bun.ts": "62f95380921d0f62a4a5b85c82d0f41205609d13b1f8758d2aa5e8fd24e9d7ef",
+    "packages/core/src/database/sqlite.node.ts": "2fcad3f4fd0b8a631fdded11a89bc7a3fe11ce80447db98c0394f4774db5c6cf",
+    "packages/core/src/database/schema.gen.ts": "dc485d31e4d2f4d47f0c0e4243854b04817dc88a42ab9b1bec34b77d9f52ab27",
+    "packages/core/src/session/sql.ts": "8fe00bf61948678bfd5b4f993e1e3884fca8005abcce50a8192b1d06d2b65c10",
+    "packages/core/src/session/projector.ts": "79ca6021b82942c6d913526fc578cfa1fcf654b4691ed3220b4223ea5fea9590",
+    "packages/core/src/session/message-updater.ts": "9b9be0e5b38eed69b8cd75fb6856e324b09e399378517df700f97bc637511886",
+    "packages/schema/src/session-message.ts": "96f5ecaf45a8be46485df65d6b2d22b9e6538144e2cd5b28251fb54e13aa85fc",
+    "packages/schema/src/model.ts": "cd7717a4699cb24ce617f66352e77981281d0ff1af2b0f52dac8bbfd6d150e84",
+    "packages/schema/src/prompt.ts": "d1fc8764053e3c6b07791cd7f1f319e9c8b9a5942af04432c53a622af0f486a6"
+  }
+}

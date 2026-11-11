@@ -17,16 +17,17 @@ from pi_scale import MIB, pad
 
 
 class OpenCodeCaptureCandidateTests(FormatComparisons, unittest.TestCase):
+    CANDIDATE_ENV = 'OPENUSAGE_CCUSAGE_OPENCODE_CAPTURE_CANDIDATE'
     run_cli = reference_checks.PiUsageCandidateTests.run_cli
     test_enabled_tools_match_the_reference = reference_checks.PiUsageCandidateTests.test_enabled_tools_still_match_the_reference
 
     @classmethod
     def setUpClass(cls):
-        selected = os.environ.get('OPENUSAGE_CCUSAGE_OPENCODE_CAPTURE_CANDIDATE')
+        selected = os.environ.get(cls.CANDIDATE_ENV)
         if not selected:
-            raise unittest.SkipTest('Set OPENUSAGE_CCUSAGE_OPENCODE_CAPTURE_CANDIDATE for this Linux candidate.')
+            raise unittest.SkipTest(f'Set {cls.CANDIDATE_ENV} for this Linux candidate.')
         cls.binary = Path(selected).resolve(strict=True)
-        if hashlib.sha256(cls.binary.read_bytes()).hexdigest() != os.environ.get('OPENUSAGE_CCUSAGE_OPENCODE_CAPTURE_CANDIDATE_SHA256'):
+        if hashlib.sha256(cls.binary.read_bytes()).hexdigest() != os.environ.get(cls.CANDIDATE_ENV + '_SHA256'):
             raise ValueError('The OpenCode capture candidate digest does not match.')
         cls.reference = ROOT / 'apps/desktop/src-tauri/binaries/openusage-ccusage-x86_64-unknown-linux-gnu'
         if hashlib.sha256(cls.reference.read_bytes()).hexdigest() != json.loads(PIN.read_text())['executableSha256']:

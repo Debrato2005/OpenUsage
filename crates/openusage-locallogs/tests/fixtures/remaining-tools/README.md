@@ -42,6 +42,11 @@ patch. `test_ccusage_opencode_capture.py` checks all 26 required outcomes and
 the refusal boundary with an explicit candidate binary and digest. Producer,
 WAL, scale, and app integration gates remain open.
 
+The [OpenCode WAL candidate](../../../../../docs/reviews/2026-11-11-opencode-wal-candidate.md)
+adds committed-page capture and checks the pinned current storage schema.
+`test_ccusage_opencode_wal.py` preserves the prior matrix and records the
+remaining reused-WAL and producer-shape limits. OpenCode stays disabled.
+
 The [Pi qualification](../../../../../docs/reviews/2026-11-10-pi-qualification.md) records 29 cases and 58 reports in `pi-qualification.json`. Run `test_ccusage_pi.py` through the same command. It covers stable entry IDs, copies, branches, replay, non-message usage, missing fields, and incomplete reads. Copies can double counts, distinct calls can collapse, and summary or standalone usage can disappear. The Rust regression preserves unavailable fields and reported activity times. Pi stays disabled, and AT-65 remains failed.
 
 The separate [Pi usage candidate](../../../../../docs/reviews/2026-11-10-pi-usage-candidate.md) records five corrected or added cases in `pi-usage-candidate.json`. Its five JSON/table views are in `pi-usage-candidate-cli.json`. The explicit candidate test preserves the production baseline and checks that only the scoped usage cases change. These outputs do not qualify the remaining identity or completeness failures and do not replace the production pin.
