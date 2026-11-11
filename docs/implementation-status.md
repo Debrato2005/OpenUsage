@@ -26,11 +26,12 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scoped result, November 11, 2026. Actual OpenCode forks duplicate inherited
-usage under new IDs without a stored origin in the tested format. The scanner
-reports 346 tokens where 173 are required, and 363 after 17 new tokens where
-190 are required. The [fork qualification](reviews/2026-11-11-opencode-fork-qualification.md)
-records eight failures across eleven selections. OpenCode stays disabled.
+Latest scoped result, November 11, 2026. The experimental OpenCode v2 candidate
+keeps all seventeen actual writer outcomes and refuses unsupported legacy or
+mixed captures as a whole. All 166 adapter tests and fourteen independent CLI
+tests passed. The [source boundary](reviews/2026-11-11-opencode-v2-boundary.md)
+records the strict format and compatibility limits. Legacy fork accounting remains
+unqualified. OpenCode stays disabled.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -159,9 +160,10 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 ## Current assignment
 
 [L-1f11](implementation-slices.md#build-checklist) remains open for tool qualification.
-The next OpenCode step is to establish a safe source-compatibility boundary or
-producer origin contract after the actual fork qualification failure.
-Scale and app gates remain open. Keep the tool disabled until its required checks pass.
+The next bounded step qualifies Codebuff copies, replay, branches, and source capture.
+The OpenCode v2 experiment still needs scale, grouped storage, and application
+qualification. Its unsupported legacy formats need a stable origin contract.
+Keep each tool disabled until its required checks pass.
 
 L-1f0 through L-1f10 are complete within their recorded scope. Only Claude Code and Codex are enabled. The Amp patch is a local candidate, and the production scanner pin is unchanged.
 

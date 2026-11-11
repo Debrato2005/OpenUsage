@@ -4,6 +4,14 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f11w result before L-1f11x
+
+Latest scoped result, November 11, 2026. Actual OpenCode forks duplicate inherited
+usage under new IDs without a stored origin in the tested format. The scanner
+reports 346 tokens where 173 are required, and 363 after 17 new tokens where
+190 are required. The [fork qualification](reviews/2026-11-11-opencode-fork-qualification.md)
+records eight failures across eleven selections. OpenCode stays disabled.
+
 ## L-1f11v result before L-1f11w
 
 Latest scoped result, November 11, 2026. The OpenCode validated record candidate
