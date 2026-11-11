@@ -26,11 +26,11 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scoped result, November 12, 2026. The pinned Antigravity scanner merges
-conflicting 157-token and 160-token records into 177 tokens. Seventeen of
-thirty-seven session outcomes match. The
-[qualification record](reviews/2026-11-12-antigravity-qualification.md) separates
-consumer-compatible inputs from the public SDK. Antigravity stays disabled.
+Latest scoped result, November 12, 2026. The additional-tool gate review maps
+all sixteen disabled tools to their evidence records. Pi is the next candidate
+for native application qualification. The
+[review](reviews/2026-11-12-additional-tool-gates.md) records the selection and
+missing application paths. No additional tool is enabled.
 
 Hosted CI for `cd99e35` passed Linux and Renderer, including native oracle tests.
 The [evidence log](acceptance-traceability.md#evidence-log) records its scope.
@@ -162,21 +162,14 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 
 ## Current assignment
 
-[L-1f11](implementation-slices.md#build-checklist) remains open for tool qualification.
-The next bounded step reviews the additional-tool qualification gates and
-selects one candidate application assignment. All sixteen baseline input reviews
-are recorded. None enables an additional tool.
-Grok needs bounded capture, conflict refusal, qualified parent/child attribution,
-and release mapping.
-Copilot needs bounded capture, qualified origin and overlap rules, and current
-accounting support.
-OpenClaw needs qualified event identity, ancestry, compression, and complete capture.
-Kimi needs separate producer contracts, safe capture, and qualified usage identity.
-Qwen needs bounded capture, qualified UUID handling, and proven counter semantics.
-Gemini needs a bounded capture and qualified record identity.
-Goose needs a safe database capture and a qualified usage scope.
-The OpenCode v2 experiment still needs scale, grouped storage, and application
-qualification. Keep each tool disabled until its required checks pass.
+[L-1f11ak](implementation-slices.md#l-1f11ak-native-pi-candidate-qualification)
+is the next bounded assignment. Exercise the pinned Pi candidate through a
+qualification build's consent, worker, storage, and display paths. Preserve
+actual scanner provenance and verify failure retention and consent withdrawal.
+The production pin and enabled catalog stay unchanged.
+
+The [gate review](reviews/2026-11-12-additional-tool-gates.md) links all sixteen
+additional-tool records. Their source and capture gaps remain open.
 
 L-1f0 through L-1f10 are complete within their recorded scope. Only Claude Code and Codex are enabled. The Amp patch is a local candidate, and the production scanner pin is unchanged.
 

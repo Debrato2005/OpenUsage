@@ -4,6 +4,14 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f11ai result before L-1f11aj
+
+Latest scoped result, November 12, 2026. The pinned Antigravity scanner merges
+conflicting 157-token and 160-token records into 177 tokens. Seventeen of
+thirty-seven session outcomes match. The
+[qualification record](reviews/2026-11-12-antigravity-qualification.md) separates
+consumer-compatible inputs from the public SDK. Antigravity stays disabled.
+
 ## L-1f11ah result before L-1f11ai
 
 Latest scoped result, November 12, 2026. The pinned Grok scanner accepts

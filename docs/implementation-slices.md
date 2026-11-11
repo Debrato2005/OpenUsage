@@ -82,7 +82,7 @@ The other slices below follow the launch, unless a launch slice needs part of on
 
 ## Build checklist
 
-Updated November 12, 2026. Each completed item has one local commit and scoped evidence. L-1f11ai records the latest result. The next bounded assignment is below. Owner items wait for the owner.
+Updated November 12, 2026. Each completed item has one local commit and scoped evidence. L-1f11aj records the latest result. The next bounded assignment is below. Owner items wait for the owner.
 
 **Verification before release**
 
@@ -155,7 +155,8 @@ Updated November 12, 2026. Each completed item has one local commit and scoped e
 - [x] L-1f11ag: record [Copilot qualification](reviews/2026-11-12-copilot-qualification.md). Five of forty-eight cases match both reports. Copies, conflicting records, ignored checkpoints, and partial capture prevent enablement. Copilot stays disabled.
 - [x] L-1f11ah: record [Grok qualification](reviews/2026-11-12-grok-qualification.md). Twenty of forty-six session outcomes match. Conflicting IDs, overlapping parent/child usage, incomplete records, and partial capture prevent enablement. Grok stays disabled.
 - [x] L-1f11ai: record [Antigravity qualification](reviews/2026-11-12-antigravity-qualification.md). Seventeen of thirty-seven session outcomes match. Conflicting maxima, missing metrics, partial reads, and an unqualified writer contract prevent enablement. Antigravity stays disabled.
-- [ ] L-1f11aj: reconcile all sixteen additional-tool qualification records with the catalog and candidate gates. Select one bounded application assignment. Keep the production pin and enabled tools unchanged.
+- [x] L-1f11aj: reconcile all sixteen additional-tool records with the catalog and candidate gates. The [gate review](reviews/2026-11-12-additional-tool-gates.md) selects Pi's native application path next. The production pin and enabled tools stay unchanged.
+- [ ] L-1f11ak: exercise the pinned Pi candidate through a native qualification build, including consent, worker scans, exact persistence and display, provenance, refusal, and withdrawal. Keep production support unchanged.
 - [x] R-5: bound leaderboard request collection at 64 KiB. Twenty-four local service tests passed, including overflow cancellation, byte boundaries, stream errors, and the earlier aggregate and concurrency checks. Hosted Workers remain unverified.
 - [x] R-4: enforce hourly limits and the five-device cap under concurrent requests. Fourteen local service tests passed, including token rotation, hour resets, and database failures. Hosted D1 remains unverified.
 - [x] R-3: keep a leaderboard estimate unavailable when any included row lacks it. Token totals, measured zero, ordering, and period filters stay intact. Eight local service tests passed. Hosted D1 remains unverified.
@@ -552,6 +553,28 @@ input and identity state. Check copy, fork, and conflict handling before
 aggregation. Compare the previous candidate on the same input. Test exact
 reports, safe refusal, and saved history at the larger byte limit. Keep Pi
 disabled and preserve the production pin. See the [prototype record](reviews/2026-11-11-pi-bounded-capture.md).
+
+### L-1f11ak: native Pi candidate qualification
+
+Goal: exercise the pinned bounded Pi release candidate through the native
+application without changing production support.
+
+Acceptance:
+
+- Use an explicit qualification build and a digest-pinned candidate descriptor.
+  Production detection, consent, execution gates, and binary pins stay unchanged.
+- Use the existing consent, worker, grouped storage, and typed view paths.
+  Persist the actual candidate version and verify it after reopen.
+- With private synthetic input, check exact saved and displayed totals, copies,
+  malformed-input refusal, saved-data retention, and consent withdrawal.
+  Preserve unavailable details and the pinned source zone.
+- Prove private-home and selected-root isolation. Do not read real histories,
+  provider sessions, or credentials.
+- Run doctor, the staged plan, full affected Rust and renderer checks, and the
+  rebuilt native journey. Record platform scope and every remaining gate.
+
+Stopping condition: one verified native candidate result, updated owning docs,
+a local commit, and an AST Graphify update. Report before the next bounded step.
 
 ## Order
 
