@@ -4,6 +4,14 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f11ad result before L-1f11ae
+
+Latest scoped result, November 11, 2026. The pinned Qwen scanner merges two
+distinct UUIDs with equal times and counters. It returns 120 tokens instead
+of 240. Ten of thirty-four cases match both reports. The
+[qualification record](reviews/2026-11-11-qwen-qualification.md) covers replay,
+forks, counter overlap, missing observations, and capture. Qwen stays disabled.
+
 ## L-1f11ac result before L-1f11ad
 
 Latest scoped result, November 11, 2026. The pinned Gemini scanner doubles a
