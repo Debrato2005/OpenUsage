@@ -4,6 +4,14 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f11ae result before L-1f11af
+
+Latest scoped result, November 11, 2026. The pinned Kimi scanner returns
+287 tokens for an inherited 135-token record and 17 new tokens.
+Nine of thirty-eight cases match both reports. The
+[qualification record](reviews/2026-11-11-kimi-qualification.md) also records
+missing request scopes and ambiguous new-format identities. Kimi stays disabled.
+
 ## L-1f11ad result before L-1f11ae
 
 Latest scoped result, November 11, 2026. The pinned Qwen scanner merges two

@@ -2,7 +2,7 @@
 
 # Implementation status
 
-Updated: November 11, 2026. This page holds the current state only. [History](implementation-history.md) holds past work, and [traceability](acceptance-traceability.md) holds exact evidence.
+Updated: November 12, 2026. This page holds the current state only. [History](implementation-history.md) holds past work, and [traceability](acceptance-traceability.md) holds exact evidence.
 
 OpenUsage is in development against [SRS baseline 3.0](SRS.md). There is no release. Baseline 3.0 was adopted on November 2, 2026. [Not built](#not-built) lists what is missing, and [Current assignment](#current-assignment) gives the launch state.
 
@@ -26,11 +26,16 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scoped result, November 11, 2026. The pinned Kimi scanner returns
-287 tokens for an inherited 135-token record and 17 new tokens.
-Nine of thirty-eight cases match both reports. The
-[qualification record](reviews/2026-11-11-kimi-qualification.md) also records
-missing request scopes and ambiguous new-format identities. Kimi stays disabled.
+Latest scoped result, November 12, 2026. The pinned OpenClaw scanner loses
+one of two distinct event IDs when time and counts match. Fourteen of
+fifty-two cases match both reports. The
+[qualification record](reviews/2026-11-12-openclaw-qualification.md) covers JSONL,
+SQLite, migration overlap, unavailable metrics, and a committed WAL read.
+OpenClaw stays disabled.
+
+Hosted CI for `3ec52bc` passed Renderer. Linux stopped at package downloads
+before application checks. The [evidence log](acceptance-traceability.md#evidence-log)
+records the failure scope.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -159,7 +164,8 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 ## Current assignment
 
 [L-1f11](implementation-slices.md#build-checklist) remains open for tool qualification.
-The next bounded step qualifies OpenClaw usage records and source capture.
+The next bounded step qualifies Copilot usage records and source capture.
+OpenClaw needs qualified event identity, ancestry, compression, and complete capture.
 Kimi needs separate producer contracts, safe capture, and qualified usage identity.
 Qwen needs bounded capture, qualified UUID handling, and proven counter semantics.
 Gemini needs a bounded capture and qualified record identity.

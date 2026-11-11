@@ -82,7 +82,7 @@ The other slices below follow the launch, unless a launch slice needs part of on
 
 ## Build checklist
 
-Updated November 10, 2026. Each completed item has one local commit and scoped evidence. This handoff closes L-1f11g. The next bounded assignment is below. Owner items wait for the owner.
+Updated November 12, 2026. Each completed item has one local commit and scoped evidence. L-1f11af records the latest result. The next bounded assignment is below. Owner items wait for the owner.
 
 **Verification before release**
 
@@ -151,7 +151,8 @@ Updated November 10, 2026. Each completed item has one local commit and scoped e
 - [x] L-1f11ac: record [Gemini qualification](reviews/2026-11-11-gemini-qualification.md). Eleven of thirty-six cases match both reports. Copies, conflicting IDs, missing counts, and capture failures prevent enablement. Gemini stays disabled.
 - [x] L-1f11ad: record [Qwen qualification](reviews/2026-11-11-qwen-qualification.md). Ten of thirty-four cases match both reports. Count fingerprints lose distinct calls and duplicate inherited forks. Counter overlap and capture failures also prevent enablement. Qwen stays disabled.
 - [x] L-1f11ae: record [Kimi qualification](reviews/2026-11-11-kimi-qualification.md). Nine of thirty-eight cases match both reports. Copied forks, skipped request scopes, and ambiguous new-format identities prevent enablement. Kimi stays disabled.
-- [ ] L-1f11af: qualify OpenClaw usage records, copies, replay, and capture failures on private synthetic input. Keep OpenClaw disabled until its required checks pass.
+- [x] L-1f11af: record [OpenClaw qualification](reviews/2026-11-12-openclaw-qualification.md). Fourteen of fifty-two cases match both reports. Distinct events collapse, inherited usage repeats, and unavailable metrics remain numeric. OpenClaw stays disabled.
+- [ ] L-1f11ag: qualify Copilot usage records, copies, replay, and capture failures on private synthetic input. Keep Copilot disabled until its required checks pass.
 - [x] R-2: reuse the bounded writer in desktop synthetic fixtures. The inherited-writer regression, 22 provider tests, full Rust, and native provider-lifecycle passed. The original cooldown failure remains unexplained. See the [review](reviews/2026-11-10-desktop-fixture-writes.md).
 - [x] R-1: use bounded test-fixture writes to prevent inherited writable handles from blocking execution. Full Rust and native provider-lifecycle checks passed. See the [investigation](reviews/2026-11-10-executable-fixture-race.md).
 - [x] L-1g1: sessions, projects and the reasoning count from the `ccusage` session report of each tool, at schema 11 (OU-LOG-017, [SC-021](srs-clarifications.md#sc-021-sessions-projects-hours-and-reasoning-from-the-pinned-ccusage)).
