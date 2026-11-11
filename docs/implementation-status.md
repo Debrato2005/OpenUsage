@@ -26,11 +26,11 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scoped result, November 12, 2026. The leaderboard collects request
-bodies in a fixed 64 KiB buffer and cancels overflow. Twenty-four service tests
-passed with synthetic streams, SQLite, and a GitHub stub. The checks cover
-byte boundaries, UTF-8, stream errors, and stalled cancellation. Hosted Workers
-and D1 remain unverified.
+Latest scoped result, November 12, 2026. The pinned Grok scanner accepts
+conflicting IDs, incomplete usage, and malformed peers. Twenty of forty-six
+session outcomes match. The
+[qualification record](reviews/2026-11-12-grok-qualification.md) covers copies,
+parent/child overlap, missing metrics, and the official source. Grok stays disabled.
 
 Hosted CI for `cd99e35` passed Linux and Renderer, including native oracle tests.
 The [evidence log](acceptance-traceability.md#evidence-log) records its scope.
@@ -163,7 +163,9 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 ## Current assignment
 
 [L-1f11](implementation-slices.md#build-checklist) remains open for tool qualification.
-The next bounded step qualifies Grok usage records and source capture.
+The next bounded step qualifies Antigravity usage records and source capture.
+Grok needs bounded capture, conflict refusal, qualified parent/child attribution,
+and release mapping.
 Copilot needs bounded capture, qualified origin and overlap rules, and current
 accounting support.
 OpenClaw needs qualified event identity, ancestry, compression, and complete capture.

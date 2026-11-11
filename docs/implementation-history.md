@@ -4,6 +4,14 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## R-5 result before L-1f11ah
+
+Latest scoped result, November 12, 2026. The leaderboard collects request
+bodies in a fixed 64 KiB buffer and cancels overflow. Twenty-four service tests
+passed with synthetic streams, SQLite, and a GitHub stub. The checks cover
+byte boundaries, UTF-8, stream errors, and stalled cancellation. Hosted Workers
+and D1 remain unverified.
+
 ## L-1f11ag result before R-5
 
 Latest scoped result, November 12, 2026. The pinned Copilot scanner doubles
