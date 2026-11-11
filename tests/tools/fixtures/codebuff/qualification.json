@@ -1,0 +1,1418 @@
+{
+  "single": {
+    "requiredTokens": {
+      "daily": 162,
+      "session": 162
+    },
+    "requiredRows": {},
+    "requiredFields": {},
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "credits": 2.0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.00083085,
+          "totalTokens": 162
+        },
+        "rows": [
+          [
+            "2026-11-08",
+            162
+          ]
+        ],
+        "sha256": "1e3312b07e9bd757c801ff44e0137770bbeb190933590a496c7374a398aea17a",
+        "matchesRequired": true
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "credits": 2.0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.00083085,
+          "totalTokens": 162
+        },
+        "rows": [
+          [
+            "manicode/project-z/chat-z",
+            162
+          ]
+        ],
+        "sha256": "2e6cc295d0bfa6731778c6365366e0f518d9fd54b3b64eb66ea32ebb6d15a00a",
+        "matchesRequired": true
+      }
+    }
+  },
+  "same_channel_copy": {
+    "requiredTokens": {
+      "daily": 162,
+      "session": 162
+    },
+    "requiredRows": {},
+    "requiredFields": {},
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "credits": 2.0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.00083085,
+          "totalTokens": 162
+        },
+        "rows": [
+          [
+            "2026-11-08",
+            162
+          ]
+        ],
+        "sha256": "1e3312b07e9bd757c801ff44e0137770bbeb190933590a496c7374a398aea17a",
+        "matchesRequired": true
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "credits": 2.0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.00083085,
+          "totalTokens": 162
+        },
+        "rows": [
+          [
+            "manicode/project-z/chat-z",
+            162
+          ]
+        ],
+        "sha256": "2e6cc295d0bfa6731778c6365366e0f518d9fd54b3b64eb66ea32ebb6d15a00a",
+        "matchesRequired": true
+      }
+    }
+  },
+  "renamed_channel_copy": {
+    "requiredTokens": {
+      "daily": 162,
+      "session": 162
+    },
+    "requiredRows": {},
+    "requiredFields": {},
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 10,
+          "cacheReadTokens": 14,
+          "credits": 4.0,
+          "inputTokens": 240,
+          "outputTokens": 60,
+          "totalCost": 0.0016617,
+          "totalTokens": 324
+        },
+        "rows": [
+          [
+            "2026-11-08",
+            324
+          ]
+        ],
+        "sha256": "bee516f73b126ea4240ccded8cbdb9e41819c55de99297784d5dde070618c646",
+        "matchesRequired": false
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 10,
+          "cacheReadTokens": 14,
+          "credits": 4.0,
+          "inputTokens": 240,
+          "outputTokens": 60,
+          "totalCost": 0.0016617,
+          "totalTokens": 324
+        },
+        "rows": [
+          [
+            "archive/project-z/chat-z",
+            162
+          ],
+          [
+            "manicode/project-z/chat-z",
+            162
+          ]
+        ],
+        "sha256": "026ac0cb92fd9af2406750e237c1724170a9494519c526b05d28cf14412f6e4c",
+        "matchesRequired": false
+      }
+    }
+  },
+  "copied_chat": {
+    "requiredTokens": {
+      "daily": 162,
+      "session": 162
+    },
+    "requiredRows": {},
+    "requiredFields": {},
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 10,
+          "cacheReadTokens": 14,
+          "credits": 4.0,
+          "inputTokens": 240,
+          "outputTokens": 60,
+          "totalCost": 0.0016617,
+          "totalTokens": 324
+        },
+        "rows": [
+          [
+            "2026-11-08",
+            324
+          ]
+        ],
+        "sha256": "bee516f73b126ea4240ccded8cbdb9e41819c55de99297784d5dde070618c646",
+        "matchesRequired": false
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 10,
+          "cacheReadTokens": 14,
+          "credits": 4.0,
+          "inputTokens": 240,
+          "outputTokens": 60,
+          "totalCost": 0.0016617,
+          "totalTokens": 324
+        },
+        "rows": [
+          [
+            "manicode/project-z/chat-branch",
+            162
+          ],
+          [
+            "manicode/project-z/chat-z",
+            162
+          ]
+        ],
+        "sha256": "1ea79a4ea00976d37db44c5fe82f0722ae0e7520743f53437f4ae1becd3dcb2f",
+        "matchesRequired": false
+      }
+    }
+  },
+  "replay": {
+    "requiredTokens": {
+      "daily": 162,
+      "session": 162
+    },
+    "requiredRows": {},
+    "requiredFields": {},
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "credits": 2.0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.00083085,
+          "totalTokens": 162
+        },
+        "rows": [
+          [
+            "2026-11-08",
+            162
+          ]
+        ],
+        "sha256": "1e3312b07e9bd757c801ff44e0137770bbeb190933590a496c7374a398aea17a",
+        "matchesRequired": true
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "credits": 2.0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.00083085,
+          "totalTokens": 162
+        },
+        "rows": [
+          [
+            "manicode/project-z/chat-z",
+            162
+          ]
+        ],
+        "sha256": "2e6cc295d0bfa6731778c6365366e0f518d9fd54b3b64eb66ea32ebb6d15a00a",
+        "matchesRequired": true
+      }
+    }
+  },
+  "branch_with_new_call": {
+    "requiredTokens": {
+      "daily": 179,
+      "session": 179
+    },
+    "requiredRows": {},
+    "requiredFields": {},
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 10,
+          "cacheReadTokens": 14,
+          "credits": 4.0,
+          "inputTokens": 252,
+          "outputTokens": 65,
+          "totalCost": 0.0017726999999999999,
+          "totalTokens": 341
+        },
+        "rows": [
+          [
+            "2026-11-08",
+            341
+          ]
+        ],
+        "sha256": "087ab82ffeed314a08b4080a4d61f31610d4bf7279947a217e3a0815c2bd4e4d",
+        "matchesRequired": false
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 10,
+          "cacheReadTokens": 14,
+          "credits": 4.0,
+          "inputTokens": 252,
+          "outputTokens": 65,
+          "totalCost": 0.0017726999999999999,
+          "totalTokens": 341
+        },
+        "rows": [
+          [
+            "manicode/project-z/chat-branch",
+            179
+          ],
+          [
+            "manicode/project-z/chat-z",
+            162
+          ]
+        ],
+        "sha256": "a8c3c31f1ef432785869e53a1632effad81fcbd2402530b5f23fcef35a3f617c",
+        "matchesRequired": false
+      }
+    }
+  },
+  "distinct_calls": {
+    "requiredTokens": {
+      "daily": 324,
+      "session": 324
+    },
+    "requiredRows": {},
+    "requiredFields": {},
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 10,
+          "cacheReadTokens": 14,
+          "credits": 4.0,
+          "inputTokens": 240,
+          "outputTokens": 60,
+          "totalCost": 0.0016617,
+          "totalTokens": 324
+        },
+        "rows": [
+          [
+            "2026-11-08",
+            324
+          ]
+        ],
+        "sha256": "bee516f73b126ea4240ccded8cbdb9e41819c55de99297784d5dde070618c646",
+        "matchesRequired": true
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 10,
+          "cacheReadTokens": 14,
+          "credits": 4.0,
+          "inputTokens": 240,
+          "outputTokens": 60,
+          "totalCost": 0.0016617,
+          "totalTokens": 324
+        },
+        "rows": [
+          [
+            "manicode/project-z/chat-z",
+            324
+          ]
+        ],
+        "sha256": "6d008a3abcd6926988426009b96830b08e08fa0b9af8c6a89ba01ecc6c70faa5",
+        "matchesRequired": true
+      }
+    }
+  },
+  "conflict_first": {
+    "requiredTokens": {
+      "daily": null,
+      "session": null
+    },
+    "requiredRows": {},
+    "requiredFields": {},
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "credits": 2.0,
+          "inputTokens": 137,
+          "outputTokens": 30,
+          "totalCost": 0.00088185,
+          "totalTokens": 179
+        },
+        "rows": [
+          [
+            "2026-11-08",
+            179
+          ]
+        ],
+        "sha256": "e4a177c17c62dd63d6d2ca7d66a83c51f1c11f1ddfc2dd9371f15d8288d58fb0",
+        "matchesRequired": false
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "credits": 2.0,
+          "inputTokens": 137,
+          "outputTokens": 30,
+          "totalCost": 0.00088185,
+          "totalTokens": 179
+        },
+        "rows": [
+          [
+            "manicode/project-z/chat-z",
+            179
+          ]
+        ],
+        "sha256": "85f94986266a3191cb28947c6eadc7a47f855e28e6d3cca84427cad5ec1607d6",
+        "matchesRequired": false
+      }
+    }
+  },
+  "conflict_reversed": {
+    "requiredTokens": {
+      "daily": null,
+      "session": null
+    },
+    "requiredRows": {},
+    "requiredFields": {},
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "credits": 2.0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.00083085,
+          "totalTokens": 162
+        },
+        "rows": [
+          [
+            "2026-11-08",
+            162
+          ]
+        ],
+        "sha256": "1e3312b07e9bd757c801ff44e0137770bbeb190933590a496c7374a398aea17a",
+        "matchesRequired": false
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "credits": 2.0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.00083085,
+          "totalTokens": 162
+        },
+        "rows": [
+          [
+            "manicode/project-z/chat-z",
+            162
+          ]
+        ],
+        "sha256": "2e6cc295d0bfa6731778c6365366e0f518d9fd54b3b64eb66ea32ebb6d15a00a",
+        "matchesRequired": false
+      }
+    }
+  },
+  "missing_id": {
+    "requiredTokens": {
+      "daily": null,
+      "session": null
+    },
+    "requiredRows": {},
+    "requiredFields": {},
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 10,
+          "cacheReadTokens": 14,
+          "credits": 4.0,
+          "inputTokens": 240,
+          "outputTokens": 60,
+          "totalCost": 0.0016617,
+          "totalTokens": 324
+        },
+        "rows": [
+          [
+            "2026-11-08",
+            324
+          ]
+        ],
+        "sha256": "bee516f73b126ea4240ccded8cbdb9e41819c55de99297784d5dde070618c646",
+        "matchesRequired": false
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 10,
+          "cacheReadTokens": 14,
+          "credits": 4.0,
+          "inputTokens": 240,
+          "outputTokens": 60,
+          "totalCost": 0.0016617,
+          "totalTokens": 324
+        },
+        "rows": [
+          [
+            "archive/project-z/chat-z",
+            162
+          ],
+          [
+            "manicode/project-z/chat-z",
+            162
+          ]
+        ],
+        "sha256": "026ac0cb92fd9af2406750e237c1724170a9494519c526b05d28cf14412f6e4c",
+        "matchesRequired": false
+      }
+    }
+  },
+  "compaction_notice": {
+    "requiredTokens": {
+      "daily": 162,
+      "session": 162
+    },
+    "requiredRows": {},
+    "requiredFields": {},
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "credits": 2.0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.00083085,
+          "totalTokens": 162
+        },
+        "rows": [
+          [
+            "2026-11-08",
+            162
+          ]
+        ],
+        "sha256": "1e3312b07e9bd757c801ff44e0137770bbeb190933590a496c7374a398aea17a",
+        "matchesRequired": true
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "credits": 2.0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.00083085,
+          "totalTokens": 162
+        },
+        "rows": [
+          [
+            "manicode/project-z/chat-z",
+            162
+          ]
+        ],
+        "sha256": "2e6cc295d0bfa6731778c6365366e0f518d9fd54b3b64eb66ea32ebb6d15a00a",
+        "matchesRequired": true
+      }
+    }
+  },
+  "empty": {
+    "requiredTokens": {
+      "daily": 0,
+      "session": 0
+    },
+    "requiredRows": {
+      "daily": 0,
+      "session": 0
+    },
+    "requiredFields": {},
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "totalCost": -0.0,
+          "totalTokens": 0
+        },
+        "rows": [],
+        "sha256": "30a74668939a828761b7e9807be508fe5e2fcc46b35ac0f983f9c5cf7c3a0378",
+        "matchesRequired": true
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "totalCost": -0.0,
+          "totalTokens": 0
+        },
+        "rows": [],
+        "sha256": "f0735b7513ef634c2770b53276f793e4e89f9accaa78e0008e039ad2ed59d42a",
+        "matchesRequired": true
+      }
+    }
+  },
+  "measured_zero": {
+    "requiredTokens": {
+      "daily": 0,
+      "session": 0
+    },
+    "requiredRows": {
+      "daily": 1,
+      "session": 1
+    },
+    "requiredFields": {},
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "totalCost": -0.0,
+          "totalTokens": 0
+        },
+        "rows": [],
+        "sha256": "30a74668939a828761b7e9807be508fe5e2fcc46b35ac0f983f9c5cf7c3a0378",
+        "matchesRequired": false
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "totalCost": -0.0,
+          "totalTokens": 0
+        },
+        "rows": [],
+        "sha256": "f0735b7513ef634c2770b53276f793e4e89f9accaa78e0008e039ad2ed59d42a",
+        "matchesRequired": false
+      }
+    }
+  },
+  "explicit_zero_beats_fallback": {
+    "requiredTokens": {
+      "daily": 42,
+      "session": 42
+    },
+    "requiredRows": {},
+    "requiredFields": {
+      "inputTokens": 0
+    },
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "credits": 2.0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.00083085,
+          "totalTokens": 162
+        },
+        "rows": [
+          [
+            "2026-11-08",
+            162
+          ]
+        ],
+        "sha256": "1e3312b07e9bd757c801ff44e0137770bbeb190933590a496c7374a398aea17a",
+        "matchesRequired": false
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "credits": 2.0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.00083085,
+          "totalTokens": 162
+        },
+        "rows": [
+          [
+            "manicode/project-z/chat-z",
+            162
+          ]
+        ],
+        "sha256": "2e6cc295d0bfa6731778c6365366e0f518d9fd54b3b64eb66ea32ebb6d15a00a",
+        "matchesRequired": false
+      }
+    }
+  },
+  "reported_total_only": {
+    "requiredTokens": {
+      "daily": 162,
+      "session": 162
+    },
+    "requiredRows": {},
+    "requiredFields": {
+      "outputTokens": null
+    },
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 0,
+          "outputTokens": 162,
+          "totalCost": 0.00243,
+          "totalTokens": 162
+        },
+        "rows": [
+          [
+            "2026-11-08",
+            162
+          ]
+        ],
+        "sha256": "ee097e202a2074f6b4f066dd8dbd0d77058989b2f7afbc09821bad16688d023e",
+        "matchesRequired": false
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 0,
+          "outputTokens": 162,
+          "totalCost": 0.00243,
+          "totalTokens": 162
+        },
+        "rows": [
+          [
+            "manicode/project-z/chat-z",
+            162
+          ]
+        ],
+        "sha256": "0b0ff25482510349cd77423dbb0fd0b9dd0391c89600c6c91edd86347333bcdc",
+        "matchesRequired": false
+      }
+    }
+  },
+  "negative_count": {
+    "requiredTokens": {
+      "daily": null,
+      "session": null
+    },
+    "requiredRows": {},
+    "requiredFields": {},
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "credits": 2.0,
+          "inputTokens": 0,
+          "outputTokens": 30,
+          "totalCost": 0.0022708500000000005,
+          "totalTokens": 162
+        },
+        "rows": [
+          [
+            "2026-11-08",
+            162
+          ]
+        ],
+        "sha256": "fa68c3e453f9691a3bb45b0381aa6cb7a1ef50c29f6e26a4fb2a9776b2442917",
+        "matchesRequired": false
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "credits": 2.0,
+          "inputTokens": 0,
+          "outputTokens": 30,
+          "totalCost": 0.0022708500000000005,
+          "totalTokens": 162
+        },
+        "rows": [
+          [
+            "manicode/project-z/chat-z",
+            162
+          ]
+        ],
+        "sha256": "3e991eea24846a85ce9dc335752709b98a123893d686424cadfa1878a2e16a88",
+        "matchesRequired": false
+      }
+    }
+  },
+  "fractional_count": {
+    "requiredTokens": {
+      "daily": null,
+      "session": null
+    },
+    "requiredRows": {},
+    "requiredFields": {},
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "credits": 2.0,
+          "inputTokens": 0,
+          "outputTokens": 30,
+          "totalCost": 0.0022708500000000005,
+          "totalTokens": 162
+        },
+        "rows": [
+          [
+            "2026-11-08",
+            162
+          ]
+        ],
+        "sha256": "fa68c3e453f9691a3bb45b0381aa6cb7a1ef50c29f6e26a4fb2a9776b2442917",
+        "matchesRequired": false
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "credits": 2.0,
+          "inputTokens": 0,
+          "outputTokens": 30,
+          "totalCost": 0.0022708500000000005,
+          "totalTokens": 162
+        },
+        "rows": [
+          [
+            "manicode/project-z/chat-z",
+            162
+          ]
+        ],
+        "sha256": "3e991eea24846a85ce9dc335752709b98a123893d686424cadfa1878a2e16a88",
+        "matchesRequired": false
+      }
+    }
+  },
+  "contradictory_total": {
+    "requiredTokens": {
+      "daily": null,
+      "session": null
+    },
+    "requiredRows": {},
+    "requiredFields": {},
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "credits": 2.0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.00083085,
+          "totalTokens": 162
+        },
+        "rows": [
+          [
+            "2026-11-08",
+            162
+          ]
+        ],
+        "sha256": "1e3312b07e9bd757c801ff44e0137770bbeb190933590a496c7374a398aea17a",
+        "matchesRequired": false
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "credits": 2.0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.00083085,
+          "totalTokens": 162
+        },
+        "rows": [
+          [
+            "manicode/project-z/chat-z",
+            162
+          ]
+        ],
+        "sha256": "2e6cc295d0bfa6731778c6365366e0f518d9fd54b3b64eb66ea32ebb6d15a00a",
+        "matchesRequired": false
+      }
+    }
+  },
+  "metadata_codebuff_usage": {
+    "requiredTokens": {
+      "daily": 162,
+      "session": 162
+    },
+    "requiredRows": {},
+    "requiredFields": {},
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "credits": 2.0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.00083085,
+          "totalTokens": 162
+        },
+        "rows": [
+          [
+            "2026-11-08",
+            162
+          ]
+        ],
+        "sha256": "1e3312b07e9bd757c801ff44e0137770bbeb190933590a496c7374a398aea17a",
+        "matchesRequired": true
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "credits": 2.0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.00083085,
+          "totalTokens": 162
+        },
+        "rows": [
+          [
+            "manicode/project-z/chat-z",
+            162
+          ]
+        ],
+        "sha256": "2e6cc295d0bfa6731778c6365366e0f518d9fd54b3b64eb66ea32ebb6d15a00a",
+        "matchesRequired": true
+      }
+    }
+  },
+  "nested_provider_usage": {
+    "requiredTokens": {
+      "daily": 162,
+      "session": 162
+    },
+    "requiredRows": {},
+    "requiredFields": {},
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "credits": 2.0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.00083085,
+          "totalTokens": 162
+        },
+        "rows": [
+          [
+            "2026-11-08",
+            162
+          ]
+        ],
+        "sha256": "1e3312b07e9bd757c801ff44e0137770bbeb190933590a496c7374a398aea17a",
+        "matchesRequired": true
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "credits": 2.0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.00083085,
+          "totalTokens": 162
+        },
+        "rows": [
+          [
+            "manicode/project-z/chat-z",
+            162
+          ]
+        ],
+        "sha256": "2e6cc295d0bfa6731778c6365366e0f518d9fd54b3b64eb66ea32ebb6d15a00a",
+        "matchesRequired": true
+      }
+    }
+  },
+  "credits_without_tokens": {
+    "requiredTokens": {
+      "daily": null,
+      "session": null
+    },
+    "requiredRows": {},
+    "requiredFields": {},
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "credits": 2.0,
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "totalCost": 0.0,
+          "totalTokens": 0
+        },
+        "rows": [
+          [
+            "2026-11-08",
+            0
+          ]
+        ],
+        "sha256": "17fb92154341a01255529da929d886a359c60d549f8ed03f08505f8079cb1055",
+        "matchesRequired": false
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "credits": 2.0,
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "totalCost": 0.0,
+          "totalTokens": 0
+        },
+        "rows": [
+          [
+            "manicode/project-z/chat-z",
+            0
+          ]
+        ],
+        "sha256": "2a813ccd81e16a5a52cdc59afc9683134207d539217c3188cf6a04e142da87f5",
+        "matchesRequired": false
+      }
+    }
+  },
+  "cost_without_tokens": {
+    "requiredTokens": {
+      "daily": null,
+      "session": null
+    },
+    "requiredRows": {},
+    "requiredFields": {},
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "totalCost": -0.0,
+          "totalTokens": 0
+        },
+        "rows": [],
+        "sha256": "30a74668939a828761b7e9807be508fe5e2fcc46b35ac0f983f9c5cf7c3a0378",
+        "matchesRequired": false
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "totalCost": -0.0,
+          "totalTokens": 0
+        },
+        "rows": [],
+        "sha256": "f0735b7513ef634c2770b53276f793e4e89f9accaa78e0008e039ad2ed59d42a",
+        "matchesRequired": false
+      }
+    }
+  },
+  "current_ui_message_with_credits": {
+    "requiredTokens": {
+      "daily": null,
+      "session": null
+    },
+    "requiredRows": {},
+    "requiredFields": {},
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "credits": 2.0,
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "totalCost": 0.0,
+          "totalTokens": 0
+        },
+        "rows": [
+          [
+            "2026-11-08",
+            0
+          ]
+        ],
+        "sha256": "d13836888e6b89d214dc7cfcb194b64f2d45f5ed559fce676a5b95cc6783ebee",
+        "matchesRequired": false
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "credits": 2.0,
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "totalCost": 0.0,
+          "totalTokens": 0
+        },
+        "rows": [
+          [
+            "manicode/project-z/2026-11-08T03-04-05.006Z",
+            0
+          ]
+        ],
+        "sha256": "0f9113addd6a830e02731ad3ae2b6bde07ff87fb94d30df998777470dca745a5",
+        "matchesRequired": false
+      }
+    }
+  },
+  "current_ui_message_without_credits": {
+    "requiredTokens": {
+      "daily": null,
+      "session": null
+    },
+    "requiredRows": {},
+    "requiredFields": {},
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "totalCost": -0.0,
+          "totalTokens": 0
+        },
+        "rows": [],
+        "sha256": "30a74668939a828761b7e9807be508fe5e2fcc46b35ac0f983f9c5cf7c3a0378",
+        "matchesRequired": false
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "totalCost": -0.0,
+          "totalTokens": 0
+        },
+        "rows": [],
+        "sha256": "f0735b7513ef634c2770b53276f793e4e89f9accaa78e0008e039ad2ed59d42a",
+        "matchesRequired": false
+      }
+    }
+  },
+  "chat_creation_is_not_a_usage_date": {
+    "requiredTokens": {
+      "daily": null,
+      "session": 162
+    },
+    "requiredRows": {},
+    "requiredFields": {},
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "credits": 2.0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.00083085,
+          "totalTokens": 162
+        },
+        "rows": [
+          [
+            "2026-11-08",
+            162
+          ]
+        ],
+        "sha256": "1e3312b07e9bd757c801ff44e0137770bbeb190933590a496c7374a398aea17a",
+        "matchesRequired": false
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "credits": 2.0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.00083085,
+          "totalTokens": 162
+        },
+        "rows": [
+          [
+            "manicode/project-z/2026-11-08T03-04-05.006Z",
+            162
+          ]
+        ],
+        "sha256": "f0e30c3727f6831feb4bf4849f4436cd9e8525395965e3c1059f9bd47f6f1a5a",
+        "matchesRequired": true
+      }
+    }
+  },
+  "mtime_is_not_a_usage_date": {
+    "requiredTokens": {
+      "daily": null,
+      "session": 162
+    },
+    "requiredRows": {},
+    "requiredFields": {},
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "credits": 2.0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.00083085,
+          "totalTokens": 162
+        },
+        "rows": [
+          [
+            "2026-01-02",
+            162
+          ]
+        ],
+        "sha256": "fc137b71eea783da6b32a0c432ede2f48bebe1509e25ead5661880676dde1615",
+        "matchesRequired": false
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "credits": 2.0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.00083085,
+          "totalTokens": 162
+        },
+        "rows": [
+          [
+            "manicode/project-z/chat-z",
+            162
+          ]
+        ],
+        "sha256": "2e6cc295d0bfa6731778c6365366e0f518d9fd54b3b64eb66ea32ebb6d15a00a",
+        "matchesRequired": true
+      }
+    }
+  },
+  "malformed_peer": {
+    "requiredTokens": {
+      "daily": null,
+      "session": null
+    },
+    "requiredRows": {},
+    "requiredFields": {},
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "credits": 2.0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.00083085,
+          "totalTokens": 162
+        },
+        "rows": [
+          [
+            "2026-11-08",
+            162
+          ]
+        ],
+        "sha256": "1e3312b07e9bd757c801ff44e0137770bbeb190933590a496c7374a398aea17a",
+        "matchesRequired": false
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "credits": 2.0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.00083085,
+          "totalTokens": 162
+        },
+        "rows": [
+          [
+            "manicode/project-z/chat-z",
+            162
+          ]
+        ],
+        "sha256": "2e6cc295d0bfa6731778c6365366e0f518d9fd54b3b64eb66ea32ebb6d15a00a",
+        "matchesRequired": false
+      }
+    }
+  },
+  "invalid_utf8_peer": {
+    "requiredTokens": {
+      "daily": null,
+      "session": null
+    },
+    "requiredRows": {},
+    "requiredFields": {},
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "credits": 2.0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.00083085,
+          "totalTokens": 162
+        },
+        "rows": [
+          [
+            "2026-11-08",
+            162
+          ]
+        ],
+        "sha256": "1e3312b07e9bd757c801ff44e0137770bbeb190933590a496c7374a398aea17a",
+        "matchesRequired": false
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "credits": 2.0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.00083085,
+          "totalTokens": 162
+        },
+        "rows": [
+          [
+            "manicode/project-z/chat-z",
+            162
+          ]
+        ],
+        "sha256": "2e6cc295d0bfa6731778c6365366e0f518d9fd54b3b64eb66ea32ebb6d15a00a",
+        "matchesRequired": false
+      }
+    }
+  },
+  "missing_root": {
+    "requiredTokens": {
+      "daily": null,
+      "session": null
+    },
+    "requiredRows": {},
+    "requiredFields": {},
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "credits": 2.0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.00083085,
+          "totalTokens": 162
+        },
+        "rows": [
+          [
+            "2026-11-08",
+            162
+          ]
+        ],
+        "sha256": "1e3312b07e9bd757c801ff44e0137770bbeb190933590a496c7374a398aea17a",
+        "matchesRequired": false
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "credits": 2.0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.00083085,
+          "totalTokens": 162
+        },
+        "rows": [
+          [
+            "manicode/project-z/chat-z",
+            162
+          ]
+        ],
+        "sha256": "2e6cc295d0bfa6731778c6365366e0f518d9fd54b3b64eb66ea32ebb6d15a00a",
+        "matchesRequired": false
+      }
+    }
+  },
+  "unexpected_layout": {
+    "requiredTokens": {
+      "daily": null,
+      "session": null
+    },
+    "requiredRows": {},
+    "requiredFields": {},
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "credits": 2.0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.00083085,
+          "totalTokens": 162
+        },
+        "rows": [
+          [
+            "2026-11-08",
+            162
+          ]
+        ],
+        "sha256": "1e3312b07e9bd757c801ff44e0137770bbeb190933590a496c7374a398aea17a",
+        "matchesRequired": false
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "credits": 2.0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.00083085,
+          "totalTokens": 162
+        },
+        "rows": [
+          [
+            "selected/manicode/extra",
+            162
+          ]
+        ],
+        "sha256": "45ab6ab617dc37c6a3275a98c33b7fa1a40e6550d6412dfb0613eff895e2f059",
+        "matchesRequired": false
+      }
+    }
+  }
+}

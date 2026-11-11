@@ -4,6 +4,15 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f11x result before L-1f11y
+
+Latest scoped result, November 11, 2026. The experimental OpenCode v2 candidate
+keeps all seventeen actual writer outcomes and refuses unsupported legacy or
+mixed captures as a whole. All 166 adapter tests and fourteen independent CLI
+tests passed. The [source boundary](reviews/2026-11-11-opencode-v2-boundary.md)
+records the strict format and compatibility limits. Legacy fork accounting remains
+unqualified. OpenCode stays disabled.
+
 ## L-1f11w result before L-1f11x
 
 Latest scoped result, November 11, 2026. Actual OpenCode forks duplicate inherited
