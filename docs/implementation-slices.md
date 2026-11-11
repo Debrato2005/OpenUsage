@@ -82,7 +82,7 @@ The other slices below follow the launch, unless a launch slice needs part of on
 
 ## Build checklist
 
-Updated November 12, 2026. Each completed item has one local commit and scoped evidence. R-4 records the latest result. The next bounded assignment is below. Owner items wait for the owner.
+Updated November 12, 2026. Each completed item has one local commit and scoped evidence. L-1f11ag records the latest result. The next bounded assignment is below. Owner items wait for the owner.
 
 **Verification before release**
 
@@ -152,7 +152,8 @@ Updated November 12, 2026. Each completed item has one local commit and scoped e
 - [x] L-1f11ad: record [Qwen qualification](reviews/2026-11-11-qwen-qualification.md). Ten of thirty-four cases match both reports. Count fingerprints lose distinct calls and duplicate inherited forks. Counter overlap and capture failures also prevent enablement. Qwen stays disabled.
 - [x] L-1f11ae: record [Kimi qualification](reviews/2026-11-11-kimi-qualification.md). Nine of thirty-eight cases match both reports. Copied forks, skipped request scopes, and ambiguous new-format identities prevent enablement. Kimi stays disabled.
 - [x] L-1f11af: record [OpenClaw qualification](reviews/2026-11-12-openclaw-qualification.md). Fourteen of fifty-two cases match both reports. Distinct events collapse, inherited usage repeats, and unavailable metrics remain numeric. OpenClaw stays disabled.
-- [ ] L-1f11ag: qualify Copilot usage records, copies, replay, and capture failures on private synthetic input. Keep Copilot disabled until its required checks pass.
+- [x] L-1f11ag: record [Copilot qualification](reviews/2026-11-12-copilot-qualification.md). Five of forty-eight cases match both reports. Copies, conflicting records, ignored checkpoints, and partial capture prevent enablement. Copilot stays disabled.
+- [ ] L-1f11ah: qualify Grok usage records, copies, replay, and capture failures on private synthetic input. Keep Grok disabled until its required checks pass.
 - [x] R-4: enforce hourly limits and the five-device cap under concurrent requests. Fourteen local service tests passed, including token rotation, hour resets, and database failures. Hosted D1 remains unverified.
 - [x] R-3: keep a leaderboard estimate unavailable when any included row lacks it. Token totals, measured zero, ordering, and period filters stay intact. Eight local service tests passed. Hosted D1 remains unverified.
 - [x] R-2: reuse the bounded writer in desktop synthetic fixtures. The inherited-writer regression, 22 provider tests, full Rust, and native provider-lifecycle passed. The original cooldown failure remains unexplained. See the [review](reviews/2026-11-10-desktop-fixture-writes.md).

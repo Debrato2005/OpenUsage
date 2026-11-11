@@ -4,6 +4,13 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## R-4 result before L-1f11ag
+
+Latest scoped result, November 12, 2026. The leaderboard now enforces hourly
+limits and the five-device cap in single SQL statements. Fourteen service tests
+passed with synthetic SQLite and a GitHub stub. Controlled concurrent requests
+failed the old guards. Hosted D1 and deployment remain unverified.
+
 ## R-3 result before R-4
 
 Latest scoped result, November 12, 2026. Leaderboard aggregates now keep an

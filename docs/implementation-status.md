@@ -26,10 +26,11 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scoped result, November 12, 2026. The leaderboard now enforces hourly
-limits and the five-device cap in single SQL statements. Fourteen service tests
-passed with synthetic SQLite and a GitHub stub. Controlled concurrent requests
-failed the old guards. Hosted D1 and deployment remain unverified.
+Latest scoped result, November 12, 2026. The pinned Copilot scanner doubles
+renamed copies, ignores token checkpoints, and accepts malformed peers.
+Five of forty-eight cases match both reports. The
+[qualification record](reviews/2026-11-12-copilot-qualification.md) separates
+synthetic scanner results from source contracts. Copilot stays disabled.
 
 Hosted CI for `cd99e35` passed Linux and Renderer, including native oracle tests.
 The [evidence log](acceptance-traceability.md#evidence-log) records its scope.
@@ -162,7 +163,9 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 ## Current assignment
 
 [L-1f11](implementation-slices.md#build-checklist) remains open for tool qualification.
-The next bounded step qualifies Copilot usage records and source capture.
+The next bounded step qualifies Grok usage records and source capture.
+Copilot needs bounded capture, qualified origin and overlap rules, and current
+accounting support.
 OpenClaw needs qualified event identity, ancestry, compression, and complete capture.
 Kimi needs separate producer contracts, safe capture, and qualified usage identity.
 Qwen needs bounded capture, qualified UUID handling, and proven counter semantics.
