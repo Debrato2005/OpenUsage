@@ -4,6 +4,14 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f11u result before L-1f11v
+
+Latest scoped result, November 11, 2026. The isolated OpenCode writer fixture
+executes real publication, replay, projectors, and SQLite writes. Eleven of
+seventeen required scanner outcomes match. Measured zero and five valid metadata
+types still fail. The [runtime record](reviews/2026-11-11-opencode-runtime-qualification.md)
+gives the exact scope. OpenCode stays disabled.
+
 ## L-1f11t result before L-1f11u
 
 Latest scoped result, November 11, 2026. The OpenCode WAL reuse candidate

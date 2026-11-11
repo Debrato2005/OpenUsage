@@ -15,6 +15,7 @@ from test_ccusage_formats import file_hashes
 
 class OpenCodeWalCandidateTests(capture_checks.OpenCodeCaptureCandidateTests):
     CANDIDATE_ENV = 'OPENUSAGE_CCUSAGE_OPENCODE_WAL_CANDIDATE'
+    SUPPORTED_PRODUCER_METADATA = False
     # WAL acceptance replaces the previous layer's deliberate refusal.
     test_committed_wal_is_explicitly_unavailable = None
 
@@ -156,7 +157,7 @@ class OpenCodeWalCandidateTests(capture_checks.OpenCodeCaptureCandidateTests):
                         peer['text' if kind == 'user' else 'agent'] = 'Synthetic' if kind == 'user' else 'build'
                         database.execute('INSERT INTO session_message VALUES (?,?,?,?,?,?,?)',
                                          ('msg_peer', 'session-z', kind, 0, 1780000000000, 1780000000000, json.dumps(peer)))
-                    unavailable = shape in ('unfinished-assistant', 'agent-switched')
+                    unavailable = shape == 'unfinished-assistant' or (shape == 'agent-switched' and not self.SUPPORTED_PRODUCER_METADATA)
                     before = file_hashes(root)
                     for kind in ('daily', 'session'):
                         report = self.capture(root, [selected], kind, unavailable=unavailable)

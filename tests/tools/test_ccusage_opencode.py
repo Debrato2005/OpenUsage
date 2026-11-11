@@ -89,8 +89,10 @@ def populate(folder, spec):
             for identifier, session, seq, record in [('parent-message', 'parent', 0, base),
                                                       ('fork-copy', 'fork', 0, base),
                                                       ('fork-own', 'fork', 1, extra)]:
+                payload = {key: item for key, item in record.items()
+                           if key not in ('id', 'sessionID', 'type', 'role')}
                 db.execute('INSERT INTO session_message VALUES (?,?,?,?,?,?)',
-                           (identifier, session, 'assistant', seq, base['time']['created'], json.dumps(record)))
+                           (identifier, session, 'assistant', seq, base['time']['created'], json.dumps(payload)))
             boundary = {'type': 'through', 'messageID': 'parent-message' if spec['boundary'] == 'through' else 'missing'}
             db.execute('INSERT INTO session_v2 VALUES (?,?,?)', ('fork', 'parent', json.dumps(boundary)))
 

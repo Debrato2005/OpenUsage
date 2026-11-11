@@ -26,11 +26,12 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scoped result, November 11, 2026. The isolated OpenCode writer fixture
-executes real publication, replay, projectors, and SQLite writes. Eleven of
-seventeen required scanner outcomes match. Measured zero and five valid metadata
-types still fail. The [runtime record](reviews/2026-11-11-opencode-runtime-qualification.md)
-gives the exact scope. OpenCode stays disabled.
+Latest scoped result, November 11, 2026. The OpenCode validated record candidate
+now matches all seventeen real-writer outcomes. Measured zero remains visible,
+valid metadata preserves usage, and malformed records still refuse. The
+[candidate record](reviews/2026-11-11-opencode-records-candidate.md) gives the
+checks and limits. Fork, scale, and app qualification remain open. OpenCode
+stays disabled.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -127,7 +128,7 @@ Kept from baseline 2.0:
 
 ## Not yet run
 
-- [Hosted CI for `4c2f433`](https://github.com/Debrato2005/OpenUsage/actions/runs/42930735988) passed the Linux and renderer jobs on November 11. The native oracle checks also passed in that Linux job. This certifies that commit's hosted scope. OU-NFR-012 still needs Windows and macOS, planned for S-15.
+- [Hosted CI for `0aa6707`](https://github.com/Debrato2005/OpenUsage/actions/runs/42934722842) passed the Linux and renderer jobs on November 11. The native oracle checks also passed in that Linux job. This certifies that commit's hosted scope. OU-NFR-012 still needs Windows and macOS, planned for S-15.
 - Windows and macOS have never run. The owner has a real Windows PC and Mac for this.
 - Windows and macOS need their own pinned Codex companion. Only Linux x86_64 is qualified.
 - Sleep and wake, packaging, and the full reference performance gate remain unmeasured. Local Linux measurements are in the [performance report](performance-report.md).
@@ -158,7 +159,7 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 
 ## Current assignment
 
-[L-1f11](implementation-slices.md#build-checklist) remains open for tool qualification. The next OpenCode step is to correct the six observed zero and metadata failures, then qualify producer forks and the remaining app gates. Keep the tool disabled until its required checks pass.
+[L-1f11](implementation-slices.md#build-checklist) remains open for tool qualification. The next OpenCode step is to qualify actual producer forks and the remaining scale and app gates. Keep the tool disabled until its required checks pass.
 
 L-1f0 through L-1f10 are complete within their recorded scope. Only Claude Code and Codex are enabled. The Amp patch is a local candidate, and the production scanner pin is unchanged.
 

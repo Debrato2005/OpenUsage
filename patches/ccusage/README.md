@@ -113,3 +113,11 @@ Apply `20.0.48-opencode-wal-reuse.patch` after the observation, capture, and WAL
 patches. The [reuse record](../../docs/reviews/2026-11-11-opencode-wal-reuse-candidate.md)
 owns boundary checks, digests, and remaining gates. Use its separate variables
 to run `test_ccusage_opencode_wal_reuse.py`. OpenCode stays disabled.
+
+## OpenCode validated record candidate
+
+Apply `20.0.48-opencode-records.patch` after the observation, capture, WAL, and
+reuse patches. The [record candidate](../../docs/reviews/2026-11-11-opencode-records-candidate.md)
+owns zero observations, metadata validation, source identity, digests, and
+remaining gates. Use its separate variables to run
+`test_ccusage_opencode_records.py`. OpenCode stays disabled.

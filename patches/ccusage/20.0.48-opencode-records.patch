@@ -1,0 +1,726 @@
+diff --git a/rust/adapters/opencode/src/README.md b/rust/adapters/opencode/src/README.md
+index 79e13bd..3b0d912 100644
+--- a/rust/adapters/opencode/src/README.md
++++ b/rust/adapters/opencode/src/README.md
+@@ -17,4 +17,8 @@ The Linux capture reads every selected database and legacy message file under `s
+ An explicit total remains independent of token categories. Its remainder stays in `extraTotalTokens`. Missing timestamps retain the existing epoch representation for unplaced session reports. Session aggregates remain a fallback for unbounded session reports. Date filters run after complete capture and validation.
+
++Five explicit zero counts form one measured usage observation: input, output, reasoning, cache read, and cache write. A private parser flag preserves this row. JSON cannot set that flag. Missing counts and zero session aggregates do not establish measured zero.
++
++The adapter checks five metadata types against the [pinned OpenCode v1.19.5 schemas](https://github.com/anomalyco/opencode/blob/810c0eba1a7348036f8bdf61e6632d0c36c6876c/packages/schema/src/session-message.ts): `agent-switched`, `model-switched`, `synthetic`, `shell`, and `compaction`. It checks required fields, types, timestamps, and source identities before it excludes these records from usage. Unknown fields, malformed shapes, and usage blocks outside the schema-defined metadata object cause refusal. That object permits arbitrary annotations, including token-like keys. Metadata still enters the duplicate check, with its complete model reference and optional metadata fields.
++
+ OpenCode v2 forks must resolve their parent, boundary, and sequence positions. Copied rows must match the parent's source fields after ID and session normalization. Conflicting fork metadata across roots, cycles, missing sequence columns, and unresolved boundaries cause refusal.
+
+diff --git a/rust/adapters/opencode/src/capture_tests.rs b/rust/adapters/opencode/src/capture_tests.rs
+index 1e96d01..9100b34 100644
+--- a/rust/adapters/opencode/src/capture_tests.rs
++++ b/rust/adapters/opencode/src/capture_tests.rs
+@@ -98,4 +98,328 @@ fn validates_present_counts_and_does_not_guess_missing_buckets() {
+ }
+
++fn v2_record(kind: &str, value: &serde_json::Value) -> Fixture {
++    let fixture = Fixture::new();
++    let db = sqlite::open(fixture.path("opencode.db")).unwrap();
++    db.execute("CREATE TABLE session_message(id TEXT, session_id TEXT, type TEXT, time_created INTEGER, data TEXT)")
++        .unwrap();
++    let mut insert = db
++        .prepare(
++            "INSERT INTO session_message VALUES ('msg_record','ses_record',?1,1767312000000,?2)",
++        )
++        .unwrap();
++    insert.bind((1, kind)).unwrap();
++    insert.bind((2, value.to_string().as_str())).unwrap();
++    insert.next().unwrap();
++    fixture
++}
++
++fn zero_message() -> serde_json::Value {
++    serde_json::json!({
++        "model": {"id": "model", "providerID": "provider"},
++        "agent": "build", "content": [], "finish": "stop", "cost": 0,
++        "time": {"created": 1767312000000i64, "completed": 1767312000001i64},
++        "tokens": {"input": 0, "output": 0, "reasoning": 0, "cache": {"read": 0, "write": 0}}
++    })
++}
++
++#[test]
++fn preserves_complete_zero_observations_in_both_reports() {
++    let fixture = v2_record("assistant", &zero_message());
++    for kind in [AgentReportKind::Daily, AgentReportKind::Session] {
++        let entries = load_paths(
++            &[fixture.root().to_owned()],
++            &SharedArgs {
++                mode: CostMode::Display,
++                offline: true,
++                ..SharedArgs::default()
++            },
++            kind,
++        )
++        .unwrap();
++        assert_eq!(entries.len(), 1);
++        assert_eq!(
++            crate::total_usage_tokens(entries[0].0.data.message.usage),
++            0
++        );
++        assert_eq!(entries[0].0.extra_total_tokens, 0);
++    }
++}
++
++fn metadata_messages() -> Vec<(&'static str, serde_json::Value)> {
++    use serde_json::json;
++    vec![
++        ("agent-switched", json!({"agent": "plan"})),
++        ("model-switched", json!({"model": {"id": "model", "providerID": "provider", "variant": "fast"}})),
++        ("synthetic", json!({"sessionID": "ses_record", "text": "Synthetic text"})),
++        ("shell", json!({"callID": "call", "command": "Synthetic command", "output": "Synthetic output"})),
++        ("compaction", json!({"reason": "manual", "summary": "Synthetic summary", "recent": "Synthetic recent context"})),
++    ].into_iter().map(|(kind, mut value)| {
++        value["time"] = json!({"created": 1767312000000i64});
++        (kind, value)
++    }).collect()
++}
++
++#[test]
++fn skips_valid_metadata_and_preserves_usage_and_copies() {
++    for (kind, mut value) in metadata_messages() {
++        value["metadata"] = serde_json::json!({"annotation": "Synthetic"});
++        if kind == "shell" {
++            value["time"]["completed"] = 1767312000001i64.into();
++        }
++        let first = v2_record(kind, &value);
++        let second = v2_record(kind, &value);
++        let _ = first.write_file("storage/message/usage.json", MESSAGE);
++        let entries = load(&[first.root().to_owned(), second.root().to_owned()]).unwrap();
++        assert_eq!(entries.len(), 1, "{kind}");
++        assert_eq!(
++            crate::total_usage_tokens(entries[0].0.data.message.usage),
++            15
++        );
++    }
++}
++
++#[test]
++fn refuses_missing_zero_buckets_and_source_zero_flags() {
++    for (parent, field) in [
++        ("tokens", "input"),
++        ("tokens", "output"),
++        ("tokens", "reasoning"),
++        ("cache", "read"),
++        ("cache", "write"),
++    ] {
++        for remove in [false, true] {
++            let mut value = zero_message();
++            let tokens = if parent == "cache" {
++                &mut value["tokens"]["cache"]
++            } else {
++                &mut value["tokens"]
++            };
++            if remove {
++                tokens.as_object_mut().unwrap().remove(field);
++            } else {
++                tokens[field] = serde_json::Value::Null;
++            }
++            value["measured_zero"] = true.into();
++            let fixture = v2_record("assistant", &value);
++            assert!(
++                load(&[fixture.root().to_owned()]).is_err(),
++                "{field}, remove={remove}"
++            );
++        }
++    }
++}
++
++#[test]
++fn refuses_invalid_counts_even_when_a_zero_flag_is_supplied() {
++    use serde_json::json;
++    for pointer in [
++        "/tokens/input",
++        "/tokens/output",
++        "/tokens/reasoning",
++        "/tokens/cache/read",
++        "/tokens/cache/write",
++    ] {
++        for count in [
++            json!(-1),
++            json!(0.5),
++            json!("0"),
++            json!(false),
++            json!(null),
++            json!({}),
++            json!([]),
++        ] {
++            let mut value = zero_message();
++            *value.pointer_mut(pointer).unwrap() = count;
++            value["measured_zero"] = true.into();
++            let fixture = v2_record("assistant", &value);
++            assert!(load(&[fixture.root().to_owned()]).is_err(), "{pointer}");
++        }
++    }
++}
++
++#[test]
++fn refuses_metadata_with_missing_or_malformed_required_fields() {
++    use serde_json::json;
++    for (kind, value) in metadata_messages() {
++        for field in value.as_object().unwrap().keys() {
++            for replacement in [None, Some(json!(null)), Some(json!(false)), Some(json!([]))] {
++                let mut invalid = value.clone();
++                if let Some(replacement) = replacement {
++                    invalid[field] = replacement;
++                } else {
++                    invalid.as_object_mut().unwrap().remove(field);
++                }
++                let fixture = v2_record(kind, &invalid);
++                assert!(
++                    load(&[fixture.root().to_owned()]).is_err(),
++                    "{kind}: {field}"
++                );
++            }
++        }
++        for (field, malformed) in [
++            ("metadata", json!([])),
++            ("time", json!({})),
++            ("time", json!({"created": "1767312000000"})),
++            ("time", json!({"created": -1})),
++            ("time", json!({"created": 1767312000001i64})),
++            ("unknown", json!(null)),
++        ] {
++            let mut invalid = value.clone();
++            invalid[field] = malformed;
++            let fixture = v2_record(kind, &invalid);
++            assert!(
++                load(&[fixture.root().to_owned()]).is_err(),
++                "{kind}: {field}"
++            );
++        }
++    }
++    for model in [
++        json!({}),
++        json!({"id": "model"}),
++        json!({"providerID": "provider"}),
++        json!({"id": "model", "providerID": false}),
++        json!({"id": "model", "providerID": "provider", "variant": false}),
++    ] {
++        let fixture = v2_record(
++            "model-switched",
++            &json!({"model": model, "time": {"created": 1767312000000i64}}),
++        );
++        assert!(load(&[fixture.root().to_owned()]).is_err());
++    }
++    let fixture = v2_record(
++        "compaction",
++        &json!({"reason": "unknown", "summary": "summary", "recent": "recent", "time": {"created": 1767312000000i64}}),
++    );
++    assert!(load(&[fixture.root().to_owned()]).is_err());
++}
++
++#[test]
++fn refuses_hidden_usage_before_metadata_suppression() {
++    use serde_json::json;
++    for (kind, value) in metadata_messages() {
++        for (field, hidden) in [
++            ("tokens", json!({"total": 0})),
++            ("usage", json!({"input": 1})),
++            ("extra", json!({"tokens": null})),
++            ("extra", json!({"metadata": {"usage": {"input": -1}}})),
++            (
++                "time",
++                json!({"created": 1767312000000i64, "usage": {"input": 1}}),
++            ),
++        ] {
++            let mut invalid = value.clone();
++            invalid[field] = hidden;
++            let fixture = v2_record(kind, &invalid);
++            assert!(
++                load(&[fixture.root().to_owned()]).is_err(),
++                "{kind}: {field}"
++            );
++        }
++    }
++}
++
++#[test]
++fn preserves_usage_with_arbitrary_metadata_annotations() {
++    use serde_json::json;
++    for (kind, mut value) in metadata_messages() {
++        value["metadata"] = json!({
++            "tokens": null, "usage": {"input": -1},
++            "nested": [{"tokens": {"input": "annotation"}}], "totalTokens": 999,
++        });
++        let fixture = v2_record(kind, &value);
++        let usage = json!({"id": "msg_usage", "sessionID": "ses_record", "modelID": "model", "providerID": "provider",
++            "tokens": {"input": 120, "output": 30, "reasoning": 11, "cache": {"read": 7, "write": 5}}});
++        let _ = fixture.write_file("storage/message/usage.json", usage.to_string());
++        let entries = load(&[fixture.root().to_owned()]).unwrap();
++        assert_eq!(entries.len(), 1, "{kind}");
++        assert_eq!(
++            crate::total_usage_tokens(entries[0].0.data.message.usage)
++                + entries[0].0.extra_total_tokens,
++            173
++        );
++    }
++}
++
++#[test]
++fn refuses_conflicting_source_identity_before_row_normalization() {
++    use serde_json::json;
++    let mut values = metadata_messages();
++    values.push(("assistant", zero_message()));
++    for (kind, value) in values {
++        for (field, conflict) in [
++            ("id", json!("msg_other")),
++            ("sessionID", json!("ses_other")),
++            ("type", json!("unknown")),
++            ("role", json!("unknown")),
++        ] {
++            let mut invalid = value.clone();
++            invalid[field] = conflict;
++            let fixture = v2_record(kind, &invalid);
++            assert!(
++                load(&[fixture.root().to_owned()]).is_err(),
++                "{kind}: {field}"
++            );
++        }
++    }
++}
++
++#[test]
++fn compares_metadata_source_fields_before_duplicate_suppression() {
++    use serde_json::json;
++    for (kind, mut value) in metadata_messages() {
++        let first = v2_record(kind, &value);
++        value["metadata"] = json!({"annotation": "changed"});
++        let second = v2_record(kind, &value);
++        for paths in [
++            [first.root().to_owned(), second.root().to_owned()],
++            [second.root().to_owned(), first.root().to_owned()],
++        ] {
++            assert!(load(&paths).is_err(), "{kind}");
++        }
++    }
++    let mut value = json!({"model": {"id": "model", "providerID": "provider", "variant": "fast"}, "time": {"created": 1767312000000i64}});
++    let first = v2_record("model-switched", &value);
++    value["model"]["variant"] = json!("slow");
++    let second = v2_record("model-switched", &value);
++    assert!(load(&[first.root().to_owned(), second.root().to_owned()]).is_err());
++}
++
++#[test]
++fn compares_complete_assistant_model_before_duplicate_suppression() {
++    use serde_json::json;
++    let mut value = zero_message();
++    value["tokens"] =
++        json!({"input": 120, "output": 30, "reasoning": 11, "cache": {"read": 7, "write": 5}});
++    value["model"]["variant"] = json!("fast");
++    let first = v2_record("assistant", &value);
++    let equal = v2_record("assistant", &value);
++    let entries = load(&[first.root().to_owned(), equal.root().to_owned()]).unwrap();
++    assert_eq!(entries.len(), 1);
++    assert_eq!(
++        crate::total_usage_tokens(entries[0].0.data.message.usage)
++            + entries[0].0.extra_total_tokens,
++        173
++    );
++    value["model"]["variant"] = json!("slow");
++    let changed = v2_record("assistant", &value);
++    for paths in [
++        [first.root().to_owned(), changed.root().to_owned()],
++        [changed.root().to_owned(), first.root().to_owned()],
++    ] {
++        assert!(load(&paths).is_err());
++    }
++}
++
++#[test]
++fn keeps_unknown_or_unmeasured_records_unavailable() {
++    let mut value = zero_message();
++    value.as_object_mut().unwrap().remove("tokens");
++    value["measured_zero"] = true.into();
++    for kind in ["assistant", "unknown"] {
++        let fixture = v2_record(kind, &value);
++        assert!(load(&[fixture.root().to_owned()]).is_err());
++    }
++}
++
+ #[test]
+ fn rejects_links_and_special_files_without_reading_them() {
+diff --git a/rust/adapters/opencode/src/database.rs b/rust/adapters/opencode/src/database.rs
+index 7baa156..a1540c3 100644
+--- a/rust/adapters/opencode/src/database.rs
++++ b/rust/adapters/opencode/src/database.rs
+@@ -36,5 +36,5 @@ use crate::{
+     loader::Context,
+     parser::{OpenCodeSessionAggregate, session_value_to_entry},
+-    records::{Kind, MAX_RECORD_BYTES, identifier, validate},
++    records::{Kind, MAX_RECORD_BYTES, identifier, validate, validate_metadata},
+     unavailable,
+ };
+@@ -225,8 +225,31 @@ fn read_connection(db: &sqlite::Connection, context: &mut Context<'_>) -> Result
+             let mut value = super::strict_json::parse(data.as_bytes())?;
+             let object = value.as_object_mut().ok_or_else(unavailable)?;
++            if role == "synthetic" && !object.contains_key("sessionID") {
++                return Err(unavailable());
++            }
++            for (key, column) in [
++                ("id", &id),
++                ("sessionID", &session),
++                ("type", &role),
++                ("role", &role),
++            ] {
++                if object
++                    .get(key)
++                    .is_some_and(|value| value.as_str() != Some(column))
++                {
++                    return Err(unavailable());
++                }
++            }
+             object.insert("id".into(), id.clone().into());
+             object.insert("sessionID".into(), session.clone().into());
+             object.insert("role".into(), role.into());
+-            if let Some(model) = object.remove("model") {
++            let metadata = validate_metadata(&value)?;
++            if metadata
++                && created.is_some_and(|created| value["time"]["created"].as_i64() != Some(created))
++            {
++                return Err(unavailable());
++            }
++            let object = value.as_object_mut().ok_or_else(unavailable)?;
++            if !metadata && let Some(model) = object.get("model").cloned() {
+                 let model = model.as_object().ok_or_else(unavailable)?;
+                 for (source, destination) in [
+diff --git a/rust/adapters/opencode/src/loader.rs b/rust/adapters/opencode/src/loader.rs
+index 22267ca..dcccea5 100644
+--- a/rust/adapters/opencode/src/loader.rs
++++ b/rust/adapters/opencode/src/loader.rs
+@@ -53,6 +53,5 @@ impl Context<'_> {
+         let has_usage = validate(&value)?;
+         let entry = if has_usage {
+-            let value: OpenCodeMessage =
+-                serde_json::from_value(value.clone()).map_err(|_| unavailable())?;
++            let value = OpenCodeMessage::from_validated(&value)?;
+             Some((
+                 message_value_to_entry(&value, None, None, self.tz, self.mode, self.pricing)
+diff --git a/rust/adapters/opencode/src/parser.rs b/rust/adapters/opencode/src/parser.rs
+index 95cd127..80314fa 100644
+--- a/rust/adapters/opencode/src/parser.rs
++++ b/rust/adapters/opencode/src/parser.rs
+@@ -14,4 +14,6 @@ use ccusage_adapter_common::jsonl;
+ #[derive(Debug, Default, Deserialize)]
+ pub struct OpenCodeMessage {
++    #[serde(skip)]
++    measured_zero: bool,
+     #[serde(default, deserialize_with = "jsonl::lenient_object")]
+     tokens: Option<OpenCodeTokens>,
+@@ -42,4 +44,22 @@ pub struct OpenCodeMessage {
+ }
+
++impl OpenCodeMessage {
++    pub(crate) fn from_validated(value: &serde_json::Value) -> crate::Result<Self> {
++        let mut message: Self =
++            serde_json::from_value(value.clone()).map_err(|_| crate::unavailable())?;
++        let tokens = &value["tokens"];
++        message.measured_zero = [
++            &tokens["input"],
++            &tokens["output"],
++            &tokens["reasoning"],
++            &tokens["cache"]["read"],
++            &tokens["cache"]["write"],
++        ]
++        .iter()
++        .all(|count| count.as_u64() == Some(0));
++        Ok(message)
++    }
++}
++
+ /// Token usage block carried by OpenCode messages.
+ #[derive(Debug, Default, Deserialize)]
+@@ -189,4 +209,5 @@ impl OpenCodeV2Message {
+
+         OpenCodeMessage {
++            measured_zero: false,
+             tokens: self.tokens,
+             model_id,
+@@ -264,4 +285,5 @@ fn message_value_to_entry_inner(
+         && extra_total_tokens == 0
+         && tokens.total != Some(0)
++        && !value.measured_zero
+         && !(options.allow_cost_only && value.cost.is_some_and(|cost| cost > 0.0))
+     {
+@@ -383,4 +405,5 @@ pub(crate) fn session_value_to_entry(
+     }
+     let value = OpenCodeMessage {
++        measured_zero: false,
+         tokens: Some(OpenCodeTokens {
+             input: aggregate.input_tokens,
+diff --git a/rust/adapters/opencode/src/records.rs b/rust/adapters/opencode/src/records.rs
+index 6c7b91f..5e80de5 100644
+--- a/rust/adapters/opencode/src/records.rs
++++ b/rust/adapters/opencode/src/records.rs
+@@ -106,8 +106,118 @@ pub(crate) fn identifier(value: Option<&Value>) -> Result<&str> {
+ }
+
++fn has_usage_fields(value: &Value, allow_metadata: bool) -> bool {
++    match value {
++        Value::Object(object) => object.iter().any(|(key, value)| {
++            !(allow_metadata && key == "metadata" && value.is_object())
++                && (matches!(
++                    key.as_str(),
++                    "tokens"
++                        | "usage"
++                        | "tokenUsage"
++                        | "token_usage"
++                        | "totalTokens"
++                        | "inputTokens"
++                        | "outputTokens"
++                        | "reasoningTokens"
++                        | "cacheReadTokens"
++                        | "cacheCreationTokens"
++                ) || has_usage_fields(value, false))
++        }),
++        Value::Array(values) => values.iter().any(|value| has_usage_fields(value, false)),
++        _ => false,
++    }
++}
++
++pub(crate) fn validate_metadata(value: &Value) -> Result<bool> {
++    let object = value.as_object().ok_or_else(unavailable)?;
++    let Some(kind) = object
++        .get("role")
++        .or_else(|| object.get("type"))
++        .and_then(Value::as_str)
++    else {
++        return Ok(false);
++    };
++    let fields: &[&str] = match kind {
++        "agent-switched" => &["agent"],
++        "model-switched" => &["model"],
++        "synthetic" => &["text"],
++        "shell" => &["callID", "command", "output"],
++        "compaction" => &["reason", "summary", "recent"],
++        _ => return Ok(false),
++    };
++    if has_usage_fields(value, true)
++        || object.keys().any(|key| {
++            !["id", "sessionID", "role", "type", "time", "metadata"].contains(&key.as_str())
++                && !fields.contains(&key.as_str())
++        })
++        || object
++            .get("type")
++            .is_some_and(|value| value.as_str() != Some(kind))
++        || !identifier(object.get("id"))?.starts_with("msg_")
++        || !identifier(object.get("sessionID"))?.starts_with("ses")
++    {
++        return Err(unavailable());
++    }
++    if let Some(metadata) = object.get("metadata") {
++        metadata.as_object().ok_or_else(unavailable)?;
++    }
++    let time = object
++        .get("time")
++        .and_then(Value::as_object)
++        .ok_or_else(unavailable)?;
++    if time
++        .keys()
++        .any(|key| key != "created" && !(kind == "shell" && key == "completed"))
++    {
++        return Err(unavailable());
++    }
++    let created = time
++        .get("created")
++        .and_then(Value::as_i64)
++        .filter(|time| *time >= 0)
++        .ok_or_else(unavailable)?;
++    if let Some(completed) = time.get("completed") {
++        completed
++            .as_i64()
++            .filter(|time| *time >= created)
++            .ok_or_else(unavailable)?;
++    }
++    for field in fields {
++        if *field == "model" {
++            let model = object
++                .get(*field)
++                .and_then(Value::as_object)
++                .ok_or_else(unavailable)?;
++            if model
++                .keys()
++                .any(|key| !["id", "providerID", "variant"].contains(&key.as_str()))
++            {
++                return Err(unavailable());
++            }
++            identifier(model.get("id"))?;
++            identifier(model.get("providerID"))?;
++            if let Some(variant) = model.get("variant") {
++                variant.as_str().ok_or_else(unavailable)?;
++            }
++        } else {
++            object
++                .get(*field)
++                .and_then(Value::as_str)
++                .ok_or_else(unavailable)?;
++        }
++    }
++    if kind == "compaction" && !matches!(object["reason"].as_str(), Some("auto" | "manual")) {
++        return Err(unavailable());
++    }
++    Ok(true)
++}
++
+ pub(crate) fn validate(value: &Value) -> Result<bool> {
+     let object = value.as_object().ok_or_else(unavailable)?;
+     identifier(object.get("id"))?;
+     identifier(object.get("sessionID"))?;
++    if validate_metadata(value)? {
++        return Ok(false);
++    }
+     for field in ["modelID", "providerID"] {
+         if let Some(value) = object.get(field) {
+@@ -131,5 +241,14 @@ pub(crate) fn validate(value: &Value) -> Result<bool> {
+     if let Some(role) = object.get("role") {
+         match role.as_str() {
+-            Some("user" | "system" | "tool") if !object.contains_key("tokens") => return Ok(false),
++            Some("user" | "system" | "tool") if !object.contains_key("tokens") => {
++                if let Some(metadata) = object.get("metadata") {
++                    metadata.as_object().ok_or_else(unavailable)?;
++                }
++                return if has_usage_fields(value, true) {
++                    Err(unavailable())
++                } else {
++                    Ok(false)
++                };
++            }
+             Some("assistant" | "user" | "system" | "tool") => {}
+             _ => return Err(unavailable()),
+diff --git a/rust/crates/ccusage-adapter-all/src/loader.rs b/rust/crates/ccusage-adapter-all/src/loader.rs
+index 1fc776e..5632c76 100644
+--- a/rust/crates/ccusage-adapter-all/src/loader.rs
++++ b/rust/crates/ccusage-adapter-all/src/loader.rs
+@@ -1050,5 +1050,6 @@ fn summary_rows(
+             let total_tokens = summary.total_tokens();
+             // Cost-only rows, such as Copilot credits missing from modelMetrics, still bill.
+-            if total_tokens == 0 && summary.total_cost == 0.0 {
++            // OpenCode summaries contain validated observations, including zero.
++            if total_tokens == 0 && summary.total_cost == 0.0 && agent != "opencode" {
+                 return None;
+             }
+@@ -1215,4 +1216,102 @@ mod tests {
+     }
+
++    #[test]
++    fn unified_daily_preserves_opencode_zero_tokens_and_zero_cost() {
++        let fixture = fs_fixture!({
++            "empty-xdg-data/opencode/storage/message/zero.json": r#"{"id":"msg_zero","sessionID":"ses_zero","role":"assistant","modelID":"model","providerID":"provider","time":{"created":1767312000000},"cost":0,"tokens":{"input":0,"output":0,"reasoning":0,"cache":{"read":0,"write":0}}}"#,
++        });
++        let _environment = isolated_source_environment(&fixture);
++        for mode in [CostMode::Calculate, CostMode::Display] {
++            let shared = SharedArgs {
++                json: true,
++                mode,
++                offline: true,
++                timezone: Some("UTC".into()),
++                ..SharedArgs::default()
++            };
++            let loaded = load_rows(
++                AgentReportKind::Daily,
++                &shared,
++                &NO_SOURCES,
++                WeekDay::Monday,
++            )
++            .unwrap();
++            assert_eq!(loaded.rows.len(), 1);
++            assert_eq!(loaded.rows[0].agent, "all");
++            let agents = loaded.rows[0].agent_breakdowns.as_ref().unwrap();
++            assert_eq!(agents.len(), 1);
++            assert_eq!(agents[0].agent, "opencode");
++            assert_eq!(loaded.rows[0].period, "2026-01-02");
++            assert_eq!(loaded.rows[0].total_tokens, 0);
++            assert_eq!(loaded.rows[0].total_cost, 0.0);
++        }
++    }
++
++    #[test]
++    fn unified_daily_keeps_empty_opencode_sources_empty() {
++        let fixture = fs_fixture!({});
++        let _environment = isolated_source_environment(&fixture);
++        let _ = fixture.create_dir_all("empty-xdg-data/opencode/storage/message");
++        let shared = SharedArgs {
++            json: true,
++            mode: CostMode::Calculate,
++            offline: true,
++            timezone: Some("UTC".into()),
++            ..SharedArgs::default()
++        };
++        let loaded = load_rows(
++            AgentReportKind::Daily,
++            &shared,
++            &NO_SOURCES,
++            WeekDay::Monday,
++        )
++        .unwrap();
++        assert!(loaded.rows.is_empty());
++        let _ = fixture.write_file("empty-xdg-data/opencode/storage/message/system.json",
++            r#"{"id":"msg_system","sessionID":"ses_zero","role":"system","time":{"created":1767312000000},"text":"Synthetic context"}"#);
++        let loaded = load_rows(
++            AgentReportKind::Daily,
++            &shared,
++            &NO_SOURCES,
++            WeekDay::Monday,
++        )
++        .unwrap();
++        assert!(loaded.rows.is_empty());
++    }
++
++    #[test]
++    fn unified_daily_keeps_unmeasured_opencode_usage_unavailable() {
++        let fixture = fs_fixture!({
++            "empty-xdg-data/opencode/storage/message/unfinished.json": r#"{"id":"msg_unfinished","sessionID":"ses_unfinished","role":"assistant","modelID":"model","providerID":"provider","time":{"created":1767312000000},"cost":0}"#,
++        });
++        let _environment = isolated_source_environment(&fixture);
++        let shared = SharedArgs {
++            json: true,
++            mode: CostMode::Calculate,
++            offline: true,
++            ..SharedArgs::default()
++        };
++        assert!(
++            load_rows(
++                AgentReportKind::Daily,
++                &shared,
++                &NO_SOURCES,
++                WeekDay::Monday
++            )
++            .is_err()
++        );
++    }
++
++    #[test]
++    fn keeps_other_agents_zero_summary_filter() {
++        for &agent in BUILT_IN_AGENT_NAMES {
++            if agent != "opencode" {
++                assert!(
++                    summary_rows(agent, vec![usage_summary("2026-01-02", 0)], false).is_empty()
++                );
++            }
++        }
++    }
++
+     #[test]
+     fn pricing_maps_exclude_sources_that_load_their_own_pricing() {
+diff --git a/rust/crates/ccusage-adapter-all/src/tests.rs b/rust/crates/ccusage-adapter-all/src/tests.rs
+index 85ddcb0..ba3bc0a 100644
+--- a/rust/crates/ccusage-adapter-all/src/tests.rs
++++ b/rust/crates/ccusage-adapter-all/src/tests.rs
+@@ -789,5 +789,5 @@ fn claude_usage_line(session: &str, timestamp: &str, message_id: &str, input: u6
+ fn claude_agent_row(native_session: &str, created: i64, input: u64) -> String {
+     format!(
+-        r#"{{"time":{{"created":{created}}},"model":{{"id":"opus","providerID":"claude-agent"}},"content":[{{"type":"text","text":"hi","native":{{"sessionID":"{native_session}","messageID":"m"}}}}],"tokens":{{"input":{input},"output":50}},"cost":0}}"#
++        r#"{{"time":{{"created":{created}}},"model":{{"id":"opus","providerID":"claude-agent"}},"content":[{{"type":"text","text":"hi","native":{{"sessionID":"{native_session}","messageID":"m"}}}}],"tokens":{{"input":{input},"output":50,"reasoning":0,"cache":{{"read":0,"write":0}}}},"cost":0}}"#
+     )
+ }
+@@ -795,5 +795,5 @@ fn claude_agent_row(native_session: &str, created: i64, input: u64) -> String {
+ fn api_row(created: i64, input: u64) -> String {
+     format!(
+-        r#"{{"time":{{"created":{created}}},"model":{{"id":"claude-opus-4-20250514","providerID":"anthropic"}},"content":[],"tokens":{{"input":{input},"output":5}},"cost":0.5}}"#
++        r#"{{"time":{{"created":{created}}},"model":{{"id":"claude-opus-4-20250514","providerID":"anthropic"}},"content":[],"tokens":{{"input":{input},"output":5,"reasoning":0,"cache":{{"read":0,"write":0}}}},"cost":0.5}}"#
+     )
+ }
