@@ -1,0 +1,981 @@
+{
+  "single": {
+    "requiredTokens": {
+      "daily": null,
+      "session": 161
+    },
+    "requiredRows": {},
+    "requiredFields": {},
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.000975,
+          "totalTokens": 161
+        },
+        "rows": [
+          [
+            "2026-11-08",
+            161
+          ]
+        ],
+        "sha256": "fef1c2b1d0c8455857c1c3be5d167b4b766a82ddf26b5a7c96beaa3476ee97e7",
+        "matchesRequired": false
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.000975,
+          "totalTokens": 161
+        },
+        "rows": [
+          [
+            "session-z",
+            161
+          ]
+        ],
+        "sha256": "7a79011abaca64bfc46d42c43c85fbc4231e8ecb51d536010d8adf6cc174d64e",
+        "matchesRequired": true
+      }
+    }
+  },
+  "unmeasured_cache": {
+    "requiredTokens": {
+      "daily": null,
+      "session": 161
+    },
+    "requiredRows": {},
+    "requiredFields": {
+      "cacheReadTokens": null,
+      "cacheCreationTokens": null
+    },
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.000975,
+          "totalTokens": 161
+        },
+        "rows": [
+          [
+            "2026-11-08",
+            161
+          ]
+        ],
+        "sha256": "fef1c2b1d0c8455857c1c3be5d167b4b766a82ddf26b5a7c96beaa3476ee97e7",
+        "matchesRequired": false
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.000975,
+          "totalTokens": 161
+        },
+        "rows": [
+          [
+            "session-z",
+            161
+          ]
+        ],
+        "sha256": "7a79011abaca64bfc46d42c43c85fbc4231e8ecb51d536010d8adf6cc174d64e",
+        "matchesRequired": false
+      }
+    }
+  },
+  "duplicate_row": {
+    "requiredTokens": {
+      "daily": null,
+      "session": 161
+    },
+    "requiredRows": {},
+    "requiredFields": {},
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.000975,
+          "totalTokens": 161
+        },
+        "rows": [
+          [
+            "2026-11-08",
+            161
+          ]
+        ],
+        "sha256": "fef1c2b1d0c8455857c1c3be5d167b4b766a82ddf26b5a7c96beaa3476ee97e7",
+        "matchesRequired": false
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.000975,
+          "totalTokens": 161
+        },
+        "rows": [
+          [
+            "session-z",
+            161
+          ]
+        ],
+        "sha256": "7a79011abaca64bfc46d42c43c85fbc4231e8ecb51d536010d8adf6cc174d64e",
+        "matchesRequired": true
+      }
+    }
+  },
+  "conflicting_rows": {
+    "requiredTokens": {
+      "daily": null,
+      "session": null
+    },
+    "requiredRows": {},
+    "requiredFields": {},
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.000975,
+          "totalTokens": 161
+        },
+        "rows": [
+          [
+            "2026-11-08",
+            161
+          ]
+        ],
+        "sha256": "fef1c2b1d0c8455857c1c3be5d167b4b766a82ddf26b5a7c96beaa3476ee97e7",
+        "matchesRequired": false
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.000975,
+          "totalTokens": 161
+        },
+        "rows": [
+          [
+            "session-z",
+            161
+          ]
+        ],
+        "sha256": "7a79011abaca64bfc46d42c43c85fbc4231e8ecb51d536010d8adf6cc174d64e",
+        "matchesRequired": false
+      }
+    }
+  },
+  "conflicting_rows_reversed": {
+    "requiredTokens": {
+      "daily": null,
+      "session": null
+    },
+    "requiredRows": {},
+    "requiredFields": {},
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.001245,
+          "totalTokens": 179
+        },
+        "rows": [
+          [
+            "2026-11-08",
+            179
+          ]
+        ],
+        "sha256": "dbac5f383d9af0af0da242987e2bdec6608d4eeffa1d74408654aed957b089be",
+        "matchesRequired": false
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.001245,
+          "totalTokens": 179
+        },
+        "rows": [
+          [
+            "session-z",
+            179
+          ]
+        ],
+        "sha256": "8f580b1a7e74755421bb427adce4e23f9410f920f77a02b32073a50e8772069e",
+        "matchesRequired": false
+      }
+    }
+  },
+  "distinct_calls": {
+    "requiredTokens": {
+      "daily": null,
+      "session": 322
+    },
+    "requiredRows": {},
+    "requiredFields": {},
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 240,
+          "outputTokens": 60,
+          "totalCost": 0.00195,
+          "totalTokens": 322
+        },
+        "rows": [
+          [
+            "2026-11-08",
+            322
+          ]
+        ],
+        "sha256": "539a197dc76ecb25fd1d360dda236afd42599efed5946bfc3c1ebf30de1f61b4",
+        "matchesRequired": false
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 240,
+          "outputTokens": 60,
+          "totalCost": 0.00195,
+          "totalTokens": 322
+        },
+        "rows": [
+          [
+            "independent",
+            161
+          ],
+          [
+            "session-z",
+            161
+          ]
+        ],
+        "sha256": "351a12a4fd04de74367bbd4eadfd6c9a5a991420c6641c329b24419003b6ca31",
+        "matchesRequired": true
+      }
+    }
+  },
+  "synthetic_inherited_fork": {
+    "requiredTokens": {
+      "daily": null,
+      "session": 178
+    },
+    "requiredRows": {},
+    "requiredFields": {},
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 240,
+          "outputTokens": 60,
+          "totalCost": 0.002205,
+          "totalTokens": 339
+        },
+        "rows": [
+          [
+            "2026-11-08",
+            339
+          ]
+        ],
+        "sha256": "a702ddf04074a0e9cd37e8f7080571bbc03ec719701f7222099a53ed7cf72e40",
+        "matchesRequired": false
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 240,
+          "outputTokens": 60,
+          "totalCost": 0.002205,
+          "totalTokens": 339
+        },
+        "rows": [
+          [
+            "fork",
+            178
+          ],
+          [
+            "session-z",
+            161
+          ]
+        ],
+        "sha256": "7933dd8c193f30df53cec8789fd3dcbaebdb69a19af517a879400c295f49edf5",
+        "matchesRequired": false
+      }
+    }
+  },
+  "missing_model": {
+    "requiredTokens": {
+      "daily": null,
+      "session": 161
+    },
+    "requiredRows": {},
+    "requiredFields": {
+      "totalCost": null
+    },
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "totalCost": -0.0,
+          "totalTokens": 0
+        },
+        "rows": [],
+        "sha256": "30a74668939a828761b7e9807be508fe5e2fcc46b35ac0f983f9c5cf7c3a0378",
+        "matchesRequired": false
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "totalCost": -0.0,
+          "totalTokens": 0
+        },
+        "rows": [],
+        "sha256": "f0735b7513ef634c2770b53276f793e4e89f9accaa78e0008e039ad2ed59d42a",
+        "matchesRequired": false
+      }
+    }
+  },
+  "missing_time": {
+    "requiredTokens": {
+      "daily": null,
+      "session": 161
+    },
+    "requiredRows": {},
+    "requiredFields": {},
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "totalCost": -0.0,
+          "totalTokens": 0
+        },
+        "rows": [],
+        "sha256": "30a74668939a828761b7e9807be508fe5e2fcc46b35ac0f983f9c5cf7c3a0378",
+        "matchesRequired": false
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "totalCost": -0.0,
+          "totalTokens": 0
+        },
+        "rows": [],
+        "sha256": "f0735b7513ef634c2770b53276f793e4e89f9accaa78e0008e039ad2ed59d42a",
+        "matchesRequired": false
+      }
+    }
+  },
+  "bad_model_json": {
+    "requiredTokens": {
+      "daily": null,
+      "session": null
+    },
+    "requiredRows": {},
+    "requiredFields": {},
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.000975,
+          "totalTokens": 161
+        },
+        "rows": [
+          [
+            "2026-11-08",
+            161
+          ]
+        ],
+        "sha256": "fef1c2b1d0c8455857c1c3be5d167b4b766a82ddf26b5a7c96beaa3476ee97e7",
+        "matchesRequired": false
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.000975,
+          "totalTokens": 161
+        },
+        "rows": [
+          [
+            "session-z",
+            161
+          ]
+        ],
+        "sha256": "7a79011abaca64bfc46d42c43c85fbc4231e8ecb51d536010d8adf6cc174d64e",
+        "matchesRequired": false
+      }
+    }
+  },
+  "unknown_model": {
+    "requiredTokens": {
+      "daily": null,
+      "session": 161
+    },
+    "requiredRows": {},
+    "requiredFields": {
+      "totalCost": null
+    },
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.0,
+          "totalTokens": 161,
+          "unpricedModels": [
+            "synthetic-model-not-priced"
+          ]
+        },
+        "rows": [
+          [
+            "2026-11-08",
+            161
+          ]
+        ],
+        "sha256": "2bfa042945137c72ed20b821f02f41d063436fce52d863c3ace89b2b7ef37cfe",
+        "matchesRequired": false
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.0,
+          "totalTokens": 161,
+          "unpricedModels": [
+            "synthetic-model-not-priced"
+          ]
+        },
+        "rows": [
+          [
+            "session-z",
+            161
+          ]
+        ],
+        "sha256": "9dd1700abd7653280bde58d068ae6d7f15124a8958e56d6f6d7fecf6ae4f4fb9",
+        "matchesRequired": false
+      }
+    }
+  },
+  "independent_total_only": {
+    "requiredTokens": {
+      "daily": null,
+      "session": 161
+    },
+    "requiredRows": {},
+    "requiredFields": {
+      "inputTokens": null,
+      "outputTokens": null
+    },
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "totalCost": 0.002415,
+          "totalTokens": 161
+        },
+        "rows": [
+          [
+            "2026-11-08",
+            161
+          ]
+        ],
+        "sha256": "8aec783ac975247559debf3cbfd2ef82704c8140e06b72db0633774418d91dcc",
+        "matchesRequired": false
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "totalCost": 0.002415,
+          "totalTokens": 161
+        },
+        "rows": [
+          [
+            "session-z",
+            161
+          ]
+        ],
+        "sha256": "1d0bdbd70aceb30e5801c5be29b0399e8afd0b8aee1a5cf34577ff1619c011e8",
+        "matchesRequired": false
+      }
+    }
+  },
+  "contradictory_total": {
+    "requiredTokens": {
+      "daily": null,
+      "session": null
+    },
+    "requiredRows": {},
+    "requiredFields": {},
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.00081,
+          "totalTokens": 150
+        },
+        "rows": [
+          [
+            "2026-11-08",
+            150
+          ]
+        ],
+        "sha256": "df0d28ee7d94c5520bd888b19701a2c3dc1646916c49247ec2d54581bc4d6c48",
+        "matchesRequired": false
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.00081,
+          "totalTokens": 150
+        },
+        "rows": [
+          [
+            "session-z",
+            150
+          ]
+        ],
+        "sha256": "a3bccb9e1860e08da1ec5a5a7189bbc277b13d9de32eafe00346f65c2a3d22fc",
+        "matchesRequired": false
+      }
+    }
+  },
+  "negative_bucket": {
+    "requiredTokens": {
+      "daily": null,
+      "session": null
+    },
+    "requiredRows": {},
+    "requiredFields": {},
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.000975,
+          "totalTokens": 161
+        },
+        "rows": [
+          [
+            "2026-11-08",
+            161
+          ]
+        ],
+        "sha256": "fef1c2b1d0c8455857c1c3be5d167b4b766a82ddf26b5a7c96beaa3476ee97e7",
+        "matchesRequired": false
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.000975,
+          "totalTokens": 161
+        },
+        "rows": [
+          [
+            "session-z",
+            161
+          ]
+        ],
+        "sha256": "7a79011abaca64bfc46d42c43c85fbc4231e8ecb51d536010d8adf6cc174d64e",
+        "matchesRequired": false
+      }
+    }
+  },
+  "fractional_bucket": {
+    "requiredTokens": {
+      "daily": null,
+      "session": null
+    },
+    "requiredRows": {},
+    "requiredFields": {},
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.000975,
+          "totalTokens": 161
+        },
+        "rows": [
+          [
+            "2026-11-08",
+            161
+          ]
+        ],
+        "sha256": "fef1c2b1d0c8455857c1c3be5d167b4b766a82ddf26b5a7c96beaa3476ee97e7",
+        "matchesRequired": false
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.000975,
+          "totalTokens": 161
+        },
+        "rows": [
+          [
+            "session-z",
+            161
+          ]
+        ],
+        "sha256": "7a79011abaca64bfc46d42c43c85fbc4231e8ecb51d536010d8adf6cc174d64e",
+        "matchesRequired": false
+      }
+    }
+  },
+  "text_bucket": {
+    "requiredTokens": {
+      "daily": null,
+      "session": null
+    },
+    "requiredRows": {},
+    "requiredFields": {},
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.000975,
+          "totalTokens": 161
+        },
+        "rows": [
+          [
+            "2026-11-08",
+            161
+          ]
+        ],
+        "sha256": "fef1c2b1d0c8455857c1c3be5d167b4b766a82ddf26b5a7c96beaa3476ee97e7",
+        "matchesRequired": false
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.000975,
+          "totalTokens": 161
+        },
+        "rows": [
+          [
+            "session-z",
+            161
+          ]
+        ],
+        "sha256": "7a79011abaca64bfc46d42c43c85fbc4231e8ecb51d536010d8adf6cc174d64e",
+        "matchesRequired": false
+      }
+    }
+  },
+  "absent_accumulator": {
+    "requiredTokens": {
+      "daily": null,
+      "session": 150
+    },
+    "requiredRows": {},
+    "requiredFields": {},
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.00081,
+          "totalTokens": 150
+        },
+        "rows": [
+          [
+            "2026-11-08",
+            150
+          ]
+        ],
+        "sha256": "df0d28ee7d94c5520bd888b19701a2c3dc1646916c49247ec2d54581bc4d6c48",
+        "matchesRequired": false
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.00081,
+          "totalTokens": 150
+        },
+        "rows": [
+          [
+            "session-z",
+            150
+          ]
+        ],
+        "sha256": "a3bccb9e1860e08da1ec5a5a7189bbc277b13d9de32eafe00346f65c2a3d22fc",
+        "matchesRequired": true
+      }
+    }
+  },
+  "ambiguous_zero_accumulator": {
+    "requiredTokens": {
+      "daily": null,
+      "session": null
+    },
+    "requiredRows": {},
+    "requiredFields": {},
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.00081,
+          "totalTokens": 150
+        },
+        "rows": [
+          [
+            "2026-11-08",
+            150
+          ]
+        ],
+        "sha256": "df0d28ee7d94c5520bd888b19701a2c3dc1646916c49247ec2d54581bc4d6c48",
+        "matchesRequired": false
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.00081,
+          "totalTokens": 150
+        },
+        "rows": [
+          [
+            "session-z",
+            150
+          ]
+        ],
+        "sha256": "a3bccb9e1860e08da1ec5a5a7189bbc277b13d9de32eafe00346f65c2a3d22fc",
+        "matchesRequired": false
+      }
+    }
+  },
+  "unqualified_zero_row": {
+    "requiredTokens": {
+      "daily": null,
+      "session": null
+    },
+    "requiredRows": {},
+    "requiredFields": {},
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "totalCost": -0.0,
+          "totalTokens": 0
+        },
+        "rows": [],
+        "sha256": "30a74668939a828761b7e9807be508fe5e2fcc46b35ac0f983f9c5cf7c3a0378",
+        "matchesRequired": false
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "totalCost": -0.0,
+          "totalTokens": 0
+        },
+        "rows": [],
+        "sha256": "f0735b7513ef634c2770b53276f793e4e89f9accaa78e0008e039ad2ed59d42a",
+        "matchesRequired": false
+      }
+    }
+  },
+  "missing_column": {
+    "requiredTokens": {
+      "daily": null,
+      "session": null
+    },
+    "requiredRows": {},
+    "requiredFields": {},
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "totalCost": -0.0,
+          "totalTokens": 0
+        },
+        "rows": [],
+        "sha256": "30a74668939a828761b7e9807be508fe5e2fcc46b35ac0f983f9c5cf7c3a0378",
+        "matchesRequired": false
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "totalCost": -0.0,
+          "totalTokens": 0
+        },
+        "rows": [],
+        "sha256": "f0735b7513ef634c2770b53276f793e4e89f9accaa78e0008e039ad2ed59d42a",
+        "matchesRequired": false
+      }
+    }
+  },
+  "invalid_database": {
+    "requiredTokens": {
+      "daily": null,
+      "session": null
+    },
+    "requiredRows": {},
+    "requiredFields": {},
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "totalCost": -0.0,
+          "totalTokens": 0
+        },
+        "rows": [],
+        "sha256": "30a74668939a828761b7e9807be508fe5e2fcc46b35ac0f983f9c5cf7c3a0378",
+        "matchesRequired": false
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "totalCost": -0.0,
+          "totalTokens": 0
+        },
+        "rows": [],
+        "sha256": "f0735b7513ef634c2770b53276f793e4e89f9accaa78e0008e039ad2ed59d42a",
+        "matchesRequired": false
+      }
+    }
+  },
+  "empty_database": {
+    "requiredTokens": {
+      "daily": 0,
+      "session": 0
+    },
+    "requiredRows": {
+      "daily": 0,
+      "session": 0
+    },
+    "requiredFields": {},
+    "reports": {
+      "daily": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "totalCost": -0.0,
+          "totalTokens": 0
+        },
+        "rows": [],
+        "sha256": "30a74668939a828761b7e9807be508fe5e2fcc46b35ac0f983f9c5cf7c3a0378",
+        "matchesRequired": true
+      },
+      "session": {
+        "totals": {
+          "cacheCreationTokens": 0,
+          "cacheReadTokens": 0,
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "totalCost": -0.0,
+          "totalTokens": 0
+        },
+        "rows": [],
+        "sha256": "f0735b7513ef634c2770b53276f793e4e89f9accaa78e0008e039ad2ed59d42a",
+        "matchesRequired": true
+      }
+    }
+  }
+}

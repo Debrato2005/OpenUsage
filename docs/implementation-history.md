@@ -4,6 +4,14 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f11aa result before L-1f11ab
+
+Latest scoped result, November 11, 2026. The pinned Hermes scanner matches
+nine of twenty-eight session outcomes. Conflicting copies select the first
+root's total. The [qualification record](reviews/2026-11-11-hermes-qualification.md)
+covers mutable counters, missing observations, cost, and SQLite capture.
+Hermes stays disabled.
+
 ## L-1f11z result before L-1f11aa
 
 Latest scoped result, November 11, 2026. The pinned Droid scanner matches
