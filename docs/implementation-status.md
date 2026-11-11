@@ -26,10 +26,11 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scoped result, November 11, 2026. The pinned Goose scanner reads a
-synthetic database link outside the selected root. Five of twenty-two session
-outcomes match. The [qualification record](reviews/2026-11-11-goose-qualification.md)
-covers copies, counters, capture, and producer coverage. Goose stays disabled.
+Latest scoped result, November 11, 2026. The pinned Gemini scanner doubles a
+copied chat from 125 to 250 tokens. Eleven of thirty-six cases match both
+reports. The [qualification record](reviews/2026-11-11-gemini-qualification.md)
+covers replay, source capture, missing counts, and the pinned producer format.
+Gemini stays disabled.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -158,7 +159,8 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 ## Current assignment
 
 [L-1f11](implementation-slices.md#build-checklist) remains open for tool qualification.
-The next bounded step qualifies Gemini usage records and source capture.
+The next bounded step qualifies Qwen usage records and source capture.
+Gemini needs a bounded capture and qualified record identity.
 Goose needs a safe database capture and a qualified usage scope.
 The OpenCode v2 experiment still needs scale, grouped storage, and application
 qualification. Keep each tool disabled until its required checks pass.

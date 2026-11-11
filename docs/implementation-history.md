@@ -4,6 +4,13 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f11ab result before L-1f11ac
+
+Latest scoped result, November 11, 2026. The pinned Goose scanner reads a
+synthetic database link outside the selected root. Five of twenty-two session
+outcomes match. The [qualification record](reviews/2026-11-11-goose-qualification.md)
+covers copies, counters, capture, and producer coverage. Goose stays disabled.
+
 ## L-1f11aa result before L-1f11ab
 
 Latest scoped result, November 11, 2026. The pinned Hermes scanner matches
