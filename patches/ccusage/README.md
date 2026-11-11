@@ -106,3 +106,10 @@ The [WAL record](../../docs/reviews/2026-11-11-opencode-wal-candidate.md) owns
 the exact bounds, digests, source evidence, and remaining qualification limits.
 Use its separate variables to run `test_ccusage_opencode_wal.py`. OpenCode stays
 disabled. This layer adds no dependency.
+
+## OpenCode WAL reuse candidate
+
+Apply `20.0.48-opencode-wal-reuse.patch` after the observation, capture, and WAL
+patches. The [reuse record](../../docs/reviews/2026-11-11-opencode-wal-reuse-candidate.md)
+owns boundary checks, digests, and remaining gates. Use its separate variables
+to run `test_ccusage_opencode_wal_reuse.py`. OpenCode stays disabled.

@@ -1,0 +1,458 @@
+diff --git a/rust/adapters/opencode/src/README.md b/rust/adapters/opencode/src/README.md
+index e48aeae..79e13bd 100644
+--- a/rust/adapters/opencode/src/README.md
++++ b/rust/adapters/opencode/src/README.md
+@@ -24,11 +24,17 @@ SQLite WAL capture reconstructs the last complete committed state in memory. It
+
+ The capture accepts checkpointed WAL headers without peers and with an empty WAL. It refuses rollback journals, orphan WAL or SHM files, and peers beside a database outside WAL mode. It pairs peers only with the exact database filename under the same held root. Channel names can contain letters, digits, dots, underscores, and hyphens.
+
+-The SHM file is a transient index. The capture reads and rechecks its bytes but derives no database content from it. A change to SHM, WAL, the main file, or the selected manifest causes refusal. Invalid checksums, torn frames, and old-generation tails also cause refusal. This includes reused WAL tails that SQLite itself could recover. The capture returns no partial report and makes no automatic retry.
++The SHM file is a transient index. The capture reads and rechecks its bytes but derives no database content from it. A present SHM file must have two identical initialized headers, valid native-endian checksums, and matching page size, salts, and checksum order. Its committed frame, database size, and last frame checksum must match the validated WAL. A later current-generation commit or invalid current-generation frame causes refusal.
++
++The capture accepts old-generation tails only after a validated current-generation commit matches the SHM header. It excludes frames with different salt-1 values and refuses any current-generation frame after an old frame. The overwritten prefix prevents independent checksum validation of obsolete payload bytes. Their exclusion depends on the matching committed frontier. This is not proof that obsolete bytes are intact.
++
++Missing SHM permits only complete WAL validation without old-generation tails. Malformed, stale, or conflicting SHM headers cause refusal. A reused WAL without a current-generation commit also causes refusal. Empty WAL files need no SHM, but present SHM headers must describe the main image with zero committed frames. The capture does not use SHM page maps or locks to reconstruct pages.
++
++A change to SHM, WAL, the main file, or the selected manifest causes refusal. Invalid current-generation checksums and torn frames also cause refusal. The capture returns no partial report and makes no automatic retry.
+
+ Each WAL and SHM file shares the existing file count and source-byte limits. Each file is at most 64 MiB. Each reconstructed image is at most 64 MiB, with an additional page-offset index of at most 512 KiB. The capture checks those bounds before it allocates the image or index. It processes one image at a time and scans the WAL at most twice. The SQLite VFS, connection lifetime, and error redaction remain unchanged.
+
+-The format and checksum rules come from [the SQLite file format](https://sqlite.org/fileformat.html#walformat). [SQLite's recovery rules](https://sqlite.org/walformat.html#recovery) describe the transient SHM index.
++The format and checksum rules come from [the SQLite file format](https://sqlite.org/fileformat.html#walformat). [SQLite's WAL-index format](https://sqlite.org/walformat.html#walidxfmt) defines its duplicated headers. [SQLite's recovery rules](https://sqlite.org/walformat.html#recovery) describe the transient index.
+
+ SQLite errors use one fixed message without paths, identifiers, or source text. The VFS enforces these restrictions even when the pinned SQLite build omits safety PRAGMAs.
+
+diff --git a/rust/adapters/opencode/src/capture_tests.rs b/rust/adapters/opencode/src/capture_tests.rs
+index d805b7a..1e96d01 100644
+--- a/rust/adapters/opencode/src/capture_tests.rs
++++ b/rust/adapters/opencode/src/capture_tests.rs
+@@ -271,19 +271,40 @@ fn reads_checkpointed_mode_with_empty_wal() {
+ }
+
+ #[test]
+-fn refuses_old_generation_tails_after_wal_reuse() {
+-    let (fixture, db) = wal_source(4096);
+-    let before = fs::read(fixture.path("opencode.db-wal")).unwrap();
+-    // SAFETY: the live test connection has no active statements or read transactions.
+-    assert_eq!(
+-        unsafe { sqlite3_sys::sqlite3_wal_checkpoint(db.as_raw(), std::ptr::null()) },
+-        sqlite3_sys::SQLITE_OK
+-    );
+-    db.execute("UPDATE message SET data=data || ' '").unwrap();
+-    let after = fs::read(fixture.path("opencode.db-wal")).unwrap();
+-    assert_ne!(&before[16..24], &after[16..24]);
+-    assert_eq!(before.len(), after.len());
+-    assert!(load(&[fixture.root().to_owned()]).is_err());
++fn reads_old_generation_tails_after_repeated_wal_reuse() {
++    for page_size in [512, 4096, 65536] {
++        let (fixture, db) = wal_source(page_size);
++        for total in [25, 35, 45] {
++            let before = fs::read(fixture.path("opencode.db-wal")).unwrap();
++            // SAFETY: the live test connection has no active statements or read transactions.
++            assert_eq!(
++                unsafe { sqlite3_sys::sqlite3_wal_checkpoint(db.as_raw(), std::ptr::null()) },
++                sqlite3_sys::SQLITE_OK
++            );
++            let mut update = db.prepare("UPDATE message SET data=?1").unwrap();
++            let changed = MESSAGE
++                .replace("\"input\":10", &format!("\"input\":{}", total - 5))
++                .replace("\"total\":15", &format!("\"total\":{total}"));
++            update.bind((1, changed.as_str())).unwrap();
++            update.next().unwrap();
++            drop(update);
++            let after = fs::read(fixture.path("opencode.db-wal")).unwrap();
++            assert_ne!(&before[16..24], &after[16..24]);
++            assert_eq!(before.len(), after.len());
++            let names = ["opencode.db", "opencode.db-wal", "opencode.db-shm"];
++            let captured = names.map(|name| fs::read(fixture.path(name)).unwrap());
++            let entries = load(&[fixture.root().to_owned()]).unwrap();
++            assert_eq!(entries.len(), 1);
++            assert_eq!(
++                crate::total_usage_tokens(entries[0].0.data.message.usage),
++                total
++            );
++            assert_eq!(
++                names.map(|name| fs::read(fixture.path(name)).unwrap()),
++                captured
++            );
++        }
++    }
+ }
+
+ #[test]
+diff --git a/rust/adapters/opencode/src/files.rs b/rust/adapters/opencode/src/files.rs
+index 9fb39c1..3267acd 100644
+--- a/rust/adapters/opencode/src/files.rs
++++ b/rust/adapters/opencode/src/files.rs
+@@ -304,9 +304,13 @@ pub(crate) mod linux {
+                 let mut wal = path.as_os_str().to_owned();
+                 wal.push("-wal");
+                 let wal = captured.get(&(*index, PathBuf::from(wal)));
++                let mut shm = path.as_os_str().to_owned();
++                shm.push("-shm");
++                let shm = captured.get(&(*index, PathBuf::from(shm)));
+                 let image = super::super::sqlite_wal::snapshot(
+                     bytes,
+                     wal.map(Vec::as_slice),
++                    shm.map(Vec::as_slice),
+                     limits.file_bytes.min(limits.total_bytes),
+                 )?;
+                 visit(path, &roots[*index].path, &image)?;
+diff --git a/rust/adapters/opencode/src/sqlite_wal.rs b/rust/adapters/opencode/src/sqlite_wal.rs
+index 6bcbb61..9237910 100644
+--- a/rust/adapters/opencode/src/sqlite_wal.rs
++++ b/rust/adapters/opencode/src/sqlite_wal.rs
+@@ -1,7 +1,7 @@
+ //! Reconstruct committed SQLite pages from immutable captured bytes.
+ //!
+ //! Format and checksum rules: https://sqlite.org/fileformat.html#walformat
+-//! The transient SHM index supplies no database content: https://sqlite.org/walformat.html#recovery
++//! SHM headers can confirm the committed frontier: https://sqlite.org/walformat.html#walidxfmt
+ use crate::{Result, unavailable};
+ use std::borrow::Cow;
+
+@@ -13,6 +13,10 @@ fn be32(bytes: &[u8]) -> u32 {
+     u32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]])
+ }
+
++fn native32(bytes: &[u8]) -> u32 {
++    u32::from_ne_bytes([bytes[0], bytes[1], bytes[2], bytes[3]])
++}
++
+ fn page_size(main: &[u8]) -> Result<usize> {
+     if main.len() < 100
+         || &main[..16] != b"SQLite format 3\0"
+@@ -62,9 +66,57 @@ fn image_length(pages: u32, size: usize, limit: usize) -> Result<usize> {
+     Ok(length)
+ }
+
++struct Frontier<'a> {
++    header: &'a [u8],
++    frame: usize,
++    length: usize,
++}
++
++impl<'a> Frontier<'a> {
++    fn read(shm: &'a [u8], size: usize, limit: usize) -> Result<Self> {
++        // Unix SHM uses 32 KiB regions and two identical native-endian headers.
++        if shm.is_empty() || shm.len() > limit || !shm.len().is_multiple_of(32768) {
++            return Err(unavailable());
++        }
++        let header = &shm[..48];
++        let encoded_size = u16::from_ne_bytes([header[14], header[15]]);
++        let expected_size = if size == 65536 { 1 } else { size as u16 };
++        let mut state = [0, 0];
++        checksum(&header[..40], cfg!(target_endian = "big"), &mut state);
++        if header != &shm[48..96]
++            || native32(header) != 3_007_000
++            || native32(&header[4..]) != 0
++            || header[12] != 1
++            || header[13] > 1
++            || encoded_size != expected_size
++            || native32(&header[40..]) != state[0]
++            || native32(&header[44..]) != state[1]
++        {
++            return Err(unavailable());
++        }
++        let frame = native32(&header[16..]);
++        if native32(&shm[96..]) > frame || native32(&shm[128..]) > frame {
++            return Err(unavailable());
++        }
++        Ok(Self {
++            header,
++            frame: usize::try_from(frame).map_err(|_| unavailable())?,
++            length: image_length(native32(&header[20..]), size, limit)?,
++        })
++    }
++
++    fn matches_commit(&self, frame: usize, length: usize, state: [u32; 2]) -> bool {
++        self.frame == frame
++            && self.length == length
++            && native32(&self.header[24..]) == state[0]
++            && native32(&self.header[28..]) == state[1]
++    }
++}
++
+ pub(crate) fn snapshot<'a>(
+     main: &'a [u8],
+     wal: Option<&[u8]>,
++    shm: Option<&[u8]>,
+     limit: u64,
+ ) -> Result<Cow<'a, [u8]>> {
+     let limit = usize::try_from(limit)
+@@ -75,12 +127,18 @@ pub(crate) fn snapshot<'a>(
+         return Err(unavailable());
+     }
+     if main[18] == 1 {
+-        return if wal.is_some() {
++        return if wal.is_some() || shm.is_some() {
+             Err(unavailable())
+         } else {
+             Ok(Cow::Borrowed(main))
+         };
+     }
++    if wal.is_none() && shm.is_some() {
++        return Err(unavailable());
++    }
++    let frontier = shm
++        .map(|shm| Frontier::read(shm, size, limit))
++        .transpose()?;
+     let wal = wal.unwrap_or_default();
+     let frame_size = size + FRAME_HEADER;
+     let mut committed = 0;
+@@ -96,14 +154,36 @@ pub(crate) fn snapshot<'a>(
+             return Err(unavailable());
+         }
+         let big_endian = be32(wal) == 0x377f0683;
++        if frontier.as_ref().is_some_and(|frontier| {
++            frontier.header[13] != u8::from(big_endian)
++                || frontier.header[32..40] != wal[16..24]
++                || frontier.frame > (wal.len() - HEADER) / frame_size
++        }) {
++            return Err(unavailable());
++        }
+         let mut state = [0, 0];
+         checksum(&wal[..24], big_endian, &mut state);
+         if !checksum_matches(&wal[24..32], state) {
+             return Err(unavailable());
+         }
+-        // Reject every invalid tail, including old generations. Never guess a torn commit boundary.
++        let mut old_tail = false;
+         for (index, frame) in wal[HEADER..].chunks_exact(frame_size).enumerate() {
+             if frame[8..16] != wal[16..24] {
++                // A verified commit must precede obsolete frames. Salt-1 changes on every reset.
++                // Old payload checksums cannot be reconstructed after their prefix was overwritten.
++                if committed == 0
++                    || frontier
++                        .as_ref()
++                        .is_none_or(|frontier| frontier.frame != committed)
++                    || frame[8..12] == wal[16..20]
++                {
++                    return Err(unavailable());
++                }
++                old_tail = true;
++                continue;
++            }
++            // Never hide a current-generation frame behind an obsolete frame or damaged salt.
++            if old_tail {
+                 return Err(unavailable());
+             }
+             image_length(be32(frame), size, limit)?;
+@@ -116,9 +196,22 @@ pub(crate) fn snapshot<'a>(
+             if pages != 0 {
+                 length = image_length(pages, size, limit)?;
+                 committed = index + 1;
++                if frontier.as_ref().is_some_and(|frontier| {
++                    committed > frontier.frame
++                        || (committed == frontier.frame
++                            && !frontier.matches_commit(committed, length, state))
++                }) {
++                    return Err(unavailable());
++                }
+             }
+         }
+     }
++    if frontier
++        .as_ref()
++        .is_some_and(|frontier| frontier.frame != committed || frontier.length != length)
++    {
++        return Err(unavailable());
++    }
+
+     // Both allocations follow the image bound. At 512-byte pages, the offset index is at most 512 KiB.
+     let count = length / size;
+@@ -233,11 +326,182 @@ mod tests {
+         }
+     }
+
++    fn resign_shm(shm: &mut [u8]) {
++        let mut state = [0, 0];
++        checksum(&shm[..40], cfg!(target_endian = "big"), &mut state);
++        shm[40..44].copy_from_slice(&state[0].to_ne_bytes());
++        shm[44..48].copy_from_slice(&state[1].to_ne_bytes());
++        shm.copy_within(0..48, 48);
++    }
++
++    fn captured(fixture: &ccusage_test_support::Fixture) -> [Vec<u8>; 3] {
++        ["source.db", "source.db-wal", "source.db-shm"]
++            .map(|name| std::fs::read(fixture.path(name)).unwrap())
++    }
++
++    #[test]
++    fn requires_consistent_shm_headers_when_present() {
++        let (fixture, _db, main, wal) = source();
++        let shm = std::fs::read(fixture.path("source.db-shm")).unwrap();
++        for offset in [0, 4, 12, 13, 14, 16, 20, 24, 28, 32, 36] {
++            let mut bad = shm.clone();
++            bad[offset] ^= 1;
++            resign_shm(&mut bad);
++            assert!(
++                snapshot(&main, Some(&wal), Some(&bad), MAX_IMAGE_BYTES as u64).is_err(),
++                "offset {offset}"
++            );
++        }
++        for offset in [8, 40, 48, 88, 96, 128] {
++            let mut bad = shm.clone();
++            bad[offset..offset + 4].fill(255);
++            assert!(
++                snapshot(&main, Some(&wal), Some(&bad), MAX_IMAGE_BYTES as u64).is_err(),
++                "offset {offset}"
++            );
++        }
++        for length in [0, 47, 95, 135, 32767] {
++            assert!(
++                snapshot(
++                    &main,
++                    Some(&wal),
++                    Some(&shm[..length]),
++                    MAX_IMAGE_BYTES as u64
++                )
++                .is_err(),
++                "length {length}"
++            );
++        }
++        assert!(snapshot(&main, Some(&wal), None, MAX_IMAGE_BYTES as u64).is_ok());
++        assert!(snapshot(&main, Some(&wal), Some(&shm), MAX_IMAGE_BYTES as u64).is_ok());
++    }
++
++    #[test]
++    fn rejects_stale_shm_even_when_an_earlier_commit_matches() {
++        let (fixture, db, _main, _wal) = source();
++        let stale = std::fs::read(fixture.path("source.db-shm")).unwrap();
++        db.execute("INSERT INTO observation VALUES (11)").unwrap();
++        let [main, wal, shm] = captured(&fixture);
++        assert!(snapshot(&main, Some(&wal), Some(&stale), MAX_IMAGE_BYTES as u64).is_err());
++        assert!(snapshot(&main, Some(&wal), Some(&shm), MAX_IMAGE_BYTES as u64).is_ok());
++    }
++
++    #[test]
++    fn reuse_requires_a_matched_frontier_and_no_current_frames_after_old_frames() {
++        let (fixture, db, _main, _wal) = source();
++        let stale = std::fs::read(fixture.path("source.db-shm")).unwrap();
++        db.execute("PRAGMA wal_checkpoint(PASSIVE); UPDATE observation SET value=9")
++            .unwrap();
++        let [main, wal, shm] = captured(&fixture);
++        assert!(snapshot(&main, Some(&wal), None, MAX_IMAGE_BYTES as u64).is_err());
++        assert!(snapshot(&main, Some(&wal), Some(&stale), MAX_IMAGE_BYTES as u64).is_err());
++        let image = snapshot(&main, Some(&wal), Some(&shm), MAX_IMAGE_BYTES as u64).unwrap();
++        crate::sqlite_snapshot::with_connection(&image, |db| {
++            let mut query = db.prepare("SELECT value FROM observation").unwrap();
++            assert_eq!(query.next().unwrap(), sqlite::State::Row);
++            assert_eq!(query.read::<i64, _>(0).unwrap(), 9);
++            Ok(())
++        })
++        .unwrap();
++        let frame_size = page_size(&main).unwrap() + FRAME_HEADER;
++        let mut bad = wal.clone();
++        bad.extend_from_slice(&wal[HEADER..HEADER + frame_size]);
++        assert!(snapshot(&main, Some(&bad), Some(&shm), MAX_IMAGE_BYTES as u64).is_err());
++        for offset in [HEADER + 12, HEADER + 16, HEADER + FRAME_HEADER] {
++            let mut bad = wal.clone();
++            bad[offset] ^= 1;
++            assert!(snapshot(&main, Some(&bad), Some(&shm), MAX_IMAGE_BYTES as u64).is_err());
++        }
++        assert!(
++            snapshot(
++                &main,
++                Some(&wal[..wal.len() - 1]),
++                Some(&shm),
++                MAX_IMAGE_BYTES as u64
++            )
++            .is_err()
++        );
++    }
++
++    #[test]
++    fn checks_uncommitted_current_frames_after_a_verified_commit() {
++        let (fixture, _db, main, mut wal) = source();
++        let shm = std::fs::read(fixture.path("source.db-shm")).unwrap();
++        let frame_size = page_size(&main).unwrap() + FRAME_HEADER;
++        let mut pending = wal[wal.len() - frame_size..].to_vec();
++        pending[4..8].fill(0);
++        wal.extend_from_slice(&pending);
++        resign(&mut wal, cfg!(target_endian = "big"));
++        assert!(snapshot(&main, Some(&wal), Some(&shm), MAX_IMAGE_BYTES as u64).is_ok());
++        let offset = wal.len() - frame_size;
++        for relative in [12, 16, FRAME_HEADER] {
++            let mut bad = wal.clone();
++            bad[offset + relative] ^= 1;
++            assert!(snapshot(&main, Some(&bad), Some(&shm), MAX_IMAGE_BYTES as u64).is_err());
++        }
++    }
++
++    #[test]
++    fn matches_native_shm_checksums_to_big_endian_wal_checksums() {
++        let (fixture, _db, main, mut wal) = source();
++        let mut shm = std::fs::read(fixture.path("source.db-shm")).unwrap();
++        resign(&mut wal, true);
++        let frame_size = page_size(&main).unwrap() + FRAME_HEADER;
++        let frame = &wal[wal.len() - frame_size..];
++        shm[13] = 1;
++        shm[24..28].copy_from_slice(&be32(&frame[16..]).to_ne_bytes());
++        shm[28..32].copy_from_slice(&be32(&frame[20..]).to_ne_bytes());
++        resign_shm(&mut shm);
++        assert!(snapshot(&main, Some(&wal), Some(&shm), MAX_IMAGE_BYTES as u64).is_ok());
++    }
++
++    #[test]
++    fn reads_tails_from_more_than_one_old_generation() {
++        let (fixture, db, _main, _wal) = source();
++        for _ in 0..8 {
++            db.execute("UPDATE observation SET value=value+1").unwrap();
++        }
++        db.execute("PRAGMA wal_checkpoint(PASSIVE); UPDATE observation SET value=21; UPDATE observation SET value=22").unwrap();
++        db.execute("PRAGMA wal_checkpoint(PASSIVE); UPDATE observation SET value=23")
++            .unwrap();
++        let [main, wal, shm] = captured(&fixture);
++        let frame_size = page_size(&main).unwrap() + FRAME_HEADER;
++        let salts = wal[HEADER..]
++            .chunks_exact(frame_size)
++            .map(|frame| &frame[8..16])
++            .collect::<std::collections::BTreeSet<_>>();
++        assert_eq!(salts.len(), 3);
++        let image = snapshot(&main, Some(&wal), Some(&shm), MAX_IMAGE_BYTES as u64).unwrap();
++        crate::sqlite_snapshot::with_connection(&image, |db| {
++            let mut query = db.prepare("SELECT value FROM observation").unwrap();
++            assert_eq!(query.next().unwrap(), sqlite::State::Row);
++            assert_eq!(query.read::<i64, _>(0).unwrap(), 23);
++            Ok(())
++        })
++        .unwrap();
++    }
++
++    #[test]
++    fn refuses_reuse_without_a_current_generation_commit() {
++        let (fixture, db, _main, _wal) = source();
++        db.execute("PRAGMA wal_checkpoint(PASSIVE); BEGIN; UPDATE observation SET value=99")
++            .unwrap();
++        // SAFETY: the live fixture connection owns this uncommitted transaction.
++        assert_eq!(
++            unsafe { sqlite3_sys::sqlite3_db_cacheflush(db.as_raw()) },
++            sqlite3_sys::SQLITE_OK
++        );
++        let [main, wal, shm] = captured(&fixture);
++        assert_eq!(native32(&shm[16..]), 0);
++        assert!(snapshot(&main, Some(&wal), Some(&shm), MAX_IMAGE_BYTES as u64).is_err());
++        db.execute("ROLLBACK").unwrap();
++    }
++
+     #[test]
+     fn accepts_big_endian_wal_checksums() {
+         let (_fixture, _db, main, mut wal) = source();
+         resign(&mut wal, true);
+-        let image = snapshot(&main, Some(&wal), MAX_IMAGE_BYTES as u64).unwrap();
++        let image = snapshot(&main, Some(&wal), None, MAX_IMAGE_BYTES as u64).unwrap();
+         crate::sqlite_snapshot::with_connection(&image, |db| {
+             let mut query = db.prepare("SELECT value FROM observation").unwrap();
+             assert_eq!(query.next().unwrap(), sqlite::State::Row);
+@@ -261,8 +525,8 @@ mod tests {
+             let mut bad = wal.clone();
+             bad[offset..offset + 4].copy_from_slice(&value.to_be_bytes());
+             resign(&mut bad, false);
+-            assert!(snapshot(&main, Some(&bad), MAX_IMAGE_BYTES as u64).is_err());
++            assert!(snapshot(&main, Some(&bad), None, MAX_IMAGE_BYTES as u64).is_err());
+         }
+-        assert!(snapshot(&main, Some(&wal), (size - 1) as u64).is_err());
++        assert!(snapshot(&main, Some(&wal), None, (size - 1) as u64).is_err());
+     }
+ }

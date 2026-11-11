@@ -26,11 +26,12 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scoped result, November 11, 2026. The OpenCode WAL candidate preserves
-committed database usage and excludes uncommitted frames on synthetic Linux
-input. The [candidate record](reviews/2026-11-11-opencode-wal-candidate.md)
-gives its limits. Ordinary reused WAL tails and producer metadata remain
-qualification gaps. OpenCode stays disabled.
+Latest scoped result, November 11, 2026. The OpenCode WAL reuse candidate
+returns exact committed totals after ordinary checkpoints and rejects stale or
+inconsistent captured boundaries on synthetic Linux input. The
+[candidate record](reviews/2026-11-11-opencode-wal-reuse-candidate.md) gives its
+limits. Producer-runtime execution and metadata mapping remain qualification
+gaps. OpenCode stays disabled.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -158,7 +159,7 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 
 ## Current assignment
 
-[L-1f11](implementation-slices.md#build-checklist) remains open for tool qualification. The next OpenCode steps are ordinary WAL reuse and producer-runtime qualification, including metadata messages and fork behavior. Keep the tool disabled until its required checks pass.
+[L-1f11](implementation-slices.md#build-checklist) remains open for tool qualification. The next OpenCode step is producer-runtime qualification, including metadata messages and fork behavior. Keep the tool disabled until its required checks pass.
 
 L-1f0 through L-1f10 are complete within their recorded scope. Only Claude Code and Codex are enabled. The Amp patch is a local candidate, and the production scanner pin is unchanged.
 

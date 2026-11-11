@@ -4,6 +4,14 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f11s result before L-1f11t
+
+Latest scoped result, November 11, 2026. The OpenCode WAL candidate preserves
+committed database usage and excludes uncommitted frames on synthetic Linux
+input. The [candidate record](reviews/2026-11-11-opencode-wal-candidate.md)
+gives its limits. Ordinary reused WAL tails and producer metadata remain
+qualification gaps. OpenCode stays disabled.
+
 ## L-1f11r result before L-1f11s
 
 Latest scoped result, November 11, 2026. The OpenCode capture candidate returns
