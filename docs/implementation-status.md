@@ -26,11 +26,11 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scoped result, November 12, 2026. The pinned Grok scanner accepts
-conflicting IDs, incomplete usage, and malformed peers. Twenty of forty-six
-session outcomes match. The
-[qualification record](reviews/2026-11-12-grok-qualification.md) covers copies,
-parent/child overlap, missing metrics, and the official source. Grok stays disabled.
+Latest scoped result, November 12, 2026. The pinned Antigravity scanner merges
+conflicting 157-token and 160-token records into 177 tokens. Seventeen of
+thirty-seven session outcomes match. The
+[qualification record](reviews/2026-11-12-antigravity-qualification.md) separates
+consumer-compatible inputs from the public SDK. Antigravity stays disabled.
 
 Hosted CI for `cd99e35` passed Linux and Renderer, including native oracle tests.
 The [evidence log](acceptance-traceability.md#evidence-log) records its scope.
@@ -163,7 +163,9 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 ## Current assignment
 
 [L-1f11](implementation-slices.md#build-checklist) remains open for tool qualification.
-The next bounded step qualifies Antigravity usage records and source capture.
+The next bounded step reviews the additional-tool qualification gates and
+selects one candidate application assignment. All sixteen baseline input reviews
+are recorded. None enables an additional tool.
 Grok needs bounded capture, conflict refusal, qualified parent/child attribution,
 and release mapping.
 Copilot needs bounded capture, qualified origin and overlap rules, and current

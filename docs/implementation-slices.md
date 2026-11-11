@@ -82,7 +82,7 @@ The other slices below follow the launch, unless a launch slice needs part of on
 
 ## Build checklist
 
-Updated November 12, 2026. Each completed item has one local commit and scoped evidence. L-1f11ah records the latest result. The next bounded assignment is below. Owner items wait for the owner.
+Updated November 12, 2026. Each completed item has one local commit and scoped evidence. L-1f11ai records the latest result. The next bounded assignment is below. Owner items wait for the owner.
 
 **Verification before release**
 
@@ -154,7 +154,8 @@ Updated November 12, 2026. Each completed item has one local commit and scoped e
 - [x] L-1f11af: record [OpenClaw qualification](reviews/2026-11-12-openclaw-qualification.md). Fourteen of fifty-two cases match both reports. Distinct events collapse, inherited usage repeats, and unavailable metrics remain numeric. OpenClaw stays disabled.
 - [x] L-1f11ag: record [Copilot qualification](reviews/2026-11-12-copilot-qualification.md). Five of forty-eight cases match both reports. Copies, conflicting records, ignored checkpoints, and partial capture prevent enablement. Copilot stays disabled.
 - [x] L-1f11ah: record [Grok qualification](reviews/2026-11-12-grok-qualification.md). Twenty of forty-six session outcomes match. Conflicting IDs, overlapping parent/child usage, incomplete records, and partial capture prevent enablement. Grok stays disabled.
-- [ ] L-1f11ai: qualify Antigravity usage records, copies, replay, and capture failures on private synthetic input. Keep Antigravity disabled until its required checks pass.
+- [x] L-1f11ai: record [Antigravity qualification](reviews/2026-11-12-antigravity-qualification.md). Seventeen of thirty-seven session outcomes match. Conflicting maxima, missing metrics, partial reads, and an unqualified writer contract prevent enablement. Antigravity stays disabled.
+- [ ] L-1f11aj: reconcile all sixteen additional-tool qualification records with the catalog and candidate gates. Select one bounded application assignment. Keep the production pin and enabled tools unchanged.
 - [x] R-5: bound leaderboard request collection at 64 KiB. Twenty-four local service tests passed, including overflow cancellation, byte boundaries, stream errors, and the earlier aggregate and concurrency checks. Hosted Workers remain unverified.
 - [x] R-4: enforce hourly limits and the five-device cap under concurrent requests. Fourteen local service tests passed, including token rotation, hour resets, and database failures. Hosted D1 remains unverified.
 - [x] R-3: keep a leaderboard estimate unavailable when any included row lacks it. Token totals, measured zero, ordering, and period filters stay intact. Eight local service tests passed. Hosted D1 remains unverified.

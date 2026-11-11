@@ -4,6 +4,14 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f11ah result before L-1f11ai
+
+Latest scoped result, November 12, 2026. The pinned Grok scanner accepts
+conflicting IDs, incomplete usage, and malformed peers. Twenty of forty-six
+session outcomes match. The
+[qualification record](reviews/2026-11-12-grok-qualification.md) covers copies,
+parent/child overlap, missing metrics, and the official source. Grok stays disabled.
+
 ## R-5 result before L-1f11ah
 
 Latest scoped result, November 12, 2026. The leaderboard collects request
