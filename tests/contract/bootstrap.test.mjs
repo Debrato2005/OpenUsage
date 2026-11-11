@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
 import { DesktopUnavailable, invoke } from '../../apps/desktop/src/contracts.ts';
+import scannerVersions from './scanner-versions.json' with { type: 'json' };
 import toolCatalog from '../../crates/openusage-locallogs/sources/tools.json' with { type: 'json' };
 
 // Synthetic IPC responses. These tests do not exercise a native Tauri application.
@@ -14,12 +15,36 @@ function desktopResponse(value) {
   globalThis.window = { __TAURI__: { core: { invoke: async () => value } } };
 }
 
-test('the tool catalog does not enable consent for unqualified scanners', async () => {
-  for (const [tool, definition] of Object.entries(toolCatalog)) {
-    const response = { consentRequired: true, tools: [{ tool, detected: true, granted: false }], scan: { state: 'idle', lastScanAtUtc: null } };
+test('local log consent accepts the known tools returned by Rust', async () => {
+  const tools = Object.keys(toolCatalog).map(tool => ({ tool, detected: true, granted: false }));
+  for (const returned of [...tools.map(tool => [tool]), tools, []]) {
+    const response = { consentRequired: true, tools: returned, scan: { state: 'idle', lastScanAtUtc: null } };
     desktopResponse(response);
-    if (definition.enabled) assert.deepEqual(await invoke('load_local_logs'), response);
-    else await assert.rejects(invoke('load_local_logs'), /desktop response is incompatible/);
+    assert.deepEqual(await invoke('load_local_logs'), response);
+    assert.deepEqual(await invoke('save_local_log_consent', { tools: returned.map(tool => tool.tool) }), response);
+  }
+});
+
+test('local log consent rejects unknown tools, duplicate tools, and extra fields', async () => {
+  const pi = { tool: 'pi', detected: true, granted: false };
+  const response = { consentRequired: true, tools: [pi], scan: { state: 'idle', lastScanAtUtc: null } };
+  const invalid = [
+    { ...response, tools: [{ ...pi, tool: 'unknown-tool' }] },
+    { ...response, tools: [pi, pi] },
+    { ...response, tools: Array.from({ length: Object.keys(toolCatalog).length + 1 }, () => pi) },
+    { ...response, tools: [{ ...pi, detected: 'true' }] },
+    { ...response, tools: [{ ...pi, granted: 1 }] },
+    { ...response, tools: [{ ...pi, folder: '/synthetic/private' }] },
+    { ...response, consentRequired: null },
+    { ...response, scan: { ...response.scan, state: 'complete' } },
+    { ...response, scan: { ...response.scan, lastScanAtUtc: '2026-02-30T00:00:00Z' } },
+    { ...response, scan: { ...response.scan, output: 'synthetic-only' } },
+    { ...response, enabledTools: ['pi'] },
+  ];
+  for (const value of invalid) {
+    desktopResponse(value);
+    await assert.rejects(invoke('load_local_logs'), /desktop response is incompatible/);
+    await assert.rejects(invoke('save_local_log_consent', { tools: ['pi'] }), /desktop response is incompatible/);
   }
 });
 
@@ -897,4 +922,19 @@ test('local saved views retain independent totals and nulls without enabling sca
   }
   desktopResponse({ ...value, scopes: null });
   await assert.rejects(invoke('load_local_usage', { days: 30, period: 'day' }), /desktop response is incompatible/);
+});
+
+
+test('local scanner versions preserve legacy values and accept bounded tagged provenance', async () => {
+  const { localUsage } = await import('../renderer/local-usage-fixture.ts');
+  const base = localUsage();
+  for (const version of scannerVersions.accepted) {
+    const value = { ...base, scannerVersions: [version] };
+    desktopResponse(value);
+    assert.deepEqual(await invoke('load_local_usage', { days: 30, period: 'day' }), value);
+  }
+  for (const version of [...scannerVersions.rejected, null, 20, {}]) {
+    desktopResponse({ ...base, scannerVersions: [version] });
+    await assert.rejects(invoke('load_local_usage', { days: 30, period: 'day' }), /desktop response is incompatible/, JSON.stringify(version));
+  }
 });

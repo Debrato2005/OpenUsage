@@ -11,6 +11,32 @@ type Result<T> = std::result::Result<T, LocalLogError>;
 const MAX_COUNT: u64 = 1_000_000_000_000_000;
 const MAX_ROWS: usize = 200_000;
 
+// Keep legacy spellings. New tags use SemVer prerelease syntax within 128 ASCII bytes.
+// The renderer checks the same cases in tests/contract/scanner-versions.json.
+fn valid_grouped_version(version: &str) -> bool {
+    if valid_version(version) {
+        return true;
+    }
+    if version.len() > 128 {
+        return false;
+    }
+    let Some((core, prerelease)) = version.split_once('-') else {
+        return false;
+    };
+    let numeric = |part: &str| {
+        !part.is_empty()
+            && part.bytes().all(|b| b.is_ascii_digit())
+            && (part.len() == 1 || !part.starts_with('0'))
+    };
+    core.split('.').count() == 3
+        && core.split('.').all(numeric)
+        && prerelease.split('.').all(|part| {
+            !part.is_empty()
+                && part.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
+                && (!part.bytes().all(|b| b.is_ascii_digit()) || numeric(part))
+        })
+}
+
 /// One complete, successful scan of all selected roots for one tool. None means sessions were not read.
 pub struct GroupedLocalScan<'a> {
     pub tool: &'a str,
@@ -365,7 +391,7 @@ fn provenance(connection: &Connection, schema: &str, id: &str) -> Result<LocalSc
         .collect::<rusqlite::Result<Vec<_>>>()
         .map_err(|_| LocalLogError::ReadFailed)?;
     if !canonical_uuid(id)
-        || !valid_version(&scanner_version)
+        || !valid_grouped_version(&scanner_version)
         || normalization_version != 1
         || !activity::activity_utc_timestamp(&observed_at_utc)
         || !(1..=64).contains(&source_ids.len())
@@ -520,7 +546,7 @@ impl Storage {
         scan: &GroupedLocalScan<'_>,
     ) -> Result<LocalUsageScanSummary> {
         let policy = period_kind(scan.tool)?;
-        if !valid_version(scan.scanner_version)
+        if !valid_grouped_version(scan.scanner_version)
             || !activity::activity_utc_timestamp(scan.observed_at_utc)
             || !(1..=64).contains(&scan.source_ids.len())
             || scan.source_ids.iter().any(|id| !canonical_uuid(id))

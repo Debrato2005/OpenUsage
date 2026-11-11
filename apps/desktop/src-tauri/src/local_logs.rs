@@ -18,6 +18,19 @@ use tauri::State;
 const SCAN_INTERVAL: Duration = Duration::from_secs(600);
 const LOCKED_RETRY: Duration = Duration::from_secs(2);
 
+#[cfg(all(feature = "pi-native-qualification", target_os = "linux"))]
+mod pi_qualification;
+
+pub(crate) fn tool_allowed(id: &str) -> bool {
+    locallogs::tool(id).is_some_and(|tool| {
+        tool.enabled
+            || (cfg!(all(
+                feature = "pi-native-qualification",
+                target_os = "linux"
+            )) && id == "pi")
+    })
+}
+
 fn empty_scan_home() -> std::io::Result<tempfile::TempDir> {
     let mut builder = tempfile::Builder::new();
     #[cfg(unix)]
@@ -35,7 +48,16 @@ fn detect_user_home() -> Vec<Detected> {
     #[cfg(not(feature = "native-test"))]
     let home = std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" });
     let home = home.map(PathBuf::from).filter(|home| home.is_absolute());
-    home.map(|home| detect(&home)).unwrap_or_default()
+    home.map(|home| {
+        let detected = detect(&home);
+        #[cfg(all(feature = "pi-native-qualification", target_os = "linux"))]
+        let detected = detected
+            .into_iter()
+            .chain(locallogs::detect::detect_pi_candidate(&home))
+            .collect();
+        detected
+    })
+    .unwrap_or_default()
 }
 
 fn now_utc() -> String {
@@ -46,11 +68,30 @@ fn now_utc() -> String {
 
 /// The pinned binary and its digest. Rust checks the digest before each run (OU-LOG-005).
 #[derive(Clone)]
-pub(crate) struct Scanner {
+struct PinnedScanner {
     binary: PathBuf,
     digest: String,
+    version: String,
+}
+
+#[derive(Clone)]
+pub(crate) struct Scanner {
+    production: PinnedScanner,
+    #[cfg(all(feature = "pi-native-qualification", target_os = "linux"))]
+    pi: Option<PinnedScanner>,
 }
 impl Scanner {
+    fn for_tool(&self, tool: &str) -> Option<&PinnedScanner> {
+        if !tool_allowed(tool) {
+            return None;
+        }
+        #[cfg(all(feature = "pi-native-qualification", target_os = "linux"))]
+        if tool == "pi" {
+            return self.pi.as_ref();
+        }
+        Some(&self.production)
+    }
+
     fn bundled() -> Option<Self> {
         let digest = locallogs::pinned_sha256_here()?;
         let binary = std::env::current_exe()
@@ -63,8 +104,13 @@ impl Scanner {
             .map(PathBuf::from)
             .unwrap_or(binary);
         Some(Self {
-            binary,
-            digest: digest.into(),
+            production: PinnedScanner {
+                binary,
+                digest: digest.into(),
+                version: locallogs::CCUSAGE_VERSION.into(),
+            },
+            #[cfg(all(feature = "pi-native-qualification", target_os = "linux"))]
+            pi: pi_qualification::scanner(),
         })
     }
 }
@@ -116,9 +162,10 @@ fn scan_group(
     scanner: &Scanner,
     group: &ScanGroup,
 ) -> Option<String> {
+    let scanner = scanner.for_tool(&group.sources.first()?.tool)?;
     let empty_home = empty_scan_home().ok()?;
     let folders: Vec<_> = group.sources.iter().map(|s| Path::new(&s.folder)).collect();
-    let report = locallogs::scan_grouped_with_check(
+    let report = collect_group(
         &locallogs::GroupedScanRequest {
             binary: &scanner.binary,
             expected_sha256: &scanner.digest,
@@ -137,9 +184,20 @@ fn scan_group(
         .lock()
         .ok()?
         .as_mut()?
-        .save_grouped_log_reports(group, &scanned_at, &report)
+        .save_grouped_log_reports(group, &scanned_at, &scanner.version, &report)
         .ok()?;
     Some(scanned_at)
+}
+
+fn collect_group(
+    request: &locallogs::GroupedScanRequest<'_>,
+    check: impl FnMut() -> bool,
+) -> Result<locallogs::GroupedScanResult, locallogs::ScanError> {
+    #[cfg(all(feature = "pi-native-qualification", target_os = "linux"))]
+    if request.tool == "pi" {
+        return locallogs::grouped::qualify_pi_candidate(request, check);
+    }
+    locallogs::scan_grouped_with_check(request, check)
 }
 
 fn sources_consented(
@@ -165,6 +223,7 @@ fn scan_source(
     source: &LogSource,
     zone: &str,
 ) -> Option<String> {
+    let scanner = scanner.for_tool(&source.tool)?;
     let empty_home = empty_scan_home().ok()?;
     let request = locallogs::ScanRequest {
         binary: &scanner.binary,
@@ -353,7 +412,9 @@ fn view(
         Err(CommandError::WorkspaceLocked) => Vec::new(),
         sources => sources?,
     };
-    let tools = locallogs::enabled_tools()
+    let tools = locallogs::tools()
+        .iter()
+        .filter(|tool| tool_allowed(&tool.id))
         .map(|tool| ToolView {
             tool: tool.id.clone(),
             detected: detected.iter().any(|d| d.tool == tool.id),
@@ -376,7 +437,7 @@ fn consent(
     tools: &[String],
 ) -> Result<(), CommandError> {
     let unique: BTreeSet<&String> = tools.iter().collect();
-    let known = |tool: &String| locallogs::tool(tool).is_some_and(|tool| tool.enabled);
+    let known = |tool: &String| tool_allowed(tool);
     if unique.len() != tools.len() || !tools.iter().all(known) {
         return Err(CommandError::InvalidArguments);
     }
@@ -471,7 +532,15 @@ mod tests {
         std::fs::write(&binary, format!("#!/bin/sh\n{body}\n")).unwrap();
         std::fs::set_permissions(&binary, std::fs::Permissions::from_mode(0o700)).unwrap();
         let digest = locallogs::sha256_hex(&std::fs::read(&binary).unwrap());
-        Scanner { binary, digest }
+        Scanner {
+            production: PinnedScanner {
+                binary,
+                digest,
+                version: locallogs::CCUSAGE_VERSION.into(),
+            },
+            #[cfg(all(feature = "pi-native-qualification", target_os = "linux"))]
+            pi: None,
+        }
     }
 
     fn totals(workspace: &mut Workspace) -> Vec<(String, String, u64)> {
@@ -480,6 +549,38 @@ mod tests {
             .into_iter()
             .map(|d| (d.counts.local_date, d.counts.model, d.counts.total_tokens))
             .collect()
+    }
+
+    #[test]
+    fn descriptors_keep_production_and_candidate_identity_separate() {
+        let descriptor = PinnedScanner {
+            binary: PathBuf::from("/synthetic/production"),
+            digest: "a".repeat(64),
+            version: locallogs::CCUSAGE_VERSION.into(),
+        };
+        let scanner = Scanner {
+            production: descriptor,
+            #[cfg(all(feature = "pi-native-qualification", target_os = "linux"))]
+            pi: None,
+        };
+        assert!(scanner.for_tool("pi").is_none());
+        assert!(scanner.for_tool("opencode").is_none());
+        assert!(scanner.for_tool("unknown").is_none());
+        assert_eq!(scanner.for_tool("claude").unwrap().version, "20.0.48");
+        assert_eq!(scanner.for_tool("codex").unwrap().digest, "a".repeat(64));
+        #[cfg(all(feature = "pi-native-qualification", target_os = "linux"))]
+        {
+            let mut scanner = scanner;
+            scanner.pi = Some(PinnedScanner {
+                binary: PathBuf::from("/synthetic/pi-candidate"),
+                digest: "b".repeat(64),
+                version: "20.0.48-openusage.pi-bounded-release.1".into(),
+            });
+            assert_eq!(scanner.for_tool("pi").unwrap().digest, "b".repeat(64));
+            assert_eq!(scanner.for_tool("claude").unwrap().digest, "a".repeat(64));
+            assert_eq!(scanner.for_tool("codex").unwrap().version, "20.0.48");
+            assert!(scanner.for_tool("opencode").is_none());
+        }
     }
 
     // One test, because ccusage runs share one process-wide lock.
@@ -591,7 +692,7 @@ mod tests {
         );
         // A binary that does not match its digest never runs.
         let mut substituted = scanner(&bin, "substituted", &format!("touch {}", marker.display()));
-        substituted.digest = "0".repeat(64);
+        substituted.production.digest = "0".repeat(64);
         assert!(matches!(
             scan_all(&shared, &substituted),
             Outcome::Scanned { failed: true, .. }

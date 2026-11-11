@@ -26,15 +26,16 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scoped result, November 12, 2026. The additional-tool gate review maps
-all sixteen disabled tools to their evidence records. Pi is the next candidate
-for native application qualification. The
-[review](reviews/2026-11-12-additional-tool-gates.md) records the selection and
-missing application paths. No additional tool is enabled.
+Latest scoped result, November 12, 2026. The native Pi qualification build uses
+consent, worker scans, grouped storage, and Overview. Copies count once. Growth
+saves 137 tokens with the full candidate version. Refused input, withdrawal,
+and a wrong binary digest preserve saved data. The ordinary build refuses Pi.
+The [qualification record](reviews/2026-11-12-pi-native-qualification.md) holds
+the executed Linux scope and remaining gates. No additional tool is enabled.
 
-Hosted CI for `cd99e35` passed Linux and Renderer, including native oracle tests.
+Hosted CI for `4e787ef` passed Linux and Renderer, including native oracle tests.
 The [evidence log](acceptance-traceability.md#evidence-log) records its scope.
-This result does not certify later commits or other platforms.
+The current source changes still need their hosted run.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -162,11 +163,12 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 
 ## Current assignment
 
-[L-1f11ak](implementation-slices.md#l-1f11ak-native-pi-candidate-qualification)
-is the next bounded assignment. Exercise the pinned Pi candidate through a
-qualification build's consent, worker, storage, and display paths. Preserve
-actual scanner provenance and verify failure retention and consent withdrawal.
-The production pin and enabled catalog stay unchanged.
+[L-1f11al](implementation-slices.md#l-1f11al-shared-candidate-regression-qualification)
+compares the bounded release candidate with the production scanner for enabled
+Claude Code and Codex. Check each supported report with private fixtures and
+independent expectations. Keep copied roots, missing values, and source hashes
+in scope. Record any mismatch before a pin change. Keep the enabled catalog
+and production pin unchanged.
 
 The [gate review](reviews/2026-11-12-additional-tool-gates.md) links all sixteen
 additional-tool records. Their source and capture gaps remain open.

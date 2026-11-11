@@ -31,6 +31,44 @@ Set `OPENUSAGE_NATIVE_EVIDENCE` to select the evidence directory.
 
 This test uses the [official external-driver setup](https://v2.tauri.app/develop/tests/webdriver/manual-setup/).
 
+## Native Pi candidate
+
+This Linux experiment uses the disabled Pi candidate through the normal consent,
+worker, grouped storage, and typed view paths. Build the renderer first. Use the
+shared Cargo target and the pinned toolchain.
+
+```sh
+bun run build
+cargo build --locked -p openusage-desktop --features pi-native-qualification
+cargo build --locked --manifest-path tests/native/backup-verifier/Cargo.toml
+```
+
+Set `OPENUSAGE_NATIVE_BINARY` to the absolute desktop path. Set
+`OPENUSAGE_NATIVE_PI_SCANNER` to the bounded release candidate with the digest in
+`tests/tools/fixtures/pi-producer/pin.json`. Set `OPENUSAGE_LOGIN_VERIFIER` to the
+built `openusage-native-activity-verifier`. Set
+`OPENUSAGE_LOGIN_VERIFIER_SHA256` to that verifier's checked digest. Set
+`OPENUSAGE_NATIVE_EVIDENCE` to a private output directory. Use the driver variables
+above when needed.
+
+Run `xvfb-run -a node tests/native/pi-qualification.mjs` with a 240-second deadline.
+The journey creates private logs and a password workspace. It checks copies,
+exact growth, unavailable details, the pinned zone, and scanner provenance.
+Malformed input and a wrong binary digest must preserve saved data. Withdrawal
+must prevent a later source change from entering storage. The independent
+SQLCipher oracle checks saved records after native shutdown. Source hashes must
+stay unchanged by scans.
+
+Rebuild with only `--features native-test`. Run the same journey with
+`--expect-disabled` and a separate evidence directory. This checks that the
+ordinary build neither offers nor grants Pi. The catalog and production scanner
+pin stay unchanged. These results cover synthetic Linux input only. They do not
+qualify real histories, other platforms, or a production release.
+
+Set `OPENUSAGE_LOGIN_VERIFIER_SHA256` to the checked digest for a newly built
+activity verifier. Existing journeys keep their historical pin when it is unset.
+An invalid pin or a mismatch refuses execution.
+
 ## Native summary details
 
 After the renderer build, build the desktop with `--features native-test` in the shared Cargo target. Run `node tests/native/summary-details.mjs` on a private Xvfb display with `OPENUSAGE_NATIVE_BINARY` and `OPENUSAGE_NATIVE_EVIDENCE` set to absolute paths. Use the driver variables above when needed. Restore the production build afterward and run `provider-source-gate.mjs` against it.

@@ -82,13 +82,13 @@ The other slices below follow the launch, unless a launch slice needs part of on
 
 ## Build checklist
 
-Updated November 12, 2026. Each completed item has one local commit and scoped evidence. L-1f11aj records the latest result. The next bounded assignment is below. Owner items wait for the owner.
+Updated November 12, 2026. Each completed item has one local commit and scoped evidence. L-1f11ak records the latest result. The next bounded assignment is below. Owner items wait for the owner.
 
 **Verification before release**
 
 - [x] Fix portable Codex fixtures, renderer countdown clocks, and quota fixture readiness. See [traceability](acceptance-traceability.md#evidence-log) for scope and results.
 - [x] The hosted renderer job for `b1b8d84` passed all 456 cases.
-- [x] The hosted Linux gate for `cd99e35` passed after the quota fixture fix in `d357655`, including native oracle checks. See the [record](acceptance-traceability.md#evidence-log).
+- [x] The hosted Linux and Renderer gates for `4e787ef` passed, including native oracle checks. See the [record](acceptance-traceability.md#evidence-log).
 
 **L-0 First run**
 
@@ -156,7 +156,8 @@ Updated November 12, 2026. Each completed item has one local commit and scoped e
 - [x] L-1f11ah: record [Grok qualification](reviews/2026-11-12-grok-qualification.md). Twenty of forty-six session outcomes match. Conflicting IDs, overlapping parent/child usage, incomplete records, and partial capture prevent enablement. Grok stays disabled.
 - [x] L-1f11ai: record [Antigravity qualification](reviews/2026-11-12-antigravity-qualification.md). Seventeen of thirty-seven session outcomes match. Conflicting maxima, missing metrics, partial reads, and an unqualified writer contract prevent enablement. Antigravity stays disabled.
 - [x] L-1f11aj: reconcile all sixteen additional-tool records with the catalog and candidate gates. The [gate review](reviews/2026-11-12-additional-tool-gates.md) selects Pi's native application path next. The production pin and enabled tools stay unchanged.
-- [ ] L-1f11ak: exercise the pinned Pi candidate through a native qualification build, including consent, worker scans, exact persistence and display, provenance, refusal, and withdrawal. Keep production support unchanged.
+- [x] L-1f11ak: exercise the pinned Pi candidate through a native qualification build, including consent, worker scans, exact persistence and display, provenance, refusal, and withdrawal. Keep production support unchanged.
+- [ ] L-1f11al: compare the shared bounded release candidate with the production scanner for enabled Claude Code and Codex. Keep production support unchanged.
 - [x] R-5: bound leaderboard request collection at 64 KiB. Twenty-four local service tests passed, including overflow cancellation, byte boundaries, stream errors, and the earlier aggregate and concurrency checks. Hosted Workers remain unverified.
 - [x] R-4: enforce hourly limits and the five-device cap under concurrent requests. Fourteen local service tests passed, including token rotation, hour resets, and database failures. Hosted D1 remains unverified.
 - [x] R-3: keep a leaderboard estimate unavailable when any included row lacks it. Token totals, measured zero, ordering, and period filters stay intact. Eight local service tests passed. Hosted D1 remains unverified.
@@ -575,6 +576,25 @@ Acceptance:
 
 Stopping condition: one verified native candidate result, updated owning docs,
 a local commit, and an AST Graphify update. Report before the next bounded step.
+
+### L-1f11al: shared candidate regression qualification
+
+Goal: compare one bounded release candidate with the production scanner for
+both enabled tools before any production pin change.
+
+Acceptance:
+
+- Use private synthetic Claude Code and Codex fixtures and independent counts.
+- Compare each supported report, copied roots, missing values, and failures.
+  Preserve exact values and unchanged source hashes.
+- Check both executable digests and record commands, source pins, and scope.
+- Record mismatches and remaining packaging and performance gates. Keep the
+  enabled catalog and production pin unchanged.
+- Run doctor and the selected verification plan. Keep native and platform
+  claims within their executed source scope.
+
+Stopping condition: one comparison result, updated owning docs, one local
+commit, and an AST Graphify update. Report before the next bounded step.
 
 ## Order
 

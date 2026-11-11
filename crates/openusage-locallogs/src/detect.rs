@@ -1,6 +1,6 @@
 //! Detection checks only whether known folders exist. It opens no log (OU-LOG-001).
 
-use crate::tools::{MarkerKind, enabled_tools};
+use crate::tools::{MarkerKind, Tool, enabled_tools};
 use std::collections::BTreeSet;
 use std::path::Path;
 
@@ -12,9 +12,19 @@ pub struct Detected {
 }
 
 pub fn detect(home: &Path) -> Vec<Detected> {
+    detect_tools(home, enabled_tools())
+}
+
+/// Detect the disabled Pi candidate only for qualification.
+#[cfg(feature = "pi-qualification")]
+pub fn detect_pi_candidate(home: &Path) -> Vec<Detected> {
+    detect_tools(home, crate::tools::tool("pi").into_iter())
+}
+
+fn detect_tools(home: &Path, tools: impl Iterator<Item = &'static Tool>) -> Vec<Detected> {
     let mut seen = BTreeSet::new();
     let mut detected = Vec::new();
-    for tool in enabled_tools() {
+    for tool in tools {
         for root in &tool.roots {
             let folder = home.join(&root.path);
             let marker = folder.join(&root.marker);
@@ -46,6 +56,28 @@ pub fn detect(home: &Path) -> Vec<Detected> {
 mod tests {
     use super::*;
     use std::os::unix::fs::symlink;
+
+    #[cfg(feature = "pi-qualification")]
+    #[test]
+    fn candidate_detection_does_not_enable_production_or_parse_records() {
+        let home = tempfile::tempdir().unwrap();
+        let sessions = home.path().join(".pi/agent/sessions");
+        std::fs::create_dir_all(&sessions).unwrap();
+        std::fs::write(sessions.join("broken.jsonl"), b"\xff\xfe").unwrap();
+        assert!(detect(home.path()).is_empty());
+        assert_eq!(
+            detect_pi_candidate(home.path()),
+            [Detected {
+                tool: "pi",
+                folder: std::fs::canonicalize(&sessions)
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .into(),
+            }]
+        );
+        assert!(!crate::tools::tool("pi").unwrap().enabled);
+    }
 
     #[test]
     fn detection_checks_known_folders_and_resolves_links() {

@@ -69,6 +69,59 @@ fn scan<'a>(
     }
 }
 #[test]
+fn grouped_scanner_versions_preserve_legacy_values_and_check_tagged_provenance() {
+    let cases: serde_json::Value = serde_json::from_slice(include_bytes!(
+        "../../../../tests/contract/scanner-versions.json"
+    ))
+    .unwrap();
+    let (_dir, mut storage, sources) = setup("pi");
+    let periods = [period(173, None)];
+    let mut report = scan("pi", &sources, &periods, None);
+    for version in cases["accepted"].as_array().unwrap() {
+        report.scanner_version = version.as_str().unwrap();
+        storage.save_grouped_local_scan(&report).unwrap();
+        assert_eq!(
+            storage.local_periods("pi").unwrap()[0].scan.scanner_version,
+            report.scanner_version
+        );
+        validate_connection(&storage.connection, CURRENT_SCHEMA_VERSION).unwrap();
+        if report.scanner_version.contains('-') {
+            assert!(!valid_version(report.scanner_version));
+        }
+    }
+    let saved = storage.local_periods("pi").unwrap();
+    for version in cases["rejected"].as_array().unwrap() {
+        report.scanner_version = version.as_str().unwrap();
+        assert_eq!(
+            storage.save_grouped_local_scan(&report),
+            Err(LocalLogError::InvalidInput),
+            "{version}"
+        );
+        assert_eq!(storage.local_periods("pi").unwrap(), saved);
+        storage
+            .connection
+            .execute_batch("SAVEPOINT invalid_version")
+            .unwrap();
+        storage
+            .connection
+            .execute(
+                "UPDATE local_usage_scans SET scanner_version=?1",
+                [report.scanner_version],
+            )
+            .unwrap();
+        assert!(storage.local_periods("pi").is_err(), "{version}");
+        assert!(
+            validate_connection(&storage.connection, CURRENT_SCHEMA_VERSION).is_err(),
+            "{version}"
+        );
+        storage
+            .connection
+            .execute_batch("ROLLBACK TO invalid_version; RELEASE invalid_version")
+            .unwrap();
+    }
+}
+
+#[test]
 fn independent_totals_nullable_details_and_scope_survive_reopen() {
     let (dir, mut storage, sources) = setup("amp");
     let mut day = period(173, None);
@@ -556,30 +609,34 @@ fn failed_forward_migration_rolls_back_schema_version_and_legacy_data() {
 }
 #[test]
 fn current_backup_checkpoint_restore_and_export_preserve_nullable_snapshots() {
-    let (dir, mut storage, sources) = setup("amp");
-    storage
-        .save_grouped_local_scan(&scan(
-            "amp",
-            &sources,
-            &[period(173, None)],
-            Some(&[session(173)]),
-        ))
-        .unwrap();
-    storage
-        .save_grouped_local_scan(&scan("amp", &sources, &[], None))
-        .unwrap();
+    let (dir, mut storage, sources) = setup("pi");
+    let periods = [period(173, None)];
+    let sessions = [session(173)];
+    let mut report = scan("pi", &sources, &periods, Some(&sessions));
+    let version = "20.0.48-openusage.pi-bounded-release.1";
+    report.scanner_version = version;
+    storage.save_grouped_local_scan(&report).unwrap();
+    report.periods = &[];
+    report.sessions = None;
+    storage.save_grouped_local_scan(&report).unwrap();
+    drop(storage);
+    let mut storage = Storage::open(&dir.path().join("usage.db"), &KEY).unwrap();
+    assert_eq!(
+        storage.local_periods("pi").unwrap()[0].scan.scanner_version,
+        version
+    );
     let expected = (
-        storage.local_periods("amp").unwrap(),
-        storage.grouped_local_sessions("amp").unwrap(),
-        storage.local_scan_differences("amp").unwrap(),
-        storage.local_tool_scope("amp").unwrap(),
+        storage.local_periods("pi").unwrap(),
+        storage.grouped_local_sessions("pi").unwrap(),
+        storage.local_scan_differences("pi").unwrap(),
+        storage.local_tool_scope("pi").unwrap(),
     );
     let snapshot = storage.backup_snapshot().unwrap();
     crate::validate_backup_snapshot(&snapshot.bytes, snapshot.schema_version).unwrap();
     let checkpoint = dir.path().join("checkpoint.db");
     storage.create_encrypted_checkpoint(&checkpoint).unwrap();
     let reopened = Storage::open(&checkpoint, &KEY).unwrap();
-    assert_eq!(reopened.local_periods("amp").unwrap(), expected.0);
+    assert_eq!(reopened.local_periods("pi").unwrap(), expected.0);
     let (_other_dir, mut target, _) = setup("pi");
     let revision = target.restore_state().unwrap().revision;
     target
@@ -587,16 +644,43 @@ fn current_backup_checkpoint_restore_and_export_preserve_nullable_snapshots() {
         .unwrap();
     assert_eq!(
         (
-            target.local_periods("amp").unwrap(),
-            target.grouped_local_sessions("amp").unwrap(),
-            target.local_scan_differences("amp").unwrap(),
-            target.local_tool_scope("amp").unwrap()
+            target.local_periods("pi").unwrap(),
+            target.grouped_local_sessions("pi").unwrap(),
+            target.local_scan_differences("pi").unwrap(),
+            target.local_tool_scope("pi").unwrap()
         ),
         expected
     );
+    let revision = target.restore_state().unwrap().revision;
+    target
+        .replace_records_from_backup(&snapshot.bytes, snapshot.schema_version, &revision, &[])
+        .unwrap();
+    assert_eq!(target.local_periods("pi").unwrap(), expected.0);
+    assert_eq!(target.grouped_local_sessions("pi").unwrap(), expected.1);
+    assert_eq!(target.local_scan_differences("pi").unwrap(), expected.2);
+    assert_eq!(target.local_tool_scope("pi").unwrap(), expected.3);
     let mut json = Vec::new();
     target.write_application_export(&mut json, NOW).unwrap();
     let document: serde_json::Value = serde_json::from_slice(&json).unwrap();
+    let scans = document["tables"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|t| t["name"] == "local_usage_scans")
+        .unwrap();
+    let column = scans["columns"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .position(|c| c["name"] == "scanner_version")
+        .unwrap();
+    assert!(
+        scans["rows"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|row| row[column] == version)
+    );
     let table = document["tables"]
         .as_array()
         .unwrap()

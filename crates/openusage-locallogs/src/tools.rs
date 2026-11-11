@@ -153,7 +153,11 @@ mod tests {
                 assert!(tool.session_shape.is_some());
             }
             for root in &tool.roots {
-                assert!(relative(&root.path) && relative(&root.marker));
+                assert!(relative(&root.path));
+                assert!(
+                    relative(&root.marker)
+                        || (root.marker == "." && root.kind == MarkerKind::Directory)
+                );
             }
         }
         assert_eq!(

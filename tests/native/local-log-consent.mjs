@@ -7,6 +7,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createFixture, stopGroup } from './private-fixture.mjs';
 import { NativeDriver, waitFor } from './webdriver.mjs';
+import { loginVerifierDigest, runLoginVerifier } from './login-verifier.mjs';
 
 // First launch with synthetic Claude Code and Codex logs in a private home: one consent list on the
 // welcome screen, then a real scan by the pinned ccusage binary of the chosen tool only (OU-LOG-001).
@@ -15,7 +16,7 @@ const repository = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const application = resolve(process.env.OPENUSAGE_NATIVE_BINARY), output = resolve(process.env.OPENUSAGE_NATIVE_EVIDENCE), verifier = resolve(process.env.OPENUSAGE_LOGIN_VERIFIER);
 const ccusage = join(repository, 'apps/desktop/src-tauri/binaries/openusage-ccusage-x86_64-unknown-linux-gnu');
 const ccusageDigest = '55a3fd41b29727672bef1242311758d1605a07765781d7a80a41d1b485d29ed1';
-const verifierDigest = 'a2e4a64707081a9943f3c04f8237c2b16bea673e974e96393d6a8a7d9357f975';
+const verifierDigest = loginVerifierDigest();
 const password = 'OpenUsage synthetic local log workspace 2026';
 const hash = async path => createHash('sha256').update(await readFile(path)).digest('hex');
 const evidence = {
@@ -75,12 +76,11 @@ async function close() {
   driver.session = undefined; await driver.stop(); driver = undefined;
 }
 async function oracle(label) {
-  assert.equal(await hash(verifier), verifierDigest);
   const temporary = join(fixture.root, `local-log-oracle-${randomUUID()}`); await mkdir(temporary, { mode: 0o700 });
   try {
     const database = join(temporary, 'database.db'); await copyFile(fixture.database, database); await chmod(database, 0o600);
     try { await copyFile(`${fixture.database}-wal`, `${database}-wal`); await chmod(`${database}-wal`, 0o600); } catch (error) { if (error.code !== 'ENOENT') throw error; }
-    const report = JSON.parse(execFileSync(verifier, ['database', database, join(dirname(fixture.database), 'database-key.v1'), '--profile-state'], { input: JSON.stringify({ passphrase: password }), encoding: 'utf8', env: fixture.environment, timeout: 30000, maxBuffer: 8 * 1024 * 1024 }));
+    const report = JSON.parse(await runLoginVerifier(verifier, verifierDigest, ['database', database, join(dirname(fixture.database), 'database-key.v1'), '--profile-state'], { input: JSON.stringify({ passphrase: password }), encoding: 'utf8', env: fixture.environment, timeout: 30000, maxBuffer: 8 * 1024 * 1024 }));
     assert.equal(report.verified, true); assert.equal(Number(report.schemaVersion), 13);
     const tables = report.state.tables;
     const sources = tables.log_sources.map(s => ({ tool: s.tool, consent: s.consent, zone: s.time_zone }));

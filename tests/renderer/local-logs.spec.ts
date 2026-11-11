@@ -43,6 +43,7 @@ test('first launch lists every detected tool, selected, and the one action saves
   await expect(page.getByRole('status')).toHaveText('Welcome to OpenUsage');
   await expect(choice(page).getByRole('checkbox', { name: 'Claude Code', exact: true })).toBeChecked();
   await expect(choice(page).getByRole('checkbox', { name: 'Codex', exact: true })).toBeChecked();
+  await expect(choice(page).getByRole('checkbox')).toHaveCount(2);
   expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations).toEqual([]);
   await choice(page).getByRole('checkbox', { name: 'Codex', exact: true }).click();
   await expect(choice(page).getByRole('checkbox', { name: 'Codex', exact: true })).not.toBeChecked();
@@ -52,6 +53,42 @@ test('first launch lists every detected tool, selected, and the one action saves
   expect(await calls(page, 'save_local_log_consent')).toEqual([{ command: 'save_local_log_consent', args: { tools: ['claude'] } }]);
   // The saved choice ends first launch, so no second consent appears.
   await expect(page.getByRole('dialog')).toHaveCount(0);
+});
+
+test('first launch and Settings keep the Pi consent choice returned by Rust', async ({ page }) => {
+  await open(page, fresh, { consentRequired: true, tools: [{ tool: 'pi', detected: true, granted: false }], scan: idle });
+  const pi = choice(page).getByRole('checkbox', { name: 'Pi', exact: true });
+  await expect(pi).toBeChecked();
+  await expect(choice(page).getByRole('checkbox')).toHaveCount(1);
+  await pi.click();
+  await expect(pi).not.toBeChecked();
+  await pi.click();
+  await expect(pi).toBeChecked();
+  expect(await calls(page, 'save_local_log_consent')).toEqual([]);
+  await page.getByRole('button', { name: 'Create private workspace', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible();
+  expect(await calls(page, 'save_local_log_consent')).toEqual([{ command: 'save_local_log_consent', args: { tools: ['pi'] } }]);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+
+  await navigate(page, 'settings');
+  const settings = page.getByRole('region', { name: 'Local logs', exact: true });
+  const selectedPi = settings.getByRole('checkbox', { name: 'Pi', exact: true });
+  const save = settings.getByRole('button', { name: 'Save', exact: true });
+  await expect(selectedPi).toBeChecked();
+  await expect(save).toBeDisabled();
+  await selectedPi.click();
+  await save.click();
+  await expect(save).toBeDisabled();
+  await expect(selectedPi).not.toBeChecked();
+  await selectedPi.click();
+  await save.click();
+  await expect(save).toBeDisabled();
+  await expect(selectedPi).toBeChecked();
+  expect(await calls(page, 'save_local_log_consent')).toEqual([
+    { command: 'save_local_log_consent', args: { tools: ['pi'] } },
+    { command: 'save_local_log_consent', args: { tools: [] } },
+    { command: 'save_local_log_consent', args: { tools: ['pi'] } },
+  ]);
 });
 
 test('first launch with no detected tool, or a failed check, shows no list and saves no choice', async ({ page }) => {
@@ -78,6 +115,17 @@ test('an existing workspace with no saved choice asks once and Escape does not s
   await dialog.getByRole('button', { name: 'Continue', exact: true }).click();
   await expect(dialog).toHaveCount(0);
   expect(await calls(page, 'save_local_log_consent')).toEqual([{ command: 'save_local_log_consent', args: { tools: ['claude', 'codex'] } }]);
+});
+
+test('an existing workspace keeps the Pi consent choice returned by Rust', async ({ page }) => {
+  await open(page, ready, { consentRequired: true, tools: [{ tool: 'pi', detected: true, granted: false }], scan: idle });
+  const dialog = page.getByRole('dialog', { name: 'Local logs', exact: true });
+  await expect(dialog.getByRole('checkbox', { name: 'Pi', exact: true })).toBeChecked();
+  await expect(dialog.getByRole('checkbox')).toHaveCount(1);
+  expect(await calls(page, 'save_local_log_consent')).toEqual([]);
+  await dialog.getByRole('button', { name: 'Continue', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  expect(await calls(page, 'save_local_log_consent')).toEqual([{ command: 'save_local_log_consent', args: { tools: ['pi'] } }]);
 });
 
 test('Settings changes the choice and shows a failed scan', async ({ page }) => {

@@ -33,6 +33,9 @@ Logs retain commands, timing, exit codes and fixed diagnostic counters. They dis
 
 The `CI` workflow in `.github/workflows/ci.yml` runs the full set on Linux for pull requests and `main` in two parallel jobs of at most 60 minutes. Linux checks runs dependency policy, whitespace, tool tests, Git safety, renderer build and TypeScript check, IPC contracts, Rust format, Clippy and workspace tests, and native oracle tests. Renderer installs only Node, Bun and Playwright's browsers and runs the renderer suite in both engines. Apt retries stalled downloads, because the runner's package mirror alone once took 74 minutes. It installs Rust 1.99.1, Node 22.23.2, Bun 1.3.14 and Gitleaks 8.30.1 from their official archives and checks their pinned digests. The Git safety tests and hooks find Gitleaks through `GITLEAKS_BIN`. Bun installs the frozen lockfile and runs package scripts; Vite, Playwright and the contract tests still run on Node. `package.json` names `playwright-core` at the same version as `@playwright/test`, so the axe checks and the test runner share one Playwright. An empty `trustedDependencies` keeps dependency lifecycle scripts blocked, as `ignore-scripts` did under npm. Native GUI journeys stay a local gate. Windows and macOS join in S-15.
 
+CI also tests the Linux qualification detector and desktop feature. It does not
+execute the pinned candidate or native GUI journeys.
+
 Reuse `scripts/storage.py check` and `clean` for storage measurement and bounded cleanup. Cleanup previews by default. Existing secret hooks remain mandatory. CI runs Python tool tests, whitespace and tracked-ignore checks with a five-minute deadline. Hosted Windows/macOS results remain unverified until CI runs.
 
 ## Pi candidate integration
@@ -51,6 +54,10 @@ Use the shared Cargo target. The test checks the candidate digest and the
 writer source pins. It runs the writer offline in private fixtures. The
 feature exposes the grouped runner only for Pi qualification. The desktop and
 CLI use the normal catalog gate.
+
+The separate [native qualification build](../tests/native/README.md#native-pi-candidate)
+uses the bounded release candidate through the application. Production support
+stays unchanged.
 
 ### Pi scale test
 
@@ -134,3 +141,14 @@ inputs and check the expected binary digest. A November 11 rebuild reproduced
 the qualified digest after this targeted cleanup. The
 [producer qualification record](reviews/2026-11-11-opencode-runtime-qualification.md)
 records the source and execution scope.
+
+The pinned Pi bounded release used a different build boundary. Run Cargo from
+the OpenUsage root with the candidate's absolute manifest path. The historical
+build omitted the 47 `SQLITE_OMIT_*` settings in the candidate source config.
+This reproduces the existing bounded release digest. A source-root build with
+those settings produces a different binary and must not replace the pin.
+
+Before another source-root scanner build, remove the generated release outputs
+for `sqlite3-src` and `sqlite3-sys` with the command above. Keep source, prices,
+and the required Pi oracle. Record the working directory and effective SQLite
+settings with each receipt.

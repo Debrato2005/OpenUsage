@@ -1,4 +1,4 @@
-import { allTools, localLogTools, type LocalLogTool } from './local-tools.ts';
+import { allTools, type LocalLogTool } from './local-tools.ts';
 export type { LocalLogTool } from './local-tools.ts';
 
 export type MonitoringState = 'stopped' | 'running' | 'paused';
@@ -371,7 +371,7 @@ function isLocalLogsView(value: unknown): value is LocalLogsView {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const v = value as Record<string, unknown>;
   const scan = v.scan as Record<string, unknown> | null;
-  if (Object.keys(v).length !== 3 || typeof v.consentRequired !== 'boolean' || !Array.isArray(v.tools) || v.tools.length > localLogTools.length
+  if (Object.keys(v).length !== 3 || typeof v.consentRequired !== 'boolean' || !Array.isArray(v.tools) || v.tools.length > allTools.length
     || !scan || typeof scan !== 'object' || Object.keys(scan).length !== 2
     || !['idle', 'running', 'failed', 'unavailable'].includes(scan.state as string)
     || !(scan.lastScanAtUtc === null || isUtcTimestamp(scan.lastScanAtUtc))) return false;
@@ -379,7 +379,7 @@ function isLocalLogsView(value: unknown): value is LocalLogsView {
   return v.tools.every(item => {
     if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
     const t = item as Record<string, unknown>;
-    if (Object.keys(t).length !== 3 || !localLogTools.includes(t.tool as LocalLogTool) || seen.has(t.tool)
+    if (Object.keys(t).length !== 3 || !allTools.includes(t.tool as LocalLogTool) || seen.has(t.tool)
       || typeof t.detected !== 'boolean' || typeof t.granted !== 'boolean') return false;
     seen.add(t.tool); return true;
   });
@@ -431,6 +431,18 @@ function isLocalSavedScope(s: unknown): s is LocalSavedScope {
   if (s.kind === 'grouped') return s.id === `grouped:${s.tool}` && s.folder === null;
   return s.kind === 'legacy' && /^legacy:[0-9a-f-]{36}$/.test(s.id) && typeof s.folder === 'string' && s.folder.length <= 4096 && !/[\u0000-\u001f\u007f-\u009f]/.test(s.folder);
 }
+function localScannerVersion(value: unknown): value is string {
+  if (typeof value !== 'string' || value.length === 0 || value.length > 128 || /[^0-9A-Za-z.-]/.test(value)) return false;
+  // Match grouped storage and keep every legacy spelling. Shared cases cover both boundaries.
+  if (value.length <= 32 && !/[^0-9.]/.test(value)) return true;
+  const separator = value.indexOf('-');
+  if (separator < 0) return false;
+  const numeric = (part: string) => /^(0|[1-9][0-9]*)$/.test(part);
+  const core = value.slice(0, separator).split('.');
+  return core.length === 3 && core.every(numeric)
+    && value.slice(separator + 1).split('.').every(part => part.length > 0
+      && (!/^[0-9]+$/.test(part) || numeric(part)));
+}
 function isLocalUsageView(value: unknown): value is LocalUsageView {
   if (!exactKeys(value, ['scope', 'scopes', 'available', 'dated', 'startDate', 'endDate', 'timeZone', 'scannerVersions', 'tools', 'models', 'buckets', 'differences', 'activeDays', 'longestStreakDays', 'busiestDay', 'sessions', 'projects', 'startUtc', 'endUtc', 'hours', 'hourTools'])) return false;
   const v = value as LocalUsageView;
@@ -453,7 +465,7 @@ function isLocalUsageView(value: unknown): value is LocalUsageView {
       || !(v.busiestDay === null ? v.activeDays === 0 : exactKeys(v.busiestDay, ['date', 'totalTokens']) && isProviderDate(v.busiestDay.date)
         && v.busiestDay.date >= v.startDate && v.busiestDay.date <= v.endDate && localCount(v.busiestDay.totalTokens) && BigInt(v.busiestDay.totalTokens) > 0n)) return false;
   if (!isProviderDate(v.startDate) || !isProviderDate(v.endDate) || v.startDate > v.endDate || typeof v.timeZone !== 'string' || !/^[A-Za-z0-9_+./-]{1,128}$/.test(v.timeZone)
-    || !Array.isArray(v.scannerVersions) || v.scannerVersions.length > 16 || !v.scannerVersions.every(s => typeof s === 'string' && /^[0-9.]{1,32}$/.test(s))
+    || !Array.isArray(v.scannerVersions) || v.scannerVersions.length > 16 || !v.scannerVersions.every(localScannerVersion)
     || !Array.isArray(v.tools) || !Array.isArray(v.models) || !Array.isArray(v.buckets) || !Array.isArray(v.differences)
     || v.tools.length > allTools.length || v.models.length > 10_000 || v.buckets.length > 2 * 366 * allTools.length || v.differences.length > 100_000) return false;
   const tools = new Set<string>();

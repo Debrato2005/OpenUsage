@@ -48,3 +48,4 @@ rusqlite = { version = "=0.40.1", features = ["bundled-sqlcipher-vendored-openss
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
 native-test = ["openusage-storage/native-test", "openusage-keys/native-test"]
+pi-native-qualification = ["native-test", "openusage-locallogs/pi-qualification"]

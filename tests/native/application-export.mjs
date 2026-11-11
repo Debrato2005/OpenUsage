@@ -6,13 +6,14 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CODEX_SENTINEL, createFixture, stopGroup } from './private-fixture.mjs';
 import { NativeDriver, waitFor } from './webdriver.mjs';
+import { loginVerifierDigest, runLoginVerifier } from './login-verifier.mjs';
 
 for (const name of ['OPENUSAGE_NATIVE_BINARY', 'OPENUSAGE_NATIVE_ACTIVITY_HISTORY_FIXTURE', 'OPENUSAGE_NATIVE_EVIDENCE', 'OPENUSAGE_LOGIN_VERIFIER']) assert.ok(process.env[name], name);
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const application = resolve(process.env.OPENUSAGE_NATIVE_BINARY), seeder = resolve(process.env.OPENUSAGE_NATIVE_ACTIVITY_HISTORY_FIXTURE), output = resolve(process.env.OPENUSAGE_NATIVE_EVIDENCE), verifier = resolve(process.env.OPENUSAGE_LOGIN_VERIFIER);
 const password = 'OpenUsage synthetic activity history workspace 2026';
 const providerDigest = '53a853b737ceca311649e9f1d9ebd1341154a5f782efd8e915f7f834c819a6dc';
-const verifierDigest = 'a2e4a64707081a9943f3c04f8237c2b16bea673e974e96393d6a8a7d9357f975';
+const verifierDigest = loginVerifierDigest();
 const secretSentinel = 'Synthetic provider-only credential sentinel; never export this file.';
 const hash = async path => createHash('sha256').update(await readFile(path)).digest('hex');
 const evidence = { requirement: 'NATIVE-APPLICATION-DATA-EXPORT-001', result: 'failed', scope: 'Actual Linux Tauri full JSON application-record export from a private SQLCipher4/WAL schema 13 workspace. Two explicit synthetic sign-ins and automatic readings, 21 strictly marked additional history snapshots, archived profile and genuine restart. An independent read-only encrypted-copy oracle establishes all 42 table rowsets and every populated field with exact decimal integers. Empty-table columns receive structural checks; storage tests qualify the trusted schema. Explicit identifiable plaintext consent, private files, no credential-home export, locked/invalid refusal and source preservation are checked. No real-provider or other-platform acceptance.', exports: [], oracles: [], closes: [], screenshots: [] };
@@ -69,12 +70,11 @@ async function liveHashes() {
   return result;
 }
 async function oracle(label) {
-  assert.equal(await hash(verifier), verifierDigest);
   const before = await liveHashes(), temporary = join(fixture.root, `application-oracle-${randomUUID()}`); await mkdir(temporary, { mode: 0o700 });
   try {
     const database = join(temporary, 'database.db'); await copyFile(fixture.database, database); await chmod(database, 0o600);
     if (before[`${fixture.database}-wal`] !== null) { await copyFile(`${fixture.database}-wal`, `${database}-wal`); await chmod(`${database}-wal`, 0o600); }
-    const raw = execFileSync(verifier, ['database', database, join(dirname(fixture.database), 'database-key.v1'), '--profile-state'], { input: JSON.stringify({ passphrase: password }), encoding: 'utf8', env: fixture.environment, timeout: 30000, maxBuffer: 8 * 1024 * 1024 });
+    const raw = await runLoginVerifier(verifier, verifierDigest, ['database', database, join(dirname(fixture.database), 'database-key.v1'), '--profile-state'], { input: JSON.stringify({ passphrase: password }), encoding: 'utf8', env: fixture.environment, timeout: 30000, maxBuffer: 8 * 1024 * 1024 });
     // Preserve every SQLite INTEGER token before JavaScript could round an i64.
     const report = JSON.parse(execFileSync('/usr/bin/python3', ['-c', 'import json,sys; print(json.dumps(json.load(sys.stdin,parse_int=str),separators=(",",":")))'], { input: raw, encoding: 'utf8', timeout: 10000, maxBuffer: 8 * 1024 * 1024, env: { PATH: '/usr/bin:/bin' } }));
     for (const field of ['verified', 'readOnly', 'inputUnchanged', 'keyEnvelopeUnchanged', 'walRecordsUnchanged']) assert.equal(report[field], true);

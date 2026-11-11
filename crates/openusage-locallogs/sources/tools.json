@@ -141,7 +141,7 @@
     "tint": 2,
     "enabled": false,
     "folderVariable": "PI_AGENT_DIR",
-    "roots": [],
+    "roots": [{ "path": ".pi/agent/sessions", "marker": ".", "kind": "directory" }],
     "sessionShape": "agent",
     "hours": false,
     "agentReport": {

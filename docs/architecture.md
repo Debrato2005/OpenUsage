@@ -43,10 +43,23 @@ The local logs crate owns the [additional period contract](../crates/openusage-l
 
 The disabled Pi path requires one candidate snapshot command. `agent_snapshot.rs` validates its envelope and both reports before the grouped runner returns data. The candidate derives both views from the same captured entries. A failed command or report returns no accepted scan and preserves saved history.
 
+The Linux-only `pi-native-qualification` feature also enables `native-test`.
+Detection uses its private log home. A separate descriptor selects the bounded
+Pi candidate and checks its digest before each execution. The production
+descriptor keeps its original pin. The normal build does not allow Pi consent
+or execution.
+
 Schema 13 adds six tables for grouped scopes, scans, root membership, records, model details, and lower-scan differences. Legacy tables stay unchanged. One tool has one stable scope. Only day records enter dated queries. Period and session totals stay separate. Every accepted record points to the scan that produced it. A lower scan keeps the whole saved record and its model details. An equal or higher scan replaces them together.
  A complete scan with an absent saved period records an observed zero difference. Missing measurements remain null.
 
 The writer checks every root's tool and consent in the save transaction. Scope zones stay pinned. Backup checks enforce the same bounds and metric rules as a write. Restore copies only declared fields. Migration adds empty grouped tables and leaves all legacy records intact. No legacy model sum becomes a new scanner total.
+
+Grouped provenance accepts existing numeric version spellings and bounded
+SemVer prerelease tags. Both Rust storage and the typed renderer contract use
+shared accepted and rejected cases. Tags must fit 128 ASCII bytes. Legacy
+validation and schemas stay unchanged. The worker saves the version from the
+selected descriptor. Reopen, export, backup validation, and restore use the
+same grouped checks.
 
 See [SC-024](srs-clarifications.md#sc-024-legacy-local-usage-during-grouped-migration) for the legacy-history rule. `local_periods.rs` owns these Rust APIs. The desktop worker has a grouped path for candidate tools. They remain disabled. Claude Code and Codex keep their source views, with one transaction for all required reports. Desktop and CLI views use the shared read result.
 

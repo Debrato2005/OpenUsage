@@ -75,7 +75,7 @@ impl Workspace {
             storage,
             sources
                 .into_iter()
-                .filter(|s| locallogs::tool(&s.tool).is_some_and(|t| t.enabled))
+                .filter(|s| crate::local_logs::tool_allowed(&s.tool))
                 .collect(),
             &zone,
         )
@@ -85,6 +85,7 @@ impl Workspace {
         &mut self,
         group: &ScanGroup,
         scanned_at: &str,
+        scanner_version: &str,
         report: &locallogs::GroupedScanResult,
     ) -> Result<(), CommandError> {
         let storage = self.local_logs_storage()?;
@@ -95,7 +96,7 @@ impl Workspace {
                 tool: &group.sources[0].tool,
                 source_ids: &ids,
                 time_zone: group.zone.as_deref(),
-                scanner_version: CCUSAGE_VERSION,
+                scanner_version,
                 observed_at_utc: scanned_at,
                 periods: &report.periods,
                 sessions: Some(&report.sessions),
@@ -390,14 +391,15 @@ mod tests {
         let group = plan.pop().unwrap();
         assert!(group.sources[0].folder < group.sources[1].folder);
         assert_eq!(group.zone.as_deref(), Some("Asia/Kolkata"));
-        // The actual worker still refuses every disabled tool.
+        // The actual worker still refuses Amp.
         assert!(workspace.local_log_scan_plan().unwrap().is_empty());
         let report = locallogs::GroupedScanResult {
             periods: vec![],
             sessions: vec![],
         };
+        let scanner_version = "20.0.48-openusage.pi-bounded-release.1";
         workspace
-            .save_grouped_log_reports(&group, NOW, &report)
+            .save_grouped_log_reports(&group, NOW, scanner_version, &report)
             .unwrap();
         let saved = workspace
             .storage
@@ -407,6 +409,7 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(saved.latest_scan.source_ids.len(), 2);
+        assert_eq!(saved.latest_scan.scanner_version, scanner_version);
         let plan = scan_groups(
             workspace.storage.as_ref().unwrap(),
             sources.clone(),
@@ -420,7 +423,7 @@ mod tests {
         };
         assert!(
             workspace
-                .save_grouped_log_reports(&incomplete, NOW, &report)
+                .save_grouped_log_reports(&incomplete, NOW, CCUSAGE_VERSION, &report)
                 .is_err()
         );
         workspace
@@ -431,7 +434,7 @@ mod tests {
             .unwrap();
         assert!(
             workspace
-                .save_grouped_log_reports(&group, NOW, &report)
+                .save_grouped_log_reports(&group, NOW, CCUSAGE_VERSION, &report)
                 .is_err()
         );
         workspace
@@ -444,7 +447,7 @@ mod tests {
         symlink(&sources[1].folder, &sources[0].folder).unwrap();
         assert!(
             workspace
-                .save_grouped_log_reports(&group, NOW, &report)
+                .save_grouped_log_reports(&group, NOW, CCUSAGE_VERSION, &report)
                 .is_err()
         );
         assert_eq!(
@@ -461,7 +464,7 @@ mod tests {
         let remaining = scan_groups(workspace.storage.as_ref().unwrap(), sources, "UTC").unwrap();
         assert_eq!(remaining[0].sources.len(), 1);
         workspace
-            .save_grouped_log_reports(&remaining[0], NOW, &report)
+            .save_grouped_log_reports(&remaining[0], NOW, CCUSAGE_VERSION, &report)
             .unwrap();
         let folder = dir.path().join("unplaced");
         std::fs::create_dir(&folder).unwrap();
@@ -484,7 +487,7 @@ mod tests {
         .unwrap();
         assert_eq!(unplaced[0].zone, None);
         workspace
-            .save_grouped_log_reports(&unplaced[0], NOW, &report)
+            .save_grouped_log_reports(&unplaced[0], NOW, CCUSAGE_VERSION, &report)
             .unwrap();
     }
 }

@@ -120,6 +120,12 @@ jobs:
       # Includes the storage migration tests and the Codex provider-contract tests.
       - name: Test Rust workspace
         run: cargo test --locked --workspace
+      # The Pi experiment must compile and retain its qualification gates.
+      - name: Test Pi qualification build
+        run: |
+          cargo test --locked -p openusage-locallogs --features pi-qualification detect::tests
+          cargo clippy --locked -p openusage-desktop --features pi-native-qualification --all-targets -- -D warnings
+          cargo test --locked -p openusage-desktop --features pi-native-qualification local_logs
       - name: Test native oracles
         run: cargo test --locked --manifest-path tests/native/backup-verifier/Cargo.toml
 

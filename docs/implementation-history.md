@@ -4,6 +4,15 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f11aj result before L-1f11ak
+
+Latest scoped result, November 12, 2026. The additional-tool gate review maps
+all sixteen disabled tools to their evidence records. Pi is the next candidate
+for native application qualification. The
+[review](reviews/2026-11-12-additional-tool-gates.md) records the selection and
+missing application paths. No additional tool is enabled.
+
+
 ## L-1f11ai result before L-1f11aj
 
 Latest scoped result, November 12, 2026. The pinned Antigravity scanner merges
