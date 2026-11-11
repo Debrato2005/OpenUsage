@@ -1,0 +1,402 @@
+{
+  "completed": {
+    "requiredTokens": 173,
+    "reports": {
+      "daily": {
+        "status": "reported",
+        "totalTokens": 173,
+        "rowCount": 1,
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.0009958500000000002,
+          "totalTokens": 173
+        }
+      },
+      "session": {
+        "status": "reported",
+        "totalTokens": 173,
+        "rowCount": 1,
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.0009958500000000002,
+          "totalTokens": 173
+        }
+      }
+    },
+    "qualification": "exact"
+  },
+  "user_peer": {
+    "requiredTokens": 173,
+    "reports": {
+      "daily": {
+        "status": "reported",
+        "totalTokens": 173,
+        "rowCount": 1,
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.0009958500000000002,
+          "totalTokens": 173
+        }
+      },
+      "session": {
+        "status": "reported",
+        "totalTokens": 173,
+        "rowCount": 1,
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.0009958500000000002,
+          "totalTokens": 173
+        }
+      }
+    },
+    "qualification": "exact"
+  },
+  "repeated_save": {
+    "requiredTokens": 173,
+    "reports": {
+      "daily": {
+        "status": "reported",
+        "totalTokens": 173,
+        "rowCount": 1,
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.0009958500000000002,
+          "totalTokens": 173
+        }
+      },
+      "session": {
+        "status": "reported",
+        "totalTokens": 173,
+        "rowCount": 1,
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.0009958500000000002,
+          "totalTokens": 173
+        }
+      }
+    },
+    "qualification": "exact"
+  },
+  "changed_save": {
+    "requiredTokens": 190,
+    "reports": {
+      "daily": {
+        "status": "reported",
+        "totalTokens": 190,
+        "rowCount": 1,
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "inputTokens": 137,
+          "outputTokens": 30,
+          "totalCost": 0.0010468500000000002,
+          "totalTokens": 190
+        }
+      },
+      "session": {
+        "status": "reported",
+        "totalTokens": 190,
+        "rowCount": 1,
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "inputTokens": 137,
+          "outputTokens": 30,
+          "totalCost": 0.0010468500000000002,
+          "totalTokens": 190
+        }
+      }
+    },
+    "qualification": "exact"
+  },
+  "distinct_calls": {
+    "requiredTokens": 346,
+    "reports": {
+      "daily": {
+        "status": "reported",
+        "totalTokens": 346,
+        "rowCount": 1,
+        "totals": {
+          "cacheCreationTokens": 10,
+          "cacheReadTokens": 14,
+          "inputTokens": 240,
+          "outputTokens": 60,
+          "totalCost": 0.0019917000000000003,
+          "totalTokens": 346
+        }
+      },
+      "session": {
+        "status": "reported",
+        "totalTokens": 346,
+        "rowCount": 1,
+        "totals": {
+          "cacheCreationTokens": 10,
+          "cacheReadTokens": 14,
+          "inputTokens": 240,
+          "outputTokens": 60,
+          "totalCost": 0.0019917000000000003,
+          "totalTokens": 346
+        }
+      }
+    },
+    "qualification": "exact"
+  },
+  "reported_zero": {
+    "requiredTokens": 0,
+    "reports": {
+      "daily": {
+        "status": "refused",
+        "exitCode": 1
+      },
+      "session": {
+        "status": "refused",
+        "exitCode": 1
+      }
+    },
+    "qualification": "known-total-refused"
+  },
+  "unfinished": {
+    "requiredTokens": null,
+    "reports": {
+      "daily": {
+        "status": "refused",
+        "exitCode": 1
+      },
+      "session": {
+        "status": "refused",
+        "exitCode": 1
+      }
+    },
+    "qualification": "usage-unavailable"
+  },
+  "failed": {
+    "requiredTokens": null,
+    "reports": {
+      "daily": {
+        "status": "refused",
+        "exitCode": 1
+      },
+      "session": {
+        "status": "refused",
+        "exitCode": 1
+      }
+    },
+    "qualification": "usage-unavailable"
+  },
+  "agent_switched": {
+    "requiredTokens": 173,
+    "reports": {
+      "daily": {
+        "status": "refused",
+        "exitCode": 1
+      },
+      "session": {
+        "status": "refused",
+        "exitCode": 1
+      }
+    },
+    "qualification": "known-total-refused"
+  },
+  "model_switched": {
+    "requiredTokens": 173,
+    "reports": {
+      "daily": {
+        "status": "refused",
+        "exitCode": 1
+      },
+      "session": {
+        "status": "refused",
+        "exitCode": 1
+      }
+    },
+    "qualification": "known-total-refused"
+  },
+  "system": {
+    "requiredTokens": 173,
+    "reports": {
+      "daily": {
+        "status": "reported",
+        "totalTokens": 173,
+        "rowCount": 1,
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.0009958500000000002,
+          "totalTokens": 173
+        }
+      },
+      "session": {
+        "status": "reported",
+        "totalTokens": 173,
+        "rowCount": 1,
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.0009958500000000002,
+          "totalTokens": 173
+        }
+      }
+    },
+    "qualification": "exact"
+  },
+  "synthetic": {
+    "requiredTokens": 173,
+    "reports": {
+      "daily": {
+        "status": "refused",
+        "exitCode": 1
+      },
+      "session": {
+        "status": "refused",
+        "exitCode": 1
+      }
+    },
+    "qualification": "known-total-refused"
+  },
+  "shell": {
+    "requiredTokens": 173,
+    "reports": {
+      "daily": {
+        "status": "refused",
+        "exitCode": 1
+      },
+      "session": {
+        "status": "refused",
+        "exitCode": 1
+      }
+    },
+    "qualification": "known-total-refused"
+  },
+  "compaction": {
+    "requiredTokens": 173,
+    "reports": {
+      "daily": {
+        "status": "refused",
+        "exitCode": 1
+      },
+      "session": {
+        "status": "refused",
+        "exitCode": 1
+      }
+    },
+    "qualification": "known-total-refused"
+  },
+  "replayed": {
+    "requiredTokens": 173,
+    "reports": {
+      "daily": {
+        "status": "reported",
+        "totalTokens": 173,
+        "rowCount": 1,
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.0009958500000000002,
+          "totalTokens": 173
+        }
+      },
+      "session": {
+        "status": "reported",
+        "totalTokens": 173,
+        "rowCount": 1,
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.0009958500000000002,
+          "totalTokens": 173
+        }
+      }
+    },
+    "qualification": "exact"
+  },
+  "copied_roots": {
+    "requiredTokens": 173,
+    "reports": {
+      "daily": {
+        "status": "reported",
+        "totalTokens": 173,
+        "rowCount": 1,
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.0009958500000000002,
+          "totalTokens": 173
+        }
+      },
+      "session": {
+        "status": "reported",
+        "totalTokens": 173,
+        "rowCount": 1,
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.0009958500000000002,
+          "totalTokens": 173
+        }
+      }
+    },
+    "qualification": "exact"
+  },
+  "replayed_roots": {
+    "requiredTokens": 173,
+    "reports": {
+      "daily": {
+        "status": "reported",
+        "totalTokens": 173,
+        "rowCount": 1,
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.0009958500000000002,
+          "totalTokens": 173
+        }
+      },
+      "session": {
+        "status": "reported",
+        "totalTokens": 173,
+        "rowCount": 1,
+        "totals": {
+          "cacheCreationTokens": 5,
+          "cacheReadTokens": 7,
+          "inputTokens": 120,
+          "outputTokens": 30,
+          "totalCost": 0.0009958500000000002,
+          "totalTokens": 173
+        }
+      }
+    },
+    "qualification": "exact"
+  }
+}

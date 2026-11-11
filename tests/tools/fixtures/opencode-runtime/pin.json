@@ -1,0 +1,975 @@
+{
+  "repository": "https://github.com/anomalyco/opencode",
+  "tag": "v1.19.5",
+  "commit": "810c0eba1a7348036f8bdf61e6632d0c36c6876c",
+  "license": "MIT",
+  "executedSourceFiles": [
+    "packages/core/src/control-plane/workspace.sql.ts",
+    "packages/core/src/database/database.ts",
+    "packages/core/src/database/migration.gen.ts",
+    "packages/core/src/database/migration.ts",
+    "packages/core/src/database/migration/20260127222353_familiar_lady_ursula.ts",
+    "packages/core/src/database/migration/20260211171708_add_project_commands.ts",
+    "packages/core/src/database/migration/20260213144116_wakeful_the_professor.ts",
+    "packages/core/src/database/migration/20260225215848_workspace.ts",
+    "packages/core/src/database/migration/20260227213759_add_session_workspace_id.ts",
+    "packages/core/src/database/migration/20260228203230_blue_harpoon.ts",
+    "packages/core/src/database/migration/20260303231226_add_workspace_fields.ts",
+    "packages/core/src/database/migration/20260309230000_move_org_to_state.ts",
+    "packages/core/src/database/migration/20260312043431_session_message_cursor.ts",
+    "packages/core/src/database/migration/20260323234822_events.ts",
+    "packages/core/src/database/migration/20260410174513_workspace-name.ts",
+    "packages/core/src/database/migration/20260413175956_chief_energizer.ts",
+    "packages/core/src/database/migration/20260423070820_add_icon_url_override.ts",
+    "packages/core/src/database/migration/20260427172553_slow_nightmare.ts",
+    "packages/core/src/database/migration/20260428004200_add_session_path.ts",
+    "packages/core/src/database/migration/20260501142318_next_venus.ts",
+    "packages/core/src/database/migration/20260504145000_add_sync_owner.ts",
+    "packages/core/src/database/migration/20260507164347_add_workspace_time.ts",
+    "packages/core/src/database/migration/20260510033149_session_usage.ts",
+    "packages/core/src/database/migration/20260511000411_data_migration_state.ts",
+    "packages/core/src/database/migration/20260511173437_session-metadata.ts",
+    "packages/core/src/database/migration/20260601010001_normalize_storage_paths.ts",
+    "packages/core/src/database/migration/20260601202201_amazing_prowler.ts",
+    "packages/core/src/database/migration/20260602002951_lowly_union_jack.ts",
+    "packages/core/src/database/migration/20260602182828_add_project_directories.ts",
+    "packages/core/src/database/migration/20260603001617_session_message_projection_indexes.ts",
+    "packages/core/src/database/migration/20260603040000_session_message_projection_order.ts",
+    "packages/core/src/database/migration/20260603141458_session_input_inbox.ts",
+    "packages/core/src/database/migration/20260603160727_jittery_ezekiel_stane.ts",
+    "packages/core/src/database/migration/20260604172448_event_sourced_session_input.ts",
+    "packages/core/src/database/migration/20260605003541_add_session_context_snapshot.ts",
+    "packages/core/src/database/migration/20260605042240_add_context_epoch_agent.ts",
+    "packages/core/src/database/migration/20260611035744_credential.ts",
+    "packages/core/src/database/migration/20260611192811_lush_chimera.ts",
+    "packages/core/src/database/migration/20260612174303_project_dir_strategy.ts",
+    "packages/core/src/database/migration/20260622142730_simplify_session_context_epoch.ts",
+    "packages/core/src/database/migration/20260622170816_reset_v2_session_state.ts",
+    "packages/core/src/database/migration/20260622202450_simplify_session_input.ts",
+    "packages/core/src/database/path.ts",
+    "packages/core/src/database/schema.gen.ts",
+    "packages/core/src/database/schema.sql.ts",
+    "packages/core/src/database/sqlite.bun.ts",
+    "packages/core/src/database/sqlite.ts",
+    "packages/core/src/effect/app-node.ts",
+    "packages/core/src/effect/layer-node.ts",
+    "packages/core/src/event.ts",
+    "packages/core/src/event/sql.ts",
+    "packages/core/src/flag/flag.ts",
+    "packages/core/src/global.ts",
+    "packages/core/src/installation/version.ts",
+    "packages/core/src/project/sql.ts",
+    "packages/core/src/schema.ts",
+    "packages/core/src/session/event.ts",
+    "packages/core/src/session/input.ts",
+    "packages/core/src/session/message-updater.ts",
+    "packages/core/src/session/message.ts",
+    "packages/core/src/session/projector.ts",
+    "packages/core/src/session/prompt.ts",
+    "packages/core/src/session/schema.ts",
+    "packages/core/src/session/sql.ts",
+    "packages/core/src/util/error.ts",
+    "packages/core/src/util/flock.ts",
+    "packages/core/src/util/hash.ts",
+    "packages/core/src/v1/session.ts",
+    "packages/core/src/workspace.ts",
+    "packages/effect-drizzle-sqlite/src/effect-sqlite/driver.ts",
+    "packages/effect-drizzle-sqlite/src/effect-sqlite/migrator.ts",
+    "packages/effect-drizzle-sqlite/src/effect-sqlite/session.ts",
+    "packages/effect-drizzle-sqlite/src/index.ts",
+    "packages/effect-drizzle-sqlite/src/internal/drizzle-utils.ts",
+    "packages/effect-drizzle-sqlite/src/sqlite-core/effect/count.ts",
+    "packages/effect-drizzle-sqlite/src/sqlite-core/effect/db.ts",
+    "packages/effect-drizzle-sqlite/src/sqlite-core/effect/delete.ts",
+    "packages/effect-drizzle-sqlite/src/sqlite-core/effect/insert.ts",
+    "packages/effect-drizzle-sqlite/src/sqlite-core/effect/query.ts",
+    "packages/effect-drizzle-sqlite/src/sqlite-core/effect/raw.ts",
+    "packages/effect-drizzle-sqlite/src/sqlite-core/effect/select.ts",
+    "packages/effect-drizzle-sqlite/src/sqlite-core/effect/session.ts",
+    "packages/effect-drizzle-sqlite/src/sqlite-core/effect/update.ts",
+    "packages/effect-drizzle-sqlite/src/up-migrations/effect-sqlite.ts",
+    "packages/effect-drizzle-sqlite/src/up-migrations/sqlite.ts",
+    "packages/effect-drizzle-sqlite/src/up-migrations/utils.ts",
+    "packages/schema/src/agent.ts",
+    "packages/schema/src/connection.ts",
+    "packages/schema/src/credential.ts",
+    "packages/schema/src/durable-event-manifest.ts",
+    "packages/schema/src/event.ts",
+    "packages/schema/src/file-diff.ts",
+    "packages/schema/src/identifier.ts",
+    "packages/schema/src/integration-id.ts",
+    "packages/schema/src/integration.ts",
+    "packages/schema/src/llm.ts",
+    "packages/schema/src/location.ts",
+    "packages/schema/src/model.ts",
+    "packages/schema/src/permission.ts",
+    "packages/schema/src/project-id.ts",
+    "packages/schema/src/project.ts",
+    "packages/schema/src/prompt.ts",
+    "packages/schema/src/provider.ts",
+    "packages/schema/src/revert.ts",
+    "packages/schema/src/schema.ts",
+    "packages/schema/src/session-delivery.ts",
+    "packages/schema/src/session-event.ts",
+    "packages/schema/src/session-id.ts",
+    "packages/schema/src/session-input.ts",
+    "packages/schema/src/session-message.ts",
+    "packages/schema/src/session-v1.ts",
+    "packages/schema/src/session.ts",
+    "packages/schema/src/v1/permission.ts",
+    "packages/schema/src/v1/session.ts",
+    "packages/schema/src/workspace-event.ts",
+    "packages/schema/src/workspace-id.ts",
+    "packages/schema/src/workspace.ts"
+  ],
+  "sourceFiles": [
+    {
+      "path": "LICENSE",
+      "sha256": "625f0f619133f89bbbb2abe37369613dfa1885eba1e50d02170deb62bb42cb6b"
+    },
+    {
+      "path": "bun.lock",
+      "sha256": "f65cf6d303cf0634b8e09bb545b99de33c6be31d4314008f4b5e7a4a85bb9327"
+    },
+    {
+      "path": "package.json",
+      "sha256": "889a89bf4b914323e7af206a854bd400d30395f04c377afbbfd65042f15f7288"
+    },
+    {
+      "path": "packages/core/bunfig.toml",
+      "sha256": "e8acd4c297ca1faf0d865fbe79b18484c509930947cef119496c65e21a281491"
+    },
+    {
+      "path": "packages/core/package.json",
+      "sha256": "ec367e16b9528957d07e3889478d449c9eead3df2a8f0082e35c20b3d2243022"
+    },
+    {
+      "path": "packages/core/src/control-plane/workspace.sql.ts",
+      "sha256": "b85701f8a1ee137d04553459849e84e85e191e89641a2f779cf06140b8612cae"
+    },
+    {
+      "path": "packages/core/src/database/database.ts",
+      "sha256": "47abea8f7ae0a5c5d8c1f179f03eedddc69941b44e9920f208a9773b9f41a9c3"
+    },
+    {
+      "path": "packages/core/src/database/migration.gen.ts",
+      "sha256": "0da0d1d3876a39542c2cd2fc0c95cfd182230442b45e174467d503f91043caa8"
+    },
+    {
+      "path": "packages/core/src/database/migration.ts",
+      "sha256": "def415b52bcbe98cbe16af3173aa1ddfb0b742914fcdd0194832c4ca72c8738b"
+    },
+    {
+      "path": "packages/core/src/database/migration/20260127222353_familiar_lady_ursula.ts",
+      "sha256": "d60ff8adbf3baf88af50d5967e17961d619c409d023f4ac96dde97bff9afc44c"
+    },
+    {
+      "path": "packages/core/src/database/migration/20260211171708_add_project_commands.ts",
+      "sha256": "e76a81a4435485da8823d2a6c8f8b9bf9b58f7cf96186fe24b61588bb53f4607"
+    },
+    {
+      "path": "packages/core/src/database/migration/20260213144116_wakeful_the_professor.ts",
+      "sha256": "94f1944a86b931ec9c37d84fb48be63be8465f89ba0300247aef6bfb50b799b6"
+    },
+    {
+      "path": "packages/core/src/database/migration/20260225215848_workspace.ts",
+      "sha256": "af1f6d7f9e1929064a523d2519ca5e2b9fb8c4c14b4fc2f18e3c10939afa4087"
+    },
+    {
+      "path": "packages/core/src/database/migration/20260227213759_add_session_workspace_id.ts",
+      "sha256": "f445dfebcfc26e024f94f973732f9335b13d6179678befb60cd7d2b64c4d4744"
+    },
+    {
+      "path": "packages/core/src/database/migration/20260228203230_blue_harpoon.ts",
+      "sha256": "95fa1a5e48741952a0528374979c6ea0b26e1b2a353a45066d6cef00184d1d35"
+    },
+    {
+      "path": "packages/core/src/database/migration/20260303231226_add_workspace_fields.ts",
+      "sha256": "32b24fb11e3b18b54466da8afc6fd7cc13c0055abac7625bca1952f9e063b728"
+    },
+    {
+      "path": "packages/core/src/database/migration/20260309230000_move_org_to_state.ts",
+      "sha256": "60c51cc83654e1cc3ae2682201a5b6bcf2436039e3ed80131d60ccd8e422e30c"
+    },
+    {
+      "path": "packages/core/src/database/migration/20260312043431_session_message_cursor.ts",
+      "sha256": "4eeb735713def3ea89ba3296bc659e0515e9752682cb73b5d5007c057c743b06"
+    },
+    {
+      "path": "packages/core/src/database/migration/20260323234822_events.ts",
+      "sha256": "e3a1b78c05cf2d72661084e380a84a892c170d44b75104492b10eab3a0b202a5"
+    },
+    {
+      "path": "packages/core/src/database/migration/20260410174513_workspace-name.ts",
+      "sha256": "9977056133a0364112dc446a7355bfa56945dd9bfee0b45c53d5124baefba084"
+    },
+    {
+      "path": "packages/core/src/database/migration/20260413175956_chief_energizer.ts",
+      "sha256": "091386bf32a33bb9b359f028411a9dceb499704ae15a7cc2a3f4ad6e7c235cca"
+    },
+    {
+      "path": "packages/core/src/database/migration/20260423070820_add_icon_url_override.ts",
+      "sha256": "18b2ee72eba0f0e3290c197f7c64c45cb50869f140e267152acdfe6af07ed731"
+    },
+    {
+      "path": "packages/core/src/database/migration/20260427172553_slow_nightmare.ts",
+      "sha256": "26614723b91e01699196c3fa5ef04216702a69ec5e5c10daf0f1c108dc6e8eef"
+    },
+    {
+      "path": "packages/core/src/database/migration/20260428004200_add_session_path.ts",
+      "sha256": "3d11afd3b0e77dcc6df7a5166c15df25002b6801bb5e42654b9ffd6692738cb7"
+    },
+    {
+      "path": "packages/core/src/database/migration/20260501142318_next_venus.ts",
+      "sha256": "fa89c2c0fb98ae18b1a15a953aff9071d6cd5cb787a9bb217ba5eeadd0765cd2"
+    },
+    {
+      "path": "packages/core/src/database/migration/20260504145000_add_sync_owner.ts",
+      "sha256": "6584a33fb67000938f77f9797c94b126d00b47cd2b7e71a690f04f59a99d5d54"
+    },
+    {
+      "path": "packages/core/src/database/migration/20260507164347_add_workspace_time.ts",
+      "sha256": "8891749d9f4ff8cf1e73935cd291a00bdd9d9ac64809c57878dd78ceb99d39a2"
+    },
+    {
+      "path": "packages/core/src/database/migration/20260510033149_session_usage.ts",
+      "sha256": "dd2ed1311568a4bf129f7bba749e911bd7fec4a0af946e7eac98f4f45ba7b198"
+    },
+    {
+      "path": "packages/core/src/database/migration/20260511000411_data_migration_state.ts",
+      "sha256": "bd1c723a53baae3d432d444c955c3fc7ec7199bf706a8ccce671beec00542c3c"
+    },
+    {
+      "path": "packages/core/src/database/migration/20260511173437_session-metadata.ts",
+      "sha256": "3d94c09dfbd65f03277938b6860ef610b012bd36ae4a2e6b5842856b45f8c667"
+    },
+    {
+      "path": "packages/core/src/database/migration/20260601010001_normalize_storage_paths.ts",
+      "sha256": "31a95130bfef31aeba9e1a4f4f65298f760993052f116f15fc1914e89772d013"
+    },
+    {
+      "path": "packages/core/src/database/migration/20260601202201_amazing_prowler.ts",
+      "sha256": "04459cef744159bde1dc1b2a8ae36ddb31ba9c9dc799bbb8fa190e84f63777ec"
+    },
+    {
+      "path": "packages/core/src/database/migration/20260602002951_lowly_union_jack.ts",
+      "sha256": "55de3845366712299d0b3eedc8d6ab54f8bb109da2a408117f625bcfac351073"
+    },
+    {
+      "path": "packages/core/src/database/migration/20260602182828_add_project_directories.ts",
+      "sha256": "f6151e91e8252dce2be6494a62b2d43f414b39e5c9ad9d5928ed9be2620d7901"
+    },
+    {
+      "path": "packages/core/src/database/migration/20260603001617_session_message_projection_indexes.ts",
+      "sha256": "a5363ddb6655b08ebfb03ad4364a69c5a13a6cd57d4b0c8468ea44532f73a03a"
+    },
+    {
+      "path": "packages/core/src/database/migration/20260603040000_session_message_projection_order.ts",
+      "sha256": "9899c029d31c7bdd767cba272c68f0eed63de5cb5e3b8a2d00d6a090edf69a8c"
+    },
+    {
+      "path": "packages/core/src/database/migration/20260603141458_session_input_inbox.ts",
+      "sha256": "38de0914dafd840e0eaaf0a24c330675d55cc3f26a77940630f1c58ee8163787"
+    },
+    {
+      "path": "packages/core/src/database/migration/20260603160727_jittery_ezekiel_stane.ts",
+      "sha256": "0651e291223890b8428b820551d98b63ad79b9bf81814b347d7e9c763e332128"
+    },
+    {
+      "path": "packages/core/src/database/migration/20260604172448_event_sourced_session_input.ts",
+      "sha256": "9990ace4d25a7941c953297ec1fb4e13de1ba38e2997a88629ffccf1ce561099"
+    },
+    {
+      "path": "packages/core/src/database/migration/20260605003541_add_session_context_snapshot.ts",
+      "sha256": "de5a347127c62ea850c8ea9c76cc78433932e74d743317c68cb709e29c407e68"
+    },
+    {
+      "path": "packages/core/src/database/migration/20260605042240_add_context_epoch_agent.ts",
+      "sha256": "718ceb91404298f6a5e5e1a37c7957b6d8033fc629246a66e948e634e1418ae2"
+    },
+    {
+      "path": "packages/core/src/database/migration/20260611035744_credential.ts",
+      "sha256": "3b01ea2dcfd09ef81396ddb2655f4a47029bd7b16be720be7d268427104e881c"
+    },
+    {
+      "path": "packages/core/src/database/migration/20260611192811_lush_chimera.ts",
+      "sha256": "390dd8341fcd5c68dae407cbca7d60c78fcb04456977a0e84ae560e21137c02a"
+    },
+    {
+      "path": "packages/core/src/database/migration/20260612174303_project_dir_strategy.ts",
+      "sha256": "fe68b0d4492f9a6f2681ec927b41825f9a88f6e4f58548cd8ab2a81bcae36fd2"
+    },
+    {
+      "path": "packages/core/src/database/migration/20260622142730_simplify_session_context_epoch.ts",
+      "sha256": "07ad8b961f7b3773f02e2c09fa822c891dfcd0f31f032c8e131935c389177beb"
+    },
+    {
+      "path": "packages/core/src/database/migration/20260622170816_reset_v2_session_state.ts",
+      "sha256": "c3113099b2151cfb394ee6439976fe2678b7d6eb6d301365a75d9795a7894489"
+    },
+    {
+      "path": "packages/core/src/database/migration/20260622202450_simplify_session_input.ts",
+      "sha256": "28cba1f4a10ee368606772097e7623121aa9719fb6dd2d70b91800fd4ef98362"
+    },
+    {
+      "path": "packages/core/src/database/path.ts",
+      "sha256": "2d002e5152302db507094cf3396c69c715945462febca198e6acf184ff3db523"
+    },
+    {
+      "path": "packages/core/src/database/schema.gen.ts",
+      "sha256": "dc485d31e4d2f4d47f0c0e4243854b04817dc88a42ab9b1bec34b77d9f52ab27"
+    },
+    {
+      "path": "packages/core/src/database/schema.sql.ts",
+      "sha256": "5062dbe8e86bfad26647b800111ecf04ebeb551b6e00de32b050c25f1fc15dca"
+    },
+    {
+      "path": "packages/core/src/database/sqlite.bun.ts",
+      "sha256": "62f95380921d0f62a4a5b85c82d0f41205609d13b1f8758d2aa5e8fd24e9d7ef"
+    },
+    {
+      "path": "packages/core/src/database/sqlite.ts",
+      "sha256": "53d4621e845c85bceaffd397837951cd56245e449d6b2e0b022b47212930f685"
+    },
+    {
+      "path": "packages/core/src/effect/app-node.ts",
+      "sha256": "84d50e650e7354f3fcbcdc39a005cce87d35aae6519cbf4995f1252062f5b2d2"
+    },
+    {
+      "path": "packages/core/src/effect/layer-node.ts",
+      "sha256": "eededbc130f4ecdcdda906099be5aca47496cd58d3a15897ea17ab13f4a3a758"
+    },
+    {
+      "path": "packages/core/src/event.ts",
+      "sha256": "c9cde59028948b688d8c77826526bd51eac1b2b7c7b7b71425603ccef7e32fc4"
+    },
+    {
+      "path": "packages/core/src/event/sql.ts",
+      "sha256": "8165dd09bfd9cb1a44ecaacf213d99053a642fe31e097bb6fa412a0e9f71c8ff"
+    },
+    {
+      "path": "packages/core/src/flag/flag.ts",
+      "sha256": "f387ba5da5b24bb8fa316c8bc32aac778552c7bb199b42ed17adef03714ce6c5"
+    },
+    {
+      "path": "packages/core/src/global.ts",
+      "sha256": "37c9aae045e01cd246cd4d8c489e84ea4849b6297d3a6f9ff9b1bca57f85c013"
+    },
+    {
+      "path": "packages/core/src/installation/version.ts",
+      "sha256": "9382873484a5920b549832dfa4ac0f09300f4eaeb1781a41d548dbd2ffe65d9a"
+    },
+    {
+      "path": "packages/core/src/location.ts",
+      "sha256": "644a0b788b9907c81a0248b7d965d35280f94e21edebe8b0d3abd3277561a4d0"
+    },
+    {
+      "path": "packages/core/src/project/sql.ts",
+      "sha256": "bcf48e11441a49df3fb586ccfcbb7996a2f18af29d0b8b1dfc0d8edb36e16959"
+    },
+    {
+      "path": "packages/core/src/schema.ts",
+      "sha256": "0993e10641bd1138340c235145b0abd6b4913e13762878ea16545b31b155341b"
+    },
+    {
+      "path": "packages/core/src/session.ts",
+      "sha256": "6a82ac892612207fe3cdce0de556a7e4a06bf701557ebfe09607633641f224be"
+    },
+    {
+      "path": "packages/core/src/session/event.ts",
+      "sha256": "123347f1fe182db575b3999d3e21bcb524f4752d043820dfa4899cdf1326a1ad"
+    },
+    {
+      "path": "packages/core/src/session/input.ts",
+      "sha256": "3f0fa5e0179f75a3a68c2befcc53d1bf46fc3414355840f4573008ec39393e29"
+    },
+    {
+      "path": "packages/core/src/session/message-updater.ts",
+      "sha256": "9b9be0e5b38eed69b8cd75fb6856e324b09e399378517df700f97bc637511886"
+    },
+    {
+      "path": "packages/core/src/session/message.ts",
+      "sha256": "02bc45bd7c9647550817d93922df3e955d09c8bacd8c39f1e32afff9a84b86d9"
+    },
+    {
+      "path": "packages/core/src/session/projector.ts",
+      "sha256": "79ca6021b82942c6d913526fc578cfa1fcf654b4691ed3220b4223ea5fea9590"
+    },
+    {
+      "path": "packages/core/src/session/prompt.ts",
+      "sha256": "f617d889d032bd762f4c8f57f0839d81d320e223139c24c4838f7992cbe1679b"
+    },
+    {
+      "path": "packages/core/src/session/schema.ts",
+      "sha256": "136518c74fdf1eae73fbe7120376147bf635a0a7143832c3afe87e4e2863f1cd"
+    },
+    {
+      "path": "packages/core/src/session/sql.ts",
+      "sha256": "8fe00bf61948678bfd5b4f993e1e3884fca8005abcce50a8192b1d06d2b65c10"
+    },
+    {
+      "path": "packages/core/src/util/error.ts",
+      "sha256": "5b09015f03f54a0fbf4005cdcd2ac86bd66cda6da4bc08e77db082b2a0b9bc77"
+    },
+    {
+      "path": "packages/core/src/util/flock.ts",
+      "sha256": "205c59f5d56dd10145393627e6d3bb81a069674422c3ca835d2c9f8a9ff7ef85"
+    },
+    {
+      "path": "packages/core/src/util/hash.ts",
+      "sha256": "0d0816d1eb3cabcbea8394fe30c4e28206a32ff3cd07bb09b7999a86b14dd100"
+    },
+    {
+      "path": "packages/core/src/v1/session.ts",
+      "sha256": "d5061bebc69e402022fabe1341179c1bf0e11ef746a7318bdf42e7495a88c566"
+    },
+    {
+      "path": "packages/core/src/workspace.ts",
+      "sha256": "3270e893df9188e8fc1d2fc1f5df693ac565391bb6be518310267495b0a8687a"
+    },
+    {
+      "path": "packages/core/tsconfig.json",
+      "sha256": "3a905c30e8eb398498c1a9b44d5b532f666e6bd39eaa49fcf440f36ec4538379"
+    },
+    {
+      "path": "packages/effect-drizzle-sqlite/package.json",
+      "sha256": "20797b8e702e8b34e54d87c8451d51500c7be0dd5b3e7f718325a545e0eec5cf"
+    },
+    {
+      "path": "packages/effect-drizzle-sqlite/src/effect-sqlite/driver.ts",
+      "sha256": "3f58650cd257c28b80ce752684f0bd0b53c07a8b6990fd293f39c953d1dbded3"
+    },
+    {
+      "path": "packages/effect-drizzle-sqlite/src/effect-sqlite/migrator.ts",
+      "sha256": "489a33e2c074cf35e087f8c8c89993881e8fd48d6666f719d8880bbe60d0ca8b"
+    },
+    {
+      "path": "packages/effect-drizzle-sqlite/src/effect-sqlite/session.ts",
+      "sha256": "cf55ea7460e9ed06dab1294241ff0c47c86a43ee8a16219ec7ff2fa7240d216c"
+    },
+    {
+      "path": "packages/effect-drizzle-sqlite/src/index.ts",
+      "sha256": "295a3543f802092c2432f00fc3f890403032fa528bbdc59ace94d63e83d784e9"
+    },
+    {
+      "path": "packages/effect-drizzle-sqlite/src/internal/drizzle-utils.ts",
+      "sha256": "31e67f904b61fc4f65ade458f2bba2133e8c7e0f1069fe647e24a9b599eeb984"
+    },
+    {
+      "path": "packages/effect-drizzle-sqlite/src/sqlite-core/effect/count.ts",
+      "sha256": "c2bd0afb9db2a2b00e953db9e7aa57d72b58be39a31699617fab29304d369891"
+    },
+    {
+      "path": "packages/effect-drizzle-sqlite/src/sqlite-core/effect/db.ts",
+      "sha256": "695b4830d7fc4971c4a4152fc740e8a9a37741d29665acf0936079a1134ec281"
+    },
+    {
+      "path": "packages/effect-drizzle-sqlite/src/sqlite-core/effect/delete.ts",
+      "sha256": "5a738e022e6d08005c02756449a7f0a7ac5e5a0e7153974af32d6a7c4b820567"
+    },
+    {
+      "path": "packages/effect-drizzle-sqlite/src/sqlite-core/effect/insert.ts",
+      "sha256": "e077e14526be9962ba069babfc42ab79ef7c769352750d57fb2e28e3c318e812"
+    },
+    {
+      "path": "packages/effect-drizzle-sqlite/src/sqlite-core/effect/query.ts",
+      "sha256": "ebcbf83b5715a172634a8f827f0918e1f1dcd20909f7243dbe9aea23e9add281"
+    },
+    {
+      "path": "packages/effect-drizzle-sqlite/src/sqlite-core/effect/raw.ts",
+      "sha256": "936def1954b0bfb78c7ebc5b6b39cf2c2d6213420e32e9466ba21930e438b869"
+    },
+    {
+      "path": "packages/effect-drizzle-sqlite/src/sqlite-core/effect/select.ts",
+      "sha256": "3125d10beb7885ece43329dd6fc212332212589616661b436f4661961c04a568"
+    },
+    {
+      "path": "packages/effect-drizzle-sqlite/src/sqlite-core/effect/session.ts",
+      "sha256": "54648e442841965faa98f12948903d3805207412d338bedbe460e27034114d82"
+    },
+    {
+      "path": "packages/effect-drizzle-sqlite/src/sqlite-core/effect/update.ts",
+      "sha256": "d2acc5fc25f8790d4381dfb459d4cbfda5ca4eb25605317fe7e56697b02a2b4a"
+    },
+    {
+      "path": "packages/effect-drizzle-sqlite/src/up-migrations/effect-sqlite.ts",
+      "sha256": "0fc563bde07bd14b063ac03131ffc5af000733b6b4019b9c1dd8f0175b8bfda8"
+    },
+    {
+      "path": "packages/effect-drizzle-sqlite/src/up-migrations/sqlite.ts",
+      "sha256": "d4ac9eaf56892c0b18d66918da22412e3b2a96eac3ddb9433db619a328798828"
+    },
+    {
+      "path": "packages/effect-drizzle-sqlite/src/up-migrations/utils.ts",
+      "sha256": "c66a146c790ef13c9d6a422fbc595937d900dcba3cb040f1d7e59539379d51f0"
+    },
+    {
+      "path": "packages/effect-drizzle-sqlite/tsconfig.json",
+      "sha256": "2999bfa2ea20f6cddb04e8a1ab5e2aa16e72659adc0192adc34908c979a19d2b"
+    },
+    {
+      "path": "packages/schema/package.json",
+      "sha256": "2904ffd95e874d6e537646ab6b14b589c26f3d65b50e9b19eb3bfe5b461e7e82"
+    },
+    {
+      "path": "packages/schema/src/agent.ts",
+      "sha256": "6cfa9079348278e0bb11a217d65bd3cd48d543ecd276e71ea3ce38e429d5f7da"
+    },
+    {
+      "path": "packages/schema/src/connection.ts",
+      "sha256": "37d3914dab08b851c9c5a0c0dd7e1a3c77ab6224a8802a0a00fbb178565ecaab"
+    },
+    {
+      "path": "packages/schema/src/credential.ts",
+      "sha256": "141f051d45fbb49d08b72154d5ddc4d398b87f18b106b948e67fa05a72e4bef6"
+    },
+    {
+      "path": "packages/schema/src/durable-event-manifest.ts",
+      "sha256": "7047f7430842eb8a867e6caf38737689d54c718428bbfbee3027d35774654424"
+    },
+    {
+      "path": "packages/schema/src/event.ts",
+      "sha256": "60ec352e97c19724143ca398b74200b734f2dfb93080b583c84ff30af7b72a29"
+    },
+    {
+      "path": "packages/schema/src/file-diff.ts",
+      "sha256": "a55485c32b27c93c1dba5a523c33748394207759dbe1460e98066b639b0c842b"
+    },
+    {
+      "path": "packages/schema/src/identifier.ts",
+      "sha256": "3eeb8c682210921b6dac49f0d785d9088a48503c4539d590f5c3b0e848d78b27"
+    },
+    {
+      "path": "packages/schema/src/integration-id.ts",
+      "sha256": "7f905d10763d397041dc8112e1761a27b8ebd976b0dc0a38ecfeb3dec84b5294"
+    },
+    {
+      "path": "packages/schema/src/integration.ts",
+      "sha256": "07cdfc9f79a8f64719ed099906936eda87a188c045611af7bbe929e585dd5641"
+    },
+    {
+      "path": "packages/schema/src/llm.ts",
+      "sha256": "2fe451dc9d1c854d6aeaa64a61a25df3d1c4886de36ac3217a04f99a8d14a527"
+    },
+    {
+      "path": "packages/schema/src/location.ts",
+      "sha256": "69198bd4bcbec4dc406d5e8d35977ccb3174828fee859814462e3278caf2a603"
+    },
+    {
+      "path": "packages/schema/src/model.ts",
+      "sha256": "cd7717a4699cb24ce617f66352e77981281d0ff1af2b0f52dac8bbfd6d150e84"
+    },
+    {
+      "path": "packages/schema/src/permission.ts",
+      "sha256": "229f2da7d245bf86deffed59b10cddf2dd04ffa05d10ef97fc5df289d0e6fb98"
+    },
+    {
+      "path": "packages/schema/src/project-id.ts",
+      "sha256": "47aad330577133240b3c33938363fa980d32cd00de9564b8fccdcad05c110e7d"
+    },
+    {
+      "path": "packages/schema/src/project.ts",
+      "sha256": "d12577c05384e8415203a81ff3041246497cdb158427e06158dc134d271dfb97"
+    },
+    {
+      "path": "packages/schema/src/prompt.ts",
+      "sha256": "d1fc8764053e3c6b07791cd7f1f319e9c8b9a5942af04432c53a622af0f486a6"
+    },
+    {
+      "path": "packages/schema/src/provider.ts",
+      "sha256": "f72afc446470bd4ac6fadce7f880539590604052c3cb003f39a415f2adcc1834"
+    },
+    {
+      "path": "packages/schema/src/revert.ts",
+      "sha256": "145a30ba642db86d826e6309d0b0d66c3ec7ba04e891170d228b6cd1b340a47a"
+    },
+    {
+      "path": "packages/schema/src/schema.ts",
+      "sha256": "a7cdac1ae9d21d9d71a3783a730ca29bc8fbe769d01479a19101a81eec2bb447"
+    },
+    {
+      "path": "packages/schema/src/session-delivery.ts",
+      "sha256": "6c711801312cf2512c46695e44dfcba86f0e9cf9b8485aed4b435adcdba23528"
+    },
+    {
+      "path": "packages/schema/src/session-event.ts",
+      "sha256": "d8a2ee9abba77aa0b33066af197becb81adab2f315d4f78aabfc456319666f20"
+    },
+    {
+      "path": "packages/schema/src/session-id.ts",
+      "sha256": "e9bf2bb2382af14577371b17b22b36f07ef6cf97923e655935fde0460ec3bdc6"
+    },
+    {
+      "path": "packages/schema/src/session-input.ts",
+      "sha256": "817d9ff37c1c522b5058bb31d818035ed5a72d5328929a398cc922b1fd94cb38"
+    },
+    {
+      "path": "packages/schema/src/session-message.ts",
+      "sha256": "96f5ecaf45a8be46485df65d6b2d22b9e6538144e2cd5b28251fb54e13aa85fc"
+    },
+    {
+      "path": "packages/schema/src/session-v1.ts",
+      "sha256": "e674e2c9193471ce2c1bcbc02216cc7779a7edaad7b5aa2411c31824632dd1cd"
+    },
+    {
+      "path": "packages/schema/src/session.ts",
+      "sha256": "769622a23591f4aee6ecbfe8d2f9f5751e91a0360505508787b48300ea5cd5ee"
+    },
+    {
+      "path": "packages/schema/src/v1/permission.ts",
+      "sha256": "eaa6c288030c691429e9fd63db59b0609e55337c63d6fa932b30b3c1c6956d89"
+    },
+    {
+      "path": "packages/schema/src/v1/session.ts",
+      "sha256": "8516f7405c91636e7a78ce9da099bf5bf307682a4320c9ad6d89888d80fac4fb"
+    },
+    {
+      "path": "packages/schema/src/workspace-event.ts",
+      "sha256": "f9ef09253b0c964ccfa1e0c767a051a40236a120c9418056b58dfe7645cbba30"
+    },
+    {
+      "path": "packages/schema/src/workspace-id.ts",
+      "sha256": "8756530476173c3888135b3ac76bb14069d61c3d4074464f2a307a0d078d19c9"
+    },
+    {
+      "path": "packages/schema/src/workspace.ts",
+      "sha256": "a21abd037393a1a7b6f5d7c24629eef97e720582f79ac9b36b2ed80e18ef02c3"
+    },
+    {
+      "path": "packages/schema/tsconfig.json",
+      "sha256": "8f18af40d4bf7be291dbc80b7156dac8d0567ac78fddb45284f5485780b84b20"
+    },
+    {
+      "path": "patches/effect@4.0.0-beta.83.patch",
+      "sha256": "f94650ac08f7d851a27e7c21f544bc5b41f7f91783171211197a72d14d2cda36"
+    },
+    {
+      "path": "tsconfig.json",
+      "sha256": "3566d273bac7985b182fde3fc49e3d9a6b8d1451c122c31a4f87877faa9ae7aa"
+    }
+  ],
+  "registryPackages": {
+    "xdg-basedir": {
+      "lockKey": "xdg-basedir",
+      "entry": [
+        "xdg-basedir@5.1.0",
+        "",
+        {},
+        "sha512-GCPAHLvrIH13+c0SuacwvRYj2SxJXQ4kaVTT5xgL3kPrz56XxkF21IGhjSE1+W0aw7gpBWRGXLCPnPby6lSpmQ=="
+      ],
+      "url": "https://registry.npmjs.org/xdg-basedir/-/xdg-basedir-5.1.0.tgz",
+      "tarballSha256": "5efa29c81b3fa106d3fb74d009df4aa9d946dcc957bfcc8ab0a635eeebffac73",
+      "extractedTreeSha256": "5370465447f8c7669433dee9bd3f6269f0157b742f2f057d732b789453d1bddb"
+    },
+    "immer": {
+      "lockKey": "immer",
+      "entry": [
+        "immer@11.1.4",
+        "",
+        {},
+        "sha512-XREFCPo6ksxVzP4E0ekD5aMdf8WMwmdNaz6vuvxgI40UaEiu6q3p8X52aU6GdyvLY3XXX/8R7JOTXStz/nBbRw=="
+      ],
+      "url": "https://registry.npmjs.org/immer/-/immer-11.1.4.tgz",
+      "tarballSha256": "5919489fd4fd1b2fa1064a06e561fb02d0baa3f265770286c710fc9c4aa60955",
+      "extractedTreeSha256": "89413f88080457cd05850ff3e38821334de02dc2804788b348184b1e4f40bdab"
+    },
+    "drizzle-orm": {
+      "lockKey": "drizzle-orm",
+      "entry": [
+        "drizzle-orm@1.0.0-rc.2",
+        "",
+        {
+          "peerDependencies": {
+            "@aws-sdk/client-rds-data": ">=3",
+            "@cloudflare/workers-types": ">=4",
+            "@effect/sql-pg": ">=4.0.0-beta.58 || >=4.0.0",
+            "@electric-sql/pglite": ">=0.2.0",
+            "@libsql/client": ">=0.10.0",
+            "@libsql/client-wasm": ">=0.10.0",
+            "@neondatabase/serverless": ">=0.10.0",
+            "@op-engineering/op-sqlite": ">=2",
+            "@opentelemetry/api": "^1.4.1",
+            "@planetscale/database": ">=1.13",
+            "@sinclair/typebox": ">=0.34.8",
+            "@sqlitecloud/drivers": ">=1.0.653",
+            "@tidbcloud/serverless": "*",
+            "@tursodatabase/database": ">=0.2.1",
+            "@tursodatabase/database-common": ">=0.2.1",
+            "@tursodatabase/database-wasm": ">=0.2.1",
+            "@types/better-sqlite3": "*",
+            "@types/mssql": "^9.1.4",
+            "@types/pg": "*",
+            "@types/sql.js": "*",
+            "@upstash/redis": ">=1.34.7",
+            "@vercel/postgres": ">=0.8.0",
+            "@xata.io/client": "*",
+            "arktype": ">=2.0.0",
+            "better-sqlite3": ">=9.3.0",
+            "bun-types": "*",
+            "effect": ">=4.0.0-beta.58 || >=4.0.0",
+            "expo-sqlite": ">=14.0.0",
+            "mssql": "^11.0.1",
+            "mysql2": ">=2",
+            "pg": ">=8",
+            "postgres": ">=3",
+            "sql.js": ">=1",
+            "sqlite3": ">=5",
+            "typebox": ">=1.0.0",
+            "valibot": ">=1.0.0-beta.7",
+            "zod": "^3.25.0 || ^4.0.0"
+          },
+          "optionalPeers": [
+            "@aws-sdk/client-rds-data",
+            "@cloudflare/workers-types",
+            "@effect/sql-pg",
+            "@electric-sql/pglite",
+            "@libsql/client",
+            "@libsql/client-wasm",
+            "@neondatabase/serverless",
+            "@op-engineering/op-sqlite",
+            "@opentelemetry/api",
+            "@planetscale/database",
+            "@sinclair/typebox",
+            "@sqlitecloud/drivers",
+            "@tidbcloud/serverless",
+            "@tursodatabase/database",
+            "@tursodatabase/database-common",
+            "@tursodatabase/database-wasm",
+            "@types/better-sqlite3",
+            "@types/mssql",
+            "@types/pg",
+            "@types/sql.js",
+            "@upstash/redis",
+            "@vercel/postgres",
+            "@xata.io/client",
+            "arktype",
+            "better-sqlite3",
+            "bun-types",
+            "effect",
+            "expo-sqlite",
+            "mssql",
+            "mysql2",
+            "pg",
+            "postgres",
+            "sql.js",
+            "sqlite3",
+            "typebox",
+            "valibot",
+            "zod"
+          ]
+        },
+        "sha512-UXYDkbplF5wX0hwxll+80QhEwUvAJLBu+tAK/d4fna18kLE6VuliAzufF/ieDEIJeSnLRYgtmsXD6x1Xuy1kIg=="
+      ],
+      "url": "https://registry.npmjs.org/drizzle-orm/-/drizzle-orm-1.0.0-rc.2.tgz",
+      "tarballSha256": "2f538765ce55f89b3f4db8e35c24591c8558120b02c806ea8564bf407171c173",
+      "extractedTreeSha256": "a19944fc69f8d156f2d77d177d808f4fa96767c617a0d28b4a8cfafca694132f"
+    },
+    "effect": {
+      "lockKey": "effect",
+      "entry": [
+        "effect@4.0.0-beta.83",
+        "",
+        {
+          "dependencies": {
+            "@standard-schema/spec": "^1.1.0",
+            "fast-check": "^4.8.0",
+            "find-my-way-ts": "^0.1.6",
+            "ini": "^7.0.0",
+            "kubernetes-types": "^1.30.0",
+            "msgpackr": "^2.0.1",
+            "multipasta": "^0.2.7",
+            "toml": "^4.1.1",
+            "uuid": "^14.0.0",
+            "yaml": "^2.9.0"
+          }
+        },
+        "sha512-0wsak8RtgGAr9UWSbVDgJHZcUqMSvicHcvaZv1MbMM7MCGgW4Rn/137J1MHQbwYPcwYGxT/IqehFd+UbYuj78w=="
+      ],
+      "url": "https://registry.npmjs.org/effect/-/effect-4.0.0-beta.83.tgz",
+      "tarballSha256": "519a093a267909d22e4d2b2d688ed6438737995de3e8347f2f582a357918d3c9",
+      "extractedTreeSha256": "9c08771874c2d83e066f03dfbf43a8b4f35d959a34e064d528fc3439cf197190"
+    },
+    "yaml": {
+      "lockKey": "yaml",
+      "entry": [
+        "yaml@2.9.0",
+        "",
+        {
+          "bin": {
+            "yaml": "bin.mjs"
+          }
+        },
+        "sha512-2AvhNX3mb8zd6Zy7INTtSpl1F15HW6Wnqj0srWlkKLcpYl/gMIMJiyuGq2KeI2YFxUPjdlB+3Lc10seMLtL4cA=="
+      ],
+      "url": "https://registry.npmjs.org/yaml/-/yaml-2.9.0.tgz",
+      "tarballSha256": "008fa204cb1ba700e0272ba045abbf09a6ffe63456e8146ba97cac6c2ad1ef91",
+      "extractedTreeSha256": "b26048e49ac481ba37ab42de472a2e913b4e26a104e0771bf9f03997dc1c4ce3"
+    },
+    "uuid": {
+      "lockKey": "uuid",
+      "entry": [
+        "uuid@14.0.0",
+        "",
+        {
+          "bin": {
+            "uuid": "dist-node/bin/uuid"
+          }
+        },
+        "sha512-Qo+uWgilfSmAhXCMav1uYFynlQO7fMFiMVZsQqZRMIXp0O7rR7qjkj+cPvBHLgBqi960QCoo/PH2/6ZtVqKvrg=="
+      ],
+      "url": "https://registry.npmjs.org/uuid/-/uuid-14.0.0.tgz",
+      "tarballSha256": "ca468c168ec7f2021f6a98041e943443b29e67e0e0ff5b4c1caca17c6efa9870",
+      "extractedTreeSha256": "7ec9dccb5ed8da65a6910975afb0b60411b2a693012c7b89e019c1ddc1c1ff3e"
+    },
+    "toml": {
+      "lockKey": "toml",
+      "entry": [
+        "toml@4.1.1",
+        "",
+        {},
+        "sha512-EBJnVBr3dTXdA89WVFoAIPUqkBjxPMwRqsfuo1r240tKFHXv3zgca4+NJib/h6TyvGF7vOawz0jGuryJCdNHrw=="
+      ],
+      "url": "https://registry.npmjs.org/toml/-/toml-4.1.1.tgz",
+      "tarballSha256": "819aa671501ce2ff325ca73146a263bd101389650d1d486136539a96c515d935",
+      "extractedTreeSha256": "9fb75ec53d6cd8f5a24390e137b887e7d354cb372690fd127b5912415433b83d"
+    },
+    "multipasta": {
+      "lockKey": "multipasta",
+      "entry": [
+        "multipasta@0.2.7",
+        "",
+        {},
+        "sha512-KPA58d68KgGil15oDqXjkUBEBYc00XvbPj5/X+dyzeo/lWm9Nc25pQRlf1D+gv4OpK7NM0J1odrbu9JNNGvynA=="
+      ],
+      "url": "https://registry.npmjs.org/multipasta/-/multipasta-0.2.7.tgz",
+      "tarballSha256": "ecdfbe5cf1a5945769f19d86f0686a01071c0b417accb8c230f090d8292abd58",
+      "extractedTreeSha256": "9d17921a688983fce6bf5ebac6eb04316d18dbd9f410b227a45280035a985acc"
+    },
+    "msgpackr": {
+      "lockKey": "msgpackr",
+      "entry": [
+        "msgpackr@2.0.2",
+        "",
+        {
+          "optionalDependencies": {
+            "msgpackr-extract": "^3.0.4"
+          }
+        },
+        "sha512-c5hYOXFbP79Slh6Dzd2wzk+jnV7mX1UxfMYtilnY1NmalXPqG8DGb5cYCMBrW4AsH3zekBBZd4QrKz9NhtvYLQ=="
+      ],
+      "url": "https://registry.npmjs.org/msgpackr/-/msgpackr-2.0.2.tgz",
+      "tarballSha256": "08ecb6ae9be23290def1454080f9574c561149cf71cdacad982979918503ea8c",
+      "extractedTreeSha256": "d2e4c61fdd48f10d563c2017bd7b3a730335c4a94718744f4e748d68ed7d0fa3"
+    },
+    "kubernetes-types": {
+      "lockKey": "kubernetes-types",
+      "entry": [
+        "kubernetes-types@1.30.0",
+        "",
+        {},
+        "sha512-Dew1okvhM/SQcIa2rcgujNndZwU8VnSapDgdxlYoB84ZlpAD43U6KLAFqYo17ykSFGHNPrg0qry0bP+GJd9v7Q=="
+      ],
+      "url": "https://registry.npmjs.org/kubernetes-types/-/kubernetes-types-1.30.0.tgz",
+      "tarballSha256": "d32819b4ed5c74fe783040b3739a80f99bc18beaefe6d50f64a214aa9b5c848d",
+      "extractedTreeSha256": "7a56393e2b05325e901b0eb45c6d73ed497e4af6fdcd30358d9a4b8059d69538"
+    },
+    "ini": {
+      "lockKey": "ini",
+      "entry": [
+        "ini@7.0.0",
+        "",
+        {},
+        "sha512-ifK0CgjALofS5bkrcTy4RaQ9Vx2Knf/eLeIO+NaswQEpH1UblrtTSCIvN71qQDMq0PeQ/SSPojvEJp9vvvfr+w=="
+      ],
+      "url": "https://registry.npmjs.org/ini/-/ini-7.0.0.tgz",
+      "tarballSha256": "7e7c8f2d6d0511237ac1d9e728483d8e6c9ecf3c7e16f55e9be4a59782327442",
+      "extractedTreeSha256": "5e927277717fcc31b69e487286a78eaad998f3d6b7c0a0a8ff84675864fe41fc"
+    },
+    "find-my-way-ts": {
+      "lockKey": "find-my-way-ts",
+      "entry": [
+        "find-my-way-ts@0.1.6",
+        "",
+        {},
+        "sha512-a85L9ZoXtNAey3Y6Z+eBWW658kO/MwR7zIafkIUPUMf3isZG0NCs2pjW2wtjxAKuJPxMAsHUIP4ZPGv0o5gyTA=="
+      ],
+      "url": "https://registry.npmjs.org/find-my-way-ts/-/find-my-way-ts-0.1.6.tgz",
+      "tarballSha256": "eda3f298c6261b7e389f7472ddaa19dc01575665741e862c3d0dacb14161b360",
+      "extractedTreeSha256": "378a1f903d2c71d438413bd50537a76a923c64ef82abbf399f05c103dc06c670"
+    },
+    "fast-check": {
+      "lockKey": "fast-check",
+      "entry": [
+        "fast-check@4.8.0",
+        "",
+        {
+          "dependencies": {
+            "pure-rand": "^8.0.0"
+          }
+        },
+        "sha512-GOJ158CUMnN6cSahsv4+ExARvIDuzzinFjkp0E9WtiBa5zcVeLozVkWaE4IzFcc+Y48Wp1EDlUZsXRyAztQcSg=="
+      ],
+      "url": "https://registry.npmjs.org/fast-check/-/fast-check-4.8.0.tgz",
+      "tarballSha256": "4a7a7190c09aaf071d61c35748d2475a5e64755f87da0c59ff0f4829019d472a",
+      "extractedTreeSha256": "baa3f1359285ef052548e4fd2282debdff455c2c526910c627bc42b0fce38902"
+    },
+    "pure-rand": {
+      "lockKey": "pure-rand",
+      "entry": [
+        "pure-rand@8.4.0",
+        "",
+        {},
+        "sha512-IoM8YF/jY0hiugFo/wOWqfmarlE6J0wc6fDK1PhftMk7MGhVZl88sZimmqBBFomLOCSmcCCpsfj7wXASCpvK9A=="
+      ],
+      "url": "https://registry.npmjs.org/pure-rand/-/pure-rand-8.4.0.tgz",
+      "tarballSha256": "5bed0db3b14fac83c44c28989bae23d03f0c2c455261662c6de1c09891582f4f",
+      "extractedTreeSha256": "a77c92ff3d57a70870e3694e1f1af756c89a56d944eb7ec85f17ba30d6e2e848"
+    },
+    "@standard-schema/spec": {
+      "lockKey": "effect/@standard-schema/spec",
+      "entry": [
+        "@standard-schema/spec@1.1.0",
+        "",
+        {},
+        "sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w=="
+      ],
+      "url": "https://registry.npmjs.org/@standard-schema/spec/-/spec-1.1.0.tgz",
+      "tarballSha256": "a7cb7268be280ab518d450f8c3b07c86f23417225c0ab53691ed59b3067cceaf",
+      "extractedTreeSha256": "052029fd794ba6b7427afa248bd6e2b6892663c158b0ed1f07c5a3e10a9eb5f5"
+    }
+  },
+  "workspacePackages": {
+    "@opencode-ai/schema": "../../../opencode-v1.19.5/packages/schema",
+    "@opencode-ai/effect-drizzle-sqlite": "../../../opencode-v1.19.5/packages/effect-drizzle-sqlite"
+  },
+  "bun": {
+    "version": "1.3.14",
+    "platform": "linux-x64",
+    "url": "https://github.com/oven-sh/bun/releases/download/bun-v1.3.14/bun-linux-x64.zip",
+    "archiveSha256": "951ee2aee855f08595aeec6225226a298d3fea83a3dcd6465c09cbccdf7e848f",
+    "executableSha256": "9fd36f87e4b90b07632b987a2e4ec81ca15a62c81bf983190cea6d715be2ad74"
+  },
+  "candidate": {
+    "version": "20.0.48-openusage.opencode-wal-reuse-candidate.1",
+    "executableSha256": "fa337e6ffc71c56f4647feec0450b47821a7b5f8b4ec1ad7b18ff95ec5f44a8b"
+  },
+  "fixtureFiles": {
+    "bootstrap.ts": "40a9e64b375e21c43b9129317a42d0a107fed731e894bd9c451b0ece912feee1",
+    "location.ts": "d207d8f4342fb6b06b62faf3ec18fd9032db0493922557cc56139c9a9f553fab",
+    "producer.ts": "e130f1ebf4dae866d9c2e529f9f7596ef5bb02a68de49dbe393f6f23fc60ae00",
+    "producer-expected.json": "6ab6dae2e1d7ebdb783ef864039a0d50952fdf3774b80554dd9862a1eb8d0f95",
+    "qualification.json": "a6b9519dba8477add55c3a932956caddd2c32d0788eeef5874786bfd2a58e5e7",
+    "prepare.py": "991aa3785ce5c4412c358f7da21bb6f5d4fc7eae05d65713b1a9c4711b3d7cae",
+    "README.md": "6b1e07d1515c21a29d644bb6b11f77839692acaf3066e32db444be1ea0ab7184"
+  },
+  "patchedFiles": [
+    {
+      "path": "dist/unstable/httpapi/HttpApiSchema.js",
+      "sha256": "3957181f7ff161e2334de6e36c8b8f65b90930d59fad12015fc2a56c80fe876c"
+    },
+    {
+      "path": "src/unstable/httpapi/HttpApiSchema.ts",
+      "sha256": "e3fc4156912ec44929e14341c4973b10f62d5b9bae2c02f6814235b279f9bf7b"
+    }
+  ]
+}

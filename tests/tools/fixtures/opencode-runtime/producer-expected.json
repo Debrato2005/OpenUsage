@@ -1,0 +1,334 @@
+{
+  "completed": {
+    "messageTypes": [
+      "assistant"
+    ],
+    "messageCount": 1,
+    "eventCount": 3,
+    "inputCount": 0,
+    "assistantTokens": [
+      {
+        "input": 120,
+        "output": 30,
+        "reasoning": 11,
+        "cache": {
+          "read": 7,
+          "write": 5
+        }
+      }
+    ],
+    "assistantCompleted": [
+      true
+    ]
+  },
+  "user_peer": {
+    "messageTypes": [
+      "user",
+      "assistant"
+    ],
+    "messageCount": 2,
+    "eventCount": 4,
+    "inputCount": 1,
+    "assistantTokens": [
+      {
+        "input": 120,
+        "output": 30,
+        "reasoning": 11,
+        "cache": {
+          "read": 7,
+          "write": 5
+        }
+      }
+    ],
+    "assistantCompleted": [
+      true
+    ]
+  },
+  "repeated_save": {
+    "messageTypes": [
+      "assistant"
+    ],
+    "messageCount": 1,
+    "eventCount": 5,
+    "inputCount": 0,
+    "assistantTokens": [
+      {
+        "input": 120,
+        "output": 30,
+        "reasoning": 11,
+        "cache": {
+          "read": 7,
+          "write": 5
+        }
+      }
+    ],
+    "assistantCompleted": [
+      true
+    ]
+  },
+  "changed_save": {
+    "messageTypes": [
+      "assistant"
+    ],
+    "messageCount": 1,
+    "eventCount": 5,
+    "inputCount": 0,
+    "assistantTokens": [
+      {
+        "input": 137,
+        "output": 30,
+        "reasoning": 11,
+        "cache": {
+          "read": 7,
+          "write": 5
+        }
+      }
+    ],
+    "assistantCompleted": [
+      true
+    ]
+  },
+  "distinct_calls": {
+    "messageTypes": [
+      "assistant",
+      "assistant"
+    ],
+    "messageCount": 2,
+    "eventCount": 5,
+    "inputCount": 0,
+    "assistantTokens": [
+      {
+        "input": 120,
+        "output": 30,
+        "reasoning": 11,
+        "cache": {
+          "read": 7,
+          "write": 5
+        }
+      },
+      {
+        "input": 120,
+        "output": 30,
+        "reasoning": 11,
+        "cache": {
+          "read": 7,
+          "write": 5
+        }
+      }
+    ],
+    "assistantCompleted": [
+      true,
+      true
+    ]
+  },
+  "reported_zero": {
+    "messageTypes": [
+      "assistant"
+    ],
+    "messageCount": 1,
+    "eventCount": 3,
+    "inputCount": 0,
+    "assistantTokens": [
+      {
+        "input": 0,
+        "output": 0,
+        "reasoning": 0,
+        "cache": {
+          "read": 0,
+          "write": 0
+        }
+      }
+    ],
+    "assistantCompleted": [
+      true
+    ]
+  },
+  "unfinished": {
+    "messageTypes": [
+      "assistant"
+    ],
+    "messageCount": 1,
+    "eventCount": 2,
+    "inputCount": 0,
+    "assistantTokens": [
+      null
+    ],
+    "assistantCompleted": [
+      false
+    ]
+  },
+  "failed": {
+    "messageTypes": [
+      "assistant"
+    ],
+    "messageCount": 1,
+    "eventCount": 3,
+    "inputCount": 0,
+    "assistantTokens": [
+      null
+    ],
+    "assistantCompleted": [
+      true
+    ]
+  },
+  "agent_switched": {
+    "messageTypes": [
+      "assistant",
+      "agent-switched"
+    ],
+    "messageCount": 2,
+    "eventCount": 4,
+    "inputCount": 0,
+    "assistantTokens": [
+      {
+        "input": 120,
+        "output": 30,
+        "reasoning": 11,
+        "cache": {
+          "read": 7,
+          "write": 5
+        }
+      }
+    ],
+    "assistantCompleted": [
+      true
+    ]
+  },
+  "model_switched": {
+    "messageTypes": [
+      "assistant",
+      "model-switched"
+    ],
+    "messageCount": 2,
+    "eventCount": 4,
+    "inputCount": 0,
+    "assistantTokens": [
+      {
+        "input": 120,
+        "output": 30,
+        "reasoning": 11,
+        "cache": {
+          "read": 7,
+          "write": 5
+        }
+      }
+    ],
+    "assistantCompleted": [
+      true
+    ]
+  },
+  "system": {
+    "messageTypes": [
+      "assistant",
+      "system"
+    ],
+    "messageCount": 2,
+    "eventCount": 4,
+    "inputCount": 0,
+    "assistantTokens": [
+      {
+        "input": 120,
+        "output": 30,
+        "reasoning": 11,
+        "cache": {
+          "read": 7,
+          "write": 5
+        }
+      }
+    ],
+    "assistantCompleted": [
+      true
+    ]
+  },
+  "synthetic": {
+    "messageTypes": [
+      "assistant",
+      "synthetic"
+    ],
+    "messageCount": 2,
+    "eventCount": 4,
+    "inputCount": 0,
+    "assistantTokens": [
+      {
+        "input": 120,
+        "output": 30,
+        "reasoning": 11,
+        "cache": {
+          "read": 7,
+          "write": 5
+        }
+      }
+    ],
+    "assistantCompleted": [
+      true
+    ]
+  },
+  "shell": {
+    "messageTypes": [
+      "assistant",
+      "shell"
+    ],
+    "messageCount": 2,
+    "eventCount": 5,
+    "inputCount": 0,
+    "assistantTokens": [
+      {
+        "input": 120,
+        "output": 30,
+        "reasoning": 11,
+        "cache": {
+          "read": 7,
+          "write": 5
+        }
+      }
+    ],
+    "assistantCompleted": [
+      true
+    ]
+  },
+  "compaction": {
+    "messageTypes": [
+      "assistant",
+      "compaction"
+    ],
+    "messageCount": 2,
+    "eventCount": 5,
+    "inputCount": 0,
+    "assistantTokens": [
+      {
+        "input": 120,
+        "output": 30,
+        "reasoning": 11,
+        "cache": {
+          "read": 7,
+          "write": 5
+        }
+      }
+    ],
+    "assistantCompleted": [
+      true
+    ]
+  },
+  "replayed": {
+    "messageTypes": [
+      "assistant"
+    ],
+    "messageCount": 1,
+    "eventCount": 3,
+    "inputCount": 0,
+    "assistantTokens": [
+      {
+        "input": 120,
+        "output": 30,
+        "reasoning": 11,
+        "cache": {
+          "read": 7,
+          "write": 5
+        }
+      }
+    ],
+    "assistantCompleted": [
+      true
+    ]
+  }
+}

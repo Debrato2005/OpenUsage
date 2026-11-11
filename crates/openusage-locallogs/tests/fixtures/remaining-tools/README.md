@@ -52,6 +52,11 @@ checks repeated checkpoints and obsolete tails against captured shared-memory
 metadata. `test_ccusage_opencode_wal_reuse.py` retains the prior matrix and
 storage-schema fixture. Producer and app qualification remain open.
 
+The [OpenCode runtime fixture](../../../../../tests/tools/fixtures/opencode-runtime/README.md)
+executes the real writer under isolation. Its qualification record retains
+six zero and metadata failures. These results supersede schema-only evidence
+within the executed writer scope. OpenCode stays disabled.
+
 The [Pi qualification](../../../../../docs/reviews/2026-11-10-pi-qualification.md) records 29 cases and 58 reports in `pi-qualification.json`. Run `test_ccusage_pi.py` through the same command. It covers stable entry IDs, copies, branches, replay, non-message usage, missing fields, and incomplete reads. Copies can double counts, distinct calls can collapse, and summary or standalone usage can disappear. The Rust regression preserves unavailable fields and reported activity times. Pi stays disabled, and AT-65 remains failed.
 
 The separate [Pi usage candidate](../../../../../docs/reviews/2026-11-10-pi-usage-candidate.md) records five corrected or added cases in `pi-usage-candidate.json`. Its five JSON/table views are in `pi-usage-candidate-cli.json`. The explicit candidate test preserves the production baseline and checks that only the scoped usage cases change. These outputs do not qualify the remaining identity or completeness failures and do not replace the production pin.

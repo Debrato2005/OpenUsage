@@ -112,3 +112,25 @@ test in release mode and checks refusal after one added byte.
 
 The [native benchmark](../tests/native/README.md#native-local-history-performance)
 measures first history through the enabled Claude Code consent path.
+
+## Scanner candidate builds
+
+Run Cargo from the candidate source root so its `.cargo/config.toml` applies.
+Prefix `PATH` and set `RUSTC` to the pinned toolchain in `.tools/rust/install/bin`.
+Keep the shared Cargo target and verified pricing input. Record the compiler's
+verbose version, including LLVM, with the build receipt.
+
+The pinned `sqlite3-src` 0.7.1 reads `SQLITE_*` settings without declaring them
+as Cargo inputs. A change of those settings can leave a stale native library.
+After such a change, run this command from the candidate source root with the
+pinned environment:
+
+```sh
+cargo clean --release -p sqlite3-src -p sqlite3-sys --manifest-path rust/Cargo.toml
+```
+
+This removes generated SQLite outputs only. Then build with the corrected
+inputs and check the expected binary digest. A November 11 rebuild reproduced
+the qualified digest after this targeted cleanup. The
+[producer qualification record](reviews/2026-11-11-opencode-runtime-qualification.md)
+records the source and execution scope.
