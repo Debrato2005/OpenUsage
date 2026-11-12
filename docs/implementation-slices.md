@@ -82,7 +82,7 @@ The other slices below follow the launch, unless a launch slice needs part of on
 
 ## Build checklist
 
-Updated November 12, 2026. Each completed item has one local commit and scoped evidence. L-1f11an records the latest result. The next bounded assignment is below. Owner items wait for the owner.
+Updated November 12, 2026. Each completed item has one local commit and scoped evidence. L-1f11ao records the latest result. The next bounded assignment is below. Owner items wait for the owner.
 
 **Verification before release**
 
@@ -160,7 +160,8 @@ Updated November 12, 2026. Each completed item has one local commit and scoped e
 - [x] L-1f11al: compare the shared bounded release candidate with the production scanner for enabled Claude Code and Codex. Keep production support unchanged.
 - [x] L-1f11am: qualify captured Codex event identity with private producer output before an isolated scanner correction.
 - [x] L-1f11an: correct the tested Codex paginated format in a separate candidate with explicit record identity and lineage.
-- [ ] L-1f11ao: derive both Codex reports from one captured input in a separate candidate.
+- [x] L-1f11ao: derive both Codex reports from one captured input in a separate candidate.
+- [ ] L-1f11ap: parse the Codex candidate envelope into existing typed grouped records without scanner activation.
 - [x] R-5: bound leaderboard request collection at 64 KiB. Twenty-four local service tests passed, including overflow cancellation, byte boundaries, stream errors, and the earlier aggregate and concurrency checks. Hosted Workers remain unverified.
 - [x] R-4: enforce hourly limits and the five-device cap under concurrent requests. Fourteen local service tests passed, including token rotation, hour resets, and database failures. Hosted D1 remains unverified.
 - [x] R-3: keep a leaderboard estimate unavailable when any included row lacks it. Token totals, measured zero, ordering, and period filters stay intact. Eight local service tests passed. Hosted D1 remains unverified.
@@ -667,6 +668,28 @@ Acceptance:
 Stopping condition: one isolated combined-capture candidate with executed
 evidence, updated owning docs, one local commit, and an AST Graphify update.
 Report before the next bounded step.
+
+### L-1f11ap: Codex combined report consumer
+
+Goal: parse the candidate envelope into existing typed grouped records before
+any scanner activation or application dispatch change.
+
+Acceptance:
+
+- Parse the pinned envelope and Codex-specific sections strictly. Preserve exact
+  totals, reported categories, reasoning, session identity, and available times.
+- Keep required null values distinct from missing fields. Preserve measured
+  zero and unavailable model attribution or estimates. Never add session totals
+  to daily totals or invent a start time or project.
+- Refuse unknown, missing, duplicate, invalid, excessive, or inconsistent fields.
+  Check section totals and model attribution with independent synthetic fixtures.
+- Return existing grouped types. Keep the production scanner pin, enabled
+  catalog, scan dispatch, and legacy history unchanged.
+- Run focused parser tests, doctor, and affected project checks. Record native
+  and application integration as later gates.
+
+Stopping condition: one Rust report contract with executed evidence, owning
+docs, one local commit, and an AST Graphify update. Report before the next step.
 
 ## Order
 

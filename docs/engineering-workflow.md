@@ -183,6 +183,24 @@ the raw capture comparison stays skipped. The [candidate record](reviews/2026-11
 owns executed results and the missing-parent decision. The command qualifies
 individual captures. It does not establish joint capture across two invocations.
 
+## Codex combined capture checks
+
+Set `OPENUSAGE_CODEX_SNAPSHOT_CANDIDATE` to the absolute oracle path from its
+[fixture pin](../tests/tools/fixtures/codex-snapshot-candidate/pin.json).
+Set `OPENUSAGE_CODEX_CAPTURE_RECEIPT` to the exact private producer receipt for
+raw capture comparisons. Select a new private output path with
+`OPENUSAGE_CODEX_SNAPSHOT_RESULTS`.
+
+```sh
+python3 -m unittest discover -s tests/tools -p test_ccusage_codex_snapshot.py -v
+```
+
+The controlled trace runs on Linux x86_64 and needs permission to trace its own
+private child. Without the executable variable, only pin checks run. Without
+the receipt, the raw producer comparison stays skipped. These checks qualify
+the isolated scanner command. The [record](reviews/2026-11-12-codex-combined-capture.md)
+owns its executed scope and remaining application gates.
+
 ## Scanner candidate builds
 
 Run Cargo from the candidate source root so its `.cargo/config.toml` applies.

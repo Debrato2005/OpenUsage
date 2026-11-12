@@ -4,6 +4,19 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f11an result before L-1f11ao
+
+Latest scoped result, November 12, 2026. The isolated Codex record candidate
+preserves the full 12,650-token fork and refuses conflicting or incomplete input.
+All eighteen captured report pairs meet independent expectations. The
+[candidate record](reviews/2026-11-12-codex-record-identity-candidate.md) owns
+the tested Linux boundary and remaining application gates. The production
+scanner and Pi oracle retain their original pins.
+
+Hosted CI for `6a42412` passed Linux and Renderer, including the existing Pi
+qualification and native oracle steps. The [evidence log](acceptance-traceability.md#evidence-log)
+records its scope. The current candidate change needs its own hosted result.
+
 ## L-1f11am result before L-1f11an
 
 Latest scoped result, November 12, 2026. The pinned Codex producer exposes

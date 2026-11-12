@@ -1,0 +1,262 @@
+{
+  "version": "20.0.48-openusage.2",
+  "target": "x86_64-unknown-linux-gnu",
+  "executableSha256": "88c3b58173e6ad94e02b8b6e23a802f4aa18f9b5e6713832f5f1522859e9cb2b",
+  "executableBytes": 5158208,
+  "oraclePath": ".tools/qualification-oracles/ccusage-codex-snapshot-linux-x86_64",
+  "sourceDirectory": ".tools/upstream/ccusage-8995f3b7-codex-snapshot",
+  "sourceCommit": "8995f3b7fd7110b8f37564f7d0468acc7a7d6b20",
+  "sourceFilesSha256": "eb620bb0f99304f3b1b6280062beb33260f6e766b07eed821051c71470572dfa",
+  "sourceManifestSha256": "612d6bf5088406b600aa840f4f124b1c2e2d971de671dff67d5ea3fd451520f1",
+  "sourceManifestAlgorithm": "SHA256 of compact JSON array of explicit path/sha256 records",
+  "patches": [
+    {
+      "path": "patches/ccusage/20.0.48-pi-usage.patch",
+      "sha256": "25ecee16c212ffa19d4d9d09585be14a99389fc7a017cf482368b86e9012e311"
+    },
+    {
+      "path": "patches/ccusage/20.0.48-pi-identity.patch",
+      "sha256": "04868d7358aa572a1e6782ea94d35639bffca359f199cafd9a7359f21fd85177"
+    },
+    {
+      "path": "patches/ccusage/20.0.48-pi-format.patch",
+      "sha256": "a4f347098e7377328aa718f75e2c3bfee78ceea772409805f32a6acb5a2027cb"
+    },
+    {
+      "path": "patches/ccusage/20.0.48-pi-filesystem.patch",
+      "sha256": "526a888f9544000d2055fac86ee77d6245abfc90e3cd68fee3a4c4ea6c634254"
+    },
+    {
+      "path": "patches/ccusage/20.0.48-pi-snapshot.patch",
+      "sha256": "99f53b938ede8b7d41e597ef0d31014ce14a9841bba9521a04ab22f1f547efbd"
+    },
+    {
+      "path": "patches/ccusage/20.0.48-pi-observations.patch",
+      "sha256": "3d461fefc8bcdeaeabcd45ebbf9dd22a758276ac7cd0f2888ca2e3da8d3be199"
+    },
+    {
+      "path": "patches/ccusage/20.0.48-pi-bounded.patch",
+      "sha256": "9f12038c06fedd64beaa17040c00c9d8b8a4905021f3540436d619a8cdb7b66d"
+    },
+    {
+      "path": "patches/ccusage/20.0.48-codex-record-identity.patch",
+      "sha256": "875b6bf79c11879ef8894c42bf8df5476616b472f8ffe56e2c312351ea487250"
+    },
+    {
+      "path": "patches/ccusage/20.0.48-codex-snapshot.patch",
+      "sha256": "abe4a4ae920f3a59de551d05927418af451c844a766bf623e1b3e27af6905c4a"
+    }
+  ],
+  "cargoLockSha256": "57482f0c9ca83895e6631a5c3c7557be01bf7f7b0f20544877d9b77e2c9fbd92",
+  "sourceCargoConfigSha256": "c30f6473cb0b378027ab3ec96319b951377aad21ee9b081207c6a2a35eb1dd35",
+  "productionSha256": "55a3fd41b29727672bef1242311758d1605a07765781d7a80a41d1b485d29ed1",
+  "piOracleSha256": "4e1b061dcce086d160695d8f37ff09b70bebab4a4dbbf62fca1fde43eb6adfdf",
+  "priorCodexOracleSha256": "aa5f309fa605e650e95566bd54480c7af571361885eb2fbe5cce25343354fb5d",
+  "priorCodexOraclePath": ".tools/qualification-oracles/ccusage-codex-records-linux-x86_64",
+  "producerVersion": "0.163.0",
+  "captureReceiptSha256": "392b3f6afc5d698eacd6ae5d395fc18d7e4771befb3e32a6015134c161c2402d",
+  "build": {
+    "workingDirectory": ".tools/upstream/ccusage-8995f3b7-codex-snapshot",
+    "command": [
+      "/home/debrato/Projects/OpenUsage/.tools/rust/install/bin/cargo",
+      "build",
+      "--release",
+      "--manifest-path",
+      "rust/Cargo.toml",
+      "--locked",
+      "--offline",
+      "-p",
+      "ccusage"
+    ],
+    "environment": {
+      "CARGO_HOME": ".tools/cargo-home",
+      "CARGO_TARGET_DIR": ".tools/build-target",
+      "CARGO_INCREMENTAL": "0",
+      "CARGO_BUILD_JOBS": "1",
+      "RUSTC": ".tools/rust/install/bin/rustc",
+      "CCUSAGE_VERSION": "20.0.48-openusage.2",
+      "CCUSAGE_PRICING_JSON_PATH": ".tools/upstream/ccusage-8995f3b7/upstream-inputs/litellm-1046716b.json",
+      "HOME": "private temporary directory",
+      "CODEX_HOME": "private temporary directory",
+      "XDG_CONFIG_HOME": "private temporary directory",
+      "XDG_DATA_HOME": "private temporary directory",
+      "XDG_CACHE_HOME": "private temporary directory"
+    },
+    "rustcVerbose": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1",
+    "rustcSha256": "b53b780f77f952062f8ca8a3b70aef2390b1e45ad91939be94afdc9543026853",
+    "cargoSha256": "a670e02cfa39ac2e53f77a2d911ca1fc9e2c479b0603ec956625be1daf24e3af",
+    "nativeCompiler": "cc (GCC) 16.2.1 20260810",
+    "linker": "GNU ld (GNU Binutils) 2.47",
+    "nativeArchiver": "GNU ar (GNU Binutils) 2.47",
+    "optionalEnvironment": {
+      "RUSTFLAGS": null,
+      "CARGO_ENCODED_RUSTFLAGS": null,
+      "CC": null,
+      "CXX": null,
+      "CFLAGS": null,
+      "CXXFLAGS": null,
+      "CPPFLAGS": null,
+      "AR": null,
+      "LDFLAGS": null
+    },
+    "sqliteSettings": {
+      "SQLITE_OMIT_AUTHORIZATION": "1",
+      "SQLITE_OMIT_AUTOMATIC_INDEX": "1",
+      "SQLITE_OMIT_AUTOVACUUM": "1",
+      "SQLITE_OMIT_BETWEEN_OPTIMIZATION": "1",
+      "SQLITE_OMIT_BLOB_LITERAL": "1",
+      "SQLITE_OMIT_CAST": "1",
+      "SQLITE_OMIT_CASE_SENSITIVE_LIKE_PRAGMA": "1",
+      "SQLITE_OMIT_CHECK": "1",
+      "SQLITE_OMIT_COMPILEOPTION_DIAGS": "1",
+      "SQLITE_OMIT_COMPLETE": "1",
+      "SQLITE_OMIT_COMPOUND_SELECT": "1",
+      "SQLITE_OMIT_DECLTYPE": "1",
+      "SQLITE_OMIT_DEPRECATED": "1",
+      "SQLITE_OMIT_DESERIALIZE": "1",
+      "SQLITE_OMIT_EXPLAIN": "1",
+      "SQLITE_OMIT_FLAG_PRAGMAS": "1",
+      "SQLITE_OMIT_FOREIGN_KEY": "1",
+      "SQLITE_OMIT_GENERATED_COLUMNS": "1",
+      "SQLITE_OMIT_GET_TABLE": "1",
+      "SQLITE_OMIT_HEX_INTEGER": "1",
+      "SQLITE_OMIT_INCRBLOB": "1",
+      "SQLITE_OMIT_INTEGRITY_CHECK": "1",
+      "SQLITE_OMIT_INTROSPECTION_PRAGMAS": "1",
+      "SQLITE_OMIT_JSON": "1",
+      "SQLITE_OMIT_LIKE_OPTIMIZATION": "1",
+      "SQLITE_OMIT_LOAD_EXTENSION": "1",
+      "SQLITE_OMIT_LOCALTIME": "1",
+      "SQLITE_OMIT_LOOKASIDE": "1",
+      "SQLITE_OMIT_MEMORYDB": "1",
+      "SQLITE_OMIT_OR_OPTIMIZATION": "1",
+      "SQLITE_OMIT_PARSER_TRACE": "1",
+      "SQLITE_OMIT_POPEN": "1",
+      "SQLITE_OMIT_PROGRESS_CALLBACK": "1",
+      "SQLITE_OMIT_QUICKBALANCE": "1",
+      "SQLITE_OMIT_RANDOMNESS": "1",
+      "SQLITE_OMIT_SCHEMA_PRAGMAS": "1",
+      "SQLITE_OMIT_SCHEMA_VERSION_PRAGMAS": "1",
+      "SQLITE_OMIT_SHARED_CACHE": "1",
+      "SQLITE_OMIT_SHUTDOWN_DIRECTORIES": "1",
+      "SQLITE_OMIT_TCL_VARIABLE": "1",
+      "SQLITE_OMIT_TEST_CONTROL": "1",
+      "SQLITE_OMIT_TRACE": "1",
+      "SQLITE_OMIT_TRUNCATE_OPTIMIZATION": "1",
+      "SQLITE_OMIT_TWOSIZE_LOOKASIDE": "1",
+      "SQLITE_OMIT_UPSERT": "1",
+      "SQLITE_OMIT_UTF16": "1",
+      "SQLITE_OMIT_XFER_OPT": "1"
+    },
+    "offline": true,
+    "deadlineSeconds": 900,
+    "elapsedSeconds": 19.604,
+    "pricingUrl": "https://raw.githubusercontent.com/BerriAI/litellm/1046716b6d3d45f30d5efad42becbd440d6187ee/model_prices_and_context_window.json",
+    "pricingSha256": "8f8060d8ce7a40c91b995c74d6a27657543d49e3c1c53430dabd556f244392c6",
+    "modelsDevSha256": "ddbbace3660cd703bf6c35af308d86ef9bad51b581a0089025aad36070d78a14",
+    "modelsDevRulesSha256": "8ea462160a8ac6b5c30545f492d148813b8a0175d5b1ead2f4c3f824f1024f9d",
+    "privateReceiptSha256": "95c04197166bf9687a9d99a4d8708f3c3fdd4fc0d7d03235d0ee5f53a58a8a58",
+    "freshTargetAtAssignmentStart": true,
+    "finalBuildReusedTarget": true,
+    "cleanFinalRebuildExecuted": false,
+    "initialReleaseElapsedSeconds": 103.858,
+    "cosmeticCorrectionReusedTarget": true
+  },
+  "boundary": {
+    "scope": "Synthetic Linux x86_64 Codex 0.163.0 paginated input only. No application integration or production pin change.",
+    "command": [
+      "codex",
+      "snapshot",
+      "--json",
+      "--offline",
+      "--mode",
+      "calculate",
+      "--timezone",
+      "UTC",
+      "--no-color"
+    ],
+    "envelope": {
+      "schemaVersion": 1,
+      "tool": "codex",
+      "sections": [
+        "daily",
+        "session"
+      ]
+    },
+    "reports": "Complete unmodified Codex daily and session reports derive from the same validated event vector. No independent report scans.",
+    "capture": "Reuse the bounded Linux capture and strict paginated parser directly. Snapshot never falls back to legacy replay. The legacy detection probe remains in individual reports only.",
+    "selection": "Explicit missing, unreadable, non-directory, or linked roots and required session directories refuse. An absent default home also refuses. Existing empty selected directories produce two empty reports.",
+    "publication": "Capture read or validation errors return nonzero with no JSON output. A later source change cannot alter the captured event vector. This is not a filesystem transaction or proof of producer completion.",
+    "legacy": "Individual daily and session commands retain legacy behavior. Snapshot refuses pure legacy and mixed formats.",
+    "preservation": "Measured zero remains an observation. Missing model attribution and cost remain unavailable. Full fork totals, copies, and distinct response identities retain the prior strict parser rules.",
+    "limits": {
+      "roots": 64,
+      "directoryEntries": 32768,
+      "files": 8192,
+      "depth": 64,
+      "fileBytes": 33554432,
+      "captureBytes": 67108864,
+      "lineBytes": 1048576,
+      "physicalRecords": 100000,
+      "exactCount": 9007199254740991
+    },
+    "unsupported": [
+      "legacy snapshot input",
+      "compressed paginated input",
+      "other producer versions",
+      "compaction",
+      "revert",
+      "subagents",
+      "non-message response items",
+      "cross-invocation atomicity",
+      "other platforms"
+    ],
+    "applicationGate": "Application envelope parsing, grouped storage, consent and consumer integration remain unimplemented."
+  },
+  "evidence": {
+    "codexSourceTests": 163,
+    "piSourceTests": 73,
+    "cliParserSourceTests": 99,
+    "snapshotPythonTestsBeforePin": 11,
+    "captureCases": 9,
+    "captureCommands": 18,
+    "separateControlCommands": 18,
+    "controlledChanges": 8,
+    "controlledChangeBoundary": "Linux x86_64 ptrace pauses the private child at source descriptor close during capture, or initial root descriptor close after validation. Each successful after-capture case observes exactly two source opens: one read and one validation read.",
+    "controlledChangeReceipt": ".recovery/audit/l1f11ao-ste-target-tests.json",
+    "redReceipt": ".recovery/audit/l1f11ao-snapshot-red.json",
+    "strictRootRedReceipt": ".recovery/audit/l1f11ao-strict-root-red.json",
+    "scopedClippy": "Codex adapter and CLI parser passed --all-targets --no-deps -D warnings. Dependency lint scope remains unchanged.",
+    "dependencyLintSourceSha256": "74064e3c1c9ba2a652e50f2be77eb440fa20e694a2ce15be9add7ef9ae0bb9a9",
+    "widerUnifiedTests": "Not rerun. The AN baseline remains 61 passes and 16 existing Pi fixture failures.",
+    "priorCandidatePythonTests": 20,
+    "piSnapshotPythonTests": 9,
+    "piObservationPythonTests": 10,
+    "legacyComparisonPairs": 47,
+    "snapshotPythonTestsOnOracle": 13,
+    "cosmeticCorrection": {
+      "change": "Only the new snapshot speed description changed to Set the cost speed tier.",
+      "lintScorePer100Words": 0.0,
+      "parserTests": 99,
+      "snapshotTestsBeforeOracle": 11,
+      "snapshotTestsOnOracle": 13,
+      "priorCodexTests": 20,
+      "piSnapshotTests": 9,
+      "piObservationTests": 10,
+      "releaseReceipt": ".recovery/audit/l1f11ao-ste-release.json",
+      "oracleReceipt": ".recovery/audit/l1f11ao-ste-oracle-tests.json",
+      "compatibilityReceipt": ".recovery/audit/l1f11ao-ste-final-compatibility-tests.json",
+      "reconstructionReceipt": ".recovery/audit/l1f11ao-ste-recipe-verification.json"
+    }
+  },
+  "retiredCosmeticArtifact": {
+    "executableSha256": "20316441564650a3b007afbcc312d49b810ea88f3cab25314566d7391c1645fd",
+    "executableBytes": 5158208,
+    "pinReceipt": ".recovery/audit/l1f11ao-before-ste-pin.json",
+    "sourceManifest": ".recovery/audit/l1f11ao-before-ste-source-files.json",
+    "patchReceipt": ".recovery/audit/l1f11ao-before-ste-source.patch",
+    "releaseReceipt": ".recovery/audit/l1f11ao-final-release.json",
+    "oracleTestReceipt": ".recovery/audit/l1f11ao-final-oracle-tests.json",
+    "retainedExecutable": false
+  }
+}

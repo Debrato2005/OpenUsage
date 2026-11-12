@@ -26,16 +26,16 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scoped result, November 12, 2026. The isolated Codex record candidate
-preserves the full 12,650-token fork and refuses conflicting or incomplete input.
-All eighteen captured report pairs meet independent expectations. The
-[candidate record](reviews/2026-11-12-codex-record-identity-candidate.md) owns
-the tested Linux boundary and remaining application gates. The production
-scanner and Pi oracle retain their original pins.
+Latest scoped result, November 12, 2026. The isolated Codex command derives
+complete daily and session reports from one validated capture. Nine producer
+cases and eight controlled source changes pass on synthetic Linux. The
+[combined-capture record](reviews/2026-11-12-codex-combined-capture.md) owns
+the exact scope and remaining application gates. The production scanner and
+enabled catalog stay unchanged.
 
-Hosted CI for `6a42412` passed Linux and Renderer, including the existing Pi
+Hosted CI for `b0422bf` passed Linux and Renderer, including the existing Pi
 qualification and native oracle steps. The [evidence log](acceptance-traceability.md#evidence-log)
-records its scope. The current candidate change needs its own hosted result.
+records its scope. The current combined-capture change needs its own hosted result.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -163,10 +163,10 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 
 ## Current assignment
 
-[L-1f11ao](implementation-slices.md#l-1f11ao-codex-combined-capture)
-adds one candidate command for Codex daily and session reports from one captured
-input. Preserve strict refusal, independent totals, and the current production
-pins. Application integration remains a later gate.
+[L-1f11ap](implementation-slices.md#l-1f11ap-codex-combined-report-consumer)
+parses the candidate envelope into existing typed grouped records. Preserve
+exact totals, reported categories, nullable estimates, model attribution, and
+session identity. Keep production scanning and legacy history unchanged.
 
 The [gate review](reviews/2026-11-12-additional-tool-gates.md) links all sixteen
 additional-tool records. Their source and capture gaps remain open.

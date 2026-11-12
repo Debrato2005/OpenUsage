@@ -1,0 +1,302 @@
+diff --git a/rust/adapters/codex/src/lib.rs b/rust/adapters/codex/src/lib.rs
+--- a/rust/adapters/codex/src/lib.rs
++++ b/rust/adapters/codex/src/lib.rs
+@@ -49,6 +49,21 @@
+         log_level() != Some(0),
+         shared.pricing_overrides.iter(),
+     );
++    if args.sections.is_some() {
++        let roots = paths::snapshot_usage_paths()?;
++        let events = paginated::capture(&roots)?;
++        if paths::snapshot_usage_paths()? != roots {
++            return Err(paginated::unavailable());
++        }
++        let output = snapshot_json(
++            &events,
++            shared.timezone.as_deref(),
++            &pricing,
++            resolve_codex_speed(args.codex_speed),
++            shared.mode,
++        )?;
++        return print_json_or_jq(output, None, false);
++    }
+     let mut groups = load_groups(&shared, args.kind)?;
+     let speed = resolve_codex_speed(args.codex_speed);
+     if let Some(requested_id) = args.session_id {
+@@ -70,6 +85,24 @@
+         return print_json_or_jq(output, shared.jq.as_deref(), shared.no_cost);
+     }
+     print_table_from_groups(&groups, args.kind, &pricing, speed, &shared)
++}
++
++// Build both complete reports from one validated capture.
++fn snapshot_json(
++    events: &[CodexTokenUsageEvent],
++    timezone: Option<&str>,
++    pricing: &PricingMap,
++    speed: CodexSpeedPolicy,
++    mode: CostMode,
++) -> Result<Value> {
++    let daily = aggregate_events(events, AgentReportKind::Daily, timezone)?;
++    let sessions = aggregate_events(events, AgentReportKind::Session, timezone)?;
++    Ok(serde_json::json!({
++        "schemaVersion": 1,
++        "tool": "codex",
++        "daily": report_from_groups(&daily, AgentReportKind::Daily, pricing, speed, mode),
++        "session": report_from_groups(&sessions, AgentReportKind::Session, pricing, speed, mode),
++    }))
+ }
+ 
+ fn resolve_session_id<'a>(
+diff --git a/rust/adapters/codex/src/paginated.rs b/rust/adapters/codex/src/paginated.rs
+--- a/rust/adapters/codex/src/paginated.rs
++++ b/rust/adapters/codex/src/paginated.rs
+@@ -221,6 +221,11 @@
+     if !recognized {
+         return Ok(None);
+     }
++    capture(roots).map(Some)
++}
++
++// Snapshot callers never probe or replay unsupported legacy input.
++pub(super) fn capture(roots: &[PathBuf]) -> Result<Vec<CodexTokenUsageEvent>> {
+     let mut threads: BTreeMap<String, Thread> = BTreeMap::new();
+     let mut records = 0;
+     super::record_files::read(roots, |_, _, bytes| {
+@@ -280,7 +285,7 @@
+             events.push(record.event.clone());
+         }
+     }
+-    Ok(Some(events))
++    Ok(events)
+ }
+ 
+ fn inherited(
+diff --git a/rust/adapters/codex/src/paths.rs b/rust/adapters/codex/src/paths.rs
+--- a/rust/adapters/codex/src/paths.rs
++++ b/rust/adapters/codex/src/paths.rs
+@@ -21,6 +21,40 @@
+ 
+ pub(super) fn codex_usage_sources() -> Result<Vec<CodexUsageSource>> {
+     Ok(codex_usage_sources_from_homes(codex_home_paths()?))
++}
++
++// Snapshot selection must not silently omit an invalid sessions directory.
++pub(super) fn snapshot_usage_paths() -> Result<Vec<PathBuf>> {
++    let homes = codex_home_paths()?;
++    if homes.len() > super::record_files::MAX_ROOTS {
++        return Err(super::paginated::unavailable());
++    }
++    let mut paths = Vec::new();
++    let mut seen = FxHashSet::default();
++    for home in homes {
++        let metadata = fs::symlink_metadata(&home).map_err(|_| super::paginated::unavailable())?;
++        if !metadata.is_dir() {
++            return Err(super::paginated::unavailable());
++        }
++        let mut found = false;
++        for name in ["sessions", "archived_sessions"] {
++            let path = home.join(name);
++            match fs::symlink_metadata(&path) {
++                Ok(metadata) if metadata.is_dir() => {
++                    found = true;
++                    if seen.insert(path.clone()) {
++                        paths.push(path);
++                    }
++                }
++                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
++                _ => return Err(super::paginated::unavailable()),
++            }
++        }
++        if !found && seen.insert(home.clone()) {
++            paths.push(home);
++        }
++    }
++    Ok(paths)
+ }
+ 
+ #[cfg(test)]
+diff --git a/rust/crates/ccusage-cli-parser/src/cli-commands.json b/rust/crates/ccusage-cli-parser/src/cli-commands.json
+--- a/rust/crates/ccusage-cli-parser/src/cli-commands.json
++++ b/rust/crates/ccusage-cli-parser/src/cli-commands.json
+@@ -227,6 +227,10 @@
+ 			"usage": "ccusage codex <COMMANDS>",
+ 			"commands": [
+ 				{
++					"name": "snapshot",
++					"description": "Read complete daily and session JSON from one paginated capture"
++				},
++				{
+ 					"name": "daily",
+ 					"description": "Show Codex token usage grouped by day"
+ 				},
+@@ -239,6 +243,12 @@
+ 					"description": "Show Codex token usage grouped by session"
+ 				}
+ 			]
++		},
++		{
++			"path": ["codex", "snapshot"],
++			"description": "Read complete Codex daily and session JSON from one validated paginated capture",
++			"usage": "ccusage codex snapshot --json --offline <OPTIONS>",
++			"options": "codex_snapshot_options"
+ 		},
+ 		{
+ 			"path": ["codex", "daily"],
+diff --git a/rust/crates/ccusage-cli-parser/src/cli-help.json b/rust/crates/ccusage-cli-parser/src/cli-help.json
+--- a/rust/crates/ccusage-cli-parser/src/cli-help.json
++++ b/rust/crates/ccusage-cli-parser/src/cli-help.json
+@@ -1,4 +1,49 @@
+ {
++	"codex_snapshot_options": [
++		{
++			"flags": "-j, --json",
++			"description": "Output in JSON format",
++			"default": "false"
++		},
++		{
++			"flags": "-z, --timezone <timezone>",
++			"description": "Timezone for date grouping (IANA)"
++		},
++		{
++			"flags": "-O, --offline",
++			"description": "Use cached pricing data instead of fetching from LiteLLM",
++			"default": "false"
++		},
++		{
++			"flags": "-m, --mode <mode>",
++			"description": "Cost mode: auto, calculate, or display",
++			"default": "auto"
++		},
++		{
++			"flags": "--speed [speed]",
++			"description": "Set the cost speed tier.",
++			"default": "auto",
++			"choices": [
++				"auto",
++				"standard",
++				"flex",
++				"fast"
++			]
++		},
++		{
++			"flags": "--no-color",
++			"description": "Disable colored output. NO_COLOR=1 has the same effect.",
++			"default": "auto"
++		},
++		{
++			"flags": "-h, --help",
++			"description": "Display this help message"
++		},
++		{
++			"flags": "-v, --version",
++			"description": "Display this version"
++		}
++	],
+ 	"agent_options": [
+ 		{
+ 			"flags": "-j, --json",
+diff --git a/rust/crates/ccusage-cli-parser/src/parser.rs b/rust/crates/ccusage-cli-parser/src/parser.rs
+--- a/rust/crates/ccusage-cli-parser/src/parser.rs
++++ b/rust/crates/ccusage-cli-parser/src/parser.rs
+@@ -629,7 +629,13 @@
+     mut shared: SharedArgs,
+     config: &dyn CliConfig,
+ ) -> Result<Command, String> {
+-    let kind = parse_agent_report_kind(parser, "codex", STANDARD_AGENT_REPORTS)?;
++    let snapshot = parser.peek() == Some("snapshot");
++    let kind = if snapshot {
++        parser.next();
++        AgentReportKind::Daily
++    } else {
++        parse_agent_report_kind(parser, "codex", STANDARD_AGENT_REPORTS)?
++    };
+     let mut codex_speed = CodexSpeed::Auto;
+     let mut session_id = None;
+     config.apply_agent_args(&mut codex_speed, None, None);
+@@ -645,11 +651,25 @@
+             flag => return Err(format!("Unknown codex option '{flag}'")),
+         }
+     }
++    if snapshot
++        && (!shared.json
++            || !shared.offline
++            || shared.no_offline
++            || shared.jq.is_some()
++            || shared.no_cost
++            || shared.since.is_some()
++            || shared.until.is_some()
++            || shared.last.is_some())
++    {
++        return Err(
++            "Codex snapshot requires --json --offline and complete, unmodified reports.".into(),
++        );
++    }
+     Ok(Command::Codex(AgentCommandArgs {
+         shared,
+         kind,
+         session_id,
+-        sections: None,
++        sections: snapshot.then_some(vec![AgentReportKind::Daily, AgentReportKind::Session]),
+         by_agent: false,
+         pi_path: None,
+         open_claw_path: None,
+@@ -1026,7 +1046,7 @@
+             report,
+             "daily" | "weekly" | "monthly" | "session" | "blocks" | "statusline"
+         ),
+-        "codex" => matches!(report, "daily" | "monthly" | "session"),
++        "codex" => matches!(report, "daily" | "monthly" | "session" | "snapshot"),
+         "opencode" => matches!(report, "daily" | "weekly" | "monthly" | "session"),
+         "pi" => matches!(report, "daily" | "monthly" | "session" | "snapshot"),
+         "amp" | "droid" | "codebuff" | "hermes" | "goose" | "kilo" | "copilot" | "gemini"
+diff --git a/rust/crates/ccusage-cli-parser/src/tests.rs b/rust/crates/ccusage-cli-parser/src/tests.rs
+--- a/rust/crates/ccusage-cli-parser/src/tests.rs
++++ b/rust/crates/ccusage-cli-parser/src/tests.rs
+@@ -1788,3 +1788,46 @@
+             .contains("one captured record set")
+     );
+ }
++
++#[test]
++fn codex_snapshot_parses_as_two_complete_json_reports() {
++    let cli = parse(&["ccusage", "codex", "snapshot", "--json", "--offline"]);
++    let Some(Command::Codex(args)) = cli.command else {
++        panic!("Codex snapshot command");
++    };
++    assert_eq!(
++        args.sections,
++        Some(vec![AgentReportKind::Daily, AgentReportKind::Session])
++    );
++    assert!(args.shared.json && args.shared.offline);
++    assert!(args.session_id.is_none());
++}
++
++#[test]
++fn codex_snapshot_rejects_partial_or_modified_reports() {
++    for flags in [
++        vec![],
++        vec!["--json"],
++        vec!["--offline"],
++        vec!["--json", "--offline", "--since", "20261111"],
++        vec!["--json", "--offline", "--until", "20261111"],
++        vec!["--json", "--offline", "--last", "2"],
++        vec!["--json", "--offline", "--jq", ".daily"],
++        vec!["--json", "--offline", "--no-cost"],
++        vec!["--json", "--offline", "--no-offline"],
++        vec!["--json", "--offline", "--id", "thread-a"],
++        vec!["--json", "--offline", "--sections", "daily"],
++    ] {
++        let mut args = vec!["ccusage", "codex", "snapshot"];
++        args.extend(flags);
++        assert!(!parse_error(&args).is_empty());
++    }
++}
++
++#[test]
++fn codex_snapshot_help_names_the_capture_boundary() {
++    assert!(
++        help_text_for_args(&["codex".into(), "snapshot".into(), "--help".into()])
++            .contains("one validated paginated capture")
++    );
++}
