@@ -37,12 +37,13 @@ SIGNALS = {'permission': r'permission denied|operation not permitted',
 
 def environment(root):
     env = os.environ.copy()
-    if storage.linked(root / '.tools') or storage.linked(root / '.tools/build-target'):
+    if any(storage.linked(root / path) for path in ('.tools', '.tools/build-target', '.tools/cargo-home')):
         raise ValueError('Shared build directories must not be links')
     local = root / '.tools/rust/install/bin'
     if (local / ('cargo.exe' if os.name == 'nt' else 'cargo')).is_file():
         env['PATH'] = str(local) + os.pathsep + env.get('PATH', '')
     env.update(CARGO_TARGET_DIR=str(root / '.tools/build-target'),
+               CARGO_HOME=str(root / '.tools/cargo-home'),
                CARGO_INCREMENTAL='0', CARGO_BUILD_JOBS='1')
     return env
 
