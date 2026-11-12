@@ -20,6 +20,13 @@ it is `stale`. An observation after the current clock time has `unknown`
 freshness. Text and statusline show Freshness unknown. The CLI preserves the
 saved quota values and observation time.
 
+Connection state and clock freshness are independent. JSON keeps the saved
+`connectionState` on the profile and clock-derived `state` on its quota.
+Text and statusline show Authentication required, Unauthorized, Offline,
+Unsupported, or Error when the saved profile has that state. A valid accepted
+observation time appears with the connection label. Stale and Freshness unknown
+marks remain separate. A missing quota has no invented values or observation time.
+
 `report` detects the Claude Code and Codex folders by existence only. Before it reads a log, it asks once for consent on the terminal, or it takes `--yes` from a script (OU-CLI-003). With no terminal and no `--yes`, it stops with `consent_required`. Each tool gets one full daily report for all detected roots, with an empty private home. The pinned scanner receives these roots together. The CLI filters the complete report to the requested dates. It does not read sessions to invent missing daily details. See the [local logs crate](../openusage-locallogs/README.md).
 
 When detected sources have no usage in the selected dates, text says

@@ -416,6 +416,13 @@ hashes and saved workspace files. Future quota and subsecond boundary cases use
 public-command tests with private SQLCipher workspaces. The native journey
 checks report text and actual CLI access to the isolated key store.
 
+The journey also reopens the native app and creates one private profile without
+a sign-in. After the app closes, the real CLI must show Authentication required
+and unavailable quota. JSON keeps null source and observation time, with no
+windows. Status and statusline must show the connection state. Reads must
+preserve the saved workspace and source hashes. Saved-quota Offline and other
+connection states use the public-command SQLCipher tests.
+
 ## Native share images
 
 Run `node tests/native/share-images.mjs` with the private display and drivers above.

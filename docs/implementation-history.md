@@ -4,6 +4,20 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## R-6 and R-7 result before R-8
+
+Latest scoped result, November 12, 2026. The CLI now distinguishes an empty
+selected range from absent source folders. Future quota observations show
+Freshness unknown, and the exact ten-minute cutoff is Stale. Public-command
+regressions, source mutations, affected project checks, and the enhanced native
+CLI journey passed on private synthetic Linux data. The [record](reviews/2026-11-12-cli-absence-and-freshness.md)
+owns executed evidence and limits.
+
+Hosted CI for `f7f1af2` passed Linux checks and Renderer, including the existing
+qualification and native oracle steps. The [evidence log](acceptance-traceability.md#evidence-log)
+records that commit's scope. The native integration change needs its own hosted
+result. The earlier `abb3b5a` run was canceled when a later push replaced it.
+
 ## L-1f11aq result before R-6 and R-7
 
 Latest scoped result, November 12, 2026. The combined Codex candidate passed its

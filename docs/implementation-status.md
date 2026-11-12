@@ -26,17 +26,17 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scoped result, November 12, 2026. The CLI now distinguishes an empty
-selected range from absent source folders. Future quota observations show
-Freshness unknown, and the exact ten-minute cutoff is Stale. Public-command
-regressions, source mutations, affected project checks, and the enhanced native
-CLI journey passed on private synthetic Linux data. The [record](reviews/2026-11-12-cli-absence-and-freshness.md)
-owns executed evidence and limits.
+Latest scoped result, November 12, 2026. CLI text and statusline now keep known
+connection failures visible with the last accepted time. Saved values, clock
+freshness, and JSON stay intact. Seven status tests, two guard mutations,
+affected project checks, and the enhanced native CLI journey passed on private
+synthetic Linux data. The [record](reviews/2026-11-12-cli-connection-state-display.md)
+owns exact scope and the remaining gates.
 
-Hosted CI for `f7f1af2` passed Linux checks and Renderer, including the existing
-qualification and native oracle steps. The [evidence log](acceptance-traceability.md#evidence-log)
-records that commit's scope. The native integration change needs its own hosted
-result. The earlier `abb3b5a` run was canceled when a later push replaced it.
+Hosted CI for `eebf9a7` passed Linux checks and Renderer. Native Codex commit
+`1df1517` also passed both jobs, including the Codex qualification feature.
+The [evidence log](acceptance-traceability.md#evidence-log) records each scope.
+The current connection-display change needs its own hosted result.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -164,13 +164,14 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 
 ## Current assignment
 
-[R-8](implementation-slices.md#r-8-cli-connection-state-display) reviews CLI
-connection-state display against the existing desktop precedence and SRS.
-Reproduce any finding through public commands before edits. Keep saved values,
-observation times, source, JSON shape, and read-only access intact.
+[S-08a1](implementation-slices.md#s-08a1-profile-removal-storage-contract) defines
+the storage contract for the separate Archive History and Delete History choices
+in OU-ACCT-013. Read the record ownership and process fences before edits.
+Use private synthetic data and preserve unrelated profiles, local usage,
+protected homes, and credentials. App integration remains a later gate.
 
-R-6 and R-7 passed within their synthetic Linux scope. L-1f11aq's native Codex
-qualification remains separate from production activation. The [gate review](reviews/2026-11-12-additional-tool-gates.md)
+R-8 passed within its synthetic Linux scope. L-1f11aq's native Codex qualification
+remains separate from production activation. The [gate review](reviews/2026-11-12-additional-tool-gates.md)
 links the additional-tool records and their remaining source and capture gaps.
 
 L-1f0 through L-1f10 are complete within their recorded scope. Only Claude Code and Codex are enabled. The Amp patch is a local candidate, and the production scanner pin is unchanged.

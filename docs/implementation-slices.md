@@ -163,7 +163,7 @@ Updated November 12, 2026. Each completed item has one local commit and scoped e
 - [x] L-1f11ao: derive both Codex reports from one captured input in a separate candidate.
 - [x] L-1f11ap: parse the Codex candidate envelope into existing typed grouped records without scanner activation.
 - [x] L-1f11aq: qualify the combined Codex candidate through native consent, grouped storage, history, and failure handling.
-- [ ] R-8: review saved CLI connection-state display with public commands before any correction.
+- [x] R-8: review saved CLI connection-state display with public commands before any correction.
 - [x] R-6: correct CLI text for an empty selected date range after a public-command regression.
 - [x] R-7: reject future quota observations as Current after a public-command regression.
 - [x] R-5: bound leaderboard request collection at 64 KiB. Twenty-four local service tests passed, including overflow cancellation, byte boundaries, stream errors, and the earlier aggregate and concurrency checks. Hosted Workers remain unverified.
@@ -895,6 +895,29 @@ Run AT-60 for Codex under OU-AUD-006. Raw captures stay private, and a summary g
 - **Requirements:** OU-ACCT-013, OU-ALERT-007, OU-ALERT-016, OU-MON-012, OU-STATE-009, OU-DATA-024, OU-UI-010.
 - **Tests:** AT-44, plus tests for each requirement.
 - **Stop:** Each item is done, or the report names what blocks it. OU-ALERT-007 stays under SC-009.
+
+### S-08a1: profile removal storage contract
+
+Goal: define and test the storage boundary for OU-ACCT-013 before app integration.
+
+Acceptance:
+
+- Read the requirement and existing profile, history, binding, alert, backup,
+  restore, and process-ownership contracts. Map records to their actual owner.
+- Define separate archive and delete-history behavior. Keep other profiles,
+  independent local usage, shared configuration, protected homes, and credentials
+  outside the selected profile's history operation.
+- Use a narrow typed storage API with explicit profile and home fences.
+  Reproduce its behavior through public storage tests before implementation.
+- Test atomic refusal, complete scoped deletion, archive preservation, genuine
+  reopen, and affected backup and restore behavior with private synthetic data.
+- Record any normative conflict in clarifications. Leave the SRS unchanged.
+  Run doctor and the selected project checks. Mark app and native integration
+  explicitly unverified until their later slice.
+
+Stopping condition: one reviewed storage contract with executed evidence,
+owning docs, one commit, an AST Graphify update, and the authorized push.
+Report before app integration.
 
 ## Many tools
 

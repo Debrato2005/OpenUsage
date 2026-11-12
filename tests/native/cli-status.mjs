@@ -151,6 +151,28 @@ try {
   assert.deepEqual(stable(await workspaceFiles()), stable(before));
   evidence.steps.push('An empty selected day reports no usage. Older source logs keep their totals, and report leaves source and workspace files unchanged.');
 
+  driver = new NativeDriver(application, fixture.environment, join(output, `driver-${++sequence}.log`));
+  await driver.start();
+  await waitFor(async () => (await call('bootstrap')).storage === 'ready', 'reopened key-store workspace');
+  const created = await call('create_profile', { label: 'CLI connection control' });
+  assert.equal(created.profiles.length, 1);
+  assert.equal(created.profiles[0].connectionState, 'authentication_required');
+  await close();
+  const connectionBefore = await workspaceFiles();
+  const connectionJson = await openusage(['status', '--json']);
+  assert.equal(connectionJson.code, 0);
+  const profile = JSON.parse(connectionJson.stdout).profiles[0];
+  assert.equal(profile.connectionState, 'authentication_required');
+  assert.deepEqual(profile.quota, { state: 'not_available', status: null, source: null, observedAtUtc: null, windows: [] });
+  const connectionText = await openusage(['status']);
+  assert.equal(connectionText.code, 0);
+  assert.ok(connectionText.stdout.startsWith('CLI connection control Authentication required\n  Quota Not available\n'));
+  const connectionLine = await openusage(['statusline']);
+  assert.deepEqual([connectionLine.code, connectionLine.stdout, connectionLine.stderr], [0, 'CLI connection control Not available Authentication required | Claude Code legacy 1 2.4K today (UTC)\n', '']);
+  assert.deepEqual(stable(await workspaceFiles()), stable(connectionBefore));
+  assert.deepEqual(await sourceHashes(), shiftedBefore);
+  evidence.steps.push('A native profile without a sign-in shows Authentication required and unavailable quota. CLI reads preserve saved files and source hashes.');
+
   await stopSecretService(fixture);
   const locked = await openusage(['statusline']);
   assert.deepEqual([locked.code, locked.stdout, locked.stderr], [7, 'OpenUsage locked\n', '']);
@@ -158,7 +180,7 @@ try {
   assert.equal(json.code, 7);
   assert.equal(JSON.parse(json.stdout).error.code, 'locked');
   evidence.steps.push('With the Secret Service gone, statusline and status --json gave locked with exit code 7 and no prompt.');
-  assert.deepEqual(stable(await workspaceFiles()), stable(before));
+  assert.deepEqual(stable(await workspaceFiles()), stable(connectionBefore));
   assert.equal(await hash(application), evidence.applicationSha256);
   evidence.result = 'passed';
 } catch (error) { evidence.error = error.stack ?? String(error); process.exitCode = 1; }

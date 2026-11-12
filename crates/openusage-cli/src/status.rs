@@ -281,13 +281,35 @@ fn compact(value: u128) -> String {
     value.to_string()
 }
 
+fn connection_detail(profile: &Profile) -> String {
+    let label = match profile.connection_state {
+        "authentication_required" => "Authentication required",
+        "unauthorized" => "Unauthorized",
+        "offline" => "Offline",
+        "unsupported" => "Unsupported",
+        "error" => "Error",
+        _ => return String::new(),
+    };
+    let observed = profile.quota.observed_at_utc.as_deref().filter(|value| {
+        !value.chars().any(char::is_control) && value.parse::<jiff::Timestamp>().is_ok()
+    });
+    match observed {
+        Some(observed) => format!(" {label} (observed {observed})"),
+        None => format!(" {label}"),
+    }
+}
+
 fn text(status: &Status, now: jiff::Timestamp) -> String {
     let mut out = String::new();
     if status.profiles.is_empty() {
         out.push_str("No accounts\n");
     }
     for profile in &status.profiles {
-        out.push_str(&format!("{}\n", profile.label));
+        out.push_str(&format!(
+            "{}{}\n",
+            profile.label,
+            connection_detail(profile)
+        ));
         if profile.quota.windows.is_empty() {
             out.push_str("  Quota Not available\n");
         }
@@ -345,7 +367,11 @@ fn line(status: &Status) -> String {
         .iter()
         .map(|profile| {
             if profile.quota.windows.is_empty() {
-                return format!("{} Not available", profile.label);
+                return format!(
+                    "{} Not available{}",
+                    profile.label,
+                    connection_detail(profile)
+                );
             }
             let windows: Vec<String> = profile
                 .quota
@@ -358,7 +384,13 @@ fn line(status: &Status) -> String {
                 "unknown" => " Freshness unknown",
                 _ => "",
             };
-            format!("{} {}{}", profile.label, windows.join(" "), freshness)
+            format!(
+                "{} {}{}{}",
+                profile.label,
+                windows.join(" "),
+                freshness,
+                connection_detail(profile)
+            )
         })
         .collect();
     parts.extend(
@@ -469,6 +501,13 @@ mod tests {
                 &binding.profile_id,
                 "Synthetic quota",
                 &binding.home_reference,
+            )
+            .unwrap();
+        storage
+            .record_profile_connection(
+                &binding.profile_id,
+                &binding.home_reference,
+                ProfileConnectionState::Connected,
             )
             .unwrap();
         let evidence = ProfileIdentityEvidence {
@@ -619,6 +658,180 @@ mod tests {
                 "{now}"
             );
         }
+    }
+
+    #[test]
+    fn offline_commands_show_connection_and_last_observation_without_writes() {
+        let (_dir, workspace) = quota_workspace("2026-11-08T10:00:00.500Z");
+        let now = "2026-11-08T10:01:00.500Z";
+        let before: serde_json::Value =
+            serde_json::from_str(&command(&workspace, now, &["status", "--json"])).unwrap();
+        assert_eq!(before["profiles"][0]["connectionState"], "connected");
+        assert_eq!(before["profiles"][0]["quota"]["state"], "current");
+        let database = workspace.join("openusage.db");
+        let mut storage = Storage::open(&database, &KEY).unwrap();
+        storage
+            .record_profile_connection(
+                "00000001-0000-4000-8000-000000000000",
+                "00000002-0000-4000-8000-000000000000",
+                ProfileConnectionState::Offline,
+            )
+            .unwrap();
+        drop(storage);
+        let saved = std::fs::read(&database).unwrap();
+        let after: serde_json::Value =
+            serde_json::from_str(&command(&workspace, now, &["status", "--json"])).unwrap();
+        assert_eq!(after["profiles"][0]["connectionState"], "offline");
+        assert_eq!(
+            after["profiles"][0]["quota"],
+            before["profiles"][0]["quota"]
+        );
+        let text = "Synthetic quota Offline (observed 2026-11-08T10:00:00.500Z)\n  Five-hour  63% left, the expected reset time passed\n  Seven-day  0% left, reset time Not available\nThis device\n  No saved local usage today\n";
+        assert_eq!(command(&workspace, now, &["status"]), text);
+        assert_eq!(command(&workspace, now, &[]), text);
+        assert_eq!(
+            command(&workspace, now, &["statusline"]),
+            "Synthetic quota 5h 63% 7d 0% Offline (observed 2026-11-08T10:00:00.500Z)\n"
+        );
+        assert_eq!(std::fs::read(&database).unwrap(), saved);
+        assert_eq!(std::fs::read_dir(&workspace).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn connection_failures_remain_visible_with_saved_quota() {
+        let (_dir, workspace) = quota_workspace("2026-11-08T10:00:00.500Z");
+        let now = "2026-11-08T10:01:00.500Z";
+        let database = workspace.join("openusage.db");
+        let before: serde_json::Value =
+            serde_json::from_str(&command(&workspace, now, &["status", "--json"])).unwrap();
+        for (state, wire, label) in [
+            (
+                ProfileConnectionState::AuthenticationRequired,
+                "authentication_required",
+                "Authentication required",
+            ),
+            (
+                ProfileConnectionState::Unauthorized,
+                "unauthorized",
+                "Unauthorized",
+            ),
+            (
+                ProfileConnectionState::Unsupported,
+                "unsupported",
+                "Unsupported",
+            ),
+            (ProfileConnectionState::Error, "error", "Error"),
+        ] {
+            let mut storage = Storage::open(&database, &KEY).unwrap();
+            storage
+                .record_profile_connection(
+                    "00000001-0000-4000-8000-000000000000",
+                    "00000002-0000-4000-8000-000000000000",
+                    state,
+                )
+                .unwrap();
+            drop(storage);
+            let saved = std::fs::read(&database).unwrap();
+            let after: serde_json::Value =
+                serde_json::from_str(&command(&workspace, now, &["status", "--json"])).unwrap();
+            assert_eq!(after["profiles"][0]["connectionState"], wire);
+            assert_eq!(
+                after["profiles"][0]["quota"],
+                before["profiles"][0]["quota"]
+            );
+            assert_eq!(
+                command(&workspace, now, &["status"]),
+                format!(
+                    "Synthetic quota {label} (observed 2026-11-08T10:00:00.500Z)\n  Five-hour  63% left, the expected reset time passed\n  Seven-day  0% left, reset time Not available\nThis device\n  No saved local usage today\n"
+                )
+            );
+            assert_eq!(
+                command(&workspace, now, &["statusline"]),
+                format!(
+                    "Synthetic quota 5h 63% 7d 0% {label} (observed 2026-11-08T10:00:00.500Z)\n"
+                )
+            );
+            assert_eq!(std::fs::read(&database).unwrap(), saved);
+            assert_eq!(std::fs::read_dir(&workspace).unwrap().count(), 1);
+        }
+    }
+
+    #[test]
+    fn connection_marks_keep_clock_freshness_and_missing_quota_separate() {
+        let (_dir, workspace) = quota_workspace("2026-11-08T10:00:00.500Z");
+        let database = workspace.join("openusage.db");
+        let mut storage = Storage::open(&database, &KEY).unwrap();
+        storage
+            .record_profile_connection(
+                "00000001-0000-4000-8000-000000000000",
+                "00000002-0000-4000-8000-000000000000",
+                ProfileConnectionState::Offline,
+            )
+            .unwrap();
+        drop(storage);
+        let saved = std::fs::read(&database).unwrap();
+        for (now, state, mark) in [
+            ("2026-11-08T10:00:00.499Z", "unknown", " Freshness unknown"),
+            ("2026-11-08T10:10:00.500Z", "stale", " Stale"),
+        ] {
+            let json: serde_json::Value =
+                serde_json::from_str(&command(&workspace, now, &["status", "--json"])).unwrap();
+            assert_eq!(json["profiles"][0]["connectionState"], "offline");
+            assert_eq!(json["profiles"][0]["quota"]["state"], state);
+            assert_eq!(
+                command(&workspace, now, &["statusline"]),
+                format!(
+                    "Synthetic quota 5h 63% 7d 0%{mark} Offline (observed 2026-11-08T10:00:00.500Z)\n"
+                )
+            );
+            let text = command(&workspace, now, &["status"]);
+            assert!(
+                text.starts_with("Synthetic quota Offline (observed 2026-11-08T10:00:00.500Z)\n")
+            );
+            assert_eq!(text.matches(mark.trim_start()).count(), 2);
+        }
+        assert_eq!(std::fs::read(&database).unwrap(), saved);
+        assert_eq!(std::fs::read_dir(&workspace).unwrap().count(), 1);
+
+        let empty = tempfile::tempdir().unwrap();
+        let workspace = private(empty.path());
+        let database = workspace.join("openusage.db");
+        let mut storage = Storage::create(&database, &KEY).unwrap();
+        storage
+            .create_profile(
+                "00000005-0000-4000-8000-000000000000",
+                "Empty profile",
+                "00000006-0000-4000-8000-000000000000",
+            )
+            .unwrap();
+        drop(storage);
+        let saved = std::fs::read(&database).unwrap();
+        let now = "2026-11-08T10:01:00.500Z";
+        let json: serde_json::Value =
+            serde_json::from_str(&command(&workspace, now, &["status", "--json"])).unwrap();
+        assert_eq!(
+            json["profiles"][0]["connectionState"],
+            "authentication_required"
+        );
+        assert_eq!(json["profiles"][0]["quota"]["state"], "not_available");
+        assert_eq!(
+            json["profiles"][0]["quota"]["observedAtUtc"],
+            serde_json::Value::Null
+        );
+        assert_eq!(
+            json["profiles"][0]["quota"]["windows"],
+            serde_json::json!([])
+        );
+        assert_eq!(
+            command(&workspace, now, &["status"]),
+            "Empty profile Authentication required\n  Quota Not available\nThis device\n  No saved local usage today\n"
+        );
+        assert_eq!(
+            command(&workspace, now, &["statusline"]),
+            "Empty profile Not available Authentication required\n"
+        );
+        assert_eq!(std::fs::read(&database).unwrap(), saved);
+        assert_eq!(std::fs::read_dir(&workspace).unwrap().count(), 1);
     }
 
     #[test]
