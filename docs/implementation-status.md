@@ -26,12 +26,12 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scanner result, November 13, 2026. L-1f11as refuses five malformed-peer
-reports in a separate successor candidate. Eleven new checks cover 422 scanner
-commands. Both formerly skipped raw Codex comparisons pass with the exact
-synthetic producer receipt. Two legacy identity failures remain. The
-[candidate record](reviews/2026-11-13-legacy-capture-candidate.md) owns executed
-scope and remaining gates. Production pins and enabled tools stay unchanged.
+Latest scanner result, November 13, 2026. The isolated L-1f11at experiment
+corrects both legacy identity counts, but broader valid histories regress. Its
+[review](reviews/2026-11-13-legacy-codex-identity.md) records the failed compatibility
+checks and keeps qualification open. The prior L-1f11as candidate retains its
+[scoped capture evidence](reviews/2026-11-13-legacy-capture-candidate.md), including
+both raw synthetic Codex comparisons. Production pins and enabled tools stay unchanged.
 
 Hosted CI for `d8232b3` passed in
 [run 43253994409](https://github.com/Debrato2005/OpenUsage/actions/runs/43253994409).
@@ -59,7 +59,7 @@ New in baseline 3.0:
 - Source adapters (5A), audit (5B), and duplicates (5D).
 - Customizable dashboard, Start at login, and graphs: OU-UI-026, OU-UI-027, OU-MON-017.
 - The other 16 tools that the pinned `ccusage` reads (L-1f, AT-65), and session quota movement (L-1g4, OU-LOG-018).
-- The leaderboard client (L-5): OU-BOARD-001, OU-BOARD-002, OU-BOARD-005, OU-BOARD-006.
+- Online CLI and Settings leaderboard integration (L-5): OU-BOARD-001, OU-BOARD-002, OU-BOARD-005, OU-BOARD-006. The transport and offline preview have local evidence below.
 - Moving a password workspace's key to the OS key store (S-03c).
 
 Kept from baseline 2.0:
@@ -70,6 +70,10 @@ Kept from baseline 2.0:
 - Wake handling: OU-PROC-013, OU-MON-013.
 
 ## Partial
+
+- Owned scanner shutdown (S-06a), November 13, 2026: [native Linux acceptance](reviews/2026-11-13-owned-scanner-shutdown.md) stops concurrent scanner and provider work on Quit. All 42 encrypted tables and the protected key remain unchanged. Unrelated processes survive. The normal build rejects the test-only scanner path. Tray, Start at login, wake handling, and other platforms remain open.
+
+- Leaderboard transport (L-5a1), November 13, 2026: the shared [Rust client](../crates/openusage-board/README.md) supports bounded GitHub device authorization, join, exact-body sync, leave, and own rank. Ten local HTTP/TLS checks pass. Scoped Clippy and formatting pass. Missing build settings leave the client inert. CLI and Settings integration, OS token storage, and hosted acceptance remain open.
 
 - Period receipts (L-3c), November 13, 2026: Wrapped offers seven days, thirty days, and the current calendar month. Rust owns date selection and exact totals. The native share journey passes with synthetic logs and encrypted storage on Linux. Both renderer engines, full workspace tests, and Clippy pass within the combined checks. Annual Heatmap and Badge behavior remains. Real histories, other platforms, public profiles, and subscription comparisons remain open.
 
@@ -184,11 +188,15 @@ separate from document completion. The [performance report](performance-report.m
 
 ## Current assignment
 
-The owner authorized continued work across local commits on November 13.
-The current independent slices are legacy Codex identity (L-1f11at),
-period receipts (L-3c), and offline board preview integration (L-5a0).
-Each keeps separate file ownership. Root integrates shared contracts and
-records executed evidence before marking a slice complete.
+The latest November 13 instruction ends this pass after checks, documentation,
+and a local commit. Work is stopped for the owner's next instruction. No next
+feature, push, deployment, or release is authorized by this checkpoint.
+
+The completed local boundaries are L-3c receipts, L-5a0 offline preview,
+L-5a1 HTTP transport, and S-06a owned scanner shutdown. Their evidence and limits
+are above. The isolated L-1f11at identity experiment remains unqualified because
+its compatibility checks fail. Its review records the next correction. Online
+leaderboard callers and credential storage remain separate work.
 
 L-1f11as is complete within its separate legacy capture candidate scope.
 The [candidate record](reviews/2026-11-13-legacy-capture-candidate.md) lists executed

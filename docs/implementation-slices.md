@@ -39,7 +39,7 @@ Renderer tests, native journeys, and the local commit therefore need approval to
 
 [AGENTS.md](../AGENTS.md) applies, including OU-DES-001 and OU-ENG-012. These rules add to it.
 
-- Use bounded slices. The owner authorized continued work across local commits on November 13, with parallel workers on independent files. Read each slice's requirements.
+- Use bounded slices. The latest November 13 instruction closes the work already in progress, with separate worker ownership. Complete checks and docs, commit locally, then stop for the owner's next instruction.
 - Keep existing behavior, stored data, and safety rules (OU-DES-002).
 - Add a setting, screen, state, or dependency only under OU-DES-013.
 - Reuse local caches where practical. Download required source and build dependencies from official sources at pinned revisions or locked versions. Check published digests when available. New dependencies still need the architecture review above. The owner approved these downloads on November 8, 2026.
@@ -62,7 +62,7 @@ Renderer tests, native journeys, and the local commit therefore need approval to
 - The [workflow](engineering-workflow.md) checks pass. UI changes also need the full renderer suite in Chromium and WebKit. Rust changes also need the full workspace tests.
 - UI changes are checked by eye in screenshots: light, dark, a 720-pixel window, and empty, populated, and error states. Empty fixtures hide layout problems, so always check real-looking data. Each screen answers one question, its main action is obvious, and nothing is clipped or repeated.
 - Docs are updated as the [documentation map](README.md) lists, and the slice is marked Done below.
-- The slice has one local commit. Then report, and start the next open item in the [build checklist](#build-checklist). The owner asked for this on November 8, 2026.
+- The slice has a local commit. Then report and stop. The latest November 13 instruction replaces the earlier direction to continue automatically.
 
 ## Launch track
 
@@ -75,7 +75,7 @@ Adopted November 7, 2026 (SRS Section 0.6, SC-016). The owner wants a working pr
 | L-2 | CLI with `openusage status`, `statusline` and `report` | S-14 | Done |
 | L-3 | Sharing: Wrapped summary, heatmap PNG and SVG, a README badge, and personal records | S-19 | Done |
 | L-4 | Leaderboard service on Cloudflare Workers and D1, per the [decision](decisions/2026-11-07-leaderboard-service.md) | S-21 | Done locally. Deployment waits for the owner |
-| L-5 | Leaderboard client: join with GitHub, dry run, sync, leave | S-22 | Waits for the owner |
+| L-5 | Leaderboard client: join with GitHub, dry run, sync, leave | S-22 | Offline preview and transport complete within local scope. Caller integration and owner service setup remain |
 | L-6 | Packaging: Linux packages, Windows and macOS preview builds in CI, the npm package | S-18, part of S-15 | L-6a and L-6b built. Preview builds and platform pins remain open under L-6c |
 | L-7 | Release documents and the launch checklist | S-20 | L-7a through L-7d built. Remaining documents and evidence are open under L-7e |
 | G-L | Owner: claim the npm name (OQ-2), create the Cloudflare account and GitHub OAuth App, run the real-account tests, publish | G-1, G-2, G-3 | Not started |
@@ -100,7 +100,7 @@ Updated November 12, 2026. Each completed item has one local commit and scoped e
 **L-1 Local logs**
 
 - [x] L-1f11as: isolate whole-report refusal for five malformed-peer cases. The [candidate record](reviews/2026-11-13-legacy-capture-candidate.md) records 422 scanner commands and both exact raw Codex comparisons. Two identity cases still fail. Production support stays unchanged.
-- [ ] L-1f11at: correct the two legacy Codex identity cases with recorded thread identity and explicit refusal of ambiguous histories. Qualify the source boundary before production use.
+- [ ] L-1f11at: the [isolated experiment](reviews/2026-11-13-legacy-codex-identity.md) corrects both identity counts, but valid legacy histories regress. Qualification remains open. Preserve ordinary routing, resolve compatibility and saved-session migration, and qualify the source boundary before production use.
 
 - [x] L-1a: pin, provision, run and parse `ccusage` (OU-LOG-005 to OU-LOG-007).
 - [x] L-1b: store totals and differences at schema 10 (OU-LOG-003, OU-LOG-010 to OU-LOG-013).
@@ -206,7 +206,8 @@ Updated November 12, 2026. Each completed item has one local commit and scoped e
 **L-5 Leaderboard client**
 
 - [x] L-5a0: offline `sync --dry-run` from one read-only saved-data snapshot. Seven encrypted-storage command checks and two process checks pass, with full workspace tests and Clippy. Ambiguous or incomplete rows refuse. No network or enrollment side effects occur (OU-BOARD-005/006, OU-CLI-002; AT-96). Real-upload equality remains open.
-- [ ] L-5a: `openusage board join`, `sync --dry-run`, `sync` and `leave` through one upload builder, with the token in the OS credential store (OU-BOARD-001, OU-BOARD-002, OU-BOARD-005, OU-BOARD-006; AT-86 to AT-88). Downloads are allowed under the slice rules. The HTTPS client still needs an architecture decision because Rust currently declares no HTTP client.
+- [x] L-5a1: reusable Rust HTTP transport under the [client decision](decisions/2026-11-13-leaderboard-http-client.md). Ten local HTTP/TLS checks, scoped Clippy, and formatting pass. It has no production caller or credential persistence.
+- [ ] L-5a: `openusage board join`, `sync --dry-run`, `sync` and `leave` through one upload builder, with the token in the OS credential store (OU-BOARD-001, OU-BOARD-002, OU-BOARD-005, OU-BOARD-006; AT-86 to AT-88). Integrate the qualified transport with explicit enrollment and OS token storage. Exact real-upload comparison remains open.
 - [ ] L-5b: join, sync and leave in Settings.
 
 **L-6 Packaging**
@@ -233,7 +234,7 @@ Updated November 12, 2026. Each completed item has one local commit and scoped e
 - [ ] Register the GitHub OAuth App and give its public client ID.
 - [ ] Run the real-account tests (AT-60) and the real-machine tests (AT-38, AT-80).
 - [ ] Decide the two gaps in [SC-017](srs-clarifications.md#sc-017-local-usage-store).
-- [ ] Approve an HTTPS client with TLS for the leaderboard client (L-5), for example `ureq` with `native-tls`, which can use the OpenSSL that SQLCipher already builds.
+- [x] Select the leaderboard HTTPS client under the owner's autonomous build authorization. The [decision](decisions/2026-11-13-leaderboard-http-client.md) selects reqwest with native TLS. Private-sync architecture and hosted setup remain separate.
 - [x] The owner approved build downloads under the slice rules. Record the toolchain digests and companion pins for Windows and macOS during L-6c.
 - [ ] Push and publish.
 
@@ -810,7 +811,7 @@ L-7e stays open for its other documents and acceptance evidence.
 | S-04 | Reading status and evidence | S-03b | Not started |
 | S-05 | Adapter layer | S-04 | Not started |
 | G-1 | Owner: real-account test on Codex | S-05 | Not started |
-| S-06 | Tray and background | S-05 | Not started |
+| S-06 | Tray and background | S-05 | Owned scanner shutdown complete within Linux scope. Tray, autostart, and wake handling remain |
 | S-07 | Graphs and dashboard | S-01 | Not started |
 | S-08 | Remaining gaps | S-02 | Profile removal passed in scoped S-08a1/S-08a2. Other gaps remain open |
 | S-09 | `ccusage` runner | S-05, a download | Done as L-1a |
@@ -828,7 +829,7 @@ L-7e stays open for its other documents and acceptance evidence.
 | S-20 | Release documents | S-18 | L-7a through L-7d built. See L-7e for the remaining documents and evidence |
 | G-3 | Owner: real machines and first release | S-20, OQ-2 | Not started |
 | S-21 | Leaderboard service | G-3 | Built as L-4. Deployment waits for the owner |
-| S-22 | Leaderboard client | S-21 | Waits for the owner (L-5) |
+| S-22 | Leaderboard client | S-21 | Caller integration and owner service setup remain (L-5) |
 
 ## Foundation
 
@@ -917,6 +918,13 @@ Run AT-60 for Codex under OU-AUD-006. Raw captures stay private, and a summary g
 ## Everyday desktop
 
 ### S-06 Tray and background
+
+- [x] S-06a: cancel owned scanner work and order application shutdown. The
+  [native record](reviews/2026-11-13-owned-scanner-shutdown.md) covers concurrent
+  scanner/provider Quit, retained stdout, unrelated process survival, unchanged
+  encrypted data, and the normal-build fixture guard on Linux.
+- [ ] S-06b: tray, minimize-to-tray, and Start at login.
+- [ ] S-06c: sleep/wake handling and remaining background alerts.
 
 - **Requirements:** OU-UI-008, OU-UI-021, OU-UI-024, OU-MON-013, OU-MON-014, OU-MON-016, OU-MON-017, OU-PROC-013, OU-ALERT-005, OU-ALERT-014, OU-ALERT-015.
 - **Tests:** AT-89, AT-90.

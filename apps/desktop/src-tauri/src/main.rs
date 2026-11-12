@@ -14,6 +14,7 @@ mod provider_credentials;
 mod readings_export;
 mod restore;
 mod share;
+mod shutdown;
 mod subscriptions;
 #[cfg(all(test, unix))]
 #[path = "../../../../crates/openusage-codex/src/test_executable.rs"]
@@ -2111,6 +2112,7 @@ fn is_bundled_url(url: &tauri::Url) -> bool {
 fn main() {
     tauri::Builder::default()
         .manage(WorkspaceService::default())
+        .manage(shutdown::Shutdown::default())
         .manage(display_scale::DisplayScaleService::default())
         .invoke_handler(tauri::generate_handler![
             subscriptions::list_subscriptions,
@@ -2216,13 +2218,8 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("Failed to start OpenUsage")
         .run(|app, event| {
-            if matches!(event, tauri::RunEvent::Exit) {
-                app.state::<WorkspaceService>().1.close();
-                app.state::<WorkspaceService>().4.close();
-                if app.state::<WorkspaceService>().3.close().is_err() {
-                    // Typed cleanup failure only. Never log provider frames, credentials, or paths.
-                    eprintln!("OpenUsage could not complete owned provider cleanup.");
-                }
+            if let tauri::RunEvent::ExitRequested { api, code, .. } = event {
+                shutdown::Shutdown::request(app, &api, code);
             }
         });
 }

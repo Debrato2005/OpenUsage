@@ -26,6 +26,7 @@ One fact has one home. Change it there, and link to it from anywhere else.
 | How are local logs read? | [Local logs crate](../crates/openusage-locallogs/README.md) |
 | How does the command line work? | [CLI crate](../crates/openusage-cli/README.md) |
 | How does the leaderboard service work? | [Leaderboard service](../services/leaderboard/README.md) |
+| How does its Rust client work? | [Leaderboard client](../crates/openusage-board/README.md) |
 | How are the icons made? | [Icons](../apps/desktop/src-tauri/icons/README.md) |
 | Why is glib patched? | [Patch note](../vendor/glib-0.18.5/OPENUSAGE-PATCH.md) |
 | What may I keep or delete? | [Artifact retention](artifact-retention.md) |

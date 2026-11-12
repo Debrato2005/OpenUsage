@@ -7,10 +7,7 @@ use openusage_storage::{LogConsent, LogSource};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
-use std::sync::{
-    Arc, Condvar, Mutex,
-    atomic::{AtomicBool, Ordering},
-};
+use std::sync::{Arc, Condvar, Mutex};
 use std::thread::JoinHandle;
 use std::time::Duration;
 use tauri::State;
@@ -112,6 +109,32 @@ impl Scanner {
     }
 
     fn bundled() -> Option<Self> {
+        // This separate fixture pin and environment override do not exist in normal builds.
+        #[cfg(all(feature = "native-test", unix))]
+        if let Some(binary) = std::env::var_os("OPENUSAGE_NATIVE_SCANNER_FIXTURE") {
+            let binary = PathBuf::from(binary);
+            let digest = locallogs::sha256_hex(include_bytes!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../../tests/native/fixtures/synthetic-scanner.py"
+            )));
+            if !binary.is_absolute()
+                || !std::fs::read(&binary)
+                    .is_ok_and(|bytes| locallogs::sha256_hex(&bytes) == digest)
+            {
+                return None;
+            }
+            return Some(Self {
+                production: PinnedScanner {
+                    binary,
+                    digest,
+                    version: "20.0.48-openusage.shutdown-fixture.1".into(),
+                },
+                #[cfg(all(feature = "pi-native-qualification", target_os = "linux"))]
+                pi: None,
+                #[cfg(all(feature = "codex-native-qualification", target_os = "linux"))]
+                codex: None,
+            });
+        }
         let digest = locallogs::pinned_sha256_here()?;
         let binary = std::env::current_exe()
             .ok()?
@@ -149,7 +172,16 @@ pub(crate) struct ScanGroup {
 }
 
 /// No workspace lock is held while ccusage runs.
+#[cfg(test)]
 fn scan_all(workspace: &Mutex<Option<Workspace>>, scanner: &Scanner) -> Outcome {
+    scan_all_controlled(workspace, scanner, &locallogs::ScanCancellation::default())
+}
+
+fn scan_all_controlled(
+    workspace: &Mutex<Option<Workspace>>,
+    scanner: &Scanner,
+    cancellation: &locallogs::ScanCancellation,
+) -> Outcome {
     let plan = workspace
         .lock()
         .ok()
@@ -159,14 +191,18 @@ fn scan_all(workspace: &Mutex<Option<Workspace>>, scanner: &Scanner) -> Outcome 
     };
     let (mut failed, mut at) = (false, None);
     for group in groups {
+        if cancellation.is_cancelled() {
+            break;
+        }
         let result = if grouped_period(&group.sources[0].tool).is_some() {
-            scan_group(workspace, scanner, &group)
+            scan_group(workspace, scanner, &group, cancellation)
         } else {
             scan_source(
                 workspace,
                 scanner,
                 &group.sources[0],
                 group.zone.as_deref().unwrap_or("UTC"),
+                cancellation,
             )
         };
         match result {
@@ -181,6 +217,7 @@ fn scan_group(
     workspace: &Mutex<Option<Workspace>>,
     scanner: &Scanner,
     group: &ScanGroup,
+    cancellation: &locallogs::ScanCancellation,
 ) -> Option<String> {
     let scanner = scanner.for_tool(&group.sources.first()?.tool)?;
     let empty_home = empty_scan_home().ok()?;
@@ -197,12 +234,15 @@ fn scan_group(
             max_output: locallogs::DEFAULT_MAX_OUTPUT,
         },
         || sources_consented(workspace, &group.sources, true),
+        cancellation,
     )
     .ok()?;
     let scanned_at = now_utc();
-    workspace
-        .lock()
-        .ok()?
+    let mut state = workspace.lock().ok()?;
+    if cancellation.is_cancelled() {
+        return None;
+    }
+    state
         .as_mut()?
         .save_grouped_log_reports(group, &scanned_at, &scanner.version, &report)
         .ok()?;
@@ -212,16 +252,25 @@ fn scan_group(
 fn collect_group(
     request: &locallogs::GroupedScanRequest<'_>,
     check: impl FnMut() -> bool,
+    cancellation: &locallogs::ScanCancellation,
 ) -> Result<locallogs::GroupedScanResult, locallogs::ScanError> {
     #[cfg(all(feature = "pi-native-qualification", target_os = "linux"))]
     if request.tool == "pi" {
-        return locallogs::grouped::qualify_pi_candidate(request, check);
+        return locallogs::grouped::qualify_pi_candidate_with_cancellation(
+            request,
+            check,
+            cancellation,
+        );
     }
     #[cfg(all(feature = "codex-native-qualification", target_os = "linux"))]
     if request.tool == "codex" {
-        return locallogs::grouped::qualify_codex_candidate(request, check);
+        return locallogs::grouped::qualify_codex_candidate_with_cancellation(
+            request,
+            check,
+            cancellation,
+        );
     }
-    locallogs::scan_grouped_with_check(request, check)
+    locallogs::scan_grouped_with_cancellation(request, check, cancellation)
 }
 
 fn sources_consented(
@@ -246,6 +295,7 @@ fn scan_source(
     scanner: &Scanner,
     source: &LogSource,
     zone: &str,
+    cancellation: &locallogs::ScanCancellation,
 ) -> Option<String> {
     let scanner = scanner.for_tool(&source.tool)?;
     let empty_home = empty_scan_home().ok()?;
@@ -260,27 +310,32 @@ fn scan_source(
         timeout: locallogs::DEFAULT_TIMEOUT,
         max_output: locallogs::DEFAULT_MAX_OUTPUT,
     };
-    let check = || sources_consented(workspace, std::slice::from_ref(source), false);
+    let check = || {
+        !cancellation.is_cancelled()
+            && sources_consented(workspace, std::slice::from_ref(source), false)
+    };
     if !check() {
         return None;
     }
-    let rows = locallogs::scan(&request).ok()?;
+    let rows = locallogs::scan_with_cancellation(&request, cancellation).ok()?;
     if !check() {
         return None;
     }
-    let sessions = locallogs::scan_sessions(&request).ok()?;
+    let sessions = locallogs::scan_sessions_with_cancellation(&request, cancellation).ok()?;
     let hours = if locallogs::tool(&source.tool).is_some_and(|t| t.enabled && t.hours) {
         if !check() {
             return None;
         }
-        Some(locallogs::scan_hours(&request).ok()?)
+        Some(locallogs::scan_hours_with_cancellation(&request, cancellation).ok()?)
     } else {
         None
     };
     let scanned_at = now_utc();
-    workspace
-        .lock()
-        .ok()?
+    let mut state = workspace.lock().ok()?;
+    if cancellation.is_cancelled() {
+        return None;
+    }
+    state
         .as_mut()?
         .save_complete_log_reports(
             source,
@@ -303,7 +358,7 @@ pub(crate) struct ScanStatus {
 }
 
 struct Shared {
-    stop: AtomicBool,
+    stop: locallogs::ScanCancellation,
     state: Mutex<(bool, ScanStatus)>,
     signal: Condvar,
 }
@@ -324,7 +379,7 @@ impl LocalLogWorker {
             last_scan_at_utc: None,
         };
         let shared = Arc::new(Shared {
-            stop: AtomicBool::new(false),
+            stop: locallogs::ScanCancellation::default(),
             state: Mutex::new((true, idle)),
             signal: Condvar::new(),
         });
@@ -337,10 +392,10 @@ impl LocalLogWorker {
                     let (mut guard, _) = owned
                         .signal
                         .wait_timeout_while(guard, wait, |(due, _)| {
-                            !*due && !owned.stop.load(Ordering::Acquire)
+                            !*due && !owned.stop.is_cancelled()
                         })
                         .unwrap_or_else(|p| p.into_inner());
-                    if owned.stop.load(Ordering::Acquire) {
+                    if owned.stop.is_cancelled() {
                         return;
                     }
                     guard.0 = false;
@@ -349,7 +404,7 @@ impl LocalLogWorker {
                     }
                 }
                 let outcome = scanner.as_ref().map_or(Outcome::Unavailable, |scanner| {
-                    scan_all(&workspace, scanner)
+                    scan_all_controlled(&workspace, scanner, &owned.stop)
                 });
                 let mut guard = owned.state.lock().unwrap_or_else(|p| p.into_inner());
                 wait = match outcome {
@@ -395,17 +450,29 @@ impl LocalLogWorker {
             .clone()
     }
 
-    pub(crate) fn close(&self) {
-        self.shared.stop.store(true, Ordering::Release);
+    pub(crate) fn request_stop(&self) {
+        let _guard = self.shared.state.lock().unwrap_or_else(|p| p.into_inner());
+        self.shared.stop.cancel();
         self.shared.signal.notify_all();
-        if let Some(thread) = self.thread.lock().unwrap_or_else(|p| p.into_inner()).take() {
-            let _ = thread.join();
+    }
+
+    pub(crate) fn close(&self) -> Result<(), locallogs::ScanError> {
+        self.request_stop();
+        let thread = self.thread.lock().unwrap_or_else(|p| p.into_inner()).take();
+        let joined = thread.map_or(Ok(()), |thread| {
+            thread
+                .join()
+                .map_err(|_| locallogs::ScanError::CleanupFailed)
+        });
+        if self.shared.stop.cleanup_failed() {
+            return Err(locallogs::ScanError::CleanupFailed);
         }
+        joined
     }
 }
 impl Drop for LocalLogWorker {
     fn drop(&mut self) {
-        self.close();
+        let _ = self.close();
     }
 }
 
@@ -772,7 +839,7 @@ mod tests {
             std::thread::sleep(Duration::from_millis(50));
         }
         assert_eq!(worker.status().state, "idle");
-        worker.close();
+        worker.close().unwrap();
         assert_eq!(totals(workspace.lock().unwrap().as_mut().unwrap()), saved);
         #[cfg(all(feature = "codex-native-qualification", target_os = "linux"))]
         codex_candidate_worker_keeps_complete_grouped_history(workspace.as_ref(), &detected, &bin);

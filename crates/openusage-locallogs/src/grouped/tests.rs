@@ -3,7 +3,7 @@ use crate::{UsagePeriod, tools::RootMode};
 use std::os::unix::fs::{PermissionsExt, symlink};
 
 fn scan_grouped_inner(request: &GroupedScanRequest<'_>) -> Result<GroupedScanResult, ScanError> {
-    scan_grouped_checked(request, || true)
+    scan_grouped_checked(request, || true, None)
 }
 
 fn script(root: &Path, body: &str) -> (std::path::PathBuf, String) {
@@ -198,7 +198,8 @@ fn grouped_reports_keep_scope_policy_isolation_and_failure_boundaries() {
             || {
                 checks += 1;
                 checks == 1
-            }
+            },
+            None
         ),
         Err(ScanError::InvalidRequest)
     );
@@ -261,10 +262,14 @@ fn pi_grouped_scan_uses_one_snapshot_process() {
     std::fs::remove_file(root.join("calls")).unwrap();
     let mut checks = 0;
     assert_eq!(
-        scan_grouped_checked(&request, || {
-            checks += 1;
-            checks == 1
-        }),
+        scan_grouped_checked(
+            &request,
+            || {
+                checks += 1;
+                checks == 1
+            },
+            None
+        ),
         Err(ScanError::InvalidRequest)
     );
     assert_eq!(checks, 2);

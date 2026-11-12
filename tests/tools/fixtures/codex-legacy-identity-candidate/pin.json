@@ -1,0 +1,227 @@
+{
+  "version": "20.0.48-openusage.5",
+  "target": "x86_64-unknown-linux-gnu",
+  "executableSha256": "2ee2b9d1251a06484f40dd5b102408d6ba50408765b8a230ef78e210b880fb18",
+  "executableBytes": 5188192,
+  "oraclePath": ".tools/qualification-oracles/ccusage-codex-legacy-identity-linux-x86_64",
+  "sourceDirectory": ".tools/upstream/ccusage-8995f3b7-codex-legacy-identity",
+  "sourceCommit": "8995f3b7fd7110b8f37564f7d0468acc7a7d6b20",
+  "sourceFilesSha256": "a3c5624131b7b43c8ead5afb51f0be85019dfd7a46719efdea6b0a60278a244e",
+  "sourceManifestSha256": "6b3653d82aa91042f7185e5da1012303de5b691e8cff39acc6335b27b558405b",
+  "sourceManifestAlgorithm": "SHA256 of compact JSON array of explicit path/sha256 records",
+  "baseCandidatePin": {
+    "path": "tests/tools/fixtures/claude-capture-candidate/pin.json",
+    "sha256": "3d02bc0d4a20a8975e13ae0dbed84ead39b9559b3235179ef670acab73e568e4"
+  },
+  "patches": [
+    {
+      "path": "patches/ccusage/20.0.48-pi-usage.patch",
+      "sha256": "25ecee16c212ffa19d4d9d09585be14a99389fc7a017cf482368b86e9012e311"
+    },
+    {
+      "path": "patches/ccusage/20.0.48-pi-identity.patch",
+      "sha256": "04868d7358aa572a1e6782ea94d35639bffca359f199cafd9a7359f21fd85177"
+    },
+    {
+      "path": "patches/ccusage/20.0.48-pi-format.patch",
+      "sha256": "a4f347098e7377328aa718f75e2c3bfee78ceea772409805f32a6acb5a2027cb"
+    },
+    {
+      "path": "patches/ccusage/20.0.48-pi-filesystem.patch",
+      "sha256": "526a888f9544000d2055fac86ee77d6245abfc90e3cd68fee3a4c4ea6c634254"
+    },
+    {
+      "path": "patches/ccusage/20.0.48-pi-snapshot.patch",
+      "sha256": "99f53b938ede8b7d41e597ef0d31014ce14a9841bba9521a04ab22f1f547efbd"
+    },
+    {
+      "path": "patches/ccusage/20.0.48-pi-observations.patch",
+      "sha256": "3d461fefc8bcdeaeabcd45ebbf9dd22a758276ac7cd0f2888ca2e3da8d3be199"
+    },
+    {
+      "path": "patches/ccusage/20.0.48-pi-bounded.patch",
+      "sha256": "9f12038c06fedd64beaa17040c00c9d8b8a4905021f3540436d619a8cdb7b66d"
+    },
+    {
+      "path": "patches/ccusage/20.0.48-codex-record-identity.patch",
+      "sha256": "875b6bf79c11879ef8894c42bf8df5476616b472f8ffe56e2c312351ea487250"
+    },
+    {
+      "path": "patches/ccusage/20.0.48-codex-snapshot.patch",
+      "sha256": "abe4a4ae920f3a59de551d05927418af451c844a766bf623e1b3e27af6905c4a"
+    },
+    {
+      "path": "patches/ccusage/20.0.48-claude-json.patch",
+      "sha256": "e9efca71d5cc0a38df8d5150bae01abba5ab180e705e5ef3520525b8d2900095"
+    },
+    {
+      "path": "patches/ccusage/20.0.48-claude-capture.patch",
+      "sha256": "317cec7f7ce6a9ca929d59d04c29bc67e6d11a7c960db8058d1d96a43d60727c"
+    },
+    {
+      "path": "patches/ccusage/20.0.48-codex-legacy-identity.patch",
+      "sha256": "f6b3887851a6b88b1439279213f75707d03b10ac6f22dc325f14e43edf457e5f"
+    }
+  ],
+  "productionSha256": "55a3fd41b29727672bef1242311758d1605a07765781d7a80a41d1b485d29ed1",
+  "priorCodexOracleSha256": "88c3b58173e6ad94e02b8b6e23a802f4aa18f9b5e6713832f5f1522859e9cb2b",
+  "priorClaudeOracleSha256": "41332b04842422af05ec84d2287166da902fc274d8cabbfa4c2ffbb0d863b903",
+  "priorCaptureOracleSha256": "b38a905ef951015cd981e068ea73cd608d97f86db9d35b33b831737cf116a187",
+  "build": {
+    "workingDirectory": ".tools/upstream/ccusage-8995f3b7-codex-legacy-identity",
+    "command": [
+      "/home/debrato/Projects/OpenUsage/.tools/rust/install/bin/cargo",
+      "build",
+      "--release",
+      "--manifest-path",
+      "rust/Cargo.toml",
+      "--locked",
+      "--offline",
+      "-p",
+      "ccusage"
+    ],
+    "environment": {
+      "CARGO_HOME": ".tools/cargo-home",
+      "CARGO_TARGET_DIR": ".tools/build-target",
+      "CARGO_INCREMENTAL": "0",
+      "CARGO_BUILD_JOBS": "1",
+      "RUSTC": ".tools/rust/install/bin/rustc",
+      "CCUSAGE_VERSION": "20.0.48-openusage.5",
+      "CCUSAGE_PRICING_JSON_PATH": ".tools/upstream/ccusage-8995f3b7/upstream-inputs/litellm-1046716b.json",
+      "HOME": "private temporary directory",
+      "CODEX_HOME": "private temporary directory",
+      "XDG_CONFIG_HOME": "private temporary directory",
+      "XDG_DATA_HOME": "private temporary directory",
+      "XDG_CACHE_HOME": "private temporary directory"
+    },
+    "rustcVerbose": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1",
+    "rustcSha256": "b53b780f77f952062f8ca8a3b70aef2390b1e45ad91939be94afdc9543026853",
+    "cargoSha256": "a670e02cfa39ac2e53f77a2d911ca1fc9e2c479b0603ec956625be1daf24e3af",
+    "nativeCompiler": "cc (GCC) 16.2.1 20260810",
+    "linker": "GNU ld (GNU Binutils) 2.47",
+    "nativeArchiver": "GNU ar (GNU Binutils) 2.47",
+    "optionalEnvironment": {
+      "RUSTFLAGS": null,
+      "CARGO_ENCODED_RUSTFLAGS": null,
+      "CC": null,
+      "CXX": null,
+      "CFLAGS": null,
+      "CXXFLAGS": null,
+      "CPPFLAGS": null,
+      "AR": null,
+      "LDFLAGS": null
+    },
+    "sqliteSettings": {
+      "SQLITE_OMIT_AUTHORIZATION": "1",
+      "SQLITE_OMIT_AUTOMATIC_INDEX": "1",
+      "SQLITE_OMIT_AUTOVACUUM": "1",
+      "SQLITE_OMIT_BETWEEN_OPTIMIZATION": "1",
+      "SQLITE_OMIT_BLOB_LITERAL": "1",
+      "SQLITE_OMIT_CAST": "1",
+      "SQLITE_OMIT_CASE_SENSITIVE_LIKE_PRAGMA": "1",
+      "SQLITE_OMIT_CHECK": "1",
+      "SQLITE_OMIT_COMPILEOPTION_DIAGS": "1",
+      "SQLITE_OMIT_COMPLETE": "1",
+      "SQLITE_OMIT_COMPOUND_SELECT": "1",
+      "SQLITE_OMIT_DECLTYPE": "1",
+      "SQLITE_OMIT_DEPRECATED": "1",
+      "SQLITE_OMIT_DESERIALIZE": "1",
+      "SQLITE_OMIT_EXPLAIN": "1",
+      "SQLITE_OMIT_FLAG_PRAGMAS": "1",
+      "SQLITE_OMIT_FOREIGN_KEY": "1",
+      "SQLITE_OMIT_GENERATED_COLUMNS": "1",
+      "SQLITE_OMIT_GET_TABLE": "1",
+      "SQLITE_OMIT_HEX_INTEGER": "1",
+      "SQLITE_OMIT_INCRBLOB": "1",
+      "SQLITE_OMIT_INTEGRITY_CHECK": "1",
+      "SQLITE_OMIT_INTROSPECTION_PRAGMAS": "1",
+      "SQLITE_OMIT_JSON": "1",
+      "SQLITE_OMIT_LIKE_OPTIMIZATION": "1",
+      "SQLITE_OMIT_LOAD_EXTENSION": "1",
+      "SQLITE_OMIT_LOCALTIME": "1",
+      "SQLITE_OMIT_LOOKASIDE": "1",
+      "SQLITE_OMIT_MEMORYDB": "1",
+      "SQLITE_OMIT_OR_OPTIMIZATION": "1",
+      "SQLITE_OMIT_PARSER_TRACE": "1",
+      "SQLITE_OMIT_POPEN": "1",
+      "SQLITE_OMIT_PROGRESS_CALLBACK": "1",
+      "SQLITE_OMIT_QUICKBALANCE": "1",
+      "SQLITE_OMIT_RANDOMNESS": "1",
+      "SQLITE_OMIT_SCHEMA_PRAGMAS": "1",
+      "SQLITE_OMIT_SCHEMA_VERSION_PRAGMAS": "1",
+      "SQLITE_OMIT_SHARED_CACHE": "1",
+      "SQLITE_OMIT_SHUTDOWN_DIRECTORIES": "1",
+      "SQLITE_OMIT_TCL_VARIABLE": "1",
+      "SQLITE_OMIT_TEST_CONTROL": "1",
+      "SQLITE_OMIT_TRACE": "1",
+      "SQLITE_OMIT_TRUNCATE_OPTIMIZATION": "1",
+      "SQLITE_OMIT_TWOSIZE_LOOKASIDE": "1",
+      "SQLITE_OMIT_UPSERT": "1",
+      "SQLITE_OMIT_UTF16": "1",
+      "SQLITE_OMIT_XFER_OPT": "1"
+    },
+    "offline": true,
+    "deadlineSeconds": 900,
+    "pricingUrl": "https://raw.githubusercontent.com/BerriAI/litellm/1046716b6d3d45f30d5efad42becbd440d6187ee/model_prices_and_context_window.json",
+    "pricingSha256": "8f8060d8ce7a40c91b995c74d6a27657543d49e3c1c53430dabd556f244392c6",
+    "modelsDevSha256": "ddbbace3660cd703bf6c35af308d86ef9bad51b581a0089025aad36070d78a14",
+    "modelsDevRulesSha256": "8ea462160a8ac6b5c30545f492d148813b8a0175d5b1ead2f4c3f824f1024f9d",
+    "privateReceiptSha256": "498f0356ce6984ce8170ca897fd3964d040da2cd1cf175b8b5ab8723fbe41879",
+    "sourceLockSha256": "57482f0c9ca83895e6631a5c3c7557be01bf7f7b0f20544877d9b77e2c9fbd92",
+    "finalBuildReusedTarget": true,
+    "cleanFinalRebuildExecuted": false,
+    "toolchainPricingAndSqliteConfigMatched": true,
+    "sourceLockPreservedAtFinalBuild": true,
+    "elapsedSeconds": 0.08,
+    "initialBuildReceiptSha256": "8c4f2f420eee9bdcfcf4c4f6a6c7651c23bb45c3056fe11d726f20ab2e9f1dea",
+    "initialBuildElapsedSeconds": 36.804,
+    "sourceLockRestoredBeforeFinalBuild": true,
+    "scopedNoDepsClippyPassed": true,
+    "inheritedDependencyClippyWarning": {
+      "exitCode": 101,
+      "path": "rust/crates/ccusage-core/src/pricing.rs",
+      "line": 1781,
+      "lint": "needless_borrows_for_generic_args",
+      "executedForThisCandidate": false,
+      "baseCandidatePin": {
+        "path": "tests/tools/fixtures/claude-capture-candidate/pin.json",
+        "sha256": "3d02bc0d4a20a8975e13ae0dbed84ead39b9559b3235179ef670acab73e568e4"
+      }
+    }
+  },
+  "boundary": {
+    "scope": "Synthetic Linux x86_64 legacy thread-stream identity only. No production activation.",
+    "identity": "The first recorded session_meta.payload.id identifies a thread. No response identity, account association, time key, or count-equality identity is inferred.",
+    "copies": "Compare complete decoded JSON record streams. Identical streams and exact record prefixes select one longest capture. Divergent same-ID streams refuse.",
+    "sessions": "Legacy session rows use recorded thread IDs. Production activation requires stored-session migration and compatibility review. Old path keys and recorded IDs must not become distinct saved sessions for one history.",
+    "counters": "Cumulative categories must be monotone and consistent with advancing last-usage categories. Repeated counter snapshots add no usage. Joint exact counts remain bounded.",
+    "unsupported": "Absent or ambiguous identity, duplicate JSON keys, conflicting streams, lineage, subagents, replay markers, compaction, reverts, and unexplained counter changes refuse.",
+    "capture": "Each invocation uses the bounded two-read Linux capture. Legacy compressed sources add decoded-byte limits. Paginated capture defaults stay unchanged. Separate legacy reports do not share one capture.",
+    "absentTools": "Ordinary multi-tool reports allow completely absent Codex sources as no observation. Once any source exists, all selected roots enter checked capture.",
+    "producer": "Legacy fixtures declare 0.166.0. The qualified captured producer is 0.163.0 paginated. These synthetic legacy controls do not establish producer qualification.",
+    "remaining": [
+      "Legacy producer and history-mode qualification",
+      "Broader legacy source and CLI compatibility: historical suites do not pass",
+      "Stored-session key migration and compatibility review",
+      "One joint legacy report capture",
+      "Reference performance",
+      "Production integration, native acceptance and packaging",
+      "Other platforms"
+    ]
+  },
+  "legacyLimits": {
+    "roots": 64,
+    "directoryEntries": 32768,
+    "files": 8192,
+    "depth": 64,
+    "rawFileBytes": 33554432,
+    "rawTotalBytes": 67108864,
+    "decodedFileBytes": 33554432,
+    "decodedTotalBytes": 67108864,
+    "lineBytes": 1048576,
+    "physicalRecords": 100000,
+    "identityBytes": 1024,
+    "modelBytes": 1024,
+    "jointExactCount": 9007199254740991
+  }
+}

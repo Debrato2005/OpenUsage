@@ -12,7 +12,7 @@ OpenUsage is in development, and there is no release yet.
 |---|---|---|
 | Tools | Codex, and local logs from Claude Code and Codex | Many tools, through provider sources and local logs |
 | Platforms | Linux development builds | Windows, macOS, and Linux |
-| Interface | Desktop app and `openusage` CLI | Desktop app and `openusage` CLI |
+| Interface | Desktop app and `openusage` CLI | Desktop, CLI, and a private responsive website in Stage 3 |
 | Install | Build from source, or build the npm and Debian packages | `npm install -g openusage` |
 
 Testing so far mostly uses synthetic data. [Implementation status](docs/implementation-status.md) shows what works and how far each result reaches.

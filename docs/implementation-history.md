@@ -4,6 +4,15 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f11as result before L-1f11at
+
+Latest scanner result, November 13, 2026. L-1f11as refuses five malformed-peer
+reports in a separate successor candidate. Eleven new checks cover 422 scanner
+commands. Both formerly skipped raw Codex comparisons pass with the exact
+synthetic producer receipt. Two legacy identity failures remain. The
+[candidate record](reviews/2026-11-13-legacy-capture-candidate.md) owns executed
+scope and remaining gates. Production pins and enabled tools stay unchanged.
+
 ## L-1f11ar result before L-1f11as
 
 Latest scoped result, November 12, 2026. L-1f11ar corrects Claude JSON formatting

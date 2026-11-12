@@ -20,6 +20,26 @@ A desktop legacy run reads one consented folder of one tool. The CLI uses `scan_
 
 Before any process starts, the folder must be an absolute UTF-8 path that still equals its resolved path. Commas and trailing whitespace are refused, because ccusage can interpret them as a list of roots or another root. Spaces inside the path and Unicode names remain valid. Detection resolves links before consent; a saved root that later becomes a link to another folder fails the scan. This checks the root before launch. It does not sandbox ccusage.
 
+## Cancellation and cleanup
+
+`ScanCancellation` gives an owned scan one-way cancellation. The desktop uses
+`scan_with_cancellation`, `scan_sessions_with_cancellation`,
+`scan_hours_with_cancellation`, and `scan_grouped_with_cancellation`. Existing
+methods remain available. Cancellation never replaces the consent callback.
+
+Unix output capture uses a nonblocking socket pair. Each loop reads at most one
+bounded chunk before checking cancellation and the deadline. On failure, the
+runner kills only its retained child and waits at most two seconds to reap it.
+`Cancelled` and `CleanupFailed` stay separate errors. A process that inherits
+stdout cannot hold a reader-thread join open. The desktop checks cancellation
+again before it saves a complete report.
+
+The new process acceptance uses private Linux fixtures. Non-Unix cancellable
+calls refuse before spawning. Existing non-cancellable methods remain, but
+other platforms still need scanner pins and acceptance. The
+[shutdown record](../../docs/reviews/2026-11-13-owned-scanner-shutdown.md) owns
+native evidence and limits.
+
 ## The report
 
 `parse_daily_by_agent` rejects unknown fields, unknown tools, invalid dates and model names, and any day whose per-model counts do not add up to its tool, day and report totals. Token counts are exact integers. Estimated value is in millionths of a dollar, and a model without a price keeps its tokens and has no estimate.

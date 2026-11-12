@@ -19,13 +19,17 @@ pub use agent_report::{
 };
 pub use codex_snapshot::parse_codex_snapshot;
 pub use detect::{Detected, detect};
-pub use grouped::{GroupedScanRequest, GroupedScanResult, scan_grouped, scan_grouped_with_check};
+pub use grouped::{
+    GroupedScanRequest, GroupedScanResult, scan_grouped, scan_grouped_with_cancellation,
+    scan_grouped_with_check,
+};
 pub use hours::{HourRow, parse_hours};
 pub use report::{ReportError, UsageRow, parse_daily_by_agent};
 pub use runner::{
-    BINARY_NAME, CCUSAGE_VERSION, DEFAULT_MAX_OUTPUT, DEFAULT_TIMEOUT, ScanError, ScanRequest,
-    pinned_sha256, pinned_sha256_here, scan, scan_daily_roots, scan_hours, scan_sessions,
-    sha256_hex, valid_resolved_folder,
+    BINARY_NAME, CCUSAGE_VERSION, DEFAULT_MAX_OUTPUT, DEFAULT_TIMEOUT, ScanCancellation, ScanError,
+    ScanRequest, pinned_sha256, pinned_sha256_here, scan, scan_daily_roots, scan_hours,
+    scan_hours_with_cancellation, scan_sessions, scan_sessions_with_cancellation,
+    scan_with_cancellation, sha256_hex, valid_resolved_folder,
 };
 pub use session::{SessionRow, parse_sessions};
 pub use tools::{MarkerKind, SessionShape, Tool, enabled_tools, hour_tools, tool, tools};

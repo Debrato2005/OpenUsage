@@ -40,7 +40,10 @@ This is the record of how requirements were read. Entries keep their original da
 Recorded November 13, 2026. The owner asked to research this chat, update the
 SRS, and continue implementation with separate parallel ownership. The owner
 also authorized work across local commits and prioritized end-to-end checks.
-This authority supersedes the task's earlier stop-after-commit instruction.
+This authority superseded the task's earlier stop-after-commit instruction.
+The owner later narrowed execution to the work already in progress. Complete
+its checks and docs, commit locally, then wait for the next instruction. This
+latest direction changes the stopping condition, not baseline 3.1 scope.
 
 The accepted product has three benefits: remaining limits, estimated API value,
 and public rank. The desktop runs collection internally. A responsive website

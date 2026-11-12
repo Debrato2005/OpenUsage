@@ -58,22 +58,23 @@ impl MonitoringWorker {
             provider,
         }
     }
-    pub(crate) fn close(&self) -> Result<(), CommandError> {
+    pub(crate) fn request_stop(&self) {
+        let _guard = self.stop.1.lock().unwrap_or_else(|p| p.into_inner());
         self.stop.0.store(true, Ordering::Release);
         self.stop.2.notify_all();
+    }
+
+    pub(crate) fn close(&self) -> Result<(), CommandError> {
+        self.request_stop();
         // Closing the coordinator joins owned provider workers before the timer can be joined.
         // No workspace lock is held while either kind of worker is stopped.
         let cleanup = self.provider.close();
-        let joined = self
-            .thread
-            .lock()
-            .unwrap_or_else(|p| p.into_inner())
-            .take()
-            .map_or(Ok(()), |thread| {
-                thread
-                    .join()
-                    .map_err(|_| CommandError::ProviderCleanupFailed)
-            });
+        let thread = self.thread.lock().unwrap_or_else(|p| p.into_inner()).take();
+        let joined = thread.map_or(Ok(()), |thread| {
+            thread
+                .join()
+                .map_err(|_| CommandError::ProviderCleanupFailed)
+        });
         cleanup.and(joined)
     }
 }

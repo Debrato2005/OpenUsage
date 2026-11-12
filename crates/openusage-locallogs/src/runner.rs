@@ -10,8 +10,13 @@ use crate::tools::tool;
 use sha2::{Digest, Sha256};
 use std::io::Read;
 use std::path::Path;
+#[cfg(unix)]
+use std::process::Child;
 use std::process::{Command, Stdio};
-use std::sync::Mutex;
+use std::sync::{
+    Arc, Mutex,
+    atomic::{AtomicBool, Ordering},
+};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -46,6 +51,43 @@ pub fn pinned_sha256_here() -> Option<&'static str> {
 
 pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(120);
 pub const DEFAULT_MAX_OUTPUT: usize = 64 * 1024 * 1024;
+#[cfg(unix)]
+const CLEANUP_TIMEOUT: Duration = Duration::from_secs(2);
+
+/// One-way cancellation for an owned scan. It does not replace source-consent checks.
+#[derive(Default)]
+struct CancellationState {
+    cancelled: AtomicBool,
+    cleanup_failed: AtomicBool,
+}
+
+#[derive(Clone, Default)]
+pub struct ScanCancellation(Arc<CancellationState>);
+
+impl ScanCancellation {
+    pub fn cancel(&self) {
+        self.0.cancelled.store(true, Ordering::Release);
+    }
+    pub fn is_cancelled(&self) -> bool {
+        self.0.cancelled.load(Ordering::Acquire)
+    }
+    pub fn cleanup_failed(&self) -> bool {
+        self.0.cleanup_failed.load(Ordering::Acquire)
+    }
+    #[cfg(unix)]
+    fn note_cleanup_failure(&self) {
+        self.0.cleanup_failed.store(true, Ordering::Release);
+        self.cancel();
+    }
+}
+
+pub(super) fn check_cancelled(cancellation: Option<&ScanCancellation>) -> Result<(), ScanError> {
+    if cancellation.is_some_and(ScanCancellation::is_cancelled) {
+        Err(ScanError::Cancelled)
+    } else {
+        Ok(())
+    }
+}
 
 pub(super) static ONE_RUN: Mutex<()> = Mutex::new(());
 #[cfg(test)]
@@ -77,6 +119,9 @@ pub enum ScanError {
     /// The binary does not match its pin, so it was not run.
     Digest,
     Spawn,
+    Cancelled,
+    /// The owned child did not reap within the cleanup deadline.
+    CleanupFailed,
     Timeout,
     OutputTooLarge,
     Failed(Option<i32>),
@@ -130,12 +175,28 @@ pub fn scan(request: &ScanRequest<'_>) -> Result<Vec<UsageRow>, ScanError> {
     scan_daily_roots(request, &[request.folder])
 }
 
+pub fn scan_with_cancellation(
+    request: &ScanRequest<'_>,
+    cancellation: &ScanCancellation,
+) -> Result<Vec<UsageRow>, ScanError> {
+    scan_daily_roots_controlled(request, &[request.folder], Some(cancellation))
+}
+
 /// One complete daily report for all consented roots of an enabled legacy tool.
 /// The pinned scanner receives the roots together so copied events share one scan.
 pub fn scan_daily_roots(
     request: &ScanRequest<'_>,
     folders: &[&Path],
 ) -> Result<Vec<UsageRow>, ScanError> {
+    scan_daily_roots_controlled(request, folders, None)
+}
+
+fn scan_daily_roots_controlled(
+    request: &ScanRequest<'_>,
+    folders: &[&Path],
+    cancellation: Option<&ScanCancellation>,
+) -> Result<Vec<UsageRow>, ScanError> {
+    check_cancelled(cancellation)?;
     let _one = ONE_RUN.try_lock().map_err(|_| ScanError::Busy)?;
     tool(request.tool)
         .filter(|t| {
@@ -150,6 +211,7 @@ pub fn scan_daily_roots(
         request,
         &["daily", "--json", "--offline", "--by-agent", "--no-color"],
         folders,
+        cancellation,
     )?;
     let rows = parse_daily_by_agent(&output).map_err(ScanError::Report)?;
     // A row of another tool means that ccusage read a folder that it was not given.
@@ -158,11 +220,26 @@ pub fn scan_daily_roots(
             "a tool that the run did not ask for".into(),
         )));
     }
+    check_cancelled(cancellation)?;
     Ok(rows)
 }
 
 /// The session report of the granted tool (OU-LOG-017, SC-021).
 pub fn scan_sessions(request: &ScanRequest<'_>) -> Result<Vec<SessionRow>, ScanError> {
+    scan_sessions_controlled(request, None)
+}
+
+pub fn scan_sessions_with_cancellation(
+    request: &ScanRequest<'_>,
+    cancellation: &ScanCancellation,
+) -> Result<Vec<SessionRow>, ScanError> {
+    scan_sessions_controlled(request, Some(cancellation))
+}
+
+fn scan_sessions_controlled(
+    request: &ScanRequest<'_>,
+    cancellation: Option<&ScanCancellation>,
+) -> Result<Vec<SessionRow>, ScanError> {
     let tool = tool(request.tool)
         .filter(|tool| tool.enabled && tool.session_shape.is_some())
         .map(|tool| tool.id.as_str())
@@ -170,12 +247,29 @@ pub fn scan_sessions(request: &ScanRequest<'_>) -> Result<Vec<SessionRow>, ScanE
     let output = run(
         request,
         &[tool, "session", "--json", "--offline", "--no-color"],
+        cancellation,
     )?;
-    parse_sessions(tool, &output).map_err(ScanError::Report)
+    let rows = parse_sessions(tool, &output).map_err(ScanError::Report)?;
+    check_cancelled(cancellation)?;
+    Ok(rows)
 }
 
 /// The one-hour blocks of Claude Code (OU-LOG-017, SC-021). Blocks take no start date here.
 pub fn scan_hours(request: &ScanRequest<'_>) -> Result<Vec<HourRow>, ScanError> {
+    scan_hours_controlled(request, None)
+}
+
+pub fn scan_hours_with_cancellation(
+    request: &ScanRequest<'_>,
+    cancellation: &ScanCancellation,
+) -> Result<Vec<HourRow>, ScanError> {
+    scan_hours_controlled(request, Some(cancellation))
+}
+
+fn scan_hours_controlled(
+    request: &ScanRequest<'_>,
+    cancellation: Option<&ScanCancellation>,
+) -> Result<Vec<HourRow>, ScanError> {
     if !tool(request.tool).is_some_and(|tool| tool.enabled && tool.hours) || request.since.is_some()
     {
         return Err(ScanError::InvalidRequest);
@@ -183,17 +277,25 @@ pub fn scan_hours(request: &ScanRequest<'_>) -> Result<Vec<HourRow>, ScanError> 
     let output = run(
         request,
         &["blocks", "--json", "--offline", "--no-color", "-n", "1"],
+        cancellation,
     )?;
-    parse_hours(&output).map_err(ScanError::Report)
+    let rows = parse_hours(&output).map_err(ScanError::Report)?;
+    check_cancelled(cancellation)?;
+    Ok(rows)
 }
 
 /// Runs the pinned binary once with fixed arguments and returns its output (OU-LOG-006).
-fn run(request: &ScanRequest<'_>, fixed: &[&str]) -> Result<Vec<u8>, ScanError> {
+fn run(
+    request: &ScanRequest<'_>,
+    fixed: &[&str],
+    cancellation: Option<&ScanCancellation>,
+) -> Result<Vec<u8>, ScanError> {
+    check_cancelled(cancellation)?;
     let _one = ONE_RUN.try_lock().map_err(|_| ScanError::Busy)?;
     tool(request.tool)
         .filter(|tool| tool.enabled)
         .ok_or(ScanError::InvalidRequest)?;
-    run_roots(request, fixed, &[request.folder])
+    run_roots(request, fixed, &[request.folder], cancellation)
 }
 
 // The caller holds ONE_RUN and checks tool enablement. Tests can exercise disabled adapters here.
@@ -201,7 +303,15 @@ pub(super) fn run_roots(
     request: &ScanRequest<'_>,
     fixed: &[&str],
     folders: &[&Path],
+    cancellation: Option<&ScanCancellation>,
 ) -> Result<Vec<u8>, ScanError> {
+    check_cancelled(cancellation)?;
+    // No scanner is pinned on non-Unix platforms. Keep their existing plain API,
+    // but refuse a cancellable run before spawning until capture is qualified there.
+    #[cfg(not(unix))]
+    if cancellation.is_some() {
+        return Err(ScanError::Unavailable);
+    }
     let definition = tool(request.tool).ok_or(ScanError::InvalidRequest)?;
     let variable = definition.folder_variable.as_deref();
     let empty =
@@ -230,6 +340,7 @@ pub(super) fn run_roots(
         return Err(ScanError::Digest);
     }
     drop(bytes);
+    check_cancelled(cancellation)?;
     let mut args = fixed.to_vec();
     // Estimated value always uses token prices, never a stored charge (OU-LOG-014).
     args.extend(["--mode", "calculate"]);
@@ -237,7 +348,8 @@ pub(super) fn run_roots(
     if let Some(since) = request.since {
         args.extend(["--since", since]);
     }
-    let mut child = Command::new(request.binary)
+    let mut command = Command::new(request.binary);
+    command
         .args(&args)
         .env_clear()
         .env("HOME", request.empty_home)
@@ -246,10 +358,123 @@ pub(super) fn run_roots(
         .env("TZ", "UTC")
         .current_dir(request.empty_home)
         .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
+        .stderr(Stdio::null());
+    capture(command, request, cancellation)
+}
+
+// Only the retained Child is signaled. No process name, process group, or borrowed FD is used.
+#[cfg(unix)]
+fn stop_owned(child: &mut Child) -> Result<(), ScanError> {
+    if child
+        .try_wait()
+        .map_err(|_| ScanError::CleanupFailed)?
+        .is_some()
+    {
+        return Ok(());
+    }
+    let _ = child.kill();
+    let deadline = Instant::now() + CLEANUP_TIMEOUT;
+    loop {
+        if child
+            .try_wait()
+            .map_err(|_| ScanError::CleanupFailed)?
+            .is_some()
+        {
+            return Ok(());
+        }
+        if Instant::now() >= deadline {
+            return Err(ScanError::CleanupFailed);
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+
+#[cfg(unix)]
+fn capture(
+    mut command: Command,
+    request: &ScanRequest<'_>,
+    cancellation: Option<&ScanCancellation>,
+) -> Result<Vec<u8>, ScanError> {
+    use std::io::ErrorKind;
+    use std::os::{fd::OwnedFd, unix::net::UnixStream};
+    let (mut output, writer) = UnixStream::pair().map_err(|_| ScanError::Spawn)?;
+    output.set_nonblocking(true).map_err(|_| ScanError::Spawn)?;
+    let mut child = command
+        .stdout(Stdio::from(OwnedFd::from(writer)))
         .spawn()
         .map_err(|_| ScanError::Spawn)?;
+    // Command retains its configured stdout descriptor. Drop it before waiting for EOF.
+    drop(command);
+    let deadline = Instant::now() + request.timeout;
+    let mut bytes = Vec::new();
+    let mut chunk = [0u8; 64 * 1024];
+    let mut status = None;
+    let mut eof = false;
+    let result = loop {
+        if let Err(error) = check_cancelled(cancellation) {
+            break Err(error);
+        }
+        if Instant::now() >= deadline {
+            break Err(ScanError::Timeout);
+        }
+        if status.is_none() {
+            match child.try_wait() {
+                Ok(found) => status = found,
+                Err(_) => break Err(ScanError::Spawn),
+            }
+        }
+        // One bounded chunk per turn keeps cancellation effective under continuous output.
+        let mut received = false;
+        if !eof {
+            match output.read(&mut chunk) {
+                Ok(0) => eof = true,
+                Ok(length) if length <= request.max_output.saturating_sub(bytes.len()) => {
+                    bytes.extend_from_slice(&chunk[..length]);
+                    received = true;
+                }
+                Ok(_) => break Err(ScanError::OutputTooLarge),
+                Err(error)
+                    if error.kind() == ErrorKind::WouldBlock
+                        || error.kind() == ErrorKind::Interrupted => {}
+                Err(_) => break Err(ScanError::OutputTooLarge),
+            }
+        }
+        if let Some(status) = status
+            && eof
+        {
+            break if status.success() {
+                Ok(bytes)
+            } else {
+                Err(ScanError::Failed(status.code()))
+            };
+        }
+        if !received {
+            thread::sleep(Duration::from_millis(20));
+        }
+    };
+    if result.is_err()
+        && let Err(error) = stop_owned(&mut child)
+    {
+        if let Some(cancellation) = cancellation {
+            cancellation.note_cleanup_failure();
+        }
+        return Err(error);
+    }
+    result
+}
+
+// Existing non-cancellable capture is retained on platforms without a pinned scanner.
+#[cfg(not(unix))]
+fn capture(
+    mut command: Command,
+    request: &ScanRequest<'_>,
+    _cancellation: Option<&ScanCancellation>,
+) -> Result<Vec<u8>, ScanError> {
+    let mut child = command
+        .stdout(Stdio::piped())
+        .spawn()
+        .map_err(|_| ScanError::Spawn)?;
+    drop(command);
     let mut stdout = child.stdout.take().ok_or(ScanError::Spawn)?;
     let limit = request.max_output;
     let reader = thread::spawn(move || -> Result<Vec<u8>, ()> {

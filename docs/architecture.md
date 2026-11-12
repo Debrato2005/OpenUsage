@@ -34,6 +34,7 @@ Today Codex is the only source, and its path has no general adapter layer. The p
 | `crates/openusage-locallogs/` | Pinned `ccusage` binary checks, folder detection, the hardened runner, and the strict daily, session and hourly report parsers for local logs |
 | `crates/openusage-cli/` | The `openusage` command, with no webview dependency |
 | `crates/openusage-keys/` | The database key in the OS credential store, for the app and the CLI |
+| `crates/openusage-board/` | Bounded GitHub device authorization and public leaderboard HTTP transport. CLI and desktop integration remain open |
 | `services/leaderboard/` | The opt-in leaderboard Worker and its D1 schema |
 | `packaging/` | The npm launcher, its README, and third-party notices for the packages |
 | `tests/contract/` | IPC contract checks |
@@ -100,6 +101,20 @@ Share images use the same selected dated scope and its zone. Both PNG and SVG sa
 
 The CLI reads today's value separately for each saved scope and zone. Legacy, grouped, and unplaced records never enter one combined total. Its [version 2 JSON](../crates/openusage-cli/README.md#output) gives each local measurement an exact value or null, its state, source, status, and observation time. Legacy maxima have no per-record time. Their latest scan time stays separate. `report` scans all detected roots of each enabled tool together, filters the full daily report, and saves nothing.
 
+## Owned scanner shutdown
+
+The [local-log runner](../crates/openusage-locallogs/README.md#cancellation-and-cleanup)
+uses one-way cancellation separate from consent. Unix capture checks a bounded
+nonblocking output read between cancellation and deadline checks. Cleanup signals
+only the retained child and uses a two-second reap budget. Failed reports do
+not enter storage.
+
+`shutdown.rs` handles `ExitRequested` once. It signals local scanning and
+monitoring before it joins workers outside the GUI thread and workspace lock.
+Final exit follows cleanup. A cleanup failure gives a generic diagnostic and
+nonzero exit code. The [native record](reviews/2026-11-13-owned-scanner-shutdown.md)
+covers Linux only. Tray, autostart, and wake handling remain open.
+
 ## Profile removal
 
 The Rust-only `Storage::remove_profile` API accepts a profile UUID, its expected
@@ -150,7 +165,7 @@ unavailable. Native calls on other platforms can outlive their timeout.
 - **Processes:** the Rust supervisor owns every child process. At most two collections run at once.
 - **Numbers:** Rust does exact arithmetic. Token counts cross IPC as decimal strings. A missing value stays missing.
 - **Renderer:** React calls only registered typed commands. It has no direct file or process access. Its content security policy allows `blob:` images only so that a share preview can show the Rust-made SVG as an image, which runs no script, and draw it as PNG.
-- **Network:** OpenUsage declares no HTTP client in Rust. The official Codex child process makes provider requests.
+- **Network:** The official Codex child process makes provider requests. The separate [leaderboard client](../crates/openusage-board/README.md) uses the approved [HTTP policy](decisions/2026-11-13-leaderboard-http-client.md). Missing build settings leave it inert. It has no production caller yet. Private website sync remains unbuilt.
 - **Storage:** one service coordinates all writes. Current state and history are separate.
 - **Read snapshots:** `Storage::read_snapshot` keeps the CLI's upload projection inside one query-only transaction. Concurrent desktop writes cannot mix its source, scope, and row generations. The callback cannot open another transaction.
 

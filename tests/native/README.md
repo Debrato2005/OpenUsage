@@ -31,6 +31,40 @@ Set `OPENUSAGE_NATIVE_EVIDENCE` to select the evidence directory.
 
 This test uses the [official external-driver setup](https://v2.tauri.app/develop/tests/webdriver/manual-setup/).
 
+## Owned scanner shutdown
+
+This Linux journey checks normal Quit while an owned scanner and a scheduled
+provider read are active. It keeps an external stdout holder and an unrelated
+sentinel alive. A read-only oracle compares all 42 encrypted database tables
+and the protected key before and after Quit. All inputs are private and synthetic.
+
+Use the shared Cargo target and environment from the
+[engineering workflow](../../docs/engineering-workflow.md). Build the renderer,
+then the test application and the existing activity oracle:
+
+```sh
+bun run build
+cargo build --locked -p openusage-desktop --features native-test
+cargo build --locked --manifest-path tests/native/backup-verifier/Cargo.toml
+```
+
+Set `OPENUSAGE_NATIVE_BINARY` to the absolute shared-target desktop path.
+Set `OPENUSAGE_LOGIN_VERIFIER` to the built `openusage-native-activity-verifier`.
+Set `OPENUSAGE_LOGIN_VERIFIER_SHA256` to its checked digest. Set
+`OPENUSAGE_NATIVE_EVIDENCE` to a new private output directory. Set the driver
+variables above if needed. The harness creates the pinned scanner fixture.
+
+```sh
+timeout 240 xvfb-run -a node tests/native/owned-shutdown.mjs
+```
+
+Then build the normal desktop without features. Select a separate evidence
+path and run the guard with `OPENUSAGE_SHUTDOWN_PRODUCTION_GATE=1`.
+The guard checks that the exact fixture override cannot execute and that the
+normal binary excludes its override and version strings. It also checks Close.
+The [record](../../docs/reviews/2026-11-13-owned-scanner-shutdown.md) owns executed
+results. Tray, autostart, live providers, and other platforms remain separate.
+
 ## Native Pi candidate
 
 This Linux experiment uses the disabled Pi candidate through the normal consent,

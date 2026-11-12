@@ -27,6 +27,7 @@ PACKAGES = {'crates/openusage-storage/': 'openusage-storage',
             'crates/openusage-locallogs/': 'openusage-locallogs',
             'crates/openusage-keys/': 'openusage-keys',
             'crates/openusage-cli/': 'openusage-cli',
+            'crates/openusage-board/': 'openusage-board',
             'apps/desktop/src-tauri/': 'openusage-desktop'}
 SIGNALS = {'permission': r'permission denied|operation not permitted',
            'missing_dependency': r'not found|no such file|cannot find',

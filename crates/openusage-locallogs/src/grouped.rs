@@ -1,5 +1,5 @@
 //! Complete reports for the additional tools. A folder group is one accounting scope (SC-022).
-use crate::runner::{ONE_RUN, run_roots};
+use crate::runner::{ONE_RUN, ScanCancellation, check_cancelled, run_roots};
 use crate::tools::{PeriodPolicy, SessionShape, tool};
 use crate::{
     AgentPeriod, AgentSession, ScanError, ScanRequest, parse_agent_periods, parse_agent_sessions,
@@ -36,10 +36,27 @@ pub fn scan_grouped_with_check(
     request: &GroupedScanRequest<'_>,
     check: impl FnMut() -> bool,
 ) -> Result<GroupedScanResult, ScanError> {
+    scan_grouped_controlled(request, check, None)
+}
+
+/// Cancellation is independent of the existing consent fences.
+pub fn scan_grouped_with_cancellation(
+    request: &GroupedScanRequest<'_>,
+    check: impl FnMut() -> bool,
+    cancellation: &ScanCancellation,
+) -> Result<GroupedScanResult, ScanError> {
+    scan_grouped_controlled(request, check, Some(cancellation))
+}
+
+fn scan_grouped_controlled(
+    request: &GroupedScanRequest<'_>,
+    check: impl FnMut() -> bool,
+    cancellation: Option<&ScanCancellation>,
+) -> Result<GroupedScanResult, ScanError> {
     tool(request.tool)
         .filter(|tool| tool.enabled)
         .ok_or(ScanError::InvalidRequest)?;
-    scan_grouped_checked(request, check)
+    scan_grouped_checked(request, check, cancellation)
 }
 
 /// Exercise the grouped path for the disabled Pi candidate in the qualification harness.
@@ -48,18 +65,55 @@ pub fn qualify_pi_candidate(
     request: &GroupedScanRequest<'_>,
     check: impl FnMut() -> bool,
 ) -> Result<GroupedScanResult, ScanError> {
+    qualify_pi_controlled(request, check, None)
+}
+
+#[cfg(feature = "pi-qualification")]
+pub fn qualify_pi_candidate_with_cancellation(
+    request: &GroupedScanRequest<'_>,
+    check: impl FnMut() -> bool,
+    cancellation: &ScanCancellation,
+) -> Result<GroupedScanResult, ScanError> {
+    qualify_pi_controlled(request, check, Some(cancellation))
+}
+
+#[cfg(feature = "pi-qualification")]
+fn qualify_pi_controlled(
+    request: &GroupedScanRequest<'_>,
+    check: impl FnMut() -> bool,
+    cancellation: Option<&ScanCancellation>,
+) -> Result<GroupedScanResult, ScanError> {
     if request.tool != "pi" {
         return Err(ScanError::InvalidRequest);
     }
-    scan_grouped_checked(request, check)
+    scan_grouped_checked(request, check, cancellation)
 }
 
 #[cfg(all(feature = "codex-qualification", target_os = "linux"))]
 /// Exercise one Codex snapshot through the isolated Linux qualification path.
 pub fn qualify_codex_candidate(
     request: &GroupedScanRequest<'_>,
-    mut check: impl FnMut() -> bool,
+    check: impl FnMut() -> bool,
 ) -> Result<GroupedScanResult, ScanError> {
+    qualify_codex_controlled(request, check, None)
+}
+
+#[cfg(all(feature = "codex-qualification", target_os = "linux"))]
+pub fn qualify_codex_candidate_with_cancellation(
+    request: &GroupedScanRequest<'_>,
+    check: impl FnMut() -> bool,
+    cancellation: &ScanCancellation,
+) -> Result<GroupedScanResult, ScanError> {
+    qualify_codex_controlled(request, check, Some(cancellation))
+}
+
+#[cfg(all(feature = "codex-qualification", target_os = "linux"))]
+fn qualify_codex_controlled(
+    request: &GroupedScanRequest<'_>,
+    mut check: impl FnMut() -> bool,
+    cancellation: Option<&ScanCancellation>,
+) -> Result<GroupedScanResult, ScanError> {
+    check_cancelled(cancellation)?;
     if request.tool != "codex" {
         return Err(ScanError::InvalidRequest);
     }
@@ -86,6 +140,7 @@ pub fn qualify_codex_candidate(
         },
         &["codex", "snapshot", "--json", "--offline", "--no-color"],
         request.folders,
+        cancellation,
     )?;
     let result = crate::parse_codex_snapshot(&output).map_err(ScanError::Report)?;
     if !check()
@@ -96,13 +151,16 @@ pub fn qualify_codex_candidate(
     {
         return Err(ScanError::InvalidRequest);
     }
+    check_cancelled(cancellation)?;
     Ok(result)
 }
 
 fn scan_grouped_checked(
     request: &GroupedScanRequest<'_>,
     mut check: impl FnMut() -> bool,
+    cancellation: Option<&ScanCancellation>,
 ) -> Result<GroupedScanResult, ScanError> {
+    check_cancelled(cancellation)?;
     let definition = tool(request.tool)
         .filter(|tool| tool.session_shape == Some(SessionShape::Agent))
         .ok_or(ScanError::InvalidRequest)?;
@@ -136,6 +194,7 @@ fn scan_grouped_checked(
             },
             fixed,
             request.folders,
+            cancellation,
         )?;
         remaining_output -= output.len();
         Ok::<_, ScanError>(output)
@@ -152,6 +211,7 @@ fn scan_grouped_checked(
         {
             return Err(ScanError::InvalidRequest);
         }
+        check_cancelled(cancellation)?;
         return Ok(result);
     }
     let dated = if policy.period == PeriodPolicy::Day {
@@ -185,6 +245,7 @@ fn scan_grouped_checked(
     {
         return Err(ScanError::InvalidRequest);
     }
+    check_cancelled(cancellation)?;
     Ok(GroupedScanResult { periods, sessions })
 }
 

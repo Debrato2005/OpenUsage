@@ -1,0 +1,416 @@
+--- a/rust/adapters/codex/src/aggregate.rs
++++ b/rust/adapters/codex/src/aggregate.rs
+@@ -78,6 +78,15 @@
+ ) -> Result<BTreeMap<String, CodexGroup>> {
+     let sources = paths::codex_usage_sources()?;
+     if let Some(mut events) = super::paginated::load(
++        &sources
++            .iter()
++            .map(|source| source.dir.clone())
++            .collect::<Vec<_>>(),
++    )? {
++        filter_events_by_date(&mut events, shared)?;
++        return aggregate_events(&events, kind, shared.timezone.as_deref());
++    }
++    if let Some(mut events) = super::legacy::load(
+         &sources
+             .iter()
+             .map(|source| source.dir.clone())
+@@ -154,6 +163,10 @@
+     kind: AgentReportKind,
+ ) -> Result<BTreeMap<String, CodexGroup>> {
+     if let Some(mut events) = super::paginated::load(&[sessions_dir.to_path_buf()])? {
++        filter_events_by_date(&mut events, shared)?;
++        return aggregate_events(&events, kind, shared.timezone.as_deref());
++    }
++    if let Some(mut events) = super::legacy::load(&[sessions_dir.to_path_buf()])? {
+         filter_events_by_date(&mut events, shared)?;
+         return aggregate_events(&events, kind, shared.timezone.as_deref());
+     }
+--- /dev/null
++++ b/rust/adapters/codex/src/legacy.rs
+@@ -0,0 +1,244 @@
++//! Synthetic legacy observations use recorded thread identity and complete streams.
++use std::{collections::BTreeMap, io::Read, path::PathBuf};
++
++use serde_json::Value;
++
++use crate::{CodexTokenUsageEvent, Result, cli_error};
++
++const MAX_FILE: usize = 32 << 20;
++const MAX_TOTAL: usize = 64 << 20;
++const MAX_LINE: usize = 1 << 20;
++const MAX_RECORDS: usize = 100_000;
++const MAX_EXACT: u64 = (1_u64 << 53) - 1;
++
++fn unavailable() -> crate::CliError {
++    cli_error(
++        "Codex legacy capture is unavailable: incomplete, conflicting, unsupported, or over limit",
++    )
++}
++
++pub(super) fn load(roots: &[PathBuf]) -> Result<Option<Vec<CodexTokenUsageEvent>>> {
++    if roots.len() > super::record_files::MAX_ROOTS {
++        return Err(unavailable());
++    }
++    let mut existing = false;
++    for root in roots {
++        match std::fs::symlink_metadata(root) {
++            Ok(_) => existing = true,
++            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
++            Err(_) => return Err(unavailable()),
++        }
++    }
++    // Ordinary multi-tool reports allow an absent tool with no observations.
++    // Once any source exists, every selected root enters the checked capture.
++    if !existing {
++        return Ok(None);
++    }
++    let mut threads: BTreeMap<String, (Vec<Vec<u8>>, [u64; 6])> = BTreeMap::new();
++    let mut bytes = 0usize;
++    let mut records = 0usize;
++    super::record_files::read_legacy(roots, |path, _, raw| {
++        let decoded;
++        let content = if path.extension().is_some_and(|extension| extension == "zst") {
++            let mut reader = zstd::stream::read::Decoder::new(raw).map_err(|_| unavailable())?;
++            decoded = {
++                let mut output = Vec::new();
++                reader
++                    .by_ref()
++                    .take(MAX_FILE as u64 + 1)
++                    .read_to_end(&mut output)
++                    .map_err(|_| unavailable())?;
++                output
++            };
++            decoded.as_slice()
++        } else {
++            raw
++        };
++        bytes = bytes.checked_add(content.len()).ok_or_else(unavailable)?;
++        if content.len() > MAX_FILE || bytes > MAX_TOTAL {
++            return Err(unavailable());
++        }
++        let mut rows = Vec::new();
++        for line in content.split(|byte| *byte == b'\n') {
++            if line.iter().all(u8::is_ascii_whitespace) {
++                continue;
++            }
++            records = records.checked_add(1).ok_or_else(unavailable)?;
++            if line.len() > MAX_LINE || records > MAX_RECORDS {
++                return Err(unavailable());
++            }
++            rows.push(super::record_json::parse(line).map_err(|_| unavailable())?);
++        }
++        if rows.is_empty() {
++            return Ok(());
++        }
++        let thread = identity(&rows[0])?.to_owned();
++        let total = validate(&rows)?;
++        let canonical = rows
++            .iter()
++            .map(serde_json::to_vec)
++            .collect::<std::result::Result<Vec<_>, _>>()
++            .map_err(|_| unavailable())?;
++        if let Some(previous) = threads.get_mut(&thread) {
++            if canonical.starts_with(&previous.0) {
++                *previous = (canonical, total);
++            } else if !previous.0.starts_with(&canonical) {
++                return Err(unavailable());
++            }
++        } else {
++            threads.insert(thread, (canonical, total));
++        }
++        Ok(())
++    })
++    .map_err(|_| unavailable())?;
++    if threads.is_empty() {
++        return Ok(None);
++    }
++    let mut events = Vec::new();
++    let mut joint = [0_u64; 6];
++    for (thread, (rows, total)) in threads {
++        for index in 0..6 {
++            joint[index] = joint[index]
++                .checked_add(total[index])
++                .filter(|value| *value <= MAX_EXACT)
++                .ok_or_else(unavailable)?;
++        }
++        events.extend(super::parser::captured_legacy_entries(&thread, &rows)?);
++    }
++    Ok(Some(events))
++}
++
++fn identity(row: &Value) -> Result<&str> {
++    if row["type"] != "session_meta"
++        || !row["payload"].is_object()
++        || row["payload"]
++            .get("history_mode")
++            .is_some_and(|value| value != "legacy")
++    {
++        return Err(unavailable());
++    }
++    row["payload"]["id"]
++        .as_str()
++        .filter(|id| {
++            !id.is_empty()
++                && id.len() <= 1024
++                && id.trim() == *id
++                && !id.chars().any(char::is_control)
++        })
++        .ok_or_else(unavailable)
++}
++
++fn usage(value: &Value) -> Result<[u64; 6]> {
++    if !value.is_object() {
++        return Err(unavailable());
++    }
++    let mut counts = [0; 6];
++    for (index, field) in [
++        "input_tokens",
++        "cached_input_tokens",
++        "cache_write_input_tokens",
++        "output_tokens",
++        "reasoning_output_tokens",
++        "total_tokens",
++    ]
++    .iter()
++    .enumerate()
++    {
++        let raw = if *field == "cache_write_input_tokens" {
++            match (value.get(*field), value.get("cache_creation_input_tokens")) {
++                (Some(_), Some(_)) => return Err(unavailable()),
++                (None, None) => {
++                    counts[index] = 0;
++                    continue;
++                }
++                (Some(value), None) | (None, Some(value)) => value,
++            }
++        } else {
++            value.get(*field).ok_or_else(unavailable)?
++        };
++        counts[index] = raw
++            .as_u64()
++            .filter(|count| *count <= MAX_EXACT)
++            .ok_or_else(unavailable)?;
++    }
++    let [input, cached, write, output, reasoning, total] = counts;
++    if cached.checked_add(write).is_none_or(|value| value > input)
++        || reasoning > output
++        || input.checked_add(output) != Some(total)
++    {
++        return Err(unavailable());
++    }
++    Ok(counts)
++}
++
++fn validate(rows: &[Value]) -> Result<[u64; 6]> {
++    let meta = &rows[0]["payload"];
++    if [
++        "forked_from_id",
++        "forked_from_ordinal_exclusive",
++        "parent_thread_id",
++        "history_base",
++        "subagent_history_start_ordinal",
++    ]
++    .iter()
++    .any(|field| meta.get(*field).is_some_and(|value| !value.is_null()))
++        || meta
++            .get("source")
++            .is_some_and(|source| source == "subagent" || source.get("subagent").is_some())
++    {
++        return Err(unavailable());
++    }
++    let mut previous = [0; 6];
++    for (index, row) in rows.iter().enumerate() {
++        let kind = row["type"].as_str().ok_or_else(unavailable)?;
++        if !row.is_object()
++            || row.get("ordinal").is_some()
++            || (index != 0 && kind == "session_meta")
++            || matches!(
++                kind,
++                "token_usage_record"
++                    | "compacted"
++                    | "inter_agent_communication"
++                    | "inter_agent_communication_metadata"
++                    | "thread_rolled_back"
++            )
++        {
++            return Err(unavailable());
++        }
++        let payload = &row["payload"];
++        if kind == "event_msg"
++            && matches!(
++                payload["type"].as_str(),
++                Some("thread_rolled_back" | "context_compacted")
++            )
++        {
++            return Err(unavailable());
++        }
++        if kind != "event_msg" || payload["type"] != "token_count" {
++            continue;
++        }
++        let info = &payload["info"];
++        if info.is_null() {
++            continue;
++        }
++        if super::parser::codex_value_timestamp(row.get("timestamp")).is_none() {
++            return Err(unavailable());
++        }
++        let total = usage(&info["total_token_usage"])?;
++        let last = usage(&info["last_token_usage"])?;
++        let mut delta = [0; 6];
++        for index in 0..6 {
++            delta[index] = total[index]
++                .checked_sub(previous[index])
++                .ok_or_else(unavailable)?;
++            if last[index] > total[index] {
++                return Err(unavailable());
++            }
++        }
++        if total != previous && delta != last {
++            return Err(unavailable());
++        }
++        previous = total;
++    }
++    Ok(previous)
++}
+--- a/rust/adapters/codex/src/lib.rs
++++ b/rust/adapters/codex/src/lib.rs
+@@ -2,6 +2,7 @@
+ use ccusage_core::*;
+ 
+ mod aggregate;
++mod legacy;
+ mod loader;
+ mod paginated;
+ mod parser;
+--- a/rust/adapters/codex/src/loader.rs
++++ b/rust/adapters/codex/src/loader.rs
+@@ -25,6 +25,9 @@
+     single_thread: bool,
+ ) -> Result<Vec<CodexTokenUsageEvent>> {
+     if let Some(events) = super::paginated::load(&[sessions_dir.to_path_buf()])? {
++        return Ok(events);
++    }
++    if let Some(events) = super::legacy::load(&[sessions_dir.to_path_buf()])? {
+         return Ok(events);
+     }
+     let files = collect_codex_usage_files(sessions_dir);
+@@ -73,6 +76,18 @@
+             .collect::<Vec<_>>(),
+     )? {
+         let detected = !events.is_empty();
++        return Ok((events, detected));
++    }
++    if let Some(mut events) = super::legacy::load(
++        &sources
++            .iter()
++            .map(|source| source.dir.clone())
++            .collect::<Vec<_>>(),
++    )? {
++        let detected = !events.is_empty();
++        if let Some(shared) = shared {
++            super::aggregate::filter_events_by_date(&mut events, shared)?;
++        }
+         return Ok((events, detected));
+     }
+     if let [source] = sources {
+--- a/rust/adapters/codex/src/parser.rs
++++ b/rust/adapters/codex/src/parser.rs
+@@ -351,6 +351,31 @@
+     }
+ 
+     Ok(())
++}
++
++// The legacy capture layer already established stream ownership and counter validity.
++// Parse its immutable rows without the historical replay timing heuristics.
++pub(super) fn captured_legacy_entries(
++    thread_id: &str,
++    rows: &[Vec<u8>],
++) -> Result<Vec<CodexTokenUsageEvent>> {
++    let mut state = CodexSessionUsageState::default();
++    let mut events = Vec::new();
++    for row in rows {
++        let value = serde_json::from_slice::<CodexSessionLogEntry<'_>>(row).map_err(|_| {
++            crate::cli_error("Codex legacy capture is unavailable: unsupported record")
++        })?;
++        visit_codex_session_entry(thread_id, value, &mut state, &mut |event| {
++            if event.model.as_ref().is_some_and(|model| model.len() > 1024) {
++                return Err(crate::cli_error(
++                    "Codex legacy capture is unavailable: model over limit",
++                ));
++            }
++            events.push(event);
++            Ok(())
++        })?;
++    }
++    Ok(events)
+ }
+ 
+ fn visit_codex_session_entry(
+--- a/rust/adapters/codex/src/record_files.rs
++++ b/rust/adapters/codex/src/record_files.rs
+@@ -18,6 +18,29 @@
+     #[cfg(not(target_os = "linux"))]
+     {
+         let _ = visit;
++        Err(super::paginated::unavailable())
++    }
++}
++
++pub(crate) fn read_legacy(
++    paths: &[PathBuf],
++    visit: impl FnMut(&std::path::Path, &std::path::Path, &[u8]) -> Result<()>,
++) -> Result<()> {
++    #[cfg(target_os = "linux")]
++    {
++        linux::read_with(
++            paths,
++            linux::Limits {
++                compressed: true,
++                ..linux::Limits::default()
++            },
++            |_| {},
++            visit,
++        )
++    }
++    #[cfg(not(target_os = "linux"))]
++    {
++        let _ = (paths, visit);
+         Err(super::paginated::unavailable())
+     }
+ }
+@@ -48,6 +71,7 @@
+         pub depth: usize,
+         pub file_bytes: u64,
+         pub total_bytes: u64,
++        pub compressed: bool,
+     }
+ 
+     impl Default for Limits {
+@@ -59,6 +83,7 @@
+                 depth: 64,
+                 file_bytes: 32 << 20,
+                 total_bytes: 64 << 20,
++                compressed: false,
+             }
+         }
+     }
+@@ -164,10 +189,14 @@
+                     match FileType::from_raw_mode(stat.st_mode) {
+                         FileType::Directory => pending.push((child, depth + 1)),
+                         FileType::RegularFile => {
+-                            if child.extension().is_some_and(|ext| ext == "zst") {
++                            let compressed = child.extension().is_some_and(|ext| ext == "zst");
++                            if compressed
++                                && (!limits.compressed
++                                    || !super::super::reader::is_rollout_file(&child))
++                            {
+                                 return Err(unavailable());
+                             }
+-                            if child.extension().is_none_or(|ext| ext != "jsonl") {
++                            if !compressed && child.extension().is_none_or(|ext| ext != "jsonl") {
+                                 continue;
+                             }
+                             files = files.checked_add(1).ok_or_else(unavailable)?;
