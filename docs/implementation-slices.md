@@ -240,7 +240,7 @@ Updated November 12, 2026. Each completed item has one local commit and scoped e
 **After the launch track**
 
 - [ ] The slices in [Order](#order). Stage 1 needs every mandatory requirement (SRS Section 0.4). The next launch item is L-1f. S-03c remains the first item after the launch track with no owner gate.
-- [ ] L-3c: seven-day, thirty-day, and calendar-month usage receipts with exact saved values, estimate labels, and the existing private preview/save path (OU-SHARE-007/008/010; AT-106).
+- [x] L-3c: seven-day, thirty-day, and current-month receipts through the existing private preview/save path. Exact values, estimate marks, missing dates, no-data, and legacy annual images pass renderer and native Linux acceptance (OU-SHARE-007/008/010; receipt part of AT-106). Subscription comparisons remain open.
 - [ ] S-23: source-aware connection suggestions and access to capacity, value, and joined rank on Overview (OU-ACCT-021, OU-UI-028; AT-97).
 
 ### Completed assignment: L-1f7

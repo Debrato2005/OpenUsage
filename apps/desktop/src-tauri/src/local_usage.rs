@@ -428,8 +428,9 @@ fn day_start_utc(date: Date, zone: &TimeZone) -> Option<String> {
 pub(crate) fn share_view(
     workspace: &mut crate::workspace::Workspace,
     scope: Option<String>,
+    range: crate::share::ShareRange,
 ) -> Result<LocalUsageView, CommandError> {
-    load_view(
+    scopes::load_share_view(
         workspace,
         &LoadArgs {
             days: Some(365),
@@ -438,7 +439,7 @@ pub(crate) fn share_view(
             period: Period::Day,
             scope,
         },
-        false,
+        range,
     )
 }
 

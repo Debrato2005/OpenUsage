@@ -50,6 +50,36 @@ enum Format {
     Png,
 }
 
+#[derive(Default, Deserialize, Serialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ShareRange {
+    #[default]
+    #[serde(rename = "year")]
+    Year,
+    #[serde(rename = "7d")]
+    SevenDays,
+    #[serde(rename = "30d")]
+    ThirtyDays,
+    #[serde(rename = "month")]
+    Month,
+}
+
+impl ShareRange {
+    pub(crate) fn dates(self, today: Date) -> Result<(Date, Date), CommandError> {
+        let start = match self {
+            Self::Month => today.first_of_month(),
+            other => today
+                .checked_sub(Span::new().days(match other {
+                    Self::Year => 364,
+                    Self::SevenDays => 6,
+                    Self::ThirtyDays => 29,
+                    Self::Month => unreachable!(),
+                }))
+                .map_err(|_| CommandError::InvalidArguments)?,
+        };
+        Ok((start, today))
+    }
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct LoadArgs {
@@ -57,6 +87,8 @@ struct LoadArgs {
     branding: bool,
     #[serde(default)]
     scope: Option<String>,
+    #[serde(default)]
+    range: ShareRange,
 }
 
 #[derive(Deserialize)]
@@ -69,6 +101,8 @@ struct SaveArgs {
     png: Option<String>,
     #[serde(default)]
     scope: Option<String>,
+    #[serde(default)]
+    range: ShareRange,
 }
 
 #[derive(Serialize)]
@@ -79,6 +113,27 @@ pub(crate) struct ShareImage {
     height: u32,
     /// A plain description of the image for its alternative text.
     summary: String,
+    details: Option<ShareDetails>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ShareDetails {
+    range: ShareRange,
+    start_date: String,
+    end_date: String,
+    time_zone: String,
+    total_tokens: Option<String>,
+    estimated_value_usd_micros: Option<String>,
+    estimated_value_display: Option<String>,
+    estimate_complete: bool,
+    active_days: Option<usize>,
+    saved_days: usize,
+    missing_days: usize,
+    missing_components: Vec<&'static str>,
+    logs_gone: bool,
+    pricing_basis: &'static str,
+    source_scope: &'static str,
 }
 
 #[derive(Serialize)]
@@ -97,13 +152,15 @@ struct Stats {
     end: String,
     days: Vec<(String, Option<u128>)>,
     total: u128,
-    active_days: usize,
-    longest_streak: usize,
+    total_available: bool,
+    active_days: Option<usize>,
+    longest_streak: Option<usize>,
     busiest: Option<(String, u128)>,
     top_model: Option<String>,
     tools: Vec<(String, u128)>,
     estimate: Option<u128>,
     estimate_complete: bool,
+    missing_components: Vec<&'static str>,
 }
 
 fn stats(view: &crate::local_usage::LocalUsageView) -> Result<Stats, CommandError> {
@@ -139,6 +196,33 @@ fn stats(view: &crate::local_usage::LocalUsageView) -> Result<Stats, CommandErro
     let mut tools = Vec::new();
     let mut priced = None;
     let mut complete = !view.tools.is_empty();
+    let mut missing_components = Vec::new();
+    for (name, missing) in [
+        (
+            "inputTokens",
+            view.tools.iter().any(|t| t.input_tokens.is_none()),
+        ),
+        (
+            "outputTokens",
+            view.tools.iter().any(|t| t.output_tokens.is_none()),
+        ),
+        (
+            "cacheReadTokens",
+            view.tools.iter().any(|t| t.cache_read_tokens.is_none()),
+        ),
+        (
+            "cacheWriteTokens",
+            view.tools.iter().any(|t| t.cache_write_tokens.is_none()),
+        ),
+        (
+            "reasoningTokens",
+            view.tools.iter().any(|t| t.reasoning_tokens.is_none()),
+        ),
+    ] {
+        if missing {
+            missing_components.push(name);
+        }
+    }
     for tool in &view.tools {
         tools.push((tool.tool.clone(), number(&tool.total_tokens)?));
         if let Some(value) = &tool.estimated_value_usd_micros {
@@ -171,8 +255,11 @@ fn stats(view: &crate::local_usage::LocalUsageView) -> Result<Stats, CommandErro
         end: view.end_date.clone(),
         days,
         total,
-        active_days: view.active_days.unwrap_or(0),
-        longest_streak: view.longest_streak_days.unwrap_or(0),
+        total_available: !view.tools.is_empty(),
+        active_days: (!by_day.is_empty()).then_some(view.active_days).flatten(),
+        longest_streak: (!by_day.is_empty())
+            .then_some(view.longest_streak_days)
+            .flatten(),
         busiest: view
             .busiest_day
             .as_ref()
@@ -182,7 +269,41 @@ fn stats(view: &crate::local_usage::LocalUsageView) -> Result<Stats, CommandErro
         tools,
         estimate: priced,
         estimate_complete: complete,
+        missing_components,
     })
+}
+
+fn details(
+    view: &crate::local_usage::LocalUsageView,
+    stats: &Stats,
+    range: ShareRange,
+) -> ShareDetails {
+    let saved_days = stats
+        .days
+        .iter()
+        .filter(|(_, total)| total.is_some())
+        .count();
+    ShareDetails {
+        range,
+        start_date: stats.start.clone(),
+        end_date: stats.end.clone(),
+        time_zone: view.time_zone.clone(),
+        total_tokens: stats.total_available.then(|| stats.total.to_string()),
+        estimated_value_usd_micros: stats.estimate.map(|n| n.to_string()),
+        estimated_value_display: stats.estimate.map(dollars),
+        estimate_complete: stats.estimate_complete,
+        active_days: stats.active_days,
+        saved_days,
+        missing_days: stats.days.len() - saved_days,
+        missing_components: stats.missing_components.clone(),
+        logs_gone: view.tools.iter().any(|tool| tool.logs_gone),
+        pricing_basis: "Stored scanner estimates at public API prices",
+        source_scope: if view.scope == "combined" {
+            "Accepted local history on this device"
+        } else {
+            "Selected accepted local history"
+        },
+    }
 }
 
 fn grouped(value: u128) -> String {
@@ -256,9 +377,17 @@ fn wrapped(stats: &Stats, branding: bool) -> String {
     let _ = write!(
         svg,
         "<text x=\"64\" y=\"222\" font-size=\"128\" font-weight=\"700\" fill=\"{INK}\">{}</text>\
-         <text x=\"64\" y=\"266\" font-size=\"28\" fill=\"{MUTED}\">{} tokens</text>",
-        compact(stats.total),
-        grouped(stats.total)
+         <text x=\"64\" y=\"266\" font-size=\"28\" fill=\"{MUTED}\">{}</text>",
+        if stats.total_available {
+            compact(stats.total)
+        } else {
+            "Not available".into()
+        },
+        if stats.total_available {
+            format!("{} tokens", grouped(stats.total))
+        } else {
+            "Tokens".into()
+        }
     );
     let busiest = stats
         .busiest
@@ -268,8 +397,18 @@ fn wrapped(stats: &Stats, branding: bool) -> String {
         });
     let top = stats.top_model.as_deref().unwrap_or("Not available");
     let tiles = [
-        ("Active days", stats.active_days.to_string()),
-        ("Longest streak", format!("{} days", stats.longest_streak)),
+        (
+            "Active days",
+            stats
+                .active_days
+                .map_or("Not available".into(), |n| n.to_string()),
+        ),
+        (
+            "Longest streak",
+            stats
+                .longest_streak
+                .map_or("Not available".into(), |n| format!("{n} days")),
+        ),
         ("Busiest day", busiest),
         ("Top model", top.to_string()),
     ];
@@ -319,14 +458,14 @@ fn wrapped(stats: &Stats, branding: bool) -> String {
         );
     }
     let estimate = match stats.estimate {
-        None => "Estimated value Not available".to_string(),
+        None => "Estimated API value Not available".to_string(),
         Some(micros) => format!(
-            "Estimated {} at public API prices{}",
+            "Estimated API value {}{}",
             dollars(micros),
             if stats.estimate_complete {
                 ""
             } else {
-                ", some models have no price"
+                " · Incomplete"
             }
         ),
     };
@@ -335,10 +474,19 @@ fn wrapped(stats: &Stats, branding: bool) -> String {
         "<text x=\"64\" y=\"562\" font-size=\"22\" fill=\"{MUTED}\">{}</text>",
         escape(&estimate)
     );
+    let missing_days = stats
+        .days
+        .iter()
+        .filter(|(_, total)| total.is_none())
+        .count();
+    let _ = write!(
+        svg,
+        "<text x=\"64\" y=\"596\" font-size=\"18\" fill=\"{MUTED}\">{missing_days} days without saved usage</text>"
+    );
     if branding {
         let _ = write!(
             svg,
-            "<text x=\"{}\" y=\"592\" font-size=\"20\" text-anchor=\"end\" fill=\"{MUTED}\">OpenUsage  {REPOSITORY}</text>",
+            "<text x=\"{}\" y=\"596\" font-size=\"20\" text-anchor=\"end\" fill=\"{MUTED}\">OpenUsage  {REPOSITORY}</text>",
             width - 64
         );
     }
@@ -461,11 +609,17 @@ fn summary(kind: Kind, stats: &Stats) -> String {
             grouped(stats.total)
         ),
         Kind::Wrapped => format!(
-            "{} tokens from local logs, {} to {}, on {} active days",
-            grouped(stats.total),
+            "{} tokens from local logs, {} to {}, active days: {}",
+            if stats.total_available {
+                grouped(stats.total)
+            } else {
+                "Not available".into()
+            },
             stats.start,
             stats.end,
-            stats.active_days
+            stats
+                .active_days
+                .map_or("Not available".into(), |n| n.to_string())
         ),
         Kind::Heatmap => format!(
             "Tokens per day from local logs, {} to {}",
@@ -479,10 +633,14 @@ fn image(
     kind: Kind,
     branding: bool,
     scope: Option<String>,
-) -> Result<(Stats, String), CommandError> {
-    let view = crate::local_usage::share_view(workspace, scope)?;
+    range: ShareRange,
+) -> Result<(Stats, String, Option<ShareDetails>), CommandError> {
+    if kind != Kind::Wrapped && range != ShareRange::Year {
+        return Err(CommandError::InvalidArguments);
+    }
+    let view = crate::local_usage::share_view(workspace, scope, range)?;
     let stats = stats(&view)?;
-    if view.tools.is_empty() {
+    if view.tools.is_empty() && range == ShareRange::Year {
         return Err(CommandError::InvalidArguments);
     }
     let svg = match kind {
@@ -490,7 +648,8 @@ fn image(
         Kind::Heatmap => heatmap(&stats, branding),
         Kind::Badge => badge(&stats, branding),
     };
-    Ok((stats, svg))
+    let details = (kind == Kind::Wrapped).then(|| details(&view, &stats, range));
+    Ok((stats, svg, details))
 }
 
 fn badge_width(svg: &str) -> Option<u32> {
@@ -526,7 +685,13 @@ pub async fn load_share_image(
 ) -> Result<ShareImage, CommandError> {
     let args: LoadArgs = arguments(&request)?;
     crate::subscriptions::access(service, move |workspace| {
-        let (stats, svg) = image(workspace, args.kind, args.branding, args.scope.clone())?;
+        let (stats, svg, details) = image(
+            workspace,
+            args.kind,
+            args.branding,
+            args.scope.clone(),
+            args.range,
+        )?;
         let (width, height) = match args.kind {
             // The badge width is the first number in its SVG, set by its text.
             Kind::Badge => (
@@ -540,6 +705,7 @@ pub async fn load_share_image(
             width,
             height,
             summary: summary(args.kind, &stats),
+            details,
         })
     })
     .await
@@ -567,7 +733,13 @@ pub async fn save_share_image(
         .map_err(|_| CommandError::ExportUnavailable)?
         .join("OpenUsage");
     crate::subscriptions::access(service, move |workspace| {
-        let (_, svg) = image(workspace, args.kind, args.branding, args.scope.clone())?;
+        let (_, svg, _) = image(
+            workspace,
+            args.kind,
+            args.branding,
+            args.scope.clone(),
+            args.range,
+        )?;
         let bytes = match png {
             Some(bytes) => bytes,
             None => svg.into_bytes(),
@@ -661,7 +833,10 @@ mod tests {
         );
         assert_eq!(stats.days.len(), 8);
         assert_eq!(stats.total, 13_001_003);
-        assert_eq!((stats.active_days, stats.longest_streak), (4, 3));
+        assert_eq!(
+            (stats.active_days, stats.longest_streak),
+            (Some(4), Some(3))
+        );
         assert_eq!(stats.busiest, Some(("2026-11-03".into(), 9_001_000)));
         assert_eq!(stats.top_model.as_deref(), Some("gpt-5-codex"));
         assert_eq!(stats.tools[0], ("codex".into(), 9_000_001));
@@ -689,7 +864,7 @@ mod tests {
         );
         let card = wrapped(&stats, true);
         assert!(card.contains("a&lt;b&gt;&amp;&#39;&quot;") && !card.contains("a<b>"));
-        assert!(card.contains("Estimated value Not available"));
+        assert!(card.contains("Estimated API value Not available"));
         assert!(card.contains(REPOSITORY));
         assert!(!wrapped(&stats, false).contains(REPOSITORY));
         let map = heatmap(&stats, false);

@@ -178,6 +178,21 @@ schema, ownership, paths, and approved restore intent before replacing records.
 boundaries. Credentials, provider authentication sessions, browser cookies, and auth-file contents
 never become application database records or renderer responses.
 
+## Local share images
+
+The [share commands](../apps/desktop/src-tauri/src/share.rs) accept an optional
+`range`: `year`, `7d`, `30d`, or `month`. Omission preserves the 365-day view.
+Only Wrapped accepts shorter ranges. Rust selects dates in the saved source
+zone before it reads and aggregates history. A calendar month means its first
+day through the current source day.
+
+Wrapped returns exact decimal token and estimate values in `details`, with
+dates, zone, saved/missing day counts, and estimate coverage. No-data returns
+null values, not measured zero. The image retains the Estimated label and
+an Incomplete mark when only part of saved usage has an estimate. Provider
+identifiers, paths, project names, and account labels do not enter images.
+The [typed renderer contract](../apps/desktop/src/contracts.ts) owns validation.
+
 ## Planned contract fields and acceptance
 
 Baseline 3.1 adds private snapshot requirements in SRS Sections 14B and 14C.

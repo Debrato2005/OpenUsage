@@ -135,13 +135,33 @@ pub(crate) fn load_view(
     args: &LoadArgs,
     with_sessions: bool,
 ) -> Result<LocalUsageView, CommandError> {
+    load_selected_view(workspace, args, with_sessions, None)
+}
+
+pub(crate) fn load_share_view(
+    workspace: &mut crate::workspace::Workspace,
+    args: &LoadArgs,
+    range: crate::share::ShareRange,
+) -> Result<LocalUsageView, CommandError> {
+    load_selected_view(workspace, args, false, Some(range))
+}
+
+fn load_selected_view(
+    workspace: &mut crate::workspace::Workspace,
+    args: &LoadArgs,
+    with_sessions: bool,
+    share_range: Option<crate::share::ShareRange>,
+) -> Result<LocalUsageView, CommandError> {
     let selection = args.scope.as_deref().unwrap_or("combined");
     let sources = workspace.log_sources()?;
     let groups = workspace.local_usage_scopes()?;
     let zone = scope_zone(selection, &sources, &groups, workspace.local_usage_zone()?)?;
     let tz = TimeZone::get(&zone).map_err(|_| CommandError::StorageUnavailable)?;
     let today = jiff::Timestamp::now().to_zoned(tz.clone()).date();
-    let (start, end) = requested_range(args, today).ok_or(CommandError::InvalidArguments)?;
+    let (start, end) = match share_range {
+        Some(range) => range.dates(today)?,
+        None => requested_range(args, today).ok_or(CommandError::InvalidArguments)?,
+    };
     if args.period == Period::Hour
         && start
             .until(end)
@@ -157,7 +177,19 @@ pub(crate) fn load_view(
         .map_err(|_| CommandError::InvalidArguments)?;
     let since = day_start_utc(start, &tz).ok_or(CommandError::StorageUnavailable)?;
     let until = day_start_utc(next, &tz).ok_or(CommandError::StorageUnavailable)?;
-    let read = workspace.local_usage_read(&start.to_string(), &end.to_string())?;
+    let mut read = workspace.local_usage_read(&start.to_string(), &end.to_string())?;
+    // A selected saved source can have no rows in a shorter receipt period.
+    if share_range.is_some()
+        && let Some(id) = selection.strip_prefix("legacy:")
+        && !read.legacy.iter().any(|legacy| legacy.source.id == id)
+        && let Some(source) = sources.iter().find(|source| source.id == id)
+    {
+        read.legacy.push(openusage_storage::LegacyUsageRead {
+            source: source.clone(),
+            days: Vec::new(),
+            differences: Vec::new(),
+        });
+    }
     let legacy_details =
         if with_sessions && (selection == "combined" || selection.starts_with("legacy:")) {
             workspace.local_usage_range(

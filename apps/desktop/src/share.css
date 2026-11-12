@@ -10,3 +10,11 @@
 .share-actions .primary-button { margin: 0; }
 .share-receipt { margin: 0; color: var(--muted); font-size: var(--text-sm); overflow-wrap: anywhere; }
 .share-preview[data-badge] img { width: auto; max-width: 100%; height: 2.5rem; border-radius: 0; }
+.share-period { display: flex; align-items: center; gap: .75rem; color: var(--text-strong); font-size: var(--text-sm); }
+.share-period select { min-height: 44px; max-width: 100%; padding: .5rem .75rem; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface); color: var(--text); font: inherit; }
+.share-details { color: var(--text-strong); font-size: var(--text-sm); }
+.share-details summary { min-height: 44px; padding-block: .75rem; display: list-item; cursor: pointer; font-weight: 600; }
+.share-details dl { display: grid; grid-template-columns: minmax(8rem, 1fr) minmax(0, 2fr); gap: .5rem 1rem; margin: .5rem 0 0; }
+.share-details dt { color: var(--muted); }
+.share-details dd { margin: 0; overflow-wrap: anywhere; }
+@media (max-width: 480px) { .share-details dl { grid-template-columns: 1fr; gap: .25rem; } .share-details dd + dt { margin-top: .5rem; } }

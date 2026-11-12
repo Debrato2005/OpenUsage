@@ -51,7 +51,7 @@ New in baseline 3.1:
 
 - Private desktop-to-website sync and the responsive personal dashboard: Sections 14B and 14C, Stage 3.
 - Own-rank client views: OU-BOARD-013 and OU-BOARD-014. The service API is complete within the local scope below.
-- Period usage receipts and the combined Overview access: OU-SHARE-007 to OU-SHARE-010 and OU-UI-028.
+- Combined Overview access and optional subscription-price comparisons: OU-UI-028 and OU-SHARE-009. Period receipts have the scoped result below.
 - Explicit provider-connection suggestions: OU-ACCT-021.
 
 New in baseline 3.0:
@@ -70,6 +70,8 @@ Kept from baseline 2.0:
 - Wake handling: OU-PROC-013, OU-MON-013.
 
 ## Partial
+
+- Period receipts (L-3c), November 13, 2026: Wrapped offers seven days, thirty days, and the current calendar month. Rust owns date selection and exact totals. The native share journey passes with synthetic logs and encrypted storage on Linux. Both renderer engines, full workspace tests, and Clippy pass within the combined checks. Annual Heatmap and Badge behavior remains. Real histories, other platforms, public profiles, and subscription comparisons remain open.
 
 - Offline board preview (L-5a0), November 13, 2026: the [CLI contract](../crates/openusage-cli/README.md#offline-leaderboard-preview) prints exact prospective upload bytes from one read-only snapshot. Seven command-entry checks use synthetic encrypted storage, and two process checks pass. The full Rust workspace and Clippy pass. Ambiguous or incomplete saved history refuses safely. Online join, sync, leave, credential storage, and exact real-upload comparison remain open.
 

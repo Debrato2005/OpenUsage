@@ -491,18 +491,45 @@ function isLocalUsageView(value: unknown): value is LocalUsageView {
       && localCount(d.savedTotalTokens) && localCount(d.newTotalTokens) && BigInt(d.newTotalTokens) < BigInt(d.savedTotalTokens) && isUtcTimestamp(d.scanAtUtc));
 }
 export type ShareKind = 'wrapped' | 'heatmap' | 'badge';
-export type ShareImage = { svg: string; width: number; height: number; summary: string };
+export type ShareRange = 'year' | '7d' | '30d' | 'month';
+export type ShareComponent = 'inputTokens' | 'outputTokens' | 'cacheReadTokens' | 'cacheWriteTokens' | 'reasoningTokens';
+export type ShareDetails = {
+  range: ShareRange; startDate: string; endDate: string; timeZone: string;
+  totalTokens: string | null; estimatedValueUsdMicros: string | null; estimatedValueDisplay: string | null;
+  estimateComplete: boolean; activeDays: number | null; savedDays: number; missingDays: number;
+  missingComponents: ShareComponent[]; logsGone: boolean;
+  pricingBasis: 'Stored scanner estimates at public API prices';
+  sourceScope: 'Accepted local history on this device' | 'Selected accepted local history';
+};
+export type ShareImage = { svg: string; width: number; height: number; summary: string; details: ShareDetails | null };
 export type ShareReceipt = { fileName: string; directory: string; format: 'svg' | 'png'; byteCount: string };
 export const shareSizes: Record<Exclude<ShareKind, 'badge'>, [number, number]> = { wrapped: [1200, 630], heatmap: [1000, 230] };
-function isShareImage(value: unknown, kind: ShareKind | undefined): value is ShareImage {
-  if (!exactKeys(value, ['svg', 'width', 'height', 'summary']) || !kind) return false;
+function isShareDetails(value: unknown, range: ShareRange): value is ShareDetails {
+  if (!exactKeys(value, ['range', 'startDate', 'endDate', 'timeZone', 'totalTokens', 'estimatedValueUsdMicros', 'estimatedValueDisplay', 'estimateComplete', 'activeDays', 'savedDays', 'missingDays', 'missingComponents', 'logsGone', 'pricingBasis', 'sourceScope'])) return false;
+  const v = value as ShareDetails;
+  const components: ShareComponent[] = ['inputTokens', 'outputTokens', 'cacheReadTokens', 'cacheWriteTokens', 'reasoningTokens'];
+  return v.range === range && isProviderDate(v.startDate) && isProviderDate(v.endDate) && v.startDate <= v.endDate
+    && typeof v.timeZone === 'string' && /^[A-Za-z0-9_+./-]{1,128}$/.test(v.timeZone)
+    && nullableLocalCount(v.totalTokens) && nullableLocalCount(v.estimatedValueUsdMicros)
+    && (v.estimatedValueUsdMicros === null ? v.estimatedValueDisplay === null && !v.estimateComplete : typeof v.estimatedValueDisplay === 'string' && /^\$[\d,]+\.\d{2}$/.test(v.estimatedValueDisplay) && v.estimatedValueDisplay.length <= 64)
+    && typeof v.estimateComplete === 'boolean' && Number.isInteger(v.savedDays) && v.savedDays >= 0 && Number.isInteger(v.missingDays) && v.missingDays >= 0
+    && (range === 'month' ? v.savedDays + v.missingDays > 0 && v.savedDays + v.missingDays <= 31 : v.savedDays + v.missingDays === (range === 'year' ? 365 : range === '7d' ? 7 : 30))
+    && (v.savedDays === 0 ? v.activeDays === null : Number.isInteger(v.activeDays) && v.activeDays !== null && v.activeDays >= 0 && v.activeDays <= v.savedDays)
+    && (v.totalTokens !== null || v.estimatedValueUsdMicros === null && v.activeDays === null && v.savedDays === 0)
+    && Array.isArray(v.missingComponents) && v.missingComponents.length <= components.length && new Set(v.missingComponents).size === v.missingComponents.length && v.missingComponents.every(c => components.includes(c))
+    && typeof v.logsGone === 'boolean' && v.pricingBasis === 'Stored scanner estimates at public API prices'
+    && ['Accepted local history on this device', 'Selected accepted local history'].includes(v.sourceScope);
+}
+function isShareImage(value: unknown, kind: ShareKind | undefined, range: ShareRange = 'year'): value is ShareImage {
+  if (!exactKeys(value, ['svg', 'width', 'height', 'summary', 'details']) || !kind) return false;
   const v = value as ShareImage;
   // Rust builds the SVG. The renderer shows it only as an image, which runs no script.
   return typeof v.svg === 'string' && v.svg.length <= 2_000_000 && v.svg.startsWith('<svg xmlns="http://www.w3.org/2000/svg"') && v.svg.endsWith('</svg>')
     && !/<script|<foreignObject|href=|url\(/i.test(v.svg)
     // A badge sets its width from its text.
     && (kind === 'badge' ? Number.isInteger(v.width) && v.width >= 60 && v.width <= 800 && v.height === 20 : v.width === shareSizes[kind][0] && v.height === shareSizes[kind][1])
-    && typeof v.summary === 'string' && v.summary.length > 0 && v.summary.length <= 500;
+    && typeof v.summary === 'string' && v.summary.length > 0 && v.summary.length <= 500
+    && (kind === 'wrapped' ? isShareDetails(v.details, range) : v.details === null);
 }
 function isShareReceipt(value: unknown, format: unknown, kind: unknown): value is ShareReceipt {
   if (!exactKeys(value, ['fileName', 'directory', 'format', 'byteCount'])) return false;
@@ -597,8 +624,8 @@ interface Commands {
   load_local_logs: { args: undefined; result: LocalLogsView };
   save_local_log_consent: { args: { tools: LocalLogTool[] }; result: LocalLogsView };
   load_local_usage: { args: LocalUsageRange & { period: LocalUsagePeriod; scope?: string }; result: LocalUsageView };
-  load_share_image: { args: { kind: ShareKind; branding: boolean; scope?: string }; result: ShareImage };
-  save_share_image: { args: { kind: ShareKind; branding: boolean; scope?: string; format: 'svg' | 'png'; png: string | null }; result: ShareReceipt };
+  load_share_image: { args: { kind: ShareKind; branding: boolean; scope?: string; range?: ShareRange }; result: ShareImage };
+  save_share_image: { args: { kind: ShareKind; branding: boolean; scope?: string; range?: ShareRange; format: 'svg' | 'png'; png: string | null }; result: ShareReceipt };
 }
 
 declare global {
@@ -630,7 +657,7 @@ export async function invoke<K extends keyof Commands>(
     : command === 'load_time_zone' || command === 'set_time_zone' ? isTimeZone(response)
     : command === 'load_local_logs' || command === 'save_local_log_consent' ? isLocalLogsView(response)
     : command === 'load_local_usage' ? isLocalUsageView(response)
-    : command === 'load_share_image' ? isShareImage(response, (args[0] as { kind?: ShareKind } | undefined)?.kind)
+    : command === 'load_share_image' ? isShareImage(response, (args[0] as { kind?: ShareKind } | undefined)?.kind, (args[0] as { range?: ShareRange } | undefined)?.range)
     : command === 'save_share_image' ? isShareReceipt(response, (args[0] as { format?: string } | undefined)?.format, (args[0] as { kind?: string } | undefined)?.kind)
     : command === 'delete_all_local_data' ? isDeletionResult(response)
     : command === 'load_notification_preferences' || command === 'save_notification_preferences' ? isNotificationPreferences(response)
