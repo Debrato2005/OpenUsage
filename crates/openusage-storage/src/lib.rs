@@ -29,7 +29,11 @@ pub use local_usage_read::{
     LocalUsageRead, LocalUsageWindow,
 };
 mod currency_scales;
+mod profile_removal;
 mod profiles;
+pub use profile_removal::{
+    ProfileHistoryChoice, ProfileRemovalError, ProfileRemovalOutcome, ProfileRemovalRequest,
+};
 mod subscriptions;
 pub use profiles::{ProfileConnectionState, ProfileEnvironment, ProfileError, ProfileSummary};
 pub use subscriptions::{

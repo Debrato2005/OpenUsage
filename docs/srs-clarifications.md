@@ -31,6 +31,35 @@ This is the record of how requirements were read. Entries keep their original da
 | SC-023 | Copied Amp usage in the pinned scanner | Confirmed AT-65 gap |
 | SC-024 | Legacy local usage during grouped migration | Resolved under owner execution direction |
 | SC-025 | Captured local records and producer completion | Implementation reading recorded; SRS unchanged |
+| SC-026 | Profile removal and retained delivery controls | Implementation reading recorded, app integration open |
+
+## SC-026: profile removal and retained delivery controls
+
+Status: implementation reading recorded under autonomous execution direction,
+November 12, 2026. The SRS stays unchanged. App integration remains open.
+
+OU-ACCT-001 and OU-ACCT-013 distinguish profile removal from disconnect.
+Archive History retains the selected profile and its records with an archive
+flag. Delete History removes the selected profile and records with explicit
+profile ownership. It does not infer ownership from an email or shared account.
+
+Local subscription rows require the selected profile through a foreign key.
+Delete History removes those local records under OU-BILL-001. It does not
+cancel a remote subscription or modify a provider session. Disconnect keeps
+its separate preservation rule under OU-ACCT-014.
+
+Durable submission receipts and operational incident state survive removal,
+restore, and Undo. These records prevent another external notification under
+OU-ALERT-012 and OU-ALERT-013. Complete application exports and backups still
+contain these controls. Shared accounts remain because the current model has
+no unique profile ownership contract for them.
+
+Delete History means logical deletion of the owned records. It does not promise
+physical erasure of storage pages. Retained journals, homes, credentials, and
+earlier backups remain outside deletion.
+An earlier backup can restore deleted history through the separate restore
+flow. The [storage boundary](architecture.md#profile-removal) owns the API and
+retained data. This reading does not complete removal in the app.
 
 ## SC-025: captured local records and producer completion
 

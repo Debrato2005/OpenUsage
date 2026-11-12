@@ -4,6 +4,20 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## R-8 result before S-08a1
+
+Latest scoped result, November 12, 2026. CLI text and statusline now keep known
+connection failures visible with the last accepted time. Saved values, clock
+freshness, and JSON stay intact. Seven status tests, two guard mutations,
+affected project checks, and the enhanced native CLI journey passed on private
+synthetic Linux data. The [record](reviews/2026-11-12-cli-connection-state-display.md)
+owns exact scope and the remaining gates.
+
+Hosted CI for `eebf9a7` passed Linux checks and Renderer. Native Codex commit
+`1df1517` also passed both jobs, including the Codex qualification feature.
+The [evidence log](acceptance-traceability.md#evidence-log) records each scope.
+The current connection-display change needs its own hosted result.
+
 ## R-6 and R-7 result before R-8
 
 Latest scoped result, November 12, 2026. The CLI now distinguishes an empty

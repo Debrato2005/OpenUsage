@@ -94,6 +94,34 @@ Share images use the same selected dated scope and its zone. Both PNG and SVG sa
 
 The CLI reads today's value separately for each saved scope and zone. Legacy, grouped, and unplaced records never enter one combined total. Its [version 2 JSON](../crates/openusage-cli/README.md#output) gives each local measurement an exact value or null, its state, source, status, and observation time. Legacy maxima have no per-record time. Their latest scan time stays separate. `report` scans all detected roots of each enabled tool together, filters the full daily report, and saves nothing.
 
+## Profile removal
+
+The Rust-only `Storage::remove_profile` API accepts a profile UUID, its expected
+managed home UUID, a history choice, and an opaque `StorageRevision`.
+One immediate transaction checks the revision, exact native profile, and home.
+An intervening write or a revision from another connection or open session
+refuses stale intent. A wrong home or environment also refuses the operation.
+
+Archive changes the selected profile archive flag. Delete removes its bindings,
+provider readings and history, alert history and outbox, overrides, and local
+subscription rows. It then removes the profile. A temporary ID table scopes
+shared notification identities without a history-sized Rust allocation.
+Foreign keys remain enabled. A cross-profile dependency or statement failure
+rolls back the entire operation. No persistent schema change is required.
+
+Both choices preserve unrelated profiles, shared account records, workspace
+settings, global alert preferences, independent log sources and local usage,
+and durable submission and incident journals. The journals remain in complete
+exports and backups. The operation never accesses homes, credential files,
+provider sessions, processes, or remote subscriptions. Earlier backups can
+restore old history. [SC-026](srs-clarifications.md#sc-026-profile-removal-and-retained-delivery-controls)
+records this reading of the requirements.
+
+A later app caller must confirm the choice and stop selected-profile work,
+including provider collection and notification submission. It must clear stale
+previews and accepted caches under the workspace lock. This slice exposes no
+renderer command. App cancellation and native acceptance remain unverified.
+
 ## Boundaries
 
 - **Secrets:** provider sessions, credentials, and the database key stay in Rust, provider-managed homes, or the OS credential store. They never reach React.

@@ -257,7 +257,7 @@ impl Storage {
     }
 }
 
-fn validate_uuid(value: &str) -> Result<(), ()> {
+pub(crate) fn validate_uuid(value: &str) -> Result<(), ()> {
     let id = Uuid::parse_str(value).map_err(|_| ())?;
     if id.hyphenated().to_string() != value {
         return Err(());
@@ -290,7 +290,10 @@ fn require_capacity(connection: &Connection) -> Result<(), ProfileError> {
     Ok(())
 }
 
-fn profile_by_id(connection: &Connection, id: &str) -> Result<ProfileSummary, ProfileError> {
+pub(crate) fn profile_by_id(
+    connection: &Connection,
+    id: &str,
+) -> Result<ProfileSummary, ProfileError> {
     connection
         .query_row(
             "SELECT id, name, environment, connection_state, archived FROM profiles WHERE id = ?1",

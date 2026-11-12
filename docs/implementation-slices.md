@@ -898,6 +898,11 @@ Run AT-60 for Codex under OU-AUD-006. Raw captures stay private, and a summary g
 
 ### S-08a1: profile removal storage contract
 
+Status: Done within storage scope, November 12, 2026. Public storage tests,
+parent guard mutations, full workspace tests, and Clippy passed. The
+[record](reviews/2026-11-12-profile-history-storage.md) owns evidence and limits.
+App integration remains a separate assignment.
+
 Goal: define and test the storage boundary for OU-ACCT-013 before app integration.
 
 Acceptance:
@@ -918,6 +923,33 @@ Acceptance:
 Stopping condition: one reviewed storage contract with executed evidence,
 owning docs, one commit, an AST Graphify update, and the authorized push.
 Report before app integration.
+
+### S-08a2: profile removal in the app
+
+Goal: offer Archive History and Delete History for the selected profile under
+OU-ACCT-013 without access to another profile or a protected home.
+
+Acceptance:
+
+- Use narrow typed Rust commands and a one-use confirmation bound to the exact
+  profile, home, history choice, and opaque storage revision. Keep home paths
+  and revisions in Rust. A stale or consumed request requires a new preview.
+- Stop selected-profile monitoring and provider operations before applying the
+  choice. Keep notification claim, submission, completion, and removal ordered
+  under the workspace lock. Clear selected-profile caches and stale previews.
+- Use the common dialog controls for the two explicit choices and destructive
+  consent. Preserve keyboard focus, narrow layouts, and both themes. Add no
+  tagline or general helper text. Explain retained data only in the confirmation.
+- Prove other profiles, independent usage, homes, credentials, local subscription
+  scope, and delivery journals keep the storage contract. Use private synthetic
+  native fixtures. Test stale and repeated confirmation and late worker results.
+- Run doctor, affected security checks, full workspace and renderer checks,
+  and the changed native journeys. Keep other platforms and real-provider
+  acceptance open unless executed.
+
+Stopping condition: one reviewed app flow with executed native evidence,
+owning docs, one commit, an AST Graphify update, and the authorized push.
+Report the result before the next feature.
 
 ## Many tools
 
