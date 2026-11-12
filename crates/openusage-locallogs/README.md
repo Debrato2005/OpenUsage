@@ -28,6 +28,37 @@ Before any process starts, the folder must be an absolute UTF-8 path that still 
 
 `parse_sessions` reads the session report of Claude Code or Codex, because the two tools give different shapes ([SC-021](../../docs/srs-clarifications.md#sc-021-sessions-projects-hours-and-reasoning-from-the-pinned-ccusage)). A Claude Code session has its first and last activity and the project folder that Claude Code writes. A Codex session has only its last activity, and its reasoning count, which is a part of its output count. The parser rejects unknown fields, repeated session keys, a start after the end, and counts that do not add up to the model breakdowns and the report totals. A session with an unpriced model has no estimate.
 
+## Codex candidate snapshot
+
+`parse_codex_snapshot` reads the versioned Codex candidate envelope and returns
+`GroupedScanResult`. It does not run a process or enable a tool. The caller owns
+the pinned source zone and the runner's existing output limit.
+
+Both sections use the original Codex-specific report shape. The parser requires
+complete fields, ascending dates and session keys, valid reported times, exact
+category sums, and matching section totals and model subsets. Reasoning remains
+part of output. Session metadata never becomes a path to open or a project.
+Unknown, missing, duplicate, invalid, excessive, or inconsistent fields reject
+the complete capture.
+
+Reported categories stay available independently of model attribution. Incomplete
+model maps keep their confirmed category subsets and unavailable full totals.
+Missing model attribution creates no model row. Per-model estimates stay
+unavailable because the report contains no per-model cost. An unknown price
+marker preserves tokens and makes the row estimate unavailable.
+
+Every cost field must exist. Null remains unavailable. Cost decimals retain
+their raw spelling until standard float parsing and the existing micros helper.
+Non-numeric, non-finite, negative, and excessive values reject the capture.
+All later sums and comparisons use integers. Rounded row estimates may differ
+from their reported section total by at most half the row count, rounded down.
+Reported grand estimates may differ by one microdollar only after all section,
+category, model, and price-marker checks pass. Two or more microdollars, or
+null-versus-present disagreement, reject the capture. Each returned row keeps
+its own estimate. The parser returns no combined estimate across sections.
+
+The [consumer record](../../docs/reviews/2026-11-12-codex-snapshot-consumer.md) owns the executed fixture and rounding evidence.
+
 ## Additional session reports
 
 `parse_agent_sessions` reads focused session JSON for the sixteen disabled tools. It keeps the reported session and report totals separate from model attribution. This parser does not start a process, save data, or enable a tool.

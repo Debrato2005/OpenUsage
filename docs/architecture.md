@@ -57,6 +57,12 @@ and derives both JSON reports from the same event vector. The
 source and executable fingerprints. Application parsing and dispatch remain
 separate gates.
 
+`codex_snapshot.rs` parses the combined candidate envelope into the existing
+grouped types. It reuses strict envelope and model types, rejects duplicate
+model keys, and preserves required null fields. The [crate contract](../crates/openusage-locallogs/README.md#codex-candidate-snapshot)
+owns count and estimate rules. This pure parser starts no process and changes
+no application dispatch.
+
 Schema 13 adds six tables for grouped scopes, scans, root membership, records, model details, and lower-scan differences. Legacy tables stay unchanged. One tool has one stable scope. Only day records enter dated queries. Period and session totals stay separate. Every accepted record points to the scan that produced it. A lower scan keeps the whole saved record and its model details. An equal or higher scan replaces them together.
  A complete scan with an absent saved period records an observed zero difference. Missing measurements remain null.
 

@@ -82,7 +82,7 @@ The other slices below follow the launch, unless a launch slice needs part of on
 
 ## Build checklist
 
-Updated November 12, 2026. Each completed item has one local commit and scoped evidence. L-1f11ao records the latest result. The next bounded assignment is below. Owner items wait for the owner.
+Updated November 12, 2026. Each completed item has one local commit and scoped evidence. L-1f11ap records the latest result. The next bounded assignment is below. Owner items wait for the owner.
 
 **Verification before release**
 
@@ -161,7 +161,8 @@ Updated November 12, 2026. Each completed item has one local commit and scoped e
 - [x] L-1f11am: qualify captured Codex event identity with private producer output before an isolated scanner correction.
 - [x] L-1f11an: correct the tested Codex paginated format in a separate candidate with explicit record identity and lineage.
 - [x] L-1f11ao: derive both Codex reports from one captured input in a separate candidate.
-- [ ] L-1f11ap: parse the Codex candidate envelope into existing typed grouped records without scanner activation.
+- [x] L-1f11ap: parse the Codex candidate envelope into existing typed grouped records without scanner activation.
+- [ ] L-1f11aq: qualify the combined Codex candidate through native consent, grouped storage, history, and failure handling.
 - [x] R-5: bound leaderboard request collection at 64 KiB. Twenty-four local service tests passed, including overflow cancellation, byte boundaries, stream errors, and the earlier aggregate and concurrency checks. Hosted Workers remain unverified.
 - [x] R-4: enforce hourly limits and the five-device cap under concurrent requests. Fourteen local service tests passed, including token rotation, hour resets, and database failures. Hosted D1 remains unverified.
 - [x] R-3: keep a leaderboard estimate unavailable when any included row lacks it. Token totals, measured zero, ordering, and period filters stay intact. Eight local service tests passed. Hosted D1 remains unverified.
@@ -690,6 +691,31 @@ Acceptance:
 
 Stopping condition: one Rust report contract with executed evidence, owning
 docs, one local commit, and an AST Graphify update. Report before the next step.
+
+### L-1f11aq: native Codex candidate qualification
+
+Goal: exercise the pinned combined-capture candidate through the desktop app
+with private synthetic homes before any production pin change.
+
+Acceptance:
+
+- Add an isolated Linux qualification feature and pinned candidate descriptor.
+  Keep ordinary Codex consent and the production scanner behavior unchanged.
+  Missing or mismatched candidates must fail without a scanner fallback.
+- Use consent, worker scans, one grouped capture, the typed consumer, and one
+  complete save. Preserve legacy records, keys, original zones, and separate
+  historical views under SC-024. Save the actual candidate version as provenance.
+- Check copies, distinct responses, the full fork, reported zero, unavailable
+  fields, growth, genuine reopen, refused input, withdrawal, and wrong digests
+  through a native journey. Inspect both saved and displayed values.
+- Run affected backup, export, restore, and persistence checks. The ordinary
+  build must keep its production descriptor and existing Codex support.
+- Run the full workspace and renderer milestone and affected native journeys.
+  Record source, build, executable, and platform scope. Keep release activation
+  and reference-scale performance as separate gates.
+
+Stopping condition: one native qualification result with evidence, owning docs,
+one local commit, and an AST Graphify update. Report before the next step.
 
 ## Order
 

@@ -50,7 +50,7 @@ pub struct AgentSessionReport {
 
 // Missing and explicit null have different meanings in the pinned wire format.
 #[derive(Debug, Default)]
-enum Field<T> {
+pub(crate) enum Field<T> {
     #[default]
     Missing,
     Present(T),

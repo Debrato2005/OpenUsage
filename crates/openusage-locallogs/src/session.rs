@@ -91,16 +91,16 @@ struct CodexSession {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
-struct CodexModel {
-    cache_creation_tokens: u64,
-    cache_read_tokens: u64,
-    input_tokens: u64,
-    is_fallback: bool,
+pub(crate) struct CodexModel {
+    pub(crate) cache_creation_tokens: u64,
+    pub(crate) cache_read_tokens: u64,
+    pub(crate) input_tokens: u64,
+    pub(crate) is_fallback: bool,
     #[serde(default)]
-    missing_pricing: bool,
-    output_tokens: u64,
-    reasoning_output_tokens: u64,
-    total_tokens: u64,
+    pub(crate) missing_pricing: bool,
+    pub(crate) output_tokens: u64,
+    pub(crate) reasoning_output_tokens: u64,
+    pub(crate) total_tokens: u64,
 }
 
 #[derive(Deserialize)]

@@ -6,14 +6,14 @@ use serde_json::value::RawValue;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
-struct Snapshot<'a> {
-    schema_version: u32,
-    tool: &'a str,
+pub(crate) struct Snapshot<'a> {
+    pub(crate) schema_version: u32,
+    pub(crate) tool: &'a str,
     // Keep the original JSON so the report parsers can reject duplicate fields.
     #[serde(borrow)]
-    daily: &'a RawValue,
+    pub(crate) daily: &'a RawValue,
     #[serde(borrow)]
-    session: &'a RawValue,
+    pub(crate) session: &'a RawValue,
 }
 
 pub(crate) fn parse_pi_snapshot(bytes: &[u8]) -> Result<GroupedScanResult, ReportError> {

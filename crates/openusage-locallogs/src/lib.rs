@@ -4,6 +4,7 @@
 pub mod agent_period;
 pub mod agent_report;
 mod agent_snapshot;
+mod codex_snapshot;
 pub mod detect;
 pub mod grouped;
 pub mod hours;
@@ -16,6 +17,7 @@ pub use agent_period::{AgentPeriod, AgentPeriodReport, UsagePeriod, parse_agent_
 pub use agent_report::{
     AgentSession, AgentSessionReport, ModelDetail, TokenDetails, parse_agent_sessions,
 };
+pub use codex_snapshot::parse_codex_snapshot;
 pub use detect::{Detected, detect};
 pub use grouped::{GroupedScanRequest, GroupedScanResult, scan_grouped, scan_grouped_with_check};
 pub use hours::{HourRow, parse_hours};

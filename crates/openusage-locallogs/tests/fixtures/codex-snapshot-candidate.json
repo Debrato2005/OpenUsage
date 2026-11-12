@@ -1,0 +1,1094 @@
+{
+  "cases": {
+    "empty": {
+      "expectedTotalTokens": 0,
+      "snapshot": {
+        "daily": {
+          "daily": [],
+          "totals": {
+            "cacheCreationTokens": 0,
+            "cacheReadTokens": 0,
+            "costUSD": 0,
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "reasoningOutputTokens": 0,
+            "totalTokens": 0
+          }
+        },
+        "schemaVersion": 1,
+        "session": {
+          "sessions": [],
+          "totals": {
+            "cacheCreationTokens": 0,
+            "cacheReadTokens": 0,
+            "costUSD": 0,
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "reasoningOutputTokens": 0,
+            "totalTokens": 0
+          }
+        },
+        "tool": "codex"
+      },
+      "sourceFiles": [],
+      "stdoutSha256": "85c0f915355932aa96c090932ca09eab79bf52b47868be0d6f2d189a18ed2186"
+    },
+    "known": {
+      "expectedTotalTokens": 17,
+      "snapshot": {
+        "daily": {
+          "daily": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "costUSD": 2.125e-05,
+              "date": "2026-11-11",
+              "inputTokens": 17,
+              "models": {
+                "gpt-5": {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 0,
+                  "inputTokens": 17,
+                  "isFallback": false,
+                  "outputTokens": 0,
+                  "reasoningOutputTokens": 0,
+                  "totalTokens": 17
+                }
+              },
+              "outputTokens": 0,
+              "reasoningOutputTokens": 0,
+              "totalTokens": 17
+            }
+          ],
+          "totals": {
+            "cacheCreationTokens": 0,
+            "cacheReadTokens": 0,
+            "costUSD": 2.125e-05,
+            "inputTokens": 17,
+            "outputTokens": 0,
+            "reasoningOutputTokens": 0,
+            "totalTokens": 17
+          }
+        },
+        "schemaVersion": 1,
+        "session": {
+          "sessions": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "costUSD": 2.125e-05,
+              "directory": "",
+              "inputTokens": 17,
+              "lastActivity": "2026-11-11T12:00:00.000Z",
+              "models": {
+                "gpt-5": {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 0,
+                  "inputTokens": 17,
+                  "isFallback": false,
+                  "outputTokens": 0,
+                  "reasoningOutputTokens": 0,
+                  "totalTokens": 17
+                }
+              },
+              "outputTokens": 0,
+              "reasoningOutputTokens": 0,
+              "sessionFile": "thread-a",
+              "sessionId": "thread-a",
+              "totalTokens": 17
+            }
+          ],
+          "totals": {
+            "cacheCreationTokens": 0,
+            "cacheReadTokens": 0,
+            "costUSD": 2.125e-05,
+            "inputTokens": 17,
+            "outputTokens": 0,
+            "reasoningOutputTokens": 0,
+            "totalTokens": 17
+          }
+        },
+        "tool": "codex"
+      },
+      "sourceFiles": [
+        {
+          "path": "sessions/source.jsonl",
+          "sha256": "e0a9efd084251059283d10b48f2f52d30c271c72bd40c6eda20451975526a7a7"
+        }
+      ],
+      "stdoutSha256": "c8a0d2a1549ad7badc03443e703a7ac85cf631268f252e42484f9d56faae76f0"
+    },
+    "lineage": {
+      "expectedTotalTokens": 12650,
+      "snapshot": {
+        "daily": {
+          "daily": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 2750,
+              "costUSD": 0.02715625,
+              "date": "2026-11-11",
+              "inputTokens": 8250,
+              "models": {
+                "gpt-5": {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 2750,
+                  "inputTokens": 8250,
+                  "isFallback": false,
+                  "outputTokens": 1650,
+                  "reasoningOutputTokens": 550,
+                  "totalTokens": 12650
+                }
+              },
+              "outputTokens": 1650,
+              "reasoningOutputTokens": 550,
+              "totalTokens": 12650
+            }
+          ],
+          "totals": {
+            "cacheCreationTokens": 0,
+            "cacheReadTokens": 2750,
+            "costUSD": 0.02715625,
+            "inputTokens": 8250,
+            "outputTokens": 1650,
+            "reasoningOutputTokens": 550,
+            "totalTokens": 12650
+          }
+        },
+        "schemaVersion": 1,
+        "session": {
+          "sessions": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 1500,
+              "costUSD": 0.014812500000000003,
+              "directory": "",
+              "inputTokens": 4500,
+              "lastActivity": "2026-11-11T23:30:56.337Z",
+              "models": {
+                "gpt-5": {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 1500,
+                  "inputTokens": 4500,
+                  "isFallback": false,
+                  "outputTokens": 900,
+                  "reasoningOutputTokens": 300,
+                  "totalTokens": 6900
+                }
+              },
+              "outputTokens": 900,
+              "reasoningOutputTokens": 300,
+              "sessionFile": "01a1ccf3-2cb4-7cb2-a02e-1563bc53ae57",
+              "sessionId": "01a1ccf3-2cb4-7cb2-a02e-1563bc53ae57",
+              "totalTokens": 6900
+            },
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 1000,
+              "costUSD": 0.009875,
+              "directory": "",
+              "inputTokens": 3000,
+              "lastActivity": "2026-11-11T23:30:56.381Z",
+              "models": {
+                "gpt-5": {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 1000,
+                  "inputTokens": 3000,
+                  "isFallback": false,
+                  "outputTokens": 600,
+                  "reasoningOutputTokens": 200,
+                  "totalTokens": 4600
+                }
+              },
+              "outputTokens": 600,
+              "reasoningOutputTokens": 200,
+              "sessionFile": "01a1ccf3-40d6-7ff3-904c-e8991446e6e2",
+              "sessionId": "01a1ccf3-40d6-7ff3-904c-e8991446e6e2",
+              "totalTokens": 4600
+            },
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 250,
+              "costUSD": 0.00246875,
+              "directory": "",
+              "inputTokens": 750,
+              "lastActivity": "2026-11-11T23:30:56.435Z",
+              "models": {
+                "gpt-5": {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 250,
+                  "inputTokens": 750,
+                  "isFallback": false,
+                  "outputTokens": 150,
+                  "reasoningOutputTokens": 50,
+                  "totalTokens": 1150
+                }
+              },
+              "outputTokens": 150,
+              "reasoningOutputTokens": 50,
+              "sessionFile": "01a1ccf3-4101-7620-b501-55d8fd79c6b0",
+              "sessionId": "01a1ccf3-4101-7620-b501-55d8fd79c6b0",
+              "totalTokens": 1150
+            }
+          ],
+          "totals": {
+            "cacheCreationTokens": 0,
+            "cacheReadTokens": 2750,
+            "costUSD": 0.02715625,
+            "inputTokens": 8250,
+            "outputTokens": 1650,
+            "reasoningOutputTokens": 550,
+            "totalTokens": 12650
+          }
+        },
+        "tool": "codex"
+      },
+      "sourceFiles": [
+        {
+          "path": "sessions/2026/11/11/rollout-2026-11-11T23-30-51-01a1ccf3-2cb4-7cb2-a02e-1563bc53ae57.jsonl",
+          "sha256": "64be31b498ec3f6e91cf808f83b82032ebb32bbcbf354012ef73fee84118238d"
+        },
+        {
+          "path": "sessions/2026/11/11/rollout-2026-11-11T23-30-56-01a1ccf3-40d6-7ff3-904c-e8991446e6e2.jsonl",
+          "sha256": "2d1e8077fe3aef3baec27a58808e6b5add068f71dcb818d2bf5c902f47d5e08e"
+        },
+        {
+          "path": "sessions/2026/11/11/rollout-2026-11-11T23-30-56-01a1ccf3-4101-7620-b501-55d8fd79c6b0.jsonl",
+          "sha256": "982d2388eab9594361b5c7036fa5df31a41f574965aefffcf08eb9e05f06c84c"
+        }
+      ],
+      "stdoutSha256": "e1989f9dc1ab9d2fe57a29f1cc757be18690b805136ef8f3824d76e3921c25df"
+    },
+    "mixed_attribution": {
+      "expectedTotalTokens": 40,
+      "snapshot": {
+        "daily": {
+          "daily": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "costUSD": null,
+              "date": "2026-11-11",
+              "inputTokens": 40,
+              "models": {
+                "gpt-5": {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 0,
+                  "inputTokens": 23,
+                  "isFallback": false,
+                  "outputTokens": 0,
+                  "reasoningOutputTokens": 0,
+                  "totalTokens": 23
+                }
+              },
+              "outputTokens": 0,
+              "reasoningOutputTokens": 0,
+              "totalTokens": 40
+            }
+          ],
+          "totals": {
+            "cacheCreationTokens": 0,
+            "cacheReadTokens": 0,
+            "costUSD": null,
+            "inputTokens": 40,
+            "outputTokens": 0,
+            "reasoningOutputTokens": 0,
+            "totalTokens": 40
+          }
+        },
+        "schemaVersion": 1,
+        "session": {
+          "sessions": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "costUSD": null,
+              "directory": "",
+              "inputTokens": 17,
+              "lastActivity": "2026-11-11T12:00:00.000Z",
+              "models": {},
+              "outputTokens": 0,
+              "reasoningOutputTokens": 0,
+              "sessionFile": "thread-a",
+              "sessionId": "thread-a",
+              "totalTokens": 17
+            },
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "costUSD": 2.875e-05,
+              "directory": "",
+              "inputTokens": 23,
+              "lastActivity": "2026-11-11T12:00:00.000Z",
+              "models": {
+                "gpt-5": {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 0,
+                  "inputTokens": 23,
+                  "isFallback": false,
+                  "outputTokens": 0,
+                  "reasoningOutputTokens": 0,
+                  "totalTokens": 23
+                }
+              },
+              "outputTokens": 0,
+              "reasoningOutputTokens": 0,
+              "sessionFile": "thread-b",
+              "sessionId": "thread-b",
+              "totalTokens": 23
+            }
+          ],
+          "totals": {
+            "cacheCreationTokens": 0,
+            "cacheReadTokens": 0,
+            "costUSD": null,
+            "inputTokens": 40,
+            "outputTokens": 0,
+            "reasoningOutputTokens": 0,
+            "totalTokens": 40
+          }
+        },
+        "tool": "codex"
+      },
+      "sourceFiles": [
+        {
+          "path": "sessions/first.jsonl",
+          "sha256": "62cfcfeb12f2d836b4acf3bd15871e339d96ea0c8c896a440884a3cb483b7372"
+        },
+        {
+          "path": "sessions/second.jsonl",
+          "sha256": "da3ccd8fa04325fbecc2b835258524c8cf6a664530617a5ba0f51a2a0802eb6c"
+        }
+      ],
+      "stdoutSha256": "779f3361b3c631382fb77871b3ebaa49300d3a01b6d6e21a3d930c241fb167a0"
+    },
+    "prefix": {
+      "expectedTotalTokens": 17,
+      "snapshot": {
+        "daily": {
+          "daily": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "costUSD": 2.125e-05,
+              "date": "2026-11-11",
+              "inputTokens": 17,
+              "models": {
+                "gpt-5": {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 0,
+                  "inputTokens": 17,
+                  "isFallback": false,
+                  "outputTokens": 0,
+                  "reasoningOutputTokens": 0,
+                  "totalTokens": 17
+                }
+              },
+              "outputTokens": 0,
+              "reasoningOutputTokens": 0,
+              "totalTokens": 17
+            }
+          ],
+          "totals": {
+            "cacheCreationTokens": 0,
+            "cacheReadTokens": 0,
+            "costUSD": 2.125e-05,
+            "inputTokens": 17,
+            "outputTokens": 0,
+            "reasoningOutputTokens": 0,
+            "totalTokens": 17
+          }
+        },
+        "schemaVersion": 1,
+        "session": {
+          "sessions": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "costUSD": 2.125e-05,
+              "directory": "",
+              "inputTokens": 17,
+              "lastActivity": "2026-11-11T12:00:00.000Z",
+              "models": {
+                "gpt-5": {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 0,
+                  "inputTokens": 17,
+                  "isFallback": false,
+                  "outputTokens": 0,
+                  "reasoningOutputTokens": 0,
+                  "totalTokens": 17
+                }
+              },
+              "outputTokens": 0,
+              "reasoningOutputTokens": 0,
+              "sessionFile": "thread-a",
+              "sessionId": "thread-a",
+              "totalTokens": 17
+            }
+          ],
+          "totals": {
+            "cacheCreationTokens": 0,
+            "cacheReadTokens": 0,
+            "costUSD": 2.125e-05,
+            "inputTokens": 17,
+            "outputTokens": 0,
+            "reasoningOutputTokens": 0,
+            "totalTokens": 17
+          }
+        },
+        "tool": "codex"
+      },
+      "sourceFiles": [
+        {
+          "path": "sessions/source.jsonl",
+          "sha256": "dc8e66430b2a1c3bb3461b136af3fdef120caf3edd9d656dbf04f1801b92db7a"
+        }
+      ],
+      "stdoutSha256": "c8a0d2a1549ad7badc03443e703a7ac85cf631268f252e42484f9d56faae76f0"
+    },
+    "rounding_partition": {
+      "expectedTotalTokens": 802,
+      "snapshot": {
+        "daily": {
+          "daily": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "costUSD": 0.0010025000000000001,
+              "date": "2026-11-11",
+              "inputTokens": 802,
+              "models": {
+                "gpt-5": {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 0,
+                  "inputTokens": 802,
+                  "isFallback": false,
+                  "outputTokens": 0,
+                  "reasoningOutputTokens": 0,
+                  "totalTokens": 802
+                }
+              },
+              "outputTokens": 0,
+              "reasoningOutputTokens": 0,
+              "totalTokens": 802
+            }
+          ],
+          "totals": {
+            "cacheCreationTokens": 0,
+            "cacheReadTokens": 0,
+            "costUSD": 0.0010025000000000001,
+            "inputTokens": 802,
+            "outputTokens": 0,
+            "reasoningOutputTokens": 0,
+            "totalTokens": 802
+          }
+        },
+        "schemaVersion": 1,
+        "session": {
+          "sessions": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "costUSD": 0.00022750000000000003,
+              "directory": "",
+              "inputTokens": 182,
+              "lastActivity": "2026-11-11T12:00:00.000Z",
+              "models": {
+                "gpt-5": {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 0,
+                  "inputTokens": 182,
+                  "isFallback": false,
+                  "outputTokens": 0,
+                  "reasoningOutputTokens": 0,
+                  "totalTokens": 182
+                }
+              },
+              "outputTokens": 0,
+              "reasoningOutputTokens": 0,
+              "sessionFile": "thread-0",
+              "sessionId": "thread-0",
+              "totalTokens": 182
+            },
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "costUSD": 0.00033125,
+              "directory": "",
+              "inputTokens": 265,
+              "lastActivity": "2026-11-11T12:00:00.000Z",
+              "models": {
+                "gpt-5": {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 0,
+                  "inputTokens": 265,
+                  "isFallback": false,
+                  "outputTokens": 0,
+                  "reasoningOutputTokens": 0,
+                  "totalTokens": 265
+                }
+              },
+              "outputTokens": 0,
+              "reasoningOutputTokens": 0,
+              "sessionFile": "thread-1",
+              "sessionId": "thread-1",
+              "totalTokens": 265
+            },
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "costUSD": 5.75e-05,
+              "directory": "",
+              "inputTokens": 46,
+              "lastActivity": "2026-11-11T12:00:00.000Z",
+              "models": {
+                "gpt-5": {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 0,
+                  "inputTokens": 46,
+                  "isFallback": false,
+                  "outputTokens": 0,
+                  "reasoningOutputTokens": 0,
+                  "totalTokens": 46
+                }
+              },
+              "outputTokens": 0,
+              "reasoningOutputTokens": 0,
+              "sessionFile": "thread-2",
+              "sessionId": "thread-2",
+              "totalTokens": 46
+            },
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "costUSD": 0.00025625,
+              "directory": "",
+              "inputTokens": 205,
+              "lastActivity": "2026-11-11T12:00:00.000Z",
+              "models": {
+                "gpt-5": {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 0,
+                  "inputTokens": 205,
+                  "isFallback": false,
+                  "outputTokens": 0,
+                  "reasoningOutputTokens": 0,
+                  "totalTokens": 205
+                }
+              },
+              "outputTokens": 0,
+              "reasoningOutputTokens": 0,
+              "sessionFile": "thread-3",
+              "sessionId": "thread-3",
+              "totalTokens": 205
+            },
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "costUSD": 0.00013000000000000002,
+              "directory": "",
+              "inputTokens": 104,
+              "lastActivity": "2026-11-11T12:00:00.000Z",
+              "models": {
+                "gpt-5": {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 0,
+                  "inputTokens": 104,
+                  "isFallback": false,
+                  "outputTokens": 0,
+                  "reasoningOutputTokens": 0,
+                  "totalTokens": 104
+                }
+              },
+              "outputTokens": 0,
+              "reasoningOutputTokens": 0,
+              "sessionFile": "thread-4",
+              "sessionId": "thread-4",
+              "totalTokens": 104
+            }
+          ],
+          "totals": {
+            "cacheCreationTokens": 0,
+            "cacheReadTokens": 0,
+            "costUSD": 0.0010025,
+            "inputTokens": 802,
+            "outputTokens": 0,
+            "reasoningOutputTokens": 0,
+            "totalTokens": 802
+          }
+        },
+        "tool": "codex"
+      },
+      "sourceFiles": [
+        {
+          "path": "sessions/source-0.jsonl",
+          "sha256": "864019e7afdf4acdf8435c981e6f577019e54c4a7dcb9439be19dc41e2024843"
+        },
+        {
+          "path": "sessions/source-1.jsonl",
+          "sha256": "a5fa04743363f58b738e4b965d7c83ecca9ba31a1a237993b9368ae13bf4a458"
+        },
+        {
+          "path": "sessions/source-2.jsonl",
+          "sha256": "243700c1c65c9cabb7e45d85ecc9b269ed3c9040c825da59785e831819d54e92"
+        },
+        {
+          "path": "sessions/source-3.jsonl",
+          "sha256": "f3bdacc5ba4b996c16bde7cafbd9bfcf2dca545cc6142f3ef92066cd4e5fd9f7"
+        },
+        {
+          "path": "sessions/source-4.jsonl",
+          "sha256": "f7d4b9975d83c3ba6a4e20eeaae021a9079448c3accfd28d9c28d90f891df83b"
+        }
+      ],
+      "stdoutSha256": "909ce1d8488b53205fff7eed43b11245169288e55b68ace7222993df7392afb0"
+    },
+    "two_days": {
+      "expectedTotalTokens": 40,
+      "snapshot": {
+        "daily": {
+          "daily": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "costUSD": 2.125e-05,
+              "date": "2026-11-11",
+              "inputTokens": 17,
+              "models": {
+                "gpt-5": {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 0,
+                  "inputTokens": 17,
+                  "isFallback": false,
+                  "outputTokens": 0,
+                  "reasoningOutputTokens": 0,
+                  "totalTokens": 17
+                }
+              },
+              "outputTokens": 0,
+              "reasoningOutputTokens": 0,
+              "totalTokens": 17
+            },
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "costUSD": 2.875e-05,
+              "date": "2026-11-12",
+              "inputTokens": 23,
+              "models": {
+                "gpt-5": {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 0,
+                  "inputTokens": 23,
+                  "isFallback": false,
+                  "outputTokens": 0,
+                  "reasoningOutputTokens": 0,
+                  "totalTokens": 23
+                }
+              },
+              "outputTokens": 0,
+              "reasoningOutputTokens": 0,
+              "totalTokens": 23
+            }
+          ],
+          "totals": {
+            "cacheCreationTokens": 0,
+            "cacheReadTokens": 0,
+            "costUSD": 5e-05,
+            "inputTokens": 40,
+            "outputTokens": 0,
+            "reasoningOutputTokens": 0,
+            "totalTokens": 40
+          }
+        },
+        "schemaVersion": 1,
+        "session": {
+          "sessions": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "costUSD": 2.125e-05,
+              "directory": "",
+              "inputTokens": 17,
+              "lastActivity": "2026-11-11T12:00:00.000Z",
+              "models": {
+                "gpt-5": {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 0,
+                  "inputTokens": 17,
+                  "isFallback": false,
+                  "outputTokens": 0,
+                  "reasoningOutputTokens": 0,
+                  "totalTokens": 17
+                }
+              },
+              "outputTokens": 0,
+              "reasoningOutputTokens": 0,
+              "sessionFile": "thread-a",
+              "sessionId": "thread-a",
+              "totalTokens": 17
+            },
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "costUSD": 2.875e-05,
+              "directory": "",
+              "inputTokens": 23,
+              "lastActivity": "2026-11-12T12:00:00.000Z",
+              "models": {
+                "gpt-5": {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 0,
+                  "inputTokens": 23,
+                  "isFallback": false,
+                  "outputTokens": 0,
+                  "reasoningOutputTokens": 0,
+                  "totalTokens": 23
+                }
+              },
+              "outputTokens": 0,
+              "reasoningOutputTokens": 0,
+              "sessionFile": "thread-b",
+              "sessionId": "thread-b",
+              "totalTokens": 23
+            }
+          ],
+          "totals": {
+            "cacheCreationTokens": 0,
+            "cacheReadTokens": 0,
+            "costUSD": 5e-05,
+            "inputTokens": 40,
+            "outputTokens": 0,
+            "reasoningOutputTokens": 0,
+            "totalTokens": 40
+          }
+        },
+        "tool": "codex"
+      },
+      "sourceFiles": [
+        {
+          "path": "sessions/first.jsonl",
+          "sha256": "e0a9efd084251059283d10b48f2f52d30c271c72bd40c6eda20451975526a7a7"
+        },
+        {
+          "path": "sessions/second.jsonl",
+          "sha256": "2c03db98093239977d3fae17c165d77863a031ec3a516fb622c58b4f15b337bb"
+        }
+      ],
+      "stdoutSha256": "2483dc440d7af1c080472e78ef3fac1d3bff8a57b52e46164f7c66780cc3e130"
+    },
+    "unattributed": {
+      "expectedTotalTokens": 17,
+      "snapshot": {
+        "daily": {
+          "daily": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "costUSD": null,
+              "date": "2026-11-11",
+              "inputTokens": 17,
+              "models": {},
+              "outputTokens": 0,
+              "reasoningOutputTokens": 0,
+              "totalTokens": 17
+            }
+          ],
+          "totals": {
+            "cacheCreationTokens": 0,
+            "cacheReadTokens": 0,
+            "costUSD": null,
+            "inputTokens": 17,
+            "outputTokens": 0,
+            "reasoningOutputTokens": 0,
+            "totalTokens": 17
+          }
+        },
+        "schemaVersion": 1,
+        "session": {
+          "sessions": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "costUSD": null,
+              "directory": "",
+              "inputTokens": 17,
+              "lastActivity": "2026-11-11T12:00:00.000Z",
+              "models": {},
+              "outputTokens": 0,
+              "reasoningOutputTokens": 0,
+              "sessionFile": "thread-a",
+              "sessionId": "thread-a",
+              "totalTokens": 17
+            }
+          ],
+          "totals": {
+            "cacheCreationTokens": 0,
+            "cacheReadTokens": 0,
+            "costUSD": null,
+            "inputTokens": 17,
+            "outputTokens": 0,
+            "reasoningOutputTokens": 0,
+            "totalTokens": 17
+          }
+        },
+        "tool": "codex"
+      },
+      "sourceFiles": [
+        {
+          "path": "sessions/source.jsonl",
+          "sha256": "62cfcfeb12f2d836b4acf3bd15871e339d96ea0c8c896a440884a3cb483b7372"
+        }
+      ],
+      "stdoutSha256": "fbe2086a9f4908800d4ec6737ca446110c9b393d11387e5757d6e020617bc85f"
+    },
+    "unknown_model": {
+      "expectedTotalTokens": 17,
+      "snapshot": {
+        "daily": {
+          "daily": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "costUSD": 0,
+              "date": "2026-11-11",
+              "inputTokens": 17,
+              "models": {
+                "openusage-unknown-codex-model": {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 0,
+                  "inputTokens": 17,
+                  "isFallback": false,
+                  "missingPricing": true,
+                  "outputTokens": 0,
+                  "reasoningOutputTokens": 0,
+                  "totalTokens": 17
+                }
+              },
+              "outputTokens": 0,
+              "reasoningOutputTokens": 0,
+              "totalTokens": 17
+            }
+          ],
+          "totals": {
+            "cacheCreationTokens": 0,
+            "cacheReadTokens": 0,
+            "costUSD": 0,
+            "inputTokens": 17,
+            "outputTokens": 0,
+            "reasoningOutputTokens": 0,
+            "totalTokens": 17,
+            "unpricedModels": [
+              "openusage-unknown-codex-model"
+            ]
+          }
+        },
+        "schemaVersion": 1,
+        "session": {
+          "sessions": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "costUSD": 0,
+              "directory": "",
+              "inputTokens": 17,
+              "lastActivity": "2026-11-11T12:00:00.000Z",
+              "models": {
+                "openusage-unknown-codex-model": {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 0,
+                  "inputTokens": 17,
+                  "isFallback": false,
+                  "missingPricing": true,
+                  "outputTokens": 0,
+                  "reasoningOutputTokens": 0,
+                  "totalTokens": 17
+                }
+              },
+              "outputTokens": 0,
+              "reasoningOutputTokens": 0,
+              "sessionFile": "thread-a",
+              "sessionId": "thread-a",
+              "totalTokens": 17
+            }
+          ],
+          "totals": {
+            "cacheCreationTokens": 0,
+            "cacheReadTokens": 0,
+            "costUSD": 0,
+            "inputTokens": 17,
+            "outputTokens": 0,
+            "reasoningOutputTokens": 0,
+            "totalTokens": 17,
+            "unpricedModels": [
+              "openusage-unknown-codex-model"
+            ]
+          }
+        },
+        "tool": "codex"
+      },
+      "sourceFiles": [
+        {
+          "path": "sessions/source.jsonl",
+          "sha256": "62e282fb3a1fb53f4b3c407c9dcc65ce6acfe9dd7dfa6166a82ac8b4b57a68d9"
+        }
+      ],
+      "stdoutSha256": "d41cdd372b2fbad1e1ff4c1f8b811eca3bcd2487e177712326c48613432fc91c"
+    },
+    "zero": {
+      "expectedTotalTokens": 0,
+      "snapshot": {
+        "daily": {
+          "daily": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "costUSD": 0,
+              "date": "2026-11-11",
+              "inputTokens": 0,
+              "models": {
+                "gpt-5": {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 0,
+                  "inputTokens": 0,
+                  "isFallback": false,
+                  "outputTokens": 0,
+                  "reasoningOutputTokens": 0,
+                  "totalTokens": 0
+                }
+              },
+              "outputTokens": 0,
+              "reasoningOutputTokens": 0,
+              "totalTokens": 0
+            }
+          ],
+          "totals": {
+            "cacheCreationTokens": 0,
+            "cacheReadTokens": 0,
+            "costUSD": 0,
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "reasoningOutputTokens": 0,
+            "totalTokens": 0
+          }
+        },
+        "schemaVersion": 1,
+        "session": {
+          "sessions": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "costUSD": 0,
+              "directory": "",
+              "inputTokens": 0,
+              "lastActivity": "2026-11-11T12:00:00.000Z",
+              "models": {
+                "gpt-5": {
+                  "cacheCreationTokens": 0,
+                  "cacheReadTokens": 0,
+                  "inputTokens": 0,
+                  "isFallback": false,
+                  "outputTokens": 0,
+                  "reasoningOutputTokens": 0,
+                  "totalTokens": 0
+                }
+              },
+              "outputTokens": 0,
+              "reasoningOutputTokens": 0,
+              "sessionFile": "thread-a",
+              "sessionId": "thread-a",
+              "totalTokens": 0
+            }
+          ],
+          "totals": {
+            "cacheCreationTokens": 0,
+            "cacheReadTokens": 0,
+            "costUSD": 0,
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "reasoningOutputTokens": 0,
+            "totalTokens": 0
+          }
+        },
+        "tool": "codex"
+      },
+      "sourceFiles": [
+        {
+          "path": "sessions/source.jsonl",
+          "sha256": "acca316fc57ad4d2805ab667fe97d2ff5a10d14ffb10a5caa58057d60d3ac754"
+        }
+      ],
+      "stdoutSha256": "5b5c8ab2b41c09a86b96d876503d06a4322345e93e46686fd90c92e98bcaeb0f"
+    },
+    "zero_unattributed": {
+      "expectedTotalTokens": 0,
+      "snapshot": {
+        "daily": {
+          "daily": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "costUSD": null,
+              "date": "2026-11-11",
+              "inputTokens": 0,
+              "models": {},
+              "outputTokens": 0,
+              "reasoningOutputTokens": 0,
+              "totalTokens": 0
+            }
+          ],
+          "totals": {
+            "cacheCreationTokens": 0,
+            "cacheReadTokens": 0,
+            "costUSD": null,
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "reasoningOutputTokens": 0,
+            "totalTokens": 0
+          }
+        },
+        "schemaVersion": 1,
+        "session": {
+          "sessions": [
+            {
+              "cacheCreationTokens": 0,
+              "cacheReadTokens": 0,
+              "costUSD": null,
+              "directory": "",
+              "inputTokens": 0,
+              "lastActivity": "2026-11-11T12:00:00.000Z",
+              "models": {},
+              "outputTokens": 0,
+              "reasoningOutputTokens": 0,
+              "sessionFile": "thread-a",
+              "sessionId": "thread-a",
+              "totalTokens": 0
+            }
+          ],
+          "totals": {
+            "cacheCreationTokens": 0,
+            "cacheReadTokens": 0,
+            "costUSD": null,
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "reasoningOutputTokens": 0,
+            "totalTokens": 0
+          }
+        },
+        "tool": "codex"
+      },
+      "sourceFiles": [
+        {
+          "path": "sessions/source.jsonl",
+          "sha256": "85e824e5d45e5cfbd4741b22f39cffe8ff64a125b17b573051d643d9462b3a0c"
+        }
+      ],
+      "stdoutSha256": "c917a901e6b9027877edb2e3d97ae3cf35c4e4e3b2fe80aba6d2035aeb5297c1"
+    }
+  },
+  "generatorSha256": "86ce6e0ac4165479f4be2e1f081603b6cab484f45d1e5cf8ad7740e5f4b99793",
+  "producerCaptureSha256": "392b3f6afc5d698eacd6ae5d395fc18d7e4771befb3e32a6015134c161c2402d",
+  "scannerSha256": "88c3b58173e6ad94e02b8b6e23a802f4aa18f9b5e6713832f5f1522859e9cb2b",
+  "scannerVersion": "20.0.48-openusage.2"
+}

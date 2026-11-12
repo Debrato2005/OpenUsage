@@ -201,6 +201,23 @@ the receipt, the raw producer comparison stays skipped. These checks qualify
 the isolated scanner command. The [record](reviews/2026-11-12-codex-combined-capture.md)
 owns its executed scope and remaining application gates.
 
+## Codex consumer fixtures
+
+The [fixture generator](../tests/tools/codex_snapshot_fixture.py) uses the pinned
+snapshot oracle and the exact private producer receipt. Select a new private
+output path. It checks independent totals, source fingerprints, and the oracle
+before it writes report projections.
+
+```sh
+python3 tests/tools/codex_snapshot_fixture.py --capture-receipt /absolute/private/capture.json --output /absolute/private/new-reports.json
+```
+
+Review the output before replacing the tracked Rust fixture. The default Python
+suite checks its scanner, producer, and generator pins and excludes message
+bodies. Rust tests preserve original report bytes for decimal and duplicate-field
+checks. The [consumer record](reviews/2026-11-12-codex-snapshot-consumer.md)
+owns executed evidence. These tests do not activate application scanning.
+
 ## Scanner candidate builds
 
 Run Cargo from the candidate source root so its `.cargo/config.toml` applies.

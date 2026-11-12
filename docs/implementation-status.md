@@ -26,16 +26,17 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scoped result, November 12, 2026. The isolated Codex command derives
-complete daily and session reports from one validated capture. Nine producer
-cases and eight controlled source changes pass on synthetic Linux. The
-[combined-capture record](reviews/2026-11-12-codex-combined-capture.md) owns
-the exact scope and remaining application gates. The production scanner and
+Latest scoped result, November 12, 2026. The Rust Codex snapshot consumer
+preserves exact totals and nullable measurements. Eleven recorded cases,
+fifteen public parser tests, and the affected crate checks pass on synthetic
+Linux. The [consumer record](reviews/2026-11-12-codex-snapshot-consumer.md)
+owns executed evidence and the next native gate. The production scanner and
 enabled catalog stay unchanged.
 
 Hosted CI for `b0422bf` passed Linux and Renderer, including the existing Pi
 qualification and native oracle steps. The [evidence log](acceptance-traceability.md#evidence-log)
-records its scope. The current combined-capture change needs its own hosted result.
+records its scope. Hosted checks for `abb3b5a` are in progress. The current
+Rust consumer change needs its own hosted result.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -163,10 +164,10 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 
 ## Current assignment
 
-[L-1f11ap](implementation-slices.md#l-1f11ap-codex-combined-report-consumer)
-parses the candidate envelope into existing typed grouped records. Preserve
-exact totals, reported categories, nullable estimates, model attribution, and
-session identity. Keep production scanning and legacy history unchanged.
+[L-1f11aq](implementation-slices.md#l-1f11aq-native-codex-candidate-qualification)
+exercises the pinned combined-capture candidate through a native desktop
+qualification feature. Use private synthetic homes, preserve legacy history,
+and keep ordinary Codex support and the production pin unchanged.
 
 The [gate review](reviews/2026-11-12-additional-tool-gates.md) links all sixteen
 additional-tool records. Their source and capture gaps remain open.
