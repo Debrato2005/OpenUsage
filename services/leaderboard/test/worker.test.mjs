@@ -7,14 +7,14 @@ import { DatabaseSync } from 'node:sqlite';
 import { DAY_CEILING, TITLE, handle, validRows } from '../src/worker.mjs';
 
 /** The part of the D1 binding that the Worker uses: prepare, bind, first, all, run and batch. */
-function d1({ beforeRun, afterRun } = {}) {
+function d1({ beforeRun, afterRun, beforeRead } = {}) {
   const db = new DatabaseSync(':memory:');
   db.exec('PRAGMA foreign_keys = ON');
   db.exec(readFileSync(new URL('../migrations/0001_init.sql', import.meta.url), 'utf8'));
   const statement = (sql, params = []) => ({
     bind: (...values) => statement(sql, values),
-    first: async () => db.prepare(sql).get(...params) ?? null,
-    all: async () => ({ results: db.prepare(sql).all(...params) }),
+    first: async () => { await beforeRead?.(sql, params); return db.prepare(sql).get(...params) ?? null; },
+    all: async () => { await beforeRead?.(sql, params); return { results: db.prepare(sql).all(...params) }; },
     run: async () => {
       await beforeRun?.(sql, params);
       const result = { success: true, meta: { changes: Number(db.prepare(sql).run(...params).changes) } };
@@ -45,7 +45,7 @@ const post = (path, body, token, extra = {}) => new Request(`https://board.examp
   method: 'POST', body: typeof body === 'string' ? body : JSON.stringify(body),
   headers: { 'content-type': 'application/json', 'cf-connecting-ip': '203.0.113.9', ...(token ? { authorization: `Bearer ${token}` } : {}), ...extra },
 });
-const get = path => new Request(`https://board.example${path}`);
+const get = (path, token) => new Request(`https://board.example${path}`, { headers: token ? { authorization: `Bearer ${token}` } : {} });
 const row = (date, total, extra = {}) => ({ date, tool: 'claude', model: 'claude-sonnet-4-5', inputTokens: total - 3, outputTokens: 1, cacheReadTokens: 1, cacheWriteTokens: 1, totalTokens: total, estimatedValueMicros: 900, ...extra });
 async function join(e, githubToken, deviceId = DEVICE, now = NOW) {
   const response = await handle(post('/v1/join', { githubToken, deviceId }), e, deps, now);
@@ -55,8 +55,13 @@ async function sync(e, token, rows, deviceId = DEVICE, now = NOW) {
   const response = await handle(post('/v1/sync', { deviceId, rows }, token), e, deps, now);
   return { status: response.status, body: await response.json() };
 }
-async function board(e, query = '') {
-  const response = await handle(get(`/v1/leaderboard${query}`), e, deps, NOW);
+async function board(e, query = '', now = NOW) {
+  const response = await handle(get(`/v1/leaderboard${query}`), e, deps, now);
+  return { status: response.status, body: await response.json() };
+}
+
+async function ownRank(e, token, query = '', now = NOW) {
+  const response = await handle(get(`/v1/me/rank${query}`, token), e, deps, now);
   return { status: response.status, body: await response.json() };
 }
 
@@ -451,6 +456,117 @@ test('ranks sum devices, leave hidden users and flagged days out, and say Self-r
   for (const query of ['?period=1y', '?metric=money', '?period=7d&user=alpha']) assert.equal((await board(e, query)).status, 400);
 });
 
+test('own rank uses the public order and returns a snapshot for a joined user with no data', async () => {
+  const e = env();
+  const alpha = (await join(e, 'gho_synthetic_token_alpha_0001')).body.token;
+  const beta = (await join(e, 'gho_synthetic_token_beta_00001')).body.token;
+  assert.deepEqual(await ownRank(e, alpha), { status: 200, body: {
+    title: TITLE, period: '30d', metric: 'tokens', snapshotAt: NOW.toISOString(), totalParticipants: 0, entry: null,
+  } });
+  assert.equal((await sync(e, beta, [row('2026-11-08', 20)])).status, 200);
+  assert.equal((await sync(e, alpha, [row('2026-11-08', 10)])).status, 200);
+  const result = await ownRank(e, alpha);
+  assert.equal(result.status, 200);
+  assert.equal(result.body.totalParticipants, 2);
+  assert.deepEqual(result.body.entry, (await board(e)).body.entries[1]);
+});
+
+test('own rank includes participants beyond the public top 100 and gives ties distinct stable positions', async () => {
+  const e = env();
+  e.JOIN_LIMITER.limit = async () => ({ success: true });
+  const tokens = [];
+  for (let index = 0; index < 105; index++) {
+    const login = `participant-${String(index).padStart(3, '0')}`;
+    const response = await handle(post('/v1/join', { githubToken: 'gho_synthetic_many_participants', deviceId: DEVICE }), e,
+      { fetchGitHubUser: async () => ({ id: 1000 + index, login }) }, NOW);
+    assert.equal(response.status, 200);
+    const { token } = await response.json();
+    tokens.push(token);
+    assert.equal((await sync(e, token, [row('2026-11-08', 10)])).status, 200);
+  }
+  for (const metric of ['tokens', 'value']) {
+    const query = `?period=all&metric=${metric}`;
+    const entries = (await board(e, query)).body.entries;
+    assert.equal(entries.length, 100);
+    assert.deepEqual(entries.map(entry => entry.rank), Array.from({ length: 100 }, (_, index) => index + 1));
+    assert.equal(entries.at(-1).login, 'participant-099');
+    for (const index of [0, 99, 100, 104]) {
+      const own = await ownRank(e, tokens[index], query);
+      assert.equal(own.status, 200);
+      assert.equal(own.body.totalParticipants, 105);
+      assert.deepEqual(own.body.entry, { rank: index + 1, login: `participant-${String(index).padStart(3, '0')}`, totalTokens: 10, estimatedValueMicros: 900 });
+      if (index < 100) assert.deepEqual(own.body.entry, entries[index]);
+    }
+  }
+});
+
+test('rank reads reject unknown, duplicate, and invalid selectors on both routes', async () => {
+  const e = env();
+  const { token } = (await join(e, 'gho_synthetic_token_alpha_0001')).body;
+  for (const query of ['?period=1y', '?metric=money', '?period=', '?metric=', '?period=7d&user=alpha', '?period=7d&period=30d', '?metric=tokens&metric=tokens']) {
+    for (const route of ['/v1/leaderboard', '/v1/me/rank']) {
+      const response = await handle(get(`${route}${query}`, token), e, deps, NOW);
+      assert.equal(response.status, 400, `${route}${query}`);
+      assert.deepEqual(await response.json(), { error: 'invalid_request' });
+    }
+  }
+});
+
+test('own rank requires a current device token and leaves all device tokens revoked at once', async () => {
+  const e = env();
+  const first = (await join(e, 'gho_synthetic_token_alpha_0001')).body.token;
+  const second = (await join(e, 'gho_synthetic_token_alpha_0001', SECOND)).body.token;
+  assert.equal((await sync(e, first, [row('2026-11-08', 10)])).status, 200);
+  for (const authorization of [undefined, 'Basic abc', `bearer ${first}`, `Bearer ${'F'.repeat(64)}`, `Bearer ${'f'.repeat(63)}`, `Bearer ${'f'.repeat(64)}`]) {
+    const request = new Request('https://board.example/v1/me/rank', { headers: authorization ? { authorization } : {} });
+    const response = await handle(request, e, deps, NOW);
+    assert.equal(response.status, 401);
+    assert.deepEqual(await response.json(), { error: 'not_joined' });
+  }
+  const limits = e.DB.raw.prepare('SELECT * FROM limits ORDER BY key, hour').all();
+  for (let index = 0; index < 35; index++) assert.equal((await ownRank(e, first)).status, 200);
+  assert.deepEqual(e.DB.raw.prepare('SELECT * FROM limits ORDER BY key, hour').all(), limits);
+  const rotated = (await join(e, 'gho_synthetic_token_alpha_0001')).body.token;
+  assert.deepEqual(await ownRank(e, first), { status: 401, body: { error: 'not_joined' } });
+  assert.equal((await ownRank(e, rotated)).status, 200);
+  assert.equal((await ownRank(e, second)).status, 200);
+  assert.equal((await handle(post('/v1/leave', {}, second), e, deps, NOW)).status, 200);
+  for (const token of [first, second, rotated]) assert.deepEqual(await ownRank(e, token), { status: 401, body: { error: 'not_joined' } });
+  assert.deepEqual((await board(e)).body.entries, []);
+});
+
+test('own rank rechecks token revocation in the snapshot query', async () => {
+  let revoke;
+  const e = env({ beforeRead: async sql => {
+    if (!sql.startsWith('WITH aggregates') || !revoke) return;
+    const token = revoke;
+    revoke = undefined;
+    assert.equal((await handle(post('/v1/leave', {}, token), e, deps, NOW)).status, 200);
+  } });
+  const token = (await join(e, 'gho_synthetic_token_alpha_0001')).body.token;
+  assert.equal((await sync(e, token, [row('2026-11-08', 10)])).status, 200);
+  revoke = token;
+  assert.deepEqual(await ownRank(e, token), { status: 401, body: { error: 'not_joined' } });
+});
+
+test('rank database failures return only unavailable and unauthenticated reads stop before aggregates', async () => {
+  for (const target of ['authentication', 'ranking']) {
+    let armed = false;
+    const e = env({ beforeRead: sql => {
+      if (armed && (target === 'authentication' ? sql.startsWith('SELECT user_id FROM devices') : sql.startsWith('WITH aggregates'))) {
+        throw new Error('synthetic private database detail');
+      }
+    } });
+    const token = (await join(e, 'gho_synthetic_token_alpha_0001')).body.token;
+    armed = true;
+    assert.deepEqual(await ownRank(e, token), { status: 500, body: { error: 'unavailable' } });
+    if (target === 'ranking') {
+      assert.deepEqual(await board(e), { status: 500, body: { error: 'unavailable' } });
+      assert.deepEqual(await ownRank(e, 'f'.repeat(64)), { status: 401, body: { error: 'not_joined' } });
+    }
+  }
+});
+
 test('ranks keep an estimate unavailable if any included row lacks it', async () => {
   for (const [estimates, expected] of [
     [[900, null], null],
@@ -466,9 +582,14 @@ test('ranks keep an estimate unavailable if any included row lacks it', async ()
     ]), { status: 200, body: { accepted: 2 } });
     for (const period of ['7d', '30d', 'all']) {
       for (const metric of ['tokens', 'value']) {
-        const result = await board(e, `?period=${period}&metric=${metric}`);
+        const query = `?period=${period}&metric=${metric}`;
+        const result = await board(e, query);
         assert.equal(result.status, 200);
         assert.deepEqual(result.body.entries, [{ rank: 1, login: 'alpha', totalTokens: 20, estimatedValueMicros: expected }]);
+        const own = await ownRank(e, token, query);
+        assert.equal(own.status, 200);
+        assert.equal(own.body.totalParticipants, 1);
+        assert.deepEqual(own.body.entry, result.body.entries[0]);
       }
     }
   }
@@ -483,8 +604,15 @@ test('ranks preserve device estimates, measured zero, and stable ties after repl
   assert.equal((await sync(e, alphaPhone, [row('2026-11-08', 10, { estimatedValueMicros: null })], SECOND)).status, 200);
   assert.equal((await sync(e, beta, [row('2026-11-08', 20, { estimatedValueMicros: 0 })])).status, 200);
   const entries = async metric => {
-    const result = await board(e, `?period=all&metric=${metric}`);
+    const query = `?period=all&metric=${metric}`;
+    const result = await board(e, query);
     assert.equal(result.status, 200);
+    for (const [token, login] of [[alpha, 'alpha'], [alphaPhone, 'alpha'], [beta, 'beta']]) {
+      const own = await ownRank(e, token, query);
+      assert.equal(own.status, 200);
+      assert.equal(own.body.totalParticipants, 2);
+      assert.deepEqual(own.body.entry, result.body.entries.find(entry => entry.login === login));
+    }
     return result.body.entries.map(x => [x.rank, x.login, x.totalTokens, x.estimatedValueMicros]);
   };
   for (const metric of ['tokens', 'value']) {
@@ -519,17 +647,122 @@ test('only included dates and visible unflagged rows affect estimate availabilit
   ])).status, 200);
   for (const [period, totalTokens, estimatedValueMicros] of [['7d', 10, 900], ['30d', 30, null], ['all', 40, null]]) {
     for (const metric of ['tokens', 'value']) {
-      const result = await board(e, `?period=${period}&metric=${metric}`);
+      const query = `?period=${period}&metric=${metric}`;
+      const result = await board(e, query);
       assert.equal(result.status, 200);
       assert.deepEqual(result.body.entries, [{ rank: 1, login: 'alpha', totalTokens, estimatedValueMicros }]);
+      const own = await ownRank(e, token, query);
+      assert.equal(own.status, 200);
+      assert.equal(own.body.totalParticipants, 1);
+      assert.deepEqual(own.body.entry, result.body.entries[0]);
     }
   }
   e.DB.raw.exec('UPDATE flags SET cleared = 1');
   const cleared = await board(e, '?period=7d&metric=value');
   assert.equal(cleared.status, 200);
   assert.deepEqual(cleared.body.entries, [{ rank: 1, login: 'alpha', totalTokens: DAY_CEILING + 11, estimatedValueMicros: null }]);
+  assert.deepEqual((await ownRank(e, token, '?period=7d&metric=value')).body.entry, cleared.body.entries[0]);
   e.DB.raw.exec("UPDATE users SET hidden = 1 WHERE login = 'alpha'");
-  for (const metric of ['tokens', 'value']) assert.deepEqual((await board(e, `?period=all&metric=${metric}`)).body.entries, []);
+  for (const metric of ['tokens', 'value']) {
+    const query = `?period=all&metric=${metric}`;
+    assert.deepEqual((await board(e, query)).body.entries, []);
+    const own = await ownRank(e, token, query);
+    assert.equal(own.status, 200);
+    assert.equal(own.body.totalParticipants, 0);
+    assert.equal(own.body.entry, null);
+  }
+});
+
+test('own rank keeps measured zero separate from no data and reveals no moderation reason', async () => {
+  const e = env();
+  const alpha = (await join(e, 'gho_synthetic_token_alpha_0001')).body.token;
+  const beta = (await join(e, 'gho_synthetic_token_beta_00001')).body.token;
+  assert.equal((await sync(e, beta, [row('2026-11-08', 10)])).status, 200);
+  const noData = await ownRank(e, alpha);
+  assert.equal(noData.body.entry, null);
+  assert.equal(noData.body.totalParticipants, 1);
+  assert.equal((await sync(e, alpha, [row('2026-11-08', 0, {
+    inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, estimatedValueMicros: 0,
+  })])).status, 200);
+  assert.deepEqual((await ownRank(e, alpha)).body.entry, { rank: 2, login: 'alpha', totalTokens: 0, estimatedValueMicros: 0 });
+  e.DB.raw.exec("UPDATE users SET hidden = 1 WHERE login = 'alpha'");
+  assert.deepEqual(await ownRank(e, alpha), noData);
+  e.DB.raw.exec("UPDATE users SET hidden = 0 WHERE login = 'alpha'");
+  assert.equal((await sync(e, alpha, [row('2026-11-08', DAY_CEILING + 1)])).status, 200);
+  assert.deepEqual(await ownRank(e, alpha), noData);
+});
+
+test('historical rank snapshots exclude later dates after a clock change', async () => {
+  const e = env();
+  const { token } = (await join(e, 'gho_synthetic_token_alpha_0001')).body;
+  assert.equal((await sync(e, token, [row('2026-11-08', 20), row('2026-11-07', 10)])).status, 200);
+  const earlier = new Date('2026-11-07T12:00:00Z');
+  for (const period of ['7d', '30d', 'all']) {
+    for (const metric of ['tokens', 'value']) {
+      const query = `?period=${period}&metric=${metric}`;
+      const publicResult = await board(e, query, earlier);
+      assert.equal(publicResult.status, 200);
+      assert.deepEqual(publicResult.body.entries, [{ rank: 1, login: 'alpha', totalTokens: 10, estimatedValueMicros: 900 }]);
+      const own = await ownRank(e, token, query, earlier);
+      assert.equal(own.status, 200);
+      assert.equal(own.body.snapshotAt, earlier.toISOString());
+      assert.equal(own.body.totalParticipants, 1);
+      assert.deepEqual(own.body.entry, publicResult.body.entries[0]);
+    }
+  }
+});
+
+test('rank APIs preserve safe integer limits and refuse unsafe token or value aggregates', { timeout: 10000 }, async () => {
+  for (const field of ['tokens', 'value']) {
+    const e = env();
+    const { token } = (await join(e, 'gho_synthetic_token_alpha_0001')).body;
+    const fullRows = Math.floor(Number.MAX_SAFE_INTEGER / 1_000_000_000_000);
+    const remainder = Number.MAX_SAFE_INTEGER - fullRows * 1_000_000_000_000;
+    const makeRow = (index, amount) => row('2026-11-08', field === 'tokens' ? amount : 3, {
+      model: `m-${index}`, estimatedValueMicros: field === 'value' ? amount : 0,
+    });
+    const rows = Array.from({ length: fullRows + 1 }, (_, index) => makeRow(index, index === fullRows ? remainder : 1_000_000_000_000));
+    for (let start = 0; start < rows.length; start += 100) {
+      const hourOffset = Math.floor(start / 3000);
+      const now = new Date(NOW.getTime() + hourOffset * 3600_000);
+      assert.equal((await sync(e, token, rows.slice(start, start + 100), DEVICE, now)).status, 200);
+    }
+    // A maintainer permits the synthetic large token day before the read.
+    e.DB.raw.exec('UPDATE flags SET cleared = 1');
+    for (const period of ['7d', '30d', 'all']) {
+      for (const metric of ['tokens', 'value']) {
+        const query = `?period=${period}&metric=${metric}`;
+        const publicResult = await board(e, query);
+        assert.equal(publicResult.status, 200);
+        assert.equal(publicResult.body.entries[0][field === 'tokens' ? 'totalTokens' : 'estimatedValueMicros'], Number.MAX_SAFE_INTEGER);
+        const own = await ownRank(e, token, query);
+        assert.equal(own.status, 200);
+        assert.deepEqual(own.body.entry, publicResult.body.entries[0]);
+      }
+    }
+    assert.equal((await sync(e, token, [makeRow(fullRows, remainder + 2)])).status, 200);
+    for (const metric of ['tokens', 'value']) {
+      assert.deepEqual(await board(e, `?metric=${metric}`), { status: 500, body: { error: 'unavailable' } });
+      assert.deepEqual(await ownRank(e, token, `?metric=${metric}`), { status: 500, body: { error: 'unavailable' } });
+    }
+    if (field === 'value') {
+      // Safe top-100 entries cannot conceal an unsafe own aggregate at rank 101.
+      for (let index = 0; index < 100; index++) {
+        e.DB.raw.prepare('INSERT INTO users (id, github_id, login, created_at) VALUES (?1, ?2, ?3, ?4)').run(1000 + index, 2000 + index, `safe-${index}`, NOW.toISOString());
+        e.DB.raw.prepare('INSERT INTO devices VALUES (?1, ?2, ?3, ?4)').run(1000 + index, DEVICE, String(index).padStart(64, '0'), NOW.toISOString());
+        e.DB.raw.prepare("INSERT INTO days VALUES (?1, ?2, '2026-11-08', 'claude', 'm', 50000, 0, 0, 0, 50000, 0)").run(1000 + index, DEVICE);
+      }
+      const publicResult = await board(e);
+      assert.equal(publicResult.status, 200);
+      assert.equal(publicResult.body.entries.length, 100);
+      assert.deepEqual(await ownRank(e, token), { status: 500, body: { error: 'unavailable' } });
+    }
+    e.DB.raw.exec("UPDATE users SET hidden = 1 WHERE login = 'alpha'");
+    const hidden = await ownRank(e, token);
+    assert.equal(hidden.status, 200);
+    assert.equal(hidden.body.entry, null);
+    assert.equal(hidden.body.totalParticipants, field === 'value' ? 100 : 0);
+  }
 });
 
 test('leaving removes every row at once, and more than five devices are refused', async () => {

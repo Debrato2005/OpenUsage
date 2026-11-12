@@ -115,11 +115,15 @@ async function limited(db, key, limit, now) {
   return false;
 }
 
-async function device(request, db) {
+async function tokenHash(request) {
   const header = request.headers.get('authorization') ?? '';
   const token = /^Bearer ([0-9a-f]{64})$/.exec(header)?.[1];
   if (!token) refuse(401, 'not_joined');
-  const found = await db.prepare('SELECT user_id, device_id FROM devices WHERE token_hash = ?1').bind(await sha256(token)).first();
+  return sha256(token);
+}
+
+async function device(request, db) {
+  const found = await db.prepare('SELECT user_id, device_id FROM devices WHERE token_hash = ?1').bind(await tokenHash(request)).first();
   return found ?? refuse(401, 'not_joined');
 }
 
@@ -186,19 +190,51 @@ async function leave(request, env) {
   return json(200, { left: true });
 }
 
-/** Ranks over 7 days, 30 days or all time, by tokens or estimated value (OU-BOARD-008). */
-export async function ranks(db, period, metric, now) {
-  const since = period === 'all' ? '0000-00-00' : day(new Date(now.getTime() - (period === '7d' ? 6 : 29) * 86_400_000));
+function rankingQuery(metric) {
   const order = metric === 'value' ? 'value DESC, tokens DESC' : 'tokens DESC, value DESC';
-  const { results } = await db.prepare(
-    `SELECT u.login AS login, sum(d.total_tokens) AS tokens,
+  return `WITH aggregates AS (
+     SELECT u.id AS user_id, u.login AS login, sum(d.total_tokens) AS tokens,
        CASE WHEN count(d.estimated_value_micros) = count(*) THEN sum(d.estimated_value_micros) ELSE NULL END AS value
      FROM days d JOIN users u ON u.id = d.user_id
-     WHERE u.hidden = 0 AND d.date >= ?1
+     WHERE u.hidden = 0 AND d.date >= ?1 AND d.date <= ?2
        AND NOT EXISTS (SELECT 1 FROM flags f WHERE f.user_id = d.user_id AND f.date = d.date AND f.cleared = 0)
-     GROUP BY u.id ORDER BY ${order}, u.login LIMIT ?2`,
-  ).bind(since, RANK_LIMIT).all();
-  return results.map((row, index) => ({ rank: index + 1, login: row.login, totalTokens: row.tokens, estimatedValueMicros: row.value }));
+     GROUP BY u.id
+   ), ranked AS (
+     SELECT *, row_number() OVER (ORDER BY ${order}, login, user_id) AS rank FROM aggregates
+   )`;
+}
+
+const sinceDay = (period, now) => period === 'all' ? '0000-00-00' : day(new Date(now.getTime() - (period === '7d' ? 6 : 29) * 86_400_000));
+const RANK_COLUMNS = 'CAST(rank AS TEXT) AS rank, login, CAST(tokens AS TEXT) AS tokens, CAST(value AS TEXT) AS value';
+
+// SQLite keeps integer sums exact. Read text before conversion so D1 cannot round an unsafe sum.
+function exactNumber(text) {
+  if (typeof text !== 'string' || !/^\d+$/.test(text)) refuse(500, 'unavailable');
+  const value = Number(text);
+  if (!Number.isSafeInteger(value)) refuse(500, 'unavailable');
+  return value;
+}
+
+const rankEntry = row => ({ rank: exactNumber(row.rank), login: row.login, totalTokens: exactNumber(row.tokens), estimatedValueMicros: row.value === null ? null : exactNumber(row.value) });
+
+/** Ranks over 7 days, 30 days or all time, by tokens or estimated value (OU-BOARD-008). */
+export async function ranks(db, period, metric, now) {
+  const { results } = await db.prepare(`${rankingQuery(metric)} SELECT ${RANK_COLUMNS} FROM ranked ORDER BY ranked.rank LIMIT ?3`)
+    .bind(sinceDay(period, now), day(now), RANK_LIMIT).all();
+  return results.map(rankEntry);
+}
+
+/** Reads the joined user's ordinal rank across all eligible participants (OU-BOARD-013, OU-BOARD-014). */
+async function ownRank(request, env, period, metric, now) {
+  const hash = await tokenHash(request);
+  const joined = await env.DB.prepare('SELECT user_id FROM devices WHERE token_hash = ?1').bind(hash).first();
+  if (!joined) refuse(401, 'not_joined');
+  const found = await env.DB.prepare(`${rankingQuery(metric)}
+    SELECT CAST((SELECT count(*) FROM ranked) AS TEXT) AS participants, ${RANK_COLUMNS}
+    FROM devices a LEFT JOIN ranked r ON r.user_id = a.user_id WHERE a.token_hash = ?3`)
+    .bind(sinceDay(period, now), day(now), hash).first();
+  if (!found) refuse(401, 'not_joined');
+  return json(200, { title: TITLE, period, metric, snapshotAt: now.toISOString(), totalParticipants: exactNumber(found.participants), entry: found.rank === null ? null : rankEntry(found) });
 }
 
 const escape = text => String(text).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -236,9 +272,11 @@ export async function handle(request, env, deps = { fetchGitHubUser }, now = new
     if (route === 'POST /v1/join') return await join(request, env, deps, now);
     if (route === 'POST /v1/sync') return await sync(request, env, now);
     if (route === 'POST /v1/leave') return await leave(request, env);
-    if (route === 'GET /v1/leaderboard') {
+    if (route === 'GET /v1/leaderboard' || route === 'GET /v1/me/rank') {
       const period = searchParams.get('period') ?? '30d', metric = searchParams.get('metric') ?? 'tokens';
-      if (!['7d', '30d', 'all'].includes(period) || !['tokens', 'value'].includes(metric) || [...searchParams.keys()].some(k => !['period', 'metric'].includes(k))) refuse(400, 'invalid_request');
+      if (!['7d', '30d', 'all'].includes(period) || !['tokens', 'value'].includes(metric) || [...searchParams.keys()].some(k => !['period', 'metric'].includes(k))
+        || searchParams.getAll('period').length > 1 || searchParams.getAll('metric').length > 1) refuse(400, 'invalid_request');
+      if (route === 'GET /v1/me/rank') return await ownRank(request, env, period, metric, now);
       return json(200, { title: TITLE, period, metric, entries: await ranks(env.DB, period, metric, now) });
     }
     if (route === 'GET /') return await page(env, now);

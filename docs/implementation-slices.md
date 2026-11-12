@@ -198,7 +198,7 @@ Updated November 12, 2026. Each completed item has one local commit and scoped e
 
 - [x] L-4a: the Worker in `services/leaderboard/` with join, sync, leave and public ranks, strict schemas and limits, tested against SQLite with no network (OU-BOARD-003, OU-BOARD-004, OU-BOARD-007 to OU-BOARD-011).
 - [x] L-4b: the moderation policy beside the source.
-- [ ] L-4c: authenticated own-rank access beyond the top 100, with the same eligible set, deterministic order, null semantics, and snapshot context (OU-BOARD-013/014; AT-95).
+- [x] L-4c: authenticated own-rank service access beyond the top 100. Shared eligibility, deterministic order, nulls, snapshot context, and revocation pass 33 local Worker integration tests (OU-BOARD-013/014; service part of AT-95). Hosted acceptance and client views remain open.
 
 **L-5 Leaderboard client**
 

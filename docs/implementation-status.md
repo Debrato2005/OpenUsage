@@ -50,7 +50,7 @@ The wider native results below are from L-1g2 and earlier. They do not certify t
 New in baseline 3.1:
 
 - Private desktop-to-website sync and the responsive personal dashboard: Sections 14B and 14C, Stage 3.
-- Own rank outside the public top 100: OU-BOARD-013 and OU-BOARD-014.
+- Own-rank client views: OU-BOARD-013 and OU-BOARD-014. The service API is complete within the local scope below.
 - Period usage receipts and the combined Overview access: OU-SHARE-007 to OU-SHARE-010 and OU-UI-028.
 - Explicit provider-connection suggestions: OU-ACCT-021.
 
@@ -70,6 +70,8 @@ Kept from baseline 2.0:
 - Wake handling: OU-PROC-013, OU-MON-013.
 
 ## Partial
+
+- Own rank (L-4c), November 13, 2026: the [service API](../services/leaderboard/README.md#api) returns authenticated ranks beyond the public top 100. Thirty-three Worker integration tests pass against synthetic SQLite and a GitHub stub. Shared ordering, missing estimates, revocation, date bounds, and safe integer limits pass. Hosted D1, deployment, and client views remain unverified.
 
 - Profile removal, S-08a2, November 12, 2026: the
   [app record](reviews/2026-11-12-profile-removal-app.md) owns synthetic Linux scope.
