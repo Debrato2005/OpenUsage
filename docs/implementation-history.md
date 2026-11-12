@@ -4,6 +4,15 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f11al result before L-1f11am
+
+Latest scoped result, November 12, 2026. The shared candidate matches production
+in 47 report comparisons and 188 repeated commands. Ten independent expectations
+fail in both binaries. The [comparison record](reviews/2026-11-12-shared-scanner-compatibility.md)
+separates compatibility from production qualification. Codex captured-event
+identity is the next gate. No additional tool is enabled.
+
+
 ## L-1f11ak result before L-1f11al
 
 Latest scoped result, November 12, 2026. The native Pi qualification build uses

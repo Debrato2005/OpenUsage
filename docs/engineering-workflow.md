@@ -137,6 +137,34 @@ without an executable. A successful comparison means the two artifacts match
 within this matrix. It does not mean either scanner meets every independent
 expectation. The [compatibility record](reviews/2026-11-12-shared-scanner-compatibility.md) holds those disagreements.
 
+## Codex producer capture
+
+
+On Linux, run the producer harness with the reviewed Codex executable and
+Bubblewrap available. Select a new private output path.
+
+```sh
+python3 tests/tools/codex_producer.py --mode contract --output /absolute/private/new-capture.json
+```
+
+This starts a local synthetic Responses fixture inside an isolated network
+namespace. It uses fresh homes and no real provider account. The output holds
+raw synthetic rollouts and must stay private. A new capture needs a reviewed
+projection before the scanner comparison can use it.
+
+The historical comparison needs the exact private receipt referenced by
+`tests/tools/fixtures/codex-producer/capture.json`. Set
+`OPENUSAGE_CODEX_CAPTURE_RECEIPT` to that receipt. Set
+`OPENUSAGE_CODEX_CAPTURE_RESULTS` to a new private results path. Then run:
+
+```sh
+python3 -m unittest discover -s tests/tools -p test_codex_producer.py -v
+```
+
+Without those variables, the source and projection checks still run. The live
+scanner comparison stays skipped. The [producer contract record](reviews/2026-11-12-codex-producer-contract.md) owns the
+executed scope and remaining gates.
+
 ## Scanner candidate builds
 
 Run Cargo from the candidate source root so its `.cargo/config.toml` applies.
