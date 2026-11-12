@@ -26,12 +26,12 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scoped result, November 12, 2026. L-1f11ar corrects Claude JSON formatting
-in a separate scanner candidate. Nine parent tests pass across 302 scanner
-commands. The 47-report matrix fixes three whitespace cases and retains seven
-qualification failures. Independent review corrected a metadata regression.
-The [candidate record](reviews/2026-11-12-claude-json-candidate.md) owns exact
-scope. Production pins and enabled tools stay unchanged.
+Latest scanner result, November 13, 2026. L-1f11as refuses five malformed-peer
+reports in a separate successor candidate. Eleven new checks cover 422 scanner
+commands. Both formerly skipped raw Codex comparisons pass with the exact
+synthetic producer receipt. Two legacy identity failures remain. The
+[candidate record](reviews/2026-11-13-legacy-capture-candidate.md) owns executed
+scope and remaining gates. Production pins and enabled tools stay unchanged.
 
 Hosted CI for `d8232b3` passed in
 [run 43253994409](https://github.com/Debrato2005/OpenUsage/actions/runs/43253994409).
@@ -181,15 +181,15 @@ separate from document completion. The [performance report](performance-report.m
 ## Current assignment
 
 The owner authorized continued work across local commits on November 13.
-The current independent slices are scanner capture correction (L-1f11as),
-own-rank service access (L-4c), and offline board preview (L-5a0).
+The current independent slices are legacy Codex identity (L-1f11at),
+period receipts (L-3c), and offline board preview integration (L-5a0).
 Each keeps separate file ownership. Root integrates shared contracts and
 records executed evidence before marking a slice complete.
 
-L-1f11ar is complete within its separate Claude JSON candidate scope.
-The [candidate record](reviews/2026-11-12-claude-json-candidate.md) lists executed
+L-1f11as is complete within its separate legacy capture candidate scope.
+The [candidate record](reviews/2026-11-13-legacy-capture-candidate.md) lists executed
 checks, corrected regressions, and remaining gates. Production activation and
-additional tools remain unqualified. Report this slice before another assignment.
+additional tools remain unqualified.
 
 S-08a1 storage checks passed within their synthetic Linux scope. L-1f11aq's native Codex qualification
 remains separate from production activation. The [gate review](reviews/2026-11-12-additional-tool-gates.md)

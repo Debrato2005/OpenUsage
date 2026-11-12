@@ -99,6 +99,9 @@ Updated November 12, 2026. Each completed item has one local commit and scoped e
 
 **L-1 Local logs**
 
+- [x] L-1f11as: isolate whole-report refusal for five malformed-peer cases. The [candidate record](reviews/2026-11-13-legacy-capture-candidate.md) records 422 scanner commands and both exact raw Codex comparisons. Two identity cases still fail. Production support stays unchanged.
+- [ ] L-1f11at: correct the two legacy Codex identity cases with recorded thread identity and explicit refusal of ambiguous histories. Qualify the source boundary before production use.
+
 - [x] L-1a: pin, provision, run and parse `ccusage` (OU-LOG-005 to OU-LOG-007).
 - [x] L-1b: store totals and differences at schema 10 (OU-LOG-003, OU-LOG-010 to OU-LOG-013).
 - [x] L-1c: scan service. Detect known folders by existence only, keep each run to the consented tools, scan after consent and then on a schedule, one run at a time, and keep a failure inside local logs (OU-LOG-001, OU-LOG-006, OU-LOG-008, OU-DUP-008, OU-NFR-021; AT-70 to AT-72).

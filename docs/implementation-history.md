@@ -4,6 +4,15 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f11ar result before L-1f11as
+
+Latest scoped result, November 12, 2026. L-1f11ar corrects Claude JSON formatting
+in a separate scanner candidate. Nine parent tests pass across 302 scanner
+commands. The 47-report matrix fixes three whitespace cases and retains seven
+qualification failures. Independent review corrected a metadata regression.
+The [candidate record](reviews/2026-11-12-claude-json-candidate.md) owns exact
+scope. Production pins and enabled tools stay unchanged.
+
 ## L-7e2 result before L-1f11ar
 
 Latest scoped result, November 12, 2026. L-7e2 adds the source-backed
