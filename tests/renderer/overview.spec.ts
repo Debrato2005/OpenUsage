@@ -271,7 +271,7 @@ test('bundled DM Sans serves interface and exact readings with tabular digits', 
   expect(rendered.widths[0]).toBeGreaterThan(0);
   expect(Math.max(...rendered.widths) - Math.min(...rendered.widths)).toBeLessThan(0.1);
   expect(requestedFonts.length).toBeGreaterThan(0);
-  const bundled = ['/fonts/DMSans-Variable.ttf', '/fonts/BricolageGrotesque-Variable.ttf'].map(path => new URL(path, page.url()).href);
+  const bundled = ['/fonts/DMSans-Variable.ttf', '/fonts/CormorantGaramond-Variable.ttf'].map(path => new URL(path, page.url()).href);
   expect(requestedFonts).toContain(bundled[0]);
   expect(requestedFonts.every(url => bundled.includes(url))).toBe(true);
   await closeDetail(page);
@@ -317,7 +317,7 @@ test('renderer Overview remains accessible in both themes at 360 pixels and enla
     await page.getByRole('combobox', { name: 'Appearance', exact: true }).click();
     await page.getByRole('option', { name: theme === 'light' ? 'Light' : 'Dark', exact: true }).click();
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
-    if (theme === 'dark') expect(await page.evaluate(() => ({ background: getComputedStyle(document.documentElement).backgroundColor, header: getComputedStyle(document.querySelector('.workspace-header')!).backgroundColor }))).toEqual({ background: 'rgb(0, 0, 0)', header: 'rgb(0, 0, 0)' });
+    if (theme === 'dark') expect(await page.evaluate(() => ({ background: getComputedStyle(document.documentElement).backgroundColor, header: getComputedStyle(document.querySelector('.workspace-header')!).backgroundColor }))).toEqual({ background: 'rgb(5, 6, 7)', header: 'rgba(16, 18, 22, 0.62)' });
     await navigate(page, 'overview');
     await choose(page, 'Large fixture');
     for (const scale of [1, 2]) {

@@ -29,6 +29,7 @@ import { SettingsNav, settingsSections } from './settings-nav';
 import { CloseIcon } from './icons';
 import './styles.css';
 import './workspace-layout.css';
+import './noir.css';
 
 type Startup = { kind: 'loading' } | { kind: 'desktop'; data: Bootstrap }
   | { kind: 'unavailable' } | { kind: 'failed' };
