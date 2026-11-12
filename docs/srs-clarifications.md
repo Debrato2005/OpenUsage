@@ -2,9 +2,9 @@
 
 # SRS clarification record
 
-This is the record of how requirements were read. Entries keep their original date and wording, so "the normative SRS" in an entry means the baseline at that date. [Baseline 3.0](SRS.md) is current.
+This is the record of how requirements were read. Entries keep their original date and wording, so "the normative SRS" in an entry means the baseline at that date. [Baseline 3.1](SRS.md) is current.
 
-| ID | Topic | Status under baseline 3.0 |
+| ID | Topic | Current status |
 |---|---|---|
 | SC-001 | Reset confirmation with rapid new-window use | Proposed, not approved |
 | SC-002 | Restore interruption | In force; acceptance open |
@@ -33,6 +33,37 @@ This is the record of how requirements were read. Entries keep their original da
 | SC-025 | Captured local records and producer completion | Implementation reading recorded; SRS unchanged |
 | SC-026 | Profile removal and retained delivery controls | Implementation reading recorded, native Linux scope passed |
 | SC-027 | Section 17 and current DTOs | Open implementation gap, SRS unchanged |
+| SC-028 | Desktop and private website companion | Owner-authorized baseline 3.1; implementation open |
+
+## SC-028: desktop and private website companion
+
+Recorded November 13, 2026. The owner asked to research this chat, update the
+SRS, and continue implementation with separate parallel ownership. The owner
+also authorized work across local commits and prioritized end-to-end checks.
+This authority supersedes the task's earlier stop-after-commit instruction.
+
+The accepted product has three benefits: remaining limits, estimated API value,
+and public rank. The desktop runs collection internally. A responsive website
+shows approved synced personal summaries on computers and phones. It is not
+limited to public profiles. Private sync does not require public participation.
+
+Baseline 3.0 excluded hosted services beyond the leaderboard and prohibited
+provider readings in leaderboard uploads. [Sections 14B and 14C](SRS.md#14b-private-sync-stage-3)
+add private companion scope without changing that public-upload prohibition.
+Provider credentials, raw logs, project names, and the live database stay local.
+Automatic refresh follows source availability. Sleep, exit, or failed collection
+cannot create fresh readings. The website remains Stage 3 because the owner
+did not direct a release-stage change.
+
+The user's price-figure request permits a prominent estimate. It does not turn
+API-equivalent usage into actual spend or savings. A subscription comparison
+uses entered prices and compatible periods, not a new payment-record feature.
+Peer leagues, subscription advice, and domain purchases were brainstorming,
+not approved requirements. Existing identity and scanner gates remain open.
+
+The [SRS references](SRS.md#23-references) link the source documentation checked
+for local file access, background scheduling, and provider availability.
+This requirements update supplies no runtime or release acceptance evidence.
 
 ## SC-027: Section 17 and current DTOs
 

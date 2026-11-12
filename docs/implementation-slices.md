@@ -1,6 +1,6 @@
 # Implementation slices
 
-Updated: November 12, 2026. This page owns the order and boundaries of planned work. The [SRS](SRS.md) owns what each requirement says, and [status](implementation-status.md) owns what works today.
+Updated: November 13, 2026. This page owns the order and boundaries of planned work. The [SRS](SRS.md) owns what each requirement says, and [status](implementation-status.md) owns what works today.
 
 ## Run a slice
 
@@ -39,20 +39,22 @@ Renderer tests, native journeys, and the local commit therefore need approval to
 
 [AGENTS.md](../AGENTS.md) applies, including OU-DES-001 and OU-ENG-012. These rules add to it.
 
-- Do one slice. Read the requirements it names, not the whole SRS.
+- Use bounded slices. The owner authorized continued work across local commits on November 13, with parallel workers on independent files. Read each slice's requirements.
 - Keep existing behavior, stored data, and safety rules (OU-DES-002).
 - Add a setting, screen, state, or dependency only under OU-DES-013.
 - Reuse local caches where practical. Download required source and build dependencies from official sources at pinned revisions or locked versions. Check published digests when available. New dependencies still need the architecture review above. The owner approved these downloads on November 8, 2026.
 - Use synthetic data and private temporary homes. Never point a test at real logs, real credentials, or the owner's accounts.
 - Make each schema change a tested forward migration. Older backups shall still restore.
-- Record a conflict or an unclear requirement in [SRS clarifications](srs-clarifications.md), then report it. Do not edit the SRS.
+- Record conflicts in [SRS clarifications](srs-clarifications.md). SRS edits require explicit owner authorization. The November 13 instruction authorizes baseline 3.1.
 
 ## Subagents
 
 - Astra owns design, shared contracts, Rust storage and security code, migrations, and review of every diff.
-- Luna takes bounded work with named files: inventories, mechanical test edits, fixtures, and first drafts.
+- For the current authorized pass, implementation workers use `gpt-6.1-sol` with `xhigh` effort. The primary agent owns shared contracts and reviews every result.
 - One agent owns each file. Two agents never edit the same file.
 - Subagents do not start subagents, and they do not decide what a requirement means.
+- Serialize Cargo builds through the primary agent. Set `CARGO_TARGET_DIR` to `.tools/build-target`, `CARGO_HOME` to `.tools/cargo-home`, and disable incremental builds.
+- Prefer CLI, service, storage, and native end-to-end checks. Do not add brittle tests that mirror helpers. Required safety and milestone checks still apply.
 
 ## Done
 
@@ -196,9 +198,11 @@ Updated November 12, 2026. Each completed item has one local commit and scoped e
 
 - [x] L-4a: the Worker in `services/leaderboard/` with join, sync, leave and public ranks, strict schemas and limits, tested against SQLite with no network (OU-BOARD-003, OU-BOARD-004, OU-BOARD-007 to OU-BOARD-011).
 - [x] L-4b: the moderation policy beside the source.
+- [ ] L-4c: authenticated own-rank access beyond the top 100, with the same eligible set, deterministic order, null semantics, and snapshot context (OU-BOARD-013/014; AT-95).
 
 **L-5 Leaderboard client**
 
+- [ ] L-5a0: offline `sync --dry-run` from accepted saved history through one typed payload builder. Refuse ambiguous or incomplete rows. No network or enrollment side effects (OU-BOARD-005/006, OU-CLI-002; AT-96).
 - [ ] L-5a: `openusage board join`, `sync --dry-run`, `sync` and `leave` through one upload builder, with the token in the OS credential store (OU-BOARD-001, OU-BOARD-002, OU-BOARD-005, OU-BOARD-006; AT-86 to AT-88). Downloads are allowed under the slice rules. The HTTPS client still needs an architecture decision because Rust currently declares no HTTP client.
 - [ ] L-5b: join, sync and leave in Settings.
 
@@ -233,6 +237,8 @@ Updated November 12, 2026. Each completed item has one local commit and scoped e
 **After the launch track**
 
 - [ ] The slices in [Order](#order). Stage 1 needs every mandatory requirement (SRS Section 0.4). The next launch item is L-1f. S-03c remains the first item after the launch track with no owner gate.
+- [ ] L-3c: seven-day, thirty-day, and calendar-month usage receipts with exact saved values, estimate labels, and the existing private preview/save path (OU-SHARE-007/008/010; AT-106).
+- [ ] S-23: source-aware connection suggestions and access to capacity, value, and joined rank on Overview (OU-ACCT-021, OU-UI-028; AT-97).
 
 ### Completed assignment: L-1f7
 
@@ -1100,4 +1106,4 @@ Run AT-38 and AT-80 on a real Windows PC and Mac, including OU-DIST-007. Claim t
 - Verified identity and verified totals need an approved identity contract: OU-ACCT-008, OU-ID-*.
 - Browser sign-in waits on SC-005.
 - Credential renewal and revocation need live accounts.
-- OU-BOARD-012 is Stage 3.
+- OU-BOARD-012 and Sections 14B/14C are Stage 3. They require a private-sync architecture decision, versioned snapshots, linking, isolated access, and responsive website acceptance (AT-98 to AT-105).

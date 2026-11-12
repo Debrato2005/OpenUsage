@@ -1,12 +1,12 @@
 # OpenUsage — Software Requirements Specification
 
 **Document ID:** OU-SRS-001  
-**Baseline:** 3.0  
-**Date:** 2 November 2026  
-**Status:** Adopted 2 November 2026; OU-DES-003, OU-DES-005 and OU-DES-008 amended by the owner on 6 November 2026 ([SC-013](srs-clarifications.md#sc-013-rich-dashboard-under-section-23)). Normative product and engineering requirements; release is subject to validation.  
+**Baseline:** 3.1  
+**Date:** 13 November 2026  
+**Status:** Owner-authorized update on 13 November 2026. Normative requirements; implementation and release validation remain incomplete. Earlier design amendments remain in force.  
 **Product:** OpenUsage  
 **License:** Apache License 2.0  
-**Replaces:** OU-SRS-001, baseline 2.0  
+**Replaces:** OU-SRS-001, baseline 3.0  
 **Supported workload:** 10 active account profiles, plus tools read only from local logs  
 **Document style:** Short, direct technical English based on ASD-STE100, Issue 9. This document has **not** received a formal STE vocabulary or conformity audit.
 
@@ -42,7 +42,7 @@ All requirements with an `OU-` identifier are mandatory for the complete release
 
 ### 0.3 Scope control
 
-Baseline 3.0 keeps the limit of **10 active profiles** from baseline 2.0. It widens the product from Codex to many AI coding tools. It removes promotions, payments, and receipt import. Archived profiles and tools read only from local logs do not count toward the active limit. A future change to the limit requires a new SRS baseline and new performance tests.
+Baseline 3.1 keeps the limit of **10 active profiles** and the source rules of baseline 3.0. It adds a private website companion in Stage 3. The desktop collects data; the website shows approved synced summaries on computers and phones. Archived profiles and log-only tools do not count toward the active limit. A future capacity change requires a new baseline and performance tests. Payment records and receipt import remain excluded.
 
 A release is not complete because a screen exists. A release is complete only when its mandatory behavior passes the acceptance tests.
 
@@ -50,9 +50,9 @@ A release is not complete because a screen exists. A release is complete only wh
 
 | Stage | Content |
 |---|---|
-| 1. First public release | CLI and desktop app on Linux, with labelled Windows and macOS previews. All requirements, including Section 14A except OU-BOARD-012 |
+| 1. First public release | CLI and desktop app on Linux, with labelled Windows and macOS previews. All requirements except OU-BOARD-012 and Sections 14B and 14C |
 | 2. Platform release | Windows and macOS after acceptance on real machines |
-| 3. Public website | OU-BOARD-012 |
+| 3. Website companion | Public profiles under OU-BOARD-012 and private desktop-to-website sync under Sections 14B and 14C. One responsive website serves computers and phones |
 
 ### 0.5 Owner decisions, 2 November 2026
 
@@ -92,9 +92,22 @@ A release is not complete because a screen exists. A release is complete only wh
 ### 0.7 Open items
 
 - **OQ-1:** Choose how to split logs by account. The `ccusage` Codex adapter has no account handling. On the owner's Linux host on 2 November 2026, `creator_account_id` was filled in all 86 readable logs since October 2026 and absent from 7 older logs. 1,323 compressed logs were not read.
-- **OQ-2:** Claim the npm name `openusage`. The registry reports it as unpublished since 14 June 2026.
+- **OQ-2:** Choose and claim the npm name and scope. Earlier registry observations do not establish current availability.
 - **OQ-3:** List the providers with documented quota interfaces, and complete a terms review for each other provider.
-- **OQ-4:** Run the pinned `ccusage` binary. Its arguments, offline behavior, and per-folder use are not yet executed by this project.
+- **OQ-4:** Qualify scanner changes and the remaining tools. The pinned binary has scoped execution evidence in the [implementation status](implementation-status.md). That evidence does not qualify every tool or candidate.
+
+### 0.8 Owner decisions, 13 November 2026
+
+1. Remaining capacity, estimated API value, and public rank are core product benefits. An estimate is not a payment or proof of productivity.
+2. The desktop shall run collection internally. Desktop users shall not need to install a second scanner or run CLI commands.
+3. The website shall show the same approved personal summaries as the desktop. Phone access shall use that responsive website.
+4. Private sync and public participation shall be separate choices. Local use shall continue without either service.
+5. Automatic updates shall follow source availability, collection limits, and successful sync. An unavailable or offline source shall not appear live.
+6. This update does not move the website into Stage 1 or authorize a domain purchase. Group leagues and subscription recommendations remain research ideas.
+7. The owner authorized continued implementation across local commits. Workers can run in parallel with separate file ownership and shared-contract review.
+8. Validation shall favor end-to-end and integration behavior. Required scanner, privacy, security, native, and platform gates remain mandatory.
+
+The [clarification record](srs-clarifications.md#sc-028-desktop-and-private-website-companion) records the conflicts resolved by this update.
 
 ---
 
@@ -131,6 +144,7 @@ A release is not complete because a screen exists. A release is complete only wh
 10. Shareable Wrapped summaries and heatmap images.
 11. A customizable dashboard.
 12. An opt-in public leaderboard and, later, public web profiles.
+13. In Stage 3, an opt-in private website with synced usage, quota, estimate, subscription, and rank summaries.
 
 ### 1.3 Excluded features
 
@@ -141,7 +155,8 @@ A release is not complete because a screen exists. A release is complete only wh
 - Editor plugins in Stage 1. They can use `openusage status --json` later.
 - OpenAI Platform API-key usage, organization billing, and API credit purchases.
 - Work-only usage attribution when the provider supplies only shared account data.
-- Cloud sync of the local database, remote telemetry, and any hosted service other than the opt-in Leaderboard Service in Section 14A.
+- Cloud sync of the live local database, application telemetry, and hosted services beyond Section 14A and the Stage 3 private companion in Sections 14B and 14C.
+- A separate native mobile app, remote provider login, and remote workload control.
 - Automatic account rotation, quota evasion, or workload submission to test a limit.
 - Spending earned reset credits or changing provider quota settings.
 - Automated purchases, cancellation of subscriptions, or bank-mandate changes.
@@ -178,7 +193,7 @@ OpenUsage is an observer and a local record manager. It does not control the ser
 | Backup | Locally encrypted, authenticated, versioned archive | Safe portable history |
 | Distribution | One-command npm package with published hashes and build provenance (Section 16A); in-app updater only after update-signature tests | Free installation and supply-chain safety |
 
-**Decision boundary:** Do not add PostgreSQL, Redis, DuckDB, Electron, CEF, FastAPI, a hosted backend, or application telemetry without a new approved architecture decision. The opt-in Leaderboard Service in Section 14A is the only planned hosted backend. It still needs its own approved architecture decision before construction.
+**Decision boundary:** Do not add PostgreSQL, Redis, DuckDB, Electron, CEF, FastAPI, or application telemetry without a new approved architecture decision. Hosted scope is limited to the leaderboard and the Stage 3 private companion. Each service needs an architecture decision before construction. Private sync authorization does not permit live-database replication or provider credential upload.
 
 ### 2.1 Rendering engines
 
@@ -373,6 +388,8 @@ A reading that fails its checks is not accepted. Its metric state is `not_availa
 **OU-ACCT-019:** A profile cannot start normal monitoring before login completion and account-state validation.
 
 **OU-ACCT-020:** A profile for a provider other than OpenAI shall use a sign-in method that OU-SRC-007 permits.
+
+**OU-ACCT-021:** After consent, the app shall suggest available provider connections for detected tools. A tool or model shall not prove an account identity. Unsupported quota access shall stay Unsupported. Suggestions shall not open credentials or add profiles without an explicit user action.
 
 ### 4.2 Identity-confidence rules
 
@@ -644,6 +661,8 @@ This section applies to the Codex adapter. Section 5A applies to every adapter.
 **OU-LOG-008:** A `ccusage` failure shall affect only local log data.
 
 **OU-LOG-009:** A `ccusage` upgrade shall pass the fixture comparison in AT-65 before release.
+
+**OU-LOG-020:** The desktop shall start its bundled scanner internally after consent and on its collection schedule. Normal desktop use shall need no terminal command or separate scanner installation.
 
 ### 5C.3 Totals
 
@@ -930,6 +949,14 @@ Selection of a representative profile for duplicate identities shall use the new
 
 **OU-SHARE-006:** The SVG shall render in a GitHub README.
 
+**OU-SHARE-007:** A usage receipt shall offer seven-day, thirty-day, and calendar-month summaries from accepted local history. It shall show tokens, estimated API value, and active days when available. A missing component shall not become zero.
+
+**OU-SHARE-008:** Estimated API value can be prominent and rounded for display. Its label shall retain Estimated. The detail panel shall show the pricing basis, period, source scope, and missing coverage. It shall not claim actual spend, savings, or return on investment.
+
+**OU-SHARE-009:** An optional subscription-price comparison shall retain its entered currency, billing interval, account association, and period. It shall not claim a payment occurred. Unmatched accounts, periods, or currencies shall not produce a ratio or savings figure.
+
+**OU-SHARE-010:** Personal records and milestones shall derive only from accepted history. Public cards shall retain the selected period and permitted fields. They shall not claim verified productivity, code quality, or provider-certified usage.
+
 ---
 
 ## 9. Subscriptions
@@ -1098,6 +1125,8 @@ The default quiet period shall be **22:00–08:00** in the selected local time z
 
 **OU-UI-027:** Quota history graphs shall use saved readings for any range. Provider token graphs shall start at daily, because the provider supplies daily buckets.
 
+**OU-UI-028:** Overview shall expose remaining capacity and estimated API value. A joined user shall also have access to their rank. Each number shall retain its own scope, freshness, and detail panel. An unavailable source shall not hide other available values.
+
 ### 11.2 Accessibility target
 
 **OU-ACC-001:** Core UI behavior shall meet WCAG 2.2 AA intent.
@@ -1125,7 +1154,7 @@ The default quiet period shall be **22:00–08:00** in the selected local time z
 
 **OU-CLI-001:** The CLI shall have no webview dependency.
 
-**OU-CLI-002:** Except for `openusage report` and the Stage 2 `openusage board` commands, the CLI shall read saved data only. It shall not write the database, start collection, or use the network.
+**OU-CLI-002:** Except for `openusage report` and the Stage 1 `openusage board` commands, the CLI shall read saved data only. It shall not write the database, start collection, or use the network. A board dry run shall use saved data without network access or enrollment side effects.
 
 **OU-CLI-003:** `openusage report` shall ask once for consent, accept `--yes` for scripts, and save nothing.
 
@@ -1401,6 +1430,62 @@ The release shall not claim protection against an attacker with full control of 
 **OU-BOARD-011:** The service source shall be public, with a published moderation policy. The service can flag implausible totals but cannot prove any total. The app shall work fully without the service. The service needs an approved architecture decision before construction.
 
 **OU-BOARD-012:** In Stage 3, a joined user can have a public web profile. It shall show only the data that OU-BOARD-003 permits.
+
+**OU-BOARD-013:** A joined user shall be able to read their own rank outside the public top 100. The result shall include period, ranking metric, snapshot time, eligible participant count, and their eligible aggregate or Not available.
+
+**OU-BOARD-014:** Public and own-rank views shall use the same eligible rows and deterministic ordinal order. Ties shall use a documented stable rule. Empty periods, hidden entries, and periods with no eligible rows shall not become rank zero. Missing estimates shall remain unavailable. Query errors and arithmetic overflow shall refuse the result.
+
+---
+
+## 14B. Private sync (Stage 3)
+
+**OU-SYNC-001:** Private sync shall be off by default. Neither client shall contact its service before the user enables it. Public leaderboard consent shall not enable private sync, and private sync shall not publish a profile.
+
+**OU-SYNC-002:** The desktop shall own log scanning, provider sign-in, collection, and the local store. The service shall not run provider workloads or request provider credentials. Existing local functions shall work without sync.
+
+**OU-SYNC-003:** Linking shall authenticate the same OpenUsage user on the website and desktop. Each linked device shall have a random identifier and a revocable credential with a defined scope. An OpenUsage login shall not prove provider identity.
+
+**OU-SYNC-004:** Before the first upload, the desktop shall show the selected sources and exact permitted fields. The user shall be able to limit and stop private sharing without joining the public leaderboard.
+
+**OU-SYNC-005:** A private payload shall contain only versioned summary readings and necessary scope metadata. Allowed data includes exact counts, estimates, quota windows, reset times, subscription-price records, source status, coverage, periods, and observation times. Account and device references shall be opaque sync identifiers. An account display alias requires explicit selection.
+
+**OU-SYNC-006:** Private sync shall exclude provider tokens, credential files, raw provider account IDs, email addresses, prompts, responses, code, paths, project names, and session content. The live database, backups, and raw logs shall stay local.
+
+**OU-SYNC-007:** Accepted local changes shall enter one bounded sync path. Provider collection shall retain Section 10.1 limits. A website refresh shall not trigger extra provider reads or bypass backoff.
+
+**OU-SYNC-008:** Each snapshot shall identify its device, revision, capture time, source observation times, and schema version. The service shall accept revisions atomically. Replays shall not add totals. Older or conflicting revisions shall not replace newer accepted data.
+
+**OU-SYNC-009:** The desktop shall retain unsent state across restart and retry within documented limits. A failed upload shall not change local readings. The interface shall distinguish source observation, successful sync, and display time.
+
+**OU-SYNC-010:** Desktop and website shall show equal exact values for the same accepted snapshot, sources, period, and time zone. Locale and display rounding shall not change stored values. Missing metrics, uncertainty, and incomplete coverage shall survive sync.
+
+**OU-SYNC-011:** A device shall collect only while its process runs and the source is available. Sleep, loss of network, or Quit shall stop fresh remote readings. The website shall retain the last snapshot and mark affected data Stale. A clock reaching a reset shall not create a fresh quota reading.
+
+**OU-SYNC-012:** Multiple devices shall not create multiple copies of one provider quota. The service shall not add percentages. Overlapping local logs shall require a qualified duplicate contract before distinct-usage aggregation. Unresolved overlap shall stay separate with its mark.
+
+**OU-SYNC-013:** A private read shall require authenticated access to that user's data. Another user's device or web session shall not authorize it. Public endpoints shall never return private readings. Tokens and authorization decisions shall not cross the public/private boundary implicitly.
+
+**OU-SYNC-014:** A user shall be able to revoke one device, end web sessions, and delete private cloud data. Revocation shall stop access immediately. Deletion shall hide data immediately and remove stored copies within thirty days. Public departure and private deletion shall have separate, explicit effects.
+
+**OU-SYNC-015:** The service shall use HTTPS and encrypted storage. Its architecture decision shall define hosts, payload limits, key ownership, server visibility, retention, recovery, and abuse controls before construction. A local synthetic test exception shall not enter production configuration.
+
+**OU-SYNC-016:** No normal collection, link, or sync journey shall require the user to run a CLI command. CLI commands shall remain available for scripts and diagnostics.
+
+---
+
+## 14C. Website companion (Stage 3)
+
+**OU-WEB-001:** One responsive website shall serve desktop and phone browsers. Its private dashboard shall include approved synced account capacity, resets, token history, estimates, subscription summaries, and rank. It shall not require a public profile.
+
+**OU-WEB-002:** A visitor without a linked collector shall receive an installation and linking flow. The website shall not claim to inspect the visitor's local logs. Provider accounts shall connect in the desktop app.
+
+**OU-WEB-003:** The website shall update automatically after an accepted sync. Source availability shall set freshness. It shall not promise a universal second-by-second refresh rate.
+
+**OU-WEB-004:** A private number shall retain the desktop's unit, scope, period, state, source, and observation time in its detail panel. A local-device view shall remain distinct from a multi-device view.
+
+**OU-WEB-005:** The website shall follow Section 2.3 and the accessibility rules in Section 11.2. Primary functions shall work at a 320 CSS-pixel viewport, with keyboard access and text alternatives for charts.
+
+**OU-WEB-006:** Public profiles and private dashboards shall use separate routes and authorization. A shared link shall expose only public fields. Local file operations, provider credentials, and machine controls shall remain desktop-only.
 
 ---
 
@@ -1763,6 +1848,18 @@ Every test shall record: build version, platform, fixture or account type, steps
 | AT-92 | Open quota and token graphs at each range | Quota history covers any range; provider tokens start at daily; gaps are not zero |
 | AT-93 | Switch between Provider and This device | Scope changes with no per-number label; ranges, breakdowns, and session quota movement are correct |
 | AT-94 | Back up, restore, export, and delete local usage data | Summaries and evidence follow the same rules; the logs of other tools stay untouched |
+| AT-95 | Rank more than 100 participants with ties, missing estimates, flags, and empty periods | Own rank matches the public ordering and full eligible set; unavailable is not zero; revoked credentials fail |
+| AT-96 | Preview complete and ambiguous saved local history without enrollment | Exact permitted upload bytes or an explicit refusal; no network, new credentials, invented metrics, or partial payload |
+| AT-97 | Install and scan detected tools through desktop controls | No terminal command; consent precedes log access; suggestions never infer an account identity |
+| AT-98 | Enable private sync and public participation independently | Neither choice enables the other; no service contact before its consent |
+| AT-99 | Inspect a private snapshot containing sensitive synthetic source fields | Only approved summaries cross the boundary; all prohibited fields remain local |
+| AT-100 | Compare desktop and website on one accepted snapshot | Exact counts, nulls, states, scope, periods, and time zones match, including values above JavaScript's safe integer range |
+| AT-101 | Sleep, disconnect, quit, and pass a reset time | Remote readings become stale; no invented zero, reset, or fresh observation; local history remains |
+| AT-102 | Replay, reorder, interrupt, and resume snapshot uploads | Atomic revisions, bounded recovery, and no duplicate totals or regression |
+| AT-103 | Cross user, device, and public/private credentials; revoke and delete | No cross-user data; revoked access fails; deletion and public departure retain their separate effects |
+| AT-104 | Link two devices with the same provider account or copied logs | Quotas are not added; unproven local overlap stays separate; qualified duplicate rules govern any sum |
+| AT-105 | Use private and public website routes on phone and laptop viewports | Installation/linking and authorized views work; keyboard and chart alternatives remain usable |
+| AT-106 | Make period receipts with unknown prices and unmatched subscription records | Rounded estimates retain their meaning; missing values remain unavailable; no invented payments or savings |
 
 ### 19.1 Release blockers
 
@@ -1881,6 +1978,12 @@ The app shall not substitute guessed amounts, scraped values, or requests that c
 
 ## 22. Baseline changes
 
+### 22.0 Changes from baseline 3.0
+
+Baseline 3.1 records the owner's November 13 desktop-to-website direction. The website remains Stage 3 and adds private summaries alongside public profiles. New requirements define separate consent, local credential ownership, snapshot parity, freshness, revocation, and responsive access. Stage 1 gains explicit own-rank access, connection suggestions, internal scanner operation, and period usage receipts. Existing qualification and release gates remain mandatory.
+
+No brainstorming proposal for group leagues, subscription advice, native mobile apps, or a new domain becomes a required feature in this baseline. The implementation status remains separate from this specification.
+
 ### 22.1 Changes from baseline 2.0
 
 | Item | Baseline 2.0 | Baseline 3.0 |
@@ -1941,6 +2044,10 @@ No other baseline 1.0 feature is removed. A provider limitation shall produce an
 11. ccusage: https://github.com/ccusage/ccusage — MIT-licensed local log analysis. Version 20.0.47 was current on 2 November 2026. The release pin remains mandatory.
 12. tokenmaxxing: https://tokenmaxxing.sh — studied for dry-run preview and aggregate-only upload. Checked 2 November 2026.
 13. tokscale: https://github.com/junhoyeo/tokscale — studied for day-total and pricing rules. Checked 2 November 2026.
+14. OpenAI, **Codex App Server**: https://learn.chatgpt.com/docs/app-server — current documented quota reads, events, and token activity. Read 13 November 2026; this does not qualify a different pinned version.
+15. Anthropic, **Status-line rate limits**: https://code.claude.com/docs/en/statusline#rate-limit-usage — plan, session, and absent-window limits. Read 13 November 2026.
+16. Chrome, **File System Access API**: https://developer.chrome.com/docs/capabilities/web-apis/file-system-access — user-selected local file access. Read 13 November 2026.
+17. MDN, **Periodic Background Synchronization**: https://developer.mozilla.org/en-US/docs/Web/API/Web_Periodic_Background_Synchronization_API — availability and scheduling limits. Read 13 November 2026.
 
 ---
 

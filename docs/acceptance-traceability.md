@@ -2,7 +2,7 @@
 
 Updated: November 12, 2026. Native startup, encrypted persistence, backups, restore and undo, profile activity, saved quota, overdue expectations, and conservative reset confirmation passed within their recorded Linux scopes. Since November 7, local logs, the CLI, share images and the Linux packages also passed within their recorded Linux scopes. The full mandatory acceptance suite remains incomplete. Rows record their original artifact scopes. Newer rows supersede earlier pending states.
 
-## Baseline 3.0 coverage
+## Baseline 3.1 coverage
 
 OU-DES, OU-LOG, OU-SHARE, OU-CLI and OU-DIST have evidence. OU-DATA-027 has storage evidence only. See the log.
 
@@ -23,6 +23,11 @@ OU-DES, OU-LOG, OU-SHARE, OU-CLI and OU-DIST have evidence. OU-DATA-027 has stor
 | OU-ENG-011 | Review of each adapter pull request | Not started |
 | OU-SEC-022, OU-ENG-012 | Review of SECURITY.md and AGENTS.md | Stated |
 | OU-BOARD | AT-86 to AT-88 | Service tested locally; no client and no deployment yet |
+| OU-BOARD-013/014 | AT-95 | New requirements; own-rank implementation in progress |
+| OU-CLI-002, OU-BOARD-005/006 | AT-96 | Offline preview implementation in progress; exact real-upload equality remains open |
+| OU-ACCT-021, OU-LOG-020 | AT-97 | Existing local collection has scoped evidence; new connection suggestions remain open |
+| OU-SYNC, OU-WEB | AT-98 to AT-105 | Stage 3, not built |
+| OU-SHARE-007 to OU-SHARE-010, OU-UI-028 | AT-106 and native Overview acceptance | New requirements; not accepted |
 
 ## Evidence log
 
@@ -30,6 +35,8 @@ Newest first. Rows keep the requirement text of their date. [SRS Section 22.1](S
 
 | Requirement or check | Implementation and executed evidence | Status |
 |---|---|---|
+| SRS baseline 3.1. SC-028, Sections 14B/14C | The owner authorized the desktop and private website scope on November 13. Added-text prose checks score 1.83 and 2.40 flags per 100 words. Requirement and link checks cover the amended documents. | Requirements and plan only. No private service or website acceptance is claimed. |
+| Hosted CI for `d8232b3`. OU-ENG-001 to OU-ENG-004 | [Run 43253994409](https://github.com/Debrato2005/OpenUsage/actions/runs/43253994409) reports completed/success for `d8232b308d31053abd6f53af6c62aa5f65532436`, checked through the GitHub API on November 13. | Passed for that commit. New local source is not covered. |
 | Claude JSON candidate (L-1f11ar). OU-LOG-007/009/012, part of AT-65 | The [record](reviews/2026-11-12-claude-json-candidate.md) covers the isolated patch, 537 source records, 57 adapter tests, 16 CLI integration tests, nine parent tests and 302 commands, and the 47-report comparison. Four public regressions first reproduced the whole-value guard's metadata loss. The final narrow visitor passes them. | Synthetic Linux candidate only. Seven independent legacy expectations still fail. Two raw Codex producer comparisons stay skipped. Production pin, catalog, and application remain unchanged. |
 | Hosted CI for `1da0dc7`. OU-ENG-001 to OU-ENG-004 | [Run 43236446555](https://github.com/Debrato2005/OpenUsage/actions/runs/43236446555) passed Linux checks and Renderer, including qualification builds and native oracle tests. | Passed for that commit. The new scanner candidate needs its own hosted result. |
 | Draft identity contract (L-7e2). SRS Sections 4/8/20, OU-ID-001 through OU-ID-013 | [Identity contract](identity-contract.md) maps local references, descriptive continuity, explicit association review, preserved history, duplicate handling, and open identity and scope gates. Source-reference, schema, prose, and selected documentation checks passed. | Draft documentation only. Owner approval and live qualification remain open. No runtime acceptance or verified aggregation is claimed. |

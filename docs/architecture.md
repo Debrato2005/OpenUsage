@@ -162,5 +162,6 @@ unavailable. Native calls on other platforms can outlive their timeout.
 | `openusage` CLI | `crates/openusage-cli/` | 11A |
 | One-command install | npm packages | 16A |
 | Opt-in leaderboard | `services/leaderboard/` | 14A |
+| Private sync and responsive companion | Not built; architecture decision required | 14B, 14C, Stage 3 |
 
 Adding a tool shall take one adapter module, its fixtures, and its declaration (OU-DES-011).

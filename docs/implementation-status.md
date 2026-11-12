@@ -2,9 +2,9 @@
 
 # Implementation status
 
-Updated: November 12, 2026. This page holds the current state only. [History](implementation-history.md) holds past work, and [traceability](acceptance-traceability.md) holds exact evidence.
+Updated: November 13, 2026. This page holds the current state only. [History](implementation-history.md) holds past work, and [traceability](acceptance-traceability.md) holds exact evidence.
 
-OpenUsage is in development against [SRS baseline 3.0](SRS.md). There is no release. Baseline 3.0 was adopted on November 2, 2026. [Not built](#not-built) lists what is missing, and [Current assignment](#current-assignment) gives the launch state.
+OpenUsage is in development against [SRS baseline 3.1](SRS.md), authorized on November 13, 2026. There is no release. [Not built](#not-built) lists what is missing, and [Current assignment](#current-assignment) gives the launch state. The new website and private-sync requirements do not establish implemented support.
 
 ## What works
 
@@ -33,10 +33,10 @@ qualification failures. Independent review corrected a metadata regression.
 The [candidate record](reviews/2026-11-12-claude-json-candidate.md) owns exact
 scope. Production pins and enabled tools stay unchanged.
 
-Hosted CI for `1da0dc7` passed Linux checks and Renderer in
-[run 43236446555](https://github.com/Debrato2005/OpenUsage/actions/runs/43236446555).
-This includes qualification builds and native oracle tests. The new candidate
-change needs its own hosted result.
+Hosted CI for `d8232b3` passed in
+[run 43253994409](https://github.com/Debrato2005/OpenUsage/actions/runs/43253994409).
+The run result and exact commit were checked on November 13. New local work
+needs separate verification and a later hosted result.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -46,6 +46,13 @@ The wider native results below are from L-1g2 and earlier. They do not certify t
 - The last run of all native journeys was on November 4, after S-03b: 46 of 48 passed.
 
 ## Not built
+
+New in baseline 3.1:
+
+- Private desktop-to-website sync and the responsive personal dashboard: Sections 14B and 14C, Stage 3.
+- Own rank outside the public top 100: OU-BOARD-013 and OU-BOARD-014.
+- Period usage receipts and the combined Overview access: OU-SHARE-007 to OU-SHARE-010 and OU-UI-028.
+- Explicit provider-connection suggestions: OU-ACCT-021.
 
 New in baseline 3.0:
 
@@ -170,6 +177,12 @@ separate from document completion. The [performance report](performance-report.m
 [SRS Section 0.7](SRS.md) lists four: how to split logs by account, the npm name, the provider and terms review, and the first `ccusage` run.
 
 ## Current assignment
+
+The owner authorized continued work across local commits on November 13.
+The current independent slices are scanner capture correction (L-1f11as),
+own-rank service access (L-4c), and offline board preview (L-5a0).
+Each keeps separate file ownership. Root integrates shared contracts and
+records executed evidence before marking a slice complete.
 
 L-1f11ar is complete within its separate Claude JSON candidate scope.
 The [candidate record](reviews/2026-11-12-claude-json-candidate.md) lists executed

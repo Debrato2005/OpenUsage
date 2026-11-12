@@ -179,6 +179,12 @@ never become application database records or renderer responses.
 
 ## Planned contract fields and acceptance
 
+Baseline 3.1 adds private snapshot requirements in SRS Sections 14B and 14C.
+Private wire format, service, and storage migration remain planned.
+The future snapshot must preserve exact values, nulls, scope, source times,
+and revision order. It must not reuse the public leaderboard schema for
+provider readings or copy the local database to a cloud service.
+
 SRS Section 17 defines `MetricState`, `SourceLevel`, `ReadingStatus`, and
 `evidenceId`. Current provider DTOs instead expose their explicit freshness,
 source-kind, identity, scope, and coverage fields. They do not yet expose the
