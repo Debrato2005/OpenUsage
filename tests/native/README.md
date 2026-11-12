@@ -69,6 +69,47 @@ Set `OPENUSAGE_LOGIN_VERIFIER_SHA256` to the checked digest for a newly built
 activity verifier. Existing journeys keep their historical pin when it is unset.
 An invalid pin or a mismatch refuses execution.
 
+## Native Codex candidate
+
+This Linux build tests the combined Codex snapshot through consent, worker scans,
+grouped storage, and saved views. Build the renderer first. Use the shared Cargo
+target and the pinned toolchain.
+
+```sh
+bun run build
+cargo build --locked -p openusage-desktop --features codex-native-qualification
+cargo build --locked --manifest-path tests/native/backup-verifier/Cargo.toml
+```
+
+Set `OPENUSAGE_NATIVE_BINARY` to the absolute desktop path. Set
+`OPENUSAGE_NATIVE_CODEX_SCANNER` to the combined candidate whose digest appears
+in `tests/tools/fixtures/codex-snapshot-candidate/pin.json`. Set
+`OPENUSAGE_CODEX_CAPTURE_RECEIPT` to the private synthetic producer receipt named
+by `tests/tools/fixtures/codex-producer/capture.json`. The journey checks its
+hash before it copies the three captured source files. It reads no real logs.
+
+Set `OPENUSAGE_LOGIN_VERIFIER` to the built activity verifier. Set
+`OPENUSAGE_LOGIN_VERIFIER_SHA256` to its checked digest. Set
+`OPENUSAGE_NATIVE_EVIDENCE` to a private output directory. Use the driver
+variables above when needed.
+
+Run `xvfb-run -a node tests/native/codex-qualification.mjs` with a 360-second
+deadline. The journey uses a private home, bus, and password workspace. It checks
+measured zero, copied files, the full fork, missing attribution, the pinned zone,
+and scanner provenance. It also checks refused input, withdrawal, wrong digests,
+and genuine reopen. Independent SQLCipher reads check exact saved records.
+Authenticated backup, full JSON export, restore checkpoints, and applied restore
+must retain every local field. The journey retains metadata and screenshots.
+The capture dates are November 11, 2026. Overview checks require them in the
+last 30 days.
+
+Rebuild with only `--features native-test`. Run the same journey with `--ordinary`
+and a separate evidence directory. Codex must remain available with the production
+scanner. The ordinary build must ignore the candidate override. These experiments
+do not change the production pin or qualify real histories, other platforms,
+or a release.
+
+
 ## Native summary details
 
 After the renderer build, build the desktop with `--features native-test` in the shared Cargo target. Run `node tests/native/summary-details.mjs` on a private Xvfb display with `OPENUSAGE_NATIVE_BINARY` and `OPENUSAGE_NATIVE_EVIDENCE` set to absolute paths. Use the driver variables above when needed. Restore the production build afterward and run `provider-source-gate.mjs` against it.

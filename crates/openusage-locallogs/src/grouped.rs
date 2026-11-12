@@ -54,6 +54,51 @@ pub fn qualify_pi_candidate(
     scan_grouped_checked(request, check)
 }
 
+#[cfg(all(feature = "codex-qualification", target_os = "linux"))]
+/// Exercise one Codex snapshot through the isolated Linux qualification path.
+pub fn qualify_codex_candidate(
+    request: &GroupedScanRequest<'_>,
+    mut check: impl FnMut() -> bool,
+) -> Result<GroupedScanResult, ScanError> {
+    if request.tool != "codex" {
+        return Err(ScanError::InvalidRequest);
+    }
+    let folder = request.folders.first().ok_or(ScanError::InvalidRequest)?;
+    let _one = ONE_RUN.try_lock().map_err(|_| ScanError::Busy)?;
+    let started = Instant::now();
+    if !check() {
+        return Err(ScanError::InvalidRequest);
+    }
+    let output = run_roots(
+        &ScanRequest {
+            binary: request.binary,
+            expected_sha256: request.expected_sha256,
+            tool: request.tool,
+            folder,
+            empty_home: request.empty_home,
+            timezone: request.timezone,
+            since: None,
+            timeout: request
+                .timeout
+                .checked_sub(started.elapsed())
+                .ok_or(ScanError::Timeout)?,
+            max_output: request.max_output,
+        },
+        &["codex", "snapshot", "--json", "--offline", "--no-color"],
+        request.folders,
+    )?;
+    let result = crate::parse_codex_snapshot(&output).map_err(ScanError::Report)?;
+    if !check()
+        || request
+            .folders
+            .iter()
+            .any(|folder| !crate::runner::valid_resolved_folder(folder))
+    {
+        return Err(ScanError::InvalidRequest);
+    }
+    Ok(result)
+}
+
 fn scan_grouped_checked(
     request: &GroupedScanRequest<'_>,
     mut check: impl FnMut() -> bool,

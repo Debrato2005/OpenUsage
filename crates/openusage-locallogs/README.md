@@ -93,6 +93,20 @@ The common input rule applies to a new scan. Saved records may come from differe
 
 The first grouped day scan pins its zone. Unplaced usage has no day zone. Old source records keep their zones under SC-024. Claude Code and Codex keep their existing source views. Their required daily, session, and hourly reports now commit together. A failed later report cannot update an earlier report. Desktop, sharing, and CLI consumers read saved scopes without adding legacy history to grouped records.
 
+On Linux, `codex-qualification` exposes `grouped::qualify_codex_candidate`.
+It runs one `codex snapshot` command with fixed offline arguments, the checked
+digest, the existing output bound, and a private home. It checks consent before
+the process and after parsing. Changed resolved roots reject the result.
+The normal grouped runner still rejects Codex.
+
+The desktop feature `codex-native-qualification` uses an explicit candidate
+from `OPENUSAGE_NATIVE_CODEX_SCANNER`. An absent or mismatched candidate fails
+without a production fallback. One shared period policy drives grouped planning
+and dispatch. The first grouped scan pins its own zone. Existing source IDs,
+legacy records, and original zones stay separate under SC-024.
+Ordinary Codex support keeps the production descriptor and source scans.
+
+
 ## The hourly report
 
 `parse_hours` reads one-hour blocks. Each block must start and end on a whole UTC hour, in order, with counts that add up to its total. A gap must be empty and gives no row. The parser keeps no cost, because a block does not mark an unpriced model.

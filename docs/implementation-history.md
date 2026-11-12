@@ -4,6 +4,20 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f11ap result before L-1f11aq
+
+Latest scoped result, November 12, 2026. The Rust Codex snapshot consumer
+preserves exact totals and nullable measurements. Eleven recorded cases,
+fifteen public parser tests, and the affected crate checks pass on synthetic
+Linux. The [consumer record](reviews/2026-11-12-codex-snapshot-consumer.md)
+owns executed evidence and the next native gate. The production scanner and
+enabled catalog stay unchanged.
+
+Hosted CI for `b0422bf` passed Linux and Renderer, including the existing Pi
+qualification and native oracle steps. The [evidence log](acceptance-traceability.md#evidence-log)
+records its scope. Hosted checks for `abb3b5a` are in progress. The current
+Rust consumer change needs its own hosted result.
+
 ## L-1f11ao result before L-1f11ap
 
 Latest scoped result, November 12, 2026. The isolated Codex command derives

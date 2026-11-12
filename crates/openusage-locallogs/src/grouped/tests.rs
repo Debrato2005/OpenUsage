@@ -299,3 +299,191 @@ fn pi_grouped_scan_uses_one_snapshot_process() {
     };
     assert_eq!(scan_grouped_inner(&limited), Err(ScanError::OutputTooLarge));
 }
+
+#[cfg(all(feature = "codex-qualification", target_os = "linux"))]
+#[test]
+fn codex_qualification_uses_one_complete_snapshot_and_rechecks_consent() {
+    let _test = crate::runner::TEST_RUNS.lock().unwrap();
+    let temp = tempfile::Builder::new()
+        .permissions(std::fs::Permissions::from_mode(0o700))
+        .tempdir()
+        .unwrap();
+    let root = temp.path();
+    let first = root.join("a");
+    let second = root.join("b");
+    let home = root.join("home");
+    for path in [&first, &second, &home] {
+        std::fs::create_dir(path).unwrap();
+    }
+    let fixtures: serde_json::Value = serde_json::from_slice(include_bytes!(
+        "../../tests/fixtures/codex-snapshot-candidate.json"
+    ))
+    .unwrap();
+    std::fs::write(
+        root.join("snapshot"),
+        serde_json::to_vec(&fixtures["cases"]["unattributed"]["snapshot"]).unwrap(),
+    )
+    .unwrap();
+    let (binary, digest) = script(
+        root,
+        &format!(
+            "printf '%s\\n' \"$*\" >> {0}/calls; printf '%s\\n' \"$CODEX_HOME\" > {0}/roots; env > {0}/env; cat {0}/snapshot",
+            root.display()
+        ),
+    );
+    let request = GroupedScanRequest {
+        binary: &binary,
+        expected_sha256: &digest,
+        tool: "codex",
+        folders: &[second.as_path(), first.as_path(), first.as_path()],
+        empty_home: &home,
+        timezone: "Asia/Kolkata",
+        timeout: Duration::from_secs(5),
+        max_output: 1 << 20,
+    };
+    assert_eq!(scan_grouped(&request), Err(ScanError::InvalidRequest));
+    let mut checks = 0;
+    let result = qualify_codex_candidate(&request, || {
+        checks += 1;
+        true
+    })
+    .unwrap();
+    assert_eq!(checks, 2);
+    assert_eq!(
+        (
+            result.periods[0].total_tokens,
+            result.sessions[0].total_tokens
+        ),
+        (17, 17)
+    );
+    assert!(result.periods[0].models.is_empty());
+    assert_eq!(result.periods[0].estimated_value_micros, None);
+    assert_eq!(
+        std::fs::read_to_string(root.join("calls")).unwrap(),
+        "codex snapshot --json --offline --no-color --mode calculate --timezone Asia/Kolkata\n"
+    );
+    assert_eq!(
+        std::fs::read_to_string(root.join("roots")).unwrap(),
+        format!("{},{}\n", first.display(), second.display())
+    );
+    let environment = std::fs::read_to_string(root.join("env")).unwrap();
+    assert!(environment.contains(&format!("HOME={}\n", home.display())));
+    assert!(!environment.contains("CLAUDE_CONFIG_DIR="));
+    std::fs::remove_file(root.join("calls")).unwrap();
+    checks = 0;
+    assert_eq!(
+        qualify_codex_candidate(&request, || {
+            checks += 1;
+            checks == 1
+        }),
+        Err(ScanError::InvalidRequest)
+    );
+    assert_eq!(checks, 2);
+    assert_eq!(
+        std::fs::read_to_string(root.join("calls"))
+            .unwrap()
+            .lines()
+            .count(),
+        1
+    );
+    std::fs::remove_file(root.join("calls")).unwrap();
+    assert_eq!(
+        qualify_codex_candidate(&request, || false),
+        Err(ScanError::InvalidRequest)
+    );
+    assert!(!root.join("calls").exists());
+    assert_eq!(
+        qualify_codex_candidate(
+            &GroupedScanRequest {
+                tool: "claude",
+                ..request
+            },
+            || true
+        ),
+        Err(ScanError::InvalidRequest)
+    );
+    assert_eq!(
+        qualify_codex_candidate(
+            &GroupedScanRequest {
+                expected_sha256: &"0".repeat(64),
+                ..request
+            },
+            || true
+        ),
+        Err(ScanError::Digest)
+    );
+    assert!(!root.join("calls").exists());
+    assert_eq!(
+        qualify_codex_candidate(
+            &GroupedScanRequest {
+                timeout: Duration::ZERO,
+                ..request
+            },
+            || true
+        ),
+        Err(ScanError::Timeout)
+    );
+    let lock = ONE_RUN.lock().unwrap();
+    assert_eq!(
+        qualify_codex_candidate(&request, || true),
+        Err(ScanError::Busy)
+    );
+    drop(lock);
+    let original = std::fs::read(&binary).unwrap();
+    let mut changed = original.clone();
+    changed.push(b'\n');
+    std::fs::write(&binary, changed).unwrap();
+    assert_eq!(
+        qualify_codex_candidate(&request, || true),
+        Err(ScanError::Digest)
+    );
+    std::fs::write(&binary, original).unwrap();
+    assert!(!root.join("calls").exists());
+    assert_eq!(
+        qualify_codex_candidate(
+            &GroupedScanRequest {
+                max_output: 1,
+                ..request
+            },
+            || true
+        ),
+        Err(ScanError::OutputTooLarge)
+    );
+    std::fs::remove_file(root.join("calls")).unwrap();
+    std::fs::write(root.join("snapshot"), b"{}").unwrap();
+    assert!(matches!(
+        qualify_codex_candidate(&request, || true),
+        Err(ScanError::Report(_))
+    ));
+    std::fs::write(
+        root.join("snapshot"),
+        serde_json::to_vec(&fixtures["cases"]["unattributed"]["snapshot"]).unwrap(),
+    )
+    .unwrap();
+    std::fs::remove_file(root.join("calls")).unwrap();
+    let alias = root.join("alias");
+    symlink(&first, &alias).unwrap();
+    assert_eq!(
+        qualify_codex_candidate(
+            &GroupedScanRequest {
+                folders: &[alias.as_path()],
+                ..request
+            },
+            || true
+        ),
+        Err(ScanError::InvalidRequest)
+    );
+    assert!(!root.join("calls").exists());
+    let mut checks = 0;
+    assert_eq!(
+        qualify_codex_candidate(&request, || {
+            checks += 1;
+            if checks == 2 {
+                std::fs::remove_dir(&first).unwrap();
+                symlink(&second, &first).unwrap();
+            }
+            true
+        }),
+        Err(ScanError::InvalidRequest)
+    );
+}

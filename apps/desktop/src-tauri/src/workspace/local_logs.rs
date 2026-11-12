@@ -314,14 +314,14 @@ fn scan_groups(
         .into_iter()
         .filter(|s| s.consent == LogConsent::Granted)
     {
-        let Some(tool) = locallogs::tool(&source.tool) else {
+        if locallogs::tool(&source.tool).is_none() {
             continue;
-        };
+        }
         // Missing roots do not erase accepted history. Invalid extant roots fail validation.
         if !Path::new(&source.folder).exists() {
             continue;
         }
-        if tool.agent_report.is_some() {
+        if crate::local_logs::grouped_period(&source.tool).is_some() {
             grouped.entry(source.tool.clone()).or_default().push(source);
         } else {
             plan.push(ScanGroup {
@@ -332,9 +332,8 @@ fn scan_groups(
     }
     for (tool_id, mut sources) in grouped {
         sources.sort_by(|a, b| a.folder.cmp(&b.folder));
-        let dated = locallogs::tool(&tool_id)
-            .and_then(|t| t.agent_report.as_ref())
-            .is_some_and(|p| p.period == locallogs::tools::PeriodPolicy::Day);
+        let dated = crate::local_logs::grouped_period(&tool_id)
+            == Some(locallogs::tools::PeriodPolicy::Day);
         let pinned = storage
             .local_tool_scope(&tool_id)
             .map_err(|_| CommandError::StorageUnavailable)?;
@@ -489,5 +488,247 @@ mod tests {
         workspace
             .save_grouped_log_reports(&unplaced[0], NOW, CCUSAGE_VERSION, &report)
             .unwrap();
+    }
+    #[cfg(all(feature = "codex-native-qualification", target_os = "linux"))]
+    #[test]
+    fn codex_grouped_plan_keeps_legacy_history_and_pins_its_own_zone() {
+        let dir = tempfile::Builder::new()
+            .permissions(std::fs::Permissions::from_mode(0o700))
+            .tempdir()
+            .unwrap();
+        let database = dir.path().join("test.db");
+        let key = [45; 32];
+        let mut workspace = Workspace::new(dir.path().join("workspace")).unwrap();
+        workspace.storage = Some(Storage::create(&database, &key).unwrap());
+        workspace
+            .storage
+            .as_mut()
+            .unwrap()
+            .set_time_zone("Asia/Kolkata")
+            .unwrap();
+        let mut sources = Vec::new();
+        for (name, zone, total) in [("b", "UTC", 100), ("a", "America/New_York", 200)] {
+            let folder = dir.path().join(name);
+            std::fs::create_dir(&folder).unwrap();
+            let source = workspace
+                .storage
+                .as_mut()
+                .unwrap()
+                .set_log_source("codex", folder.to_str().unwrap(), LogConsent::Granted, NOW)
+                .unwrap();
+            let mut row = UsageRow {
+                date: "2026-11-11".into(),
+                tool: "codex",
+                model: "legacy-model".into(),
+                input_tokens: total,
+                output_tokens: 0,
+                cache_write_tokens: 0,
+                cache_read_tokens: 0,
+                total_tokens: total,
+                estimated_value_micros: None,
+            };
+            let sessions = locallogs::parse_sessions("codex", include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../crates/openusage-locallogs/tests/fixtures/ccusage-20.0.48-session-codex.json"))).unwrap();
+            workspace
+                .save_complete_log_reports(&source, zone, NOW, &[row.clone()], &sessions, None)
+                .unwrap();
+            row.input_tokens = 1;
+            row.total_tokens = 1;
+            workspace
+                .save_complete_log_reports(&source, zone, NOW, &[row], &sessions, None)
+                .unwrap();
+            sources.push(source);
+        }
+        let before = workspace
+            .local_usage_read("2026-01-01", "2026-12-31")
+            .unwrap();
+        assert_eq!(
+            before
+                .legacy
+                .iter()
+                .map(|s| s.days[0].counts.total_tokens)
+                .sum::<u64>(),
+            300
+        );
+        assert_eq!(
+            before
+                .legacy
+                .iter()
+                .map(|s| s.differences.len())
+                .sum::<usize>(),
+            2
+        );
+        let sessions_before = workspace
+            .storage
+            .as_ref()
+            .unwrap()
+            .local_usage_sessions("2026-01-01T00:00:00.000Z", "2027-01-01T00:00:00.000Z")
+            .unwrap();
+        let plan = workspace.local_log_scan_plan().unwrap();
+        assert_eq!(plan.len(), 1);
+        let group = &plan[0];
+        assert_eq!(group.sources.len(), 2);
+        assert!(group.sources[0].folder < group.sources[1].folder);
+        assert_eq!(group.zone.as_deref(), Some("Asia/Kolkata"));
+        let fixtures: serde_json::Value = serde_json::from_slice(include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../crates/openusage-locallogs/tests/fixtures/codex-snapshot-candidate.json"
+        )))
+        .unwrap();
+        let report = locallogs::parse_codex_snapshot(
+            &serde_json::to_vec(&fixtures["cases"]["unattributed"]["snapshot"]).unwrap(),
+        )
+        .unwrap();
+        workspace
+            .save_grouped_log_reports(group, NOW, "20.0.48-openusage.2", &report)
+            .unwrap();
+        let saved = workspace
+            .local_usage_read("2026-01-01", "2026-12-31")
+            .unwrap();
+        assert_eq!(saved.legacy, before.legacy);
+        assert_eq!(saved.grouped.len(), 1);
+        let grouped = &saved.grouped[0];
+        assert_eq!(grouped.scope.time_zone.as_deref(), Some("Asia/Kolkata"));
+        assert_eq!(
+            grouped.scope.latest_scan.scanner_version,
+            "20.0.48-openusage.2"
+        );
+        let mut ids: Vec<_> = sources.iter().map(|s| s.id.clone()).collect();
+        ids.sort();
+        assert_eq!(grouped.scope.latest_scan.source_ids, ids);
+        let total = grouped.dated_total.as_ref().unwrap();
+        assert_eq!(total.total_tokens, 17);
+        assert_eq!(total.estimated_value_micros, None);
+        assert!(total.models.is_empty());
+        assert_eq!(grouped.dated[0].scan.id, grouped.scope.latest_scan.id);
+        assert_eq!(
+            grouped.dated_sessions[0].scan.id,
+            grouped.scope.latest_scan.id
+        );
+        assert_eq!(grouped.dated_sessions[0].session.session_key, "thread-a");
+        assert_eq!(
+            workspace
+                .storage
+                .as_ref()
+                .unwrap()
+                .local_usage_sessions("2026-01-01T00:00:00.000Z", "2027-01-01T00:00:00.000Z")
+                .unwrap(),
+            sessions_before
+        );
+        workspace
+            .storage
+            .as_mut()
+            .unwrap()
+            .set_time_zone("America/Los_Angeles")
+            .unwrap();
+        assert_eq!(workspace.local_log_scan_plan().unwrap()[0].zone, group.zone);
+        let incomplete = ScanGroup {
+            sources: vec![group.sources[0].clone()],
+            zone: group.zone.clone(),
+        };
+        assert!(
+            workspace
+                .save_grouped_log_reports(&incomplete, NOW, "20.0.48-openusage.2", &report)
+                .is_err()
+        );
+        workspace
+            .storage
+            .as_mut()
+            .unwrap()
+            .set_log_source("codex", &sources[0].folder, LogConsent::Withdrawn, NOW)
+            .unwrap();
+        assert!(
+            workspace
+                .save_grouped_log_reports(group, NOW, "20.0.48-openusage.2", &report)
+                .is_err()
+        );
+        assert_eq!(workspace.local_log_scan_plan().unwrap()[0].sources.len(), 1);
+        workspace
+            .storage
+            .as_mut()
+            .unwrap()
+            .set_log_source("codex", &sources[0].folder, LogConsent::Granted, NOW)
+            .unwrap();
+        std::fs::remove_dir(&sources[0].folder).unwrap();
+        symlink(&sources[1].folder, &sources[0].folder).unwrap();
+        assert!(
+            workspace
+                .save_grouped_log_reports(group, NOW, "20.0.48-openusage.2", &report)
+                .is_err()
+        );
+        assert_eq!(
+            workspace
+                .local_usage_read("2026-01-01", "2026-12-31")
+                .unwrap(),
+            saved
+        );
+        drop(workspace.storage.take());
+        workspace.storage = Some(Storage::open(&database, &key).unwrap());
+        assert_eq!(
+            workspace
+                .local_usage_read("2026-01-01", "2026-12-31")
+                .unwrap(),
+            saved
+        );
+        assert_eq!(
+            workspace
+                .storage
+                .as_ref()
+                .unwrap()
+                .local_usage_sessions("2026-01-01T00:00:00.000Z", "2027-01-01T00:00:00.000Z")
+                .unwrap(),
+            sessions_before
+        );
+    }
+
+    #[cfg(not(all(feature = "codex-native-qualification", target_os = "linux")))]
+    #[test]
+    fn ordinary_codex_plan_keeps_each_source_and_its_zone() {
+        let dir = tempfile::Builder::new()
+            .permissions(std::fs::Permissions::from_mode(0o700))
+            .tempdir()
+            .unwrap();
+        let mut workspace = Workspace::new(dir.path().join("workspace")).unwrap();
+        workspace.storage = Some(Storage::create(&dir.path().join("test.db"), &[46; 32]).unwrap());
+        let mut zones = Vec::new();
+        for (name, zone) in [("a", "UTC"), ("b", "America/New_York")] {
+            let folder = dir.path().join(name);
+            std::fs::create_dir(&folder).unwrap();
+            let source = workspace
+                .storage
+                .as_mut()
+                .unwrap()
+                .set_log_source("codex", folder.to_str().unwrap(), LogConsent::Granted, NOW)
+                .unwrap();
+            workspace
+                .save_complete_log_reports(&source, zone, NOW, &[], &[], None)
+                .unwrap();
+            zones.push((source.id, zone.to_string()));
+        }
+        workspace
+            .storage
+            .as_mut()
+            .unwrap()
+            .set_time_zone("Asia/Kolkata")
+            .unwrap();
+        let plan = workspace.local_log_scan_plan().unwrap();
+        assert_eq!(plan.len(), 2);
+        for group in plan {
+            assert_eq!(group.sources.len(), 1);
+            let expected = zones
+                .iter()
+                .find(|(id, _)| id == &group.sources[0].id)
+                .unwrap();
+            assert_eq!(group.zone.as_ref(), Some(&expected.1));
+        }
+        assert!(crate::local_logs::tool_allowed("codex"));
+        assert_eq!(
+            workspace
+                .storage
+                .as_ref()
+                .unwrap()
+                .local_tool_scope("codex")
+                .unwrap(),
+            None
+        );
     }
 }

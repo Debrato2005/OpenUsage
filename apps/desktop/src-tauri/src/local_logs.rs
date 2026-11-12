@@ -18,6 +18,8 @@ use tauri::State;
 const SCAN_INTERVAL: Duration = Duration::from_secs(600);
 const LOCKED_RETRY: Duration = Duration::from_secs(2);
 
+#[cfg(all(feature = "codex-native-qualification", target_os = "linux"))]
+mod codex_qualification;
 #[cfg(all(feature = "pi-native-qualification", target_os = "linux"))]
 mod pi_qualification;
 
@@ -29,6 +31,17 @@ pub(crate) fn tool_allowed(id: &str) -> bool {
                 target_os = "linux"
             )) && id == "pi")
     })
+}
+
+pub(crate) fn grouped_period(id: &str) -> Option<locallogs::tools::PeriodPolicy> {
+    #[cfg(all(feature = "codex-native-qualification", target_os = "linux"))]
+    if id == "codex" {
+        return Some(locallogs::tools::PeriodPolicy::Day);
+    }
+    locallogs::tool(id)?
+        .agent_report
+        .as_ref()
+        .map(|policy| policy.period)
 }
 
 fn empty_scan_home() -> std::io::Result<tempfile::TempDir> {
@@ -79,6 +92,8 @@ pub(crate) struct Scanner {
     production: PinnedScanner,
     #[cfg(all(feature = "pi-native-qualification", target_os = "linux"))]
     pi: Option<PinnedScanner>,
+    #[cfg(all(feature = "codex-native-qualification", target_os = "linux"))]
+    codex: Option<PinnedScanner>,
 }
 impl Scanner {
     fn for_tool(&self, tool: &str) -> Option<&PinnedScanner> {
@@ -88,6 +103,10 @@ impl Scanner {
         #[cfg(all(feature = "pi-native-qualification", target_os = "linux"))]
         if tool == "pi" {
             return self.pi.as_ref();
+        }
+        #[cfg(all(feature = "codex-native-qualification", target_os = "linux"))]
+        if tool == "codex" {
+            return self.codex.as_ref();
         }
         Some(&self.production)
     }
@@ -111,6 +130,8 @@ impl Scanner {
             },
             #[cfg(all(feature = "pi-native-qualification", target_os = "linux"))]
             pi: pi_qualification::scanner(),
+            #[cfg(all(feature = "codex-native-qualification", target_os = "linux"))]
+            codex: codex_qualification::scanner(),
         })
     }
 }
@@ -138,17 +159,16 @@ fn scan_all(workspace: &Mutex<Option<Workspace>>, scanner: &Scanner) -> Outcome 
     };
     let (mut failed, mut at) = (false, None);
     for group in groups {
-        let result =
-            if locallogs::tool(&group.sources[0].tool).is_some_and(|t| t.agent_report.is_some()) {
-                scan_group(workspace, scanner, &group)
-            } else {
-                scan_source(
-                    workspace,
-                    scanner,
-                    &group.sources[0],
-                    group.zone.as_deref().unwrap_or("UTC"),
-                )
-            };
+        let result = if grouped_period(&group.sources[0].tool).is_some() {
+            scan_group(workspace, scanner, &group)
+        } else {
+            scan_source(
+                workspace,
+                scanner,
+                &group.sources[0],
+                group.zone.as_deref().unwrap_or("UTC"),
+            )
+        };
         match result {
             Some(scanned_at) => at = Some(scanned_at),
             None => failed = true,
@@ -196,6 +216,10 @@ fn collect_group(
     #[cfg(all(feature = "pi-native-qualification", target_os = "linux"))]
     if request.tool == "pi" {
         return locallogs::grouped::qualify_pi_candidate(request, check);
+    }
+    #[cfg(all(feature = "codex-native-qualification", target_os = "linux"))]
+    if request.tool == "codex" {
+        return locallogs::grouped::qualify_codex_candidate(request, check);
     }
     locallogs::scan_grouped_with_check(request, check)
 }
@@ -540,6 +564,8 @@ mod tests {
             },
             #[cfg(all(feature = "pi-native-qualification", target_os = "linux"))]
             pi: None,
+            #[cfg(all(feature = "codex-native-qualification", target_os = "linux"))]
+            codex: None,
         }
     }
 
@@ -562,12 +588,17 @@ mod tests {
             production: descriptor,
             #[cfg(all(feature = "pi-native-qualification", target_os = "linux"))]
             pi: None,
+            #[cfg(all(feature = "codex-native-qualification", target_os = "linux"))]
+            codex: None,
         };
         assert!(scanner.for_tool("pi").is_none());
         assert!(scanner.for_tool("opencode").is_none());
         assert!(scanner.for_tool("unknown").is_none());
         assert_eq!(scanner.for_tool("claude").unwrap().version, "20.0.48");
+        #[cfg(not(all(feature = "codex-native-qualification", target_os = "linux")))]
         assert_eq!(scanner.for_tool("codex").unwrap().digest, "a".repeat(64));
+        #[cfg(all(feature = "codex-native-qualification", target_os = "linux"))]
+        assert!(scanner.for_tool("codex").is_none());
         #[cfg(all(feature = "pi-native-qualification", target_os = "linux"))]
         {
             let mut scanner = scanner;
@@ -578,6 +609,7 @@ mod tests {
             });
             assert_eq!(scanner.for_tool("pi").unwrap().digest, "b".repeat(64));
             assert_eq!(scanner.for_tool("claude").unwrap().digest, "a".repeat(64));
+            #[cfg(not(all(feature = "codex-native-qualification", target_os = "linux")))]
             assert_eq!(scanner.for_tool("codex").unwrap().version, "20.0.48");
             assert!(scanner.for_tool("opencode").is_none());
         }
@@ -742,11 +774,160 @@ mod tests {
         assert_eq!(worker.status().state, "idle");
         worker.close();
         assert_eq!(totals(workspace.lock().unwrap().as_mut().unwrap()), saved);
+        #[cfg(all(feature = "codex-native-qualification", target_os = "linux"))]
+        codex_candidate_worker_keeps_complete_grouped_history(workspace.as_ref(), &detected, &bin);
         let unavailable = LocalLogWorker::start_with(Arc::new(Mutex::new(None)), None);
         let deadline = Instant::now() + Duration::from_secs(20);
         while unavailable.status().state != "unavailable" {
             assert!(Instant::now() < deadline);
             std::thread::sleep(Duration::from_millis(50));
         }
+    }
+    #[cfg(all(feature = "codex-native-qualification", target_os = "linux"))]
+    fn codex_candidate_worker_keeps_complete_grouped_history(
+        shared: &Mutex<Option<Workspace>>,
+        detected: &[Detected],
+        bin: &Path,
+    ) {
+        consent(
+            shared.lock().unwrap().as_mut().unwrap(),
+            detected,
+            &["codex".into()],
+        )
+        .unwrap();
+        let marker = bin.join("production-fallback");
+        let missing = scanner(
+            bin,
+            "production-fallback-scanner",
+            &format!("touch {}", marker.display()),
+        );
+        assert_eq!(
+            scan_all(shared, &missing),
+            Outcome::Scanned {
+                failed: true,
+                at: None
+            }
+        );
+        assert!(!marker.exists());
+        let fixtures: serde_json::Value = serde_json::from_slice(include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../crates/openusage-locallogs/tests/fixtures/codex-snapshot-candidate.json"
+        )))
+        .unwrap();
+        let snapshot = bin.join("codex-snapshot");
+        std::fs::write(
+            &snapshot,
+            serde_json::to_vec(&fixtures["cases"]["unattributed"]["snapshot"]).unwrap(),
+        )
+        .unwrap();
+        let calls = bin.join("candidate-calls");
+        let candidate = scanner(
+            bin,
+            "candidate",
+            &format!(
+                "printf '%s\\n' \"$*\" >> {}; cat {}",
+                calls.display(),
+                snapshot.display()
+            ),
+        );
+        let mut qualified = missing.clone();
+        qualified.codex = Some(PinnedScanner {
+            version: "20.0.48-openusage.2".into(),
+            ..candidate.production
+        });
+        let before = shared
+            .lock()
+            .unwrap()
+            .as_mut()
+            .unwrap()
+            .local_usage_read("2026-01-01", "2026-12-31")
+            .unwrap();
+        assert!(matches!(
+            scan_all(shared, &qualified),
+            Outcome::Scanned {
+                failed: false,
+                at: Some(_)
+            }
+        ));
+        let commands = std::fs::read_to_string(&calls).unwrap();
+        assert_eq!(commands.lines().count(), 1);
+        assert!(commands.starts_with("codex snapshot "));
+        assert!(!marker.exists());
+        let saved = shared
+            .lock()
+            .unwrap()
+            .as_mut()
+            .unwrap()
+            .local_usage_read("2026-01-01", "2026-12-31")
+            .unwrap();
+        assert_eq!(saved.legacy, before.legacy);
+        assert_eq!(saved.grouped.len(), 1);
+        let group = &saved.grouped[0];
+        assert_eq!(group.scope.tool, "codex");
+        assert_eq!(
+            group.scope.latest_scan.scanner_version,
+            "20.0.48-openusage.2"
+        );
+        assert_eq!(group.dated_total.as_ref().unwrap().total_tokens, 17);
+        assert_eq!(group.dated[0].scan.id, group.dated_sessions[0].scan.id);
+        assert_eq!(group.dated[0].scan.id, group.scope.latest_scan.id);
+        assert!(group.dated[0].period.models.is_empty());
+        assert_eq!(group.dated[0].period.estimated_value_micros, None);
+        for unavailable in [false, true] {
+            let mut broken = qualified.clone();
+            if unavailable {
+                broken.codex.as_mut().unwrap().binary = bin.join("absent-candidate");
+            } else {
+                broken.codex.as_mut().unwrap().digest = "0".repeat(64);
+            }
+            assert_eq!(
+                scan_all(shared, &broken),
+                Outcome::Scanned {
+                    failed: true,
+                    at: None
+                }
+            );
+            assert_eq!(std::fs::read_to_string(&calls).unwrap(), commands);
+            assert!(!marker.exists());
+        }
+        std::fs::write(&snapshot, b"{}").unwrap();
+        assert_eq!(
+            scan_all(shared, &qualified),
+            Outcome::Scanned {
+                failed: true,
+                at: None
+            }
+        );
+        assert_eq!(
+            shared
+                .lock()
+                .unwrap()
+                .as_mut()
+                .unwrap()
+                .local_usage_read("2026-01-01", "2026-12-31")
+                .unwrap(),
+            saved
+        );
+        let commands = std::fs::read_to_string(&calls).unwrap();
+        consent(shared.lock().unwrap().as_mut().unwrap(), detected, &[]).unwrap();
+        assert_eq!(
+            scan_all(shared, &qualified),
+            Outcome::Scanned {
+                failed: false,
+                at: None
+            }
+        );
+        assert_eq!(std::fs::read_to_string(&calls).unwrap(), commands);
+        assert_eq!(
+            shared
+                .lock()
+                .unwrap()
+                .as_mut()
+                .unwrap()
+                .local_usage_read("2026-01-01", "2026-12-31")
+                .unwrap()
+                .grouped,
+            saved.grouped
+        );
     }
 }

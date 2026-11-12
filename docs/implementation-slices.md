@@ -162,7 +162,9 @@ Updated November 12, 2026. Each completed item has one local commit and scoped e
 - [x] L-1f11an: correct the tested Codex paginated format in a separate candidate with explicit record identity and lineage.
 - [x] L-1f11ao: derive both Codex reports from one captured input in a separate candidate.
 - [x] L-1f11ap: parse the Codex candidate envelope into existing typed grouped records without scanner activation.
-- [ ] L-1f11aq: qualify the combined Codex candidate through native consent, grouped storage, history, and failure handling.
+- [x] L-1f11aq: qualify the combined Codex candidate through native consent, grouped storage, history, and failure handling.
+- [ ] R-6: correct CLI text for an empty selected date range after a public-command regression.
+- [ ] R-7: reject future quota observations as Current after a public-command regression.
 - [x] R-5: bound leaderboard request collection at 64 KiB. Twenty-four local service tests passed, including overflow cancellation, byte boundaries, stream errors, and the earlier aggregate and concurrency checks. Hosted Workers remain unverified.
 - [x] R-4: enforce hourly limits and the five-device cap under concurrent requests. Fourteen local service tests passed, including token rotation, hour resets, and database failures. Hosted D1 remains unverified.
 - [x] R-3: keep a leaderboard estimate unavailable when any included row lacks it. Token totals, measured zero, ordering, and period filters stay intact. Eight local service tests passed. Hosted D1 remains unverified.
@@ -716,6 +718,24 @@ Acceptance:
 
 Stopping condition: one native qualification result with evidence, owning docs,
 one local commit, and an AST Graphify update. Report before the next step.
+
+### R-6 and R-7: CLI state accuracy
+
+Goal: report absence and freshness without claims that saved evidence cannot support.
+
+Acceptance:
+
+- Reproduce both findings with public command tests and private synthetic homes.
+  Distinguish an empty selected range from the absence of source logs.
+- Treat an observation after the current clock time as not Current. Check the
+  exact freshness boundary and preserve saved quota values and observation times.
+- Keep JSON shapes, read-only access, consent, exact arithmetic, and unavailable
+  metrics intact. Use the existing states unless the SRS requires a clarification.
+- Run doctor, affected crate and project checks, and the native CLI journey.
+  Record scope and preserve all unrelated work.
+
+Stopping condition: executed evidence, owning docs, one commit, an AST Graphify
+update, and the authorized push. Report before the next assignment.
 
 ## Order
 

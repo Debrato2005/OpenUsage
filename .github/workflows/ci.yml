@@ -126,6 +126,11 @@ jobs:
           cargo test --locked -p openusage-locallogs --features pi-qualification detect::tests
           cargo clippy --locked -p openusage-desktop --features pi-native-qualification --all-targets -- -D warnings
           cargo test --locked -p openusage-desktop --features pi-native-qualification local_logs
+      - name: Test Codex qualification build
+        run: |
+          cargo test --locked -p openusage-locallogs --features codex-qualification,pi-qualification
+          cargo clippy --locked -p openusage-desktop --features codex-native-qualification,pi-native-qualification --all-targets -- -D warnings
+          cargo test --locked -p openusage-desktop --features codex-native-qualification,pi-native-qualification local_logs
       - name: Test native oracles
         run: cargo test --locked --manifest-path tests/native/backup-verifier/Cargo.toml
 
