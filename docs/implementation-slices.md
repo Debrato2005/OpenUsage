@@ -82,7 +82,7 @@ The other slices below follow the launch, unless a launch slice needs part of on
 
 ## Build checklist
 
-Updated November 12, 2026. Each completed item has one local commit and scoped evidence. L-1f11am records the latest result. The next bounded assignment is below. Owner items wait for the owner.
+Updated November 12, 2026. Each completed item has one local commit and scoped evidence. L-1f11an records the latest result. The next bounded assignment is below. Owner items wait for the owner.
 
 **Verification before release**
 
@@ -159,7 +159,8 @@ Updated November 12, 2026. Each completed item has one local commit and scoped e
 - [x] L-1f11ak: exercise the pinned Pi candidate through a native qualification build, including consent, worker scans, exact persistence and display, provenance, refusal, and withdrawal. Keep production support unchanged.
 - [x] L-1f11al: compare the shared bounded release candidate with the production scanner for enabled Claude Code and Codex. Keep production support unchanged.
 - [x] L-1f11am: qualify captured Codex event identity with private producer output before an isolated scanner correction.
-- [ ] L-1f11an: correct the tested Codex paginated format in a separate candidate with explicit record identity and lineage.
+- [x] L-1f11an: correct the tested Codex paginated format in a separate candidate with explicit record identity and lineage.
+- [ ] L-1f11ao: derive both Codex reports from one captured input in a separate candidate.
 - [x] R-5: bound leaderboard request collection at 64 KiB. Twenty-four local service tests passed, including overflow cancellation, byte boundaries, stream errors, and the earlier aggregate and concurrency checks. Hosted Workers remain unverified.
 - [x] R-4: enforce hourly limits and the five-device cap under concurrent requests. Fourteen local service tests passed, including token rotation, hour resets, and database failures. Hosted D1 remains unverified.
 - [x] R-3: keep a leaderboard estimate unavailable when any included row lacks it. Token totals, measured zero, ordering, and period filters stay intact. Eight local service tests passed. Hosted D1 remains unverified.
@@ -644,6 +645,28 @@ Acceptance:
 Stopping condition: one isolated candidate correction with executed evidence,
 updated owning docs, one local commit, and an AST Graphify update. Report before
 the next bounded step.
+
+### L-1f11ao: Codex combined capture
+
+Goal: derive both required Codex reports from one captured input in the separate
+candidate, before application integration.
+
+Acceptance:
+
+- Add one bounded JSON command for the tested paginated format. Reuse the strict
+  loader and report logic. Do not execute two independent scans inside it.
+- Preserve full captured fork totals, copies, distinct responses, measured zero,
+  unavailable attribution, and strict refusal without successful partial output.
+- Check both reports against independent expectations and their separate
+  report controls. Test a controlled source change around capture.
+- Preserve the prior candidate oracle, production pin, enabled catalog, and
+  legacy history. Keep unsupported formats explicit.
+- Build with the shared target and pinned inputs. Run focused source and
+  candidate regressions, doctor, and the selected project checks.
+
+Stopping condition: one isolated combined-capture candidate with executed
+evidence, updated owning docs, one local commit, and an AST Graphify update.
+Report before the next bounded step.
 
 ## Order
 

@@ -1,0 +1,1155 @@
+diff --git a/rust/Cargo.lock b/rust/Cargo.lock
+--- a/rust/Cargo.lock
++++ b/rust/Cargo.lock
+@@ -251,6 +251,8 @@
+  "compact_str",
+  "insta",
+  "jiff",
++ "ring",
++ "rustix",
+  "memchr",
+  "rustc-hash",
+  "serde",
+diff --git a/rust/adapters/codex/Cargo.toml b/rust/adapters/codex/Cargo.toml
+--- a/rust/adapters/codex/Cargo.toml
++++ b/rust/adapters/codex/Cargo.toml
+@@ -9,6 +9,7 @@
+ ccusage-core.workspace = true
+ compact_str.workspace = true
+ jiff.workspace = true
++ring = "=0.17.14"
+ memchr.workspace = true
+ rustc-hash.workspace = true
+ serde.workspace = true
+@@ -16,6 +17,9 @@
+ toml.workspace = true
+ zstd.workspace = true
+ 
++[target.'cfg(target_os = "linux")'.dependencies]
++rustix = { version = "=1.1.5", features = ["fs"] }
++
+ [dev-dependencies]
+ ccusage-core = { workspace = true, features = ["test-snapshots"] }
+ ccusage-test-support.workspace = true
+diff --git a/rust/adapters/codex/src/aggregate.rs b/rust/adapters/codex/src/aggregate.rs
+--- a/rust/adapters/codex/src/aggregate.rs
++++ b/rust/adapters/codex/src/aggregate.rs
+@@ -77,6 +77,15 @@
+     kind: AgentReportKind,
+ ) -> Result<BTreeMap<String, CodexGroup>> {
+     let sources = paths::codex_usage_sources()?;
++    if let Some(mut events) = super::paginated::load(
++        &sources
++            .iter()
++            .map(|source| source.dir.clone())
++            .collect::<Vec<_>>(),
++    )? {
++        filter_events_by_date(&mut events, shared)?;
++        return aggregate_events(&events, kind, shared.timezone.as_deref());
++    }
+     if sources.len() == 1 && !wants_json(shared) {
+         return load_groups_from_directory(&sources[0].dir, shared, kind);
+     }
+@@ -144,6 +153,10 @@
+     shared: &SharedArgs,
+     kind: AgentReportKind,
+ ) -> Result<BTreeMap<String, CodexGroup>> {
++    if let Some(mut events) = super::paginated::load(&[sessions_dir.to_path_buf()])? {
++        filter_events_by_date(&mut events, shared)?;
++        return aggregate_events(&events, kind, shared.timezone.as_deref());
++    }
+     let all_files = paths::collect_codex_usage_files(sessions_dir);
+     let files = paths::filter_codex_usage_files(sessions_dir, &all_files, shared);
+     let replay_plan = if shared.since.is_some() || shared.until.is_some() {
+@@ -882,9 +895,15 @@
+     }
+     let timezone = parse_tz(timezone).or_else(|| Some(JiffTimeZone::system()));
+     for event in events {
+-        let Some(model) = event.model.as_deref().filter(|model| !model.is_empty()) else {
++        let model = event.model.as_deref().filter(|model| !model.is_empty());
++        if model.is_none()
++            && !event
++                .response_id
++                .as_deref()
++                .is_some_and(|id| id.starts_with("codex-record:"))
++        {
+             continue;
+-        };
++        }
+         if let Some(response_id) = event.response_id.as_deref()
+             && !seen_compaction_responses.insert(response_id)
+         {
+@@ -892,7 +911,7 @@
+         }
+         let merged_event = event.response_id.as_deref().map(|response_id| {
+             let mut merged = event.clone();
+-            merged.service_tier = compaction_tiers[response_id];
++            merged.service_tier = compaction_tiers.get(response_id).copied().flatten();
+             merged
+         });
+         let event = merged_event.as_ref().unwrap_or(event);
+@@ -907,8 +926,25 @@
+             AgentReportKind::Session => event.session_id.clone(),
+         };
+         let group = groups.entry(period).or_insert_with(CodexGroup::default);
+-        let model = crate::model_aliases::resolve_model_name(model);
+-        accumulate_codex_event_into_group(group, event, model.as_ref(), timestamp, true);
++        if let Some(model) = model {
++            let model = crate::model_aliases::resolve_model_name(model);
++            accumulate_codex_event_into_group(group, event, model.as_ref(), timestamp, true);
++        } else {
++            group.unattributed = true;
++            group.input_tokens += event.input_tokens;
++            group.cached_input_tokens += event.cached_input_tokens;
++            group.cache_creation_tokens += event.cache_creation_tokens;
++            group.output_tokens += event.output_tokens;
++            group.reasoning_output_tokens += event.reasoning_output_tokens;
++            group.total_tokens += event.total_tokens;
++            if group
++                .last_activity
++                .as_ref()
++                .is_none_or(|last| last < &event.timestamp)
++            {
++                group.last_activity = Some(event.timestamp.clone());
++            }
++        }
+     }
+     Ok(groups)
+ }
+diff --git a/rust/adapters/codex/src/lib.rs b/rust/adapters/codex/src/lib.rs
+--- a/rust/adapters/codex/src/lib.rs
++++ b/rust/adapters/codex/src/lib.rs
+@@ -3,9 +3,12 @@
+ 
+ mod aggregate;
+ mod loader;
++mod paginated;
+ mod parser;
+ mod paths;
+ mod reader;
++mod record_files;
++mod record_json;
+ mod replay;
+ mod report;
+ mod speed;
+diff --git a/rust/adapters/codex/src/loader.rs b/rust/adapters/codex/src/loader.rs
+--- a/rust/adapters/codex/src/loader.rs
++++ b/rust/adapters/codex/src/loader.rs
+@@ -24,6 +24,9 @@
+     sessions_dir: &Path,
+     single_thread: bool,
+ ) -> Result<Vec<CodexTokenUsageEvent>> {
++    if let Some(events) = super::paginated::load(&[sessions_dir.to_path_buf()])? {
++        return Ok(events);
++    }
+     let files = collect_codex_usage_files(sessions_dir);
+     let replay_plan = CodexReplayPlan::new([(sessions_dir, files.as_slice())], single_thread);
+     let mut events =
+@@ -63,6 +66,15 @@
+     single_thread: bool,
+     shared: Option<&SharedArgs>,
+ ) -> Result<(Vec<CodexTokenUsageEvent>, bool)> {
++    if let Some(events) = super::paginated::load(
++        &sources
++            .iter()
++            .map(|source| source.dir.clone())
++            .collect::<Vec<_>>(),
++    )? {
++        let detected = !events.is_empty();
++        return Ok((events, detected));
++    }
+     if let [source] = sources {
+         if let Some(shared) = shared {
+             return load_codex_events_from_directory_with_shared(&source.dir, shared);
+diff --git a/rust/adapters/codex/src/paginated.rs b/rust/adapters/codex/src/paginated.rs
+new file mode 100644
+--- /dev/null
++++ b/rust/adapters/codex/src/paginated.rs
+@@ -0,0 +1,526 @@
++//! The tested 0.163.0 paginated format uses emitted identity, never replay timing.
++use crate::{CodexServiceTier, CodexTokenUsageEvent, Result, cli_error};
++use ring::digest::{SHA256, digest};
++use serde_json::Value;
++use std::{
++    collections::BTreeMap,
++    io::{BufRead, Read},
++    path::PathBuf,
++};
++
++const MAX_RECORDS: usize = 100_000;
++const MAX_LINE: usize = 1 << 20;
++const MAX_EXACT: u64 = (1_u64 << 53) - 1;
++
++pub(super) fn unavailable() -> crate::CliError {
++    cli_error(
++        "Codex paginated capture is unavailable: incomplete, conflicting, unsupported, or over limit",
++    )
++}
++
++fn text<'a>(value: &'a Value, key: &str) -> Result<&'a str> {
++    value[key]
++        .as_str()
++        .filter(|v| !v.is_empty() && v.len() <= 1024)
++        .ok_or_else(unavailable)
++}
++fn count(value: &Value, key: &str) -> Result<u64> {
++    value[key]
++        .as_u64()
++        .filter(|v| *v <= MAX_EXACT)
++        .ok_or_else(unavailable)
++}
++
++#[derive(Clone, Copy, Default, Debug, PartialEq, Eq)]
++struct Usage([u64; 6]);
++impl Usage {
++    fn parse(value: &Value) -> Result<Self> {
++        let result = Self([
++            count(value, "input_tokens")?,
++            count(value, "cached_input_tokens")?,
++            count(value, "cache_write_input_tokens")?,
++            count(value, "output_tokens")?,
++            count(value, "reasoning_output_tokens")?,
++            count(value, "total_tokens")?,
++        ]);
++        let [input, cached, write, output, reasoning, total] = result.0;
++        if cached.checked_add(write).is_none_or(|v| v > input)
++            || reasoning > output
++            || input.checked_add(output) != Some(total)
++        {
++            return Err(unavailable());
++        }
++        Ok(result)
++    }
++    fn add(self, other: Self) -> Result<Self> {
++        let mut sum = self;
++        for (target, value) in sum.0.iter_mut().zip(other.0) {
++            *target = target
++                .checked_add(value)
++                .filter(|v| *v <= MAX_EXACT)
++                .ok_or_else(unavailable)?;
++        }
++        Ok(sum)
++    }
++}
++#[derive(Clone, PartialEq, Eq)]
++struct Base {
++    thread: String,
++    end: u64,
++    bytes: u64,
++}
++#[derive(Clone, PartialEq, Eq)]
++struct Meta {
++    thread: String,
++    session: String,
++    start: u64,
++    base: Option<Base>,
++}
++#[derive(Clone)]
++struct Record {
++    ordinal: u64,
++    turn: String,
++    usage: Usage,
++    turn_usage: Usage,
++    thread_usage: Usage,
++    event: CodexTokenUsageEvent,
++}
++struct Thread {
++    meta: Meta,
++    rows: BTreeMap<u64, Vec<u8>>,
++    boundaries: BTreeMap<u64, Vec<u64>>,
++    records: BTreeMap<u64, Record>,
++    counters: BTreeMap<u64, Option<(Usage, Usage)>>,
++}
++
++fn probe_files(roots: &[PathBuf]) -> Result<Vec<PathBuf>> {
++    if roots.len() > 64 {
++        return Err(unavailable());
++    }
++    let mut files = Vec::new();
++    let mut entries = 0_usize;
++    for root in roots {
++        if !root.exists() {
++            continue;
++        }
++        let mut pending = vec![(root.clone(), 0)];
++        while let Some((directory, depth)) = pending.pop() {
++            if depth > 64 {
++                return Err(unavailable());
++            }
++            #[cfg(target_os = "linux")]
++            let _guard = {
++                use rustix::fs::{CWD, Mode, OFlags, ResolveFlags, openat2};
++                openat2(
++                    CWD,
++                    &directory,
++                    OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC,
++                    Mode::empty(),
++                    ResolveFlags::NO_SYMLINKS | ResolveFlags::NO_MAGICLINKS,
++                )
++                .map_err(|_| unavailable())?
++            };
++            for entry in std::fs::read_dir(&directory).map_err(|_| unavailable())? {
++                entries += 1;
++                if entries > 32768 {
++                    return Err(unavailable());
++                }
++                let entry = entry.map_err(|_| unavailable())?;
++                let kind = entry.file_type().map_err(|_| unavailable())?;
++                if kind.is_dir() {
++                    pending.push((entry.path(), depth + 1));
++                } else if kind.is_file() && super::reader::is_rollout_file(&entry.path()) {
++                    files.push(entry.path());
++                    if files.len() > 8192 {
++                        return Err(unavailable());
++                    }
++                } else if !kind.is_file() {
++                    return Err(unavailable());
++                }
++            }
++        }
++    }
++    files.sort();
++    Ok(files)
++}
++
++fn probe_reader(path: &std::path::Path) -> Result<Box<dyn BufRead>> {
++    #[cfg(target_os = "linux")]
++    {
++        use rustix::fs::{CWD, Mode, OFlags, ResolveFlags, openat2};
++        let fd = openat2(
++            CWD,
++            path,
++            OFlags::RDONLY | OFlags::CLOEXEC | OFlags::NONBLOCK,
++            Mode::empty(),
++            ResolveFlags::NO_SYMLINKS | ResolveFlags::NO_MAGICLINKS,
++        )
++        .map_err(|_| unavailable())?;
++        let file = std::fs::File::from(fd);
++        if !file.metadata().map_err(|_| unavailable())?.is_file() {
++            return Err(unavailable());
++        }
++        if path.extension().is_some_and(|ext| ext == "zst") {
++            let decoder = zstd::stream::read::Decoder::new(file).map_err(|_| unavailable())?;
++            Ok(Box::new(std::io::BufReader::new(decoder)))
++        } else {
++            Ok(Box::new(std::io::BufReader::new(file)))
++        }
++    }
++    #[cfg(not(target_os = "linux"))]
++    {
++        super::reader::open_rollout_reader(path)
++            .map(|(reader, _)| reader)
++            .map_err(|_| unavailable())
++    }
++}
++
++// Probe only selects the parser. The qualified path captures all selected files again.
++// A recognized marker can never fall back to the legacy parser.
++pub(super) fn load(roots: &[PathBuf]) -> Result<Option<Vec<CodexTokenUsageEvent>>> {
++    let mut recognized = false;
++    let mut scanned = 0_u64;
++    for path in probe_files(roots)? {
++        let Ok(mut reader) = probe_reader(&path) else {
++            continue;
++        };
++        loop {
++            let mut line = Vec::new();
++            let Ok(length) = reader
++                .by_ref()
++                .take(MAX_LINE as u64 + 1)
++                .read_until(b'\n', &mut line)
++            else {
++                break;
++            };
++            if length == 0 {
++                break;
++            }
++            scanned = scanned.checked_add(length as u64).ok_or_else(unavailable)?;
++            if length > MAX_LINE || scanned > 64 << 20 {
++                return Err(unavailable());
++            }
++            if let Ok(row) = serde_json::from_slice::<Value>(&line) {
++                recognized |= row.get("ordinal").is_some()
++                    || row["payload"]["history_mode"] == "paginated"
++                    || row["payload"].get("history_base").is_some()
++                    || (row["type"] == "token_usage_record"
++                        && row["payload"].get("thread_id").is_some());
++            } else {
++                recognized |= line.windows(11).any(|v| v == b"\"paginated\"")
++                    || line.windows(9).any(|v| v == b"\"ordinal\"");
++            }
++            if recognized {
++                break;
++            }
++        }
++        if recognized {
++            break;
++        }
++    }
++    if !recognized {
++        return Ok(None);
++    }
++    let mut threads: BTreeMap<String, Thread> = BTreeMap::new();
++    let mut records = 0;
++    super::record_files::read(roots, |_, _, bytes| {
++        if bytes.is_empty() {
++            return Ok(());
++        }
++        parse_file(bytes, &mut threads, &mut records)
++    })?;
++    let mut sessions = BTreeMap::new();
++    for thread in threads.values() {
++        if sessions
++            .insert(&thread.meta.session, &thread.meta.thread)
++            .is_some()
++        {
++            return Err(unavailable());
++        }
++    }
++    let mut events = Vec::new();
++    let mut identities = BTreeMap::new();
++    let mut total = Usage::default();
++    for thread in threads.values() {
++        let mut cumulative = inherited(thread, &threads, &mut Vec::new())?;
++        let baseline = cumulative;
++        for (ordinal, counter) in &thread.counters {
++            let Some((last, total)) = counter else {
++                continue;
++            };
++            let prior = thread
++                .records
++                .range(..*ordinal)
++                .next_back()
++                .map(|(_, record)| record);
++            if *total != prior.map_or(baseline, |record| record.thread_usage)
++                || last
++                    .0
++                    .into_iter()
++                    .zip(total.0)
++                    .any(|(last, total)| last > total)
++                || prior.is_some_and(|record| *last != record.usage)
++            {
++                return Err(unavailable());
++            }
++        }
++        let mut turns: BTreeMap<&str, Usage> = BTreeMap::new();
++        for record in thread.records.values() {
++            cumulative = cumulative.add(record.usage)?;
++            let turn = turns.entry(&record.turn).or_default();
++            *turn = turn.add(record.usage)?;
++            if cumulative != record.thread_usage || *turn != record.turn_usage {
++                return Err(unavailable());
++            }
++            let id = record.event.response_id.as_ref().ok_or_else(unavailable)?;
++            if identities.insert(id, &record.event).is_some() {
++                return Err(unavailable());
++            }
++            total = total.add(record.usage)?;
++            events.push(record.event.clone());
++        }
++    }
++    Ok(Some(events))
++}
++
++fn inherited(
++    thread: &Thread,
++    threads: &BTreeMap<String, Thread>,
++    visiting: &mut Vec<String>,
++) -> Result<Usage> {
++    if visiting.contains(&thread.meta.thread) || visiting.len() > 64 {
++        return Err(unavailable());
++    }
++    visiting.push(thread.meta.thread.clone());
++    let result = if let Some(base) = &thread.meta.base {
++        let parent = threads.get(&base.thread).ok_or_else(unavailable)?;
++        if base.end <= parent.meta.start
++            || !parent
++                .boundaries
++                .get(&base.end)
++                .is_some_and(|bytes| bytes.contains(&base.bytes))
++        {
++            return Err(unavailable());
++        }
++        let mut usage = inherited(parent, threads, visiting)?;
++        for record in parent
++            .records
++            .values()
++            .filter(|record| record.ordinal < base.end)
++        {
++            usage = usage.add(record.usage)?;
++        }
++        usage
++    } else {
++        Usage::default()
++    };
++    visiting.pop();
++    Ok(result)
++}
++
++fn metadata(row: &Value) -> Result<Meta> {
++    let value = &row["payload"];
++    if row["type"] != "session_meta"
++        || value["history_mode"] != "paginated"
++        || value["cli_version"] != "0.163.0"
++    {
++        return Err(unavailable());
++    }
++    let thread = text(value, "id")?.to_owned();
++    let session = text(value, "session_id")?.to_owned();
++    let start = count(row, "ordinal")?;
++    let base = if !value["history_base"].is_null() {
++        let base = &value["history_base"];
++        let parent = text(base, "thread_id")?;
++        let end = count(base, "end_ordinal_exclusive")?;
++        let bytes = count(base, "end_byte_offset")?;
++        if parent == thread
++            || value["forked_from_id"] != parent
++            || count(value, "forked_from_ordinal_exclusive")? != end
++            || start != end
++            || bytes == 0
++        {
++            return Err(unavailable());
++        }
++        Some(Base {
++            thread: parent.to_owned(),
++            end,
++            bytes,
++        })
++    } else {
++        if start != 0
++            || !value["forked_from_id"].is_null()
++            || !value["forked_from_ordinal_exclusive"].is_null()
++        {
++            return Err(unavailable());
++        }
++        None
++    };
++    Ok(Meta {
++        thread,
++        session,
++        start,
++        base,
++    })
++}
++
++fn parse_file(
++    bytes: &[u8],
++    threads: &mut BTreeMap<String, Thread>,
++    records: &mut usize,
++) -> Result<()> {
++    if !bytes.ends_with(b"\n") {
++        return Err(unavailable());
++    }
++    let mut lines = bytes.split_inclusive(|byte| *byte == b'\n');
++    let first = lines.next().ok_or_else(unavailable)?;
++    if first.len() > MAX_LINE {
++        return Err(unavailable());
++    }
++    let meta = metadata(&super::record_json::parse(first)?)?;
++    let thread = threads
++        .entry(meta.thread.clone())
++        .or_insert_with(|| Thread {
++            meta: meta.clone(),
++            rows: BTreeMap::new(),
++            boundaries: BTreeMap::new(),
++            records: BTreeMap::new(),
++            counters: BTreeMap::new(),
++        });
++    if thread.meta != meta {
++        return Err(unavailable());
++    }
++    let mut next = meta.start;
++    let mut offset = 0_u64;
++    let mut local = BTreeMap::new();
++    let mut contexts: BTreeMap<String, (String, Option<String>)> = BTreeMap::new();
++    let mut tier = None;
++    for line in std::iter::once(first).chain(lines) {
++        *records += 1;
++        if *records > MAX_RECORDS || line.len() > MAX_LINE {
++            return Err(unavailable());
++        }
++        let row = super::record_json::parse(line)?;
++        let ordinal = count(&row, "ordinal")?;
++        let encoded = serde_json::to_vec(&row).map_err(|_| unavailable())?;
++        let hash = digest(&SHA256, &encoded).as_ref().to_vec();
++        offset += line.len() as u64;
++        if let Some(prior) = local.get(&ordinal) {
++            if prior != &hash {
++                return Err(unavailable());
++            }
++            continue;
++        }
++        if ordinal != next {
++            return Err(unavailable());
++        }
++        next = next.checked_add(1).ok_or_else(unavailable)?;
++        local.insert(ordinal, hash.clone());
++        if thread
++            .rows
++            .get(&ordinal)
++            .is_some_and(|prior| prior != &hash)
++        {
++            return Err(unavailable());
++        }
++        thread.rows.insert(ordinal, hash);
++        thread.boundaries.entry(next).or_default().push(offset);
++        let timestamp = text(&row, "timestamp")?;
++        if crate::parse_ts_timestamp(timestamp).is_none() {
++            return Err(unavailable());
++        }
++        let payload = &row["payload"];
++        match text(&row, "type")? {
++            "session_meta" if ordinal == meta.start => {}
++            "turn_context" => {
++                let turn = text(payload, "turn_id")?.to_owned();
++                let root = text(payload, "root_turn_id")?.to_owned();
++                let model = if payload["model"].is_null() {
++                    None
++                } else {
++                    Some(text(payload, "model")?.to_owned())
++                };
++                let context = (root, model);
++                if contexts.get(&turn).is_some_and(|prior| prior != &context) {
++                    return Err(unavailable());
++                }
++                contexts.insert(turn, context);
++            }
++            "token_usage_record" => {
++                if payload["thread_id"] != meta.thread || payload["session_id"] != meta.session {
++                    return Err(unavailable());
++                }
++                let turn = text(payload, "turn_id")?;
++                let root = text(payload, "root_turn_id")?;
++                let response = text(payload, "response_id")?;
++                let (context_root, model) = contexts.get(turn).ok_or_else(unavailable)?;
++                if context_root != root || root != turn {
++                    return Err(unavailable());
++                }
++                let usage = Usage::parse(&payload["usage"])?;
++                let [input, cached, write, output, reasoning, total] = usage.0;
++                let record = Record {
++                    ordinal,
++                    turn: turn.to_owned(),
++                    usage,
++                    turn_usage: Usage::parse(&payload["turn_token_usage"])?,
++                    thread_usage: Usage::parse(&payload["thread_token_usage"])?,
++                    event: CodexTokenUsageEvent {
++                        session_id: meta.session.clone(),
++                        response_id: Some(format!(
++                            "codex-record:{}",
++                            serde_json::to_string(&[&meta.thread, response])
++                                .map_err(|_| unavailable())?
++                        )),
++                        timestamp: timestamp.to_owned(),
++                        model: model.clone(),
++                        input_tokens: input,
++                        cached_input_tokens: cached,
++                        cache_creation_tokens: write,
++                        output_tokens: output,
++                        reasoning_output_tokens: reasoning,
++                        total_tokens: total,
++                        is_fallback_model: false,
++                        service_tier: tier,
++                    },
++                };
++                thread.records.insert(ordinal, record);
++            }
++            "event_msg" => match text(payload, "type")? {
++                "thread_settings_applied" => {
++                    tier = match payload["thread_settings"]["service_tier"].as_str() {
++                        Some("default" | "standard") => Some(CodexServiceTier::Standard),
++                        Some("priority" | "fast") => Some(CodexServiceTier::Fast),
++                        Some("flex") => Some(CodexServiceTier::Flex),
++                        Some("ultrafast") => Some(CodexServiceTier::Ultrafast),
++                        None => tier,
++                        _ => return Err(unavailable()),
++                    };
++                }
++                "token_count" => {
++                    let info = &payload["info"];
++                    let counter = if info.is_null() {
++                        None
++                    } else {
++                        Some((
++                            Usage::parse(&info["last_token_usage"])?,
++                            Usage::parse(&info["total_token_usage"])?,
++                        ))
++                    };
++                    thread.counters.insert(ordinal, counter);
++                }
++                "task_started" | "task_complete" => {
++                    if text(payload, "turn_id")? != text(payload, "root_turn_id")? {
++                        return Err(unavailable());
++                    }
++                }
++                "item_completed" => {}
++                _ => return Err(unavailable()),
++            },
++            "response_item" if payload["type"] == "message" => {}
++            "world_state" => {}
++            _ => return Err(unavailable()),
++        }
++    }
++    Ok(())
++}
+diff --git a/rust/adapters/codex/src/record_files.rs b/rust/adapters/codex/src/record_files.rs
+new file mode 100644
+--- /dev/null
++++ b/rust/adapters/codex/src/record_files.rs
+@@ -0,0 +1,356 @@
++use std::path::PathBuf;
++
++use crate::Result;
++
++pub(crate) const MAX_ROOTS: usize = 64;
++
++pub(crate) fn read(
++    paths: &[PathBuf],
++    visit: impl FnMut(&std::path::Path, &std::path::Path, &[u8]) -> Result<()>,
++) -> Result<()> {
++    if paths.is_empty() {
++        return Ok(());
++    }
++    #[cfg(target_os = "linux")]
++    {
++        linux::read_with(paths, linux::Limits::default(), |_| {}, visit)
++    }
++    #[cfg(not(target_os = "linux"))]
++    {
++        let _ = visit;
++        Err(super::paginated::unavailable())
++    }
++}
++
++#[cfg(target_os = "linux")]
++pub(crate) mod linux {
++    use super::super::paginated::unavailable;
++    use crate::Result;
++    use ring::digest::{self, SHA256};
++    use rustix::{
++        fd::OwnedFd,
++        fs::{self, AtFlags, CWD, Dir, FileType, Mode, OFlags, ResolveFlags, Stat},
++    };
++    use std::{
++        collections::BTreeMap,
++        ffi::OsStr,
++        fs::File,
++        io::Read,
++        os::unix::ffi::OsStrExt,
++        path::{Path, PathBuf},
++    };
++
++    #[derive(Clone, Copy)]
++    pub(crate) struct Limits {
++        pub roots: usize,
++        pub entries: usize,
++        pub files: usize,
++        pub depth: usize,
++        pub file_bytes: u64,
++        pub total_bytes: u64,
++    }
++
++    impl Default for Limits {
++        fn default() -> Self {
++            Self {
++                roots: super::MAX_ROOTS,
++                entries: 32768,
++                files: 8192,
++                depth: 64,
++                file_bytes: 32 << 20,
++                total_bytes: 64 << 20,
++            }
++        }
++    }
++
++    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
++    pub(crate) enum Stage {
++        Discovered,
++        Read(usize),
++        BeforeVerify,
++    }
++
++    #[derive(Clone, Debug, PartialEq, Eq)]
++    struct Stamp {
++        device: u64,
++        inode: u64,
++        mode: u32,
++        size: i64,
++        modified: (i128, i128),
++        changed: (i128, i128),
++    }
++
++    impl From<Stat> for Stamp {
++        fn from(stat: Stat) -> Self {
++            Self {
++                device: stat.st_dev,
++                inode: stat.st_ino,
++                mode: stat.st_mode,
++                size: stat.st_size,
++                modified: (stat.st_mtime.into(), stat.st_mtime_nsec.into()),
++                changed: (stat.st_ctime.into(), stat.st_ctime_nsec.into()),
++            }
++        }
++    }
++
++    struct Root {
++        path: PathBuf,
++        fd: OwnedFd,
++        stamp: Stamp,
++    }
++    type Manifest = BTreeMap<(usize, PathBuf), Stamp>;
++
++    fn root(path: &Path) -> Result<Root> {
++        let fd = fs::openat2(
++            CWD,
++            path,
++            OFlags::RDONLY | OFlags::DIRECTORY | OFlags::CLOEXEC,
++            Mode::empty(),
++            ResolveFlags::NO_SYMLINKS | ResolveFlags::NO_MAGICLINKS,
++        )
++        .map_err(|_| unavailable())?;
++        let stamp = fs::fstat(&fd).map_err(|_| unavailable())?.into();
++        Ok(Root {
++            path: path.to_owned(),
++            fd,
++            stamp,
++        })
++    }
++
++    fn open(root: &Root, path: &Path, flags: OFlags) -> Result<OwnedFd> {
++        let path = if path.as_os_str().is_empty() {
++            Path::new(".")
++        } else {
++            path
++        };
++        fs::openat2(
++            &root.fd,
++            path,
++            flags | OFlags::CLOEXEC | OFlags::NONBLOCK,
++            Mode::empty(),
++            ResolveFlags::BENEATH | ResolveFlags::NO_SYMLINKS | ResolveFlags::NO_MAGICLINKS,
++        )
++        .map_err(|_| unavailable())
++    }
++
++    fn manifest(roots: &[Root], limits: Limits) -> Result<Manifest> {
++        let mut result = BTreeMap::new();
++        let mut entries = 0usize;
++        let mut files = 0usize;
++        let mut bytes = 0u64;
++        for (index, root) in roots.iter().enumerate() {
++            let mut pending = vec![(PathBuf::new(), 0usize)];
++            while let Some((path, depth)) = pending.pop() {
++                if depth > limits.depth {
++                    return Err(unavailable());
++                }
++                let fd = open(root, &path, OFlags::RDONLY | OFlags::DIRECTORY)?;
++                let before: Stamp = fs::fstat(&fd).map_err(|_| unavailable())?.into();
++                result.insert((index, path.clone()), before.clone());
++                let directory = Dir::read_from(&fd).map_err(|_| unavailable())?;
++                for item in directory {
++                    let item = item.map_err(|_| unavailable())?;
++                    let name = item.file_name().to_bytes();
++                    if name == b"." || name == b".." {
++                        continue;
++                    }
++                    entries = entries.checked_add(1).ok_or_else(unavailable)?;
++                    if entries > limits.entries {
++                        return Err(unavailable());
++                    }
++                    let child = path.join(OsStr::from_bytes(name));
++                    let stat = fs::statat(&fd, item.file_name(), AtFlags::SYMLINK_NOFOLLOW)
++                        .map_err(|_| unavailable())?;
++                    match FileType::from_raw_mode(stat.st_mode) {
++                        FileType::Directory => pending.push((child, depth + 1)),
++                        FileType::RegularFile => {
++                            if child.extension().is_some_and(|ext| ext == "zst") {
++                                return Err(unavailable());
++                            }
++                            if child.extension().is_none_or(|ext| ext != "jsonl") {
++                                continue;
++                            }
++                            files = files.checked_add(1).ok_or_else(unavailable)?;
++                            let size = u64::try_from(stat.st_size).map_err(|_| unavailable())?;
++                            bytes = bytes.checked_add(size).ok_or_else(unavailable)?;
++                            if files > limits.files
++                                || size > limits.file_bytes
++                                || bytes > limits.total_bytes
++                            {
++                                return Err(unavailable());
++                            }
++                            result.insert((index, child), stat.into());
++                        }
++                        _ => return Err(unavailable()),
++                    }
++                }
++                if Stamp::from(fs::fstat(&fd).map_err(|_| unavailable())?) != before {
++                    return Err(unavailable());
++                }
++            }
++        }
++        Ok(result)
++    }
++
++    fn read_file(
++        root: &Root,
++        path: &Path,
++        expected: &Stamp,
++        content: &mut Vec<u8>,
++        after_read: impl FnOnce(),
++    ) -> Result<()> {
++        let mut file = File::from(open(root, path, OFlags::RDONLY)?);
++        if Stamp::from(fs::fstat(&file).map_err(|_| unavailable())?) != *expected {
++            return Err(unavailable());
++        }
++        content.clear();
++        content
++            .try_reserve_exact(expected.size as usize + 1)
++            .map_err(|_| unavailable())?;
++        (&mut file)
++            .take(expected.size as u64 + 1)
++            .read_to_end(content)
++            .map_err(|_| unavailable())?;
++        after_read();
++        if content.len() as u64 != expected.size as u64
++            || Stamp::from(fs::fstat(&file).map_err(|_| unavailable())?) != *expected
++        {
++            return Err(unavailable());
++        }
++        Ok(())
++    }
++
++    pub(crate) fn read_with(
++        paths: &[PathBuf],
++        limits: Limits,
++        mut hook: impl FnMut(Stage),
++        mut visit: impl FnMut(&Path, &Path, &[u8]) -> Result<()>,
++    ) -> Result<()> {
++        if paths.len() > limits.roots {
++            return Err(unavailable());
++        }
++        let roots = paths
++            .iter()
++            .map(|path| root(path))
++            .collect::<Result<Vec<_>>>()?;
++        let before = manifest(&roots, limits)?;
++        hook(Stage::Discovered);
++        let files = before
++            .iter()
++            .filter(|(_, stamp)| FileType::from_raw_mode(stamp.mode) == FileType::RegularFile);
++        let mut digests = Vec::new();
++        let mut content = Vec::new();
++        for ((index, path), stamp) in files.clone() {
++            let selected = &roots[*index];
++            read_file(selected, path, stamp, &mut content, || {
++                hook(Stage::Read(digests.len()));
++            })?;
++            digests.push(digest::digest(&SHA256, &content));
++            visit(&selected.path.join(path), &selected.path, &content)?;
++        }
++
++        hook(Stage::BeforeVerify);
++        verify_roots(&roots)?;
++        // A same-size rewrite can escape a coarse timestamp. Recheck bytes before publication.
++        for (((index, path), stamp), expected_digest) in files.zip(digests) {
++            read_file(&roots[*index], path, stamp, &mut content, || {})?;
++            if digest::digest(&SHA256, &content).as_ref() != expected_digest.as_ref() {
++                return Err(unavailable());
++            }
++        }
++        if manifest(&roots, limits)? != before {
++            return Err(unavailable());
++        }
++        verify_roots(&roots)
++    }
++
++    fn verify_roots(roots: &[Root]) -> Result<()> {
++        for selected in roots {
++            if root(&selected.path)?.stamp != selected.stamp {
++                return Err(unavailable());
++            }
++        }
++        Ok(())
++    }
++}
++
++#[cfg(all(test, target_os = "linux"))]
++mod tests {
++    use super::linux::{Limits, Stage, read_with};
++    use ccusage_test_support::Fixture;
++
++    #[test]
++    fn changed_selected_sources_never_publish_a_capture() {
++        for mutation in ["append", "rewrite", "replace", "remove", "new-peer"] {
++            let fixture = Fixture::new();
++            let root = fixture.create_dir_all("sessions");
++            let file = fixture.write_file("sessions/source.jsonl", "original\n");
++            let result = read_with(
++                std::slice::from_ref(&root),
++                Limits::default(),
++                |stage| {
++                    if stage != Stage::BeforeVerify {
++                        return;
++                    }
++                    match mutation {
++                        "append" => std::fs::write(&file, "original\nappended\n").unwrap(),
++                        "rewrite" => std::fs::write(&file, "modified\n").unwrap(),
++                        "replace" => {
++                            std::fs::remove_file(&file).unwrap();
++                            std::fs::write(&file, "original\n").unwrap();
++                        }
++                        "remove" => std::fs::remove_file(&file).unwrap(),
++                        "new-peer" => std::fs::write(root.join("peer.jsonl"), "new\n").unwrap(),
++                        _ => unreachable!(),
++                    }
++                },
++                |_, _, _| Ok(()),
++            );
++            assert!(result.is_err(), "{mutation}");
++        }
++    }
++
++    #[test]
++    fn capture_limits_are_joint_and_inclusive() {
++        let fixture = Fixture::new();
++        let root = fixture.create_dir_all("sessions");
++        let _ = fixture.write_file("sessions/a.jsonl", "1234");
++        let _ = fixture.write_file("sessions/b.jsonl", "1234");
++        let limits = Limits {
++            file_bytes: 4,
++            total_bytes: 8,
++            files: 2,
++            ..Limits::default()
++        };
++        assert!(
++            read_with(
++                std::slice::from_ref(&root),
++                limits,
++                |_| {},
++                |_, _, _| Ok(())
++            )
++            .is_ok()
++        );
++        for limits in [
++            Limits {
++                total_bytes: 7,
++                ..limits
++            },
++            Limits {
++                file_bytes: 3,
++                ..limits
++            },
++            Limits { files: 1, ..limits },
++        ] {
++            assert!(
++                read_with(
++                    std::slice::from_ref(&root),
++                    limits,
++                    |_| {},
++                    |_, _, _| Ok(())
++                )
++                .is_err()
++            );
++        }
++    }
++}
+diff --git a/rust/adapters/codex/src/record_json.rs b/rust/adapters/codex/src/record_json.rs
+new file mode 100644
+--- /dev/null
++++ b/rust/adapters/codex/src/record_json.rs
+@@ -0,0 +1,71 @@
++//! Reject duplicate keys at every depth before interpreting a source record.
++use std::fmt;
++
++use serde::de::{self, Deserialize, Deserializer, MapAccess, SeqAccess, Visitor};
++use serde_json::Value;
++
++struct UniqueValue(Value);
++
++impl<'de> Deserialize<'de> for UniqueValue {
++    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
++        struct UniqueVisitor;
++        impl<'de> Visitor<'de> for UniqueVisitor {
++            type Value = UniqueValue;
++            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
++                formatter.write_str("JSON with unique object keys")
++            }
++            fn visit_bool<E: de::Error>(self, value: bool) -> Result<Self::Value, E> {
++                Ok(UniqueValue(Value::Bool(value)))
++            }
++            fn visit_i64<E: de::Error>(self, value: i64) -> Result<Self::Value, E> {
++                Ok(UniqueValue(value.into()))
++            }
++            fn visit_u64<E: de::Error>(self, value: u64) -> Result<Self::Value, E> {
++                Ok(UniqueValue(value.into()))
++            }
++            fn visit_f64<E: de::Error>(self, value: f64) -> Result<Self::Value, E> {
++                serde_json::Number::from_f64(value)
++                    .map(Value::Number)
++                    .map(UniqueValue)
++                    .ok_or_else(|| E::custom("Non-finite number"))
++            }
++            fn visit_str<E: de::Error>(self, value: &str) -> Result<Self::Value, E> {
++                Ok(UniqueValue(Value::String(value.to_owned())))
++            }
++            fn visit_string<E: de::Error>(self, value: String) -> Result<Self::Value, E> {
++                Ok(UniqueValue(Value::String(value)))
++            }
++            fn visit_unit<E: de::Error>(self) -> Result<Self::Value, E> {
++                Ok(UniqueValue(Value::Null))
++            }
++            fn visit_seq<A: SeqAccess<'de>>(
++                self,
++                mut sequence: A,
++            ) -> Result<Self::Value, A::Error> {
++                let mut values = Vec::new();
++                while let Some(UniqueValue(value)) = sequence.next_element()? {
++                    values.push(value);
++                }
++                Ok(UniqueValue(Value::Array(values)))
++            }
++            fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
++                let mut values = serde_json::Map::new();
++                while let Some((key, UniqueValue(value))) =
++                    map.next_entry::<String, UniqueValue>()?
++                {
++                    if values.insert(key, value).is_some() {
++                        return Err(de::Error::custom("Duplicate object key"));
++                    }
++                }
++                Ok(UniqueValue(Value::Object(values)))
++            }
++        }
++        deserializer.deserialize_any(UniqueVisitor)
++    }
++}
++
++pub(crate) fn parse(bytes: &[u8]) -> crate::Result<Value> {
++    serde_json::from_slice::<UniqueValue>(bytes)
++        .map(|value| value.0)
++        .map_err(|_| super::paginated::unavailable())
++}
+diff --git a/rust/adapters/codex/src/report.rs b/rust/adapters/codex/src/report.rs
+--- a/rust/adapters/codex/src/report.rs
++++ b/rust/adapters/codex/src/report.rs
+@@ -399,6 +399,9 @@
+ where
+     S: Into<CodexSpeedPolicy> + Copy,
+ {
++    if group.unattributed {
++        return f64::NAN;
++    }
+     let speed = speed.into();
+     group
+         .models
+diff --git a/rust/adapters/codex/src/types.rs b/rust/adapters/codex/src/types.rs
+--- a/rust/adapters/codex/src/types.rs
++++ b/rust/adapters/codex/src/types.rs
+@@ -122,6 +122,7 @@
+ 
+ #[derive(Debug, Clone, Default)]
+ pub struct CodexGroup {
++    pub unattributed: bool,
+     pub input_tokens: u64,
+     pub cached_input_tokens: u64,
+     pub cache_creation_tokens: u64,

@@ -49,6 +49,13 @@ Pi candidate and checks its digest before each execution. The production
 descriptor keeps its original pin. The normal build does not allow Pi consent
 or execution.
 
+The isolated [Codex record candidate](reviews/2026-11-12-codex-record-identity-candidate.md)
+lives in an ordered scanner patch. Its strict paginated loader precedes legacy
+replay. The [candidate pin](../tests/tools/fixtures/codex-records-candidate/pin.json)
+owns source and executable fingerprints. The production descriptors and enabled
+catalog keep their existing values. Joint report capture and application
+integration remain separate gates.
+
 Schema 13 adds six tables for grouped scopes, scans, root membership, records, model details, and lower-scan differences. Legacy tables stay unchanged. One tool has one stable scope. Only day records enter dated queries. Period and session totals stay separate. Every accepted record points to the scan that produced it. A lower scan keeps the whole saved record and its model details. An equal or higher scan replaces them together.
  A complete scan with an absent saved period records an observed zero difference. Missing measurements remain null.
 

@@ -26,16 +26,16 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scoped result, November 12, 2026. The pinned Codex producer exposes
-explicit record identity and fork lineage. The full captured fork loses 1,150
-tokens in both scanners. A valid prefix gives the correct 12,650 total. Later
-missing-usage and zero turns trigger the loss. The
-[producer record](reviews/2026-11-12-codex-producer-contract.md) holds the
-executed boundary and isolated correction scope. No scanner pin changed.
+Latest scoped result, November 12, 2026. The isolated Codex record candidate
+preserves the full 12,650-token fork and refuses conflicting or incomplete input.
+All eighteen captured report pairs meet independent expectations. The
+[candidate record](reviews/2026-11-12-codex-record-identity-candidate.md) owns
+the tested Linux boundary and remaining application gates. The production
+scanner and Pi oracle retain their original pins.
 
-Hosted CI for `b8cb3cc` passed Linux and Renderer, including the existing Pi
+Hosted CI for `6a42412` passed Linux and Renderer, including the existing Pi
 qualification and native oracle steps. The [evidence log](acceptance-traceability.md#evidence-log)
-records its scope. The current producer-source change needs its own hosted result.
+records its scope. The current candidate change needs its own hosted result.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -163,11 +163,10 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 
 ## Current assignment
 
-[L-1f11an](implementation-slices.md#l-1f11an-codex-record-identity-candidate)
-corrects accounting for the tested Codex paginated format in a separate candidate.
-Use explicit record IDs and lineage. Preserve the full captured fork, copies,
-distinct responses, zero, and unavailable fields. Keep the production scanner
-and Pi candidate pins unchanged.
+[L-1f11ao](implementation-slices.md#l-1f11ao-codex-combined-capture)
+adds one candidate command for Codex daily and session reports from one captured
+input. Preserve strict refusal, independent totals, and the current production
+pins. Application integration remains a later gate.
 
 The [gate review](reviews/2026-11-12-additional-tool-gates.md) links all sixteen
 additional-tool records. Their source and capture gaps remain open.

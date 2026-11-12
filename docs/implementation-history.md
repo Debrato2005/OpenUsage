@@ -4,6 +4,19 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f11am result before L-1f11an
+
+Latest scoped result, November 12, 2026. The pinned Codex producer exposes
+explicit record identity and fork lineage. The full captured fork loses 1,150
+tokens in both scanners. A valid prefix gives the correct 12,650 total. Later
+missing-usage and zero turns trigger the loss. The
+[producer record](reviews/2026-11-12-codex-producer-contract.md) holds the
+executed boundary and isolated correction scope. No scanner pin changed.
+
+Hosted CI for `b8cb3cc` passed Linux and Renderer, including the existing Pi
+qualification and native oracle steps. The [evidence log](acceptance-traceability.md#evidence-log)
+records its scope. The current producer-source change needs its own hosted result.
+
 ## L-1f11al result before L-1f11am
 
 Latest scoped result, November 12, 2026. The shared candidate matches production

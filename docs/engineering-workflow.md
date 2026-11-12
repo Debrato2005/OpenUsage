@@ -165,6 +165,24 @@ Without those variables, the source and projection checks still run. The live
 scanner comparison stays skipped. The [producer contract record](reviews/2026-11-12-codex-producer-contract.md) owns the
 executed scope and remaining gates.
 
+## Codex record candidate checks
+
+Set `OPENUSAGE_CODEX_RECORD_CANDIDATE` to the absolute candidate oracle path from
+its [fixture pin](../tests/tools/fixtures/codex-records-candidate/pin.json).
+The tests check its digest before execution. For raw producer comparisons,
+set `OPENUSAGE_CODEX_CAPTURE_RECEIPT` to the exact private receipt referenced by
+the producer fixture. Select new private result paths with
+`OPENUSAGE_CODEX_RECORD_RESULTS` and `OPENUSAGE_CODEX_COMPAT_RESULTS`.
+
+```sh
+python3 -m unittest discover -s tests/tools -p test_ccusage_codex_candidate.py -v
+```
+
+Without the executable variable, only pin checks run. Without the receipt,
+the raw capture comparison stays skipped. The [candidate record](reviews/2026-11-12-codex-record-identity-candidate.md)
+owns executed results and the missing-parent decision. The command qualifies
+individual captures. It does not establish joint capture across two invocations.
+
 ## Scanner candidate builds
 
 Run Cargo from the candidate source root so its `.cargo/config.toml` applies.

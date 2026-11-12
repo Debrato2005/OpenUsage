@@ -1,0 +1,230 @@
+{
+  "version": "20.0.48-openusage.1",
+  "target": "x86_64-unknown-linux-gnu",
+  "executableSha256": "aa5f309fa605e650e95566bd54480c7af571361885eb2fbe5cce25343354fb5d",
+  "executableBytes": 5154656,
+  "oraclePath": ".tools/qualification-oracles/ccusage-codex-records-linux-x86_64",
+  "sourceDirectory": ".tools/upstream/ccusage-8995f3b7-codex-records",
+  "sourceCommit": "8995f3b7fd7110b8f37564f7d0468acc7a7d6b20",
+  "sourceFilesSha256": "96fb9d21d2fc1478befee30648bfc702ce236d988f6d60763fe7ba669e615a4e",
+  "sourceManifestSha256": "5e5ff4acf3b818f0d6ec78732cd1f00ecd0a972b49ea89a82bdc406f97b8b1e0",
+  "patches": [
+    {
+      "path": "patches/ccusage/20.0.48-pi-usage.patch",
+      "sha256": "25ecee16c212ffa19d4d9d09585be14a99389fc7a017cf482368b86e9012e311"
+    },
+    {
+      "path": "patches/ccusage/20.0.48-pi-identity.patch",
+      "sha256": "04868d7358aa572a1e6782ea94d35639bffca359f199cafd9a7359f21fd85177"
+    },
+    {
+      "path": "patches/ccusage/20.0.48-pi-format.patch",
+      "sha256": "a4f347098e7377328aa718f75e2c3bfee78ceea772409805f32a6acb5a2027cb"
+    },
+    {
+      "path": "patches/ccusage/20.0.48-pi-filesystem.patch",
+      "sha256": "526a888f9544000d2055fac86ee77d6245abfc90e3cd68fee3a4c4ea6c634254"
+    },
+    {
+      "path": "patches/ccusage/20.0.48-pi-snapshot.patch",
+      "sha256": "99f53b938ede8b7d41e597ef0d31014ce14a9841bba9521a04ab22f1f547efbd"
+    },
+    {
+      "path": "patches/ccusage/20.0.48-pi-observations.patch",
+      "sha256": "3d461fefc8bcdeaeabcd45ebbf9dd22a758276ac7cd0f2888ca2e3da8d3be199"
+    },
+    {
+      "path": "patches/ccusage/20.0.48-pi-bounded.patch",
+      "sha256": "9f12038c06fedd64beaa17040c00c9d8b8a4905021f3540436d619a8cdb7b66d"
+    },
+    {
+      "path": "patches/ccusage/20.0.48-codex-record-identity.patch",
+      "sha256": "875b6bf79c11879ef8894c42bf8df5476616b472f8ffe56e2c312351ea487250"
+    }
+  ],
+  "cargoLockSha256": "57482f0c9ca83895e6631a5c3c7557be01bf7f7b0f20544877d9b77e2c9fbd92",
+  "sourceCargoConfigSha256": "c30f6473cb0b378027ab3ec96319b951377aad21ee9b081207c6a2a35eb1dd35",
+  "productionSha256": "55a3fd41b29727672bef1242311758d1605a07765781d7a80a41d1b485d29ed1",
+  "piOracleSha256": "4e1b061dcce086d160695d8f37ff09b70bebab4a4dbbf62fca1fde43eb6adfdf",
+  "producerVersion": "0.163.0",
+  "captureReceiptSha256": "392b3f6afc5d698eacd6ae5d395fc18d7e4771befb3e32a6015134c161c2402d",
+  "build": {
+    "workingDirectory": ".tools/upstream/ccusage-8995f3b7-codex-records",
+    "command": [
+      "cargo",
+      "build",
+      "--release",
+      "--manifest-path",
+      "rust/Cargo.toml",
+      "--locked",
+      "--offline",
+      "-p",
+      "ccusage"
+    ],
+    "environment": {
+      "CARGO_HOME": ".tools/cargo-home",
+      "CARGO_TARGET_DIR": ".tools/build-target",
+      "CARGO_INCREMENTAL": "0",
+      "CARGO_BUILD_JOBS": "1",
+      "RUSTC": ".tools/rust/install/bin/rustc",
+      "CCUSAGE_VERSION": "20.0.48-openusage.1",
+      "CCUSAGE_PRICING_JSON_PATH": ".tools/upstream/ccusage-8995f3b7/upstream-inputs/litellm-1046716b.json",
+      "HOME": "private temporary directory",
+      "CODEX_HOME": "private temporary directory",
+      "XDG_CONFIG_HOME": "private temporary directory",
+      "XDG_DATA_HOME": "private temporary directory",
+      "XDG_CACHE_HOME": "private temporary directory"
+    },
+    "rustcVerbose": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1",
+    "rustcSha256": "b53b780f77f952062f8ca8a3b70aef2390b1e45ad91939be94afdc9543026853",
+    "cargoSha256": "a670e02cfa39ac2e53f77a2d911ca1fc9e2c479b0603ec956625be1daf24e3af",
+    "nativeCompiler": "cc (GCC) 16.2.1 20260810",
+    "linker": "GNU ld (GNU Binutils) 2.47",
+    "nativeArchiver": "GNU ar (GNU Binutils) 2.47",
+    "optionalEnvironment": {
+      "RUSTFLAGS": null,
+      "CARGO_ENCODED_RUSTFLAGS": null,
+      "CC": null,
+      "CXX": null,
+      "CFLAGS": null,
+      "CXXFLAGS": null,
+      "CPPFLAGS": null,
+      "AR": null,
+      "LDFLAGS": null
+    },
+    "sqliteSettings": {
+      "SQLITE_OMIT_AUTHORIZATION": "1",
+      "SQLITE_OMIT_AUTOMATIC_INDEX": "1",
+      "SQLITE_OMIT_AUTOVACUUM": "1",
+      "SQLITE_OMIT_BETWEEN_OPTIMIZATION": "1",
+      "SQLITE_OMIT_BLOB_LITERAL": "1",
+      "SQLITE_OMIT_CAST": "1",
+      "SQLITE_OMIT_CASE_SENSITIVE_LIKE_PRAGMA": "1",
+      "SQLITE_OMIT_CHECK": "1",
+      "SQLITE_OMIT_COMPILEOPTION_DIAGS": "1",
+      "SQLITE_OMIT_COMPLETE": "1",
+      "SQLITE_OMIT_COMPOUND_SELECT": "1",
+      "SQLITE_OMIT_DECLTYPE": "1",
+      "SQLITE_OMIT_DEPRECATED": "1",
+      "SQLITE_OMIT_DESERIALIZE": "1",
+      "SQLITE_OMIT_EXPLAIN": "1",
+      "SQLITE_OMIT_FLAG_PRAGMAS": "1",
+      "SQLITE_OMIT_FOREIGN_KEY": "1",
+      "SQLITE_OMIT_GENERATED_COLUMNS": "1",
+      "SQLITE_OMIT_GET_TABLE": "1",
+      "SQLITE_OMIT_HEX_INTEGER": "1",
+      "SQLITE_OMIT_INCRBLOB": "1",
+      "SQLITE_OMIT_INTEGRITY_CHECK": "1",
+      "SQLITE_OMIT_INTROSPECTION_PRAGMAS": "1",
+      "SQLITE_OMIT_JSON": "1",
+      "SQLITE_OMIT_LIKE_OPTIMIZATION": "1",
+      "SQLITE_OMIT_LOAD_EXTENSION": "1",
+      "SQLITE_OMIT_LOCALTIME": "1",
+      "SQLITE_OMIT_LOOKASIDE": "1",
+      "SQLITE_OMIT_MEMORYDB": "1",
+      "SQLITE_OMIT_OR_OPTIMIZATION": "1",
+      "SQLITE_OMIT_PARSER_TRACE": "1",
+      "SQLITE_OMIT_POPEN": "1",
+      "SQLITE_OMIT_PROGRESS_CALLBACK": "1",
+      "SQLITE_OMIT_QUICKBALANCE": "1",
+      "SQLITE_OMIT_RANDOMNESS": "1",
+      "SQLITE_OMIT_SCHEMA_PRAGMAS": "1",
+      "SQLITE_OMIT_SCHEMA_VERSION_PRAGMAS": "1",
+      "SQLITE_OMIT_SHARED_CACHE": "1",
+      "SQLITE_OMIT_SHUTDOWN_DIRECTORIES": "1",
+      "SQLITE_OMIT_TCL_VARIABLE": "1",
+      "SQLITE_OMIT_TEST_CONTROL": "1",
+      "SQLITE_OMIT_TRACE": "1",
+      "SQLITE_OMIT_TRUNCATE_OPTIMIZATION": "1",
+      "SQLITE_OMIT_TWOSIZE_LOOKASIDE": "1",
+      "SQLITE_OMIT_UPSERT": "1",
+      "SQLITE_OMIT_UTF16": "1",
+      "SQLITE_OMIT_XFER_OPT": "1"
+    },
+    "offline": true,
+    "deadlineSeconds": 900,
+    "elapsedSeconds": 23.124,
+    "pricingUrl": "https://raw.githubusercontent.com/BerriAI/litellm/1046716b6d3d45f30d5efad42becbd440d6187ee/model_prices_and_context_window.json",
+    "pricingSha256": "8f8060d8ce7a40c91b995c74d6a27657543d49e3c1c53430dabd556f244392c6",
+    "modelsDevSha256": "ddbbace3660cd703bf6c35af308d86ef9bad51b581a0089025aad36070d78a14",
+    "modelsDevRulesSha256": "8ea462160a8ac6b5c30545f492d148813b8a0175d5b1ead2f4c3f824f1024f9d",
+    "privateReceiptSha256": "715bce21ebe9428fe11010853a7b395e512531c0fa735d6f5ce53a8949ce7236",
+    "freshTargetAtAssignmentStart": true,
+    "finalBuildReusedTarget": true,
+    "cleanFinalRebuildExecuted": false,
+    "initialReleaseElapsedSeconds": 106.41
+  },
+  "boundary": {
+    "scope": "Synthetic Linux captures from Codex 0.163.0 paginated history. This strict parser is Linux-only. No application integration or production pin change.",
+    "accountingIdentity": [
+      "thread_id",
+      "response_id"
+    ],
+    "validatedIdentity": [
+      "session_id",
+      "turn_id",
+      "root_turn_id"
+    ],
+    "outputSessionKey": "Emitted session_id. Legacy session keys keep their original path-based behavior.",
+    "copies": "Equal rows with the same thread and ordinal count once. Contradictory rows, reused response identity, or ambiguous session ownership refuse.",
+    "lineage": "Require the selected parent thread and exact declared ordinal and byte prefix. Never read a declared parent path.",
+    "missingParent": "Refuse. The declared lineage and cumulative usage cannot be checked without the selected prefix.",
+    "capture": "Complete records are observations without an idle-time or producer-completion requirement. Each invocation validates one bounded capture.",
+    "zero": "An explicit zero usage record produces an observation. No usage record produces no observation.",
+    "models": "Absent model metadata keeps tokens with no model attribution or estimate. Unknown models keep the existing missing-pricing marker.",
+    "categories": "Require all six numeric categories from the tested usage shape. Missing, null, fractional, negative, inconsistent, or over-limit categories refuse.",
+    "unsupported": [
+      "mixed paginated and legacy selections",
+      "compressed paginated input",
+      "other producer versions",
+      "compaction",
+      "revert",
+      "subagents",
+      "non-message response items",
+      "real provider billing or account identity",
+      "cross-invocation atomicity",
+      "other platforms"
+    ],
+    "legacy": "The unchanged parser handles selections with no paginated marker. Bounded discovery and no-follow reads also apply to detection.",
+    "limits": {
+      "roots": 64,
+      "directoryEntries": 32768,
+      "files": 8192,
+      "depth": 64,
+      "fileBytes": 33554432,
+      "captureBytes": 67108864,
+      "lineBytes": 1048576,
+      "physicalRecords": 100000,
+      "exactCount": 9007199254740991
+    },
+    "counterConsistency": "Each last-usage category must not exceed its cumulative category. An all-zero orphan counter remains no observation.",
+    "applicationGate": "Joint atomic capture for daily and session reports remains an application integration gate. Table output is not qualified.",
+    "partialRecognition": "After any paginated marker, incomplete or unsupported input refuses without legacy replay."
+  },
+  "evidence": {
+    "capturePairs": 18,
+    "captureCommands": 36,
+    "captureAllExpectationsMatched": true,
+    "codexTests": 163,
+    "piTests": 73,
+    "piPythonTests": 10,
+    "candidatePythonTestsBeforePinChecks": 18,
+    "legacyComparisonPairs": 47,
+    "adapterClippy": "Passed with --no-deps. Dependency Clippy failed on the unchanged pricing.rs:1781 warning.",
+    "dependencyLintSourceSha256": "74064e3c1c9ba2a652e50f2be77eb440fa20e694a2ce15be9add7ef9ae0bb9a9",
+    "unifiedUpstreamTests": {
+      "passed": 61,
+      "failed": 16,
+      "sameOutcomesAsPiInput": true
+    },
+    "guardedOutputMutation": "The independent total assertion failed after a report mutation. The original serialized result was restored exactly.",
+    "candidatePythonTestsOnOracle": 20,
+    "adapterClippyReceipt": ".recovery/audit/l1f11an-candidate-orphan-clippy.json",
+    "orphanCounterRegression": "Red against the historical oracle, green after the category bound. Zero-only counters remain no observations."
+  },
+  "supersededOracle": {
+    "path": ".tools/qualification-oracles/ccusage-codex-records-before-orphan-guard-linux-x86_64",
+    "executableSha256": "8971aeba490a37ee03edb8435133f353479f606b0d8634a2f3a71b97c5583a1a",
+    "reason": "Historical negative oracle for the inconsistent orphan-counter regression."
+  }
+}
