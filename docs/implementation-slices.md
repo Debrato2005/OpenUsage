@@ -163,8 +163,9 @@ Updated November 12, 2026. Each completed item has one local commit and scoped e
 - [x] L-1f11ao: derive both Codex reports from one captured input in a separate candidate.
 - [x] L-1f11ap: parse the Codex candidate envelope into existing typed grouped records without scanner activation.
 - [x] L-1f11aq: qualify the combined Codex candidate through native consent, grouped storage, history, and failure handling.
-- [ ] R-6: correct CLI text for an empty selected date range after a public-command regression.
-- [ ] R-7: reject future quota observations as Current after a public-command regression.
+- [ ] R-8: review saved CLI connection-state display with public commands before any correction.
+- [x] R-6: correct CLI text for an empty selected date range after a public-command regression.
+- [x] R-7: reject future quota observations as Current after a public-command regression.
 - [x] R-5: bound leaderboard request collection at 64 KiB. Twenty-four local service tests passed, including overflow cancellation, byte boundaries, stream errors, and the earlier aggregate and concurrency checks. Hosted Workers remain unverified.
 - [x] R-4: enforce hourly limits and the five-device cap under concurrent requests. Fourteen local service tests passed, including token rotation, hour resets, and database failures. Hosted D1 remains unverified.
 - [x] R-3: keep a leaderboard estimate unavailable when any included row lacks it. Token totals, measured zero, ordering, and period filters stay intact. Eight local service tests passed. Hosted D1 remains unverified.
@@ -736,6 +737,25 @@ Acceptance:
 
 Stopping condition: executed evidence, owning docs, one commit, an AST Graphify
 update, and the authorized push. Report before the next assignment.
+
+### R-8: CLI connection-state display
+
+Goal: check that CLI quota output keeps known connection failures visible.
+
+Acceptance:
+
+- Read OU-STATE-008 and OU-STATE-009 and the existing desktop state precedence.
+  Compare public JSON, text, and statusline with private saved quota fixtures.
+- Reproduce a concrete failure before a correction. Preserve accepted values,
+  observation times, source, missing metrics, and read-only storage.
+- Keep connection and freshness evidence distinct. Record any normative conflict
+  in clarifications without changing the SRS.
+- Run affected project checks and the native CLI journey for changed behavior.
+  Keep the production scanner pin and catalog unchanged.
+
+Stopping condition: one bounded review or correction with executed evidence,
+owning docs, one commit, an AST Graphify update, and the authorized push.
+Report before the next assignment.
 
 ## Order
 

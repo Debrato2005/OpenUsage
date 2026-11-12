@@ -207,6 +207,12 @@ OU-DES-006 asks for one mark using the SRS name for the state. Saved quota IPC a
 
 The Overview summary keeps the existing wording Freshness unknown as its single mark. Details retain the observation time and each connected profile's freshness. Incomplete takes precedence when a connected profile has no saved quota; Stale takes precedence over unknown freshness when all profiles have quota. The panel keeps every underlying state. Choosing a normative name for unknown freshness remains an owner decision. This does not approve an identity or source-audit contract.
 
+November 12, 2026, R-7: the CLI uses the same Freshness unknown wording when
+its saved observation is after the current clock time. JSON uses `unknown`
+for that quota's state. The exact ten-minute boundary is Stale. These changes
+preserve values, source, observation time, and the version 2 JSON shape.
+The normative name for unknown freshness remains an owner decision.
+
 ## SC-001: reset confirmation with rapid new-window use
 
 Status: proposed, not approved. No normative text or runtime reset rule changed.

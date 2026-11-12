@@ -108,7 +108,7 @@ try {
   assert.deepEqual(stable(await workspaceFiles()), stable(before), 'The CLI leaves the database, its WAL and the file set unchanged.');
   evidence.steps.push(`With the app closed, the CLI left the database, its WAL and the file set unchanged: ${Object.keys(before).join(', ')}.`);
 
-  const reportEnvironment = { ...fixture.environment, HOME: logs, OPENUSAGE_CCUSAGE: ccusage };
+  const reportEnvironment = { ...fixture.environment, HOME: logs, TZ: 'UTC', OPENUSAGE_CCUSAGE: ccusage };
   const noConsent = await openusage(['report', '--json'], reportEnvironment);
   assert.equal(noConsent.code, 3);
   assert.equal(JSON.parse(noConsent.stdout).error.code, 'consent_required');
@@ -125,6 +125,31 @@ try {
   assert.deepEqual(await scan(), original, 'Copied Claude roots count once in the complete daily report.');
   assert.deepEqual(stable(await workspaceFiles()), stable(before), 'Report saves no workspace records.');
   evidence.steps.push('Report refused absent consent, accepted --yes, kept copied Claude roots at the original totals, and left saved workspace files unchanged.');
+
+  const shiftedFiles = [];
+  async function moveSourceDays(directory) {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) await moveSourceDays(path);
+      else {
+        assert.ok(entry.isFile() && entry.name.endsWith('.jsonl'));
+        await writeFile(path, (await readFile(path, 'utf8')).replace(/\d{4}-\d{2}-\d{2}T/g, `${yesterday}T`), { mode: 0o600 });
+        shiftedFiles.push(path);
+      }
+    }
+  }
+  for (const folder of ['.claude', '.config/claude', '.codex']) await moveSourceDays(join(logs, folder));
+  const sourceHashes = () => Promise.all(shiftedFiles.map(async path => [path, await hash(path)]));
+  const shiftedBefore = await sourceHashes();
+  const emptyRange = await openusage(['report', '--yes', '--days', '1'], reportEnvironment);
+  assert.deepEqual([emptyRange.code, emptyRange.stdout, emptyRange.stderr], [0, `Local logs from ${today} to ${today}, days in UTC\nNo local usage in this date range\n`, '']);
+  const emptyJson = await openusage(['report', '--yes', '--days', '1', '--json'], reportEnvironment);
+  assert.equal(emptyJson.code, 0);
+  assert.deepEqual(JSON.parse(emptyJson.stdout).tools, []);
+  assert.deepEqual(await scan(), original);
+  assert.deepEqual(await sourceHashes(), shiftedBefore);
+  assert.deepEqual(stable(await workspaceFiles()), stable(before));
+  evidence.steps.push('An empty selected day reports no usage. Older source logs keep their totals, and report leaves source and workspace files unchanged.');
 
   await stopSecretService(fixture);
   const locked = await openusage(['statusline']);

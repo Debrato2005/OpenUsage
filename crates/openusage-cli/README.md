@@ -12,9 +12,20 @@ The `openusage` command (SRS Section 11A). It has no webview dependency (OU-CLI-
 | `openusage doctor [--json]` | One line for each check of this machine, with the fix for each failed check |
 | `openusage app` | Opens the desktop app, or prints the fix when it cannot start |
 
-`status` and `statusline` read saved data only. They open the database read-only, never prompt, never start a reading and never use the network (OU-CLI-002, OU-CLI-006). The key comes from the OS credential store through the [keys crate](../openusage-keys/README.md). A workspace with an app password is `locked`, because the CLI never asks for the password. A quota reading older than 10 minutes is `stale` (OU-STATE-005). A reset time that passed says so, and never claims a reset. With the app closed and no WAL, the read opens the file as immutable and creates no file. With a WAL, SQLite can update its shared index in `-shm`, and the database and its WAL stay unchanged ([SC-020](../../docs/srs-clarifications.md#sc-020-a-read-only-cli-and-the-wal-index)).
+`status` and `statusline` read saved data only. They open the database read-only, never prompt, never start a reading and never use the network (OU-CLI-002, OU-CLI-006). The key comes from the OS credential store through the [keys crate](../openusage-keys/README.md). A workspace with an app password is `locked`, because the CLI never asks for the password. A reset time that passed says so, and never claims a reset. With the app closed and no WAL, the read opens the file as immutable and creates no file. With a WAL, SQLite can update its shared index in `-shm`, and the database and its WAL stay unchanged ([SC-020](../../docs/srs-clarifications.md#sc-020-a-read-only-cli-and-the-wal-index)).
+
+Quota freshness uses the saved observation time (OU-STATE-005, OU-STATE-007).
+An age from zero to less than 10 minutes is `current`. At 10 minutes or more,
+it is `stale`. An observation after the current clock time has `unknown`
+freshness. Text and statusline show Freshness unknown. The CLI preserves the
+saved quota values and observation time.
 
 `report` detects the Claude Code and Codex folders by existence only. Before it reads a log, it asks once for consent on the terminal, or it takes `--yes` from a script (OU-CLI-003). With no terminal and no `--yes`, it stops with `consent_required`. Each tool gets one full daily report for all detected roots, with an empty private home. The pinned scanner receives these roots together. The CLI filters the complete report to the requested dates. It does not read sessions to invent missing daily details. See the [local logs crate](../openusage-locallogs/README.md).
+
+When detected sources have no usage in the selected dates, text says
+No local usage in this date range. With no detected source folder, the existing
+no-logs message remains. Both cases keep an empty JSON `tools` array. Neither
+case creates a zero measurement.
 
 ## Output
 

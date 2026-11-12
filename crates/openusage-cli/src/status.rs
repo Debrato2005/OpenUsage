@@ -29,7 +29,7 @@ Options:
   --help    Show this help.
 ";
 
-/// Quota readings stay Current for 10 minutes (OU-STATE-005).
+/// Quota readings stay Current for 10 minutes after observation (OU-STATE-005, OU-STATE-007).
 const QUOTA_FRESH_SECONDS: i64 = 600;
 
 #[derive(Debug, Serialize)]
@@ -168,13 +168,17 @@ fn snapshot(storage: &Storage, now: jiff::Timestamp) -> Result<Status, CliError>
                 windows: Vec::new(),
             },
             Some(saved) => {
-                let fresh = saved
-                    .commit
-                    .observed_at_utc
-                    .parse::<jiff::Timestamp>()
-                    .is_ok_and(|observed| {
-                        now.as_second() - observed.as_second() <= QUOTA_FRESH_SECONDS
-                    });
+                let state = match saved.commit.observed_at_utc.parse::<jiff::Timestamp>() {
+                    Ok(observed) if observed > now => "unknown",
+                    Ok(observed)
+                        if now.duration_since(observed)
+                            < jiff::SignedDuration::from_secs(QUOTA_FRESH_SECONDS) =>
+                    {
+                        "current"
+                    }
+                    Ok(_) => "stale",
+                    Err(_) => "unknown",
+                };
                 let mut windows = Vec::new();
                 for limit in &saved.limits {
                     for (role, window) in
@@ -200,7 +204,7 @@ fn snapshot(storage: &Storage, now: jiff::Timestamp) -> Result<Status, CliError>
                     }
                 }
                 Quota {
-                    state: if fresh { "current" } else { "stale" },
+                    state,
                     status: Some("official"),
                     source: Some(format!("codex app-server {}", saved.provider_version)),
                     observed_at_utc: Some(saved.commit.observed_at_utc.clone()),
@@ -287,10 +291,10 @@ fn text(status: &Status, now: jiff::Timestamp) -> String {
         if profile.quota.windows.is_empty() {
             out.push_str("  Quota Not available\n");
         }
-        let stale = if profile.quota.state == "stale" {
-            "  Stale"
-        } else {
-            ""
+        let freshness = match profile.quota.state {
+            "stale" => "  Stale",
+            "unknown" => "  Freshness unknown",
+            _ => "",
         };
         for window in &profile.quota.windows {
             out.push_str(&format!(
@@ -298,7 +302,7 @@ fn text(status: &Status, now: jiff::Timestamp) -> String {
                 window_name(window.duration_mins),
                 window.remaining_percent,
                 reset_text(window.resets_at_utc.as_deref(), now),
-                stale
+                freshness
             ));
         }
     }
@@ -349,12 +353,12 @@ fn line(status: &Status) -> String {
                 .iter()
                 .map(|w| format!("{} {}%", short_name(w.duration_mins), w.remaining_percent))
                 .collect();
-            let stale = if profile.quota.state == "stale" {
-                " Stale"
-            } else {
-                ""
+            let freshness = match profile.quota.state {
+                "stale" => " Stale",
+                "unknown" => " Freshness unknown",
+                _ => "",
             };
-            format!("{} {}{}", profile.label, windows.join(" "), stale)
+            format!("{} {}{}", profile.label, windows.join(" "), freshness)
         })
         .collect();
     parts.extend(
@@ -427,7 +431,10 @@ pub fn statusline(args: &[String], env: &Env) -> Result<String, CliError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use openusage_storage::LogConsent;
+    use openusage_storage::{
+        ActivitySourceKind, LogConsent, ProfileBinding, ProfileBindingInput,
+        ProfileIdentityEvidence, QuotaLimit, QuotaReading,
+    };
 
     const KEY: [u8; 32] = [71; 32];
 
@@ -446,6 +453,172 @@ mod tests {
         std::fs::create_dir(&workspace).unwrap();
         std::fs::set_permissions(&workspace, std::fs::Permissions::from_mode(0o700)).unwrap();
         workspace
+    }
+
+    fn quota_workspace(observed: &str) -> (tempfile::TempDir, std::path::PathBuf) {
+        let dir = tempfile::tempdir().unwrap();
+        let workspace = private(dir.path());
+        let mut storage = Storage::create(&workspace.join("openusage.db"), &KEY).unwrap();
+        let binding = ProfileBinding {
+            profile_id: "00000001-0000-4000-8000-000000000000".into(),
+            home_reference: "00000002-0000-4000-8000-000000000000".into(),
+            binding_id: "00000003-0000-4000-8000-000000000000".into(),
+        };
+        storage
+            .create_profile(
+                &binding.profile_id,
+                "Synthetic quota",
+                &binding.home_reference,
+            )
+            .unwrap();
+        let evidence = ProfileIdentityEvidence {
+            email: "quota@example.invalid".into(),
+            plan: None,
+        };
+        let association = ProfileBindingInput {
+            profile_id: binding.profile_id.clone(),
+            expected_home_reference: binding.home_reference.clone(),
+            expected_previous_binding_id: None,
+            new_binding_id: binding.binding_id.clone(),
+            evidence: evidence.clone(),
+            observed_at_utc: observed.into(),
+        };
+        storage
+            .accept_quota(
+                QuotaReading {
+                    run_id: "00000004-0000-4000-8000-000000000000".into(),
+                    binding,
+                    identity_evidence: evidence,
+                    provider_version: "0.163.0".into(),
+                    source_kind: ActivitySourceKind::TestFixture,
+                    started_at_utc: observed.into(),
+                    observed_at_utc: observed.into(),
+                    completed_at_utc: observed.into(),
+                    limits: vec![QuotaLimit {
+                        limit_id: "codex".into(),
+                        limit_name: Some("Synthetic limit".into()),
+                        primary: Some(QuotaWindow {
+                            used_percent: 37,
+                            window_duration_mins: Some(300),
+                            resets_at_unix: Some(0),
+                        }),
+                        secondary: Some(QuotaWindow {
+                            used_percent: 100,
+                            window_duration_mins: Some(10_080),
+                            resets_at_unix: None,
+                        }),
+                        reached_type: None,
+                        monthly_credit_limit: None,
+                        spend_control_reached: None,
+                    }],
+                    available_reset_credits: None,
+                    reset_credit_details: None,
+                },
+                Some(association),
+            )
+            .unwrap();
+        drop(storage);
+        (dir, workspace)
+    }
+
+    fn command(workspace: &std::path::Path, now: &str, args: &[&str]) -> String {
+        let mut env = env(workspace, Ok(Some(KEY)));
+        env.now = Some(now.parse().unwrap());
+        let mut prompt = Vec::new();
+        let (result, _) = crate::run(
+            &args.iter().map(|arg| (*arg).into()).collect::<Vec<_>>(),
+            &env,
+            &mut std::io::empty(),
+            &mut prompt,
+        );
+        assert!(prompt.is_empty());
+        result.unwrap()
+    }
+
+    #[test]
+    fn future_quota_commands_keep_values_with_unknown_freshness_without_writes() {
+        let (_dir, workspace) = quota_workspace("2026-11-08T10:00:00.500Z");
+        let database = workspace.join("openusage.db");
+        let before = std::fs::read(&database).unwrap();
+        let now = "2026-11-08T10:00:00.000Z";
+        let json: serde_json::Value =
+            serde_json::from_str(&command(&workspace, now, &["status", "--json"])).unwrap();
+        assert_eq!(json["schemaVersion"], 2);
+        assert_eq!(json["command"], "status");
+        assert_eq!(json["observedAtUtc"], now);
+        assert_eq!(
+            json["profiles"][0]["quota"],
+            serde_json::json!({
+                "state": "unknown",
+                "status": "official",
+                "source": "codex app-server 0.163.0",
+                "observedAtUtc": "2026-11-08T10:00:00.500Z",
+                "windows": [
+                    {
+                        "limitId": "codex", "limitName": "Synthetic limit", "role": "primary",
+                        "durationMins": 300, "usedPercent": 37, "remainingPercent": 63,
+                        "resetsAtUtc": "1970-01-01T00:00:00Z"
+                    },
+                    {
+                        "limitId": "codex", "limitName": "Synthetic limit", "role": "secondary",
+                        "durationMins": 10080, "usedPercent": 100, "remainingPercent": 0,
+                        "resetsAtUtc": null
+                    }
+                ]
+            })
+        );
+        let text = "Synthetic quota\n  Five-hour  63% left, the expected reset time passed  Freshness unknown\n  Seven-day  0% left, reset time Not available  Freshness unknown\nThis device\n  No saved local usage today\n";
+        assert_eq!(command(&workspace, now, &["status"]), text);
+        assert_eq!(command(&workspace, now, &[]), text);
+        assert_eq!(
+            command(&workspace, now, &["statusline"]),
+            "Synthetic quota 5h 63% 7d 0% Freshness unknown\n"
+        );
+        assert_eq!(std::fs::read(&database).unwrap(), before);
+        assert_eq!(std::fs::read_dir(&workspace).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn quota_commands_use_precise_ten_minute_boundary() {
+        let (_dir, workspace) = quota_workspace("2026-11-08T10:00:00.500Z");
+        for (now, state, mark) in [
+            (
+                "2026-11-08T10:00:00.499999999Z",
+                "unknown",
+                " Freshness unknown",
+            ),
+            ("2026-11-08T10:00:00.500Z", "current", ""),
+            ("2026-11-08T10:00:00.500000001Z", "current", ""),
+            ("2026-11-08T10:10:00.499999999Z", "current", ""),
+            ("2026-11-08T10:10:00.500Z", "stale", " Stale"),
+            ("2026-11-08T10:10:00.500000001Z", "stale", " Stale"),
+            ("2026-11-08T10:10:01.000Z", "stale", " Stale"),
+        ] {
+            let json: serde_json::Value =
+                serde_json::from_str(&command(&workspace, now, &["status", "--json"])).unwrap();
+            assert_eq!(json["profiles"][0]["quota"]["state"], state, "{now}");
+            assert_eq!(
+                json["profiles"][0]["quota"]["observedAtUtc"],
+                "2026-11-08T10:00:00.500Z"
+            );
+            assert_eq!(
+                command(&workspace, now, &["statusline"]),
+                format!("Synthetic quota 5h 63% 7d 0%{mark}\n"),
+                "{now}"
+            );
+            let text_mark = if mark.is_empty() {
+                String::new()
+            } else {
+                format!(" {mark}")
+            };
+            assert_eq!(
+                command(&workspace, now, &["status"]),
+                format!(
+                    "Synthetic quota\n  Five-hour  63% left, the expected reset time passed{text_mark}\n  Seven-day  0% left, reset time Not available{text_mark}\nThis device\n  No saved local usage today\n"
+                ),
+                "{now}"
+            );
+        }
     }
 
     #[test]

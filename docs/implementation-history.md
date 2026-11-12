@@ -4,6 +4,14 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-1f11aq result before R-6 and R-7
+
+Latest scoped result, November 12, 2026. The combined Codex candidate passed its
+native application gate with private synthetic data. Nine native checks, the full
+workspace milestone, and the full renderer suite passed. The [native record](reviews/2026-11-12-codex-native-qualification.md)
+owns source, executable, persistence, and recovery evidence. The production
+scanner pin and enabled catalog stay unchanged.
+
 ## L-1f11ap result before L-1f11aq
 
 Latest scoped result, November 12, 2026. The Rust Codex snapshot consumer

@@ -26,11 +26,12 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scoped result, November 12, 2026. The combined Codex candidate passed its
-native application gate with private synthetic data. Nine native checks, the full
-workspace milestone, and the full renderer suite passed. The [native record](reviews/2026-11-12-codex-native-qualification.md)
-owns source, executable, persistence, and recovery evidence. The production
-scanner pin and enabled catalog stay unchanged.
+Latest scoped result, November 12, 2026. The CLI now distinguishes an empty
+selected range from absent source folders. Future quota observations show
+Freshness unknown, and the exact ten-minute cutoff is Stale. Public-command
+regressions, source mutations, affected project checks, and the enhanced native
+CLI journey passed on private synthetic Linux data. The [record](reviews/2026-11-12-cli-absence-and-freshness.md)
+owns executed evidence and limits.
 
 Hosted CI for `f7f1af2` passed Linux checks and Renderer, including the existing
 qualification and native oracle steps. The [evidence log](acceptance-traceability.md#evidence-log)
@@ -163,14 +164,13 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 
 ## Current assignment
 
-[R-6 and R-7](implementation-slices.md#r-6-and-r-7-cli-state-accuracy) check two
-CLI findings from the repository review. Reproduce empty-range text and future
-quota freshness through public commands before corrections. Preserve read-only
-storage, exact values, missing metrics, and the production scanner pin.
+[R-8](implementation-slices.md#r-8-cli-connection-state-display) reviews CLI
+connection-state display against the existing desktop precedence and SRS.
+Reproduce any finding through public commands before edits. Keep saved values,
+observation times, source, JSON shape, and read-only access intact.
 
-L-1f11aq passed within its synthetic Linux scope. Native migration from an
-existing legacy workspace, reference-scale performance, production activation,
-and other platforms remain open. The [gate review](reviews/2026-11-12-additional-tool-gates.md)
+R-6 and R-7 passed within their synthetic Linux scope. L-1f11aq's native Codex
+qualification remains separate from production activation. The [gate review](reviews/2026-11-12-additional-tool-gates.md)
 links the additional-tool records and their remaining source and capture gaps.
 
 L-1f0 through L-1f10 are complete within their recorded scope. Only Claude Code and Codex are enabled. The Amp patch is a local candidate, and the production scanner pin is unchanged.

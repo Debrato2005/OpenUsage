@@ -395,9 +395,26 @@ scope remain explicit in the [performance report](../../docs/performance-report.
 
 ## Native CLI status
 
-Build the CLI with `cargo build -p openusage-cli --features native-test`, then run `node tests/native/cli-status.mjs` with `OPENUSAGE_NATIVE_CLI` set to that binary, the private display and drivers above, and `OPENUSAGE_SECRET_SERVICE_SDK`. The `native-test` CLI reads the separate native-test credential namespace.
+Build both native binaries in the shared Cargo target.
+
+```sh
+cargo build --locked -p openusage-desktop -p openusage-cli --features openusage-desktop/native-test,openusage-cli/native-test
+```
+
+Set `OPENUSAGE_NATIVE_CLI` to the CLI binary. Set `OPENUSAGE_NATIVE_BINARY` to
+the desktop binary. Set `OPENUSAGE_NATIVE_EVIDENCE` to a private output directory.
+Use the private display, driver settings, and `OPENUSAGE_SECRET_SERVICE_SDK`
+above. Run `node tests/native/cli-status.mjs`. The `native-test` CLI reads the
+separate credential namespace.
 
 `NATIVE-CLI-STATUS-001` starts a private GNOME Secret Service. The native-test app creates a key-store workspace, gets consent for the synthetic Claude Code and Codex logs, and scans them with the real pinned `ccusage`. The journey moves the copied Claude Code days to today and yesterday in UTC. The CLI must give the exact saved total for today in `status --json` and `statusline`, first with the app open and then after a genuine close. After the close, the database, its WAL and the file set must stay unchanged. With the Secret Service gone, both commands must give `locked` with exit code 7 and no prompt. Version 2 JSON keeps legacy scope metadata and unavailable measurements explicit. The journey also checks `report` consent, `--yes`, and copied Claude roots with the pinned scanner. Report must leave the saved workspace unchanged.
+
+The report check also moves private source days before today. One selected day
+must show no usage, while the longer range retains the original totals. JSON
+keeps an empty `tools` array for the empty day. The scan must preserve source
+hashes and saved workspace files. Future quota and subsecond boundary cases use
+public-command tests with private SQLCipher workspaces. The native journey
+checks report text and actual CLI access to the isolated key store.
 
 ## Native share images
 

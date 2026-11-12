@@ -59,13 +59,17 @@ struct Report {
 }
 
 impl Report {
-    fn text(&self) -> String {
+    fn text(&self, has_sources: bool) -> String {
         let mut out = format!(
             "Local logs from {} to {}, days in {}\n",
             self.start_date, self.end_date, self.time_zone
         );
         if self.tools.is_empty() {
-            out.push_str("No Claude Code or Codex logs on this device\n");
+            out.push_str(if has_sources {
+                "No local usage in this date range\n"
+            } else {
+                "No Claude Code or Codex logs on this device\n"
+            });
         }
         let width = self
             .tools
@@ -304,7 +308,7 @@ pub fn command(
                 .map_err(|_| CliError::scan("The report could not be written."))?
         )
     } else {
-        report.text()
+        report.text(!detected.is_empty())
     })
 }
 
@@ -444,6 +448,17 @@ mod tests {
         .unwrap();
         assert!(short.contains("\"startDate\": \"2026-11-06\""));
         assert!(!short.contains("\"tool\""));
+        let empty_range = command(
+            &args(&["--yes", "--days", "3"]),
+            &env,
+            &mut std::io::empty(),
+            &mut std::io::sink(),
+        )
+        .unwrap();
+        assert_eq!(
+            empty_range,
+            "Local logs from 2026-11-06 to 2026-11-08, days in UTC\nNo local usage in this date range\n"
+        );
         // Nothing to read needs no consent.
         let empty = Env {
             home: Some(dir.path().join("nobody")),
