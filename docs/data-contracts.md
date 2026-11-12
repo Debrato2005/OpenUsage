@@ -23,6 +23,10 @@ The [architecture](architecture.md) owns process, storage, and IPC boundaries.
 
 ## Meaning of identifiers and provenance
 
+The [draft identity contract](identity-contract.md) owns identity policy,
+reassociation, duplicate limits, and the pending approval and live-test gates.
+The record fields below remain the current implemented contract.
+
 A profile UUID identifies one local profile. Its managed home reference identifies
 the approved environment. A binding UUID identifies one accepted association with
 that environment and descriptive account evidence. A collection-run UUID identifies

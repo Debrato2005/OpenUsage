@@ -82,7 +82,7 @@ The other slices below follow the launch, unless a launch slice needs part of on
 
 ## Build checklist
 
-Updated November 12, 2026. Each completed item has one local commit and scoped evidence. L-7e1 records the latest scoped result. The remaining work stays below. Owner items wait for the owner.
+Updated November 12, 2026. Each completed item has one local commit and scoped evidence. L-7e2 records the latest scoped result. The remaining work stays below. Owner items wait for the owner.
 
 **Verification before release**
 
@@ -216,6 +216,7 @@ Updated November 12, 2026. Each completed item has one local commit and scoped e
 - [ ] L-7e: complete the remaining Section 20 documents and evidence. These cover data and identity contracts, provider capabilities, security and privacy, compatibility, performance, and provider evidence. Record unexecuted platform and live-account gates explicitly.
 
 - [x] L-7e1: document current data contracts, exact values, missing metrics, source ownership, all 42 tables, and format versions. Link planned SRS gaps without claiming implementation. [Data contracts](data-contracts.md) owns the result.
+- [x] L-7e2: draft the identity contract from current source. Document provisional attribution, association review, immutable history, duplicate limits, and verified-aggregation gates. [Identity contract](identity-contract.md) remains a draft until owner approval. No identity source or verified total is enabled.
 
 **Owner (G-L)**
 

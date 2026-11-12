@@ -4,6 +4,19 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-7e1 result before L-7e2
+
+Latest scoped result, November 12, 2026. L-7e1 adds the source-backed
+[data contract](data-contracts.md). It maps exact values, missing metrics,
+provenance, all 42 record tables, exports, and format versions. Source checks
+passed for 32 local references and 37 files. [SC-027](srs-clarifications.md#sc-027-section-17-and-current-dtos)
+records the remaining DTO gap. No implementation or normative requirement changed.
+
+Hosted CI for `9d9b113` passed Linux checks and Renderer in
+[run 43210371418](https://github.com/Debrato2005/OpenUsage/actions/runs/43210371418).
+This includes the qualification builds and native oracle tests. The new
+documentation change needs its own hosted result.
+
 ## S-08a2 result before L-7e1
 
 Latest scoped result, November 12, 2026. The app offers Archive History and

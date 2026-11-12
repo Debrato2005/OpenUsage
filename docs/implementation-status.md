@@ -26,16 +26,17 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scoped result, November 12, 2026. L-7e1 adds the source-backed
-[data contract](data-contracts.md). It maps exact values, missing metrics,
-provenance, all 42 record tables, exports, and format versions. Source checks
-passed for 32 local references and 37 files. [SC-027](srs-clarifications.md#sc-027-section-17-and-current-dtos)
-records the remaining DTO gap. No implementation or normative requirement changed.
+Latest scoped result, November 12, 2026. L-7e2 adds the source-backed
+[draft identity contract](identity-contract.md). It describes provisional
+attribution, association review, immutable history, and duplicate and scope
+gates. The draft awaits owner approval. Verified combined totals remain
+unavailable. Source, link, schema, prose, and selected documentation checks
+passed. No runtime or normative requirement changed.
 
-Hosted CI for `9d9b113` passed Linux checks and Renderer in
-[run 43210371418](https://github.com/Debrato2005/OpenUsage/actions/runs/43210371418).
-This includes the qualification builds and native oracle tests. The new
-documentation change needs its own hosted result.
+Hosted CI for `a1438a6` passed Linux checks and Renderer in
+[run 43220415137](https://github.com/Debrato2005/OpenUsage/actions/runs/43220415137).
+This includes qualification builds and native oracle tests. The identity
+document needs its own hosted result.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -158,7 +159,11 @@ As of November 3, 2026, on Linux. 43 journeys ran on the native-test build and 4
 
 ## Missing release documents
 
-SRS Section 20 requires these documents, which do not exist yet: identity contract, provider capabilities, security and privacy, compatibility matrix, and provider evidence. [Data contracts](data-contracts.md) now documents the implemented boundary and its remaining SRS gaps. The [performance report](performance-report.md) starts with the Pi candidate on synthetic Linux. Full release measurements remain open. The [threat model](threat-model.md) exists since L-7b, and `scripts/sbom.py` writes the SBOM since L-7c.
+SRS Section 20 still needs provider capabilities, security and privacy,
+compatibility, and provider evidence. [Data contracts](data-contracts.md)
+describes implemented records. The [identity contract](identity-contract.md)
+exists as a draft and awaits owner approval. Runtime qualification remains
+separate from document completion. The [performance report](performance-report.md) starts with the Pi candidate on synthetic Linux. Full release measurements remain open. The [threat model](threat-model.md) exists since L-7b, and `scripts/sbom.py` writes the SBOM since L-7c.
 
 ## Open items
 
@@ -166,10 +171,10 @@ SRS Section 20 requires these documents, which do not exist yet: identity contra
 
 ## Current assignment
 
-L-7e1 is complete for the current data-contract document. Reference, schema-catalog,
-version, numeric-example, and prose checks passed. The remaining L-7e documents
-and all unexecuted platform and real-provider gates stay open.
-Report this slice before another assignment.
+L-7e2 is complete for the draft identity-contract document. Source, link,
+schema, prose, and selected documentation checks passed. Owner approval,
+live identity qualification, remaining L-7e documents, and unexecuted platform
+gates stay open. Report this slice before another assignment.
 
 S-08a1 storage checks passed within their synthetic Linux scope. L-1f11aq's native Codex qualification
 remains separate from production activation. The [gate review](reviews/2026-11-12-additional-tool-gates.md)

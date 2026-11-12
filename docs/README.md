@@ -10,6 +10,7 @@ One fact has one home. Change it there, and link to it from anywhere else.
 | What must it do? | [SRS](SRS.md) |
 | How is it built? | [Architecture](architecture.md) |
 | What do stored and exported values mean? | [Data contracts](data-contracts.md) |
+| How are identity, local bindings, and duplicate limits handled? | [Draft identity contract](identity-contract.md) |
 | What works today? | [Implementation status](implementation-status.md) |
 | What is next? | [Implementation slices](implementation-slices.md) |
 | Where do I resume? | [Current assignment](implementation-status.md#current-assignment), with the local checkpoint below |

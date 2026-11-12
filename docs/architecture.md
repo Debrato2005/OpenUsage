@@ -5,6 +5,9 @@ OpenUsage is a Tauri 2 desktop app. Rust owns everything sensitive. React only d
 [Data contracts](data-contracts.md) maps record ownership, exact values, missing
 metrics, interface versions, and planned evidence fields.
 
+[The draft identity contract](identity-contract.md) describes attribution limits,
+association review, duplicate handling, and the gates for verified aggregation.
+
 ## Data path
 
 All data follows one path (OU-DES-009).
