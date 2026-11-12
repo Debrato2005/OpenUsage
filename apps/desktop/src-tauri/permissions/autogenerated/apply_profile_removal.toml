@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-apply-profile-removal"
+description = "Enables the apply_profile_removal command without any pre-configured scope."
+commands.allow = ["apply_profile_removal"]
+
+[[permission]]
+identifier = "deny-apply-profile-removal"
+description = "Denies the apply_profile_removal command without any pre-configured scope."
+commands.deny = ["apply_profile_removal"]

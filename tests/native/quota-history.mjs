@@ -185,7 +185,7 @@ try {
   assert.equal(new Set(otherExport.map(record => record.collection_run_id)).has(otherBefore.collectionRunId), true);
   assert.equal(JSON.stringify(otherExport).includes(profiles[0].id), false);
   assert.deepEqual(await liveHashes(), before); evidence.readOnly.push('Native paging, CSV/JSON exports, exact details, refused export requests and profile switching preserve database/WAL/key bytes.');
-  await driver.openProfileOptions(profiles[0].id); await driver.click(`[data-profile-id="${profiles[0].id}"] [data-profile-action="archive"]`);
+  await driver.openProfileOptions(profiles[0].id); await driver.archiveProfile(profiles[0].id);
   await waitFor(async () => (await call('list_profiles')).profiles.find(profile => profile.id === profiles[0].id)?.archived, 'archived profile retains history');
   await close(); await open();
   await showHistory(profiles[0]); assert.deepEqual(await rows(), firstPage.entries.map(row => row.collectionRunId));

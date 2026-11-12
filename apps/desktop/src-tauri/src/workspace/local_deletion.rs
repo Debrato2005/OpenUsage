@@ -167,6 +167,7 @@ impl Workspace {
             self.local_deletion_pending = true;
             drop(self.storage.take());
             self.restore_preview.clear();
+            self.profile_removal = None;
             self.activity_sessions.clear();
             self.quota_sessions.clear();
             self.quota_requests.clear();

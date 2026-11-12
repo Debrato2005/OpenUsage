@@ -87,6 +87,14 @@ export interface ProfileView {
   activeProfiles: number;
 }
 
+export type ProfileHistoryChoice = 'archive' | 'delete';
+export interface ProfileRemovalPreview {
+  approvalId: string;
+  profileId: string;
+  label: string;
+  history: ProfileHistoryChoice;
+}
+
 export interface BackupList {
   backups: { fileName: string; fileBytes: string }[];
   truncated: boolean;
@@ -570,6 +578,9 @@ interface Commands {
   create_profile: { args: { label: string }; result: ProfileView };
   rename_profile: { args: { id: string; label: string }; result: ProfileView };
   set_profile_archived: { args: { id: string; archived: boolean }; result: ProfileView };
+  prepare_profile_removal: { args: { profileId: string; history: ProfileHistoryChoice }; result: ProfileRemovalPreview };
+  apply_profile_removal: { args: { approvalId: string; profileId: string; history: ProfileHistoryChoice; confirmed: true }; result: ProfileView };
+  cancel_profile_removal: { args: { approvalId: string }; result: { cancelled: boolean } };
   delete_all_local_data: { args: { confirmed: true }; result: Bootstrap };
   sign_out_profile: { args: { profileId: string; approvalId: string; confirmed: true }; result: ProfileView };
   bootstrap: { args: undefined; result: Bootstrap };
@@ -607,8 +618,13 @@ export async function invoke<K extends keyof Commands>(
   const core = window.__TAURI__?.core;
   if (!core) throw new DesktopUnavailable('Open the installed OpenUsage desktop application.');
   const response = await core.invoke<unknown>(command, args[0]);
-  const selected = args[0] as { profileId?: string; subscriptionId?: string } | undefined;
-  const valid = command === 'list_subscriptions' ? isSubscriptionsView(response) && response.profileId === selected?.profileId
+  const selected = args[0] as { profileId?: string; subscriptionId?: string; history?: ProfileHistoryChoice } | undefined;
+  const valid = command === 'prepare_profile_removal' ? isProfileRemovalPreview(response) && response.profileId === selected?.profileId && response.history === selected?.history
+    : command === 'apply_profile_removal' ? isProfileView(response) && (selected?.history === 'archive'
+      ? response.profiles.some(profile => profile.id === selected.profileId && profile.archived)
+      : selected?.history === 'delete' && response.profiles.every(profile => profile.id !== selected.profileId))
+    : command === 'cancel_profile_removal' ? isPreviewCancellation(response)
+    : command === 'list_subscriptions' ? isSubscriptionsView(response) && response.profileId === selected?.profileId
     : command === 'create_subscription' || command === 'update_subscription' || command === 'set_subscription_archived' ? isSubscription(response) && response.profileId === selected?.profileId && (command === 'create_subscription' || response.id === selected?.subscriptionId)
     : command === 'delete_subscription' ? isSubscriptionDeletion(response) && (response as Record<string,unknown>).profileId === selected?.profileId && (response as Record<string,unknown>).subscriptionId === selected?.subscriptionId
     : command === 'load_time_zone' || command === 'set_time_zone' ? isTimeZone(response)
@@ -1313,6 +1329,17 @@ function isBootstrap(value: unknown): value is Bootstrap {
     && (v.storageIssue === null || (typeof v.storageIssue === 'string'
       && ['key_store_unavailable', 'missing_key', 'missing_database', 'invalid_key', 'storage_unavailable', 'workspace_in_use', 'local_deletion_incomplete'].includes(v.storageIssue)))
     && (v.storage !== 'ready' || (v.activeProfiles !== null && v.schemaVersion !== null));
+}
+
+function isProfileRemovalPreview(value: unknown): value is ProfileRemovalPreview {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const preview = value as Record<string, unknown>;
+  return Object.keys(preview).length === 4
+    && isUuid(preview.approvalId) && isUuid(preview.profileId)
+    && typeof preview.label === 'string' && preview.label.length <= 400
+    && Array.from(preview.label).length >= 1 && Array.from(preview.label).length <= 100
+    && !/[\u0000-\u001f\u007f-\u009f]/u.test(preview.label)
+    && (preview.history === 'archive' || preview.history === 'delete');
 }
 
 function isProfileView(value: unknown): value is ProfileView {

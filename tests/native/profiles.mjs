@@ -19,7 +19,7 @@ const run = promisify(execFile);
 const hash = async path => createHash('sha256').update(await readFile(path)).digest('hex');
 const evidence = {
   requirement: 'NATIVE-PROFILES-001', startedAt: new Date().toISOString(), result: 'failed',
-  scope: 'Actual native profile creation, rename, archive, restart, and slot reuse with synthetic data. GUI actions create and change records; direct production IPC checks state and rejects invalid requests. No provider login, collection, remote history, or cross-platform acceptance.',
+  scope: 'Actual native profile creation, rename, archive, deletion, restart, and slot reuse with synthetic data. GUI actions create and change records; direct production IPC checks state and rejects invalid requests. No provider login, collection, remote history, or cross-platform acceptance.',
   platform: { os: platform(), release: release(), architecture: arch() },
   steps: [], screenshots: [], views: [],
 };
@@ -166,10 +166,10 @@ async function unlock() {
   await waitFor(async () => Boolean(await driver.execute('return document.querySelector(".profile-create-form");')), 'unlocked profile controls');
 }
 
-async function screenshot(name, narrow = false, theme = 'dark') {
-  await driver.setAppearance(theme);
+async function screenshot(name, narrow = false, theme = 'dark', keepAppearance = false, widthOverride) {
+  if (!keepAppearance) await driver.setAppearance(theme);
   await waitFor(async () => (await driver.execute('return document.documentElement.dataset.theme;')) === theme, `${theme} appearance`);
-  const target = narrow ? { width: 360, height: 800 } : { width: 1280, height: 850 };
+  const target = narrow ? { width: widthOverride ?? 360, height: 800 } : { width: widthOverride ?? 1280, height: 850 };
   for (let attempt = 0; attempt < 3; attempt++) {
     const viewport = await driver.execute('return {width:innerWidth,height:innerHeight};');
     if (viewport.width === target.width && viewport.height === target.height) break;
@@ -200,11 +200,11 @@ try {
   evidence.harnessHashes = {};
   for (const path of ['profiles.mjs', 'clipboard.mjs', 'private-fixture.mjs', 'webdriver.mjs', 'x11-close.py']) evidence.harnessHashes[path] = await hash(join(harness, path));
   evidence.sourceHashes = {};
-  for (const path of ['Cargo.lock', 'apps/desktop/src-tauri/Cargo.toml', 'apps/desktop/src-tauri/tauri.conf.json', 'apps/desktop/src-tauri/build.rs', 'apps/desktop/src-tauri/capabilities/main-window.json', 'apps/desktop/src-tauri/src/main.rs', 'apps/desktop/src-tauri/src/workspace.rs', 'apps/desktop/src/main.tsx', 'apps/desktop/src/profiles.tsx', 'apps/desktop/src/profile-actions.css', 'apps/desktop/src/components/ui/collapsible.tsx', 'apps/desktop/src/components/ui/collapsible.css', 'apps/desktop/src/components/ui/field.tsx', 'apps/desktop/src/components/ui/input.tsx', 'apps/desktop/src/components/ui/button.tsx', 'apps/desktop/src/components/ui/selection.css', 'apps/desktop/index.html', 'apps/desktop/public/fonts/DMSans-Variable.ttf', 'apps/desktop/public/fonts/DM-Sans-OFL.txt', 'apps/desktop/src/styles.css', 'apps/desktop/src/contracts.ts', 'crates/openusage-storage/src/lib.rs', 'crates/openusage-storage/src/profiles.rs']) evidence.sourceHashes[path] = await hash(join(repository, path));
+  for (const path of ['Cargo.lock', 'apps/desktop/src-tauri/Cargo.toml', 'apps/desktop/src-tauri/tauri.conf.json', 'apps/desktop/src-tauri/build.rs', 'apps/desktop/src-tauri/capabilities/main-window.json', 'apps/desktop/src-tauri/src/main.rs', 'apps/desktop/src-tauri/src/workspace.rs', 'apps/desktop/src/main.tsx', 'apps/desktop/src/profiles.tsx', 'apps/desktop/src/profile-removal.tsx', 'apps/desktop/src/profile-removal.css', 'apps/desktop/src-tauri/src/workspace/profile_removal.rs', 'crates/openusage-storage/src/profile_removal.rs', 'apps/desktop/src/components/ui/radio-group.tsx', 'apps/desktop/src/components/ui/checkbox.tsx', 'apps/desktop/src/profile-actions.css', 'apps/desktop/src/components/ui/collapsible.tsx', 'apps/desktop/src/components/ui/collapsible.css', 'apps/desktop/src/components/ui/field.tsx', 'apps/desktop/src/components/ui/input.tsx', 'apps/desktop/src/components/ui/button.tsx', 'apps/desktop/src/components/ui/selection.css', 'apps/desktop/index.html', 'apps/desktop/public/fonts/DMSans-Variable.ttf', 'apps/desktop/public/fonts/DM-Sans-OFL.txt', 'apps/desktop/src/styles.css', 'apps/desktop/src/contracts.ts', 'crates/openusage-storage/src/lib.rs', 'crates/openusage-storage/src/profiles.rs']) evidence.sourceHashes[path] = await hash(join(repository, path));
   fixture = await createFixture('profiles');
   homes = join(dirname(fixture.database), 'profiles');
   await openApp();
-  for (const [command, args] of [['list_profiles', {}], ['create_profile', { label: 'Locked synthetic profile' }], ['rename_profile', { id: randomUUID(), label: 'Locked rename' }], ['set_profile_archived', { id: randomUUID(), archived: true }]]) await rejected(command, args, 'workspace_locked');
+  for (const [command, args] of [['list_profiles', {}], ['create_profile', { label: 'Locked synthetic profile' }], ['rename_profile', { id: randomUUID(), label: 'Locked rename' }], ['set_profile_archived', { id: randomUUID(), archived: true }], ['prepare_profile_removal', { profileId: randomUUID(), history: 'delete' }], ['apply_profile_removal', { approvalId: randomUUID(), profileId: randomUUID(), history: 'delete', confirmed: true }], ['cancel_profile_removal', { approvalId: randomUUID() }]]) await rejected(command, args, 'workspace_locked');
   assert.deepEqual(await homeNames(), []);
   await waitFor(async () => driver.execute('return ["workspace-passphrase","workspace-confirmation"].every(id=>{const field=document.getElementById(id);return Boolean(field&&!field.disabled);});'), 'enabled setup passphrase fields');
   await driver.type('#workspace-passphrase', passphrase);
@@ -278,7 +278,7 @@ try {
   await waitFor(async () => (await optionsState(keyboardProfile.id)).expanded === 'false', 'Enter closes Manage');
   await key('\uE004');
   // The next profile's Manage sits in its closed View usage panel, so Tab lands on the next visible control.
-  assert.equal(await driver.execute('const a=document.activeElement,panel=document.querySelector(arguments[0]).querySelector(".profile-management");return Boolean(a&&a!==document.body&&a.getClientRects().length&&!panel.contains(a));', [rowSelector(keyboardProfile.id)]), true, 'Tab must skip hidden Rename and Archive.');
+  assert.equal(await driver.execute('const a=document.activeElement,panel=document.querySelector(arguments[0]).querySelector(".profile-management");return Boolean(a&&a!==document.body&&a.getClientRects().length&&!panel.contains(a));', [rowSelector(keyboardProfile.id)]), true, 'Tab must skip hidden Rename and Remove.');
   await key('\uE004', true);
   assert.equal(await driver.execute('return document.activeElement?.matches(arguments[0]);', [optionsSelector(keyboardProfile.id)]), true);
   await key(' ');
@@ -301,7 +301,7 @@ try {
   await waitFor(async () => (await list()).profiles.find(profile => profile.id === first.id)?.label === 'Renamed synthetic profile', 'profile renamed through GUI');
   await waitFor(async () => Boolean(await driver.execute('return document.activeElement?.matches(arguments[0]);', [`${row} [data-profile-action="options"]`])), 'focus after profile rename');
   await manage(first.id);
-  await driver.click(`${row} button[aria-label="Archive profile"]`);
+  await driver.archiveProfile(first.id);
   await waitFor(async () => (await list()).profiles.find(profile => profile.id === first.id)?.archived === true, 'profile archived through GUI');
   const archived = await list();
   assert.equal(archived.activeProfiles, 9);
@@ -320,7 +320,7 @@ try {
   assert.deepEqual(sorted(await list()), sorted(reusedState));
   const another = reusedState.profiles.find(profile => !profile.archived && profile.id !== reused.id);
   await manage(another.id);
-  await driver.click(`[data-profile-id="${another.id}"] [data-profile-action="archive"]`);
+  await driver.archiveProfile(another.id);
   await waitFor(async () => (await list()).activeProfiles === 9, 'another slot archived before GUI restore');
   if (!await driver.execute('return document.querySelector(".archived-profiles").open;')) await driver.click('.archived-profiles > summary');
   // An archived row shows Rename and Restore directly in its View usage panel.
@@ -352,7 +352,83 @@ try {
   await run('python3', ['-I', '-c', 'import sqlite3,sys\ntry:\n c=sqlite3.connect("file:"+sys.argv[1]+"?mode=ro",uri=True);c.execute("SELECT count(*) FROM sqlite_schema").fetchone()\nexcept sqlite3.DatabaseError:\n sys.exit(0)\nsys.exit(1)', fixture.database], { timeout: 5000 });
   assert.deepEqual(await readdir(fixture.dirs.codex), ['synthetic-fixture.txt']);
   assert.equal(await readFile(join(fixture.dirs.codex, 'synthetic-fixture.txt'), 'utf8'), CODEX_SENTINEL);
-  evidence.steps.push({ tenProfilesCreatedThroughGui: true, eleventhRejectedThroughGuiAndNativeIpc: true, renameAndArchiveThroughGui: true, appRestartPreservedProfiles: true, archivedSlotReusedThroughGui: true, restoreAtCapacityRejectedThroughNativeIpc: true, successfulRestoreThroughGui: true, renameAndRestoreFocusAndStatus: true, encryptedSqliteAndPrivateHomes: true, freshProfilesRequireExplicitAuthentication: true, managedHomesContainOnlyExplicitSyntheticMarker: true, syntheticHomeMarkerPreservedAcrossArchiveAndRestore: true, syntheticCodexHomeUnchanged: true });
+  const removalDialog = `[data-profile-removal-dialog="${first.id}"]`;
+  async function openDelete(profile) {
+    const current = (await list()).profiles.find(value => value.id === profile.id);
+    assert.ok(current);
+    if (current.archived) await driver.openProfileReadings(profile.id);
+    else await driver.openProfileOptions(profile.id);
+    await driver.click(`[data-profile-id="${profile.id}"] [data-profile-action="remove"]`);
+    const dialog = `[data-profile-removal-dialog="${profile.id}"]`;
+    await waitFor(() => driver.execute('const n=document.querySelector(arguments[0]);return Boolean(n?.open&&!n.querySelector("[data-profile-removal-consent]").disabled);', [dialog]), 'native removal preview');
+    const archive = await driver.execute('return document.querySelector(arguments[0]).querySelector("[role=radio]").getAttribute("aria-checked");', [dialog]);
+    if (archive === 'true') await driver.click(`${dialog} [role=radiogroup] > label:nth-child(2) [role=radio]`);
+    await waitFor(() => driver.execute('const n=document.querySelector(arguments[0]),radios=n?.querySelectorAll("[role=radio]");return Boolean(radios?.[1]?.getAttribute("aria-checked")==="true"&&!n.querySelector("[data-profile-removal-consent]").disabled);', [dialog]), 'prepared native Delete History choice');
+    assert.equal(await driver.execute('return document.querySelector(arguments[0]).querySelector("[data-profile-removal-submit]").disabled;', [dialog]), true);
+    return dialog;
+  }
+  for (const [theme, width, scale] of [['light', 1280, 100], ['dark', 720, 100], ['dark', 360, 200]]) {
+    await driver.setAppearance(theme);
+    await driver.execute('document.documentElement.style.fontSize=arguments[0]+"%";return true;', [scale]);
+    const before = await storageHashes();
+    await openDelete(first);
+    await screenshot(`profile-delete-${theme}-${width}-${scale}.png`, width < 1280, theme, true, width);
+    await driver.click(`${removalDialog} [data-profile-removal-cancel]`);
+    await waitFor(() => driver.execute('return !document.querySelector(arguments[0])?.open;', [removalDialog]), 'cancelled native removal dialog');
+    assert.deepEqual(await storageHashes(), before);
+    assert.deepEqual(sorted(await list()), sorted(final));
+  }
+  await driver.execute('document.documentElement.style.fontSize="100%";return true;');
+  await driver.setAppearance('dark');
+  const keyboardBaseline = await storageHashes();
+  await driver.openProfileOptions(first.id);
+  await driver.click(`[data-profile-id="${first.id}"] [data-profile-action="remove"]`);
+  await waitFor(() => driver.execute('const dialog=document.querySelector(arguments[0]);return Boolean(dialog?.open&&!dialog.querySelector("[data-profile-removal-consent]").disabled);', [removalDialog]), 'prepared keyboard removal choice');
+  await driver.execute('document.querySelector(arguments[0]).querySelector("[role=radio]").focus();return true;', [removalDialog]);
+  async function removalKey(value) {
+    await driver.request('POST', `/session/${driver.session}/actions`, { actions: [{ type: 'key', id: 'profile-removal-keyboard', actions: [{ type: 'keyDown', value }, { type: 'keyUp', value }] }] });
+    await driver.request('DELETE', `/session/${driver.session}/actions`);
+  }
+  await removalKey('\uE015');
+  await waitFor(() => driver.execute('const dialog=document.querySelector(arguments[0]),radio=dialog.querySelectorAll("[role=radio]")[1];return radio.getAttribute("aria-checked")==="true"&&document.activeElement===radio&&!dialog.querySelector("[data-profile-removal-consent]").disabled;', [removalDialog]), 'Arrow Down selects Delete History and retains focus');
+  await removalKey('\uE004');
+  await waitFor(() => driver.execute('return document.activeElement===document.querySelector(arguments[0]);', [`${removalDialog} [data-profile-removal-consent]`]), 'Tab reaches removal consent');
+  await removalKey(' ');
+  await waitFor(() => driver.execute('return document.querySelector(arguments[0]).getAttribute("aria-checked")==="true";', [`${removalDialog} [data-profile-removal-consent]`]), 'Space enables explicit removal consent');
+  await removalKey(' ');
+  await removalKey('\uE00C');
+  await waitFor(() => driver.execute('return !document.querySelector(arguments[0])?.open&&document.activeElement===document.querySelector(arguments[1]);', [removalDialog, `[data-profile-id="${first.id}"] [data-profile-action="remove"]`]), 'Escape cancels removal and returns keyboard focus');
+  assert.deepEqual(await storageHashes(), keyboardBaseline);
+  await openDelete(first);
+  assert.equal((await driver.invoke('set_theme', { theme: 'dark' })).ok, true);
+  const staleBaseline = await storageHashes();
+  await driver.click(`${removalDialog} [data-profile-removal-consent]`);
+  await driver.click(`${removalDialog} [data-profile-removal-submit]`);
+  await waitFor(() => driver.execute('return document.querySelector(arguments[0])?.textContent==="The profile changed. Review removal again."&&document.activeElement===document.querySelector(arguments[0]);', [`${removalDialog} [data-profile-removal-error]`]), 'focused native stale-confirmation error');
+  await screenshot('profile-delete-stale-dark-720.png', true, 'dark', true, 720);
+  assert.deepEqual(await storageHashes(), staleBaseline);
+  await driver.click(`${removalDialog} [data-profile-removal-cancel]`);
+  await openDelete(first);
+  await driver.click(`${removalDialog} [data-profile-removal-consent]`);
+  await driver.click(`${removalDialog} [data-profile-removal-submit]`);
+  await waitFor(async () => !(await list()).profiles.some(profile => profile.id === first.id), 'profile deleted through explicit native consent');
+  let deleted = await list();
+  assert.deepEqual(sorted(deleted), sorted({ activeProfiles: 9, profiles: final.profiles.filter(profile => profile.id !== first.id) }));
+  await privateHomes(final);
+  if (!await driver.execute('return document.querySelector(".archived-profiles").open;')) await driver.click('.archived-profiles > summary');
+  const archivedDialog = await openDelete(another);
+  await driver.click(`${archivedDialog} [data-profile-removal-consent]`);
+  await driver.click(`${archivedDialog} [data-profile-removal-submit]`);
+  await waitFor(async () => !(await list()).profiles.some(profile => profile.id === another.id), 'archived history deleted through native consent');
+  deleted = await list();
+  assert.deepEqual(sorted(deleted), sorted({ activeProfiles: 9, profiles: final.profiles.filter(profile => ![first.id, another.id].includes(profile.id)) }));
+  await closeApp(); await openApp(); await unlock();
+  assert.deepEqual(sorted(await list()), sorted(deleted));
+  await privateHomes(final);
+  evidence.removalKeyboard = { arrowSelectsHistory: true, tabReachesConsent: true, spaceChangesConsent: true, escapeCancels: true, focusReturnsToTrigger: true, noDatabaseWrite: true };
+  evidence.beforeRemovalProfileView = final;
+  evidence.finalProfileView = deleted;
+  evidence.steps.push({ tenProfilesCreatedThroughGui: true, eleventhRejectedThroughGuiAndNativeIpc: true, renameAndArchiveThroughGui: true, appRestartPreservedProfiles: true, archivedSlotReusedThroughGui: true, restoreAtCapacityRejectedThroughNativeIpc: true, successfulRestoreThroughGui: true, renameAndRestoreFocusAndStatus: true, encryptedSqliteAndPrivateHomes: true, freshProfilesRequireExplicitAuthentication: true, managedHomesContainOnlyExplicitSyntheticMarker: true, syntheticHomeMarkerPreservedAcrossArchiveAndRestore: true, syntheticCodexHomeUnchanged: true, explicitActiveAndArchivedHistoryDeletion: true, cancelledPreviewsPreserveDatabaseBytes: true, staleConfirmationRefusedBeforeDeletion: true, removalLightDarkNarrowAndEnlargedText: true, genuineRestartPreservesRemoval: true, deletedProfileHomesAndMarkersRetained: true });
   assert.equal(await hash(application), evidence.application.sha256);
   for (const [path, digest] of Object.entries(evidence.sourceHashes)) assert.equal(await hash(join(repository, path)), digest, `Source changed during native profile run: ${path}`);
   for (const [path, digest] of Object.entries(evidence.harnessHashes)) assert.equal(await hash(join(harness, path)), digest, `The native profile harness changed during the run: ${path}`);

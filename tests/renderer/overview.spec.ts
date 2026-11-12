@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
-import type { ProfileRecord, SavedProfileActivity, SavedProfileQuota, SavedProfileHeatmap } from '../../apps/desktop/src/contracts';
+import type { ProfileRecord, ProfileRemovalPreview, SavedProfileActivity, SavedProfileQuota, SavedProfileHeatmap } from '../../apps/desktop/src/contracts';
 import { closeDetail, navigate, openOptions, openReadingDetails, openReadings, selectedCard } from './navigation';
 
 // Synthetic renderer fixtures. Native provider processes and encrypted storage are separate acceptance checks.
@@ -22,7 +22,7 @@ function quota(profileId: string, remaining = 0): SavedProfileQuota {
       primary: { usedPercent: 100 - remaining, derivedRemainingPercent: remaining, windowDurationMins: 300, resetsAtUnix: null, label: 'Five-hour', resetState: 'expected' }, secondary: null }] };
 }
 type Pending = { profileId: string; kind: string; resolve: (value: unknown) => void };
-type Fixture = { calls: string[]; deferFirst: boolean; mismatchFirst: boolean; pending: Pending[]; profiles: ProfileRecord[]; quotas: Record<string, SavedProfileQuota | null>; rejectQuota: string[]; mismatchQuota: string[]; deferQuota: string[] };
+type Fixture = { calls: string[]; deferFirst: boolean; mismatchFirst: boolean; pending: Pending[]; profiles: ProfileRecord[]; quotas: Record<string, SavedProfileQuota | null>; rejectQuota: string[]; mismatchQuota: string[]; deferQuota: string[]; removalPreview: ProfileRemovalPreview | null; removalCalls: { command: string; args: Record<string, unknown> }[]; rejectRemoval: boolean; deferRemoval: boolean };
 type FixtureWindow = Window & { overviewFixture: Fixture };
 
 async function open(page: Page, options: { empty?: boolean; deferFirst?: boolean; chart?: boolean; count?: number; freshQuotas?: boolean; deferSecond?: boolean; year?: boolean; aggregation?: boolean } = {}) {
@@ -57,9 +57,10 @@ async function open(page: Page, options: { empty?: boolean; deferFirst?: boolean
   if (options.aggregation) { heatmap.cells[2]!.tokens = '30'; heatmap.scaleMaximum = '30'; }
   await page.addInitScript(({ first, second, ids, readings, quotas, options, heatmap }) => {
     const observedAtUtc = heatmap.observedAtUtc;
-    const fixture: Fixture = { calls: [], deferFirst: options.deferFirst ?? false, mismatchFirst: false, pending: [], profiles: ids.map((id, index) => ({ id, label: index === 0 ? 'Zero fixture' : index === 1 ? 'Large fixture' : `Fixture ${index + 1}`, environment: 'native', archived: false, connectionState: options.aggregation ? 'connected' : 'authentication_required' })), quotas, rejectQuota: [], mismatchQuota: [], deferQuota: options.deferSecond ? [second] : [] };
+    const fixture: Fixture = { calls: [], deferFirst: options.deferFirst ?? false, mismatchFirst: false, pending: [], profiles: ids.map((id, index) => ({ id, label: index === 0 ? 'Zero fixture' : index === 1 ? 'Large fixture' : `Fixture ${index + 1}`, environment: 'native', archived: false, connectionState: options.aggregation ? 'connected' : 'authentication_required' })), quotas, rejectQuota: [], mismatchQuota: [], deferQuota: options.deferSecond ? [second] : [], removalPreview: null, removalCalls: [], rejectRemoval: false, deferRemoval: false };
     Object.assign(window, { overviewFixture: fixture });
     let theme = 'light';
+    let removalSequence = 1;
     window.__TAURI__ = { core: { invoke: async <T>(command: string, args: Record<string, unknown> = {}) => {
       fixture.calls.push(command);
       if (command === 'load_time_zone') return { timeZone: localStorage.getItem('fixture-zone') ?? 'UTC' } as T;
@@ -97,6 +98,31 @@ async function open(page: Page, options: { empty?: boolean; deferFirst?: boolean
       if (command === 'load_monitoring') return { state: 'stopped', readingRevision: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', profiles: [] } as T;
       if (command === 'bootstrap') return { storage: 'ready', theme, schemaVersion: 4, activeProfiles: fixture.profiles.filter(profile => !profile.archived).length, monitoring: 'stopped', provider: 'not_configured', keyProtection: 'passphrase', storageIssue: null } as T;
       if (command === 'list_profiles') return { activeProfiles: fixture.profiles.filter(profile => !profile.archived).length, profiles: fixture.profiles } as T;
+      if (['prepare_profile_removal', 'apply_profile_removal', 'cancel_profile_removal'].includes(command)) {
+        fixture.removalCalls.push({ command, args: structuredClone(args) });
+        if (command === 'prepare_profile_removal') {
+          const profile = fixture.profiles.find(profile => profile.id === args.profileId);
+          if (!profile) throw 'profile_not_found';
+          const preview: ProfileRemovalPreview = { approvalId: `dddddddd-dddd-4ddd-8ddd-${String(removalSequence++).padStart(12, '0')}`, profileId: profile.id, label: profile.label, history: args.history as 'archive' | 'delete' };
+          fixture.removalPreview = preview;
+          if (fixture.deferRemoval) {
+            fixture.deferRemoval = false;
+            return await new Promise<unknown>(resolve => fixture.pending.push({ profileId: profile.id, kind: 'removal', resolve })) as T;
+          }
+          return structuredClone(preview) as T;
+        }
+        if (command === 'cancel_profile_removal') {
+          const cancelled = fixture.removalPreview?.approvalId === args.approvalId;
+          if (cancelled) fixture.removalPreview = null;
+          return { cancelled } as T;
+        }
+        const preview = fixture.removalPreview;
+        fixture.removalPreview = null;
+        if (!preview || preview.approvalId !== args.approvalId || preview.profileId !== args.profileId || preview.history !== args.history || args.confirmed !== true || fixture.rejectRemoval) throw 'stale_profile_removal';
+        if (preview.history === 'archive') fixture.profiles = fixture.profiles.map(profile => profile.id === preview.profileId ? { ...profile, archived: true } : profile);
+        else fixture.profiles = fixture.profiles.filter(profile => profile.id !== preview.profileId);
+        return structuredClone({ activeProfiles: fixture.profiles.filter(profile => !profile.archived).length, profiles: fixture.profiles }) as T;
+      }
       if (command === 'set_profile_archived') {
         fixture.profiles.find(profile => profile.id === args.id)!.archived = args.archived === true;
         return { activeProfiles: fixture.profiles.filter(profile => !profile.archived).length, profiles: fixture.profiles } as T;
@@ -408,12 +434,106 @@ test('a successful missing-cache result clears the prior row instead of showing 
   await expect(accountRow(page, first).locator('[data-overview-account-quota]')).toContainText('0%Five-hour left');
 });
 
+test('profile removal offers both history choices and Cancel preserves the account', async ({ page }) => {
+  await open(page);
+  await navigate(page, 'accounts');
+  await openOptions(page, first);
+  const trigger = page.locator(`[data-profile-id="${first}"]`).getByRole('button', { name: 'Remove profile', exact: true });
+  await expect(trigger).toBeVisible({ timeout: 2000 });
+  await trigger.click();
+  const dialog = page.locator(`[data-profile-removal-dialog="${first}"]`);
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('radio', { name: 'Archive History', exact: true })).toBeChecked();
+  await expect(dialog.getByRole('radio', { name: 'Delete History', exact: true })).not.toBeChecked();
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(dialog).toBeHidden();
+  await expect(trigger).toBeFocused();
+  const profiles = await page.evaluate(() => (window as unknown as FixtureWindow).overviewFixture.profiles);
+  expect(profiles).toHaveLength(2);
+  expect(profiles.every(profile => !profile.archived)).toBe(true);
+});
+
+test('profile removal requires delete consent and preserves the other account', async ({ page }) => {
+  await open(page);
+  await navigate(page, 'accounts'); await openOptions(page, first);
+  await page.locator(`[data-profile-id="${first}"] [data-profile-action="remove"]`).click();
+  const dialog = page.locator(`[data-profile-removal-dialog="${first}"]`);
+  await expect(dialog.getByRole('button', { name: 'Archive History', exact: true })).toBeDisabled();
+  await dialog.getByRole('radio', { name: 'Delete History', exact: true }).check();
+  const submit = dialog.getByRole('button', { name: 'Delete History', exact: true });
+  await expect(submit).toBeDisabled();
+  await expect(dialog).toContainText('provider subscriptions stay unchanged');
+  await expect(dialog).toContainText('Earlier backups can restore deleted history');
+  expect(await page.evaluate(() => (window as unknown as FixtureWindow).overviewFixture.removalCalls.filter(call => call.command === 'apply_profile_removal'))).toHaveLength(0);
+  await dialog.getByRole('checkbox').check();
+  await expect(submit).toBeEnabled(); await submit.click();
+  await expect(dialog).toHaveCount(0);
+  expect(await page.evaluate(() => (window as unknown as FixtureWindow).overviewFixture.profiles.map(profile => profile.id))).toEqual([second]);
+  const calls = await page.evaluate(() => (window as unknown as FixtureWindow).overviewFixture.removalCalls.filter(call => call.command === 'apply_profile_removal'));
+  expect(calls).toHaveLength(1);
+  expect(calls[0]!.args).toMatchObject({ profileId: first, history: 'delete', confirmed: true });
+  await expect(page.locator(`[data-profile-id="${second}"] [data-profile-action="options"]`)).toBeFocused();
+});
+
+test('profile removal requires a new review after stale confirmation', async ({ page }) => {
+  await open(page);
+  await page.evaluate(() => { (window as unknown as FixtureWindow).overviewFixture.rejectRemoval = true; });
+  await navigate(page, 'accounts'); await openOptions(page, first);
+  await page.locator(`[data-profile-id="${first}"] [data-profile-action="remove"]`).click();
+  const dialog = page.locator(`[data-profile-removal-dialog="${first}"]`);
+  await dialog.getByRole('radio', { name: 'Delete History', exact: true }).check();
+  await dialog.getByRole('checkbox').check();
+  await dialog.getByRole('button', { name: 'Delete History', exact: true }).click();
+  await expect(dialog.getByRole('alert')).toHaveText('The profile changed. Review removal again.');
+  await expect(dialog.getByRole('button', { name: 'Delete History', exact: true })).toBeDisabled();
+  expect(await page.evaluate(() => (window as unknown as FixtureWindow).overviewFixture.profiles.length)).toBe(2);
+  await page.evaluate(() => { (window as unknown as FixtureWindow).overviewFixture.rejectRemoval = false; });
+  await dialog.getByRole('button', { name: 'Review again', exact: true }).click();
+  await expect(dialog.getByRole('checkbox')).not.toBeChecked();
+  await dialog.getByRole('checkbox').check();
+  await dialog.getByRole('button', { name: 'Delete History', exact: true }).click();
+  const calls = await page.evaluate(() => (window as unknown as FixtureWindow).overviewFixture.removalCalls.filter(call => call.command === 'apply_profile_removal'));
+  expect(calls).toHaveLength(2);
+  expect(calls[0]!.args.approvalId).not.toBe(calls[1]!.args.approvalId);
+});
+
+test('a late removal preview cannot replace another account confirmation', async ({ page }) => {
+  await open(page);
+  await page.evaluate(() => { (window as unknown as FixtureWindow).overviewFixture.deferRemoval = true; });
+  await navigate(page, 'accounts'); await openOptions(page, first);
+  await page.locator(`[data-profile-id="${first}"] [data-profile-action="remove"]`).click();
+  const firstDialog = page.locator(`[data-profile-removal-dialog="${first}"]`);
+  await expect(firstDialog.getByRole('button', { name: 'Preparing…', exact: true })).toBeDisabled();
+  const delayed = await page.evaluate(() => (window as unknown as FixtureWindow).overviewFixture.removalPreview!);
+  await page.keyboard.press('Escape');
+  await expect(firstDialog).toBeHidden();
+  await expect(page.locator('[data-account-panel]')).toBeVisible();
+  await openOptions(page, second);
+  await page.locator(`[data-profile-id="${second}"] [data-profile-action="remove"]`).click();
+  const secondDialog = page.locator(`[data-profile-removal-dialog="${second}"]`);
+  await expect(secondDialog.getByRole('checkbox')).toBeEnabled();
+  await page.evaluate(({ first, delayed }) => {
+    const fixture = (window as unknown as FixtureWindow).overviewFixture;
+    const pending = fixture.pending.find(value => value.profileId === first && value.kind === 'removal');
+    pending!.resolve(delayed);
+  }, { first, delayed });
+  await expect.poll(() => page.evaluate(approvalId => (window as unknown as FixtureWindow).overviewFixture.removalCalls.some(call => call.command === 'cancel_profile_removal' && call.args.approvalId === approvalId), delayed.approvalId)).toBe(true);
+  await secondDialog.getByRole('checkbox').check();
+  await secondDialog.getByRole('button', { name: 'Archive History', exact: true }).click();
+  const profiles = await page.evaluate(() => (window as unknown as FixtureWindow).overviewFixture.profiles);
+  expect(profiles.find(profile => profile.id === first)!.archived).toBe(false);
+  expect(profiles.find(profile => profile.id === second)!.archived).toBe(true);
+});
+
 test('archival removes the account and its late quota response cannot replace a restored row', async ({ page }) => {
   await open(page, { deferSecond: true });
   await expect(accountRow(page, second).locator('[data-overview-loading]')).toHaveText('Loading saved readings…');
   await expect.poll(() => page.evaluate(second => (window as unknown as FixtureWindow).overviewFixture.pending.filter(pending => pending.profileId === second).length, second)).toBeGreaterThan(0);
   await navigate(page, 'accounts'); await openOptions(page, second);
-  await page.locator(`[data-profile-id="${second}"] [data-profile-action="archive"]`).click();
+  await page.locator(`[data-profile-id="${second}"] [data-profile-action="remove"]`).click();
+  const removal = page.locator(`[data-profile-removal-dialog="${second}"]`);
+  await removal.getByRole('checkbox').check();
+  await removal.getByRole('button', { name: 'Archive History', exact: true }).click();
   await expect(page.getByText('Archived profiles (1)', { exact: true })).toBeVisible();
   await navigate(page, 'overview');
   await expect(accountRow(page, second)).toHaveCount(0);

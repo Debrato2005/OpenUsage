@@ -6,12 +6,13 @@ import { Field, FieldLabel } from './components/ui/field';
 import { Collapsible, CollapsibleTrigger, CollapsiblePanel } from './components/ui/collapsible';
 import './profile-actions.css';
 import './profile-layout.css';
-import { invoke, type MonitoringStatus, type ProfileRecord, type ProfileView, type ProviderExecutableApproval } from './contracts';
+import { invoke, type MonitoringStatus, type ProfileHistoryChoice, type ProfileRecord, type ProfileView, type ProviderExecutableApproval } from './contracts';
 import { ProfileProviderCheck } from './provider';
 import { SavedProfileQuota } from './quota';
 import { ProfileActivity } from './activity';
 import { ProfileMonitoringControls, type MonitoringAction } from './monitoring';
 import { AccountSignout } from './account-signout';
+import { ProfileRemoval } from './profile-removal';
 
 type Props = {
   busy: boolean;
@@ -278,24 +279,31 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval, onPro
     });
   }
 
-  function archive(profile: ProfileRecord) {
+  function removalFinished(profile: ProfileRecord, next: ProfileView, history: ProfileHistoryChoice, known = true) {
+    if (!mounted.current) return;
+    viewRequest.current += 1;
     const active = view?.profiles.filter(item => !item.archived) ?? [];
     const index = active.findIndex(item => item.id === profile.id);
-    void change(() => invoke('set_profile_archived', { id: profile.id, archived: !profile.archived }), { target: 'row', id: profile.id }, next => {
-      setStatus(`Profile ${profile.archived ? 'restored' : 'archived'}. ${next.activeProfiles} of 10 active.`);
+    setView(next); reportCount.current(next.activeProfiles); reportProfiles.current?.(next.profiles);
+    reportReading.current?.(); reportRefresh.current?.(profile.id, false, 0);
+    setStatus(known ? `Profile ${history === 'archive' ? 'archived' : 'history deleted'}. ${next.activeProfiles} of 10 active.` : 'Profiles reloaded.');
+    setManaged(null); setFailure(null);
+    setReadings(current => { const next = { ...current }; delete next[profile.id]; return next; });
+    setProviderWorking(current => { const next = { ...current }; delete next[profile.id]; return next; });
+    const remaining = next.profiles.filter(item => !item.archived);
+    const adjacent = remaining.find(item => item.id === profile.id) ?? remaining[Math.min(Math.max(index, 0), remaining.length - 1)];
+    if (focused) reportSelection.current?.(adjacent?.id ?? null);
+    if (adjacent) setReadings(current => ({ ...current, [adjacent.id]: true }));
+    setFocusTarget(adjacent ? { id: adjacent.id, action: 'options' } : 'create');
+  }
+
+  function restoreProfile(profile: ProfileRecord) {
+    void change(() => invoke('set_profile_archived', { id: profile.id, archived: false }), { target: 'row', id: profile.id }, next => {
+      setStatus(`Profile restored. ${next.activeProfiles} of 10 active.`);
       setManaged(null);
-      if (profile.archived) {
-        if (focused) reportSelection.current?.(profile.id);
-        setReadings(current => ({ ...current, [profile.id]: true }));
-        setFocusTarget({ id: profile.id, action: 'options' });
-      }
-      else {
-        const remaining = next.profiles.filter(item => !item.archived);
-        const adjacent = remaining[Math.min(Math.max(index, 0), remaining.length - 1)];
-        if (focused) reportSelection.current?.(adjacent?.id ?? null);
-        if (adjacent) setReadings(current => ({ ...current, [adjacent.id]: true }));
-        setFocusTarget(adjacent ? { id: adjacent.id, action: 'options' } : 'create');
-      }
+      if (focused) reportSelection.current?.(profile.id);
+      setReadings(current => ({ ...current, [profile.id]: true }));
+      setFocusTarget({ id: profile.id, action: 'options' });
     });
   }
 
@@ -303,7 +311,7 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval, onPro
     return failure && <p id="profiles-error" className="operation-error profile-error" role="alert" tabIndex={-1}>{failure.message}</p>;
   }
 
-  function startSignout(profileId: string) {
+  function startProfileChange(profileId: string) {
     viewRequest.current += 1;
     if (connectingProfile.current === profileId) connectingProfile.current = null;
     if (startRequestedProfile.current === profileId) startRequestedProfile.current = null;
@@ -343,8 +351,9 @@ export function ProfileManager({ busy, setBusy, onCount, providerApproval, onPro
       {rowError && error()}
     </Field> : <div className="profile-actions">
       <Button className="text-button" variant="ghost" type="button" data-profile-action="rename" aria-label="Rename profile" aria-describedby={nameId} disabled={busy || loading} onClick={() => { setManaged(profile.id); setEditing({ id: profile.id, label: profile.label }); setFailure(null); setFocusTarget('rename'); }}>Rename</Button>
-      <Button className="text-button" variant="ghost" type="button" data-profile-action={profile.archived ? 'restore' : 'archive'} aria-label={profile.archived ? 'Restore profile' : 'Archive profile'} aria-describedby={nameId} disabled={busy || loading} onClick={() => archive(profile)}>{profile.archived ? 'Restore' : 'Archive'}</Button>
-      {profile.connectionState === 'connected' && providerApproval && !rowHidden && (focused || !!readings[profile.id]) && (profile.archived || managed === profile.id) && <AccountSignout key={`${profile.id}:${providerApproval.approvalId}`} profile={profile} approval={providerApproval} busy={busy || loading || !!providerWorking[profile.id] || !!monitoringStatus?.readingActive} setBusy={setBusy} onStarted={() => startSignout(profile.id)} onSignedOut={next => signedOut(profile.id, next)} onRechecked={next => { if (mounted.current) { viewRequest.current += 1; setView(next); reportCount.current(next.activeProfiles); reportProfiles.current?.(next.profiles); reportReading.current?.(); } }} />}
+      {profile.archived && <Button className="text-button" variant="ghost" type="button" data-profile-action="restore" aria-label="Restore profile" aria-describedby={nameId} disabled={busy || loading} onClick={() => restoreProfile(profile)}>Restore</Button>}
+      <ProfileRemoval profile={profile} busy={busy || loading} setBusy={setBusy} onStarted={() => startProfileChange(profile.id)} onRemoved={(next, history) => removalFinished(profile, next, history)} onRechecked={next => removalFinished(profile, next, 'delete', false)} />
+      {profile.connectionState === 'connected' && providerApproval && !rowHidden && (focused || !!readings[profile.id]) && (profile.archived || managed === profile.id) && <AccountSignout key={`${profile.id}:${providerApproval.approvalId}`} profile={profile} approval={providerApproval} busy={busy || loading || !!providerWorking[profile.id] || !!monitoringStatus?.readingActive} setBusy={setBusy} onStarted={() => startProfileChange(profile.id)} onSignedOut={next => signedOut(profile.id, next)} onRechecked={next => { if (mounted.current) { viewRequest.current += 1; setView(next); reportCount.current(next.activeProfiles); reportProfiles.current?.(next.profiles); reportReading.current?.(); } }} />}
     </div>;
     const managementTrigger = <CollapsibleTrigger render={<Button variant="ghost" className="text-button row-disclosure" />} type="button" data-profile-action="options" aria-describedby={nameId} disabled={busy || loading || current}>Manage profile</CollapsibleTrigger>;
     return <Collapsible render={<li />} className="profile-row" id={`managed-profile-${profile.id}`} data-profile-id={profile.id} key={profile.id} hidden={rowHidden} inert={rowHidden} open={focused && selectedProfileId === profile.id || !!readings[profile.id]} onOpenChange={open => setReadings(previous => ({ ...previous, [profile.id]: open }))}>

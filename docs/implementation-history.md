@@ -4,6 +4,19 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## S-08a1 result before S-08a2
+
+Latest scoped result, November 12, 2026. Rust storage now has separate archive
+and delete-history operations with exact profile, home, and revision checks.
+Ten public tests, three parent guard mutations, the full storage suite, and
+full workspace tests and Clippy passed with private synthetic Linux data. The [record](reviews/2026-11-12-profile-history-storage.md)
+owns exact evidence. App choices, cancellation, and native acceptance remain open.
+
+Hosted CI for `8679dfb` passed Linux checks and Renderer in
+[run 43176028536](https://github.com/Debrato2005/OpenUsage/actions/runs/43176028536).
+This storage change needs its own hosted result. The [evidence log](acceptance-traceability.md#evidence-log)
+records the earlier commit scopes.
+
 ## R-8 result before S-08a1
 
 Latest scoped result, November 12, 2026. CLI text and statusline now keep known

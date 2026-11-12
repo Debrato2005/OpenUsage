@@ -20,6 +20,7 @@ pub(crate) mod local_logs;
 mod monitoring;
 mod operational_alerts;
 mod profile_plan;
+mod profile_removal;
 mod quota_history;
 mod quota_storage;
 mod reset_notifications;
@@ -34,6 +35,7 @@ pub(crate) use alert_history::SavedAlertHistory;
 use monitoring::MonitoringState;
 pub(crate) use monitoring::{MonitoringIssue, MonitoringStatus};
 pub(crate) use profile_plan::SavedProfilePlan;
+pub(crate) use profile_removal::{ProfileHistoryChoice, ProfileRemovalPreview};
 pub(crate) use quota_history::ProfileQuotaHistory;
 pub(crate) use quota_storage::SavedProfileQuota;
 pub(crate) use reset_notifications::{NotificationPreferences, ResetNotificationPreferences};
@@ -106,6 +108,8 @@ pub enum CommandError {
     ProfileCapacityReached,
     ProfileNotFound,
     ProfileUnavailable,
+    StaleProfileRemoval,
+    ProfileRemovalFailed,
     UnsupportedBackupContents,
     InvalidBackupContents,
     RestoreCheckpointFailed,
@@ -241,6 +245,7 @@ pub struct Workspace {
     protection: KeyProtection,
     local_deletion_pending: bool,
     restore_preview: RestoreCache,
+    profile_removal: Option<profile_removal::PreparedRemoval>,
     provider: ProviderCoordinator,
     activity_sessions: std::collections::BTreeMap<String, (String, Option<std::time::Instant>)>,
     quota_sessions: std::collections::BTreeMap<String, (String, Option<std::time::Instant>)>,
@@ -292,6 +297,7 @@ impl Workspace {
             local_deletion_pending: false,
             monitoring: monitoring::RuntimeMonitoring::new()?,
             restore_preview,
+            profile_removal: None,
             provider,
             activity_sessions: Default::default(),
             activity_requests: Default::default(),
@@ -715,6 +721,7 @@ impl Workspace {
         }
         self.storage.as_ref().ok_or(CommandError::WorkspaceLocked)?;
         let prepared = self.restore_preview.take(id)?;
+        self.profile_removal = None;
         // Owned children must finish cleanup before records can point at different managed homes.
         self.revoke_all_monitoring(MonitoringIssue::SourceChanged);
         self.provider.quiesce()?;

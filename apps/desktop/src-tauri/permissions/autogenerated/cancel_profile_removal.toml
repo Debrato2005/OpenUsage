@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-cancel-profile-removal"
+description = "Enables the cancel_profile_removal command without any pre-configured scope."
+commands.allow = ["cancel_profile_removal"]
+
+[[permission]]
+identifier = "deny-cancel-profile-removal"
+description = "Denies the cancel_profile_removal command without any pre-configured scope."
+commands.deny = ["cancel_profile_removal"]

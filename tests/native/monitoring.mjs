@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import { chmod, copyFile, lstat, mkdir, readFile, readdir, readlink, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { chmod, copyFile, lstat, mkdir, readFile, readdir, readlink, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import { CODEX_SENTINEL, createFixture, stopGroup } from './private-fixture.mjs';
 import { NativeDriver, waitFor } from './webdriver.mjs';
+import { loginVerifierDigest, runLoginVerifier } from './login-verifier.mjs';
 
 const harness = dirname(fileURLToPath(import.meta.url));
 const repository = resolve(process.env.OPENUSAGE_NATIVE_SOURCE_ROOT ?? join(harness, '../..'));
@@ -15,16 +16,19 @@ const application = resolve(process.env.OPENUSAGE_NATIVE_BINARY), verifier = res
 const output = resolve(process.env.OPENUSAGE_NATIVE_EVIDENCE ?? join('/tmp', `openusage-monitoring-${randomUUID()}`));
 const providerPath = 'crates/openusage-codex/tests/fixtures/synthetic-collection-provider.py';
 const providerSha = '53a853b737ceca311649e9f1d9ebd1341154a5f782efd8e915f7f834c819a6dc';
-const oracleSha = 'a2e4a64707081a9943f3c04f8237c2b16bea673e974e96393d6a8a7d9357f975';
+const verifierDigest = loginVerifierDigest();
 const passphrase = 'OpenUsage synthetic native monitoring workspace 2026';
 const hash = async path => createHash('sha256').update(await readFile(path)).digest('hex');
 const diagnostic = process.env.OPENUSAGE_MONITORING_STATUS_DIAGNOSTIC === '1';
 const restoreRace = process.env.OPENUSAGE_MONITORING_RESTORE_RACE === '1';
 const readingsExport = process.env.OPENUSAGE_NATIVE_READINGS_EXPORT === '1';
-const exportScope = 'Actual native CSV/JSON export of selected latest saved synthetic readings. GUI privacy consent, profile selection, identifier opt-in, exact numeric strings, null values, provenance, CSV quoting and refusal of a known formula prefix, private files, strict IPC refusal, twenty-one-table and database/WAL/key preservation, and genuine restart. Daily/credit history is not populated; no universal spreadsheet safety, live provider, all-history export, aggregation, encryption, or platform qualification.';
+const profileRemoval = process.env.OPENUSAGE_NATIVE_PROFILE_REMOVAL === '1';
+assert.ok([diagnostic, restoreRace, readingsExport, profileRemoval].filter(Boolean).length <= 1, 'Select one monitoring journey mode.');
+const exportScope = 'Actual native CSV/JSON export of selected latest saved synthetic readings. GUI privacy consent, profile selection, identifier opt-in, exact numeric strings, null values, provenance, CSV quoting and refusal of a known formula prefix, private files, strict IPC refusal, forty-two-table and database/WAL/key preservation, and genuine restart. Daily/credit history is not populated; no universal spreadsheet safety, live provider, all-history export, aggregation, encryption, or platform qualification.';
+const removalScope = 'Synthetic Linux native profile deletion during the first scheduled worker. Public typed commands seed accepted pairs and complete actual synthetic device-code sign-in for both profiles. Matching login completion and account validation grant runtime eligibility. GUI Start reaches pending activity. GUI Delete History consent revokes that grant and reaps the owned worker. Independent checks compare all 42 schema-13 tables, retained private homes, provider markers, and the protected key. An earlier manual receipt and deleted-profile start and refresh calls are refused. No automatic post-login read, direct replay of the hidden scheduled request, 300-second interval, real-provider, or other-platform acceptance.';
 const evidence = {
-  requirement: readingsExport ? 'NATIVE-SAVED-READINGS-EXPORT-001' : 'NATIVE-RUNTIME-MONITORING-001', result: 'failed', startedAt: new Date().toISOString(),
-  scope: readingsExport ? exportScope : 'Actual native synthetic login and explicit Start/Pause; a real 300-second scheduled interval, one accepted scheduled pair, an independent manual pair, and one pending scheduled pair cancelled before COMMIT. Independent encrypted-copy checks cover every column in thirty schema-8 tables. Runtime eligibility is not inferred from saved connection status, a provider-owned synthetic marker, or metric bindings. No live authentication, real credentials, verified identity, populated daily or credit history, sleep injection, crash durability, OS scaling, or release-platform qualification.',
+  requirement: profileRemoval ? 'NATIVE-MONITORING-PROFILE-REMOVAL-001' : readingsExport ? 'NATIVE-SAVED-READINGS-EXPORT-001' : 'NATIVE-RUNTIME-MONITORING-001', result: 'failed', startedAt: new Date().toISOString(),
+  scope: profileRemoval ? removalScope : readingsExport ? exportScope : 'Actual native synthetic login and explicit Start/Pause; a real 300-second scheduled interval, one accepted scheduled pair, an independent manual pair, and one pending scheduled pair cancelled before COMMIT. Independent encrypted-copy checks cover every column in forty-two schema-13 tables. Runtime eligibility is not inferred from saved connection status, a provider-owned synthetic marker, or metric bindings. No live authentication, real credentials, verified identity, populated daily or credit history, sleep injection, crash durability, OS scaling, or release-platform qualification.',
   steps: [], screenshots: [], oracles: [], closes: [],
 };
 let fixture, driver, workspace, executable, approvalId, sequence = 0;
@@ -62,11 +66,11 @@ async function oracle(label) {
   try {
     const database = join(copy, 'monitoring.db'); await copyFile(fixture.database, database); await chmod(database, 0o600);
     try { await copyFile(`${fixture.database}-wal`, `${database}-wal`); await chmod(`${database}-wal`, 0o600); } catch (error) { if (error.code !== 'ENOENT') throw error; }
-    const report = JSON.parse(execFileSync(verifier, ['database', database, join(workspace, 'database-key.v1'), '--profile-state'], { input: JSON.stringify({ passphrase }), env: fixture.environment, encoding: 'utf8', timeout: 60000, maxBuffer: 16 * 1024 * 1024 }));
+    const report = JSON.parse(await runLoginVerifier(verifier, verifierDigest, ['database', database, join(workspace, 'database-key.v1'), '--profile-state'], { input: JSON.stringify({ passphrase }), env: fixture.environment, encoding: 'utf8', timeout: 60000, maxBuffer: 16 * 1024 * 1024 }));
     for (const key of ['verified', 'readOnly', 'encryptedPagesAuthenticated', 'originalProtectedKeyUsed', 'inputUnchanged', 'keyEnvelopeUnchanged', 'walRecordsUnchanged']) assert.equal(report[key], true, key);
     assert.equal(report.schemaVersion, 13); assert.equal(report.plaintextDiskStaging, false); assert.equal(Object.keys(report.state.tables).length, 42);
     assert.deepEqual(await liveHashes(), original);
-    evidence.oracles.push({ label, actualSchemaVersion: 8, allThirtyTables: Object.fromEntries(Object.entries(report.state.tables).map(([name, rows]) => [name, { rows: rows.length, sha256: createHash('sha256').update(JSON.stringify(rows)).digest('hex') }])), derivedEncryptedCopy: true, persistentStateIsNotRuntimeMonitoringStatus: true, verification: { ...report, state: undefined } });
+    evidence.oracles.push({ label, actualSchemaVersion: report.schemaVersion, allFortyTwoTables: Object.fromEntries(Object.entries(report.state.tables).map(([name, rows]) => [name, { rows: rows.length, sha256: createHash('sha256').update(JSON.stringify(rows)).digest('hex') }])), derivedEncryptedCopy: true, persistentStateIsNotRuntimeMonitoringStatus: true, verification: { ...report, state: undefined } });
     return report.state;
   } finally { await rm(copy, { recursive: true, force: true }); }
 }
@@ -103,9 +107,156 @@ async function seed(profile) {
   const receipt = await call('begin_profile_collection_read', { profileId: profile.id, approvalId }); assert.equal(receipt.accepted, false);
   const value = await call('complete_profile_collection_read', { profileId: receipt.profileId, requestId: receipt.requestId }); assert.equal(value.accepted, true);
   const after = await saved(profile); assert.ok(after.quota && after.activity && after.quota.collectionRunId !== before.quota?.collectionRunId);
+  return receipt;
 }
 async function start(profile) { await driver.openProfileOptions(profile.id); await waitFor(async () => driver.execute('const button=document.querySelector(arguments[0]);return Boolean(button&&!button.disabled&&button.getClientRects().length);', [startButton(profile)]), 'eligible Start monitoring'); await driver.click(startButton(profile)); await waitFor(async () => (await status(profile)).state === 'running', 'explicit monitoring start'); }
 async function capture(name, selector, width = 1280, scale = 1) { for (let count = 0; count < 3; count++) { const viewport = await driver.execute('return {width:innerWidth,height:innerHeight};'); if (viewport.width === width && viewport.height === 850) break; const rect = await driver.request('GET', `/session/${driver.session}/window/rect`); await driver.request('POST', `/session/${driver.session}/window/rect`, { width: rect.width + width - viewport.width, height: rect.height + 850 - viewport.height }); } await driver.execute('document.documentElement.style.fontSize=arguments[0]===1?"":`${16*arguments[0]}px`;document.querySelector(arguments[1])?.scrollIntoView({block:"center"});return true;', [scale, selector]); await driver.screenshot(join(output, name)); evidence.screenshots.push(name); }
+
+// Removal setup uses the real login commands without the renderer's automatic read after sign-in.
+async function loginForRemoval(profile) {
+  assert.equal(profileRemoval, true);
+  assert.equal((await status(profile)).eligible, false);
+  await configure(profile, 'success');
+  const offset = (await appStarts(profile)).length;
+  const begun = await call('begin_profile_login', { profileId: profile.id, approvalId, flow: 'device_code', confirmed: true });
+  assert.equal(begun.profileId, profile.id); assert.equal(begun.approvalId, approvalId); assert.equal(begun.sourceKind, 'test_fixture');
+  const args = { profileId: profile.id, attemptId: begun.attemptId };
+  const prompt = await call('await_profile_login_prompt', args);
+  assert.equal(prompt.profileId, profile.id); assert.equal(prompt.attemptId, begun.attemptId); assert.equal(prompt.sourceKind, 'test_fixture');
+  assert.equal(prompt.verificationUrl, 'https://auth.openai.com/codex/device'); assert.equal(prompt.userCode, 'SYNTH-1234');
+  const completed = await call('complete_profile_login', args);
+  assert.equal(completed.attemptId, begun.attemptId);
+  const diagnostic = completed.diagnostic;
+  assert.equal(diagnostic.profileId, profile.id); assert.equal(diagnostic.approvalId, approvalId); assert.equal(diagnostic.sourceKind, 'test_fixture');
+  assert.equal(diagnostic.persisted, true); assert.equal(diagnostic.authentication, 'chatgpt'); assert.equal(diagnostic.identityConfidence, 'provisional');
+  const children = (await appStarts(profile)).slice(offset); assert.equal(children.length, 1);
+  const events = (await observations(profile)).filter(row => row.pid === children[0].pid);
+  assert.ok(events.some(row => row.kind === 'login-challenge-emitted'));
+  assert.ok(events.some(row => row.kind === 'login-completion-emitted' && row.success === true));
+  assert.ok(events.some(row => row.kind === 'post-login-account-read'));
+  await reaped(children[0]);
+  const granted = await status(profile);
+  assert.equal(granted.eligible, true); assert.equal(granted.state, 'stopped'); assert.equal(granted.readingActive, false);
+  assert.equal((await call('list_profiles')).profiles.find(item => item.id === profile.id).connectionState, 'connected');
+  evidence.steps.push({ setup: 'public typed device-code login', matchingSyntheticCompletionAndAccountValidation: true, actualRuntimeGrant: true, ownedLoginChildReaped: true, automaticPostLoginReadExercised: false });
+}
+
+async function removeWhileMonitoring(first, other, earlierReceipt, initialKeyHash, initialSentinelHash) {
+  async function privateDirectory(path) {
+    const metadata = await lstat(path);
+    assert.equal(metadata.isDirectory(), true); assert.equal(metadata.isSymbolicLink(), false);
+    assert.equal(await realpath(path), path); assert.equal(metadata.uid, process.geteuid());
+    assert.equal(metadata.mode & 0o777, 0o700);
+    return metadata;
+  }
+  async function retainedHomes(excludedRuntime) {
+    const snapshot = {};
+    async function visit(path, name) {
+      if (path === excludedRuntime) return;
+      const metadata = await lstat(path); assert.equal(metadata.isSymbolicLink(), false); assert.equal(metadata.uid, process.geteuid());
+      const identity = { mode: metadata.mode & 0o777, uid: metadata.uid, gid: metadata.gid, inode: metadata.ino, device: metadata.dev };
+      if (metadata.isDirectory()) {
+        snapshot[name] = { directory: true, ...identity };
+        for (const child of (await readdir(path)).sort()) await visit(join(path, child), `${name}/${child}`);
+      } else {
+        assert.equal(metadata.isFile(), true); assert.equal(metadata.nlink, 1);
+        snapshot[name] = { sha256: await hash(path), ...identity, links: metadata.nlink };
+      }
+    }
+    for (const profile of [first, other]) { await privateDirectory(home(profile)); await visit(home(profile), profile.id); }
+    await privateDirectory(fixture.dirs.codex);
+    await visit(fixture.dirs.codex, 'synthetic-outer-codex');
+    return snapshot;
+  }
+  function withoutProfile(state, profileId) {
+    const result = structuredClone(state);
+    const owned = new Set(['profile_identity_events', 'profile_bindings', 'collection_runs', 'activity_summaries', 'current_activity', 'current_activity_days', 'activity_day_history', 'quota_snapshots', 'quota_limits', 'credit_snapshots', 'current_quota_readings', 'current_quota', 'quota_reset_assessments', 'alert_events', 'operational_alert_events', 'operational_alert_outcomes', 'subscriptions', 'reset_alert_overrides', 'threshold_alert_overrides', 'operational_alert_overrides']);
+    const events = new Set(['alert_events', 'operational_alert_events'].flatMap(name => state.tables[name].filter(row => row.profile_id === profileId).map(row => row.id)));
+    for (const [name, rows] of Object.entries(result.tables)) {
+      if (name === 'profiles') result.tables[name] = rows.filter(row => row.id !== profileId);
+      else if (owned.has(name)) result.tables[name] = rows.filter(row => row.profile_id !== profileId);
+      else if (['reset_notification_outbox', 'threshold_alert_events'].includes(name)) result.tables[name] = rows.filter(row => !events.has(row.event_id));
+      else if (name === 'notification_event_ids') result.tables[name] = rows.filter(row => !events.has(row.id));
+    }
+    result.profiles = result.profiles.filter(profile => profile.id !== profileId);
+    return result;
+  }
+  pair(await saved(first), first);
+  await configure(other, 'success', false); await seed(other);
+  await loginForRemoval(other); pair(await saved(other), other);
+  const otherStatus = (await call('load_monitoring')).profiles.find(row => row.profileId === other.id);
+  assert.equal(otherStatus.eligible, true); assert.equal(otherStatus.state, 'stopped'); assert.equal(otherStatus.readingActive, false);
+  await configure(first, 'activity_hang');
+  const offset = (await appStarts(first)).length;
+  await start(first);
+  let child;
+  await waitFor(async () => {
+    child = (await appStarts(first))[offset];
+    return Boolean(child && (await observations(first)).some(row => row.pid === child.pid && row.kind === 'activity-pending'));
+  }, 'owned initial scheduled worker pending before Delete History', 45000);
+  assert.equal((await appStarts(first)).length, offset + 1);
+  assert.ok((await readFile(`/proc/${child.pid}/cmdline`, 'utf8')).split('\0').includes(executable));
+  // The Rust session sets the owned child's working directory to its temporary sandbox.
+  const scheduledRuntime = await readlink(`/proc/${child.pid}/cwd`);
+  assert.equal(dirname(scheduledRuntime), home(first));
+  assert.match(scheduledRuntime.slice(home(first).length + 1), /^openusage-provider-[^/]+$/);
+  const runtimeMetadata = await lstat(scheduledRuntime);
+  assert.equal(runtimeMetadata.isDirectory(), true); assert.equal(runtimeMetadata.isSymbolicLink(), false);
+  assert.equal(await realpath(scheduledRuntime), scheduledRuntime); assert.equal(runtimeMetadata.uid, process.geteuid());
+  // Sandbox::with_home requires a private managed parent. Its temporary cwd uses the default mode.
+  const selectedHome = await privateDirectory(home(first)), otherHome = await privateDirectory(home(other));
+  assert.notEqual(home(first), home(other));
+  assert.notDeepEqual([selectedHome.dev, selectedHome.ino], [otherHome.dev, otherHome.ino]);
+  assert.equal(runtimeMetadata.dev, selectedHome.dev); assert.notEqual(runtimeMetadata.ino, selectedHome.ino);
+  const runtimeLeaves = ['cache', 'config', 'data', 'home', 'runtime', 'state', 'tmp'];
+  assert.deepEqual((await readdir(scheduledRuntime)).sort(), runtimeLeaves);
+  for (const leaf of runtimeLeaves) await privateDirectory(join(scheduledRuntime, leaf));
+  const pending = await status(first);
+  assert.equal(pending.state, 'running'); assert.equal(pending.eligible, true); assert.equal(pending.readingActive, true);
+  const beforeDelete = await oracle('pending scheduled pair before selected-profile deletion');
+  assert.ok(beforeDelete.tables.collection_runs.some(row => row.profile_id === first.id));
+  assert.ok(beforeDelete.tables.collection_runs.some(row => row.profile_id === other.id));
+  const homesBefore = await retainedHomes(scheduledRuntime);
+  await driver.openProfileOptions(first.id);
+  await driver.click(`[data-profile-id="${first.id}"] [data-profile-action="remove"]`);
+  const dialog = `[data-profile-removal-dialog="${first.id}"]`;
+  await waitFor(() => driver.execute('const dialog=document.querySelector(arguments[0]);return Boolean(dialog?.open&&!dialog.querySelector("[data-profile-removal-consent]").disabled);', [dialog]), 'prepared removal during scheduled collection');
+  await driver.click(`${dialog} [role=radiogroup] > label:nth-child(2) [role=radio]`);
+  await waitFor(() => driver.execute('const dialog=document.querySelector(arguments[0]);return Boolean(dialog.querySelectorAll("[role=radio]")[1].getAttribute("aria-checked")==="true"&&!dialog.querySelector("[data-profile-removal-consent]").disabled);', [dialog]), 'prepared Delete History choice');
+  assert.deepEqual(await driver.execute('const dialog=document.querySelector(arguments[0]);return {checked:dialog.querySelector("[data-profile-removal-consent]").getAttribute("aria-checked"),disabled:dialog.querySelector("[data-profile-removal-submit]").disabled};', [dialog]), { checked: 'false', disabled: true });
+  await capture('monitoring-profile-delete-pending.png', dialog, 720);
+  await driver.click(`${dialog} [data-profile-removal-consent]`);
+  await waitFor(() => driver.execute('return !document.querySelector(arguments[0]).querySelector("[data-profile-removal-submit]").disabled;', [dialog]), 'explicit Delete History consent');
+  await driver.click(`${dialog} [data-profile-removal-submit]`);
+  await waitFor(async () => !(await call('list_profiles')).profiles.some(profile => profile.id === first.id), 'selected monitored profile deleted through GUI');
+  await reaped(child);
+  await assert.rejects(lstat(scheduledRuntime), { code: 'ENOENT' });
+  const afterMonitoring = await call('load_monitoring');
+  assert.equal(afterMonitoring.profiles.some(row => row.profileId === first.id), false);
+  assert.deepEqual(afterMonitoring.profiles.find(row => row.profileId === other.id), otherStatus);
+  const afterDelete = await oracle('only selected records removed after scheduled worker cancellation');
+  assert.deepEqual(afterDelete, withoutProfile(beforeDelete, first.id));
+  // This receipt already committed, so publication consumed its coordinator entry.
+  const rejected = [
+    ['complete_profile_collection_read', { profileId: earlierReceipt.profileId, requestId: earlierReceipt.requestId }, 'provider_collection_not_found'],
+    ['start_profile_monitoring', { profileId: first.id, approvalId }, 'monitoring_not_eligible'],
+    ['load_profile_refresh_status', { profileId: first.id }, 'profile_not_found'],
+    ['begin_profile_collection_read', { profileId: first.id, approvalId }, 'profile_not_found'],
+  ];
+  for (const [command, args, error] of rejected) assert.deepEqual(await driver.invoke(command, args), { ok: false, error });
+  assert.deepEqual(await retainedHomes(), homesBefore);
+  assert.deepEqual(await oracle('refused old receipt and deleted-profile calls preserve deletion'), afterDelete);
+  await closeNormally(); await open();
+  assert.deepEqual(await oracle('restart retains monitored-profile deletion'), afterDelete);
+  assert.equal((await call('load_monitoring')).profiles.some(row => row.profileId === first.id), false);
+  assert.deepEqual(await retainedHomes(), homesBefore);
+  assert.equal(await hash(join(workspace, 'database-key.v1')), initialKeyHash);
+  assert.equal(await hash(join(fixture.dirs.codex, 'synthetic-fixture.txt')), initialSentinelHash);
+  assert.equal(await hash(application), evidence.application.sha256); assert.equal(await hash(verifier), verifierDigest); assert.equal(await hash(executable), providerSha);
+  evidence.steps.push({ actualGuiStartAndDeleteHistory: true, initialScheduledWorkerPending: true, exactOwnedChildAndGroupReaped: true, selectedMonitoringGrantRevoked: true, otherProfileGrantAndAllRecordsPreserved: true, earlierManualReceiptRefused: true, hiddenScheduledRequestReplayed: false, deletedProfileStartAndRefreshRefused: true, completeFortyTwoTableDeletionComparison: true, onlyOwnedRuntimeExcludedFromBeforeSnapshot: true, runtimeCwdMode: runtimeMetadata.mode & 0o777, privateOwnedCanonicalManagedParent: true, privateOwnedRuntimeEnvironmentDirectories: true, retainedHomesHaveNoLinks: true, retainedHomeAndFileOwnershipAndIdentityPreserved: true, ownedRuntimeRemovedAfterCancellation: true, stablePrivateHomesAndProviderMarkersPreserved: true, protectedKeyPreserved: true, genuineRestartRetainsDeletion: true, scheduledIntervalExercised: false });
+  await closeNormally();
+}
+
 function csvRecords(text, columns) {
   const rows = []; let row = [], field = '', quoted = false;
   for (let index = 0; index < text.length; index++) {
@@ -226,10 +377,10 @@ async function exportSavedReadings(first, other, initialKeyHash, initialSentinel
   await waitFor(async () => driver.execute('return document.activeElement===document.querySelector("[data-export-error]");'), 'unsafe formula-like CSV text refused with actionable GUI error');
   assert.match(await driver.execute('return document.querySelector("[data-export-error]").textContent;'), /JSON/); assert.deepEqual(await files(), beforeUnsafe, 'A refused CSV must leave no published or temporary file.'); await unchecked(); await capture('readings-unsafe-csv-refused.png', '[data-export-error]');
   assert.deepEqual(await driver.invoke('export_saved_readings', { profileIds: [first.id], format: 'csv', includeIdentifiers: true, confirmed: true }), { ok: false, error: 'export_unsafe_text' }); assert.deepEqual(await files(), beforeUnsafe);
-  assert.deepEqual(await liveHashes(), bytesBefore); assert.deepEqual(await oracle('twenty-one tables unchanged by default CSV, identifier JSON and unsafe CSV refusal'), before); assert.deepEqual(await homes(), homesBefore); assert.deepEqual([await appStarts(first), await appStarts(other)], startsBefore);
+  assert.deepEqual(await liveHashes(), bytesBefore); assert.deepEqual(await oracle('forty-two tables unchanged by default CSV, identifier JSON and unsafe CSV refusal'), before); assert.deepEqual(await homes(), homesBefore); assert.deepEqual([await appStarts(first), await appStarts(other)], startsBefore);
   await renameFirst(normalLabel); const quotedBefore = await oracle('after explicit quoted-label rename before CSV export'), quotedBytes = await liveHashes(); await options(); await unchecked();
   await save('csv', 1, true, 'readings-csv-quoted-text');
-  assert.deepEqual(await liveHashes(), quotedBytes); assert.deepEqual(await oracle('all twenty-one tables unchanged by quoted CSV export'), quotedBefore);
+  assert.deepEqual(await liveHashes(), quotedBytes); assert.deepEqual(await oracle('all forty-two tables unchanged by quoted CSV export'), quotedBefore);
   const valid = { profileIds: [first.id], format: 'csv', includeIdentifiers: false, confirmed: true }, completedFiles = await files();
   for (const [args, error] of [
     [{ ...valid, destination: directory }, 'invalid_arguments'], [{ ...valid, confirmed: false }, 'invalid_arguments'], [{ ...valid, format: 'xml' }, 'invalid_arguments'],
@@ -240,20 +391,20 @@ async function exportSavedReadings(first, other, initialKeyHash, initialSentinel
     assert.deepEqual(await driver.invoke('export_saved_readings', args), { ok: false, error }); assert.deepEqual(await files(), completedFiles);
   }
   assert.deepEqual(await liveHashes(), quotedBytes); assert.deepEqual(await homes(), homesBefore);
-  await driver.openProfileOptions(other.id); await driver.click(`[data-profile-id="${other.id}"] [data-profile-action="archive"]`); await waitFor(async () => (await call('list_profiles')).profiles.find(row => row.id === other.id)?.archived, 'GUI archive of unread profile');
+  await driver.openProfileOptions(other.id); await driver.archiveProfile(other.id); await waitFor(async () => (await call('list_profiles')).profiles.find(row => row.id === other.id)?.archived, 'GUI archive of unread profile');
   const archived = await oracle('after explicit unread-profile archive'), archivedBytes = await liveHashes();
   assert.deepEqual(await driver.invoke('export_saved_readings', { ...valid, profileIds: [other.id] }), { ok: false, error: 'invalid_export_selection' }); assert.deepEqual(await files(), completedFiles); assert.deepEqual(await liveHashes(), archivedBytes);
   await closeNormally(); await open(); pair(await saved(first), first); assert.deepEqual(await oracle('genuine restart retains every saved column after export'), archived); assert.deepEqual(await homes(), homesBefore);
   await options(); await unchecked(); assert.equal(await driver.execute('return document.querySelector("#reading-export-identifiers").getAttribute("aria-checked");'), 'false'); assert.deepEqual(await files(), completedFiles); for (const item of evidence.exports) assert.equal(await hash(join(directory, item.fileName)), item.sha256);
   assert.deepEqual(await readdir(fixture.dirs.codex), ['synthetic-fixture.txt']); assert.equal(await hash(join(fixture.dirs.codex, 'synthetic-fixture.txt')), initialSentinelHash); assert.equal(await hash(join(workspace, 'database-key.v1')), initialKeyHash); assert.equal(await hash(application), evidence.application.sha256); assert.equal(await hash(executable), providerSha);
   await capture('readings-export-restart-private-defaults.png', '[data-reading-export]');
-  evidence.steps.push({ actualGuiFiles: 3, defaultCsvOmitsIdentifiers: true, selectedJsonPreservesExactNumericStringsAndNulls: true, knownFormulaPrefixCsvRefusedWithoutOutput: true, csvQuotingPreservesSourceText: true, explicitUncheckedConsentRequired: true, invalidSelectionsCreateNoFiles: true, latestReadingsOnlyNoAggregation: true, allTwentyFourTablesAndLiveDatabaseWalKeyUnchangedByEachExportGroup: true, explicitGuiRenamesComparedSeparately: true, genuineRestartWithoutProviderApproval: true, privateSyntheticHomesUnchanged: true });
+  evidence.steps.push({ actualGuiFiles: 3, defaultCsvOmitsIdentifiers: true, selectedJsonPreservesExactNumericStringsAndNulls: true, knownFormulaPrefixCsvRefusedWithoutOutput: true, csvQuotingPreservesSourceText: true, explicitUncheckedConsentRequired: true, invalidSelectionsCreateNoFiles: true, latestReadingsOnlyNoAggregation: true, allFortyTwoTablesAndLiveDatabaseWalKeyUnchangedByEachExportGroup: true, explicitGuiRenamesComparedSeparately: true, genuineRestartWithoutProviderApproval: true, privateSyntheticHomesUnchanged: true });
   await closeNormally();
 }
 
 async function restoreWhilePending(profile) {
   evidence.requirement = 'NATIVE-MONITORING-RESTORE-001';
-  evidence.scope = 'Actual native synthetic login, pending paired reads, rejected cancelled/missing tokens, confirmed GUI archive restore and GUI Undo. Every column in twenty-one SQLCipher tables is compared, allowing only documented restored connection state, stopped monitoring, one bounded restore timestamp, and fresh private home mappings for archive restore. Undo retains the exact saved mappings. Daily and credit-history tables are empty. No live credentials, crash durability, or release-platform qualification.';
+  evidence.scope = 'Actual native synthetic login, pending paired reads, rejected cancelled/missing tokens, confirmed GUI archive restore and GUI Undo. Every column in forty-two SQLCipher tables is compared, allowing only documented restored connection state, stopped monitoring, one bounded restore timestamp, and fresh private home mappings for archive restore. Undo retains the exact saved mappings. Daily and credit-history tables are empty. No live credentials, crash durability, or release-platform qualification.';
   const password = 'OpenUsage synthetic restore race archive 2026';
   async function button(text) {
     const node = await driver.execute('return [...document.querySelectorAll("button")].find(node=>node.textContent.trim()===arguments[0]&&node.getClientRects().length);', [text]);
@@ -325,7 +476,7 @@ async function restoreWhilePending(profile) {
     assert.equal(after.state, 'running', 'An unknown or cancelled preview must not stop monitoring.');
     assert.equal(after.eligible, true, 'A rejected restore must not revoke the current login grant.');
     assert.equal(after.readingActive, true); assert.equal(after.readingRevision, previous.readingRevision); process.kill(child.pid, 0);
-    assert.deepEqual(await oracle('rejected token preserves all twenty-one tables'), before);
+    assert.deepEqual(await oracle('rejected token preserves all forty-two tables'), before);
   }
   await capture('rejected-restore-retains-pending-read.png', pauseButton(profile));
   await driver.navigate('settings'); await button('Inspect a backup');
@@ -338,7 +489,7 @@ async function restoreWhilePending(profile) {
   const checkpoint = join(workspace, 'restore-checkpoints', `${checkpointId}.sqlite`), checkpointHash = await hash(checkpoint);
   assert.equal((await stat(checkpoint)).mode & 0o777, 0o600);
   assert.equal((await readFile(checkpoint)).subarray(0, 16).equals(Buffer.from('SQLite format 3\0')), false);
-  // Full checkpoint content is checked after actual Undo against all twenty-one original state B tables.
+  // Full checkpoint content is checked after actual Undo against all forty-two original state B tables.
   const restored = await confirm(original, child, 'archive-restore', true);
   assert.equal(await hash(checkpoint), checkpointHash);
   await approve(profile); await login(profile); const undoChild = await pending();
@@ -383,19 +534,23 @@ async function keyboardPause(profile) {
 await mkdir(output, { recursive: true, mode: 0o700 });
 process.once('exit', () => { driver?.kill('SIGKILL'); stopGroup(fixture?.bus, 'SIGKILL'); });
 try {
-  assert.equal(await hash(verifier), oracleSha); evidence.application = { path: application, sha256: await hash(application) }; evidence.verifier = { path: verifier, sha256: oracleSha, reusedReadOnlyQueryLogic: true };
+  assert.equal(await hash(verifier), verifierDigest); evidence.application = { path: application, sha256: await hash(application) }; evidence.verifier = { path: verifier, sha256: verifierDigest, reusedReadOnlyQueryLogic: true };
   evidence.sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repository, encoding: 'utf8' }).trim();
   fixture = await createFixture('runtime-monitoring'); workspace = dirname(fixture.database); executable = join(fixture.root, 'synthetic-monitored-provider');
+  if (profileRemoval) { fixture.environment.HOME = join(fixture.root, 'synthetic-user-home'); await mkdir(fixture.environment.HOME, { mode: 0o700 }); }
   await copyFile(join(repository, providerPath), executable); await chmod(executable, 0o700); assert.equal(await hash(executable), providerSha); evidence.syntheticProviderSha256 = providerSha;
   const sentinel = await hash(join(fixture.dirs.codex, 'synthetic-fixture.txt')); assert.equal(await readFile(join(fixture.dirs.codex, 'synthetic-fixture.txt'), 'utf8'), CODEX_SENTINEL);
   await open(true); const protectedKeyHash = await hash(join(workspace, 'database-key.v1'));
   for (const [command, args] of [['load_monitoring', { unexpected: true }], ['start_profile_monitoring', { profileId: randomUUID(), approvalId: randomUUID(), confirmed: true }], ['pause_profile_monitoring', { profileId: randomUUID(), unexpected: true }]]) assert.deepEqual(await driver.invoke(command, args), { ok: false, error: 'invalid_arguments' });
   const first = await create('Synthetic monitored profile'), other = await create('Synthetic expired sign-in');
-  await configure(first, 'success', false); await approve(first); await seed(first);
+  await configure(first, 'success', false); await approve(first); const earlierReceipt = await seed(first);
   assert.equal((await status(first)).eligible, false); const seedStarts = (await appStarts(first)).length;
   assert.deepEqual(await driver.invoke('start_profile_monitoring', { profileId: first.id, approvalId }), { ok: false, error: 'monitoring_not_eligible' }); assert.equal((await appStarts(first)).length, seedStarts);
-  await login(first);
-  if (readingsExport) {
+  if (profileRemoval) await loginForRemoval(first);
+  else await login(first);
+  if (profileRemoval) {
+    await removeWhileMonitoring(first, other, earlierReceipt, protectedKeyHash, sentinel); evidence.result = 'passed';
+  } else if (readingsExport) {
     await exportSavedReadings(first, other, protectedKeyHash, sentinel); evidence.result = 'passed';
   } else if (diagnostic) {
     evidence.requirement = 'NATIVE-MONITORING-STATUS-DIAGNOSTIC-001';

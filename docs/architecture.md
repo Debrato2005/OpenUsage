@@ -99,8 +99,8 @@ The CLI reads today's value separately for each saved scope and zone. Legacy, gr
 The Rust-only `Storage::remove_profile` API accepts a profile UUID, its expected
 managed home UUID, a history choice, and an opaque `StorageRevision`.
 One immediate transaction checks the revision, exact native profile, and home.
-An intervening write or a revision from another connection or open session
-refuses stale intent. A wrong home or environment also refuses the operation.
+The API refuses a revision after any intervening write or storage reopen.
+It also refuses a revision from another connection. A wrong home or environment also refuses the operation.
 
 Archive changes the selected profile archive flag. Delete removes its bindings,
 provider readings and history, alert history and outbox, overrides, and local
@@ -117,10 +117,26 @@ provider sessions, processes, or remote subscriptions. Earlier backups can
 restore old history. [SC-026](srs-clarifications.md#sc-026-profile-removal-and-retained-delivery-controls)
 records this reading of the requirements.
 
-A later app caller must confirm the choice and stop selected-profile work,
-including provider collection and notification submission. It must clear stale
-previews and accepted caches under the workspace lock. This slice exposes no
-renderer command. App cancellation and native acceptance remain unverified.
+The desktop adds three strict commands: `prepare_profile_removal`,
+`apply_profile_removal`, and `cancel_profile_removal`. One cached Rust approval
+binds its random UUID to the exact profile, home, choice, and storage revision.
+React receives only the approval UUID, profile UUID, label, and history choice.
+Replacing, cancelling, or consuming the approval prevents its reuse.
+
+Apply checks consent and the revision before process cleanup. Under the workspace
+lock, it revokes the selected monitoring grant, joins that profile's provider
+operations, and clears its pending requests, reviews, and accepted session caches.
+Other profiles retain their work. The same lock orders notification claims,
+bounded submission, completion, and removal. Storage checks the revision again
+inside its immediate transaction. Failed cleanup never starts record deletion.
+The outgoing view is prepared before commit, so a later read cannot turn a
+successful deletion into a reported read failure.
+
+The app dialog offers Archive History and Delete History with explicit consent.
+A stale or consumed request requires a new review. Restore and whole-workspace
+deletion clear pending profile consent. [The native record](reviews/2026-11-12-profile-removal-app.md)
+owns executed Linux scope. Real accounts and other platforms remain unverified. WSL removal stays
+unavailable. Native calls on other platforms can outlive their timeout.
 
 ## Boundaries
 

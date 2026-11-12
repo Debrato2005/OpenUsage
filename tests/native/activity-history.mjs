@@ -6,15 +6,16 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createFixture, stopGroup } from './private-fixture.mjs';
 import { NativeDriver, waitFor } from './webdriver.mjs';
+import { loginVerifierDigest, runLoginVerifier } from './login-verifier.mjs';
 
 for (const name of ['OPENUSAGE_NATIVE_BINARY', 'OPENUSAGE_NATIVE_ACTIVITY_HISTORY_FIXTURE', 'OPENUSAGE_NATIVE_EVIDENCE', 'OPENUSAGE_LOGIN_VERIFIER']) assert.ok(process.env[name], name);
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const application = resolve(process.env.OPENUSAGE_NATIVE_BINARY), seeder = resolve(process.env.OPENUSAGE_NATIVE_ACTIVITY_HISTORY_FIXTURE), output = resolve(process.env.OPENUSAGE_NATIVE_EVIDENCE), verifier = resolve(process.env.OPENUSAGE_LOGIN_VERIFIER);
 const password = 'OpenUsage synthetic activity history workspace 2026';
 const providerDigest = '53a853b737ceca311649e9f1d9ebd1341154a5f782efd8e915f7f834c819a6dc';
-const verifierDigest = 'a2e4a64707081a9943f3c04f8237c2b16bea673e974e96393d6a8a7d9357f975';
+const verifierDigest = loginVerifierDigest();
 const hash = async path => createHash('sha256').update(await readFile(path)).digest('hex');
-const evidence = { requirement: 'NATIVE-ACTIVITY-SUMMARY-HISTORY-001', result: 'failed', scope: 'Actual Linux Tauri/WebKitGTK browsing in a private SQLCipher4/WAL schema8 workspace. Two explicit synthetic sign-ins automatically save activity. A strictly marked closed-app Rust helper adds21summary observations through production storage APIs, preserving synthetic provenance, null/zero/exact counts, tied timestamps and a separate prior association. The native journey checks20/2paging, source details, wrong cursors, profile isolation, archived restart and independent read-only checks of all30tables. No live-provider, history export, verified identity, combined total or other-platform acceptance.', screenshots: [], closes: [], oracles: [] };
+const evidence = { requirement: 'NATIVE-ACTIVITY-SUMMARY-HISTORY-001', result: 'failed', scope: 'Actual Linux Tauri/WebKitGTK browsing in a private SQLCipher4/WAL schema13 workspace. Two explicit synthetic sign-ins automatically save activity. A strictly marked closed-app Rust helper adds21summary observations through production storage APIs, preserving synthetic provenance, null/zero/exact counts, tied timestamps and a separate prior association. The native journey checks20/2paging, source details, wrong cursors, profile isolation, archived restart and independent read-only checks of all42tables. No live-provider, history export, verified identity, combined total or other-platform acceptance.', screenshots: [], closes: [], oracles: [] };
 let fixture, driver, sequence = 0;
 const profiles = [];
 const call = async (command, args) => { const response = await driver.invoke(command, args); assert.equal(response.ok, true, `${command}: ${JSON.stringify(response)}`); return response.value; };
@@ -52,7 +53,7 @@ async function oracle(label) {
   try {
     const database = join(temporary, 'database.db'); await copyFile(fixture.database, database); await chmod(database, 0o600);
     if (before[`${fixture.database}-wal`] !== null) { await copyFile(`${fixture.database}-wal`, `${database}-wal`); await chmod(`${database}-wal`, 0o600); }
-    const report = JSON.parse(execFileSync(verifier, ['database', database, join(dirname(fixture.database), 'database-key.v1'), '--profile-state'], { input: JSON.stringify({ passphrase: password }), encoding: 'utf8', env: fixture.environment, timeout: 30000, maxBuffer: 8 * 1024 * 1024 }));
+    const report = JSON.parse(await runLoginVerifier(verifier, verifierDigest, ['database', database, join(dirname(fixture.database), 'database-key.v1'), '--profile-state'], { input: JSON.stringify({ passphrase: password }), encoding: 'utf8', env: fixture.environment, timeout: 30000, maxBuffer: 8 * 1024 * 1024 }));
     for (const field of ['verified', 'readOnly', 'inputUnchanged', 'keyEnvelopeUnchanged', 'walRecordsUnchanged']) assert.equal(report[field], true, field);
     assert.equal(report.schemaVersion, 13); assert.equal(report.plaintextDiskStaging, false); assert.equal(Object.keys(report.state.tables).length, 42);
     assert.deepEqual(await liveHashes(), before);
@@ -158,7 +159,7 @@ try {
   await driver.closeDetail();
   await showHistory(profiles[1]); assert.deepEqual(await rows(), [otherBefore.collectionRunId]); assert.deepEqual(metrics(await call('load_profile_activity', { profileId: profiles[1].id })), otherBefore);
   assert.deepEqual(await liveHashes(), before); assert.deepEqual(await oracle('paging, details and refused cursors preserve all records'), beforeTables);
-  await driver.openProfileOptions(profiles[0].id); await driver.click(`[data-profile-id="${profiles[0].id}"] [data-profile-action="archive"]`);
+  await driver.openProfileOptions(profiles[0].id); await driver.archiveProfile(profiles[0].id);
   await waitFor(async () => (await call('list_profiles')).profiles.find(profile => profile.id === profiles[0].id)?.archived, 'archived profile retains activity history');
   await close(); await open();
   const archivedBefore = await liveHashes(), archivedTables = await oracle('archived restart before local history reads');

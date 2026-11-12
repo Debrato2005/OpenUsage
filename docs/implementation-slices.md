@@ -1,6 +1,6 @@
 # Implementation slices
 
-Updated: November 9, 2026. This page owns the order and boundaries of planned work. The [SRS](SRS.md) owns what each requirement says, and [status](implementation-status.md) owns what works today.
+Updated: November 12, 2026. This page owns the order and boundaries of planned work. The [SRS](SRS.md) owns what each requirement says, and [status](implementation-status.md) owns what works today.
 
 ## Run a slice
 
@@ -82,7 +82,7 @@ The other slices below follow the launch, unless a launch slice needs part of on
 
 ## Build checklist
 
-Updated November 12, 2026. Each completed item has one local commit and scoped evidence. L-1f11ap records the latest result. The next bounded assignment is below. Owner items wait for the owner.
+Updated November 12, 2026. Each completed item has one local commit and scoped evidence. S-08a2 records the latest scoped result. The remaining work stays below. Owner items wait for the owner.
 
 **Verification before release**
 
@@ -175,6 +175,11 @@ Updated November 12, 2026. Each completed item has one local commit and scoped e
 - [x] L-1g2: hourly ranges for Claude Code from `ccusage blocks`, at schema 12 (OU-LOG-017, SC-021).
 - [x] L-1g3: custom date ranges (OU-LOG-017).
 - [ ] L-1g4: session quota movement (OU-LOG-018). Waits for the owner's OQ-1 decision, because a local session names no provider account (SC-021).
+
+**Profile lifecycle**
+
+- [x] S-08a1: guarded archive and scoped deletion in storage, with retained data and rollback checks.
+- [x] S-08a2: explicit history choices in the app, selected work cleanup, and synthetic Linux native acceptance. See the [record](reviews/2026-11-12-profile-removal-app.md). Other platforms and real-provider removal remain unverified.
 
 **L-2 CLI**
 
@@ -772,7 +777,7 @@ Report before the next assignment.
 | G-1 | Owner: real-account test on Codex | S-05 | Not started |
 | S-06 | Tray and background | S-05 | Not started |
 | S-07 | Graphs and dashboard | S-01 | Not started |
-| S-08 | Remaining gaps | S-02 | Not started |
+| S-08 | Remaining gaps | S-02 | Profile removal passed in scoped S-08a1/S-08a2. Other gaps remain open |
 | S-09 | `ccusage` runner | S-05, a download | Done as L-1a |
 | S-10 | Local usage store | S-09 | Done as L-1b |
 | S-11 | First launch and consent | S-10 | Partly done as L-1d and L-1e. AT-72's file trace and the OU-NFR-020 measurement did not run |
@@ -925,6 +930,11 @@ owning docs, one commit, an AST Graphify update, and the authorized push.
 Report before app integration.
 
 ### S-08a2: profile removal in the app
+
+Status: Done within private synthetic Linux app scope, November 12, 2026.
+Full workspace and renderer checks, 18 selected native variants, and four
+independent app guard mutations passed. The [record](reviews/2026-11-12-profile-removal-app.md)
+owns evidence and limits. Real providers and other platforms remain unverified.
 
 Goal: offer Archive History and Delete History for the selected profile under
 OU-ACCT-013 without access to another profile or a protected home.

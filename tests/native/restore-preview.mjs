@@ -157,7 +157,7 @@ try {
     await focusOwnedWindow(); await driver.replaceText('.profile-rename-form input', 'Preview renamed first');
     await driver.click('.profile-rename-form button[type=submit]');
     await waitFor(async () => !(await driver.execute('return Boolean(document.querySelector(".profile-rename-form"));')), 'profile renamed'); await waitFor(async()=>(await state()).profiles.find(profile=>profile.id===first.id)?.label==='Preview renamed first','exact GUI rename persisted');
-    await driver.openProfileOptions(second.id); await driver.click(`[data-profile-id="${second.id}"] [data-profile-action="archive"]`);
+    await driver.openProfileOptions(second.id); await driver.archiveProfile(second.id);
     await waitFor(async () => (await state()).profiles.find(profile => profile.id === second.id)?.archived === true, 'profile archived');
     await waitFor(async () => await driver.execute('return !document.querySelector("#profile-label").disabled;'), 'profile form enabled');
     await create('Preview third live only');
@@ -185,7 +185,8 @@ try {
     await driver.execute('document.querySelector("#restore-preview-error").scrollIntoView({block:"center"});return true;');
     await driver.screenshot(join(output, 'restore-preview-wrong-password.png'));
     evidence.screenshots.push('restore-preview-wrong-password.png');
-    await click('Cancel');
+    await driver.click('.restore-preview-form .restore-actions button[type=button]');
+    await waitFor(async () => !await driver.execute('return Boolean(document.querySelector(".restore-preview-form"));'), 'restore preparation cancelled');
     const generatorStaging = join(fixture.root, 'generator-staging');
     await mkdir(generatorStaging, { mode: 0o700 });
     const generated = JSON.parse(execFileSync(generator, [archive, generatorStaging, directory], { input: password, encoding: 'utf8', env: fixture.environment, timeout: 60000 }));

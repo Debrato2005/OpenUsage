@@ -6,6 +6,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CODEX_SENTINEL, createFixture, stopGroup } from './private-fixture.mjs';
 import { NativeDriver, waitFor } from './webdriver.mjs';
+import { loginVerifierDigest, runLoginVerifier } from './login-verifier.mjs';
 
 const harness = dirname(fileURLToPath(import.meta.url));
 const repository = resolve(process.env.OPENUSAGE_NATIVE_SOURCE_ROOT ?? join(harness, '../..'));
@@ -16,10 +17,10 @@ const verifier = resolve(process.env.OPENUSAGE_LOGIN_VERIFIER);
 const output = resolve(process.env.OPENUSAGE_NATIVE_EVIDENCE ?? join('/tmp', `openusage-collection-${randomUUID()}`));
 const coreFixture = 'crates/openusage-codex/tests/fixtures/synthetic-collection-provider.py';
 const fixtureDigest = '53a853b737ceca311649e9f1d9ebd1341154a5f782efd8e915f7f834c819a6dc';
-const verifierDigest = 'a2e4a64707081a9943f3c04f8237c2b16bea673e974e96393d6a8a7d9357f975';
+const verifierDigest = loginVerifierDigest();
 const passphrase = 'OpenUsage synthetic combined collection workspace 2026';
 const hash = async path => createHash('sha256').update(await readFile(path)).digest('hex');
-const evidence = { requirement: 'NATIVE-COMBINED-COLLECTION-001', result: 'failed', startedAt: new Date().toISOString(), scope: 'Synthetic native combined collection: primary GUI success, cancellation, account reassociation and restart; typed IPC negative boundaries and capability isolation; independent comparisons of all columns in twenty-one SQLCipher tables using encrypted derived copies. No real provider account, scheduler eligibility, verified identity, live OAuth, or platform qualification.', steps: [], cases: [], screenshots: [], oracles: [], closes: [] };
+const evidence = { requirement: 'NATIVE-COMBINED-COLLECTION-001', result: 'failed', startedAt: new Date().toISOString(), scope: 'Synthetic native combined collection and profile removal with private SQLCipher data. Actual GUI consent, selected-process cancellation, restart, and comparisons of all 42 tables. No real-provider or other-platform acceptance.', steps: [], cases: [], screenshots: [], oracles: [], closes: [] };
 let fixture, driver, workspace, executable, approvalId, sequence = 0;
 const profiles = [];
 const active = new Map();
@@ -42,17 +43,30 @@ async function oracle(label) {
     const database = join(copy, 'collection.db');
     await copyFile(fixture.database, database); await chmod(database, 0o600);
     try { await copyFile(`${fixture.database}-wal`, `${database}-wal`); await chmod(`${database}-wal`, 0o600); } catch (error) { if (error.code !== 'ENOENT') throw error; }
-    const report = JSON.parse(execFileSync(verifier, ['database', database, join(workspace, 'database-key.v1'), '--profile-state'], { input: JSON.stringify({ passphrase }), env: fixture.environment, encoding: 'utf8', timeout: 60000, maxBuffer: 16 * 1024 * 1024 }));
+    const report = JSON.parse(await runLoginVerifier(verifier, verifierDigest, ['database', database, join(workspace, 'database-key.v1'), '--profile-state'], { input: JSON.stringify({ passphrase }), env: fixture.environment, encoding: 'utf8', timeout: 60000, maxBuffer: 16 * 1024 * 1024 }));
     for (const key of ['verified', 'readOnly', 'encryptedPagesAuthenticated', 'originalProtectedKeyUsed', 'inputUnchanged', 'keyEnvelopeUnchanged', 'walRecordsUnchanged']) assert.equal(report[key], true, key);
-    // This oracle reports the actual schema; this caller requires exactly schema 8.
+    // This oracle reports the actual schema; this caller requires exactly schema 13.
     assert.equal(report.schemaVersion, 13); assert.equal(report.plaintextDiskStaging, false); assert.equal(report.state.monitoring, 'stopped'); assert.equal(Object.keys(report.state.tables).length, 42);
     assert.deepEqual(await liveHashes(), before);
-    evidence.oracles.push({ label, expectedSchemaVersion: 8, schemaExpectationEnforcedByCaller: true, actualSchemaVersion: report.schemaVersion, derivedEncryptedCopy: true, plaintextDiskStaging: false, tableHashes: Object.fromEntries(Object.entries(report.state.tables).map(([name, values]) => [name, { rows: values.length, sha256: createHash('sha256').update(JSON.stringify(values)).digest('hex') }])), verification: { ...report, state: undefined } });
+    evidence.oracles.push({ label, expectedSchemaVersion: 13, schemaExpectationEnforcedByCaller: true, actualSchemaVersion: report.schemaVersion, derivedEncryptedCopy: true, plaintextDiskStaging: false, tableHashes: Object.fromEntries(Object.entries(report.state.tables).map(([name, values]) => [name, { rows: values.length, sha256: createHash('sha256').update(JSON.stringify(values)).digest('hex') }])), verification: { ...report, state: undefined } });
     return report.state;
   } finally { await rm(copy, { recursive: true, force: true }); }
 }
 async function cached(profile) { return { quota: await call('load_profile_quota', { profileId: profile.id }), activity: await call('load_profile_activity', { profileId: profile.id }) }; }
 function metrics(value) { const copy = structuredClone(value); for (const item of Object.values(copy)) if (item) delete item.freshness; return copy; }
+function withoutProfile(state, profileId) {
+  const result = structuredClone(state);
+  const owned = new Set(['profile_identity_events', 'profile_bindings', 'collection_runs', 'activity_summaries', 'current_activity', 'current_activity_days', 'activity_day_history', 'quota_snapshots', 'quota_limits', 'credit_snapshots', 'current_quota_readings', 'current_quota', 'quota_reset_assessments', 'alert_events', 'operational_alert_events', 'operational_alert_outcomes', 'subscriptions', 'reset_alert_overrides', 'threshold_alert_overrides', 'operational_alert_overrides']);
+  const events = new Set(['alert_events', 'operational_alert_events'].flatMap(name => state.tables[name].filter(row => row.profile_id === profileId).map(row => row.id)));
+  for (const [name, rows] of Object.entries(result.tables)) {
+    if (name === 'profiles') result.tables[name] = rows.filter(row => row.id !== profileId);
+    else if (owned.has(name)) result.tables[name] = rows.filter(row => row.profile_id !== profileId);
+    else if (['reset_notification_outbox', 'threshold_alert_events'].includes(name)) result.tables[name] = rows.filter(row => !events.has(row.event_id));
+    else if (name === 'notification_event_ids') result.tables[name] = rows.filter(row => !events.has(row.id));
+  }
+  result.profiles = result.profiles.filter(profile => profile.id !== profileId);
+  return result;
+}
 // The app-wide monitoring summary turns paused once the changed account pauses one profile.
 let expectedMonitoring = 'stopped';
 function validatePair(value, profile, monitoring = expectedMonitoring) { assert.equal(value.quota.profileId, profile.id); assert.equal(value.activity.profileId, profile.id); assert.equal(value.quota.bindingId, value.activity.bindingId); assert.notEqual(value.quota.collectionRunId, value.activity.collectionRunId); assert.equal(value.activity.summary.lifetimeTokens, '9007199254740993'); assert.equal(value.activity.summary.peakDailyTokens, '9223372036854775807'); assert.equal(value.quota.limits[0].primary.usedPercent, 25); for (const item of [value.quota, value.activity]) { assert.equal(item.identityConfidence, 'provisional'); assert.equal(item.verifiedIdentityKey, null); assert.equal(item.sourceKind, 'test_fixture'); assert.equal(item.accepted, true); assert.equal(item.monitoring, monitoring); } }
@@ -75,7 +89,7 @@ async function open(setup = false) {
   driver = new NativeDriver(application, fixture.environment, join(output, `driver-${++sequence}.log`)); await driver.start();
   await waitFor(async () => driver.execute('const a=document.querySelector("#workspace-passphrase"),b=document.querySelector("#workspace-confirmation");return Boolean(a&&!a.disabled&&(!arguments[0]||b&&!b.disabled));', [setup]), 'native unlock fields');
   await driver.type('#workspace-passphrase', passphrase); if (setup) await driver.type('#workspace-confirmation', passphrase); await driver.click('.unlock-form button[type=submit]');
-  await waitFor(async () => (await driver.invoke('bootstrap')).value?.storage === 'ready', 'unlocked schema-8 collection workspace');
+  await waitFor(async () => (await driver.invoke('bootstrap')).value?.storage === 'ready', 'unlocked schema-13 collection workspace');
   assert.equal((await call('bootstrap')).schemaVersion, 13);
 }
 async function ownedDesktopPid() {
@@ -141,7 +155,7 @@ async function capture(name, selector, width = 1280) { for (let attempt = 0; att
 await mkdir(output, { recursive: true, mode: 0o700 });
 process.once('exit', () => { driver?.kill('SIGKILL'); stopGroup(fixture?.bus, 'SIGKILL'); });
 try {
-  evidence.application = { path: application, sha256: await hash(application) }; assert.equal(await hash(verifier), verifierDigest); evidence.verifier = { path: verifier, sha256: verifierDigest, reusedReadOnlyQueryLogic: true, expectedSchemaVersion: 8, schemaExpectationEnforcedByCaller: true };
+  evidence.application = { path: application, sha256: await hash(application) }; assert.equal(await hash(verifier), verifierDigest); evidence.verifier = { path: verifier, sha256: verifierDigest, reusedReadOnlyQueryLogic: true, expectedSchemaVersion: 13, schemaExpectationEnforcedByCaller: true };
   evidence.sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repository, encoding: 'utf8' }).trim();
   evidence.sourceHashes = {}; const sources = execFileSync('rg', ['--files', 'apps/desktop/src', 'apps/desktop/src-tauri/src', 'crates/openusage-codex/src', 'crates/openusage-storage/src'], { cwd: repository, encoding: 'utf8' }).trim().split('\n'); for (const path of [...sources, coreFixture, 'Cargo.lock']) evidence.sourceHashes[path] = await hash(join(repository, path));
   evidence.harnessHashes = {}; for (const path of ['collection.mjs', 'webdriver.mjs', 'private-fixture.mjs', 'x11-close.py', 'x11-reverse-tab.py']) evidence.harnessHashes[path] = await hash(join(harness, path));
@@ -212,10 +226,50 @@ try {
   const archivedChild = await stage(malformedQuota, 'activity-pending', archiveOffset); const beforeArchive = await oracle('before archive quiescence'); await call('set_profile_archived', { id: malformedQuota.id, archived: true }); await reaped(archivedChild); active.delete(archivedReceipt.requestId);
   await waitFor(async () => driver.execute('return Boolean(window.__collectionArchiveCompletion);'), 'archived pending collection refused'); assert.deepEqual(await driver.execute('return window.__collectionArchiveCompletion;'), { ok: false, error: 'provider_collection_cancelled' });
   const afterArchive = await oracle('archive prevents late combined publication'); const normalized = structuredClone(afterArchive); const oldProfile = beforeArchive.tables.profiles.find(row => row.id === malformedQuota.id), archivedProfile = normalized.tables.profiles.find(row => row.id === malformedQuota.id); assert.equal(archivedProfile.archived, 1); archivedProfile.archived = oldProfile.archived; archivedProfile.updated_at = oldProfile.updated_at; normalized.profiles.find(row => row.id === malformedQuota.id).archived = beforeArchive.profiles.find(row => row.id === malformedQuota.id).archived; assert.deepEqual(normalized, beforeArchive);
+  for (const [profile, price] of [[first, '0'], [reassociation, null]]) {
+    await call('create_subscription', { profileId: profile.id, input: { plan: 'Synthetic removal control', tier: null, currency: 'USD', price, intervalUnit: null, intervalCount: null, startDate: null, renewalDate: null, endDate: null, cancellationDate: null, autoRenew: null } });
+  }
+  await driver.waitForProfileRefresh(first.id);
+  await driver.waitForProfileRefresh(reassociation.id);
+  const pendingDelete = [];
+  for (const [profile, key] of [[first, '__collectionDeleteCompletion'], [reassociation, '__collectionOtherCompletion']]) {
+    await mode(profile, 'activity_hang');
+    const offset = (await rows(profile)).length;
+    const receipt = await begin(profile);
+    await driver.execute('window[arguments[0]]=null;window.__TAURI__.core.invoke("complete_profile_collection_read",arguments[1]).then(value=>window[arguments[0]]={ok:true,value},error=>window[arguments[0]]={ok:false,error});return true;', [key, args(receipt)]);
+    pendingDelete.push({ profile, receipt, child: await stage(profile, 'activity-pending', offset) });
+  }
+  const beforeDelete = await oracle('before selected-profile deletion with two pending workers');
+  assert.ok(beforeDelete.tables.collection_runs.some(row => row.profile_id === first.id));
+  assert.equal(beforeDelete.tables.subscriptions.find(row => row.profile_id === first.id).amount_minor, 0);
+  assert.equal(beforeDelete.tables.subscriptions.find(row => row.profile_id === reassociation.id).amount_minor, null);
+  await driver.openProfileOptions(first.id);
+  await driver.click(`[data-profile-id="${first.id}"] [data-profile-action="remove"]`);
+  const removal = `[data-profile-removal-dialog="${first.id}"]`;
+  await waitFor(() => driver.execute('const dialog=document.querySelector(arguments[0]);return Boolean(dialog?.open&&!dialog.querySelector("[data-profile-removal-consent]").disabled);', [removal]), 'native removal preview during pending collection');
+  await driver.click(`${removal} [role=radiogroup] > label:nth-child(2) [role=radio]`);
+  await waitFor(() => driver.execute('const dialog=document.querySelector(arguments[0]);return Boolean(dialog.querySelectorAll("[role=radio]")[1].getAttribute("aria-checked")==="true"&&!dialog.querySelector("[data-profile-removal-consent]").disabled);', [removal]), 'selected Delete History choice');
+  await capture('collection-profile-delete-populated.png', removal, 720);
+  await driver.click(`${removal} [data-profile-removal-consent]`);
+  await driver.click(`${removal} [data-profile-removal-submit]`);
+  await waitFor(async () => !(await call('list_profiles')).profiles.some(profile => profile.id === first.id), 'selected profile deleted through native dialog');
+  await reaped(pendingDelete[0].child); active.delete(pendingDelete[0].receipt.requestId);
+  await waitFor(() => driver.execute('return Boolean(window.__collectionDeleteCompletion);'), 'deleted collection completion refused');
+  assert.deepEqual(await driver.execute('return window.__collectionDeleteCompletion;'), { ok: false, error: 'provider_collection_cancelled' });
+  assert.doesNotThrow(() => process.kill(pendingDelete[1].child.pid, 0));
+  assert.equal(await driver.execute('return window.__collectionOtherCompletion;'), null);
+  const afterDelete = await oracle('deletion removes only selected records and preserves independent journals');
+  assert.deepEqual(afterDelete, withoutProfile(beforeDelete, first.id));
+  await call('cancel_profile_collection_read', args(pendingDelete[1].receipt));
+  await reaped(pendingDelete[1].child); active.delete(pendingDelete[1].receipt.requestId);
+  await waitFor(() => driver.execute('return Boolean(window.__collectionOtherCompletion);'), 'other collection cancelled explicitly');
+  assert.deepEqual(await oracle('other-profile cancellation preserves the deletion result'), afterDelete);
+  await closeNormally(); await open();
+  assert.deepEqual(await oracle('genuine restart preserves selected-profile deletion'), afterDelete);
   assert.equal(await readFile(join(fixture.dirs.codex, 'synthetic-fixture.txt'), 'utf8'), CODEX_SENTINEL); assert.deepEqual(await readdir(fixture.dirs.codex), ['synthetic-fixture.txt']);
   evidence.observations = Object.fromEntries(await Promise.all(profiles.map(async profile => [profile.id, await rows(profile)])));
   for (const observed of Object.values(evidence.observations).flat().filter(row => row.kind === 'start')) await reaped(observed);
-  evidence.steps.push({ unsupportedMethodsIsolated: true, malformedCapabilityPreservesAllTables: true, cancellationPreservesBothValuesAndHistory: true, genuineRestartAndNoApprovalCache: true, explicitReassociationOnly: true, reapprovalAndArchiveInvalidatePendingCollection: true, schedulingNotImplemented: true, restoreRaceExecuted: false });
+  evidence.steps.push({ unsupportedMethodsIsolated: true, malformedCapabilityPreservesAllTables: true, cancellationPreservesBothValuesAndHistory: true, genuineRestartAndNoApprovalCache: true, explicitReassociationOnly: true, reapprovalAndArchiveInvalidatePendingCollection: true, selectedDeletionInvalidatesPendingCollection: true, anotherProfileProcessSurvivesDeletion: true, completeFortyTwoTableDeletionComparison: true, localSubscriptionScopeAndMissingPricePreserved: true, deletionSurvivesGenuineRestart: true, scheduledMonitoringExercised: false, restoreRaceExecuted: false });
   assert.equal(await hash(application), evidence.application.sha256); assert.equal(await hash(verifier), verifierDigest); assert.equal(await hash(executable), fixtureDigest); for (const [path, digest] of Object.entries(evidence.sourceHashes)) assert.equal(await hash(join(repository, path)), digest, `Source drift: ${path}`); for (const [path, digest] of Object.entries(evidence.harnessHashes)) assert.equal(await hash(join(harness, path)), digest, `Harness drift: ${path}`);
   evidence.result = 'passed';
 } catch (error) {

@@ -126,7 +126,7 @@ try {
   await waitFor(async () => driver.execute('return ["#workspace-passphrase","#workspace-confirmation"].every(selector=>{const field=document.querySelector(selector);return Boolean(field&&!field.disabled);});'), 'enabled setup fields');
   await driver.type('#workspace-passphrase', password); await driver.type('#workspace-confirmation', password); await driver.click('.unlock-form button[type=submit]');
   first = await create('Synthetic timeout profile'); other = await create('Other preserved profile'); archived = await create('Archived preserved profile');
-  await driver.openProfileOptions(archived.id); await driver.click(`[data-profile-id="${archived.id}"] [data-profile-action="archive"]`); await waitFor(async () => (await profiles()).find(profile => profile.id === archived.id)?.archived, 'archived preserved profile');
+  await driver.openProfileOptions(archived.id); await driver.archiveProfile(archived.id); await waitFor(async () => (await profiles()).find(profile => profile.id === archived.id)?.archived, 'archived preserved profile');
   const home = join(workspace, 'profiles', first.id), otherHome = join(workspace, 'profiles', other.id), archivedHome = join(workspace, 'profiles', archived.id);
   for (const path of [home, otherHome, archivedHome]) await writeFile(join(path, 'synthetic-preserved-marker.txt'), 'Owned timeout test marker. No credentials.\n', { mode: 0o600 });
   const beforeProfiles = await profiles(), beforeHomes = [await files(home), await files(otherHome), await files(archivedHome)];

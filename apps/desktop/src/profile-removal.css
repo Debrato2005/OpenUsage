@@ -1,0 +1,23 @@
+.profile-removal-dialog {
+  position: fixed;
+  inset: 0;
+  width: min(32rem, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  margin: auto;
+  padding: var(--space-5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  overflow: auto;
+  overflow-wrap: anywhere;
+}
+.profile-removal-dialog h2 { margin: 0 0 var(--space-4); font-size: var(--text-section); }
+.profile-removal-dialog [data-slot="radio-group"] { margin-block: var(--space-3); }
+.profile-removal-dialog [data-slot="radio-group"] > label,
+.profile-removal-consent { display: flex; align-items: flex-start; gap: var(--space-2); }
+.profile-removal-dialog [data-slot="radio"],
+.profile-removal-dialog [data-slot="checkbox"] { margin-top: .2em; }
+.profile-removal-dialog > .profile-actions { margin-top: var(--space-4); }
+.profile-removal-dialog .operation-error { margin-block: var(--space-3); }

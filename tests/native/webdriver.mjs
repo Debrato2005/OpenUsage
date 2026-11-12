@@ -200,6 +200,16 @@ export class NativeDriver {
     await waitFor(async () => this.execute('return document.querySelector(arguments[0])?.textContent.trim()===arguments[1];', [selector, label]), `selected ${label} in ${selector}`);
   }
 
+  async archiveProfile(profileId) {
+    await this.openProfileOptions(profileId);
+    await this.click(`[data-profile-id="${profileId}"] [data-profile-action="remove"]`);
+    const dialog = `[data-profile-removal-dialog="${profileId}"]`;
+    await waitFor(async () => this.execute('const dialog=document.querySelector(arguments[0]),consent=dialog?.querySelector("[data-profile-removal-consent]"),radio=dialog?.querySelector("[role=radio]");return Boolean(dialog?.open&&consent&&!consent.disabled&&radio?.getAttribute("aria-checked")==="true");', [dialog]), 'prepared Archive History choice');
+    await this.click(`${dialog} [data-profile-removal-consent]`);
+    await this.click(`${dialog} [data-profile-removal-submit]`);
+    await waitFor(async () => this.execute('return !document.querySelector(arguments[0])?.open;', [dialog]), 'completed Archive History confirmation');
+  }
+
   async replaceText(selector, text) {
     await this.click(selector);
     await this.request('POST', `/session/${this.session}/actions`, { actions: [{ type: 'key', id: 'replace-text', actions: [{ type: 'keyDown', value: '\uE009' }, { type: 'keyDown', value: 'a' }, { type: 'keyUp', value: 'a' }, { type: 'keyUp', value: '\uE009' }, { type: 'keyDown', value: '\uE003' }, { type: 'keyUp', value: '\uE003' }] }] });

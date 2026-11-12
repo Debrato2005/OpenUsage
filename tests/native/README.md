@@ -234,6 +234,48 @@ An explicit synthetic marker checks local data retention across archive and rest
 Separate file and symlink faults affect only synthetic paths and must preserve their markers.
 This test does not establish provider collection, remote history, or other-platform acceptance.
 
+
+The removal confirmation offers Archive History and Delete History separately.
+Both actions require the unchecked approval control. The journey checks active
+and archived deletion, cancelled and stale previews, retained home markers,
+and persistence after a genuine restart. Native keyboard actions select the
+history choice, reach consent, cancel with Escape, and return focus.
+Native images cover both themes and narrow 200% text. This is text enlargement,
+not OS scaling or complete assistive-technology qualification.
+
+### Profile work during deletion
+
+Run `node tests/native/collection.mjs` with the same private display settings.
+Set `OPENUSAGE_LOGIN_VERIFIER` to the activity verifier and set
+`OPENUSAGE_LOGIN_VERIFIER_SHA256` to its checked digest. The journey refuses a
+mismatch before the oracle starts. Its encrypted-copy view includes all 42
+current tables. It checks populated selected-profile deletion while two owned
+provider operations are pending. The other profile's worker must remain alive.
+This journey does not exercise scheduled monitoring.
+
+Run `node tests/native/monitoring.mjs` with
+`OPENUSAGE_NATIVE_PROFILE_REMOVAL=1` for the separate monitoring removal case.
+Public typed commands complete the actual synthetic login and grant.
+Start and Delete History use the GUI with the initial scheduled worker.
+The [app record](../../docs/reviews/2026-11-12-profile-removal-app.md) owns executed
+results and remaining gates. This mode does not measure the 300-second interval.
+
+The changed archive callers in activity, quota, login, backup, export, and
+restore journeys use `NativeDriver.archiveProfile`. It opens the actual dialog,
+checks the default choice, gives explicit consent, and waits for completion.
+For journeys that use `OPENUSAGE_ACTIVITY_VERIFIER`, select the same frozen
+activity oracle. Keep its checked digest in `OPENUSAGE_LOGIN_VERIFIER_SHA256`.
+
+On the qualified host, concurrent journeys use `xvfb-run -d` for atomic display
+allocation. Its `-a` wrapper can select the same display in concurrent launches.
+Check local wrapper support before selecting its allocation option. Keep Node
+and wrapper exit codes separate. The [app record](../../docs/reviews/2026-11-12-profile-removal-app.md)
+records the probe and corrected runs.
+
+The login-timeout journey observes the real 900-second application wait.
+Give its outer runner at least 1080 seconds. Keep the application constants,
+clocks, and responses unchanged. Preserve a failed run before a corrected input.
+
 ## Native backup inspection
 
 Run `node tests/native/backup-inspection.mjs` with the same private display, driver, binary, and source settings.

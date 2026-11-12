@@ -141,7 +141,7 @@ async function archive(profile) {
     if (await driver.execute('return document.querySelector(arguments[0]).getAttribute("aria-expanded")==="false";', [selector])) await activate(selector);
     await waitFor(() => driver.execute('return document.querySelector(arguments[0])?.getAttribute("aria-expanded")==="true";', [selector]), `profile ${action} expanded`);
   }
-  await activate(`${scope} [data-profile-action="archive"]`);
+  await driver.archiveProfile(profile.id);
   await waitFor(async () => (await call('list_profiles')).profiles.find(row => row.id === profile.id)?.archived, 'archived synthetic profile');
   await navigate('settings');
 }

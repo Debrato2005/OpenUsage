@@ -13,7 +13,7 @@ The app runs on Linux only. Results below use synthetic data unless they say oth
 | Area | State |
 |---|---|
 | Storage | SQLCipher 4 with WAL at schema 13, with OS key store and passphrase fallback |
-| Accounts | Up to 10 Codex profiles, device-code sign-in, sign-out, and archive |
+| Accounts | Up to 10 Codex profiles, device-code sign-in, sign-out, Archive History, and Delete History |
 | Quotas | Reported windows, reset countdowns, conservative reset confirmation, and history |
 | Token activity | Provider daily buckets, heatmaps, and Individual and Profile sum views |
 | Comparison | Windows align only when limit ID, role, and duration match |
@@ -26,16 +26,18 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scoped result, November 12, 2026. Rust storage now has separate archive
-and delete-history operations with exact profile, home, and revision checks.
-Ten public tests, three parent guard mutations, the full storage suite, and
-full workspace tests and Clippy passed with private synthetic Linux data. The [record](reviews/2026-11-12-profile-history-storage.md)
-owns exact evidence. App choices, cancellation, and native acceptance remain open.
+Latest scoped result, November 12, 2026. The app offers Archive History and
+Delete History with explicit selected-profile consent. Rust binds each one-use
+approval to the profile, home, choice, and storage revision. Private synthetic
+Linux checks cover stale requests, selected work, retained homes, and unrelated
+data. The [app record](reviews/2026-11-12-profile-removal-app.md) owns exact evidence
+and limits. Full workspace and Chromium/WebKit renderer checks passed.
+All 18 selected native variants and four independent guard mutations passed.
 
-Hosted CI for `8679dfb` passed Linux checks and Renderer in
-[run 43176028536](https://github.com/Debrato2005/OpenUsage/actions/runs/43176028536).
-This storage change needs its own hosted result. The [evidence log](acceptance-traceability.md#evidence-log)
-records the earlier commit scopes.
+Hosted CI for the preceding storage source passed Linux checks and Renderer in
+[run 43182109240](https://github.com/Debrato2005/OpenUsage/actions/runs/43182109240).
+The [evidence log](acceptance-traceability.md#evidence-log) records the original
+commit and its equivalent current tree. This app change needs its own hosted result.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -59,15 +61,13 @@ Kept from baseline 2.0:
 - System tray: OU-UI-008, OU-UI-021, OU-UI-024, OU-MON-016.
 - One renewal alert: OU-ALERT-005, OU-ALERT-014, OU-ALERT-015.
 - WSL profile configuration: OU-ACCT-011, OU-ENV-006, AT-39.
-- Per-profile Delete History: OU-ACCT-013.
 - Wake handling: OU-PROC-013, OU-MON-013.
 
 ## Partial
 
-- Profile removal storage, S-08a1, November 12, 2026: the
-  [storage boundary](architecture.md#profile-removal) implements archive and
-  scoped history deletion. Public synthetic tests cover all current tables,
-  rollback, reopen, and backup restoration. App integration remains open.
+- Profile removal, S-08a2, November 12, 2026: the
+  [app record](reviews/2026-11-12-profile-removal-app.md) owns synthetic Linux scope.
+  Real accounts and other platforms remain unverified. WSL removal stays unavailable.
 
 - Local logs (5C), L-1f9, November 9, 2026: the [grouped runner](../crates/openusage-locallogs/README.md#grouped-scans) checks report policies, root modes, consent, resolved paths, and pinned zones. It saves each complete result once. The pinned copied-root fixtures expose limits in Pi and Amp. Kilo counts its copied fixture once. Consumer integration is complete within the L-1f10 scope. Full tool qualification remains open. No additional tool is enabled.
 
@@ -168,11 +168,10 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 
 ## Current assignment
 
-[S-08a2](implementation-slices.md#s-08a2-profile-removal-in-the-app) connects the
-verified storage boundary to the app. Keep exact selected-profile consent,
-process and notification ordering, private homes, stale-target refusal, and
-retained data visible in the destructive confirmation. Use the common controls.
-No app or native removal acceptance exists yet.
+[S-08a2](implementation-slices.md#s-08a2-profile-removal-in-the-app) is complete
+within private synthetic Linux scope. The [app record](reviews/2026-11-12-profile-removal-app.md)
+owns native, renderer, workspace, and independent guard evidence. The remaining
+launch work stays in the build checklist. Report this slice before another assignment.
 
 S-08a1 storage checks passed within their synthetic Linux scope. L-1f11aq's native Codex qualification
 remains separate from production activation. The [gate review](reviews/2026-11-12-additional-tool-gates.md)

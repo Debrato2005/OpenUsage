@@ -255,7 +255,7 @@ try {
   const archived = profiles.profiles.find(profile => profile.label === 'Content synthetic archived');
   assert.ok(archived);
   await driver.openProfileOptions(archived.id);
-  await driver.click(`[data-profile-id="${archived.id}"] [data-profile-action="archive"]`);
+  await driver.archiveProfile(archived.id);
   await waitFor(async () => (await driver.invoke('list_profiles')).value?.activeProfiles === 2, 'GUI-archived backup fixture profile');
   await waitFor(async () => (await driver.execute('return !document.querySelector("#theme").disabled;')) === true, 'archive save completed');
   evidence.expectedContentSummary = { activeProfiles: 2, archivedProfiles: '1', accounts: '0' };

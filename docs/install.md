@@ -74,6 +74,22 @@ For the Debian package:
 sudo apt remove open-usage
 ```
 
+## Remove a profile
+
+On Linux, use these steps for an active profile:
+
+1. Open **Settings → Manage accounts → View usage → Manage profile → Remove**.
+2. Choose **Archive History** or **Delete History**.
+3. Read the confirmation.
+4. Select its approval checkbox.
+5. Select the matching history action.
+
+For an archived profile, open **View usage → Delete history**.
+Archive History keeps the profile and its saved history. Delete History removes
+its owned local records. Tool homes, saved sign-in, and provider subscriptions
+remain. [SC-026](srs-clarifications.md#sc-026-profile-removal-and-retained-delivery-controls)
+lists retained account records, delivery controls, exports, and backups.
+
 ## Delete your local data
 
 ### In the app

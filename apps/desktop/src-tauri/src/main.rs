@@ -304,6 +304,28 @@ struct ArchiveProfileArgs {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct PrepareProfileRemovalArgs {
+    profile_id: String,
+    history: workspace::ProfileHistoryChoice,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ApplyProfileRemovalArgs {
+    approval_id: String,
+    profile_id: String,
+    history: workspace::ProfileHistoryChoice,
+    confirmed: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CancelProfileRemovalArgs {
+    approval_id: String,
+}
+
+#[derive(Deserialize)]
 #[serde(rename_all = "snake_case")]
 enum ThemeChoice {
     System,
@@ -323,6 +345,7 @@ enum ProfileOperation {
     Create(String),
     Rename(String, String),
     SetArchived(String, bool),
+    Remove(ApplyProfileRemovalArgs),
 }
 
 fn arguments<'a, T: Deserialize<'a>>(
@@ -815,6 +838,12 @@ async fn run_profiles(
             ProfileOperation::SetArchived(id, archived) => {
                 workspace.set_profile_archived(&id, archived)
             }
+            ProfileOperation::Remove(args) => workspace.apply_profile_removal(
+                &args.approval_id,
+                &args.profile_id,
+                args.history,
+                args.confirmed,
+            ),
         }
     })
     .await
@@ -867,6 +896,59 @@ async fn set_profile_archived(
         ProfileOperation::SetArchived(args.id, args.archived),
     )
     .await
+}
+
+#[tauri::command]
+async fn prepare_profile_removal(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<workspace::ProfileRemovalPreview, CommandError> {
+    let args: PrepareProfileRemovalArgs = arguments(&request)?;
+    workspace::validate_profile_id(&args.profile_id)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut state = service
+            .lock()
+            .map_err(|_| CommandError::ProfileRemovalFailed)?;
+        state
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .prepare_profile_removal(&args.profile_id, args.history)
+    })
+    .await
+    .map_err(|_| CommandError::ProfileRemovalFailed)?
+}
+
+#[tauri::command]
+async fn apply_profile_removal(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<ProfileView, CommandError> {
+    let args: ApplyProfileRemovalArgs = arguments(&request)?;
+    workspace::validate_profile_id(&args.profile_id)?;
+    restore::validate_preview_id(&args.approval_id)?;
+    run_profiles(Arc::clone(&service.0), ProfileOperation::Remove(args)).await
+}
+
+#[tauri::command]
+async fn cancel_profile_removal(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<restore::Cancelled, CommandError> {
+    let args: CancelProfileRemovalArgs = arguments(&request)?;
+    restore::validate_preview_id(&args.approval_id)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut state = service
+            .lock()
+            .map_err(|_| CommandError::ProfileRemovalFailed)?;
+        state
+            .as_mut()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .cancel_profile_removal(&args.approval_id)
+    })
+    .await
+    .map_err(|_| CommandError::ProfileRemovalFailed)?
 }
 
 #[tauri::command]
@@ -2060,6 +2142,9 @@ fn main() {
             create_profile,
             rename_profile,
             set_profile_archived,
+            prepare_profile_removal,
+            apply_profile_removal,
+            cancel_profile_removal,
             list_backups,
             inspect_backup,
             prepare_restore_preview,
@@ -2144,6 +2229,7 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
+    use super::{ApplyProfileRemovalArgs, CancelProfileRemovalArgs, PrepareProfileRemovalArgs};
     use super::{
         ApplyRestoreArgs, ApproveProviderArgs, ArchiveProfileArgs, BackupArgs, BeginLoginArgs,
         BeginReadArgs, CancelRestorePreviewArgs, CheckpointPreviewArgs, CreateProfileArgs,
@@ -2152,6 +2238,56 @@ mod tests {
         ProfileCheckArgs, ProfileHistoryArgs, ProfilePlanArgs, ProfileReadArgs, RenameProfileArgs,
         SetupArgs, SignOutArgs, ThemeArgs, UnlockArgs, is_bundled_url,
     };
+
+    #[test]
+    fn profile_removal_arguments_require_exact_typed_consent_without_private_fields() {
+        let profile = "11111111-1111-4111-8111-111111111111";
+        let approval = "22222222-2222-4222-8222-222222222222";
+        let prepare = serde_json::json!({"profileId":profile,"history":"delete"});
+        assert!(serde_json::from_value::<PrepareProfileRemovalArgs>(prepare.clone()).is_ok());
+        for (field, value) in [
+            ("history", serde_json::json!("erase")),
+            ("history", serde_json::json!(null)),
+            ("profileId", serde_json::json!([])),
+            ("home", serde_json::json!("/synthetic/private")),
+            ("revision", serde_json::json!(1)),
+            ("allProfiles", serde_json::json!(true)),
+        ] {
+            let mut invalid = prepare.clone();
+            invalid[field] = value;
+            assert!(serde_json::from_value::<PrepareProfileRemovalArgs>(invalid).is_err());
+        }
+        let apply = serde_json::json!({"profileId":profile,"approvalId":approval,"history":"archive","confirmed":true});
+        assert!(serde_json::from_value::<ApplyProfileRemovalArgs>(apply.clone()).is_ok());
+        for field in ["profileId", "approvalId", "history", "confirmed"] {
+            let mut invalid = apply.clone();
+            invalid.as_object_mut().unwrap().remove(field);
+            assert!(serde_json::from_value::<ApplyProfileRemovalArgs>(invalid).is_err());
+        }
+        for (field, value) in [
+            ("confirmed", serde_json::json!("true")),
+            ("confirmed", serde_json::json!(null)),
+            ("history", serde_json::json!(["delete"])),
+            ("profileIds", serde_json::json!([profile])),
+            ("path", serde_json::json!("/synthetic/private")),
+        ] {
+            let mut invalid = apply.clone();
+            invalid[field] = value;
+            assert!(serde_json::from_value::<ApplyProfileRemovalArgs>(invalid).is_err());
+        }
+        assert!(
+            serde_json::from_value::<CancelProfileRemovalArgs>(
+                serde_json::json!({"approvalId":approval})
+            )
+            .is_ok()
+        );
+        assert!(
+            serde_json::from_value::<CancelProfileRemovalArgs>(
+                serde_json::json!({"approvalId":approval,"all":true})
+            )
+            .is_err()
+        );
+    }
 
     #[test]
     fn sign_out_requires_selected_approval_explicit_consent_and_no_injected_scope() {

@@ -31,7 +31,7 @@ This is the record of how requirements were read. Entries keep their original da
 | SC-023 | Copied Amp usage in the pinned scanner | Confirmed AT-65 gap |
 | SC-024 | Legacy local usage during grouped migration | Resolved under owner execution direction |
 | SC-025 | Captured local records and producer completion | Implementation reading recorded; SRS unchanged |
-| SC-026 | Profile removal and retained delivery controls | Implementation reading recorded, app integration open |
+| SC-026 | Profile removal and retained delivery controls | Implementation reading recorded, native Linux scope passed |
 
 ## SC-026: profile removal and retained delivery controls
 
@@ -60,6 +60,10 @@ earlier backups remain outside deletion.
 An earlier backup can restore deleted history through the separate restore
 flow. The [storage boundary](architecture.md#profile-removal) owns the API and
 retained data. This reading does not complete removal in the app.
+
+November 12 implementation update: S-08a2 connects these choices to the app.
+The [native record](reviews/2026-11-12-profile-removal-app.md) owns executed scope.
+The requirement reading and retained-data boundary stay unchanged.
 
 ## SC-025: captured local records and producer completion
 

@@ -208,6 +208,52 @@ for (const command of ['export_quota_history', 'export_activity_history']) test(
   }
 });
 
+test('profile removal previews retain the selected profile and history choice', async () => {
+  const profileId = '00000001-0000-4000-8000-000000000000';
+  for (const history of ['archive', 'delete']) {
+    const preview = {
+      approvalId: '00000002-0000-4000-8000-000000000000',
+      profileId, label: '😀'.repeat(100), history,
+    };
+    desktopResponse(preview);
+    assert.deepEqual(await invoke('prepare_profile_removal', { profileId, history }), preview);
+  }
+});
+
+test('profile removal rejects mismatched previews and private fields', async () => {
+  const profileId = '00000001-0000-4000-8000-000000000000';
+  const preview = {
+    approvalId: '00000002-0000-4000-8000-000000000000',
+    profileId, label: 'Synthetic profile', history: 'delete',
+  };
+  for (const change of [
+    { profileId: preview.approvalId }, { history: 'archive' }, { history: 'erase' },
+    { approvalId: '../approval' }, { home: '/synthetic/private' }, { revision: 'private' },
+    { label: '' }, { label: 'é'.repeat(101) }, { label: 'name\u0000hidden' },
+  ]) {
+    desktopResponse({ ...preview, ...change });
+    await assert.rejects(invoke('prepare_profile_removal', { profileId, history: 'delete' }), /desktop response is incompatible/);
+  }
+});
+
+test('profile removal results confirm the selected history choice', async () => {
+  const profileId = '00000001-0000-4000-8000-000000000000';
+  const approvalId = '00000002-0000-4000-8000-000000000000';
+  const profile = { id: profileId, label: 'Synthetic', environment: 'native', connectionState: 'authentication_required', archived: true };
+  desktopResponse({ profiles: [profile], activeProfiles: 0 });
+  assert.deepEqual(await invoke('apply_profile_removal', { profileId, approvalId, history: 'archive', confirmed: true }), { profiles: [profile], activeProfiles: 0 });
+  desktopResponse({ profiles: [], activeProfiles: 0 });
+  assert.deepEqual(await invoke('apply_profile_removal', { profileId, approvalId, history: 'delete', confirmed: true }), { profiles: [], activeProfiles: 0 });
+  for (const [history, value] of [
+    ['archive', { profiles: [], activeProfiles: 0 }],
+    ['archive', { profiles: [{ ...profile, archived: false }], activeProfiles: 1 }],
+    ['delete', { profiles: [profile], activeProfiles: 0 }],
+  ]) {
+    desktopResponse(value);
+    await assert.rejects(invoke('apply_profile_removal', { profileId, approvalId, history, confirmed: true }), /desktop response is incompatible/);
+  }
+});
+
 test('accepts profile records with Unicode labels and counts only active profiles', async () => {
   const profile = {
     id: '00000001-0000-4000-8000-000000000000', label: '😀'.repeat(100),

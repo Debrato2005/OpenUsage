@@ -6,15 +6,16 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createFixture, stopGroup } from './private-fixture.mjs';
 import { NativeDriver, waitFor } from './webdriver.mjs';
+import { loginVerifierDigest, runLoginVerifier } from './login-verifier.mjs';
 
 for (const name of ['OPENUSAGE_NATIVE_BINARY', 'OPENUSAGE_NATIVE_ACTIVITY_HISTORY_FIXTURE', 'OPENUSAGE_NATIVE_EVIDENCE', 'OPENUSAGE_LOGIN_VERIFIER']) assert.ok(process.env[name], name);
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const application = resolve(process.env.OPENUSAGE_NATIVE_BINARY), seeder = resolve(process.env.OPENUSAGE_NATIVE_ACTIVITY_HISTORY_FIXTURE), output = resolve(process.env.OPENUSAGE_NATIVE_EVIDENCE), verifier = resolve(process.env.OPENUSAGE_LOGIN_VERIFIER);
 const password = 'OpenUsage synthetic activity history workspace 2026';
 const providerDigest = '53a853b737ceca311649e9f1d9ebd1341154a5f782efd8e915f7f834c819a6dc';
-const verifierDigest = 'a2e4a64707081a9943f3c04f8237c2b16bea673e974e96393d6a8a7d9357f975';
+const verifierDigest = loginVerifierDigest();
 const hash = async path => createHash('sha256').update(await readFile(path)).digest('hex');
-const evidence = { requirement: 'NATIVE-ACTIVITY-HISTORY-EXPORT-001', result: 'failed', scope: 'Actual Linux Tauri/WebKitGTK CSV/JSON export from a private SQLCipher4/WAL schema8 workspace. Two GUI synthetic sign-ins save activity; a strictly marked closed-app helper adds21synthetic summaries and retained daily observations through production storage APIs. Independent30table encrypted-copy records establish exact all-page/prior-association values, nulls, zeroes, large integers, dates and provenance. GUI plaintext consent, aliases, explicit local identifiers with email always omitted from activity history, refusal cleanup, routing isolation, archived restart and unchanged database/WAL/key are checked. No live-provider, combined-total or other-platform acceptance.', screenshots: [], closes: [], oracles: [], exports: [] };
+const evidence = { requirement: 'NATIVE-ACTIVITY-HISTORY-EXPORT-001', result: 'failed', scope: 'Actual Linux Tauri/WebKitGTK CSV/JSON export from a private SQLCipher4/WAL schema 13 workspace. Two GUI synthetic sign-ins save activity; a strictly marked closed-app helper adds 21 synthetic summaries and retained daily observations through production storage APIs. Independent encrypted-copy records from 42 tables establish exact all-page/prior-association values, nulls, zeroes, large integers, dates and provenance. GUI plaintext consent, aliases, explicit local identifiers with email always omitted from activity history, refusal cleanup, routing isolation, archived restart and unchanged database/WAL/key are checked. No live-provider, combined-total or other-platform acceptance.', screenshots: [], closes: [], oracles: [], exports: [] };
 let fixture, driver, sequence = 0;
 const profiles = [];
 const call = async (command, args) => { const response = await driver.invoke(command, args); assert.equal(response.ok, true, `${command}: ${JSON.stringify(response)}`); return response.value; };
@@ -57,7 +58,7 @@ async function oracle(label) {
   try {
     const database = join(temporary, 'database.db'); await copyFile(fixture.database, database); await chmod(database, 0o600);
     if (before[`${fixture.database}-wal`] !== null) { await copyFile(`${fixture.database}-wal`, `${database}-wal`); await chmod(`${database}-wal`, 0o600); }
-    const report = JSON.parse(execFileSync(verifier, ['database', database, join(dirname(fixture.database), 'database-key.v1'), '--profile-state'], { input: JSON.stringify({ passphrase: password }), encoding: 'utf8', env: fixture.environment, timeout: 30000, maxBuffer: 8 * 1024 * 1024 }));
+    const report = JSON.parse(await runLoginVerifier(verifier, verifierDigest, ['database', database, join(dirname(fixture.database), 'database-key.v1'), '--profile-state'], { input: JSON.stringify({ passphrase: password }), encoding: 'utf8', env: fixture.environment, timeout: 30000, maxBuffer: 8 * 1024 * 1024 }));
     for (const field of ['verified', 'readOnly', 'inputUnchanged', 'keyEnvelopeUnchanged', 'walRecordsUnchanged']) assert.equal(report[field], true, field);
     assert.equal(report.schemaVersion, 13); assert.equal(report.plaintextDiskStaging, false); assert.equal(Object.keys(report.state.tables).length, 42);
     assert.deepEqual(await liveHashes(), before);
@@ -164,7 +165,7 @@ async function guiExport(profile, format, identifiers = false) {
 await mkdir(output, { recursive: true, mode: 0o700 });
 process.once('exit', () => { driver?.kill('SIGKILL'); stopGroup(fixture?.bus, 'SIGKILL'); });
 try {
-  evidence.applicationSha256 = await hash(application); evidence.seederSha256 = await hash(seeder); evidence.verifierSha256 = await hash(verifier);
+  evidence.applicationSha256 = await hash(application); evidence.seederSha256 = await hash(seeder); assert.equal(await hash(verifier), verifierDigest); evidence.verifierSha256 = verifierDigest;
   fixture = await createFixture('activity-history-export'); fixture.environment.HOME = join(fixture.root, 'synthetic-home'); await mkdir(fixture.environment.HOME, { mode: 0o700 });
   await open(true);
   const executable = join(fixture.root, 'synthetic-collection-provider.py'); await copyFile(join(repository, 'crates/openusage-codex/tests/fixtures/synthetic-collection-provider.py'), executable); await chmod(executable, 0o700); assert.equal(await hash(executable), providerDigest);
@@ -235,7 +236,7 @@ try {
   assert.equal(quota.every(row => row.profile_id === profiles[0].id && row.record_kind.startsWith('quota_') && row.source_method === 'account/rateLimits/read' && row.collection_run_id === initialQuota.collectionRunId), true);
   assert.equal(JSON.stringify(quota).includes(profiles[1].id), false);
   assert.deepEqual(await liveHashes(), before); assert.deepEqual(await oracle('all three export routes and refusals preserve source records'), tables);
-  await driver.openProfileOptions(profiles[0].id); await driver.click(`[data-profile-id="${profiles[0].id}"] [data-profile-action="archive"]`);
+  await driver.openProfileOptions(profiles[0].id); await driver.archiveProfile(profiles[0].id);
   await waitFor(async () => (await call('list_profiles')).profiles.find(profile => profile.id === profiles[0].id)?.archived, 'archived profile retains activity export');
   await close(); await open();
   const archivedBefore = await liveHashes(), archivedTables = await oracle('archived genuine restart before export');
