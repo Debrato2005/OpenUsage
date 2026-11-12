@@ -45,6 +45,11 @@ def environment(root):
     env.update(CARGO_TARGET_DIR=str(root / '.tools/build-target'),
                CARGO_HOME=str(root / '.tools/cargo-home'),
                CARGO_INCREMENTAL='0', CARGO_BUILD_JOBS='1')
+    browsers = root / '.tools/playwright-runtime/browsers'
+    if browsers.is_dir() and 'PLAYWRIGHT_BROWSERS_PATH' not in env:
+        if storage.linked(browsers.parent) or storage.linked(browsers):
+            raise ValueError('The project browser runtime must not be a link')
+        env['PLAYWRIGHT_BROWSERS_PATH'] = str(browsers)
     return env
 
 

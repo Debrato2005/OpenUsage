@@ -74,6 +74,7 @@ async function chooseFilter(page: Page, name: string) {
 
 test('tabular figures stay on digit runs so spaces and punctuation keep their normal width', async ({ page }) => {
   await open(page);
+  await expect(page.locator('.overview-window-left').first()).toBeVisible();
   const measured = await page.evaluate(async () => {
     await document.fonts.ready;
     const probe = document.createElement('span');

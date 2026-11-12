@@ -19,6 +19,8 @@ python3 scripts/engineering.py trace /absolute/path/to/selected-session.jsonl
 
 The runner uses `.tools/cargo-home` for Cargo downloads and `.tools/build-target` for build output. It puts the bundled Rust tools first on PATH. Direct Cargo commands must use the same environment. Shared build and cache directories cannot be links.
 
+When `.tools/playwright-runtime/browsers` exists, the runner uses that browser cache unless `PLAYWRIGHT_BROWSERS_PATH` is already set. This keeps the project's runtime libraries with its browsers. It does not install or change a system browser.
+
 `verify` defaults to a JSON plan for committed-to-working-tree changes and untracked files. Use `--staged` for the index, or `--base REF` for branch changes. Plans select tool tests, renderer specs and affected Rust packages. Unknown changes retain a manual gate. Review the plan before `--run`.
 
 The plan covers every Rust workspace member, including the CLI, keys, and local logs. A member manifest also selects the dependency-policy check. A regression test compares this coverage with the workspace manifest. A source change in an unknown crate keeps an explicit manual gate.
