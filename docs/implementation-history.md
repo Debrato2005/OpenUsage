@@ -4,6 +4,21 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## S-08a2 result before L-7e1
+
+Latest scoped result, November 12, 2026. The app offers Archive History and
+Delete History with explicit selected-profile consent. Rust binds each one-use
+approval to the profile, home, choice, and storage revision. Private synthetic
+Linux checks cover stale requests, selected work, retained homes, and unrelated
+data. The [app record](reviews/2026-11-12-profile-removal-app.md) owns exact evidence
+and limits. Full workspace and Chromium/WebKit renderer checks passed.
+All 18 selected native variants and four independent guard mutations passed.
+
+Hosted CI for the preceding storage source passed Linux checks and Renderer in
+[run 43182109240](https://github.com/Debrato2005/OpenUsage/actions/runs/43182109240).
+The [evidence log](acceptance-traceability.md#evidence-log) records the original
+commit and its equivalent current tree. This app change needs its own hosted result.
+
 ## S-08a1 result before S-08a2
 
 Latest scoped result, November 12, 2026. Rust storage now has separate archive

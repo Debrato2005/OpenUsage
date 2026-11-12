@@ -26,18 +26,16 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scoped result, November 12, 2026. The app offers Archive History and
-Delete History with explicit selected-profile consent. Rust binds each one-use
-approval to the profile, home, choice, and storage revision. Private synthetic
-Linux checks cover stale requests, selected work, retained homes, and unrelated
-data. The [app record](reviews/2026-11-12-profile-removal-app.md) owns exact evidence
-and limits. Full workspace and Chromium/WebKit renderer checks passed.
-All 18 selected native variants and four independent guard mutations passed.
+Latest scoped result, November 12, 2026. L-7e1 adds the source-backed
+[data contract](data-contracts.md). It maps exact values, missing metrics,
+provenance, all 42 record tables, exports, and format versions. Source checks
+passed for 32 local references and 37 files. [SC-027](srs-clarifications.md#sc-027-section-17-and-current-dtos)
+records the remaining DTO gap. No implementation or normative requirement changed.
 
-Hosted CI for the preceding storage source passed Linux checks and Renderer in
-[run 43182109240](https://github.com/Debrato2005/OpenUsage/actions/runs/43182109240).
-The [evidence log](acceptance-traceability.md#evidence-log) records the original
-commit and its equivalent current tree. This app change needs its own hosted result.
+Hosted CI for `9d9b113` passed Linux checks and Renderer in
+[run 43210371418](https://github.com/Debrato2005/OpenUsage/actions/runs/43210371418).
+This includes the qualification builds and native oracle tests. The new
+documentation change needs its own hosted result.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -160,7 +158,7 @@ As of November 3, 2026, on Linux. 43 journeys ran on the native-test build and 4
 
 ## Missing release documents
 
-SRS Section 20 requires these documents, which do not exist yet: data contracts, identity contract, provider capabilities, security and privacy, compatibility matrix, and provider evidence. The [performance report](performance-report.md) starts with the Pi candidate on synthetic Linux. Full release measurements remain open. The [threat model](threat-model.md) exists since L-7b, and `scripts/sbom.py` writes the SBOM since L-7c.
+SRS Section 20 requires these documents, which do not exist yet: identity contract, provider capabilities, security and privacy, compatibility matrix, and provider evidence. [Data contracts](data-contracts.md) now documents the implemented boundary and its remaining SRS gaps. The [performance report](performance-report.md) starts with the Pi candidate on synthetic Linux. Full release measurements remain open. The [threat model](threat-model.md) exists since L-7b, and `scripts/sbom.py` writes the SBOM since L-7c.
 
 ## Open items
 
@@ -168,10 +166,10 @@ SRS Section 20 requires these documents, which do not exist yet: data contracts,
 
 ## Current assignment
 
-[S-08a2](implementation-slices.md#s-08a2-profile-removal-in-the-app) is complete
-within private synthetic Linux scope. The [app record](reviews/2026-11-12-profile-removal-app.md)
-owns native, renderer, workspace, and independent guard evidence. The remaining
-launch work stays in the build checklist. Report this slice before another assignment.
+L-7e1 is complete for the current data-contract document. Reference, schema-catalog,
+version, numeric-example, and prose checks passed. The remaining L-7e documents
+and all unexecuted platform and real-provider gates stay open.
+Report this slice before another assignment.
 
 S-08a1 storage checks passed within their synthetic Linux scope. L-1f11aq's native Codex qualification
 remains separate from production activation. The [gate review](reviews/2026-11-12-additional-tool-gates.md)

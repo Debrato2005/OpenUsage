@@ -9,6 +9,7 @@ One fact has one home. Change it there, and link to it from anywhere else.
 | What is OpenUsage? | [README](../README.md) |
 | What must it do? | [SRS](SRS.md) |
 | How is it built? | [Architecture](architecture.md) |
+| What do stored and exported values mean? | [Data contracts](data-contracts.md) |
 | What works today? | [Implementation status](implementation-status.md) |
 | What is next? | [Implementation slices](implementation-slices.md) |
 | Where do I resume? | [Current assignment](implementation-status.md#current-assignment), with the local checkpoint below |
@@ -53,6 +54,7 @@ Update docs in the same change as the work.
 | Evidence for a requirement | New top row in [traceability](acceptance-traceability.md) |
 | A reading of a requirement | [SRS clarifications](srs-clarifications.md) |
 | Code layout or a boundary | [Architecture](architecture.md) |
+| Stored values, missing metrics, or exchange formats | [Data contracts](data-contracts.md) |
 | A visual rule | [Design foundations](design/desktop-foundations.md) |
 | A build or test command | [Contributing](../CONTRIBUTING.md) or [workflow](engineering-workflow.md) |
 | Where the app keeps data, or how a user installs or removes it | [Install](install.md) |

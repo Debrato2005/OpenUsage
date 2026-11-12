@@ -32,6 +32,27 @@ This is the record of how requirements were read. Entries keep their original da
 | SC-024 | Legacy local usage during grouped migration | Resolved under owner execution direction |
 | SC-025 | Captured local records and producer completion | Implementation reading recorded; SRS unchanged |
 | SC-026 | Profile removal and retained delivery controls | Implementation reading recorded, native Linux scope passed |
+| SC-027 | Section 17 and current DTOs | Open implementation gap, SRS unchanged |
+
+## SC-027: Section 17 and current DTOs
+
+Status: open implementation gap, recorded November 12, 2026. This entry does not
+approve a different normative contract. The owner controls the SRS.
+
+Section 17 defines uniform metric state, source level, reading status, and
+evidence references. Current provider DTOs expose freshness, executable source
+kind, provisional identity, unknown scope, and coverage instead. The complete
+uniform evidence/status boundary remains unbuilt in S-04 and S-05.
+
+The current activity DTO also represents summary durations and streak counts as
+exact decimal strings. The SRS example uses numbers for those fields. A future
+contract change needs an explicit mapping and compatibility checks. Documentation
+must preserve this difference rather than silently cast stored values or treat
+executable provenance as a reading or identity guarantee.
+
+The [data contract](data-contracts.md#planned-contract-fields-and-acceptance) links
+the implemented definitions. No schema, parser, interface, or SRS changed when
+this gap was recorded. Existing acceptance keeps its original scope.
 
 ## SC-026: profile removal and retained delivery controls
 

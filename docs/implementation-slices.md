@@ -82,7 +82,7 @@ The other slices below follow the launch, unless a launch slice needs part of on
 
 ## Build checklist
 
-Updated November 12, 2026. Each completed item has one local commit and scoped evidence. S-08a2 records the latest scoped result. The remaining work stays below. Owner items wait for the owner.
+Updated November 12, 2026. Each completed item has one local commit and scoped evidence. L-7e1 records the latest scoped result. The remaining work stays below. Owner items wait for the owner.
 
 **Verification before release**
 
@@ -214,6 +214,8 @@ Updated November 12, 2026. Each completed item has one local commit and scoped e
 - [x] L-7c: the SBOM (OU-SEC-016, part of OU-DIST-005).
 - [x] L-7d: the release notes, with the signing state of each build (OU-PLAT-003, OU-PLAT-004).
 - [ ] L-7e: complete the remaining Section 20 documents and evidence. These cover data and identity contracts, provider capabilities, security and privacy, compatibility, performance, and provider evidence. Record unexecuted platform and live-account gates explicitly.
+
+- [x] L-7e1: document current data contracts, exact values, missing metrics, source ownership, all 42 tables, and format versions. Link planned SRS gaps without claiming implementation. [Data contracts](data-contracts.md) owns the result.
 
 **Owner (G-L)**
 
@@ -761,6 +763,28 @@ Acceptance:
 Stopping condition: one bounded review or correction with executed evidence,
 owning docs, one commit, an AST Graphify update, and the authorized push.
 Report before the next assignment.
+
+### L-7e1: data-contract documentation
+
+Status: Done for the implemented contract snapshot, November 12, 2026.
+The [data contract](data-contracts.md) describes current records and interfaces.
+Source checks cover 32 local references, 37 files, 42 tables, version markers,
+and numeric examples. This work changes no implementation or schema.
+
+Goal: document stored values and exported representations from current source
+under SRS Sections 12, 17, and 20, including OU-NUM-001 through OU-NUM-009.
+
+Acceptance:
+
+- Map profile, association, reading, local-usage, subscription, and delivery ownership.
+- Preserve exact units, missing values, dates, provenance, and retention boundaries.
+- Separate database, archive, export, and CLI versions. Link canonical definitions.
+- Record planned evidence and DTO gaps. Leave the SRS unchanged.
+- Check references, the current catalog, examples, and prose. Update owning docs.
+
+Stopping condition: one reviewed document, current CI attribution, selected checks,
+one local commit, and the authorized push. Report before the next assignment.
+L-7e stays open for its other documents and acceptance evidence.
 
 ## Order
 

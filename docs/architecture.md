@@ -2,6 +2,9 @@
 
 OpenUsage is a Tauri 2 desktop app. Rust owns everything sensitive. React only displays typed results. [SRS Section 2](SRS.md) fixes the technology.
 
+[Data contracts](data-contracts.md) maps record ownership, exact values, missing
+metrics, interface versions, and planned evidence fields.
+
 ## Data path
 
 All data follows one path (OU-DES-009).
