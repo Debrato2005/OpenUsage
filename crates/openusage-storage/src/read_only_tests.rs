@@ -5,6 +5,40 @@ use crate::{LogConsent, Storage, StorageError};
 const KEY: [u8; 32] = [61; 32];
 const NOW: &str = "2026-11-08T08:00:00.000Z";
 
+#[test]
+fn cli_snapshot_keeps_committed_reads_consistent_during_desktop_writes() {
+    let dir = crate::tests::private_directory();
+    let path = dir.path().join("snapshot.db");
+    let mut writer = Storage::create(&path, &KEY).unwrap();
+    writer
+        .set_log_source("claude", "/synthetic/claude", LogConsent::Granted, NOW)
+        .unwrap();
+    let reader = Storage::open_read_only(&path, &KEY).unwrap();
+    assert_eq!(
+        reader
+            .read_snapshot(|snapshot| {
+                let before = snapshot.log_sources().unwrap().len();
+                writer
+                    .set_log_source("codex", "/synthetic/codex", LogConsent::Granted, NOW)
+                    .unwrap();
+                let after = snapshot.log_sources().unwrap().len();
+                (before, after)
+            })
+            .unwrap(),
+        (1, 1)
+    );
+    assert_eq!(reader.log_sources().unwrap().len(), 2);
+    assert_eq!(
+        reader.read_snapshot(|_| Err::<(), _>("refused")).unwrap(),
+        Err("refused")
+    );
+    assert_eq!(
+        reader.read_snapshot(|s| s.log_sources().unwrap().len()),
+        Ok(2)
+    );
+    assert_eq!(writer.read_snapshot(|_| ()), Err(StorageError::ReadFailed));
+}
+
 /// File names with their length and a digest, so a failure prints a short list.
 fn tree(dir: &std::path::Path) -> Vec<(String, usize, u64)> {
     use std::hash::{DefaultHasher, Hash, Hasher};

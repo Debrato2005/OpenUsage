@@ -205,7 +205,7 @@ Updated November 12, 2026. Each completed item has one local commit and scoped e
 
 **L-5 Leaderboard client**
 
-- [ ] L-5a0: offline `sync --dry-run` from accepted saved history through one typed payload builder. Refuse ambiguous or incomplete rows. No network or enrollment side effects (OU-BOARD-005/006, OU-CLI-002; AT-96).
+- [x] L-5a0: offline `sync --dry-run` from one read-only saved-data snapshot. Seven encrypted-storage command checks and two process checks pass, with full workspace tests and Clippy. Ambiguous or incomplete rows refuse. No network or enrollment side effects occur (OU-BOARD-005/006, OU-CLI-002; AT-96). Real-upload equality remains open.
 - [ ] L-5a: `openusage board join`, `sync --dry-run`, `sync` and `leave` through one upload builder, with the token in the OS credential store (OU-BOARD-001, OU-BOARD-002, OU-BOARD-005, OU-BOARD-006; AT-86 to AT-88). Downloads are allowed under the slice rules. The HTTPS client still needs an architecture decision because Rust currently declares no HTTP client.
 - [ ] L-5b: join, sync and leave in Settings.
 

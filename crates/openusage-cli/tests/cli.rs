@@ -25,7 +25,7 @@ fn help_exit_codes_and_errors_are_stable() {
     let (code, out, _) = openusage(home.path(), &["--help"]);
     assert_eq!(code, 0);
     assert!(out.starts_with("OpenUsage shows what you used"));
-    for command in ["report", "doctor", "app", "status", "statusline"] {
+    for command in ["report", "doctor", "app", "status", "statusline", "board"] {
         let (code, out, _) = openusage(home.path(), &[command, "--help"]);
         assert_eq!(code, 0, "{command}");
         assert!(
@@ -61,4 +61,30 @@ fn help_exit_codes_and_errors_are_stable() {
     let (code, _, err) = openusage(home.path(), &["nope"]);
     assert_eq!(code, 2);
     assert!(err.ends_with("(usage)\n"));
+}
+
+#[test]
+fn board_preview_help_and_offline_identity_errors_are_public() {
+    let home = tempfile::tempdir().unwrap();
+    let (code, out, err) = openusage(home.path(), &["board", "sync", "--help"]);
+    assert_eq!((code, err.as_str()), (0, ""));
+    assert!(out.starts_with("Usage: openusage board sync --dry-run --device-id UUID"));
+    let (code, out, err) = openusage(home.path(), &["board", "sync", "--dry-run", "--json"]);
+    assert_eq!((code, err.as_str()), (2, ""));
+    let error: serde_json::Value = serde_json::from_str(&out).unwrap();
+    assert_eq!(error["error"]["code"], "usage");
+    let (code, out, err) = openusage(
+        home.path(),
+        &[
+            "board",
+            "sync",
+            "--dry-run",
+            "--device-id",
+            "f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4",
+            "--json",
+        ],
+    );
+    assert_eq!((code, err.as_str()), (8, ""));
+    let error: serde_json::Value = serde_json::from_str(&out).unwrap();
+    assert_eq!(error["error"]["code"], "no_workspace");
 }

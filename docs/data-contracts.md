@@ -12,6 +12,7 @@ migration, adapter support, or acceptance result.
 | Encrypted application records | [Storage migrations](../crates/openusage-storage/src/lib.rs) and `schema.sql` through `schema_v13.sql` beside it | Database schema 13, SQLCipher with WAL |
 | Rust to renderer | [Commands, result types, and validators](../apps/desktop/src/contracts.ts) | Typed commands and results. No single version covers every command |
 | CLI JSON | [CLI output contract](../crates/openusage-cli/README.md#output) | `schemaVersion: 2` |
+| Offline leaderboard preview | [CLI preview contract](../crates/openusage-cli/README.md#offline-leaderboard-preview) | Exact prospective `/v1/sync` body. It is not wrapped in CLI schema 2 |
 | Complete application export | [Writer](../crates/openusage-storage/src/application_export.rs) | `format: openusage.application-records`, `formatVersion: 1`, `schemaVersion: 13` |
 | Selected reading exports | [Record columns](../crates/openusage-storage/src/readings_export.rs) and [file writer](../apps/desktop/src-tauri/src/readings_export.rs) | JSON uses `schemaVersion: 1`. Latest, quota-history, and activity-history selections stay distinct |
 | Encrypted backup | [Archive codec](../crates/openusage-import/src/lib.rs) and [backup validation](../crates/openusage-storage/src/backup_validation.rs) | Archive format 1, with a separate database schema version |

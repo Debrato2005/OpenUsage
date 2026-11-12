@@ -2,6 +2,7 @@
 //! Each failure has one line of text, a stable code and a documented exit code (OU-CLI-005).
 
 mod app;
+mod board;
 mod doctor;
 mod local_status;
 mod metrics;
@@ -144,6 +145,7 @@ Commands:
   status       Saved quotas and today's local usage. This is the default
   statusline   One line for tmux and shell prompts
   report       Local log totals for this device, with no database
+  board        Preview an offline leaderboard sync
   doctor       Check this machine and print each fix
   app          Open the desktop app
 
@@ -161,6 +163,9 @@ Exit codes:
   8  no_workspace: no saved data on this device
   9  unsupported_schema: open the desktop app once to update the data
   10 read_failed: the saved data could not be read
+  11 board_incomplete_data: saved local usage cannot form exact upload rows
+  12 board_invalid_data: saved local usage violates the upload contract
+  13 board_too_large: the upload exceeds service limits
 ";
 
 #[derive(Serialize)]
@@ -190,6 +195,7 @@ pub fn run(
         Some("statusline") => status::statusline(&args[1..], env),
         Some("report") => report::command(&args[1..], env, input, prompt),
         Some("doctor") => doctor::command(&args[1..], env),
+        Some("board") => board::command(&args[1..], env),
         Some("app") => app::command(&args[1..], env),
         Some(other) => Err(CliError::usage(format!(
             "Unknown command '{other}'. Run 'openusage --help'."

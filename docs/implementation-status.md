@@ -71,6 +71,8 @@ Kept from baseline 2.0:
 
 ## Partial
 
+- Offline board preview (L-5a0), November 13, 2026: the [CLI contract](../crates/openusage-cli/README.md#offline-leaderboard-preview) prints exact prospective upload bytes from one read-only snapshot. Seven command-entry checks use synthetic encrypted storage, and two process checks pass. The full Rust workspace and Clippy pass. Ambiguous or incomplete saved history refuses safely. Online join, sync, leave, credential storage, and exact real-upload comparison remain open.
+
 - Own rank (L-4c), November 13, 2026: the [service API](../services/leaderboard/README.md#api) returns authenticated ranks beyond the public top 100. Thirty-three Worker integration tests pass against synthetic SQLite and a GitHub stub. Shared ordering, missing estimates, revocation, date bounds, and safe integer limits pass. Hosted D1, deployment, and client views remain unverified.
 
 - Profile removal, S-08a2, November 12, 2026: the

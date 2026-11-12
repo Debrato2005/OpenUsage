@@ -94,7 +94,7 @@ fn connection(state: ProfileConnectionState) -> &'static str {
 }
 
 /// Opens the saved workspace read-only. A password workspace is Locked: the CLI never prompts.
-fn open(env: &Env) -> Result<Storage, CliError> {
+pub(crate) fn open(env: &Env) -> Result<Storage, CliError> {
     let directory = env.workspace.as_deref().ok_or_else(|| CliError {
         code: "no_workspace",
         exit: 8,

@@ -263,6 +263,25 @@ impl Storage {
         })
     }
 
+    /// Keeps several reads on one committed snapshot of a query-only connection.
+    /// The callback must not open another transaction. It cannot write through this connection.
+    pub fn read_snapshot<T>(&self, read: impl FnOnce(&Self) -> T) -> Result<T, StorageError> {
+        let query_only: bool = self
+            .connection
+            .query_row("PRAGMA query_only", [], |row| row.get(0))
+            .map_err(|_| StorageError::ReadFailed)?;
+        if !query_only {
+            return Err(StorageError::ReadFailed);
+        }
+        let transaction = self
+            .connection
+            .unchecked_transaction()
+            .map_err(|_| StorageError::ReadFailed)?;
+        let result = read(self);
+        transaction.commit().map_err(|_| StorageError::ReadFailed)?;
+        Ok(result)
+    }
+
     fn connect(path: &Path, key: &[u8; 32]) -> Result<Self, StorageError> {
         let flags = OpenFlags::SQLITE_OPEN_READ_WRITE
             | OpenFlags::SQLITE_OPEN_NO_MUTEX

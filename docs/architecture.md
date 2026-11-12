@@ -152,6 +152,7 @@ unavailable. Native calls on other platforms can outlive their timeout.
 - **Renderer:** React calls only registered typed commands. It has no direct file or process access. Its content security policy allows `blob:` images only so that a share preview can show the Rust-made SVG as an image, which runs no script, and draw it as PNG.
 - **Network:** OpenUsage declares no HTTP client in Rust. The official Codex child process makes provider requests.
 - **Storage:** one service coordinates all writes. Current state and history are separate.
+- **Read snapshots:** `Storage::read_snapshot` keeps the CLI's upload projection inside one query-only transaction. Concurrent desktop writes cannot mix its source, scope, and row generations. The callback cannot open another transaction.
 
 ## Planned
 

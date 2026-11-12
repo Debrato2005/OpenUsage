@@ -24,7 +24,7 @@ OU-DES, OU-LOG, OU-SHARE, OU-CLI and OU-DIST have evidence. OU-DATA-027 has stor
 | OU-SEC-022, OU-ENG-012 | Review of SECURITY.md and AGENTS.md | Stated |
 | OU-BOARD | AT-86 to AT-88 | Service tested locally; no client and no deployment yet |
 | OU-BOARD-013/014 | AT-95 | Service integration passed locally; client views and hosted acceptance remain open |
-| OU-CLI-002, OU-BOARD-005/006 | AT-96 | Offline preview implementation in progress; exact real-upload equality remains open |
+| OU-CLI-002, OU-BOARD-005/006 | AT-96 | Offline preview passed on synthetic Linux; exact real-upload equality remains open |
 | OU-ACCT-021, OU-LOG-020 | AT-97 | Existing local collection has scoped evidence; new connection suggestions remain open |
 | OU-SYNC, OU-WEB | AT-98 to AT-105 | Stage 3, not built |
 | OU-SHARE-007 to OU-SHARE-010, OU-UI-028 | AT-106 and native Overview acceptance | New requirements; not accepted |
@@ -35,6 +35,7 @@ Newest first. Rows keep the requirement text of their date. [SRS Section 22.1](S
 
 | Requirement or check | Implementation and executed evidence | Status |
 |---|---|---|
+| Offline board preview (L-5a0). OU-CLI-002, OU-BOARD-005/006, AT-96 | Seven command-entry checks exercise parsing, encrypted saved history, exact JSON, null estimates, privacy, overlap, retained history, dates, and service limits. Two process checks pass. A real SQLCipher reader stays on one snapshot while a second connection commits. Full workspace tests and Clippy pass. | Synthetic Linux passed. No network or enrollment runs. Current legacy Claude/Codex records can upload when complete and unambiguous. Missing grouped model categories refuse. AT-87 real-upload equality remains open. |
 | Legacy capture candidate (L-1f11as). OU-LOG-007/009/012, part of AT-65 | The [record](reviews/2026-11-13-legacy-capture-candidate.md) covers five corrected malformed-peer reports, eleven new checks, 422 scanner commands, 240 adapter tests, and 23 CLI integration tests. Both inherited raw Codex comparisons ran with the exact synthetic receipt. | Synthetic Linux candidate scope passed. Two legacy identity failures, broader capture, performance, production integration, and platform gates remain open. |
 | Own-rank service (L-4c). OU-BOARD-013/014, service part of AT-95 | `node --test services/leaderboard/test/worker.test.mjs` passed 33 tests. The SQLite-backed Worker checks rank 105, both metrics, ties, empty periods, null versus zero, moderation, revocation races, dates, query refusal, and exact safe-integer boundaries. | Synthetic Linux service scope passed. API numeric values refuse unsafe sums. Hosted Workers/D1, deployment, and frontend adapters remain unverified. |
 | SRS baseline 3.1. SC-028, Sections 14B/14C | The owner authorized the desktop and private website scope on November 13. Added-text prose checks score 1.83 and 2.40 flags per 100 words. Requirement and link checks cover the amended documents. | Requirements and plan only. No private service or website acceptance is claimed. |
