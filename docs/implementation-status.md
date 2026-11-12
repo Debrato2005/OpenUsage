@@ -26,17 +26,17 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scoped result, November 12, 2026. L-7e2 adds the source-backed
-[draft identity contract](identity-contract.md). It describes provisional
-attribution, association review, immutable history, and duplicate and scope
-gates. The draft awaits owner approval. Verified combined totals remain
-unavailable. Source, link, schema, prose, and selected documentation checks
-passed. No runtime or normative requirement changed.
+Latest scoped result, November 12, 2026. L-1f11ar corrects Claude JSON formatting
+in a separate scanner candidate. Nine parent tests pass across 302 scanner
+commands. The 47-report matrix fixes three whitespace cases and retains seven
+qualification failures. Independent review corrected a metadata regression.
+The [candidate record](reviews/2026-11-12-claude-json-candidate.md) owns exact
+scope. Production pins and enabled tools stay unchanged.
 
-Hosted CI for `a1438a6` passed Linux checks and Renderer in
-[run 43220415137](https://github.com/Debrato2005/OpenUsage/actions/runs/43220415137).
-This includes qualification builds and native oracle tests. The identity
-document needs its own hosted result.
+Hosted CI for `1da0dc7` passed Linux checks and Renderer in
+[run 43236446555](https://github.com/Debrato2005/OpenUsage/actions/runs/43236446555).
+This includes qualification builds and native oracle tests. The new candidate
+change needs its own hosted result.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -171,10 +171,10 @@ separate from document completion. The [performance report](performance-report.m
 
 ## Current assignment
 
-L-7e2 is complete for the draft identity-contract document. Source, link,
-schema, prose, and selected documentation checks passed. Owner approval,
-live identity qualification, remaining L-7e documents, and unexecuted platform
-gates stay open. Report this slice before another assignment.
+L-1f11ar is complete within its separate Claude JSON candidate scope.
+The [candidate record](reviews/2026-11-12-claude-json-candidate.md) lists executed
+checks, corrected regressions, and remaining gates. Production activation and
+additional tools remain unqualified. Report this slice before another assignment.
 
 S-08a1 storage checks passed within their synthetic Linux scope. L-1f11aq's native Codex qualification
 remains separate from production activation. The [gate review](reviews/2026-11-12-additional-tool-gates.md)

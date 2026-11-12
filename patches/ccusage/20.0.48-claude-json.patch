@@ -1,0 +1,348 @@
+diff --git a/rust/adapters/claude/src/daily.rs b/rust/adapters/claude/src/daily.rs
+--- a/rust/adapters/claude/src/daily.rs
++++ b/rust/adapters/claude/src/daily.rs
+@@ -7,7 +7,6 @@
+ };
+ 
+ use jiff::tz::TimeZone as JiffTimeZone;
+-use memchr::memmem;
+ use serde::Deserialize;
+ 
+ use crate::{
+@@ -26,6 +25,7 @@
+     paths::{SinceFiles, claude_paths, extract_project, split_files_before_since, usage_files},
+     push_deduped_index, push_deduped_session_alias, push_new_deduped_index,
+     sidechain_entry_replay_dedupe_hash, sidechain_replay_dedupe_hash, usage_dedupe_hash,
++    usage_is_object,
+ };
+ 
+ pub(super) fn load_daily_summaries_inner(
+@@ -347,14 +347,17 @@
+         return loaded_file;
+     };
+ 
+-    let usage_marker = memmem::Finder::new(br#""usage":{"#);
+     for line in byte_lines(&content) {
+-        if usage_marker.find(line).is_none() {
+-            continue;
+-        }
+         let Some(data) = deserialize_usage_line::<DailyUsageLine>(line) else {
+             continue;
+         };
++        let usage_path: &[&str] = match &data {
++            DailyUsageLine::Direct(_) => &["message", "usage"],
++            DailyUsageLine::AgentProgress(_) => &["data", "message", "message", "usage"],
++        };
++        if !usage_is_object(line, usage_path) {
++            continue;
++        }
+         let data = data.into_entry();
+         let Some(timestamp) = parse_ts_timestamp(&data.timestamp) else {
+             continue;
+diff --git a/rust/adapters/claude/src/json_tests.rs b/rust/adapters/claude/src/json_tests.rs
+new file mode 100644
+--- /dev/null
++++ b/rust/adapters/claude/src/json_tests.rs
+@@ -0,0 +1,208 @@
++use ccusage_test_support::{EnvVarGuard, Fixture};
++
++use crate::{
++    cli::{CostMode, SharedArgs},
++    load_daily_summaries, load_entries,
++};
++
++const FIRST: &str = r#"{"timestamp":"2026-01-02T10:00:00.000Z","sessionId":"session-a","requestId":"request-a","message":{"id":"message-a","model":"claude-sonnet-4-20250514","usage":{"input_tokens":11,"output_tokens":3,"cache_creation_input_tokens":7,"cache_read_input_tokens":13}}}"#;
++const SECOND: &str = r#"{"timestamp":"2026-01-02T10:00:00.000Z","sessionId":"session-a","requestId":"request-b","message":{"id":"message-b","model":"claude-sonnet-4-20250514","usage":{"input_tokens":17,"output_tokens":5,"cache_creation_input_tokens":11,"cache_read_input_tokens":19}}}"#;
++
++fn report_args() -> SharedArgs {
++    SharedArgs {
++        json: true,
++        offline: true,
++        mode: CostMode::Display,
++        timezone: Some("UTC".to_string()),
++        single_thread: true,
++        ..SharedArgs::default()
++    }
++}
++
++fn assert_independent_counts() {
++    let shared = report_args();
++    let entries = load_entries(&shared, None).unwrap();
++    let mut counts = entries
++        .iter()
++        .map(|entry| {
++            let usage = entry.data.message.usage;
++            (
++                usage.input_tokens,
++                usage.output_tokens,
++                usage.cache_creation_token_count(),
++                usage.cache_read_input_tokens,
++            )
++        })
++        .collect::<Vec<_>>();
++    counts.sort_unstable();
++    assert_eq!(counts, [(11, 3, 7, 13), (17, 5, 11, 19)]);
++
++    let daily = load_daily_summaries(&shared, None, false).unwrap();
++    assert_eq!(daily.len(), 1);
++    assert_eq!(daily[0].date.as_deref(), Some("2026-01-02"));
++    assert_eq!(daily[0].input_tokens, 28);
++    assert_eq!(daily[0].output_tokens, 8);
++    assert_eq!(daily[0].cache_creation_tokens, 18);
++    assert_eq!(daily[0].cache_read_tokens, 32);
++    assert_eq!(daily[0].total_tokens(), 86);
++}
++
++#[test]
++fn json_whitespace_preserves_counts_and_copies() {
++    let fixture = Fixture::new();
++    let _env = EnvVarGuard::set("CLAUDE_CONFIG_DIR", fixture.root());
++    for separator in [":", ": ", " : ", "\t:\t", "\r:\r"] {
++        let first = FIRST.replace("\":", &format!("\"{separator}"));
++        let second = SECOND.replace("\":", &format!("\"{separator}"));
++        let _path = fixture.write_file(
++            "projects/project-a/session-a.jsonl",
++            format!(" {first}\r\n\t{second}\r\n{first}\r\n"),
++        );
++        assert_independent_counts();
++        assert_independent_counts();
++    }
++}
++
++#[test]
++fn json_ignored_metadata_preserves_session_counts_and_daily_scope() {
++    let fixture = Fixture::new();
++    let _env = EnvVarGuard::set("CLAUDE_CONFIG_DIR", fixture.root());
++    let deep_metadata = format!("{}0{}", "[".repeat(140), "]".repeat(140));
++    let shared = report_args();
++    let mut observations = Vec::new();
++    for metadata in ["1e400", deep_metadata.as_str()] {
++        let record = format!(
++            "{},\"unrelated\":{metadata}}}",
++            FIRST.strip_suffix('}').unwrap()
++        );
++        let _path = fixture.write_file("projects/project-a/session-a.jsonl", &record);
++        let entries = load_entries(&shared, None).unwrap();
++        let counts = entries
++            .iter()
++            .map(|entry| {
++                let usage = entry.data.message.usage;
++                (
++                    usage.input_tokens,
++                    usage.output_tokens,
++                    usage.cache_creation_token_count(),
++                    usage.cache_read_input_tokens,
++                )
++            })
++            .collect::<Vec<_>>();
++        let daily_count = load_daily_summaries(&shared, None, false).unwrap().len();
++        observations.push((counts, daily_count));
++
++        let null_record = format!(
++            "{},\"parentUuid\":null}}",
++            record.strip_suffix('}').unwrap()
++        );
++        let _path = fixture.write_file("projects/project-a/session-a.jsonl", null_record);
++        assert!(load_entries(&shared, None).unwrap().is_empty());
++        assert!(
++            load_daily_summaries(&shared, None, false)
++                .unwrap()
++                .is_empty()
++        );
++    }
++    assert_eq!(
++        observations,
++        [(vec![(11, 3, 7, 13)], 0), (vec![(11, 3, 7, 13)], 0)]
++    );
++}
++
++#[test]
++fn json_usage_array_is_not_an_object() {
++    let fixture = Fixture::new();
++    let _env = EnvVarGuard::set("CLAUDE_CONFIG_DIR", fixture.root());
++    let _path = fixture.write_file(
++        "projects/project-a/session-a.jsonl",
++        r#"{"timestamp":"2026-01-02T10:00:00.000Z","message":{"usage":[11,3,7,13,"standard",{}]}}"#,
++    );
++    let shared = report_args();
++    let entry_count = load_entries(&shared, None).unwrap().len();
++    let daily_count = load_daily_summaries(&shared, None, false).unwrap().len();
++    assert_eq!((entry_count, daily_count), (0, 0));
++}
++
++#[test]
++fn json_escaped_keys_preserve_counts_and_copies() {
++    let fixture = Fixture::new();
++    let _env = EnvVarGuard::set("CLAUDE_CONFIG_DIR", fixture.root());
++    let records = format!("{FIRST}\n{SECOND}\n{FIRST}\n")
++        .replace("timestamp", r"time\u0073tamp")
++        .replace("sessionId", r"session\u0049d")
++        .replace("requestId", r"request\u0049d")
++        .replace(r#""message":"#, r#""mess\u0061ge":"#)
++        .replace(r#""usage":"#, r#""us\u0061ge":"#)
++        .replace("input_tokens", r"input_\u0074okens")
++        .replace("output_tokens", r"output_\u0074okens");
++    let _path = fixture.write_file("projects/project-a/session-a.jsonl", records);
++    assert_independent_counts();
++    assert_independent_counts();
++}
++
++#[test]
++fn json_usage_arrays_cannot_use_other_path_objects() {
++    let fixture = Fixture::new();
++    let _env = EnvVarGuard::set("CLAUDE_CONFIG_DIR", fixture.root());
++    for record in [
++        r#"{"timestamp":"2026-01-02T10:00:00.000Z","message":{"usage":[11,3,7,13,"standard",{}]},"data":{"message":{"timestamp":"2026-01-02T10:00:00.000Z","message":{"usage":{"input_tokens":99,"output_tokens":1}}}}}"#,
++        r#"{"message":{"usage":{"input_tokens":99,"output_tokens":1}},"data":{"message":{"timestamp":"2026-01-02T10:00:00.000Z","message":{"usage":[11,3,7,13,"standard",{}]}}}}"#,
++    ] {
++        let _path = fixture.write_file("projects/project-a/session-a.jsonl", record);
++        let shared = report_args();
++        let entry_count = load_entries(&shared, None).unwrap().len();
++        let daily_count = load_daily_summaries(&shared, None, false).unwrap().len();
++        assert_eq!((entry_count, daily_count), (0, 0));
++    }
++}
++
++#[test]
++fn json_agent_progress_keeps_its_daily_only_counts() {
++    let fixture = Fixture::new();
++    let _env = EnvVarGuard::set("CLAUDE_CONFIG_DIR", fixture.root());
++    let _path = fixture.write_file(
++        "projects/project-a/session-a.jsonl",
++        r#"{"sessionId":"session-a","data" : {"mess\u0061ge":{"timestamp":"2026-01-02T10:00:00.000Z","message":{"us\u0061ge" : {"input_tokens":11,"output_tokens":3,"cache_creation_input_tokens":7,"cache_read_input_tokens":13}}}}}"#,
++    );
++    let shared = report_args();
++    assert!(load_entries(&shared, None).unwrap().is_empty());
++    let daily = load_daily_summaries(&shared, None, false).unwrap();
++    assert_eq!(daily.len(), 1);
++    assert_eq!(daily[0].total_tokens(), 34);
++}
++
++#[test]
++fn json_prompt_text_and_unrelated_usage_do_not_add_counts() {
++    let fixture = Fixture::new();
++    let _env = EnvVarGuard::set("CLAUDE_CONFIG_DIR", fixture.root());
++    let prompt = r#"{"timestamp":"2026-01-02T10:00:00.000Z","type":"user","message":{"content":"Example: \"usage\":{\"input_tokens\":999,\"output_tokens\":999}"},"usage":{"input_tokens":999,"output_tokens":999},"metadata":{"message":{"usage":{"input_tokens":999,"output_tokens":999}}}}"#;
++    let _path = fixture.write_file(
++        "projects/project-a/session-a.jsonl",
++        format!("{FIRST}\n{prompt}\n{SECOND}\n"),
++    );
++    assert_independent_counts();
++}
++
++#[test]
++fn json_invalid_records_stay_skipped_beside_valid_records() {
++    let fixture = Fixture::new();
++    let _env = EnvVarGuard::set("CLAUDE_CONFIG_DIR", fixture.root());
++    let invalid = [
++        r#"{"timestamp":"2026-01-02T10:00:00.000Z","message":{"usage":{"input_tokens":-1,"output_tokens":3}}}"#,
++        r#"{"timestamp":"2026-01-02T10:00:00.000Z","message":{"usage":{"input_tokens":1.5,"output_tokens":3}}}"#,
++        r#"{"timestamp":"2026-01-02T10:00:00.000Z","message":{"usage":{"input_tokens":"99","output_tokens":3}}}"#,
++        r#"{"timestamp":"2026-01-02T10:00:00.000Z","message":{"usage":{"input_tokens":true,"output_tokens":3}}}"#,
++        r#"{"timestamp":"2026-01-02T10:00:00.000Z","message":{"usage":{"input_tokens":99,"input_\u0074okens":99,"output_tokens":3}}}"#,
++        r#"{"timestamp":"2026-01-02T10:00:00.000Z","message":{"model":null,"usage":{"input_tokens":99,"output_tokens":3}}}"#,
++        r#"{"timestamp":"2026-01-02T10:00:00.000Z","message":{"usage":null}}"#,
++        r#"{"timestamp":"2026-01-02T10:00:00.000Z","message":{"usage":{"input_tokens":99,"output_tokens":3}}"#,
++    ];
++    for record in invalid {
++        let _path = fixture.write_file(
++            "projects/project-a/session-a.jsonl",
++            format!("{FIRST}\n{record}\n{SECOND}\n"),
++        );
++        assert_independent_counts();
++    }
++}
+diff --git a/rust/adapters/claude/src/lib.rs b/rust/adapters/claude/src/lib.rs
+--- a/rust/adapters/claude/src/lib.rs
++++ b/rust/adapters/claude/src/lib.rs
+@@ -2,6 +2,8 @@
+ use ccusage_core::*;
+ 
+ mod daily;
++#[cfg(test)]
++mod json_tests;
+ mod paths;
+ 
+ use std::{
+@@ -17,7 +19,9 @@
+ use rustc_hash::FxHasher;
+ use serde::{
+     Deserialize,
+-    de::{DeserializeOwned, Error as _, MapAccess, SeqAccess, Visitor},
++    de::{
++        DeserializeOwned, DeserializeSeed, Error as _, IgnoredAny, MapAccess, SeqAccess, Visitor,
++    },
+ };
+ use smallvec::SmallVec;
+ 
+@@ -632,14 +636,13 @@
+         return loaded_file;
+     };
+ 
+-    let usage_marker = memmem::Finder::new(br#""usage":{"#);
+     for line in byte_lines(&content) {
+-        if usage_marker.find(line).is_none() {
+-            continue;
+-        }
+         let Some(data) = deserialize_usage_line::<UsageEntry>(line) else {
+             continue;
+         };
++        if !usage_is_object(line, &["message", "usage"]) {
++            continue;
++        }
+         let Some(timestamp) = parse_ts_timestamp(&data.timestamp) else {
+             continue;
+         };
+@@ -864,6 +867,52 @@
+     serde_json::from_value(root).ok()
+ }
+ 
++// Serde structs also accept positional arrays. Usage must remain a JSON object
++// at the path that the typed parser selected.
++fn usage_is_object(line: &[u8], path: &[&str]) -> bool {
++    UsageObjectPath(path)
++        .deserialize(&mut serde_json::Deserializer::from_slice(line))
++        .unwrap_or(false)
++}
++
++struct UsageObjectPath<'a>(&'a [&'a str]);
++
++impl<'de> DeserializeSeed<'de> for UsageObjectPath<'_> {
++    type Value = bool;
++
++    fn deserialize<D>(self, deserializer: D) -> std::result::Result<Self::Value, D::Error>
++    where
++        D: serde::Deserializer<'de>,
++    {
++        deserializer.deserialize_map(self)
++    }
++}
++
++impl<'de> Visitor<'de> for UsageObjectPath<'_> {
++    type Value = bool;
++
++    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
++        formatter.write_str("a JSON object at the selected usage path")
++    }
++
++    fn visit_map<A>(self, mut object: A) -> std::result::Result<Self::Value, A::Error>
++    where
++        A: MapAccess<'de>,
++    {
++        let mut found = self.0.is_empty();
++        while let Some(field) = object.next_key::<String>()? {
++            if let Some((next, rest)) = self.0.split_first()
++                && field == *next
++            {
++                found = object.next_value_seed(UsageObjectPath(rest))?;
++            } else {
++                object.next_value::<IgnoredAny>()?;
++            }
++        }
++        Ok(found)
++    }
++}
++
+ /// A JSON value parser that preserves typed Serde's rejection of duplicate members.
+ /// Parsing through `serde_json::Value` normally keeps only the final duplicate, which could
+ /// make a malformed transcript valid before the in-memory typed deserialization runs.

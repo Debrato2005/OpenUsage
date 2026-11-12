@@ -82,7 +82,7 @@ The other slices below follow the launch, unless a launch slice needs part of on
 
 ## Build checklist
 
-Updated November 12, 2026. Each completed item has one local commit and scoped evidence. L-7e2 records the latest scoped result. The remaining work stays below. Owner items wait for the owner.
+Updated November 12, 2026. Each completed item has one local commit and scoped evidence. L-1f11ar records the latest scoped result. The remaining work stays below. Owner items wait for the owner.
 
 **Verification before release**
 
@@ -163,6 +163,7 @@ Updated November 12, 2026. Each completed item has one local commit and scoped e
 - [x] L-1f11ao: derive both Codex reports from one captured input in a separate candidate.
 - [x] L-1f11ap: parse the Codex candidate envelope into existing typed grouped records without scanner activation.
 - [x] L-1f11aq: qualify the combined Codex candidate through native consent, grouped storage, history, and failure handling.
+- [x] L-1f11ar: preserve Claude JSONL whitespace and escaped keys in a separate candidate. Require an object at the exact parsed usage path without parsing unrelated metadata into values. Public and cross-tool checks passed within the candidate scope. Seven legacy qualification failures remain. See the [record](reviews/2026-11-12-claude-json-candidate.md).
 - [x] R-8: review saved CLI connection-state display with public commands before any correction.
 - [x] R-6: correct CLI text for an empty selected date range after a public-command regression.
 - [x] R-7: reject future quota observations as Current after a public-command regression.

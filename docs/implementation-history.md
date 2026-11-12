@@ -4,6 +4,20 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## L-7e2 result before L-1f11ar
+
+Latest scoped result, November 12, 2026. L-7e2 adds the source-backed
+[draft identity contract](identity-contract.md). It describes provisional
+attribution, association review, immutable history, and duplicate and scope
+gates. The draft awaits owner approval. Verified combined totals remain
+unavailable. Source, link, schema, prose, and selected documentation checks
+passed. No runtime or normative requirement changed.
+
+Hosted CI for `a1438a6` passed Linux checks and Renderer in
+[run 43220415137](https://github.com/Debrato2005/OpenUsage/actions/runs/43220415137).
+This includes qualification builds and native oracle tests. The identity
+document needs its own hosted result.
+
 ## L-7e1 result before L-7e2
 
 Latest scoped result, November 12, 2026. L-7e1 adds the source-backed

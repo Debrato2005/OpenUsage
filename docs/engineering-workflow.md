@@ -219,6 +219,29 @@ bodies. Rust tests preserve original report bytes for decimal and duplicate-fiel
 checks. The [consumer record](reviews/2026-11-12-codex-snapshot-consumer.md)
 owns executed evidence. These tests do not activate application scanning.
 
+## Claude JSON candidate checks
+
+Set `OPENUSAGE_CLAUDE_JSON_CANDIDATE` to the absolute read-only oracle path in
+its [pin](../tests/tools/fixtures/claude-json-candidate/pin.json).
+Set `OPENUSAGE_CLAUDE_JSON_RESULTS` to a new private JSON path.
+Run from the project root:
+
+```sh
+python3 -m unittest discover -s tests/tools -p test_ccusage_claude_json.py -v
+```
+
+The tests check the executable digest before running. All inputs and homes are
+private and synthetic. Without an executable selection, source and harness
+checks still run. The live cases stay skipped. The new matrix permits only the
+three expected Claude whitespace improvements. It records remaining independent
+failures separately. The [candidate record](reviews/2026-11-12-claude-json-candidate.md)
+owns executed results and limits.
+
+The older Codex mixed-tool equality method expects unchanged Claude reports.
+It is a historical diagnostic for its own artifact. Keep its test and pins
+unchanged. The new matrix covers the changed Claude contract. A final Codex
+selection retains all record and pin checks and the raw-receipt skip.
+
 ## Scanner candidate builds
 
 Run Cargo from the candidate source root so its `.cargo/config.toml` applies.
