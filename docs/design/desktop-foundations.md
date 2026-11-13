@@ -16,18 +16,15 @@ Updated: November 3, 2026. These foundations cover the native workspace, account
 
 The sections below are dated records. Where they describe explanatory text or repeated labels, these rules win.
 
-## Noir theme — November 13, 2026
+## Matte noir — November 13, 2026
 
-On November 13, 2026 the owner rejected the S-03d look and asked for a gritty, gloomy noir style with no brand green, glass panels and smooth motion. `apps/desktop/src/noir.css` loads after every other sheet and owns these values. The layout, data and accessible names stay unchanged.
+On November 13, 2026 the owner asked for the S-03d layout in a gritty, dark, matte noir style, with no gloss and no green. A glass version with a city backdrop and blur motion was rejected the same day. `apps/desktop/src/noir.css` loads after every other sheet and owns these values. Layout, type, data and accessible names stay as S-03d describes.
 
-- **Dark** is a black and charcoal city at night: fog, three searchlight beams and a gothic skyline behind the panels, with bone text (`#efe8d8`). The page background is `#050607`.
-- **Light** is the same city on parchment (`#e9e2d4`) with ink text. Light, Dark and System stay available (OU-UI-007).
-- **Glass.** Panels, the sidebar and account cards share one translucent surface with a 22-pixel backdrop blur and a hairline border. Dialogs and menus use a denser glass so text stays readable.
-- **Colour** carries identity or state only. The current page and pressed chips use a bone pill in dark and an ink pill in light. Red marks a low quota and amber marks a warning. Green is not used.
-- **Account tints** are six muted hues. Dark: `#b8893f`, `#4d86c4`, `#c0603f`, `#8478d0`, `#9a9a3a`, `#b0688a`. Light: `#9a6c22`, `#2f66a3`, `#a8482a`, `#6457b8`, `#76761c`, `#9a4672`. Both pass every dataviz check against their surfaces. A card shows its tint as a thin halo and an avatar ring, not as a colour block.
-- **Heatmap** uses one sequential ramp: ink on parchment and bone at night.
-- **Type.** Cormorant Garamond sets large numbers and section titles with lining figures. DM Sans stays the interface face and keeps tabular digits for exact counts.
-- **Motion.** Panels rise out of a blur once (640 ms, staggered by 50 ms), quota bars fill from zero, and cards lift on hover. The animations use no opacity, so contrast stays valid from the first frame. Reduced motion turns them off, and forced colours remove the backdrop and grain.
+- **Dark** is near-black (`#0b0b0c`) with bone text (`#ece6da`). **Light** is parchment (`#e8e2d6`) with ink text. Light, Dark and System stay available (OU-UI-007).
+- **Matte.** Surfaces are solid. There is no glass, blur, glow, shine or gradient fill. Film grain and a soft vignette give the grit and never take pointer events. Forced colours remove both.
+- **Account cards** keep the stacked colour-block shape. At night each card is a dark muted colour (umber, steel, oxblood, dusk, olive ash, plum) with bone ink. On parchment the cards are dusty pastels with near-black ink.
+- **Chart tints** are six muted hues. Dark: `#b8893f`, `#4d86c4`, `#c0603f`, `#8478d0`, `#9a9a3a`, `#b0688a`. Light: `#9a6c22`, `#2f66a3`, `#a8482a`, `#6457b8`, `#76761c`, `#9a4672`. Both pass every dataviz check against their surfaces.
+- **Colour** carries identity or state only. Red marks a low quota and amber marks a warning. Green is not used. The heatmap uses one ramp: ink on parchment and bone at night.
 
 ## Overview and the detail panel
 
@@ -118,8 +115,6 @@ The UI/UX search did not return an exact desktop account workflow. Its landing-p
 [Linear documentation](https://linear.app/docs) informed the separation of navigation and work areas. [Raycast guidance](https://developers.raycast.com/basics/prepare-an-extension-for-store) informed functional action names and concise descriptions. The app does not copy their branding or layouts. The [Vercel web guidelines](https://github.com/vercel-labs/web-interface-guidelines) inform the accessibility review. Automated checks do not establish full WCAG 2.2 AA conformance or screen-reader acceptance.
 
 ## Font provenance
-
-Cormorant Garamond, added November 13, 2026 for the noir theme, sets large numbers and titles. The file is the variable `CormorantGaramond[wght].ttf` from the [google/fonts repository](https://github.com/google/fonts/tree/35e77c3854970a550d9894a85aba21420813a019/ofl/cormorantgaramond) at revision `35e77c3854970a550d9894a85aba21420813a019`, subset with fonttools to Basic Latin, Latin-1 and common punctuation (SHA-256 `36c8f51d7cc9338cd22969506b832f86571014a94f7bff4735c019d4c3aff5be`). The OFL text ships beside it. Bricolage Grotesque stays bundled but no style requests it.
 
 Large numbers use Bricolage Grotesque, added November 6, 2026 for the Overview hero, answers and cards. DM Sans stays the interface face, and exact counts in the detail panel keep DM Sans tabular digits. The file comes unchanged from the [google/fonts repository](https://github.com/google/fonts/tree/main/ofl/bricolagegrotesque); its Git blob `9a4ca271ff84357bb8f8830ce71b85ea3571f731` matched the downloaded file. Original path: `ofl/bricolagegrotesque/BricolageGrotesque[opsz,wdth,wght].ttf`. Bundled path: `apps/desktop/public/fonts/BricolageGrotesque-Variable.ttf` (408,496 bytes). SHA-256: `413e7357809ddd12fd80a96a8a396de0e401638d4acd3cb3e37532f0472ac682`. License: SIL Open Font License 1.1, at `apps/desktop/public/fonts/Bricolage-Grotesque-OFL.txt` (blob `a397658a5c4ab27c349964553b7caca61a4346f6`).
 

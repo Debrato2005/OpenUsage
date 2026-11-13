@@ -20,7 +20,7 @@ The app runs on Linux only. Results below use synthetic data unless they say oth
 | Alerts | Threshold, reset, failure, and sign-in alerts, with quiet hours and history |
 | Subscriptions | User-entered records |
 | Data safety | CSV and JSON export, application export, encrypted backup, restore, checkpoints, and local deletion |
-| Interface | A sidebar with Overview, Usage, and Settings in light and dark themes. Overview is the November 6 modern dashboard: hero, eight answers, pastel account cards, daily and weekly charts, and the year heatmap (S-03d). Since November 13 it uses the [noir theme](design/desktop-foundations.md#noir-theme--november-13-2026): glass panels over a night city, bone text, no green. |
+| Interface | A sidebar with Overview, Usage, and Settings in light and dark themes. Overview is the November 6 modern dashboard: hero, eight answers, pastel account cards, daily and weekly charts, and the year heatmap (S-03d). Since November 13 it uses the [matte noir](design/desktop-foundations.md#matte-noir--november-13-2026) colours: flat near-black, bone text, film grain, no green. |
 
 Verified combined totals stay unavailable, because no approved identity contract exists.
 
@@ -160,7 +160,7 @@ Kept from baseline 2.0:
 
 ## Failing or stale tests
 
-- Noir theme, November 13, 2026: all 242 Chromium renderer tests and the production build passed. WebKit did not start, because this host lacks `libicudata.so.74` for the Playwright WebKit build. Native journeys did not run for this change, so the theme is unverified in WebKitGTK.
+- Matte noir, November 13, 2026: all 242 Chromium renderer tests and the production build passed. WebKit did not start, because this host lacks `libicudata.so.74` for the Playwright WebKit build. Native journeys did not run for this change, so the theme is unverified in WebKitGTK.
 
 - R-2, November 10, 2026: desktop synthetic fixtures now reuse the bounded executable writer from R-1. The deterministic inherited-writer test, 22 provider tests, full Rust checks, and native provider-lifecycle passed. The earlier cooldown failure returned ProviderUnavailable but did not expose its underlying cause. Focused diagnostics did not reproduce it. The [review](reviews/2026-11-10-desktop-fixture-writes.md) keeps that distinction explicit. The later Pi filesystem verification passed; its evidence remains separate.
 
