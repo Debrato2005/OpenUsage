@@ -33,8 +33,8 @@ Today Codex is the only source, and its path has no general adapter layer. The p
 | `crates/openusage-import/` | Encrypted backup archive format |
 | `crates/openusage-locallogs/` | Pinned `ccusage` binary checks, folder detection, the hardened runner, and the strict daily, session and hourly report parsers for local logs |
 | `crates/openusage-cli/` | The `openusage` command, with no webview dependency |
-| `crates/openusage-keys/` | Separate OS credential slots for the database key and future leaderboard enrollment |
-| `crates/openusage-board/` | Bounded GitHub device authorization and public leaderboard HTTP transport. CLI and desktop integration remain open |
+| `crates/openusage-keys/` | Separate OS credential slots and Linux enrollment coordination |
+| `crates/openusage-board/` | Bounded public transport, origin-bound enrollment, and CLI lifecycle. Settings integration remains open |
 | `services/leaderboard/` | The opt-in leaderboard Worker and its D1 schema |
 | `packaging/` | The npm launcher, its README, and third-party notices for the packages |
 | `tests/contract/` | IPC contract checks |
@@ -161,12 +161,12 @@ unavailable. Native calls on other platforms can outlive their timeout.
 
 ## Boundaries
 
-- **Leaderboard credentials:** the [separate vault](../crates/openusage-keys/README.md#leaderboard-credential-storage) stores a bounded opaque envelope in the OS credential store. It preserves the database key slot and never falls back to plaintext storage. The pure [enrollment codec](../crates/openusage-board/README.md#enrollment-credential-format) binds the configured service origin before a caller can restore a typed credential. Callers must serialize credential operations. Online enrollment and the typed OS-store round trip remain open.
+- **Leaderboard credentials:** the [separate vault](../crates/openusage-keys/README.md#leaderboard-credential-storage) preserves the database key slot. The [session coordinator](../crates/openusage-board/README.md#serialized-enrollment) owns pending and active records, origin binding, expected-value replacement, and the shared Linux guard. CLI callers keep that guard across each complete operation. Settings integration remains open.
 - **Secrets:** provider sessions, credentials, and the database key stay in Rust, provider-managed homes, or the OS credential store. They never reach React.
 - **Processes:** the Rust supervisor owns every child process. At most two collections run at once.
 - **Numbers:** Rust does exact arithmetic. Token counts cross IPC as decimal strings. A missing value stays missing.
 - **Renderer:** React calls only registered typed commands. It has no direct file or process access. Its content security policy allows `blob:` images only so that a share preview can show the Rust-made SVG as an image, which runs no script, and draw it as PNG.
-- **Network:** The official Codex child process makes provider requests. The separate [leaderboard client](../crates/openusage-board/README.md) uses the approved [HTTP policy](decisions/2026-11-13-leaderboard-http-client.md). Missing build settings leave it inert. It has no production caller yet. Private website sync remains unbuilt.
+- **Network:** The official Codex child process makes provider requests. The separate [leaderboard client](../crates/openusage-board/README.md) uses the approved [HTTP policy](decisions/2026-11-13-leaderboard-http-client.md). Missing build settings leave it inert. Explicit CLI commands use it. Settings integration remains open. Private website sync remains unbuilt.
 - **Storage:** one service coordinates all writes. Current state and history are separate.
 - **Read snapshots:** `Storage::read_snapshot` keeps the CLI's upload projection inside one query-only transaction. Concurrent desktop writes cannot mix its source, scope, and row generations. The callback cannot open another transaction.
 

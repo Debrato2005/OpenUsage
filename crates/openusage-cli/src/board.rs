@@ -1,4 +1,4 @@
-//! Offline prospective sync bodies. No enrollment, leaderboard credentials, scanner or network runs here.
+//! One saved-data upload builder for offline previews and explicit online commands.
 use crate::{CliError, Env};
 use jiff::{Span, Timestamp, civil::Date, tz::TimeZone};
 use openusage_locallogs::{AgentPeriod, UsagePeriod};
@@ -6,18 +6,25 @@ use openusage_storage::Storage;
 use serde::Serialize;
 use std::collections::BTreeSet;
 
-const HELP: &str = "Usage: openusage board sync --dry-run --device-id UUID [--days N] [--json]
+mod online;
+const HELP: &str = "Usage: openusage board <join|sync|leave> [options]
 
-Prints the exact prospective sync body from saved local totals. It never joins,
-uses the network, reads logs, or saves a device identity. The device ID must be
-an explicit random version 4 UUID. It does not establish a joined identity.
+  join [--reconnect] [--yes] [--json]
+      Join with GitHub device authorization. Reconnect reuses the saved device ID.
+      An account change keeps the previous account's public data until it leaves.
+  sync --dry-run --device-id UUID [--days N] [--json]
+      Print the exact upload from saved local totals, without network or enrollment.
+      Supply a lowercase random version 4 UUID. It does not establish identity.
+  sync [--days N] [--yes] [--json]
+      Upload saved local log totals for the enrolled device. Default: 30 days.
+      Days range from 1 to 366 in each saved day zone. No scan runs.
+  leave [--yes] [--json]
+      Remove the account, all its devices, and all its public leaderboard data.
 
 Options:
-  --dry-run          Required. Only preview the upload.
-  --device-id UUID   Required. Lowercase version 4 UUID for the prospective device.
-  --days N           Last N days in each saved day zone, from 1 to 366. Default: 30.
-  --json             Print failures as versioned JSON. Success is the upload body.
-  --help             Show this help.
+  --yes          Consent without a prompt. GitHub authorization still requires a person.
+  --json         Print versioned results and failures. Dry-run success is the upload body.
+  --help         Show this help. Also available for each board command.
 ";
 const MAX_COUNT: u64 = 1_000_000_000_000;
 const MAX_ROWS: usize = 400;
@@ -61,24 +68,37 @@ fn uuid(value: &str) -> bool {
         })
 }
 
-pub fn command(args: &[String], env: &Env) -> Result<String, CliError> {
+pub fn command(
+    args: &[String],
+    env: &Env,
+    input: &mut dyn std::io::BufRead,
+    prompt: &mut dyn std::io::Write,
+) -> Result<String, CliError> {
     if args.iter().any(|a| a == "--help" || a == "-h") {
         return Ok(HELP.into());
     }
-    if args.first().map(String::as_str) != Some("sync") {
-        return Err(CliError::usage("Use 'openusage board sync --help'."));
-    }
+    let Some(action @ ("join" | "sync" | "leave")) = args.first().map(String::as_str) else {
+        return Err(CliError::usage("Use 'openusage board --help'."));
+    };
     let mut dry_run = false;
     let mut device_id = None;
     let mut days = None;
     let mut json = false;
+    let mut yes = false;
+    let mut reconnect = false;
     let mut options = args[1..].iter();
     while let Some(option) = options.next() {
         match option.as_str() {
-            "--dry-run" if !dry_run => dry_run = true,
+            "--dry-run" if action == "sync" && !dry_run => dry_run = true,
             "--json" if !json => json = true,
-            "--device-id" if device_id.is_none() => device_id = options.next(),
-            "--days" if days.is_none() => {
+            "--yes" if !yes => yes = true,
+            "--reconnect" if action == "join" && !reconnect => reconnect = true,
+            "--device-id" if action == "sync" && device_id.is_none() => {
+                device_id = Some(options.next().filter(|id| uuid(id)).ok_or_else(|| {
+                    CliError::usage("--device-id needs a lowercase random version 4 UUID.")
+                })?);
+            }
+            "--days" if action == "sync" && days.is_none() => {
                 days = options.next().and_then(|v| v.parse::<i32>().ok());
                 if !days.is_some_and(|n| (1..=366).contains(&n)) {
                     return Err(CliError::usage("--days needs an integer from 1 to 366."));
@@ -86,26 +106,44 @@ pub fn command(args: &[String], env: &Env) -> Result<String, CliError> {
             }
             _ => {
                 return Err(CliError::usage(
-                    "Unknown or repeated board option. Use 'openusage board sync --help'.",
+                    "Unknown or repeated board option. Use 'openusage board --help'.",
                 ));
             }
         }
     }
-    if !dry_run {
+    if dry_run {
+        if yes {
+            return Err(CliError::usage("--yes does not apply to a dry run."));
+        }
+        let device_id = device_id.ok_or_else(|| {
+            CliError::usage("Supply --device-id with a lowercase random version 4 UUID.")
+        })?;
+        return upload(env, device_id, days.unwrap_or(30));
+    }
+    if device_id.is_some() {
         return Err(CliError::usage(
-            "Only offline sync previews are available. Supply --dry-run.",
+            "--device-id applies only to --dry-run. Online sync uses the saved enrollment.",
         ));
     }
-    let device_id = device_id.filter(|id| uuid(id)).ok_or_else(|| {
-        CliError::usage("Supply --device-id with a lowercase random version 4 UUID.")
-    })?;
+    let command = match action {
+        "join" => online::Command::Join { reconnect },
+        "sync" => online::Command::Sync {
+            days: days.unwrap_or(30),
+        },
+        "leave" => online::Command::Leave,
+        _ => unreachable!(),
+    };
+    online::command(command, yes, json, env, input, prompt)
+}
+
+fn upload(env: &Env, device_id: &str, days: i32) -> Result<String, CliError> {
     let storage = crate::status::open(env)?;
     storage
         .read_snapshot(|snapshot| {
             serialize_sync(
                 snapshot,
                 device_id,
-                days.unwrap_or(30),
+                days,
                 env.now.unwrap_or_else(Timestamp::now),
             )
         })

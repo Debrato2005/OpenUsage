@@ -53,9 +53,26 @@ impl BoardVault {
             .map(|bytes| {
                 let bytes = Zeroizing::new(bytes);
                 let payload = bytes.strip_prefix(PREFIX).ok_or(VaultError::InvalidKey)?;
+                if payload.is_empty() || payload.len() > MAX_BYTES {
+                    return Err(VaultError::InvalidKey);
+                }
                 BoardCredential::from_secret(Zeroizing::new(payload.to_vec()))
             })
             .transpose()
+    }
+
+    /// Replace only the selected item after an exact expected-value comparison.
+    /// Missing items and mismatches refuse without a write. Hold `BoardGuard` throughout.
+    /// This is not an atomic comparison against changes from other OS-store clients.
+    pub fn replace(
+        &self,
+        expected: &BoardCredential,
+        replacement: &BoardCredential,
+    ) -> Result<(), VaultError> {
+        let expected = expected.encoded();
+        let replacement = replacement.encoded();
+        self.0
+            .replace_checked(|actual| verify_secret(actual, &expected), &replacement)
     }
 
     /// Refuse an occupied slot. Callers must serialize enrollment operations.
@@ -70,22 +87,82 @@ impl BoardVault {
     /// An absent item is already removed. Mismatches leave it untouched.
     pub fn remove(&self, expected: &BoardCredential) -> Result<(), VaultError> {
         let expected = expected.encoded();
-        self.0.remove_checked(|actual| {
-            let actual = Zeroizing::new(actual);
-            if actual.len() != expected.len() {
-                return Err(VaultError::InvalidKey);
-            }
-            let difference = actual
-                .iter()
-                .zip(expected.iter())
-                .fold(0_u8, |difference, (actual, expected)| {
-                    difference | (actual ^ expected)
-                });
-            if difference == 0 {
-                Ok(())
-            } else {
-                Err(VaultError::InvalidKey)
-            }
-        })
+        self.0
+            .remove_checked(|actual| verify_secret(actual, &expected))
+    }
+}
+
+fn verify_secret(actual: Vec<u8>, expected: &[u8]) -> Result<(), VaultError> {
+    let actual = Zeroizing::new(actual);
+    if actual.len() != expected.len() {
+        return Err(VaultError::InvalidKey);
+    }
+    let difference = actual
+        .iter()
+        .zip(expected.iter())
+        .fold(0_u8, |difference, (actual, expected)| {
+            difference | (actual ^ expected)
+        });
+    if difference == 0 {
+        Ok(())
+    } else {
+        Err(VaultError::InvalidKey)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{SERVICE, replace_entry_checked};
+    use keyring_core::api::CredentialStoreApi;
+
+    #[test]
+    fn replacement_refuses_missing_mismatch_and_malformed_secrets_without_other_slot_changes() {
+        let store = keyring_core::mock::Store::new().unwrap();
+        let entry = store.build(SERVICE, ACCOUNT, None).unwrap();
+        let other_account = store.build(SERVICE, crate::ACCOUNT, None).unwrap();
+        let other_service = store
+            .build("synthetic-other-service", ACCOUNT, None)
+            .unwrap();
+        other_account.set_secret(b"synthetic database key").unwrap();
+        other_service
+            .set_secret(b"synthetic other service")
+            .unwrap();
+        let expected = BoardCredential::from_secret(Zeroizing::new(b"synthetic first".to_vec()))
+            .unwrap()
+            .encoded();
+        let replacement =
+            BoardCredential::from_secret(Zeroizing::new(b"synthetic second".to_vec()))
+                .unwrap()
+                .encoded();
+        let replace = || {
+            replace_entry_checked(
+                &entry,
+                |actual| verify_secret(actual, &expected),
+                &replacement,
+            )
+        };
+        assert_eq!(replace(), Err(VaultError::InvalidKey));
+        assert!(matches!(
+            entry.get_secret(),
+            Err(keyring_core::Error::NoEntry)
+        ));
+        for invalid in [b"malformed".to_vec(), vec![1; 8192], replacement.to_vec()] {
+            entry.set_secret(&invalid).unwrap();
+            assert_eq!(replace(), Err(VaultError::InvalidKey));
+            assert_eq!(entry.get_secret().unwrap(), invalid);
+        }
+        entry.set_secret(&expected).unwrap();
+        replace().unwrap();
+        assert_eq!(entry.get_secret().unwrap(), *replacement);
+        assert_eq!(replace(), Err(VaultError::InvalidKey));
+        assert_eq!(
+            other_account.get_secret().unwrap(),
+            b"synthetic database key"
+        );
+        assert_eq!(
+            other_service.get_secret().unwrap(),
+            b"synthetic other service"
+        );
     }
 }

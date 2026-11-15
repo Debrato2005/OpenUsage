@@ -53,6 +53,7 @@ The wider native results below are from L-1g2 and earlier. They do not certify t
 
 New in baseline 3.1:
 
+- Local erasure of leaderboard credentials after enrollment: [SC-029](srs-clarifications.md#sc-029-local-deletion-and-public-enrollment). Earlier deletion evidence covers the earlier credential set.
 - Private desktop-to-website sync and the responsive personal dashboard: Sections 14B and 14C, Stage 3.
 - Own-rank client views: OU-BOARD-013 and OU-BOARD-014. The service API is complete within the local scope below.
 - Joined-rank access on Overview and optional subscription-price comparisons: OU-UI-028 and OU-SHARE-009. Independent local summaries and period receipts have the scoped results below.
@@ -63,7 +64,7 @@ New in baseline 3.0:
 - Source adapters (5A), audit (5B), and duplicates (5D).
 - Customizable dashboard, Start at login, and graphs: OU-UI-026, OU-UI-027, OU-MON-017.
 - The other 16 tools that the pinned `ccusage` reads (L-1f, AT-65), and session quota movement (L-1g4, OU-LOG-018).
-- Online CLI and Settings leaderboard integration (L-5): OU-BOARD-001, OU-BOARD-002, OU-BOARD-005, OU-BOARD-006. The transport and offline preview have local evidence below.
+- Settings leaderboard integration (L-5b): OU-BOARD-001, OU-BOARD-002, OU-BOARD-005, OU-BOARD-006. The Linux CLI has the local evidence below.
 - Moving a password workspace's key to the OS key store (S-03c).
 
 Kept from baseline 2.0:
@@ -75,21 +76,15 @@ Kept from baseline 2.0:
 
 ## Partial
 
-- Leaderboard enrollment format (L-5a3), November 15, 2026: the pure [codec](../crates/openusage-board/README.md#enrollment-credential-format) binds one configured origin and validates the saved device credential. Eight public API checks pass, and independent reviews close the buffer-handling findings. Online callers, the typed OS-store round trip, enrollment coordination, revocation, and hosted acceptance remain open.
+- Online leaderboard CLI (L-5a), November 15, 2026: join, sync, reconnect, and leave pass the private Linux journey. Real sync matches the exact dry-run bytes from saved SQLCipher totals. Stable-device recovery, competing processes, daemon restart, and credential removal pass. The ordinary unconfigured build ignores native endpoint settings and makes no request. Full Rust workspace checks and native-feature Clippy pass. The [review](reviews/2026-11-15-online-cli-enrollment.md) records scope and corrected boundaries. Settings, hosted GitHub and Cloudflare acceptance, and other platforms remain open.
 
 - Independent Overview summaries (S-23a), November 15, 2026: one local-summary component survives first account creation. Renderer checks cover provider failure, local failure, empty history, and exact detail panels. The native consent journey preserves 14,950 local tokens and their incomplete estimate beside the first signed-out account. Provider and local totals retain separate scopes. Connection suggestions and joined rank remain open.
-
-- Leaderboard credential storage (L-5a2), November 15, 2026: the [separate vault](../crates/openusage-keys/README.md#leaderboard-credential-storage) passes the private Linux Secret Service journey. Synthetic credentials survive a daemon restart. Occupied, malformed, duplicate, locked, and unavailable entries refuse safely. Database-key isolation and expected-value removal pass. L-5a3 covers the payload schema. Online callers, hosted access, and other platforms remain open.
 
 - Verification interruption, November 15, 2026: the [runner](engineering-workflow.md) records completed checks and stops owned child groups on SIGINT or SIGTERM. Synthetic process regressions and the full Python tool suite pass. The original interrupted milestone remains incomplete, and its signal sender remains unknown. Separate workspace tests and Clippy pass on the corrected source.
 
 - Owned scanner shutdown (S-06a), November 13, 2026: [native Linux acceptance](reviews/2026-11-13-owned-scanner-shutdown.md) stops concurrent scanner and provider work on Quit. All 42 encrypted tables and the protected key remain unchanged. Unrelated processes survive. The normal build rejects the test-only scanner path. Tray, Start at login, wake handling, and other platforms remain open.
 
-- Leaderboard transport (L-5a1), November 13, 2026: the shared [Rust client](../crates/openusage-board/README.md) supports bounded GitHub device authorization, join, exact-body sync, leave, and own rank. Ten local HTTP/TLS checks pass. Scoped Clippy and formatting pass. Missing build settings leave the client inert. CLI and Settings integration, enrollment persistence, and hosted acceptance remain open. L-5a2 covers the separate low-level vault.
-
 - Period receipts (L-3c), November 13, 2026: Wrapped offers seven days, thirty days, and the current calendar month. Rust owns date selection and exact totals. The native share journey passes with synthetic logs and encrypted storage on Linux. Both renderer engines, full workspace tests, and Clippy pass within the combined checks. Annual Heatmap and Badge behavior remains. Real histories, other platforms, public profiles, and subscription comparisons remain open.
-
-- Offline board preview (L-5a0), November 13, 2026: the [CLI contract](../crates/openusage-cli/README.md#offline-leaderboard-preview) prints exact prospective upload bytes from one read-only snapshot. Seven command-entry checks use synthetic encrypted storage, and two process checks pass. The full Rust workspace and Clippy pass. Ambiguous or incomplete saved history refuses safely. Online join, sync, leave, credential storage, and exact real-upload comparison remain open.
 
 - Own rank (L-4c), November 13, 2026: the [service API](../services/leaderboard/README.md#api) returns authenticated ranks beyond the public top 100. Thirty-three Worker integration tests pass against synthetic SQLite and a GitHub stub. Shared ordering, missing estimates, revocation, date bounds, and safe integer limits pass. Hosted D1, deployment, and client views remain unverified.
 
@@ -204,11 +199,11 @@ separate from document completion. The [performance report](performance-report.m
 
 The owner resumed autonomous implementation on November 15, 2026. Work continues through verified local commits and periodic pushes. Each push checks the GitHub login and includes only the reviewed branch. No release, deployment, or pull request is authorized. The latest instruction replaces the November 13 stop condition. Baseline 3.1 product scope stays unchanged.
 
-The current pass covers R-9 synthetic fixture publication and L-5a3's strict enrollment codec. Astra xhigh workers completed the bounded fixture correction and independent reviews. The primary agent owns shared documentation, final verification, and Git operations. The owner also authorized the OpenUsage Claude chats as supporting context. Private review notes preserve the latest matte layout and first-release priorities without publishing raw chats.
+The current pass completes L-5a's Linux CLI integration within its synthetic scope. Astra agents at extra-high effort resolved credential coordination and encoder buffer growth. Independent specification and standards reviewers cleared the corrected source. The primary agent owns integration, verification, documentation, and Git. The owner also authorized the OpenUsage Claude chats as supporting context. Private notes preserve the latest matte layout and first-release priorities without publishing raw chats.
 
-The next client boundary is serialized enrollment coordination, the typed OS-store round trip, and online CLI callers under L-5a. The [source review](reviews/2026-11-15-enrollment-contract.md) records a separate GitHub expiring-token response compatibility gate. Connection suggestions and joined-rank access remain under S-23. Scanner activation still needs the unresolved qualification and saved-session gates in the L-1f11au review.
+The next correction clears local leaderboard credentials during local deletion under [SC-029](srs-clarifications.md#sc-029-local-deletion-and-public-enrollment). It must preserve the separate effect of public departure. The shared upload builder and Settings integration follow under L-5b. Own-rank client access and connection suggestions remain under S-23. Scanner activation retains its separate qualification and saved-session gates. The application needs owner service configuration before a live leaderboard join can work. The transport accepts GitHub's documented optional expiry fields without retaining refresh credentials.
 
-The repository inventory covers 918 tracked files. Graphify and source review cover the major application, storage, provider, CLI, service, and test boundaries. This is an inventory and scoped review. It does not establish a complete semantic audit. Real-provider, real-machine, and production scanner gates remain open.
+The repository inventory covers 938 tracked files. Graphify and source review cover the major application, storage, provider, CLI, service, and test boundaries. This is an inventory and scoped review. It does not establish a complete semantic audit. Real-provider, real-machine, and production scanner gates remain open.
 
 L-1f11as is complete within its separate legacy capture candidate scope.
 The [candidate record](reviews/2026-11-13-legacy-capture-candidate.md) lists executed

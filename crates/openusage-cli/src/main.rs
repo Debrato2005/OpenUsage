@@ -145,7 +145,7 @@ Commands:
   status       Saved quotas and today's local usage. This is the default
   statusline   One line for tmux and shell prompts
   report       Local log totals for this device, with no database
-  board        Preview an offline leaderboard sync
+  board        Join, preview, sync, or leave the leaderboard
   doctor       Check this machine and print each fix
   app          Open the desktop app
 
@@ -166,6 +166,11 @@ Exit codes:
   11 board_incomplete_data: saved local usage cannot form exact upload rows
   12 board_invalid_data: saved local usage violates the upload contract
   13 board_too_large: the upload exceeds service limits
+  14 board_unconfigured: this build has no leaderboard configuration
+  15 board_credential: the saved enrollment or OS store is unavailable
+  16 board_busy: another leaderboard command holds the lock
+  17 board_remote: authorization or a service request failed
+  18 board_partial: the service changed but local cleanup or saving failed
 ";
 
 #[derive(Serialize)]
@@ -195,7 +200,7 @@ pub fn run(
         Some("statusline") => status::statusline(&args[1..], env),
         Some("report") => report::command(&args[1..], env, input, prompt),
         Some("doctor") => doctor::command(&args[1..], env),
-        Some("board") => board::command(&args[1..], env),
+        Some("board") => board::command(&args[1..], env, input, prompt),
         Some("app") => app::command(&args[1..], env),
         Some(other) => Err(CliError::usage(format!(
             "Unknown command '{other}'. Run 'openusage --help'."

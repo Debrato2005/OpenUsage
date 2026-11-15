@@ -1,7 +1,8 @@
-//! Bounded opt-in leaderboard transport. No storage, credential discovery or scheduler.
+//! Bounded opt-in leaderboard transport and serialized OS enrollment.
 mod device;
 mod enrollment;
 mod protocol;
+mod session;
 mod transport;
 
 pub use device::{DeviceFlow, PollOutcome};
@@ -10,6 +11,7 @@ pub use protocol::{
     ApprovedSyncBody, DeviceId, GithubToken, Joined, Metric, OwnRank, Period, RankEntry,
     ServiceToken,
 };
+pub use session::{EnrollmentSession, SessionError};
 
 use std::{fmt, time::Duration};
 
@@ -90,6 +92,31 @@ impl BoardClient {
             }
             _ => Ok(Self { transport: None }),
         }
+    }
+    /// Private native acceptance only. HTTPS, hostname checks, and loopback bounds stay active.
+    #[cfg(feature = "native-test")]
+    pub fn for_native_fixture(origin: &str, certificate: &[u8]) -> Result<Self, Error> {
+        let mut transport = transport::Transport::production(origin, "synthetic-native-client")?;
+        if !matches!(transport.origin.host_str(), Some("127.0.0.1" | "[::1]")) {
+            return Err(Error::InvalidConfiguration);
+        }
+        transport.github_device = transport
+            .origin
+            .join("login/device/code")
+            .map_err(|_| Error::InvalidConfiguration)?;
+        transport.github_poll = transport
+            .origin
+            .join("login/oauth/access_token")
+            .map_err(|_| Error::InvalidConfiguration)?;
+        let certificate =
+            reqwest::Certificate::from_pem(certificate).map_err(|_| Error::InvalidConfiguration)?;
+        transport.client = transport::client_builder()
+            .add_root_certificate(certificate)
+            .build()
+            .map_err(|_| Error::InvalidConfiguration)?;
+        Ok(Self {
+            transport: Some(transport),
+        })
     }
     pub fn is_configured(&self) -> bool {
         self.transport.is_some()

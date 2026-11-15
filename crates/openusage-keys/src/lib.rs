@@ -8,6 +8,12 @@ pub type DatabaseKey = Zeroizing<[u8; 32]>;
 
 mod board;
 pub use board::{BoardCredential, BoardVault};
+mod board_guard;
+pub use board_guard::{BoardGuard, BoardGuardError};
+#[cfg(all(target_os = "linux", feature = "native-test"))]
+mod fixture;
+#[cfg(all(target_os = "linux", feature = "native-test"))]
+pub use fixture::private_keyring_fixture;
 
 #[cfg(not(feature = "native-test"))]
 const SERVICE: &str = "app.openusage.desktop";
@@ -173,6 +179,54 @@ impl KeyVault for OsVault {
 }
 
 impl OsVault {
+    fn replace_checked(
+        &self,
+        verify: impl FnOnce(Vec<u8>) -> Result<(), VaultError>,
+        replacement: &[u8],
+    ) -> Result<(), VaultError> {
+        #[cfg(target_os = "linux")]
+        {
+            bounded(&self.runtime, async {
+                let attributes = std::collections::HashMap::from([
+                    ("service", SERVICE),
+                    ("username", self.account),
+                ]);
+                let found = self
+                    .service()?
+                    .search_items(attributes)
+                    .await
+                    .map_err(|_| VaultError::Unavailable)?;
+                if found.unlocked.len() + found.locked.len() > 1 {
+                    return Err(VaultError::InvalidKey);
+                }
+                if !found.locked.is_empty() {
+                    return Err(VaultError::Unavailable);
+                }
+                let item = found.unlocked.first().ok_or(VaultError::InvalidKey)?;
+                let attributes = item
+                    .get_attributes()
+                    .await
+                    .map_err(|_| VaultError::Unavailable)?;
+                if attributes.get("service").map(String::as_str) != Some(SERVICE)
+                    || attributes.get("username").map(String::as_str) != Some(self.account)
+                {
+                    return Err(VaultError::InvalidKey);
+                }
+                verify(
+                    item.get_secret()
+                        .await
+                        .map_err(|_| VaultError::Unavailable)?,
+                )?;
+                // Update this exact item. No delete or create gap can lose the slot.
+                item.set_secret(replacement, "text/plain")
+                    .await
+                    .map_err(|_| VaultError::Unavailable)
+            })
+        }
+        #[cfg(not(target_os = "linux"))]
+        replace_entry_checked(&self.entry, verify, replacement)
+    }
+
     fn remove_checked(
         &self,
         verify: impl FnOnce(Vec<u8>) -> Result<(), VaultError>,
@@ -261,6 +315,17 @@ impl OsVault {
             self.entry.set_secret(encoded).map_err(map_error)
         }
     }
+}
+
+#[cfg(any(not(target_os = "linux"), test))]
+fn replace_entry_checked(
+    entry: &Entry,
+    verify: impl FnOnce(Vec<u8>) -> Result<(), VaultError>,
+    replacement: &[u8],
+) -> Result<(), VaultError> {
+    let encoded = entry.get_secret().map_err(map_error)?;
+    verify(encoded)?;
+    entry.set_secret(replacement).map_err(map_error)
 }
 
 fn decode_key(encoded: Vec<u8>) -> Result<DatabaseKey, VaultError> {

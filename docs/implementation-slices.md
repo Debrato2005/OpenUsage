@@ -75,7 +75,7 @@ Adopted November 7, 2026 (SRS Section 0.6, SC-016). The owner wants a working pr
 | L-2 | CLI with `openusage status`, `statusline` and `report` | S-14 | Done |
 | L-3 | Sharing: Wrapped summary, heatmap PNG and SVG, a README badge, and personal records | S-19 | Done |
 | L-4 | Leaderboard service on Cloudflare Workers and D1, per the [decision](decisions/2026-11-07-leaderboard-service.md) | S-21 | Done locally. Deployment waits for the owner |
-| L-5 | Leaderboard client: join with GitHub, dry run, sync, leave | S-22 | Offline preview and transport complete within local scope. Caller integration and owner service setup remain |
+| L-5 | Leaderboard client: join with GitHub, dry run, sync, leave | S-22 | CLI complete within synthetic Linux scope. Settings and hosted setup remain |
 | L-6 | Packaging: Linux packages, Windows and macOS preview builds in CI, the npm package | S-18, part of S-15 | L-6a and L-6b built. Preview builds and platform pins remain open under L-6c |
 | L-7 | Release documents and the launch checklist | S-20 | L-7a through L-7d built. Remaining documents and evidence are open under L-7e |
 | G-L | Owner: claim the npm name (OQ-2), create the Cloudflare account and GitHub OAuth App, run the real-account tests, publish | G-1, G-2, G-3 | Not started |
@@ -206,12 +206,13 @@ Updated November 15, 2026. Each completed item has one local commit and scoped e
 
 **L-5 Leaderboard client**
 
-- [x] L-5a0: offline `sync --dry-run` from one read-only saved-data snapshot. Seven encrypted-storage command checks and two process checks pass, with full workspace tests and Clippy. Ambiguous or incomplete rows refuse. No network or enrollment side effects occur (OU-BOARD-005/006, OU-CLI-002; AT-96). Real-upload equality remains open.
-- [x] L-5a1: reusable Rust HTTP transport under the [client decision](decisions/2026-11-13-leaderboard-http-client.md). Ten local HTTP/TLS checks, scoped Clippy, and formatting pass. It has no production caller or credential persistence.
-- [x] L-5a2: a [separate OS credential slot](../crates/openusage-keys/README.md#leaderboard-credential-storage) for future enrollment. Private Linux Secret Service checks pass across restart, occupied slots, malformed and duplicate entries, locks, service absence, and database-key isolation. L-5a3 covers the payload schema. Online callers remain open.
-- [x] L-5a3: the pure [enrollment format](../crates/openusage-board/README.md#enrollment-credential-format) binds one configured origin, UUIDv4 device, login, and service token. Eight public API tests pass. Named fields, canonical ASCII, strict bounds, fixed zeroizing output, and redacted errors preserve the credential boundary. The typed OS-store round trip and online callers remain open.
+- [x] L-5a0: offline `sync --dry-run` from one read-only saved-data snapshot. Seven encrypted-storage command checks and two process checks pass, with full workspace tests and Clippy. Ambiguous or incomplete rows refuse. No network or enrollment side effects occur (OU-BOARD-005/006, OU-CLI-002; AT-96). L-5a supplies the exact real-upload comparison.
+- [x] L-5a1: reusable Rust HTTP transport under the [client decision](decisions/2026-11-13-leaderboard-http-client.md). Ten local HTTP/TLS checks, scoped Clippy, and formatting pass. L-5a supplies CLI callers and credential persistence.
+- [x] L-5a2: a [separate OS credential slot](../crates/openusage-keys/README.md#leaderboard-credential-storage) for future enrollment. Private Linux Secret Service checks pass across restart, occupied slots, malformed and duplicate entries, locks, service absence, and database-key isolation. L-5a3 covers the payload schema. L-5a supplies online CLI callers. Settings remains open.
+- [x] L-5a3: the pure [enrollment format](../crates/openusage-board/README.md#enrollment-credential-format) binds one configured origin, UUIDv4 device, login, and service token. Eight public API tests pass. Named fields, canonical ASCII, strict bounds, fixed zeroizing output, and redacted errors preserve the credential boundary. L-5a supplies the typed OS-store round trip and online CLI callers.
 - [x] R-9: publish synthetic activity configuration atomically. The deterministic regression and all 69 Codex crate tests pass. The [record](reviews/2026-11-15-activity-fixture-publication.md) distinguishes the reproduced local race from the incomplete hosted error. [Hosted acceptance](acceptance-traceability.md#evidence-log) passes for `a9a7773`.
-- [ ] L-5a: `openusage board join`, `sync --dry-run`, `sync` and `leave` through one upload builder, with the token in the OS credential store (OU-BOARD-001, OU-BOARD-002, OU-BOARD-005, OU-BOARD-006; AT-86 to AT-88). Integrate the qualified transport with explicit enrollment and OS token storage. Exact real-upload comparison remains open.
+- [x] L-5a: `openusage board join`, `sync --dry-run`, `sync`, `join --reconnect`, and `leave` use typed OS credentials and one upload builder. Private Linux HTTPS/Secret Service/SQLCipher journeys pass exact byte equality, interrupted-save recovery, changed-XDG competing processes, restart, rejected leave, and confirmed removal. Full Rust checks and native-feature Clippy pass. The [review](reviews/2026-11-15-online-cli-enrollment.md) owns limits. Hosted setup, Settings, and other platforms remain open.
+- [ ] L-5a5: clear the local leaderboard credential during local deletion under [SC-029](srs-clarifications.md#sc-029-local-deletion-and-public-enrollment). Serialize competing operations, retain recovery after interruption, and make no public leave request. Native joined and pending cases remain unverified.
 - [ ] L-5b: join, sync and leave in Settings.
 
 **L-6 Packaging**
@@ -834,7 +835,7 @@ L-7e stays open for its other documents and acceptance evidence.
 | S-20 | Release documents | S-18 | L-7a through L-7d built. See L-7e for the remaining documents and evidence |
 | G-3 | Owner: real machines and first release | S-20, OQ-2 | Not started |
 | S-21 | Leaderboard service | G-3 | Built as L-4. Deployment waits for the owner |
-| S-22 | Leaderboard client | S-21 | Caller integration and owner service setup remain (L-5) |
+| S-22 | Leaderboard client | S-21 | CLI passes locally. Settings and hosted setup remain (L-5) |
 
 ## Foundation
 

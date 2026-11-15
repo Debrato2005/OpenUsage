@@ -47,6 +47,36 @@ Local measurements have `status: null` under [SC-019](../../docs/srs-clarificati
 
 Backup and restore keep the underlying scope records unchanged. `status` reads the shared storage projection through a read-only connection. It creates no scanner process.
 
+## Online leaderboard commands
+
+The CLI supports explicit join, sync, and leave commands on Linux.
+Settings integration, hosted acceptance, macOS, and Windows remain open.
+Missing build configuration leaves every online command inert.
+Ordinary status and offline preview never construct an enrollment session.
+
+Join uses GitHub device authorization and shows the fixed verification URL on standard error.
+It never opens a browser automatically.
+Use join --reconnect to authorize the saved device again.
+An account change keeps the previous account's public data until that account leaves.
+The [enrollment contract](../openusage-board/README.md#serialized-enrollment) describes interrupted-save recovery.
+
+Sync uses the offline preview's saved-data serializer and sends its exact bytes.
+It reads one SQLCipher snapshot and starts no scanner.
+Interactive sync shows the exact upload before one confirmation.
+Scripts use --yes. An upload contains no provider reading or local path.
+
+Leave removes the account, all its devices, and all its public data.
+The confirmation states that scope.
+The local credential remains until the service confirms removal.
+A transport failure or rejected token does not prove deletion.
+If local cleanup then fails, the command reports the remote success and local failure separately.
+
+Successful online JSON uses CLI schema 2 with command, state, deviceId, and accepted.
+Unavailable device IDs and accepted counts are null.
+Dry-run JSON remains the exact service payload without a wrapper.
+GitHub credentials and service tokens never reach command output.
+
+
 ## Offline leaderboard preview
 
 `openusage board sync --dry-run --device-id UUID [--days N] [--json]` prints the
@@ -62,8 +92,7 @@ refuses a selected date that the service considers future in UTC.
 
 Success prints compact JSON with only `deviceId` and `rows`, without an output
 wrapper or added newline. Each row holds only the service aggregate fields.
-The shared typed serializer is the future sync body path. The command does not
-implement join, online sync, or leave. `--json` selects versioned JSON failures.
+Real sync sends these same serializer bytes unchanged. `--json` selects versioned JSON failures.
 
 Current Claude Code and Codex history works when one folder supplies each tool,
 all selected rows have complete coverage, and no grouped scope overlaps that
@@ -94,7 +123,7 @@ Each failure prints one line to standard error: the message and its code. With `
 | 0 | | Success |
 | 1 | `doctor_found_problems` | `doctor` found a check that needs a fix |
 | 2 | `usage` | An unknown command or option |
-| 3 | `consent_required` | `report` needs consent, or `--yes` |
+| 3 | `consent_required` | `report` or an online board command needs consent, or `--yes` |
 | 4 | `ccusage_unavailable` | The pinned `ccusage` is missing, changed, or not pinned for this platform |
 | 5 | `scan_failed` | A `ccusage` run failed. Nothing was saved |
 | 6 | `app_unavailable` | The desktop app is missing or stopped at start |
@@ -105,6 +134,11 @@ Each failure prints one line to standard error: the message and its code. With `
 | 11 | `board_incomplete_data` | Saved local usage cannot form exact upload rows |
 | 12 | `board_invalid_data` | Saved local usage violates the upload contract |
 | 13 | `board_too_large` | The upload exceeds service limits |
+| 14 | `board_unconfigured` | Missing or invalid leaderboard build configuration |
+| 15 | `board_credential` | Invalid, absent, or unavailable enrollment, credential store, or secure runtime |
+| 16 | `board_busy` | Another leaderboard command holds the credential guard |
+| 17 | `board_remote` | GitHub authorization or a service request failed |
+| 18 | `board_partial` | The service changed, but credential saving or cleanup failed |
 
 `statusline` prints its state on standard output, such as `OpenUsage locked`, so a prompt keeps one line.
 

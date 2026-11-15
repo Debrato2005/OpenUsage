@@ -13,6 +13,7 @@ path = "src/main.rs"
 
 [dependencies]
 jiff = "=0.2.38"
+openusage-board = { path = "../openusage-board" }
 openusage-keys = { path = "../openusage-keys" }
 openusage-locallogs = { path = "../openusage-locallogs" }
 openusage-storage = { path = "../openusage-storage" }
@@ -24,4 +25,4 @@ zeroize = "=1.9.1"
 [features]
 default = []
 # Native journeys read the separate native-test credential namespace.
-native-test = ["openusage-keys/native-test"]
+native-test = ["openusage-keys/native-test", "openusage-board/native-test"]

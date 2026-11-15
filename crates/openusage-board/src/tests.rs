@@ -809,3 +809,44 @@ fn failed_poll_requests_keep_the_interval_without_an_automatic_retry() {
     ));
     server.request();
 }
+
+#[test]
+fn expiring_github_reply_is_consumed_once_and_partial_expiry_refuses() {
+    for (extra, valid) in [
+        (
+            r#","refresh_token":"ghr_synthetic_refresh_token_1234567890","expires_in":28800,"refresh_token_expires_in":15897600"#,
+            true,
+        ),
+        (
+            r#","refresh_token":"ghr_synthetic_refresh_token_1234567890""#,
+            false,
+        ),
+        (
+            r#","refresh_token":null,"expires_in":28800,"refresh_token_expires_in":15897600"#,
+            false,
+        ),
+        (
+            r#","refresh_token":"ghr_synthetic_refresh_token_1234567890","expires_in":0,"refresh_token_expires_in":15897600"#,
+            false,
+        ),
+    ] {
+        let response = format!(
+            r#"{{"access_token":"{GITHUB_TOKEN}","token_type":"bearer","scope":""{extra}}}"#
+        );
+        let server = Server::start(vec![Reply::ok(START), Reply::ok(&response)]);
+        let client = server.client();
+        let mut flow = client.device_start(Duration::ZERO).unwrap();
+        server.request();
+        let result = client.device_poll(&mut flow, Duration::from_secs(5));
+        server.request();
+        assert_eq!(matches!(result, Ok(PollOutcome::Authorized(_))), valid);
+        assert!(!format!("{result:?}").contains("ghr_synthetic"));
+        assert_eq!(
+            client
+                .device_poll(&mut flow, Duration::from_secs(10))
+                .unwrap_err(),
+            Error::FlowFinished
+        );
+        server.no_request();
+    }
+}

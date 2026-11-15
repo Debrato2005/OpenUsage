@@ -2817,10 +2817,12 @@ name = "openusage-board"
 version = "0.1.0"
 dependencies = [
  "jiff",
+ "openusage-keys",
  "reqwest",
  "serde",
  "serde_json",
  "tempfile",
+ "uuid",
  "zeroize",
 ]
 
@@ -2829,6 +2831,7 @@ name = "openusage-cli"
 version = "0.1.0"
 dependencies = [
  "jiff",
+ "openusage-board",
  "openusage-keys",
  "openusage-locallogs",
  "openusage-storage",
@@ -2899,6 +2902,7 @@ version = "0.1.0"
 dependencies = [
  "apple-native-keyring-store",
  "keyring-core",
+ "rustix",
  "secret-service",
  "tokio",
  "windows-native-keyring-store",

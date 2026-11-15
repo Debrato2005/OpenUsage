@@ -406,7 +406,6 @@ fn preview_options_require_an_explicit_v4_identity_before_any_workspace_access()
         ..Env::for_tests()
     };
     for args in [
-        vec!["board", "sync"],
         vec!["board", "sync", "--dry-run"],
         vec![
             "board",
@@ -448,11 +447,31 @@ fn preview_options_require_an_explicit_v4_identity_before_any_workspace_access()
             DEVICE,
             "--dry-run",
         ],
-        vec!["board", "join"],
-        vec!["board", "leave"],
     ] {
         let args = args.into_iter().map(str::to_owned).collect::<Vec<_>>();
         let result = crate::run(&args, &env, &mut std::io::empty(), &mut std::io::sink()).0;
         assert_eq!(result.unwrap_err().code, "usage");
+    }
+}
+
+#[test]
+fn unconfigured_online_commands_do_not_read_credentials_or_prompt() {
+    let env = Env {
+        key: Box::new(|| panic!("unconfigured board must stay inert")),
+        ..Env::for_tests()
+    };
+    for action in ["join", "sync", "leave"] {
+        let mut prompt = Vec::new();
+        let args = [
+            "board".into(),
+            action.into(),
+            "--yes".into(),
+            "--json".into(),
+        ];
+        let error = crate::run(&args, &env, &mut std::io::empty(), &mut prompt)
+            .0
+            .unwrap_err();
+        assert_eq!((error.code, error.exit), ("board_unconfigured", 14));
+        assert!(prompt.is_empty());
     }
 }

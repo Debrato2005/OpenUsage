@@ -34,6 +34,27 @@ This is the record of how requirements were read. Entries keep their original da
 | SC-026 | Profile removal and retained delivery controls | Implementation reading recorded, native Linux scope passed |
 | SC-027 | Section 17 and current DTOs | Open implementation gap, SRS unchanged |
 | SC-028 | Desktop and private website companion | Owner-authorized baseline 3.1; implementation open |
+| SC-029 | Local deletion and public enrollment | Open implementation gap, SRS unchanged |
+
+## SC-029: local deletion and public enrollment
+
+Recorded November 15, 2026. Implementation gap, SRS unchanged.
+OU-DATA-016 requires complete local data deletion.
+OU-DATA-017 separates local deletion from Leaderboard Service records.
+OU-BOARD-010 gives public departure its own effect.
+
+The new CLI stores a public enrollment in a separate OS credential slot.
+The current desktop deletion path removes the database key and provider sessions.
+It does not yet remove this leaderboard slot.
+The earlier native deletion evidence covers the earlier credential set.
+It does not qualify deletion after leaderboard enrollment.
+
+The next bounded correction must clear the local leaderboard credential under the same cross-process guard.
+It must never call global leave as a side effect of local deletion.
+Its confirmation must distinguish local erasure from public departure.
+Private native acceptance must check joined and pending records, competing operations, unavailable stores, and resumable interruption.
+Hosted recovery after all device credentials are lost remains a separate service gate.
+No new normative requirement or deployment authority is added.
 
 ## SC-028: desktop and private website companion
 

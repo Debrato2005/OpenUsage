@@ -14,15 +14,15 @@ owns the transport policy. The
 - `OPENUSAGE_GITHUB_OAUTH_CLIENT_ID`: the public GitHub OAuth application ID.
 
 Missing settings produce an inert client. No method sends a request until both
-settings exist and pass validation. The public API has no URL setter. GitHub
+settings exist and pass validation. The ordinary-build API has no URL setter. GitHub
 device endpoints remain fixed. Callers do not supply credentials in URLs.
 
 The client requires TLS 1.2 or later and keeps connection byte logging disabled.
 Certificate and hostname validation remain enabled.
 
 The client blocks its calling thread. Desktop callers must use an owned blocking
-task outside the UI thread and storage lock. The crate has no database, key
-store, browser launcher, or scheduler.
+task outside the UI thread and storage lock. The transport has no database, browser launcher, or scheduler.
+The separate session coordinator below owns the OS credential boundary.
 
 ## Authorization
 
@@ -47,7 +47,8 @@ store. `expose()` gives deliberate access for credential storage. Its caller
 owns persistence and revocation. Neither secret type implements `Display` or
 `Serialize`. Debug output redacts secrets, flows, joined identity, and rank data.
 The crate zeroizes its owned secret strings and transient HTTP buffers.
-The HTTP and TLS libraries can retain their own internal copies.
+Join encoding uses a fixed zeroizing writer. OAuth forms reserve exact capacity before secret writes.
+HTTP, TLS, and parser libraries can retain internal secret copies.
 GitHub form requests use the crate's small encoder into a zeroized buffer.
 The reqwest `form` feature stays disabled because this path does not use it.
 
@@ -71,7 +72,8 @@ A null entry stays unavailable.
 Tests call the public methods against real loopback HTTP servers. A private
 synthetic certificate and Python TLS server test normal certificate rejection
 and an explicitly trusted test certificate. TLS trust changes and HTTP endpoint
-overrides exist only under `cfg(test)`.
+overrides exist only under `cfg(test)` or `native-test`.
+Native CLI acceptance also checks the private fixture before credential access.
 
 The TLS test requires Python 3 with `ssl` and the `openssl` executable. It reports
 missing prerequisites as failures. It uses fixed argument lists, private temporary
@@ -80,12 +82,12 @@ login, provider home, OS credential store, or cloud service.
 
 The request-deadline case shortens the timeout only in the test configuration.
 Production requests keep the five-second connect and fifteen-second total
-budgets. Hosted GitHub, Cloudflare, other platforms, and caller integration need
+budgets. Hosted GitHub, Cloudflare, other platforms, and Settings integration need
 separate acceptance.
 
 ## Enrollment credential format
 
-`Enrollment` is a pure Rust codec for the future leaderboard credential slot.
+`Enrollment` is a pure Rust codec for the leaderboard credential slot.
 It performs no network, file, database, or OS-store operation. The caller supplies
 the configured service origin when it restores a credential. A stored URL never
 selects the destination.
@@ -108,7 +110,36 @@ The envelope has no general serializer or display implementation.
 
 Eight public API tests cover round trips, origin binding, byte limits, field
 refusal, secret handling, and a 257-byte record. These tests use synthetic
-credentials without network or OS-store access. Production callers,
-cross-process enrollment coordination, and the typed record's OS-store round
-trip remain open. No GitHub access token, refresh token, provider credential,
+credentials without network or OS-store access. The CLI journey below
+checks the typed OS-store boundary with separate synthetic credentials. No GitHub access token, refresh token, provider credential,
 or source history belongs in this envelope.
+
+## Serialized enrollment
+
+EnrollmentSession coordinates the OS credential record and the lifetime guard.
+The transport keeps its HTTP policy and owns no OS-store operation.
+The [keys contract](../openusage-keys/README.md#credential-coordination) owns the shared lock and replacement rules.
+
+Join saves a random UUIDv4 pending record before the first remote authorization.
+An explicit resumed join reuses the same ID.
+The pending record contains schemaVersion, phase, serviceOrigin, and deviceId.
+Its phase is pending. It contains no service token or GitHub credential.
+The active record keeps the existing version 1 enrollment format.
+Both states bind the configured origin before any network request.
+A stored origin never chooses a destination.
+
+A successful remote join replaces the exact expected OS item without a delete gap.
+If saving fails, the saved pending or previous record retains the device ID.
+The CLI reports a partial result and requires explicit recovery.
+It never calls leave as a rollback.
+Reconnect reuses the saved device ID and requires explicit consent.
+An account change does not delete the previous account's public data.
+Login remains descriptive metadata, not verified identity.
+
+GitHub can return an optional expiry and refresh-token triplet.
+The client accepts a complete valid triplet and refuses partial or malformed fields.
+It consumes the access token once and discards the refresh credential.
+No GitHub credential enters the enrollment record.
+
+
+See the [native CLI journey](../../tests/native/README.md#native-leaderboard-cli) for its executed boundary.

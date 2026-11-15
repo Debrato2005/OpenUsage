@@ -805,3 +805,13 @@ A mid-task disk comparison measured 86,016 additional allocated bytes. The share
 ## Linux build observation
 
 The observed build took 39 seconds and produced the same bytes as the native-tested default binary. This is one shared-host observation, not a performance benchmark. See the build record (private evidence omitted).
+
+## November 15, 2026: client integration replaces foundation-only status
+
+- Leaderboard enrollment format (L-5a3), November 15, 2026: the pure [codec](../crates/openusage-board/README.md#enrollment-credential-format) binds one configured origin and validates the saved device credential. Eight public API checks pass, and independent reviews close the buffer-handling findings. Online callers, the typed OS-store round trip, enrollment coordination, revocation, and hosted acceptance remain open.
+
+- Leaderboard credential storage (L-5a2), November 15, 2026: the [separate vault](../crates/openusage-keys/README.md#leaderboard-credential-storage) passes the private Linux Secret Service journey. Synthetic credentials survive a daemon restart. Occupied, malformed, duplicate, locked, and unavailable entries refuse safely. Database-key isolation and expected-value removal pass. L-5a3 covers the payload schema. Online callers, hosted access, and other platforms remain open.
+
+- Leaderboard transport (L-5a1), November 13, 2026: the shared [Rust client](../crates/openusage-board/README.md) supports bounded GitHub device authorization, join, exact-body sync, leave, and own rank. Ten local HTTP/TLS checks pass. Scoped Clippy and formatting pass. Missing build settings leave the client inert. CLI and Settings integration, enrollment persistence, and hosted acceptance remain open. L-5a2 covers the separate low-level vault.
+
+- Offline board preview (L-5a0), November 13, 2026: the [CLI contract](../crates/openusage-cli/README.md#offline-leaderboard-preview) prints exact prospective upload bytes from one read-only snapshot. Seven command-entry checks use synthetic encrypted storage, and two process checks pass. The full Rust workspace and Clippy pass. Ambiguous or incomplete saved history refuses safely. Online join, sync, leave, credential storage, and exact real-upload comparison remain open.

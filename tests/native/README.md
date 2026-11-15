@@ -506,3 +506,21 @@ Run `node tests/native/share-images.mjs` with the private display and drivers ab
 `NATIVE-SHARE-IMAGES-001` creates a password workspace with synthetic Claude Code and Codex logs in a private home, and scans them with the real pinned `ccusage`. It opens Share from This device on Overview. A preview must save nothing. Save PNG and Save SVG must each write one file in the private Downloads/OpenUsage folder. The PNG must be 2400 by 1260 pixels, and the SVG must hold the exact total and no path, project name or password text.
 
 The native share journey also selects one saved folder and checks its exact total. Unknown and undated scopes must fail. The selected image must contain no folder path or project name.
+
+## Native leaderboard CLI
+
+Build the CLI with native-test in the shared Cargo environment.
+Build the ignored board_native fixture test with the same feature.
+Select its executable from Cargo's JSON artifact output.
+Set OPENUSAGE_NATIVE_CLI, OPENUSAGE_BOARD_SEED_BINARY, and OPENUSAGE_NATIVE_EVIDENCE to absolute paths.
+Run timeout 180 node tests/native/board-cli.mjs.
+The harness creates private homes, D-Bus, GNOME Secret Service, SQLCipher, and an HTTPS stub.
+It supplies synthetic credentials and local totals.
+No live GitHub account, hosted service, provider home, or user keyring is read.
+
+The native endpoint override permits HTTPS loopback hosts only.
+Certificate and hostname checks remain active.
+The CLI requires a canonical private fixture with an exact owned D-Bus socket.
+Traversal, links, and extra endpoints refuse before credential access.
+Ordinary builds contain neither this endpoint override nor the fixture-store entry point.
+The harness removes its private fixture and retains result metadata.

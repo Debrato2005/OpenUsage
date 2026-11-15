@@ -12,6 +12,7 @@ keyring-core = "=1.0.1"
 zeroize = "=1.9.1"
 
 [target.'cfg(target_os = "linux")'.dependencies]
+rustix = { version = "=1.1.5", features = ["fs", "process"] }
 secret-service = { version = "=5.2.0", default-features = false, features = ["rt-tokio-crypto-rust"] }
 tokio = { version = "=1.53.3", features = ["rt-multi-thread", "time"] }
 

@@ -68,7 +68,9 @@ fn board_preview_help_and_offline_identity_errors_are_public() {
     let home = tempfile::tempdir().unwrap();
     let (code, out, err) = openusage(home.path(), &["board", "sync", "--help"]);
     assert_eq!((code, err.as_str()), (0, ""));
-    assert!(out.starts_with("Usage: openusage board sync --dry-run --device-id UUID"));
+    assert!(out.starts_with("Usage: openusage board <join|sync|leave>"));
+    assert!(out.contains("sync --dry-run --device-id UUID"));
+    assert!(out.contains("all its public leaderboard data"));
     let (code, out, err) = openusage(home.path(), &["board", "sync", "--dry-run", "--json"]);
     assert_eq!((code, err.as_str()), (2, ""));
     let error: serde_json::Value = serde_json::from_str(&out).unwrap();

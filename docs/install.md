@@ -90,11 +90,17 @@ its owned local records. Tool homes, saved sign-in, and provider subscriptions
 remain. [SC-026](srs-clarifications.md#sc-026-profile-removal-and-retained-delivery-controls)
 lists retained account records, delivery controls, exports, and backups.
 
+The Linux leaderboard guard uses `/run/user/<uid>/app.openusage.desktop-leaderboard/enrollment.lock`.
+It contains no credential. Never remove it to clear a busy command.
+The [keys contract](../crates/openusage-keys/README.md#credential-coordination) owns its runtime requirements.
+
 ## Delete your local data
 
 ### In the app
 
-On Linux and macOS, open Settings, then select **Delete all local data**. This deletes the workspace, its database key and the account sessions that OpenUsage keeps. It keeps the display size, the files that you exported or shared, and your backups.
+On Linux and macOS, open Settings, then select **Delete all local data**. This deletes the workspace, its database key and the provider account sessions that OpenUsage keeps. It keeps the display size, the files that you exported or shared, and your backups.
+
+The separate leaderboard credential is not yet included in this action. The [open gap](srs-clarifications.md#sc-029-local-deletion-and-public-enrollment) tracks that correction. Local deletion does not remove public leaderboard data.
 
 Windows does not have this action yet.
 

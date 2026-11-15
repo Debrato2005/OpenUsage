@@ -90,6 +90,12 @@ impl<'de, T: Deserialize<'de>> Deserialize<'de> for Field<T> {
 #[serde(deny_unknown_fields)]
 struct PollReply {
     #[serde(default)]
+    refresh_token: Field<SecretText>,
+    #[serde(default)]
+    expires_in: Field<u32>,
+    #[serde(default)]
+    refresh_token_expires_in: Field<u32>,
+    #[serde(default)]
     access_token: Field<SecretText>,
     #[serde(default)]
     token_type: Field<SecretText>,
@@ -199,6 +205,9 @@ impl BoardClient {
             if !reply.access_token.is_missing()
                 || !reply.token_type.is_missing()
                 || !reply.scope.is_missing()
+                || !reply.refresh_token.is_missing()
+                || !reply.expires_in.is_missing()
+                || !reply.refresh_token_expires_in.is_missing()
                 || error.0.len() > 64
                 || matches!(&reply.error_description, Field::Present(s) if s.0.len() > 1024)
                 || matches!(&reply.error_uri, Field::Present(s) if s.0.len() > 256)
@@ -254,9 +263,27 @@ impl BoardClient {
             }
         } else {
             flow.finish();
+            let expiry_valid = match (
+                &reply.refresh_token,
+                &reply.expires_in,
+                &reply.refresh_token_expires_in,
+            ) {
+                (Field::Missing, Field::Missing, Field::Missing) => true,
+                (Field::Present(token), Field::Present(access), Field::Present(refresh)) => {
+                    (20..=255).contains(&token.0.len())
+                        && token
+                            .0
+                            .bytes()
+                            .all(|b| b.is_ascii_alphanumeric() || b"_-".contains(&b))
+                        && *access > 0
+                        && *refresh > 0
+                }
+                _ => false,
+            };
             match (reply.access_token, reply.token_type, reply.scope) {
                 (Field::Present(token), Field::Present(kind), Field::Present(scope))
                     if ok
+                        && expiry_valid
                         && kind.0.as_str() == "bearer"
                         && scope.0.is_empty()
                         && reply.interval.is_missing()

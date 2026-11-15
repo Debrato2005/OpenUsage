@@ -16,6 +16,8 @@ use zeroize::Zeroizing;
 
 pub(crate) const GITHUB_DEVICE: &str = "https://github.com/login/device/code";
 pub(crate) const GITHUB_POLL: &str = "https://github.com/login/oauth/access_token";
+// A 255-byte token, a 36-byte device ID, and the JSON field syntax.
+const MAX_JOIN_BODY: usize = 323;
 pub(crate) struct Transport {
     pub origin: Url,
     pub client_id: String,
@@ -69,25 +71,13 @@ impl Transport {
             .map_err(|_| Error::InvalidConfiguration)
     }
     pub fn join(&self, github: GithubToken, device_id: &DeviceId) -> Result<Joined, Error> {
-        #[derive(Serialize)]
-        #[serde(rename_all = "camelCase")]
-        struct Join<'a> {
-            github_token: &'a str,
-            device_id: &'a str,
-        }
         #[derive(Deserialize)]
         #[serde(deny_unknown_fields)]
         struct Reply {
             token: ServiceToken,
             login: String,
         }
-        let body = Zeroizing::new(
-            serde_json::to_vec(&Join {
-                github_token: github.expose(),
-                device_id: device_id.as_str(),
-            })
-            .map_err(|_| Error::InvalidRequest)?,
-        );
+        let body = join_body(&github, device_id)?;
         let reply: Reply = self.json(
             Method::POST,
             self.endpoint("v1/join")?,
@@ -300,6 +290,29 @@ impl Transport {
     }
 }
 
+fn join_body(github: &GithubToken, device_id: &DeviceId) -> Result<Zeroizing<Vec<u8>>, Error> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Join<'a> {
+        github_token: &'a str,
+        device_id: &'a str,
+    }
+    let mut buffer = Zeroizing::new([0_u8; MAX_JOIN_BODY]);
+    let length = {
+        let mut writer = Cursor::new(&mut buffer[..]);
+        serde_json::to_writer(
+            &mut writer,
+            &Join {
+                github_token: github.expose(),
+                device_id: device_id.as_str(),
+            },
+        )
+        .map_err(|_| Error::InvalidRequest)?;
+        writer.position() as usize
+    };
+    Ok(Zeroizing::new(buffer[..length].to_vec()))
+}
+
 pub(crate) fn validate_origin(text: &str) -> Result<Url, Error> {
     let url = Url::parse(text).map_err(|_| Error::InvalidConfiguration)?;
     let canonical = url.origin().ascii_serialization();
@@ -322,7 +335,25 @@ pub(crate) fn validate_origin(text: &str) -> Result<Url, Error> {
 
 /// Each input is bounded by its typed caller. Owned form buffers are zeroized on drop.
 pub(crate) fn form(fields: &[(&str, &str)]) -> Zeroizing<Vec<u8>> {
-    let mut bytes = Zeroizing::new(Vec::new());
+    let length = fields.len().saturating_sub(1)
+        + fields
+            .iter()
+            .map(|(key, value)| {
+                key.len()
+                    + 1
+                    + value
+                        .bytes()
+                        .map(|b| {
+                            if b.is_ascii_alphanumeric() || b"-._~ ".contains(&b) {
+                                1
+                            } else {
+                                3
+                            }
+                        })
+                        .sum::<usize>()
+            })
+            .sum::<usize>();
+    let mut bytes = Zeroizing::new(Vec::with_capacity(length));
     for (index, (key, value)) in fields.iter().enumerate() {
         if index != 0 {
             bytes.push(b'&');
@@ -344,4 +375,78 @@ pub(crate) fn form(fields: &[(&str, &str)]) -> Zeroizing<Vec<u8>> {
         }
     }
     bytes
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{MAX_JOIN_BODY, form, join_body};
+    use crate::{DeviceId, Error, GithubToken};
+    use zeroize::Zeroizing;
+
+    const DEVICE_ID: &str = "00000000-0000-4000-8000-000000000000";
+
+    #[test]
+    fn join_encoding_preserves_bytes_across_allocation_boundaries() {
+        let device_id = DeviceId::parse(DEVICE_ID).unwrap();
+        for length in [20, 59, 60, 61, 187, 188, 189, 255] {
+            let token = GithubToken::from_secret(Zeroizing::new("A".repeat(length))).unwrap();
+            let body = join_body(&token, &device_id).unwrap();
+            let expected = format!(
+                "{{\"githubToken\":\"{}\",\"deviceId\":\"{DEVICE_ID}\"}}",
+                "A".repeat(length)
+            );
+            assert_eq!(body.as_slice(), expected.as_bytes());
+            assert_eq!(body.capacity(), body.len());
+        }
+        let maximum = GithubToken::from_secret(Zeroizing::new("A".repeat(255))).unwrap();
+        assert_eq!(
+            join_body(&maximum, &device_id).unwrap().len(),
+            MAX_JOIN_BODY
+        );
+    }
+
+    #[test]
+    fn join_encoding_refuses_to_grow_past_the_fixed_buffer() {
+        let device_id = DeviceId::parse(DEVICE_ID).unwrap();
+        // Deliberately bypass validation to test the writer's independent bound.
+        let oversized = GithubToken(Zeroizing::new("A".repeat(256)));
+        assert_eq!(
+            join_body(&oversized, &device_id),
+            Err(Error::InvalidRequest)
+        );
+    }
+
+    #[test]
+    fn poll_form_reserves_exactly_for_every_supported_client_id_length() {
+        let device_code = "0".repeat(40);
+        for length in 1..=64 {
+            let client_id = "a".repeat(length);
+            let body = form(&[
+                ("client_id", &client_id),
+                ("device_code", &device_code),
+                ("grant_type", "urn:ietf:params:oauth:grant-type:device_code"),
+            ]);
+            let expected = format!(
+                "client_id={client_id}&device_code={device_code}&grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Adevice_code"
+            );
+            assert_eq!(body.as_slice(), expected.as_bytes());
+            assert_eq!(body.capacity(), body.len());
+        }
+    }
+
+    #[test]
+    fn form_reservation_preserves_escaping_and_empty_fields() {
+        let body = form(&[
+            ("value", " AZaz09-._~+&=%:/\0\u{7f}\u{80}\u{10ffff}"),
+            ("empty", ""),
+        ]);
+        assert_eq!(
+            body.as_slice(),
+            b"value=+AZaz09-._~%2B%26%3D%25%3A%2F%00%7F%C2%80%F4%8F%BF%BF&empty="
+        );
+        assert_eq!(body.capacity(), body.len());
+        let empty = form(&[]);
+        assert!(empty.is_empty());
+        assert_eq!(empty.capacity(), 0);
+    }
 }
