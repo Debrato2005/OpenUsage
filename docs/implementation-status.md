@@ -34,12 +34,13 @@ Linux input. Ordinary count defects, strict compatibility limits, legacy
 producer qualification, and saved-session migration remain open. Production pins
 and enabled tools stay unchanged.
 
-Hosted CI for `f4e492b` completed with the renderer job passing and the Rust
-workspace step failing in
-[run 43697578148](https://github.com/Debrato2005/OpenUsage/actions/runs/43697578148).
-The [fixture record](reviews/2026-11-15-activity-fixture-publication.md) covers a
-reproduced local race and its correction. Replacement hosted acceptance remains
-open. Earlier successful hosted results keep their historical commit scope.
+Hosted CI for `a9a7773` passed on November 15, 2026, in
+[run 43704301904](https://github.com/Debrato2005/OpenUsage/actions/runs/43704301904).
+Both Linux checks and the renderer job completed successfully. The workflow
+covers full Rust tests, Pi and Codex qualification builds, native oracles, and
+both renderer engines. The earlier held-final-account failure did not return.
+The [fixture record](reviews/2026-11-15-activity-fixture-publication.md) preserves
+the inferred cause and the original failed run's scope.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -170,8 +171,6 @@ Kept from baseline 2.0:
 - Sleep and wake, packaging, and the full reference performance gate remain unmeasured. Local Linux measurements are in the [performance report](performance-report.md).
 
 ## Failing or stale tests
-
-- Hosted activity fixture, R-9, November 15, 2026: a held-final-account test fails with `Session(UnexpectedExit)` on `f4e492b`. A [local reproduction](reviews/2026-11-15-activity-fixture-publication.md) exposes truncated JSON during a config rewrite. Atomic sibling publication passes the deterministic regression and all 69 Codex tests. Hosted stderr is absent, so the exact hosted cause remains inferred. Replacement hosted acceptance remains open.
 
 - Matte noir, November 15, 2026: the current source passes all 490 Chromium and WebKit renderer cases through the project runtime. All 32 focused local-usage cases pass after screenshots disable color transitions. Visual checks cover light and dark themes at 720 pixels. The native consent and persistence journeys pass on the current Linux build. Other native journeys retain their own recorded scopes.
 

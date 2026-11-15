@@ -4,6 +4,15 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## Hosted activity failure before R-9 acceptance
+
+The held-final-account activity test failed on `f4e492b`. Its hosted output
+omitted child stderr. R-9 corrected a reproduced local configuration race.
+Hosted CI for `a9a7773` later passed both jobs in
+[run 43704301904](https://github.com/Debrato2005/OpenUsage/actions/runs/43704301904).
+The exact earlier cause remains inferred. The [fixture record](reviews/2026-11-15-activity-fixture-publication.md)
+owns the local reproduction and correction.
+
 ## November 15 integration before L-5a3
 
 The integration at `f4e492b` covered L-1f11au scanner compatibility, L-5a2
