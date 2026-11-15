@@ -16,7 +16,7 @@ On Linux each vault owns a one-worker Tokio runtime for its Secret Service conne
 
 `protect` refuses an occupied slot. `replace` updates only the exact expected selected item. Removal compares the exact expected bytes before deleting the selected item. Missing items count as already removed. On Linux, duplicate, locked, malformed, and unavailable entries refuse without an unlock prompt. Each service operation retains its five-second bound. The store has no plaintext fallback or network operation.
 
-The OS store does not supply a transaction across processes. Callers use the guard below. Duplicates refuse safely. Settings integration remains open. Database removal does not revoke public leaderboard membership or delete this separate credential.
+The OS store does not supply a transaction across processes. Callers use the guard below. Duplicates refuse safely. Settings integration remains open. Deleting only the database does not revoke public membership or erase the separate credential. Complete desktop local deletion uses the operation below.
 
 ### Acceptance
 
@@ -45,3 +45,18 @@ BoardVault::replace compares exact expected bytes before it updates the selected
 It preserves that item and never creates a delete gap.
 Missing, mismatched, malformed, duplicate, locked, and unavailable items refuse.
 Each Linux store call keeps its five-second bound.
+
+## Complete local credential erasure
+
+BoardVault::erase_local requires a held BoardGuard.
+The desktop calls it only after explicit local-deletion confirmation.
+Normal reads, creation, replacement, and expected-value removal keep their existing refusal rules.
+Complete local erasure also handles malformed payloads and duplicate items in the selected slot.
+
+On Linux, erasure checks the default collection and every matching item before deletion.
+It selects only the fixed application service and leaderboard account.
+It rechecks each item's attributes and lock before deletion, then checks absence.
+It reads no secret payload and keeps the existing five-second total bound.
+Locked or unavailable storage never counts as an empty slot.
+The database key and other credential slots remain separate.
+No network or public departure operation exists in this erasure path.

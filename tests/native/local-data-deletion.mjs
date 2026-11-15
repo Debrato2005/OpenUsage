@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { chmod, copyFile, lstat, mkdir, readFile, readdir, readlink, rm, symlink, unlink, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
@@ -9,9 +9,11 @@ import { CODEX_SENTINEL, createFixture, stopGroup } from './private-fixture.mjs'
 import { NativeDriver, waitFor } from './webdriver.mjs';
 import { startSecretService, stopSecretService } from './secret-service.mjs';
 
-for (const name of ['OPENUSAGE_NATIVE_BINARY', 'OPENUSAGE_NATIVE_EVIDENCE']) assert.ok(process.env[name], name);
+for (const name of ['OPENUSAGE_NATIVE_BINARY', 'OPENUSAGE_NATIVE_EVIDENCE', 'OPENUSAGE_BOARD_ERASURE_TEST_BINARY']) assert.ok(process.env[name], name);
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const application = resolve(process.env.OPENUSAGE_NATIVE_BINARY), output = resolve(process.env.OPENUSAGE_NATIVE_EVIDENCE);
+const enrollmentFixture = resolve(process.env.OPENUSAGE_BOARD_ERASURE_TEST_BINARY);
+const boardAccount = 'leaderboard-device-session-v1';
 const passphrase = 'OpenUsage synthetic local deletion workspace 2026';
 const backupPassword = 'OpenUsage synthetic retained backup 2026';
 const providerDigest = '53a853b737ceca311649e9f1d9ebd1341154a5f782efd8e915f7f834c819a6dc';
@@ -20,7 +22,7 @@ const sdk = process.env.OPENUSAGE_SECRET_SERVICE_SDK;
 const secretTool = sdk ? join(resolve(sdk), 'runtime/usr/bin/secret-tool') : 'secret-tool';
 const hash = async path => createHash('sha256').update(await readFile(path)).digest('hex');
 const evidence = { requirement: 'NATIVE-LOCAL-DATA-DELETION-001', result: 'failed', scope: 'Actual Linux Tauri application with private synthetic profiles, SQLCipher4/WAL, fallback key wrapping and a real isolated Secret Service. No existing provider credential homes. Seeded durable intent proves restart guards and renewed consent, not crash or power-loss behavior. External exports/backups and accessibility calibration remain. No OpenAI-side deletion or physical secure-erasure claim.', fixtures: [], closes: [], screenshots: [] };
-let fixture, driver, sequence = 0, record;
+let fixture, driver, guardHolder, sequence = 0, record;
 const call = async (command, args) => { const response = await driver.invoke(command, args); assert.equal(response.ok, true, `${command}: ${JSON.stringify(response)}`); return response.value; };
 const rejected = async (command, args, error) => assert.deepEqual(await driver.invoke(command, args), { ok: false, error });
 const workspace = () => dirname(fixture.database);
@@ -170,7 +172,7 @@ async function confirmGui() {
   await waitFor(() => driver.execute('return Boolean(document.querySelector("[data-local-data-deletion-dialog]")?.open);'), 'native deletion confirmation dialog');
   assert.deepEqual(await driver.execute('const c=document.querySelector("[data-local-data-deletion-confirm]"),s=document.querySelector("[data-local-data-deletion-submit]");return {checked:c.getAttribute("aria-checked"),disabled:s.disabled};'), { checked: 'false', disabled: true });
   const disclosure = await driver.execute('return document.querySelector("[data-local-data-deletion-dialog]").textContent;');
-  for (const text of ['Display size', 'OpenAI records', 'exported files', 'external backups', 'other Codex installations']) assert.equal(disclosure.includes(text), true);
+  for (const text of ['Display size', 'OpenAI records', 'exported files', 'external backups', 'other Codex installations', 'leaderboard credentials', 'Public leaderboard data remains.']) assert.equal(disclosure.includes(text), true);
   await nativeActivate('[data-local-data-deletion-confirm]', ' ');
   await waitFor(() => driver.execute('return document.querySelector("[data-local-data-deletion-confirm]").getAttribute("aria-checked")==="true"&&!document.querySelector("[data-local-data-deletion-submit]").disabled;'), 'renewed explicit deletion consent');
   if (!evidence.screenshots.length) { await driver.screenshot(join(output, 'local-deletion-confirmation.png')); evidence.screenshots.push('local-deletion-confirmation.png'); }
@@ -194,19 +196,43 @@ function searchEntry(selectedService, username) {
 }
 function putUnrelatedEntry(selectedService, username) { execFileSync(secretTool, ['store', '--label=OpenUsage synthetic unrelated entry', 'service', selectedService, 'username', username], { input: 'Synthetic unrelated secret\n', env: toolEnvironment(), timeout: 5000 }); }
 function unrelatedEntryUnchanged(selectedService, username) { assert.equal(execFileSync(secretTool, ['lookup', 'service', selectedService, 'username', username], { env: toolEnvironment(), encoding: 'utf8', timeout: 5000 }).trim(), 'Synthetic unrelated secret'); }
+function enrollment(phase) {
+  const text = execFileSync(enrollmentFixture, ['--ignored', '--exact', 'private_enrollment_fixture'], {
+    env: { ...fixture.environment, OPENUSAGE_ERASURE_PHASE: phase }, encoding: 'utf8', timeout: 15000,
+  });
+  assert.match(text, /1 passed/);
+}
+async function competingEnrollment() {
+  let stdout = '', failure;
+  guardHolder = spawn(enrollmentFixture, ['--ignored', '--exact', 'private_enrollment_fixture', '--nocapture'], {
+    env: { ...fixture.environment, OPENUSAGE_ERASURE_PHASE: 'hold' }, stdio: ['pipe', 'pipe', 'pipe'],
+  });
+  guardHolder.stdout.on('data', chunk => { stdout += chunk.toString(); });
+  guardHolder.stderr.on('data', () => {});
+  guardHolder.once('error', error => { failure = error; });
+  guardHolder.once('exit', code => { if (code !== 0) failure = new Error(`Guard fixture exited ${code}`); });
+  await waitFor(() => { if (failure) throw failure; return stdout.includes('private enrollment guard held'); }, 'private competing enrollment guard');
+  const before = await liveHashes();
+  await rejected('delete_all_local_data', { confirmed: true }, 'local_deletion_busy');
+  assert.deepEqual(await liveHashes(), before); await absent(marker());
+  assert.equal(searchEntry(service, boardAccount), true);
+  const exited = new Promise(done => guardHolder.once('exit', done));
+  guardHolder.stdin.end('x'); await exited; guardHolder = undefined;
+  record.competingEnrollment = { refusedBeforeIntent: true, savedDataAndCredentialPreserved: true };
+}
 async function cleanup() {
   if (!fixture) return;
-  try { if (driver) { await driver.stop(); driver = undefined; } }
+  try { guardHolder?.kill('SIGKILL'); guardHolder = undefined; if (driver) { await driver.stop(); driver = undefined; } }
   finally { try { await stopSecretService(fixture); } finally { stopGroup(fixture.bus, 'SIGKILL'); await rm(fixture.root, { recursive: true, force: true }); fixture = undefined; } }
 }
 
 await mkdir(output, { recursive: true, mode: 0o700 });
-process.once('exit', () => { driver?.kill('SIGKILL'); fixture?.daemon?.kill('SIGKILL'); stopGroup(fixture?.bus, 'SIGKILL'); });
+process.once('exit', () => { guardHolder?.kill('SIGKILL'); driver?.kill('SIGKILL'); fixture?.daemon?.kill('SIGKILL'); stopGroup(fixture?.bus, 'SIGKILL'); });
 try {
   evidence.applicationSha256 = await hash(application);
   for (const protection of ['passphrase', 'os_store']) {
     record = { protection }; evidence.fixtures.push(record);
-    fixture = await createFixture(`local-deletion-${protection}`); fixture.environment.HOME = join(fixture.root, 'synthetic-home'); await mkdir(fixture.environment.HOME, { mode: 0o700 });
+    fixture = await createFixture(`local-deletion-${protection}`); fixture.environment.HOME = join(fixture.root, 'synthetic-home'); fixture.environment.OPENUSAGE_PRIVATE_KEYRING_FIXTURE = fixture.root; await mkdir(fixture.environment.HOME, { mode: 0o700 });
     if (protection === 'os_store') {
       await startSecretService(fixture);
       putUnrelatedEntry('app.openusage.synthetic-unrelated', account); putUnrelatedEntry(service, 'synthetic-unrelated-account');
@@ -235,6 +261,17 @@ try {
     assert.deepEqual(await liveHashes(), beforeUnsafe); await absent(marker()); await preserved(expected); await unlink(escape);
     record.unsafeRefusal = { unknownRootAndSymlinkRefusedBeforeIntent: true, databaseWalKeyAndExternalFilesUnchanged: true };
     if (protection === 'passphrase') {
+      const beforeUnavailable = await liveHashes();
+      await rejected('delete_all_local_data', { confirmed: true }, 'key_store_unavailable');
+      assert.deepEqual(await liveHashes(), beforeUnavailable); await absent(marker());
+      record.unavailableEnrollmentStore = { noFalseAbsence: true, refusedBeforeIntent: true, savedDataPreserved: true };
+      await startSecretService(fixture);
+    }
+    enrollment(protection === 'passphrase' ? 'active' : 'pending');
+    assert.equal(searchEntry(service, boardAccount), true);
+    await competingEnrollment();
+
+    if (protection === 'passphrase') {
       await close(); await open(); assert.equal((await call('bootstrap')).storage, 'locked');
       const locked = await liveHashes(); await rejected('delete_all_local_data', { confirmed: true }, 'workspace_locked'); assert.deepEqual(await liveHashes(), locked);
       await unlock(); await close();
@@ -249,11 +286,14 @@ try {
       record.pendingRestart = { syntheticIntentSeedAfterGenuineClose: true, recoveryRequired: true, noAutomaticDeletion: true, setupAndUnlockRefused: true, renewedConsentRequired: true };
     } else await navigate('settings');
     await confirmGui(); await deleted(lock, expected);
+    enrollment('absent');
+    record.leaderboardErasure = { state: protection === 'passphrase' ? 'active' : 'pending', localCredentialRemoved: true, publicDepartureBoundary: 'Source review confirms no network API in the local eraser. Runtime network tracing was not collected.' };
     if (protection === 'os_store') {
       assert.equal(searchEntry(service, account), false); assert.equal(searchEntry('app.openusage.desktop', account), false);
       unrelatedEntryUnchanged('app.openusage.synthetic-unrelated', account); unrelatedEntryUnchanged(service, 'synthetic-unrelated-account');
       record.osStore = { realPrivateSecretService: true, exactApplicationEntryRemoved: true, otherServiceAndUsernameEntriesUnchanged: true, productionNamespaceUntouched: true };
     }
+    if (protection === 'passphrase') await stopSecretService(fixture);
     await close(); await open();
     assert.equal((await call('bootstrap')).storage, 'setup_required'); await rejected('list_profiles', {}, 'workspace_locked'); await preserved(expected);
     assert.equal((await call('get_display_scale')).percent, 125);
@@ -262,7 +302,8 @@ try {
     record.restartAndRecreate = { genuineRestartSetupRequired: true, noSavedProfiles: true, newSetupSucceeded: true, calibrationPercent: 125 };
     if (protection === 'passphrase') {
       await addProfile(); await navigate('settings');
-      await absent(marker()); await confirmGui(); await deleted(lock, expected);
+      await startSecretService(fixture);
+      await absent(marker()); await confirmGui(); await deleted(lock, expected); enrollment('absent');
       record.normalFallbackDeletion = { confirmedReadyWorkspaceDeletedWithoutSeededIntent: true };
     }
     await close(); await cleanup();

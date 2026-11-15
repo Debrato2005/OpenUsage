@@ -524,3 +524,18 @@ The CLI requires a canonical private fixture with an exact owned D-Bus socket.
 Traversal, links, and extra endpoints refuse before credential access.
 Ordinary builds contain neither this endpoint override nor the fixture-store entry point.
 The harness removes its private fixture and retains result metadata.
+
+## Native setup
+
+Build the app with native-test after the renderer build.
+Build `openusage-board --features native-test --test local_erasure_fixture` with `cargo test --no-run --message-format=json`.
+Select its executable from Cargo's JSON artifact output.
+Set OPENUSAGE_BOARD_ERASURE_TEST_BINARY to that absolute path.
+Use the existing private display, driver, and credential-service settings.
+Run `timeout 420 node tests/native/local-data-deletion.mjs` with a new evidence directory.
+The harness supplies the private marker before any keyring access.
+It removes its private fixture and retains concise results and the changed confirmation screenshot.
+
+The separate board-vault harness now runs seed, reopen, erasure, and unavailable phases.
+It restarts the private daemon before reopen and erasure.
+No existing user keyring, provider credential home, or live account is read.

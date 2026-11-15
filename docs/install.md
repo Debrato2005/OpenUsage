@@ -100,7 +100,7 @@ The [keys contract](../crates/openusage-keys/README.md#credential-coordination) 
 
 On Linux and macOS, open Settings, then select **Delete all local data**. This deletes the workspace, its database key and the provider account sessions that OpenUsage keeps. It keeps the display size, the files that you exported or shared, and your backups.
 
-The separate leaderboard credential is not yet included in this action. The [open gap](srs-clarifications.md#sc-029-local-deletion-and-public-enrollment) tracks that correction. Local deletion does not remove public leaderboard data.
+On Linux this also removes the local leaderboard credential. Public leaderboard data remains. Linux local deletion needs an available, unlocked system credential store, including password-protected workspaces. Restore store access, then confirm deletion again. The private user runtime directory must also be available. The [erasure contract](../crates/openusage-keys/README.md#complete-local-credential-erasure) owns these checks.
 
 Windows does not have this action yet.
 

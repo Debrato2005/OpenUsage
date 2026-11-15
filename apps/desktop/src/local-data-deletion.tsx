@@ -9,6 +9,8 @@ type Props = { busy: boolean; setBusy: (busy: boolean) => void; onChanged: (resu
 function failureMessage(error: unknown) {
   if (error === 'local_deletion_unsupported') return 'Local deletion is not available on this operating system yet. OpenUsage did not remove your local data.';
   if (error === 'workspace_locked') return 'Unlock your workspace, then try deleting local data again.';
+  if (error === 'local_deletion_coordination_unavailable') return 'The private Linux runtime directory is unavailable. Start a desktop login session, then try local deletion again.';
+  if (error === 'local_deletion_busy') return 'Another leaderboard operation is active. Wait for it to finish, then delete local data again.';
   if (error === 'key_store_unavailable') return 'Your system credential store is unavailable. Restore access, then try deleting local data again.';
   if (error === 'local_deletion_unsafe') return 'An unexpected file or path prevents deletion. Check OpenUsage diagnostics or contact support before trying again.';
   if (error === 'local_deletion_failed') return 'OpenUsage could not finish deleting local data. Try again, or reopen OpenUsage to finish deletion.';
@@ -86,8 +88,8 @@ export function LocalDataDeletion({ busy, setBusy, onChanged, pending = false }:
       <h2 id={`${id}-title`} style={{ fontSize: 'var(--text-section)' }}>{title}</h2>
       <form className="unlock-form" aria-label="Delete local data confirmation" aria-busy={saving} onSubmit={event => { event.preventDefault(); void remove(); }}>
         {pending && <p>Some local data may remain from the previous deletion. Confirm again to finish removing it.</p>}
-        <p id={`${id}-scope`}>This removes OpenUsage account sessions, saved readings, alerts, account settings and managed recovery data from this device.</p>
-        <p id={`${id}-retained`}>Display size, exported files and external backups remain. This does not delete your OpenAI records or data in other Codex installations.</p>
+        <p id={`${id}-scope`}>This removes OpenUsage account sessions, leaderboard credentials, saved readings, alerts, account settings and managed recovery data from this device.</p>
+        <p id={`${id}-retained`}>Display size, exported files and external backups remain. This does not delete your OpenAI records or data in other Codex installations. Public leaderboard data remains.</p>
         <Field disabled={busy}><FieldLabel className="backup-selection"><Checkbox nativeButton render={<button type="button" />} checked={confirmed} disabled={busy} data-local-data-deletion-confirm onCheckedChange={checked => setConfirmed(checked === true)} />Delete my local OpenUsage data and account sessions.</FieldLabel></Field>
         <div className="profile-actions"><Button ref={cancel} variant="outline" type="button" disabled={saving} onClick={dismiss}>Cancel</Button><Button variant="destructive" type="submit" disabled={busy || !confirmed} data-local-data-deletion-submit>{saving ? 'Deleting local data…' : title}</Button></div>
         {error && <p ref={failure} className="operation-error" role="alert" tabIndex={-1} data-local-data-deletion-error>{error}</p>}

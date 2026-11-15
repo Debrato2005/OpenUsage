@@ -1,5 +1,5 @@
 //! One fixed OS credential slot for future public leaderboard enrollment.
-use crate::{OsVault, VaultError};
+use crate::{BoardGuard, OsVault, VaultError};
 use std::fmt;
 use zeroize::Zeroizing;
 
@@ -90,6 +90,16 @@ impl BoardVault {
         self.0
             .remove_checked(|actual| verify_secret(actual, &expected))
     }
+
+    /// Erase this local slot after explicit confirmation of complete local deletion.
+    /// Hold the current user's `BoardGuard` across the complete deletion operation.
+    /// Linux also removes malformed and duplicate items with this exact service and account.
+    /// No payload is read, and no public membership or remote record is changed.
+    /// Locked or unavailable stores refuse, including when absence cannot be confirmed.
+    /// A failure can follow partial erasure. Keep the deletion intent for explicit resume.
+    pub fn erase_local(&self, _guard: &BoardGuard) -> Result<(), VaultError> {
+        self.0.erase_local_slot()
+    }
 }
 
 fn verify_secret(actual: Vec<u8>, expected: &[u8]) -> Result<(), VaultError> {
@@ -113,7 +123,7 @@ fn verify_secret(actual: Vec<u8>, expected: &[u8]) -> Result<(), VaultError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{SERVICE, replace_entry_checked};
+    use crate::{SERVICE, erase_entry_local, replace_entry_checked};
     use keyring_core::api::CredentialStoreApi;
 
     #[test]
@@ -163,6 +173,60 @@ mod tests {
         assert_eq!(
             other_service.get_secret().unwrap(),
             b"synthetic other service"
+        );
+    }
+
+    #[test]
+    fn local_erasure_accepts_malformed_payloads_and_preserves_other_mock_slots() {
+        let store = keyring_core::mock::Store::new().unwrap();
+        let entry = store.build(SERVICE, ACCOUNT, None).unwrap();
+        let database = store.build(SERVICE, crate::ACCOUNT, None).unwrap();
+        let other_service = store
+            .build("synthetic-other-service", ACCOUNT, None)
+            .unwrap();
+        database.set_secret(b"synthetic database key").unwrap();
+        other_service
+            .set_secret(b"synthetic other service")
+            .unwrap();
+        assert_eq!(erase_entry_local(&entry), Ok(()));
+        for payload in [Vec::new(), b"malformed".to_vec(), vec![1; 8192]] {
+            entry.set_secret(&payload).unwrap();
+            assert_eq!(erase_entry_local(&entry), Ok(()));
+            assert!(matches!(
+                entry.get_secret(),
+                Err(keyring_core::Error::NoEntry)
+            ));
+            assert_eq!(erase_entry_local(&entry), Ok(()));
+        }
+        assert_eq!(database.get_secret().unwrap(), b"synthetic database key");
+        assert_eq!(
+            other_service.get_secret().unwrap(),
+            b"synthetic other service"
+        );
+    }
+
+    #[test]
+    fn local_erasure_refuses_unavailable_and_ambiguous_mock_stores() {
+        let store = keyring_core::mock::Store::new().unwrap();
+        let entry = store.build(SERVICE, ACCOUNT, None).unwrap();
+        entry.set_secret(b"synthetic retained credential").unwrap();
+        let mock: &keyring_core::mock::Cred = entry.as_any().downcast_ref().unwrap();
+        for error in [
+            keyring_core::Error::NoStorageAccess(Box::new(std::io::Error::other("locked"))),
+            keyring_core::Error::PlatformFailure(Box::new(std::io::Error::other("unavailable"))),
+        ] {
+            mock.set_error(error);
+            assert_eq!(erase_entry_local(&entry), Err(VaultError::Unavailable));
+            assert_eq!(
+                entry.get_secret().unwrap(),
+                b"synthetic retained credential"
+            );
+        }
+        mock.set_error(keyring_core::Error::Ambiguous(Vec::new()));
+        assert_eq!(erase_entry_local(&entry), Err(VaultError::InvalidKey));
+        assert_eq!(
+            entry.get_secret().unwrap(),
+            b"synthetic retained credential"
         );
     }
 }

@@ -179,6 +179,92 @@ impl KeyVault for OsVault {
 }
 
 impl OsVault {
+    /// Only complete local deletion uses this payload-independent operation.
+    /// Normal enrollment and database removal keep their expected-value checks.
+    fn erase_local_slot(&self) -> Result<(), VaultError> {
+        #[cfg(target_os = "linux")]
+        {
+            bounded(&self.runtime, async {
+                let service = self.service()?;
+                let collection = service
+                    .get_default_collection()
+                    .await
+                    .map_err(|_| VaultError::Unavailable)?;
+                if collection
+                    .is_locked()
+                    .await
+                    .map_err(|_| VaultError::Unavailable)?
+                {
+                    return Err(VaultError::Unavailable);
+                }
+                let attributes = std::collections::HashMap::from([
+                    ("service", SERVICE),
+                    ("username", self.account),
+                ]);
+                let found = service
+                    .search_items(attributes.clone())
+                    .await
+                    .map_err(|_| VaultError::Unavailable)?;
+                if !found.locked.is_empty() {
+                    return Err(VaultError::Unavailable);
+                }
+                // Check every selected item before erasure. Duplicates are local
+                // data too, but an item from another slot never authorizes deletion.
+                for item in &found.unlocked {
+                    self.check_local_erasure_item(item).await?;
+                }
+                for item in found.unlocked {
+                    // Recheck ownership immediately before deleting this item.
+                    // The OS store has no transaction against other user programs.
+                    self.check_local_erasure_item(&item).await?;
+                    item.delete().await.map_err(|_| VaultError::Unavailable)?;
+                }
+                let remaining = service
+                    .search_items(attributes)
+                    .await
+                    .map_err(|_| VaultError::Unavailable)?;
+                if !remaining.locked.is_empty()
+                    || collection
+                        .is_locked()
+                        .await
+                        .map_err(|_| VaultError::Unavailable)?
+                {
+                    return Err(VaultError::Unavailable);
+                }
+                if !remaining.unlocked.is_empty() {
+                    return Err(VaultError::InvalidKey);
+                }
+                Ok(())
+            })
+        }
+        #[cfg(not(target_os = "linux"))]
+        erase_entry_local(&self.entry)
+    }
+
+    #[cfg(target_os = "linux")]
+    async fn check_local_erasure_item(
+        &self,
+        item: &secret_service::Item<'_>,
+    ) -> Result<(), VaultError> {
+        let attributes = item
+            .get_attributes()
+            .await
+            .map_err(|_| VaultError::Unavailable)?;
+        if attributes.get("service").map(String::as_str) != Some(SERVICE)
+            || attributes.get("username").map(String::as_str) != Some(self.account)
+        {
+            return Err(VaultError::InvalidKey);
+        }
+        if item
+            .is_locked()
+            .await
+            .map_err(|_| VaultError::Unavailable)?
+        {
+            return Err(VaultError::Unavailable);
+        }
+        Ok(())
+    }
+
     fn replace_checked(
         &self,
         verify: impl FnOnce(Vec<u8>) -> Result<(), VaultError>,
@@ -314,6 +400,14 @@ impl OsVault {
             }
             self.entry.set_secret(encoded).map_err(map_error)
         }
+    }
+}
+
+#[cfg(any(not(target_os = "linux"), test))]
+fn erase_entry_local(entry: &Entry) -> Result<(), VaultError> {
+    match entry.delete_credential() {
+        Ok(()) | Err(keyring_core::Error::NoEntry) => Ok(()),
+        Err(error) => Err(map_error(error)),
     }
 }
 

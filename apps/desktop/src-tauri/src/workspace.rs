@@ -16,6 +16,7 @@ mod activity_storage;
 mod alert_history;
 mod collection_storage;
 mod local_deletion;
+pub(crate) use local_deletion::LocalCredentialErasure;
 pub(crate) mod local_logs;
 mod monitoring;
 mod operational_alerts;
@@ -80,6 +81,8 @@ pub enum CommandError {
     SubscriptionChanged,
     SubscriptionUnavailable,
     LocalDeletionFailed,
+    LocalDeletionBusy,
+    LocalDeletionCoordinationUnavailable,
     LocalDeletionUnsafe,
     LocalDeletionUnsupported,
     KeyStoreUnavailable,

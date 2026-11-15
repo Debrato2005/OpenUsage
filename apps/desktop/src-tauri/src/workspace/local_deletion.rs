@@ -74,13 +74,18 @@ fn fingerprint(key: &[u8; 32]) -> String {
     format!("{:x}", Sha256::digest(key))
 }
 
+pub(crate) trait LocalCredentialErasure {
+    fn erase(&self) -> Result<(), CommandError>;
+}
+
 impl Workspace {
     /// Explicitly delete this managed workspace, preserving its instance lease.
     /// A persisted intent blocks normal setup until this operation is resumed.
-    pub fn delete_all_local_data(
+    pub fn delete_all_local_data<E: LocalCredentialErasure>(
         &mut self,
         vault: Result<&impl KeyVault, VaultError>,
         confirmed: bool,
+        prepare_erasure: impl FnOnce() -> Result<E, CommandError>,
     ) -> Result<Bootstrap, CommandError> {
         if !confirmed {
             return Err(CommandError::InvalidArguments);
@@ -88,19 +93,20 @@ impl Workspace {
         // No deletion on a platform where ownership and path identity cannot be proved.
         #[cfg(not(unix))]
         {
-            let _ = vault;
+            let _ = (vault, prepare_erasure);
             Err(CommandError::LocalDeletionUnsupported)
         }
         #[cfg(unix)]
         {
-            self.delete_private_workspace(vault)
+            self.delete_private_workspace(vault, prepare_erasure)
         }
     }
 
     #[cfg(unix)]
-    fn delete_private_workspace(
+    fn delete_private_workspace<E: LocalCredentialErasure>(
         &mut self,
         vault: Result<&impl KeyVault, VaultError>,
+        prepare_erasure: impl FnOnce() -> Result<E, CommandError>,
     ) -> Result<Bootstrap, CommandError> {
         let root = Held::open(&self.directory, true)?;
         let lease = Held::open(&self.directory.join(".instance.lock"), false)?;
@@ -152,6 +158,8 @@ impl Workspace {
             };
             (intent, None, key)
         };
+        // Hold credential coordination until the complete local deletion returns.
+        let enrollment = prepare_erasure()?;
         let monitoring = monitoring::RuntimeMonitoring::new()?;
         self.provider.reset_for_local_deletion()?;
         root.check()?;
@@ -176,6 +184,8 @@ impl Workspace {
             self.monitoring = monitoring;
         }
         let marker = marker_result?;
+        // A failure keeps the durable intent and blocks normal workspace access.
+        enrollment.erase()?;
         root.check()?;
         lease.check()?;
         check_original_paths(&self.directory, &intent)?;
@@ -486,6 +496,16 @@ mod tests {
         os::unix::fs::{MetadataExt, PermissionsExt, symlink},
     };
 
+    struct NoEnrollment;
+    impl LocalCredentialErasure for NoEnrollment {
+        fn erase(&self) -> Result<(), CommandError> {
+            Ok(())
+        }
+    }
+    fn no_enrollment() -> Result<NoEnrollment, CommandError> {
+        Ok(NoEnrollment)
+    }
+
     struct Vault {
         key: RefCell<Option<DatabaseKey>>,
         available: Cell<bool>,
@@ -591,11 +611,13 @@ mod tests {
             .unwrap()
             .ino();
         assert!(matches!(
-            workspace.delete_all_local_data(Ok(&vault), false),
+            workspace.delete_all_local_data(Ok(&vault), false, no_enrollment),
             Err(CommandError::InvalidArguments)
         ));
         assert!(directory.join(DATABASE_FILE).exists());
-        let result = workspace.delete_all_local_data(Ok(&vault), true).unwrap();
+        let result = workspace
+            .delete_all_local_data(Ok(&vault), true, no_enrollment)
+            .unwrap();
         assert_eq!(result.storage, StorageState::SetupRequired);
         assert_eq!(vault.removals.get(), 1);
         assert!(vault.key.borrow().is_none());
@@ -613,7 +635,7 @@ mod tests {
     }
 
     #[test]
-    fn fallback_deletion_never_touches_unavailable_os_store() {
+    fn fallback_deletion_does_not_remove_a_database_key() {
         let temp = tempfile::tempdir().unwrap();
         let directory = temp.path().join("workspace");
         let vault = Vault::new();
@@ -622,11 +644,122 @@ mod tests {
         fallback_setup(&mut workspace, &vault);
         workspace.create_profile("Synthetic fallback").unwrap();
         workspace
-            .delete_all_local_data(Err::<&Vault, _>(VaultError::Unavailable), true)
+            .delete_all_local_data(
+                Err::<&Vault, _>(VaultError::Unavailable),
+                true,
+                no_enrollment,
+            )
             .unwrap();
         assert_eq!(vault.removals.get(), 0);
         assert!(!directory.join(WRAPPED_KEY_FILE).exists());
         assert_eq!(fs::read_dir(directory).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn enrollment_preparation_failure_preserves_the_workspace_before_intent() {
+        let temp = tempfile::tempdir().unwrap();
+        let directory = temp.path().join("workspace");
+        let vault = Vault::new();
+        let mut workspace = Workspace::new(directory.clone()).unwrap();
+        workspace.setup(Ok(&vault), None).unwrap();
+        workspace
+            .create_profile("Synthetic retained account")
+            .unwrap();
+        for error in [
+            CommandError::LocalDeletionBusy,
+            CommandError::LocalDeletionCoordinationUnavailable,
+            CommandError::KeyStoreUnavailable,
+        ] {
+            assert_eq!(
+                workspace
+                    .delete_all_local_data(Ok(&vault), true, || Err::<NoEnrollment, _>(error))
+                    .err()
+                    .unwrap(),
+                error
+            );
+            assert!(!pending(&directory));
+            assert!(directory.join(DATABASE_FILE).exists());
+            assert!(directory.join("profiles").exists());
+            assert_eq!(workspace.bootstrap(Ok(&vault)).storage, StorageState::Ready);
+            assert_eq!(vault.removals.get(), 0);
+        }
+    }
+
+    #[test]
+    fn enrollment_erasure_failure_retains_intent_and_resumes_before_managed_deletion() {
+        struct Eraser<'a> {
+            directory: &'a Path,
+            fail: bool,
+            held: &'a Cell<bool>,
+        }
+        impl LocalCredentialErasure for Eraser<'_> {
+            fn erase(&self) -> Result<(), CommandError> {
+                assert!(pending(self.directory));
+                assert!(self.held.get());
+                assert!(self.directory.join(DATABASE_FILE).exists());
+                if self.fail {
+                    Err(CommandError::KeyStoreUnavailable)
+                } else {
+                    Ok(())
+                }
+            }
+        }
+        impl Drop for Eraser<'_> {
+            fn drop(&mut self) {
+                if !self.fail {
+                    assert!(!pending(self.directory));
+                    assert!(!self.directory.join(DATABASE_FILE).exists());
+                }
+                self.held.set(false);
+            }
+        }
+        let temp = tempfile::tempdir().unwrap();
+        let directory = temp.path().join("workspace");
+        let vault = Vault::new();
+        let held = Cell::new(false);
+        {
+            let mut workspace = Workspace::new(directory.clone()).unwrap();
+            workspace.setup(Ok(&vault), None).unwrap();
+            workspace
+                .create_profile("Synthetic retained account")
+                .unwrap();
+            assert_eq!(
+                workspace
+                    .delete_all_local_data(Ok(&vault), true, || {
+                        held.set(true);
+                        Ok(Eraser {
+                            directory: &directory,
+                            fail: true,
+                            held: &held,
+                        })
+                    })
+                    .err()
+                    .unwrap(),
+                CommandError::KeyStoreUnavailable
+            );
+            assert!(!held.get());
+            assert!(pending(&directory));
+            assert!(directory.join("profiles").exists());
+            assert_eq!(vault.removals.get(), 0);
+        }
+        let mut workspace = Workspace::new(directory.clone()).unwrap();
+        assert_eq!(
+            workspace.bootstrap(Ok(&vault)).storage,
+            StorageState::RecoveryRequired
+        );
+        let result = workspace
+            .delete_all_local_data(Ok(&vault), true, || {
+                held.set(true);
+                Ok(Eraser {
+                    directory: &directory,
+                    fail: false,
+                    held: &held,
+                })
+            })
+            .unwrap();
+        assert_eq!(result.storage, StorageState::SetupRequired);
+        assert!(!held.get());
+        assert_eq!(vault.removals.get(), 1);
     }
 
     #[test]
@@ -642,7 +775,7 @@ mod tests {
                 .unwrap();
             vault.remove_available.set(false);
             assert!(matches!(
-                workspace.delete_all_local_data(Ok(&vault), true),
+                workspace.delete_all_local_data(Ok(&vault), true, no_enrollment),
                 Err(CommandError::KeyStoreUnavailable)
             ));
             assert!(!directory.join("profiles").exists());
@@ -668,9 +801,15 @@ mod tests {
         );
         assert!(directory.join(DATABASE_FILE).exists());
         vault.remove_available.set(true);
-        assert!(workspace.delete_all_local_data(Ok(&vault), false).is_err());
+        assert!(
+            workspace
+                .delete_all_local_data(Ok(&vault), false, no_enrollment)
+                .is_err()
+        );
         assert!(directory.join(DATABASE_FILE).exists());
-        workspace.delete_all_local_data(Ok(&vault), true).unwrap();
+        workspace
+            .delete_all_local_data(Ok(&vault), true, no_enrollment)
+            .unwrap();
         assert!(vault.key.borrow().is_none());
         assert_eq!(vault.removals.get(), 1);
         assert_eq!(fs::read_dir(directory).unwrap().count(), 1);
@@ -688,7 +827,7 @@ mod tests {
         let unrelated = [expected[0].wrapping_add(1); 32];
         *vault.key.borrow_mut() = Some(Zeroizing::new(unrelated));
         assert!(matches!(
-            workspace.delete_all_local_data(Ok(&vault), true),
+            workspace.delete_all_local_data(Ok(&vault), true, no_enrollment),
             Err(CommandError::LocalDeletionUnsafe)
         ));
         assert!(!pending(&directory));
@@ -698,19 +837,25 @@ mod tests {
         assert_eq!(vault.removals.get(), 0);
         *vault.key.borrow_mut() = Some(Zeroizing::new(expected));
         vault.remove_available.set(false);
-        assert!(workspace.delete_all_local_data(Ok(&vault), true).is_err());
+        assert!(
+            workspace
+                .delete_all_local_data(Ok(&vault), true, no_enrollment)
+                .is_err()
+        );
         assert!(pending(&directory));
         vault.remove_available.set(true);
         *vault.key.borrow_mut() = Some(Zeroizing::new(unrelated));
         assert!(matches!(
-            workspace.delete_all_local_data(Ok(&vault), true),
+            workspace.delete_all_local_data(Ok(&vault), true, no_enrollment),
             Err(CommandError::LocalDeletionUnsafe)
         ));
         assert!(directory.join(DATABASE_FILE).exists());
         assert_eq!(**vault.key.borrow().as_ref().unwrap(), unrelated);
         assert_eq!(vault.removals.get(), 0);
         *vault.key.borrow_mut() = Some(Zeroizing::new(expected));
-        workspace.delete_all_local_data(Ok(&vault), true).unwrap();
+        workspace
+            .delete_all_local_data(Ok(&vault), true, no_enrollment)
+            .unwrap();
         assert_eq!(vault.removals.get(), 1);
     }
 
@@ -723,7 +868,9 @@ mod tests {
         let mut workspace = Workspace::new(directory).unwrap();
         fallback_setup(&mut workspace, &vault);
         vault.available.set(true);
-        let fresh = workspace.delete_all_local_data(Ok(&vault), true).unwrap();
+        let fresh = workspace
+            .delete_all_local_data(Ok(&vault), true, no_enrollment)
+            .unwrap();
         assert_eq!(fresh.storage, StorageState::SetupRequired);
         assert_eq!(fresh.key_protection, KeyProtection::OsStore);
         assert_eq!(fresh.storage_issue, None);
@@ -757,9 +904,15 @@ mod tests {
                 .unlock(Zeroizing::new("synthetic deletion passphrase".into()))
                 .is_err()
         );
-        assert!(workspace.delete_all_local_data(Ok(&vault), false).is_err());
+        assert!(
+            workspace
+                .delete_all_local_data(Ok(&vault), false, no_enrollment)
+                .is_err()
+        );
         assert!(directory.join(DATABASE_FILE).exists());
-        workspace.delete_all_local_data(Ok(&vault), true).unwrap();
+        workspace
+            .delete_all_local_data(Ok(&vault), true, no_enrollment)
+            .unwrap();
         assert_eq!(fs::read_dir(directory).unwrap().count(), 1);
     }
 
@@ -781,7 +934,7 @@ mod tests {
         private_file(&directory.join(DATABASE_FILE), b"unrelated replacement");
         let mut workspace = Workspace::new(directory.clone()).unwrap();
         assert!(matches!(
-            workspace.delete_all_local_data(Ok(&vault), true),
+            workspace.delete_all_local_data(Ok(&vault), true, no_enrollment),
             Err(CommandError::LocalDeletionUnsafe)
         ));
         assert_eq!(
@@ -800,7 +953,11 @@ mod tests {
         let mut workspace = Workspace::new(directory.clone()).unwrap();
         workspace.setup(Ok(&vault), None).unwrap();
         private_file(&directory.join("unknown"), b"do not delete");
-        assert!(workspace.delete_all_local_data(Ok(&vault), true).is_err());
+        assert!(
+            workspace
+                .delete_all_local_data(Ok(&vault), true, no_enrollment)
+                .is_err()
+        );
         assert!(!pending(&directory));
         fs::remove_file(directory.join("unknown")).unwrap();
         let profile = workspace
@@ -812,14 +969,26 @@ mod tests {
         let external = temp.path().join("outside");
         private_file(&external, b"external retained");
         symlink(&external, home.join("link")).unwrap();
-        assert!(workspace.delete_all_local_data(Ok(&vault), true).is_err());
+        assert!(
+            workspace
+                .delete_all_local_data(Ok(&vault), true, no_enrollment)
+                .is_err()
+        );
         fs::remove_file(home.join("link")).unwrap();
         fs::hard_link(&external, home.join("hardlink")).unwrap();
-        assert!(workspace.delete_all_local_data(Ok(&vault), true).is_err());
+        assert!(
+            workspace
+                .delete_all_local_data(Ok(&vault), true, no_enrollment)
+                .is_err()
+        );
         fs::remove_file(home.join("hardlink")).unwrap();
         fs::remove_file(directory.join(".instance.lock")).unwrap();
         private_file(&directory.join(".instance.lock"), b"");
-        assert!(workspace.delete_all_local_data(Ok(&vault), true).is_err());
+        assert!(
+            workspace
+                .delete_all_local_data(Ok(&vault), true, no_enrollment)
+                .is_err()
+        );
         assert!(!pending(&directory));
         assert_eq!(fs::read(external).unwrap(), b"external retained");
         assert_eq!(vault.removals.get(), 0);
@@ -834,12 +1003,20 @@ mod tests {
         workspace.setup(Ok(&vault), None).unwrap();
         private_file(&directory.join(MARKER), b"invalid");
         assert!(pending(&directory));
-        assert!(workspace.delete_all_local_data(Ok(&vault), true).is_err());
+        assert!(
+            workspace
+                .delete_all_local_data(Ok(&vault), true, no_enrollment)
+                .is_err()
+        );
         assert!(directory.join(DATABASE_FILE).exists());
         fs::remove_file(directory.join(MARKER)).unwrap();
         symlink(temp.path().join("outside"), directory.join(MARKER)).unwrap();
         assert!(pending(&directory));
-        assert!(workspace.delete_all_local_data(Ok(&vault), true).is_err());
+        assert!(
+            workspace
+                .delete_all_local_data(Ok(&vault), true, no_enrollment)
+                .is_err()
+        );
         assert_eq!(vault.removals.get(), 0);
     }
 }

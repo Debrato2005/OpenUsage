@@ -5,6 +5,7 @@ mod backup;
 mod backup_inspection;
 mod display_scale;
 mod keyvault;
+mod leaderboard_credentials;
 mod local_logs;
 mod local_usage;
 mod monitoring;
@@ -656,8 +657,14 @@ async fn delete_all_local_data(
             .lock()
             .map_err(|_| CommandError::LocalDeletionFailed)?;
         let workspace = state.as_mut().ok_or(CommandError::WorkspaceLocked)?;
+        #[cfg(all(target_os = "linux", feature = "native-test"))]
+        openusage_keys::private_keyring_fixture().map_err(|_| CommandError::LocalDeletionUnsafe)?;
         let vault = OsVault::new();
-        workspace.delete_all_local_data(vault.as_ref().map_err(|error| *error), true)
+        workspace.delete_all_local_data(
+            vault.as_ref().map_err(|error| *error),
+            true,
+            leaderboard_credentials::prepare,
+        )
     })
     .await
     .map_err(|_| CommandError::LocalDeletionFailed)?

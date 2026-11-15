@@ -48,9 +48,10 @@ test('opening, cancelling and Escape never delete data or preserve confirmation'
   await open(page); expect(await deletionCalls(page)).toEqual([]);
   await trigger(page).focus(); await page.keyboard.press('Enter'); await expect(dialog(page)).toBeVisible();
   await expect(dialog(page).getByRole('button', { name: 'Cancel', exact: true })).toBeFocused();
-  await expect(dialog(page)).toContainText('account sessions, saved readings, alerts, account settings and managed recovery data');
+  await expect(dialog(page)).toContainText('account sessions, leaderboard credentials, saved readings, alerts, account settings and managed recovery data');
   await expect(dialog(page)).toContainText('Display size, exported files and external backups remain.');
   await expect(dialog(page)).toContainText('This does not delete your OpenAI records or data in other Codex installations.');
+  await expect(dialog(page)).toContainText('Public leaderboard data remains.');
   await expect(dialog(page).getByRole('textbox')).toHaveCount(0); await expect(submit(page)).toBeDisabled();
   await page.keyboard.press('Escape'); await expect(dialog(page)).toHaveCount(0); await expect(trigger(page)).toBeFocused();
   await trigger(page).click(); await consent(page).check(); await dialog(page).getByRole('button', { name: 'Cancel', exact: true }).click();
@@ -140,3 +141,18 @@ test('the confirmation dialog stays readable and keyboard accessible in narrow l
   }
   expect(await deletionCalls(page)).toEqual([]);
 });
+
+for (const { error, message } of [
+  { error: 'local_deletion_busy', message: 'Another leaderboard operation is active.' },
+  { error: 'local_deletion_coordination_unavailable', message: 'The private Linux runtime directory is unavailable.' },
+]) {
+  test(`enrollment coordination refusal requires fresh deletion consent: ${error}`, async ({ page }) => {
+    await open(page); await confirm(page);
+    await expect.poll(() => page.evaluate(() => (window as unknown as FixtureWindow).deletionFixture.deletions.length)).toBe(1);
+    await page.evaluate(error => (window as unknown as FixtureWindow).deletionFixture.deletions[0]!.reject(error), error);
+    await expect(dialog(page).getByRole('alert')).toContainText(message);
+    await expect(consent(page)).not.toBeChecked();
+    await expect(submit(page)).toBeDisabled();
+    expect(await deletionCalls(page)).toHaveLength(1);
+  });
+}

@@ -36,8 +36,8 @@ try {
   const home = join(fixture.root, 'home'); await mkdir(home, { mode: 0o700 });
   Object.assign(fixture.environment, { HOME: home, OPENUSAGE_PRIVATE_KEYRING_FIXTURE: fixture.root });
   await startSecretService(fixture);
-  for (const phase of ['seed', 'reopen', 'unavailable']) {
-    if (phase === 'reopen') { await stopSecretService(fixture); await startSecretService(fixture); }
+  for (const phase of ['seed', 'reopen', 'erasure', 'unavailable']) {
+    if (phase === 'reopen' || phase === 'erasure') { await stopSecretService(fixture); await startSecretService(fixture); }
     if (phase === 'unavailable') await stopSecretService(fixture);
     const { stdout } = await run(executable, ['--ignored', '--exact', 'private_os_store_keeps_database_and_board_credentials_separate'], {
       env: { ...fixture.environment, OPENUSAGE_BOARD_VAULT_PHASE: phase }, timeout: 30000, maxBuffer: 65536,

@@ -815,3 +815,25 @@ The observed build took 39 seconds and produced the same bytes as the native-tes
 - Leaderboard transport (L-5a1), November 13, 2026: the shared [Rust client](../crates/openusage-board/README.md) supports bounded GitHub device authorization, join, exact-body sync, leave, and own rank. Ten local HTTP/TLS checks pass. Scoped Clippy and formatting pass. Missing build settings leave the client inert. CLI and Settings integration, enrollment persistence, and hosted acceptance remain open. L-5a2 covers the separate low-level vault.
 
 - Offline board preview (L-5a0), November 13, 2026: the [CLI contract](../crates/openusage-cli/README.md#offline-leaderboard-preview) prints exact prospective upload bytes from one read-only snapshot. Seven command-entry checks use synthetic encrypted storage, and two process checks pass. The full Rust workspace and Clippy pass. Ambiguous or incomplete saved history refuses safely. Online join, sync, leave, credential storage, and exact real-upload comparison remain open.
+
+## November 15, 2026: local enrollment erasure gap before correction
+
+## SC-029: local deletion and public enrollment
+
+Recorded November 15, 2026. Implementation gap, SRS unchanged.
+OU-DATA-016 requires complete local data deletion.
+OU-DATA-017 separates local deletion from Leaderboard Service records.
+OU-BOARD-010 gives public departure its own effect.
+
+The new CLI stores a public enrollment in a separate OS credential slot.
+The current desktop deletion path removes the database key and provider sessions.
+It does not yet remove this leaderboard slot.
+The earlier native deletion evidence covers the earlier credential set.
+It does not qualify deletion after leaderboard enrollment.
+
+The next bounded correction must clear the local leaderboard credential under the same cross-process guard.
+It must never call global leave as a side effect of local deletion.
+Its confirmation must distinguish local erasure from public departure.
+Private native acceptance must check joined and pending records, competing operations, unavailable stores, and resumable interruption.
+Hosted recovery after all device credentials are lost remains a separate service gate.
+No new normative requirement or deployment authority is added.

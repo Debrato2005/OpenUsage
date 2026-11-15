@@ -162,6 +162,7 @@ unavailable. Native calls on other platforms can outlive their timeout.
 ## Boundaries
 
 - **Leaderboard credentials:** the [separate vault](../crates/openusage-keys/README.md#leaderboard-credential-storage) preserves the database key slot. The [session coordinator](../crates/openusage-board/README.md#serialized-enrollment) owns pending and active records, origin binding, expected-value replacement, and the shared Linux guard. CLI callers keep that guard across each complete operation. Settings integration remains open.
+- **Local enrollment erasure:** the [desktop coordinator](../apps/desktop/src-tauri/src/leaderboard_credentials.rs) owns the guard through local deletion. The existing durable intent precedes erasure of the selected slot. It has no HTTP client or public departure path. Linux requires a usable credential store even for password workspaces. Other-platform enrollment remains unqualified.
 - **Secrets:** provider sessions, credentials, and the database key stay in Rust, provider-managed homes, or the OS credential store. They never reach React.
 - **Processes:** the Rust supervisor owns every child process. At most two collections run at once.
 - **Numbers:** Rust does exact arithmetic. Token counts cross IPC as decimal strings. A missing value stays missing.

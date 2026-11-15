@@ -34,26 +34,24 @@ This is the record of how requirements were read. Entries keep their original da
 | SC-026 | Profile removal and retained delivery controls | Implementation reading recorded, native Linux scope passed |
 | SC-027 | Section 17 and current DTOs | Open implementation gap, SRS unchanged |
 | SC-028 | Desktop and private website companion | Owner-authorized baseline 3.1; implementation open |
-| SC-029 | Local deletion and public enrollment | Open implementation gap, SRS unchanged |
+| SC-029 | Local deletion and public enrollment | Implemented and accepted within synthetic Linux scope |
 
 ## SC-029: local deletion and public enrollment
 
-Recorded November 15, 2026. Implementation gap, SRS unchanged.
+Recorded November 15, 2026. Implementation reading, SRS unchanged.
 OU-DATA-016 requires complete local data deletion.
 OU-DATA-017 separates local deletion from Leaderboard Service records.
 OU-BOARD-010 gives public departure its own effect.
 
-The new CLI stores a public enrollment in a separate OS credential slot.
-The current desktop deletion path removes the database key and provider sessions.
-It does not yet remove this leaderboard slot.
-The earlier native deletion evidence covers the earlier credential set.
-It does not qualify deletion after leaderboard enrollment.
+The desktop now clears the local leaderboard slot under its shared guard and durable deletion intent.
+It never issues public leave as a side effect of local deletion.
+The confirmation distinguishes local erasure from public departure.
+Unavailable storage cannot prove absence, including in a password-protected Linux workspace.
+This stricter requirement preserves the deletion claim when a separate credential can exist.
 
-The next bounded correction must clear the local leaderboard credential under the same cross-process guard.
-It must never call global leave as a side effect of local deletion.
-Its confirmation must distinguish local erasure from public departure.
-Private native acceptance must check joined and pending records, competing operations, unavailable stores, and resumable interruption.
-Hosted recovery after all device credentials are lost remains a separate service gate.
+The [acceptance record](reviews/2026-11-15-local-enrollment-erasure.md) covers active and pending records, competing processes, unavailable storage, and explicit restart recovery.
+Full renderer and workspace checks pass within the recorded synthetic Linux scope.
+Other-platform enrollment and hosted recovery after credential loss remain separate gates.
 No new normative requirement or deployment authority is added.
 
 ## SC-028: desktop and private website companion

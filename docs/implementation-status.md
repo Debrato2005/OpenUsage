@@ -53,7 +53,7 @@ The wider native results below are from L-1g2 and earlier. They do not certify t
 
 New in baseline 3.1:
 
-- Local erasure of leaderboard credentials after enrollment: [SC-029](srs-clarifications.md#sc-029-local-deletion-and-public-enrollment). Earlier deletion evidence covers the earlier credential set.
+- Public departure after all local credentials are lost: L-5a6. The current service can refuse another enrollment at its device cap.
 - Private desktop-to-website sync and the responsive personal dashboard: Sections 14B and 14C, Stage 3.
 - Own-rank client views: OU-BOARD-013 and OU-BOARD-014. The service API is complete within the local scope below.
 - Joined-rank access on Overview and optional subscription-price comparisons: OU-UI-028 and OU-SHARE-009. Independent local summaries and period receipts have the scoped results below.
@@ -75,6 +75,8 @@ Kept from baseline 2.0:
 - Wake handling: OU-PROC-013, OU-MON-013.
 
 ## Partial
+
+- Local enrollment erasure (L-5a5), November 15, 2026: the desktop clears active, pending, malformed, and duplicate items in the selected leaderboard slot. Private Linux app and credential journeys pass. The shared guard, durable intent, competing-process refusal, and explicit resume preserve the deletion boundary. Password-protected Linux workspaces also need a usable credential store. Full renderer/workspace checks and native-feature Clippy pass. The [record](reviews/2026-11-15-local-enrollment-erasure.md) owns scope and limits. Public departure remains separate.
 
 - Online leaderboard CLI (L-5a), November 15, 2026: join, sync, reconnect, and leave pass the private Linux journey. Real sync matches the exact dry-run bytes from saved SQLCipher totals. Stable-device recovery, competing processes, daemon restart, and credential removal pass. The ordinary unconfigured build ignores native endpoint settings and makes no request. Full Rust workspace checks and native-feature Clippy pass. The [review](reviews/2026-11-15-online-cli-enrollment.md) records scope and corrected boundaries. Settings, hosted GitHub and Cloudflare acceptance, and other platforms remain open.
 
@@ -199,11 +201,11 @@ separate from document completion. The [performance report](performance-report.m
 
 The owner resumed autonomous implementation on November 15, 2026. Work continues through verified local commits and periodic pushes. Each push checks the GitHub login and includes only the reviewed branch. No release, deployment, or pull request is authorized. The latest instruction replaces the November 13 stop condition. Baseline 3.1 product scope stays unchanged.
 
-The current pass completes L-5a's Linux CLI integration within its synthetic scope. Astra agents at extra-high effort resolved credential coordination and encoder buffer growth. Independent specification and standards reviewers cleared the corrected source. The primary agent owns integration, verification, documentation, and Git. The owner also authorized the OpenUsage Claude chats as supporting context. Private notes preserve the latest matte layout and first-release priorities without publishing raw chats.
+The current pass closes SC-029 within its synthetic Linux scope. An Astra agent at extra-high effort implemented the payload-independent credential eraser. Independent specification and standards reviewers found no remaining concrete source issue. The primary agent completed integration, the native app journey, visual inspection, and full regression checks. The OpenUsage Claude references continue to guide the existing matte layout and first-release priorities.
 
-The next correction clears local leaderboard credentials during local deletion under [SC-029](srs-clarifications.md#sc-029-local-deletion-and-public-enrollment). It must preserve the separate effect of public departure. The shared upload builder and Settings integration follow under L-5b. Own-rank client access and connection suggestions remain under S-23. Scanner activation retains its separate qualification and saved-session gates. The application needs owner service configuration before a live leaderboard join can work. The transport accepts GitHub's documented optional expiry fields without retaining refresh credentials.
+The next bounded correction is L-5a6: explicit public departure after local credential loss without consuming an enrollment slot. It must preserve unrelated local enrollment and use fresh GitHub authorization. The shared upload builder and Settings integration follow under L-5b. Own-rank client access and connection suggestions remain under S-23. Scanner activation keeps its separate qualification gates. Live service configuration and deployment remain under owner control.
 
-The repository inventory covers 938 tracked files. Graphify and source review cover the major application, storage, provider, CLI, service, and test boundaries. This is an inventory and scoped review. It does not establish a complete semantic audit. Real-provider, real-machine, and production scanner gates remain open.
+The repository inventory covers 941 tracked files. Graphify and source review cover the major application, storage, provider, CLI, service, and test boundaries. This is an inventory and scoped review. It does not establish a complete semantic audit. Real-provider, real-machine, and production scanner gates remain open.
 
 L-1f11as is complete within its separate legacy capture candidate scope.
 The [candidate record](reviews/2026-11-13-legacy-capture-candidate.md) lists executed

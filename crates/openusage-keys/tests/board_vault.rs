@@ -16,6 +16,7 @@ fn credential(bytes: &[u8]) -> BoardCredential {
 }
 
 fn selected_item_path() -> String {
+    private_keyring_fixture().unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -37,7 +38,7 @@ fn selected_item_path() -> String {
 #[ignore = "Requires the private Secret Service harness, never a real user keyring"]
 fn private_os_store_keeps_database_and_board_credentials_separate() {
     let root = private_keyring_fixture().unwrap();
-    let _guard = BoardGuard::acquire(&root.join("leaderboard")).unwrap();
+    let guard = BoardGuard::acquire(&root.join("leaderboard")).unwrap();
     let phase = std::env::var("OPENUSAGE_BOARD_VAULT_PHASE").unwrap();
     let original = credential(SYNTHETIC);
     let expected = credential(REPLACED);
@@ -47,7 +48,10 @@ fn private_os_store_keeps_database_and_board_credentials_separate() {
     if phase == "unavailable" {
         match BoardVault::new() {
             Err(VaultError::Unavailable) => {}
-            Ok(vault) => assert!(matches!(vault.load(), Err(VaultError::Unavailable))),
+            Ok(vault) => {
+                assert!(matches!(vault.load(), Err(VaultError::Unavailable)));
+                assert_eq!(vault.erase_local(&guard), Err(VaultError::Unavailable));
+            }
             _ => panic!("Private stopped keyring must be unavailable"),
         }
         return;
@@ -80,6 +84,10 @@ fn private_os_store_keeps_database_and_board_credentials_separate() {
             Err(VaultError::InvalidKey)
         );
         assert_eq!(*database.load().unwrap().unwrap(), DATABASE);
+        return;
+    }
+    if phase == "erasure" {
+        private_local_erasure(&board, &database, &guard, &expected);
         return;
     }
     assert_eq!(phase, "reopen");
@@ -211,5 +219,141 @@ fn private_os_store_keeps_database_and_board_credentials_separate() {
         board.replace(&expected, &original),
         Err(VaultError::Unavailable)
     );
+    assert_eq!(board.erase_local(&guard), Err(VaultError::Unavailable));
     assert!(matches!(database.load(), Err(VaultError::Unavailable)));
+}
+
+fn plant_private_item(service_name: &str, account: &str, bytes: &[u8]) {
+    private_keyring_fixture().unwrap();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    runtime.block_on(async {
+        let service = secret_service::SecretService::connect(secret_service::EncryptionType::Dh)
+            .await
+            .unwrap();
+        service
+            .get_default_collection()
+            .await
+            .unwrap()
+            .create_item(
+                "Synthetic local erasure item",
+                std::collections::HashMap::from([("service", service_name), ("username", account)]),
+                bytes,
+                false,
+                "text/plain",
+            )
+            .await
+            .unwrap();
+    });
+}
+
+fn assert_private_item(service_name: &str, account: &str, expected: &[u8]) {
+    private_keyring_fixture().unwrap();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    runtime.block_on(async {
+        let service = secret_service::SecretService::connect(secret_service::EncryptionType::Dh)
+            .await
+            .unwrap();
+        let found = service
+            .search_items(std::collections::HashMap::from([
+                ("service", service_name),
+                ("username", account),
+            ]))
+            .await
+            .unwrap();
+        assert!(found.locked.is_empty());
+        assert_eq!(found.unlocked.len(), 1);
+        let actual = Zeroizing::new(found.unlocked[0].get_secret().await.unwrap());
+        assert_eq!(actual.as_slice(), expected);
+    });
+}
+
+fn private_local_erasure(
+    board: &BoardVault,
+    database: &OsVault,
+    guard: &BoardGuard,
+    expected: &BoardCredential,
+) {
+    private_keyring_fixture().unwrap();
+    assert_eq!(board.load().unwrap().unwrap().expose(), REPLACED);
+    assert_eq!(*database.load().unwrap().unwrap(), DATABASE);
+    plant_private_item(SERVICE, "synthetic-other-account", b"retained account");
+    plant_private_item("synthetic-other-service", ACCOUNT, b"retained service");
+    let assert_isolation = || {
+        assert_eq!(*database.load().unwrap().unwrap(), DATABASE);
+        assert_private_item(SERVICE, "synthetic-other-account", b"retained account");
+        assert_private_item("synthetic-other-service", ACCOUNT, b"retained service");
+    };
+
+    board.erase_local(guard).unwrap();
+    assert!(board.load().unwrap().is_none());
+    board.erase_local(guard).unwrap();
+    assert_isolation();
+
+    // The vault treats typed pending and active states as opaque payloads.
+    // The enrollment codec and desktop journey check their actual schemas.
+    for payload in [
+        b"synthetic pending enrollment payload".as_slice(),
+        b"synthetic active enrollment payload".as_slice(),
+    ] {
+        board.protect(&credential(payload)).unwrap();
+        assert_eq!(board.load().unwrap().unwrap().expose(), payload);
+        board.erase_local(guard).unwrap();
+        assert!(board.load().unwrap().is_none());
+        assert_isolation();
+    }
+    for malformed in [Vec::new(), b"wrong-version".to_vec(), vec![1; 8192]] {
+        plant_private_item(SERVICE, ACCOUNT, &malformed);
+        assert!(matches!(board.load(), Err(VaultError::InvalidKey)));
+        assert_eq!(board.remove(expected), Err(VaultError::InvalidKey));
+        board.erase_local(guard).unwrap();
+        assert!(board.load().unwrap().is_none());
+        assert_isolation();
+    }
+
+    board.protect(expected).unwrap();
+    plant_private_item(SERVICE, ACCOUNT, b"synthetic duplicate malformed item");
+    plant_private_item(SERVICE, ACCOUNT, b"");
+    assert!(matches!(board.load(), Err(VaultError::InvalidKey)));
+    assert_eq!(board.remove(expected), Err(VaultError::InvalidKey));
+    assert_eq!(
+        board.replace(expected, expected),
+        Err(VaultError::InvalidKey)
+    );
+    board.erase_local(guard).unwrap();
+    assert!(board.load().unwrap().is_none());
+    board.erase_local(guard).unwrap();
+    assert_isolation();
+
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    runtime.block_on(async {
+        let service = secret_service::SecretService::connect(secret_service::EncryptionType::Dh)
+            .await
+            .unwrap();
+        service
+            .get_default_collection()
+            .await
+            .unwrap()
+            .lock()
+            .await
+            .unwrap();
+        let found = service
+            .search_items(std::collections::HashMap::from([
+                ("service", SERVICE),
+                ("username", ACCOUNT),
+            ]))
+            .await
+            .unwrap();
+        assert!(found.unlocked.is_empty());
+        assert!(found.locked.is_empty());
+    });
+    assert_eq!(board.erase_local(guard), Err(VaultError::Unavailable));
 }
