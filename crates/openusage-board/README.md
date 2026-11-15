@@ -82,3 +82,33 @@ The request-deadline case shortens the timeout only in the test configuration.
 Production requests keep the five-second connect and fifteen-second total
 budgets. Hosted GitHub, Cloudflare, other platforms, and caller integration need
 separate acceptance.
+
+## Enrollment credential format
+
+`Enrollment` is a pure Rust codec for the future leaderboard credential slot.
+It performs no network, file, database, or OS-store operation. The caller supplies
+the configured service origin when it restores a credential. A stored URL never
+selects the destination.
+
+Version 1 contains only `schemaVersion`, `serviceOrigin`, `deviceId`, `login`,
+and `serviceToken`. The codec reuses the transport's canonical HTTPS origin
+rules and permits at most 2,048 origin bytes. The stored origin includes its
+final slash. The ID passes lowercase UUIDv4 validation. The enrollment caller
+must generate it randomly. The login is descriptive metadata, not provider
+identity or proof of current authorization. The token keeps the existing
+service-token type and its validation.
+
+The envelope is an ASCII JSON object of at most 4,096 bytes. Missing, unknown,
+duplicate, null, invalid, and wrongly typed fields refuse. Escapes and positional
+arrays refuse before deserialization. The encoder writes through a fixed
+zeroizing buffer. Input bytes, output bytes, and owned service tokens are
+zeroized on drop. Debug output is redacted, and errors never contain the input.
+Deliberate Rust access supplies the service token to the existing transport.
+The envelope has no general serializer or display implementation.
+
+Eight public API tests cover round trips, origin binding, byte limits, field
+refusal, secret handling, and a 257-byte record. These tests use synthetic
+credentials without network or OS-store access. Production callers,
+cross-process enrollment coordination, and the typed record's OS-store round
+trip remain open. No GitHub access token, refresh token, provider credential,
+or source history belongs in this envelope.

@@ -300,7 +300,7 @@ impl Transport {
     }
 }
 
-fn validate_origin(text: &str) -> Result<Url, Error> {
+pub(crate) fn validate_origin(text: &str) -> Result<Url, Error> {
     let url = Url::parse(text).map_err(|_| Error::InvalidConfiguration)?;
     let canonical = url.origin().ascii_serialization();
     if !text.starts_with("https://")

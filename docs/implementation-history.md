@@ -4,6 +4,16 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## November 15 integration before L-5a3
+
+The integration at `f4e492b` covered L-1f11au scanner compatibility, L-5a2
+credential storage, S-23a independent Overview summaries, and verification
+interruption cleanup. Local renderer, Rust, scanner, and four synthetic Linux
+native journeys passed. The commit was pushed after the identity check.
+Its hosted renderer job later passed, but its Rust workspace step failed.
+The [fixture record](reviews/2026-11-15-activity-fixture-publication.md) owns that
+failure and the scoped correction.
+
 ## L-1f11as result before L-1f11at
 
 Latest scanner result, November 13, 2026. L-1f11as refuses five malformed-peer

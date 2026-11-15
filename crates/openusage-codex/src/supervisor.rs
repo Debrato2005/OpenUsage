@@ -2279,14 +2279,38 @@ exec /bin/sleep 60
     }
 
     fn activity_mode(fixture: &Fixture, mode: &str) {
-        fs::write(
-            fixture
-                .temporary
-                .path()
-                .join("synthetic-activity-provider-config.json"),
-            serde_json::to_vec(&serde_json::json!({"defaultMode":mode})).unwrap(),
-        )
-        .unwrap();
+        let mut config = tempfile::NamedTempFile::new_in(fixture.temporary.path()).unwrap();
+        serde_json::to_writer(&mut config, &serde_json::json!({"defaultMode": mode})).unwrap();
+        config
+            .persist(
+                fixture
+                    .temporary
+                    .path()
+                    .join("synthetic-activity-provider-config.json"),
+            )
+            .unwrap();
+    }
+
+    #[test]
+    fn synthetic_activity_mode_updates_preserve_open_readers() {
+        let fixture = activity_fixture("post_hold");
+        let config = fixture
+            .temporary
+            .path()
+            .join("synthetic-activity-provider-config.json");
+        let previous_reader = fs::File::open(&config).unwrap();
+
+        activity_mode(&fixture, "success");
+
+        assert_eq!(
+            serde_json::from_reader::<_, serde_json::Value>(previous_reader).unwrap(),
+            serde_json::json!({"defaultMode": "post_hold"})
+        );
+        assert_eq!(
+            serde_json::from_reader::<_, serde_json::Value>(fs::File::open(config).unwrap())
+                .unwrap(),
+            serde_json::json!({"defaultMode": "success"})
+        );
     }
 
     fn activity_rows(fixture: &Fixture) -> Vec<serde_json::Value> {

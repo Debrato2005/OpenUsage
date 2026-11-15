@@ -12,7 +12,7 @@ On Linux each vault owns a one-worker Tokio runtime for its Secret Service conne
 
 `BoardVault` in `openusage-keys` owns one fixed OS credential slot for future public leaderboard enrollment. It uses the existing application service name and the account `leaderboard-device-session-v1`. The database key keeps `primary-database-key-v1`. Native tests use the existing separate service namespace.
 
-`BoardCredential` holds between one and 4,096 payload bytes in zeroized memory. Its Debug output is redacted. Deliberate Rust access uses `expose()`. The store adds a fixed version prefix. Its caller must validate the enrollment schema and bind the service origin, device ID, login, and service token before storage. This low-level boundary does not define that schema.
+`BoardCredential` holds between one and 4,096 payload bytes in zeroized memory. Its Debug output is redacted. Deliberate Rust access uses `expose()`. The store adds a fixed version prefix. Its caller must use the [enrollment codec](../openusage-board/README.md#enrollment-credential-format) to bind the configured service origin, device ID, login, and service token. This low-level boundary does not define that schema. The typed record's OS-store integration remains open.
 
 An occupied slot refuses replacement. Removal compares the exact expected bytes before deleting the selected item. Missing items count as already removed. On Linux, duplicate, locked, malformed, and unavailable entries refuse without an unlock prompt. Each service operation retains its five-second bound. The store has no plaintext fallback or network operation.
 

@@ -34,10 +34,12 @@ Linux input. Ordinary count defects, strict compatibility limits, legacy
 producer qualification, and saved-session migration remain open. Production pins
 and enabled tools stay unchanged.
 
-Hosted CI for `d8232b3` passed in
-[run 43253994409](https://github.com/Debrato2005/OpenUsage/actions/runs/43253994409).
-The run result and exact commit were checked on November 13. New local work
-needs separate verification and a later hosted result.
+Hosted CI for `f4e492b` completed with the renderer job passing and the Rust
+workspace step failing in
+[run 43697578148](https://github.com/Debrato2005/OpenUsage/actions/runs/43697578148).
+The [fixture record](reviews/2026-11-15-activity-fixture-publication.md) covers a
+reproduced local race and its correction. Replacement hosted acceptance remains
+open. Earlier successful hosted results keep their historical commit scope.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -72,9 +74,11 @@ Kept from baseline 2.0:
 
 ## Partial
 
+- Leaderboard enrollment format (L-5a3), November 15, 2026: the pure [codec](../crates/openusage-board/README.md#enrollment-credential-format) binds one configured origin and validates the saved device credential. Eight public API checks pass, and independent reviews close the buffer-handling findings. Online callers, the typed OS-store round trip, enrollment coordination, revocation, and hosted acceptance remain open.
+
 - Independent Overview summaries (S-23a), November 15, 2026: one local-summary component survives first account creation. Renderer checks cover provider failure, local failure, empty history, and exact detail panels. The native consent journey preserves 14,950 local tokens and their incomplete estimate beside the first signed-out account. Provider and local totals retain separate scopes. Connection suggestions and joined rank remain open.
 
-- Leaderboard credential storage (L-5a2), November 15, 2026: the [separate vault](../crates/openusage-keys/README.md#leaderboard-credential-storage) passes the private Linux Secret Service journey. Synthetic credentials survive a daemon restart. Occupied, malformed, duplicate, locked, and unavailable entries refuse safely. Database-key isolation and expected-value removal pass. Enrollment schema, online callers, hosted access, and other platforms remain open.
+- Leaderboard credential storage (L-5a2), November 15, 2026: the [separate vault](../crates/openusage-keys/README.md#leaderboard-credential-storage) passes the private Linux Secret Service journey. Synthetic credentials survive a daemon restart. Occupied, malformed, duplicate, locked, and unavailable entries refuse safely. Database-key isolation and expected-value removal pass. L-5a3 covers the payload schema. Online callers, hosted access, and other platforms remain open.
 
 - Verification interruption, November 15, 2026: the [runner](engineering-workflow.md) records completed checks and stops owned child groups on SIGINT or SIGTERM. Synthetic process regressions and the full Python tool suite pass. The original interrupted milestone remains incomplete, and its signal sender remains unknown. Separate workspace tests and Clippy pass on the corrected source.
 
@@ -167,6 +171,8 @@ Kept from baseline 2.0:
 
 ## Failing or stale tests
 
+- Hosted activity fixture, R-9, November 15, 2026: a held-final-account test fails with `Session(UnexpectedExit)` on `f4e492b`. A [local reproduction](reviews/2026-11-15-activity-fixture-publication.md) exposes truncated JSON during a config rewrite. Atomic sibling publication passes the deterministic regression and all 69 Codex tests. Hosted stderr is absent, so the exact hosted cause remains inferred. Replacement hosted acceptance remains open.
+
 - Matte noir, November 15, 2026: the current source passes all 490 Chromium and WebKit renderer cases through the project runtime. All 32 focused local-usage cases pass after screenshots disable color transitions. Visual checks cover light and dark themes at 720 pixels. The native consent and persistence journeys pass on the current Linux build. Other native journeys retain their own recorded scopes.
 
 - R-2, November 10, 2026: desktop synthetic fixtures now reuse the bounded executable writer from R-1. The deterministic inherited-writer test, 22 provider tests, full Rust checks, and native provider-lifecycle passed. The earlier cooldown failure returned ProviderUnavailable but did not expose its underlying cause. Focused diagnostics did not reproduce it. The [review](reviews/2026-11-10-desktop-fixture-writes.md) keeps that distinction explicit. The later Pi filesystem verification passed; its evidence remains separate.
@@ -199,9 +205,9 @@ separate from document completion. The [performance report](performance-report.m
 
 The owner resumed autonomous implementation on November 15, 2026. Work continues through verified local commits and periodic pushes. Each push checks the GitHub login and includes only the reviewed branch. No release, deployment, or pull request is authorized. The latest instruction replaces the November 13 stop condition. Baseline 3.1 product scope stays unchanged.
 
-The current integration pass covers L-1f11au scanner compatibility, L-5a2 credential storage, S-23a independent Overview summaries, and verification interruption cleanup. Astra xhigh workers resolved bounded blockers and completed their handoffs. The primary agent owns shared documentation, final verification, and Git operations.
+The current pass covers R-9 synthetic fixture publication and L-5a3's strict enrollment codec. Astra xhigh workers completed the bounded fixture correction and independent reviews. The primary agent owns shared documentation, final verification, and Git operations. The owner also authorized the OpenUsage Claude chats as supporting context. Private review notes preserve the latest matte layout and first-release priorities without publishing raw chats.
 
-The next client boundary is a validated enrollment envelope and online CLI callers under L-5a. Connection suggestions and joined-rank access remain under S-23. Scanner activation still needs the unresolved qualification and saved-session gates in the L-1f11au review.
+The next client boundary is serialized enrollment coordination, the typed OS-store round trip, and online CLI callers under L-5a. The [source review](reviews/2026-11-15-enrollment-contract.md) records a separate GitHub expiring-token response compatibility gate. Connection suggestions and joined-rank access remain under S-23. Scanner activation still needs the unresolved qualification and saved-session gates in the L-1f11au review.
 
 The repository inventory covers 918 tracked files. Graphify and source review cover the major application, storage, provider, CLI, service, and test boundaries. This is an inventory and scoped review. It does not establish a complete semantic audit. Real-provider, real-machine, and production scanner gates remain open.
 

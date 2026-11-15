@@ -1,9 +1,11 @@
 //! Bounded opt-in leaderboard transport. No storage, credential discovery or scheduler.
 mod device;
+mod enrollment;
 mod protocol;
 mod transport;
 
 pub use device::{DeviceFlow, PollOutcome};
+pub use enrollment::Enrollment;
 pub use protocol::{
     ApprovedSyncBody, DeviceId, GithubToken, Joined, Metric, OwnRank, Period, RankEntry,
     ServiceToken,

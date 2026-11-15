@@ -161,7 +161,7 @@ unavailable. Native calls on other platforms can outlive their timeout.
 
 ## Boundaries
 
-- **Leaderboard credentials:** the [separate vault](../crates/openusage-keys/README.md#leaderboard-credential-storage) stores a bounded opaque envelope in the OS credential store. It preserves the database key slot and never falls back to plaintext storage. Callers must validate the enrollment schema and serialize credential operations. Online enrollment remains open.
+- **Leaderboard credentials:** the [separate vault](../crates/openusage-keys/README.md#leaderboard-credential-storage) stores a bounded opaque envelope in the OS credential store. It preserves the database key slot and never falls back to plaintext storage. The pure [enrollment codec](../crates/openusage-board/README.md#enrollment-credential-format) binds the configured service origin before a caller can restore a typed credential. Callers must serialize credential operations. Online enrollment and the typed OS-store round trip remain open.
 - **Secrets:** provider sessions, credentials, and the database key stay in Rust, provider-managed homes, or the OS credential store. They never reach React.
 - **Processes:** the Rust supervisor owns every child process. At most two collections run at once.
 - **Numbers:** Rust does exact arithmetic. Token counts cross IPC as decimal strings. A missing value stays missing.
