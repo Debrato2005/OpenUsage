@@ -54,7 +54,7 @@ The reqwest `form` feature stays disabled because this path does not use it.
 
 ## Exact uploads and rank values
 
-The saved-data serializer remains the sole payload builder.
+The [shared storage builder](../../docs/data-contracts.md#shared-leaderboard-upload) remains the sole payload builder.
 `ApprovedSyncBody::from_json(bytes, now)` checks the existing strict v1 whitelist,
 UUID, calendar dates, counts, sums, unique row keys, and service limits. It keeps
 the accepted bytes unchanged. `sync(&token, &body)` sends those exact bytes and

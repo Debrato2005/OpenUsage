@@ -12,9 +12,11 @@ pub use backup_validation::{
 pub use checkpoint::{CheckpointError, CheckpointMetadata, CheckpointVerification};
 mod time_zone;
 pub use time_zone::valid_time_zone;
+mod leaderboard;
 mod local_logs;
 mod local_periods;
 mod local_usage_read;
+pub use leaderboard::BoardUploadError;
 pub use local_logs::{
     LocalHourScan, LocalLogError, LocalSessionScan, LocalUsageCoverage, LocalUsageDay,
     LocalUsageDifference, LocalUsageHour, LocalUsageRow, LocalUsageScan, LocalUsageScanSummary,

@@ -200,17 +200,16 @@ separate from document completion. The [performance report](performance-report.m
 
 The owner resumed autonomous implementation on November 15, 2026. Work continues through verified local commits and periodic pushes. Each push checks the GitHub login and includes only the reviewed branch. No release, deployment, or pull request is authorized. The latest instruction replaces the November 13 stop condition. Baseline 3.1 product scope stays unchanged.
 
-The current pass completes L-5a6 within its synthetic Linux scope.
-Fresh GitHub departure creates no enrollment slot and preserves unrelated local credentials.
-Explicit local forgetting remains separate from public departure.
-The [recovery record](reviews/2026-11-15-departure-recovery.md) owns account-isolation corrections, executed evidence, and remaining hosted gates.
-The OpenUsage Claude references continue to guide the existing matte layout and first-release priorities.
-
-The next bounded assignment shares the saved-data upload builder with Settings under L-5b.
-Settings authorization, sync, departure, and recovery must keep secrets in Rust and use the shared credential guard.
+The current pass extracts the saved-data upload builder for Settings under L-5b0.
+The shared Rust storage method supports desktop and CLI connections with one owned snapshot.
+The CLI keeps its exact body and stable failures.
+The [review](reviews/2026-11-15-shared-leaderboard-upload.md) owns executed evidence and limits.
+Settings authorization, sync, departure, and recovery remain the next bounded assignment under L-5b.
+Secrets must stay in Rust, and every operation must use the shared credential guard.
 Own-rank client access and connection suggestions remain under S-23.
 Scanner activation keeps its separate qualification gates.
 Live service configuration and deployment remain under owner control.
+The OpenUsage Claude references continue to guide the existing matte layout and first-release priorities.
 
 The repository inventory covers 941 tracked files. Graphify and source review cover the major application, storage, provider, CLI, service, and test boundaries. This is an inventory and scoped review. It does not establish a complete semantic audit. Real-provider, real-machine, and production scanner gates remain open.
 

@@ -170,7 +170,7 @@ unavailable. Native calls on other platforms can outlive their timeout.
 - **Renderer:** React calls only registered typed commands. It has no direct file or process access. Its content security policy allows `blob:` images only so that a share preview can show the Rust-made SVG as an image, which runs no script, and draw it as PNG.
 - **Network:** The official Codex child process makes provider requests. The separate [leaderboard client](../crates/openusage-board/README.md) uses the approved [HTTP policy](decisions/2026-11-13-leaderboard-http-client.md). Missing build settings leave it inert. Explicit CLI commands use it. Settings integration remains open. Private website sync remains unbuilt.
 - **Storage:** one service coordinates all writes. Current state and history are separate.
-- **Read snapshots:** `Storage::read_snapshot` keeps the CLI's upload projection inside one query-only transaction. Concurrent desktop writes cannot mix its source, scope, and row generations. The callback cannot open another transaction.
+- **Read snapshots:** `Storage::leaderboard_upload` owns the complete saved-data upload transaction on read-write and query-only connections. Concurrent writes cannot mix source, scope, and row generations. The method returns owned bytes and ends the transaction before transport. The separate generic `read_snapshot` still accepts query-only callbacks.
 
 ## Planned
 

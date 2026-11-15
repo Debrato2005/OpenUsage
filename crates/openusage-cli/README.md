@@ -90,6 +90,11 @@ nothing, reads no logs, starts no scanner, and uses no network. The workspace
 opens through the same read-only key path as `status`. One read transaction
 keeps the saved scopes, folders, and rows in one snapshot.
 
+The preview and real sync use `Storage::leaderboard_upload` from the shared Rust storage crate.
+The builder owns one transaction on the saved data and returns the exact body.
+The CLI closes its read connection before consent and transport.
+The [shared contract](../../docs/data-contracts.md#shared-leaderboard-upload) owns this boundary.
+
 The default range is 30 days. `--days` accepts 1 through 366. Each source uses
 its saved day zone. The command keeps the saved date without conversion. It
 refuses a selected date that the service considers future in UTC.

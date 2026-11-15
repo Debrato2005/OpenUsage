@@ -1,12 +1,15 @@
 //! Command-entry acceptance with private encrypted workspaces and synthetic data.
 use super::*;
+use openusage_locallogs::{AgentPeriod, UsagePeriod};
 use openusage_locallogs::{ModelDetail, TokenDetails};
+use openusage_storage::Storage;
 use openusage_storage::{GroupedLocalScan, LocalUsageRow, LocalUsageScan, LogConsent};
 use std::path::{Path, PathBuf};
 
 const DEVICE: &str = "f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4";
 const KEY: [u8; 32] = [143; 32];
 const NOW: &str = "2026-11-08T10:00:00.000Z";
+const MAX_COUNT: u64 = 1_000_000_000_000;
 
 fn create_workspace() -> (tempfile::TempDir, PathBuf, Storage) {
     use std::os::unix::fs::PermissionsExt;

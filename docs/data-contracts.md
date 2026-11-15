@@ -12,7 +12,7 @@ migration, adapter support, or acceptance result.
 | Encrypted application records | [Storage migrations](../crates/openusage-storage/src/lib.rs) and `schema.sql` through `schema_v13.sql` beside it | Database schema 13, SQLCipher with WAL |
 | Rust to renderer | [Commands, result types, and validators](../apps/desktop/src/contracts.ts) | Typed commands and results. No single version covers every command |
 | CLI JSON | [CLI output contract](../crates/openusage-cli/README.md#output) | `schemaVersion: 2` |
-| Offline leaderboard preview | [CLI preview contract](../crates/openusage-cli/README.md#offline-leaderboard-preview) | Exact prospective `/v1/sync` body. It is not wrapped in CLI schema 2 |
+| Shared leaderboard upload | [Shared projection](#shared-leaderboard-upload) and [CLI preview contract](../crates/openusage-cli/README.md#offline-leaderboard-preview) | Exact prospective `/v1/sync` body. It is not wrapped in CLI schema 2 |
 | Leaderboard HTTP transport | [Client types](../crates/openusage-board/src/protocol.rs) and [service API](../services/leaderboard/README.md#api) | V1 numeric wire values. Approved uploads retain their exact bytes. Rank counts reject values above the safe integer limit. Missing estimates remain null |
 | Leaderboard credential vault, added November 15 | [Vault contract](../crates/openusage-keys/README.md#leaderboard-credential-storage) and [enrollment format](../crates/openusage-board/README.md#enrollment-credential-format) | Pending and active version 1 records inside the opaque OS slot. The [session contract](../crates/openusage-board/README.md#serialized-enrollment) owns recovery and origin binding |
 | Fresh departure and local forgetting | [Recovery contract](../crates/openusage-cli/README.md#departure-recovery-and-local-forgetting) and [service API](../services/leaderboard/README.md#api) | Fresh departure requires an explicit nullable token witness. CLI schema 2 reports confirmed remote state separately from local credential state. Login and device ID are not ownership proof |
@@ -221,3 +221,18 @@ The source at `9d9b113` passed hosted Linux checks and Renderer in
 That run includes Rust tests, qualification builds, and native oracle tests.
 Native GUI results remain separate private synthetic Linux evidence.
 Writing this document does not qualify real providers, other platforms, or planned adapters.
+
+## Shared leaderboard upload
+
+`Storage::leaderboard_upload(device_id, days, now)` returns the exact v1 upload string.
+It reads saved local aggregates through one transaction on read-write or query-only connections.
+It must run outside another transaction.
+A failed read or refusal drops the transaction and returns no upload.
+The caller must release its storage lock before authorization, confirmation, or HTTP.
+
+The [CLI preview contract](../crates/openusage-cli/README.md#offline-leaderboard-preview) owns selection and refusal rules.
+The shared builder preserves field order, limits, pinned day zones, unknown estimates, and overlap refusal.
+It reads no provider reading or credential.
+It starts no scanner and makes no network request.
+The CLI maps typed errors to its existing codes and messages.
+Settings can use this storage boundary, but its caller remains unbuilt.

@@ -2930,6 +2930,7 @@ dependencies = [
  "libc",
  "openusage-locallogs",
  "rusqlite",
+ "serde",
  "serde_json",
  "tempfile",
  "uuid",

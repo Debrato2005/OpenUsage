@@ -843,3 +843,17 @@ No new normative requirement or deployment authority is added.
 The current pass closes SC-029 within its synthetic Linux scope. An Astra agent at extra-high effort implemented the payload-independent credential eraser. Independent specification and standards reviewers found no remaining concrete source issue. The primary agent completed integration, the native app journey, visual inspection, and full regression checks. The OpenUsage Claude references continue to guide the existing matte layout and first-release priorities.
 
 The next bounded correction is L-5a6: explicit public departure after local credential loss without consuming an enrollment slot. It must preserve unrelated local enrollment and use fresh GitHub authorization. The shared upload builder and Settings integration follow under L-5b. Own-rank client access and connection suggestions remain under S-23. Scanner activation keeps its separate qualification gates. Live service configuration and deployment remain under owner control.
+
+## November 15: departure recovery checkpoint before Settings
+
+The current pass completes L-5a6 within its synthetic Linux scope.
+Fresh GitHub departure creates no enrollment slot and preserves unrelated local credentials.
+Explicit local forgetting remains separate from public departure.
+The [recovery record](reviews/2026-11-15-departure-recovery.md) owns account-isolation corrections, executed evidence, and remaining hosted gates.
+The OpenUsage Claude references continue to guide the existing matte layout and first-release priorities.
+
+The next bounded assignment shares the saved-data upload builder with Settings under L-5b.
+Settings authorization, sync, departure, and recovery must keep secrets in Rust and use the shared credential guard.
+Own-rank client access and connection suggestions remain under S-23.
+Scanner activation keeps its separate qualification gates.
+Live service configuration and deployment remain under owner control.
