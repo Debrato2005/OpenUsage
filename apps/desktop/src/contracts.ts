@@ -69,6 +69,16 @@ export interface LeaderboardView {
   operation: LeaderboardOperation | null;
   statusIssue?: LeaderboardIssue;
 }
+export type LeaderboardPeriod = '7d' | '30d' | 'all';
+export type LeaderboardMetric = 'tokens' | 'value';
+export interface LeaderboardRank {
+  title: 'Self-reported';
+  period: LeaderboardPeriod;
+  metric: LeaderboardMetric;
+  snapshotAt: string;
+  totalParticipants: string;
+  entry: { rank: string; login: string; totalTokens: string; estimatedValueMicros: string | null } | null;
+}
 
 export interface BackupReceipt {
   fileName: string;
@@ -568,6 +578,7 @@ function isSubscriptionDeletion(value: unknown): boolean {
 
 interface Commands {
   load_leaderboard: { args: undefined; result: LeaderboardView };
+  load_leaderboard_rank: { args: { period: LeaderboardPeriod; metric: LeaderboardMetric }; result: LeaderboardRank };
   refresh_leaderboard: { args: undefined; result: LeaderboardView };
   confirm_leaderboard_sync: { args: { operationId: string; confirmed: true }; result: LeaderboardView };
   begin_leaderboard: { args: { kind: LeaderboardKind; days?: number; confirmed: true }; result: LeaderboardView };
@@ -674,11 +685,12 @@ export async function invoke<K extends keyof Commands>(
   const core = window.__TAURI__?.core;
   if (!core) throw new DesktopUnavailable('Open the installed OpenUsage desktop application.');
   const response = await core.invoke<unknown>(command, args[0]);
-  const selected = args[0] as { profileId?: string; subscriptionId?: string; history?: ProfileHistoryChoice; kind?: LeaderboardKind; operationId?: string } | undefined;
+  const selected = args[0] as { profileId?: string; subscriptionId?: string; history?: ProfileHistoryChoice; kind?: LeaderboardKind; operationId?: string; period?: LeaderboardPeriod; metric?: LeaderboardMetric } | undefined;
   const valid = command === 'load_leaderboard' || command === 'refresh_leaderboard' || command === 'begin_leaderboard' || command === 'cancel_leaderboard' || command === 'confirm_leaderboard_sync' ? isLeaderboardView(response)
       && (command !== 'begin_leaderboard' || response.operation?.kind === selected?.kind)
       && (command !== 'cancel_leaderboard' && command !== 'confirm_leaderboard_sync' || response.operation?.id === selected?.operationId)
       && (command !== 'confirm_leaderboard_sync' || response.operation?.kind === 'sync')
+    : command === 'load_leaderboard_rank' ? isLeaderboardRank(response) && response.period === selected?.period && response.metric === selected?.metric
     : command === 'open_leaderboard_login_page' ? response === null
     : command === 'prepare_profile_removal' ? isProfileRemovalPreview(response) && response.profileId === selected?.profileId && response.history === selected?.history
     : command === 'apply_profile_removal' ? isProfileView(response) && (selected?.history === 'archive'
@@ -768,12 +780,28 @@ function isLeaderboardPreview(body: unknown): body is string {
     seen.add(key); return true;
   });
 }
+function isGithubLogin(value: unknown): value is string {
+  return typeof value === 'string' && /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/.test(value);
+}
+function isLeaderboardRank(value: unknown): value is LeaderboardRank {
+  const count = (n: unknown): n is string => isWideCount(n) && BigInt(n) <= 9007199254740991n;
+  if (!exactKeys(value, ['title', 'period', 'metric', 'snapshotAt', 'totalParticipants', 'entry'])
+    || value.title !== 'Self-reported' || !['7d', '30d', 'all'].includes(value.period as string)
+    || !['tokens', 'value'].includes(value.metric as string) || !isUtcTimestamp(value.snapshotAt)
+    || !count(value.totalParticipants)) return false;
+  if (value.entry === null) return true;
+  const row = value.entry;
+  return exactKeys(row, ['rank', 'login', 'totalTokens', 'estimatedValueMicros'])
+    && count(row.rank) && BigInt(row.rank) > 0n && BigInt(row.rank) <= BigInt(value.totalParticipants)
+    && isGithubLogin(row.login) && count(row.totalTokens)
+    && (row.estimatedValueMicros === null || count(row.estimatedValueMicros));
+}
 function isLeaderboardView(value: unknown): value is LeaderboardView {
   const commonKeys = ['configured', 'enrollment', 'login', 'busy', 'operation'];
   if (!exactKeys(value, commonKeys) && !(exactKeys(value, [...commonKeys, 'statusIssue']) && (leaderboardIssues as readonly unknown[]).includes(value.statusIssue))) return false;
   if (typeof value.configured !== 'boolean' || typeof value.busy !== 'boolean'
     || !['not_checked', 'not_joined', 'pending', 'joined', 'invalid', 'unavailable'].includes(value.enrollment as string)) return false;
-  const login = (s: unknown): s is string => typeof s === 'string' && /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/.test(s);
+  const login = isGithubLogin;
   if (value.enrollment === 'joined' ? !value.configured || !login(value.login) : value.login !== null) return false;
   if (!value.configured && !['not_checked', 'not_joined', 'unavailable'].includes(value.enrollment as string)) return false;
   if (value.operation === null) return !value.busy;

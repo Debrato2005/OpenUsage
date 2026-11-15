@@ -53,6 +53,34 @@ async function open(page: Page, usage: Usage | Record<string, unknown>, scopes: 
 const usageCalls = (page: Page) => page.evaluate(() => (window as unknown as FixtureWindow).usageCalls);
 const device = (page: Page) => page.locator('[data-local-usage]');
 
+test('rank failure preserves available capacity and local value on Overview', async ({ page }) => {
+  await open(page, localUsage(), {}, { account: true, providerAvailable: true });
+  const overview = page.locator('[data-local-overview]');
+  const localValue = overview.locator('[data-local-tool="claude"] .local-tool-context');
+  const capacity = page.locator('[data-overview-summary="quota"] .overview-glance-value');
+  await expect(localValue).toBeVisible();
+  await expect(localValue).toHaveText('Estimated $184.32Incomplete');
+  await expect(capacity).toBeVisible();
+  await expect(capacity).toHaveText('75%');
+  await page.evaluate(() => {
+    const original = window.__TAURI__!.core.invoke;
+    window.__TAURI__!.core.invoke = async <T>(command: string, args?: Record<string, unknown>) => {
+      if (command === 'load_leaderboard_rank') throw 'remote_unavailable';
+      return original<T>(command, args);
+    };
+  });
+  await page.getByRole('button', { name: 'Self-reported rank', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Self-reported rank', exact: true });
+  await expect(dialog.locator('[data-own-rank-value]')).toHaveText('Not available');
+  await expect(dialog.getByRole('alert')).toContainText('The service did not confirm this request.');
+  await page.keyboard.press('Escape');
+  await expect(dialog).not.toBeVisible();
+  await expect(localValue).toBeVisible();
+  await expect(localValue).toHaveText('Estimated $184.32Incomplete');
+  await expect(capacity).toBeVisible();
+  await expect(capacity).toHaveText('75%');
+});
+
 test('adding the first account keeps saved local value while provider and later local reads are unavailable', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 720, height: 900 });
   await open(page, localUsage(), {}, { deferLocalAfterAdd: true });

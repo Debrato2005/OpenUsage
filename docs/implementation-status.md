@@ -34,11 +34,10 @@ Linux input. Ordinary count defects, strict compatibility limits, legacy
 producer qualification, and saved-session migration remain open. Production pins
 and enabled tools stay unchanged.
 
-Hosted CI for departure commit `b29df65` passes both jobs in
-[run 43730532947](https://github.com/Debrato2005/OpenUsage/actions/runs/43730532947).
-The later shared-upload run fails its standalone native-oracle lock check.
-The [Settings record](reviews/2026-11-15-settings-leaderboard.md) owns that correction and its passing local locked test.
-Replacement hosted acceptance remains pending.
+Hosted CI for Settings commit `fb7c52e` passes both jobs in
+[run 43749261012](https://github.com/Debrato2005/OpenUsage/actions/runs/43749261012).
+That run includes the standalone native-oracle lock correction.
+The new own-rank source has separate local evidence below and awaits its own hosted result.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -52,8 +51,7 @@ The wider native results below are from L-1g2 and earlier. They do not certify t
 New in baseline 3.1:
 
 - Private desktop-to-website sync and the responsive personal dashboard: Sections 14B and 14C, Stage 3.
-- Own-rank client views: OU-BOARD-013 and OU-BOARD-014. The service API is complete within the local scope below.
-- Joined-rank access on Overview and optional subscription-price comparisons: OU-UI-028 and OU-SHARE-009. Independent local summaries and period receipts have the scoped results below.
+- Optional subscription-price comparisons: OU-SHARE-009. Independent local summaries, joined rank, and period receipts have the scoped results below.
 - Explicit provider-connection suggestions: OU-ACCT-021.
 
 New in baseline 3.0:
@@ -71,6 +69,8 @@ Kept from baseline 2.0:
 - Wake handling: OU-PROC-013, OU-MON-013.
 
 ## Partial
+
+- Own-rank desktop access (S-23b), November 16, 2026: Overview opens the existing detail panel for authenticated rank reads. Periods, metrics, snapshot context, exact counts, unavailable entries, and null estimates retain their service scope. All 518 renderer cases, 591 workspace tests, and both Clippy modes pass. Two workspace tests are ignored. The compiled native journey passes thirteen groups, and the separate deletion journey passes. The [record](reviews/2026-11-16-own-rank-client.md) owns corrections, source review, checks, and limits. Live GitHub, hosted D1, real histories, and other platforms remain open.
 
 - Settings leaderboard integration (L-5b), November 15, 2026: explicit join, reconnect, retained upload review, global departure, fresh GitHub departure, and local forgetting work in the private Linux app. Eleven native journey groups pass. The separate deletion journey, 508 full renderer cases, 591 workspace tests, and both Clippy modes pass. The [record](reviews/2026-11-15-settings-leaderboard.md) owns ordering, corrected blockers, checks, and remaining gates. Live GitHub, hosted acceptance, and other platforms remain open.
 
@@ -201,20 +201,13 @@ separate from document completion. The [performance report](performance-report.m
 
 The owner resumed autonomous implementation on November 15, 2026. Work continues through verified local commits and periodic pushes. Each push checks the GitHub login and includes only the reviewed branch. No release, deployment, or pull request is authorized. The latest instruction replaces the November 13 stop condition. Baseline 3.1 product scope stays unchanged.
 
-Settings leaderboard integration is complete within the private synthetic Linux scope.
-The [record](reviews/2026-11-15-settings-leaderboard.md) owns acceptance and limits.
-All 508 renderer cases pass in Chromium and WebKit.
-The Rust workspace passes 591 tests, with two ignored tests.
-Default and native-feature Clippy pass.
-The final compiled native journey passes all eleven groups after the cancellation style correction.
-The ordinary build ignores native endpoint settings and makes no service request.
-
-The next bounded assignment adds own-rank client access under S-23.
-It must preserve exact values, missing estimates, the shared guard, and the existing matte layout.
-Local synthetic acceptance precedes hosted qualification.
-Connection suggestions and scanner activation keep their separate gates.
-Live service configuration and deployment remain under owner control.
-The OpenUsage Claude references continue to guide the first-release priorities.
+The current pass completes own-rank desktop access under S-23b.
+It uses one existing detail panel, one owned Rust reader, and one typed response.
+The [record](reviews/2026-11-16-own-rank-client.md) owns acceptance and limits.
+The next bounded assignment adds explicit connection suggestions under S-23c and OU-ACCT-021.
+Suggestions must use existing supported connection flows without an automatic sign-in, profile association, or source change.
+Scanner activation and private website sync keep their separate gates.
+Live service configuration, deployment, and release remain under owner control.
 
 The repository inventory covers 941 tracked files. Graphify and source review cover the major application, storage, provider, CLI, service, and test boundaries. This is an inventory and scoped review. It does not establish a complete semantic audit. Real-provider, real-machine, and production scanner gates remain open.
 

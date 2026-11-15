@@ -48,6 +48,19 @@ Rust owns arithmetic and service validation.
 The preview is the sole exception to ordinary decimal-string count fields because it displays the exact v1 numeric wire body.
 
 
+## Own-rank exchange
+
+The command load_leaderboard_rank accepts only period and metric.
+Periods are 7d, 30d, and all. Metrics are tokens and value.
+The response includes Self-reported, the selected period and metric, the snapshot time, eligible participant count, and an optional entry.
+The entry contains rank, public login, total tokens, and nullable estimated value in USD millionths.
+Counts cross IPC as canonical decimal strings within the existing v1 safe-integer limit.
+The snapshot time uses canonical UTC milliseconds.
+A missing entry is Not available. A missing estimate stays null, and a measured zero remains zero.
+The renderer rejects private fields, invalid counts, and mismatched selections.
+The service owns eligibility and ordering. The desktop adds no filter or rank calculation.
+
+
 ## Meaning of identifiers and provenance
 
 The [draft identity contract](identity-contract.md) owns identity policy,

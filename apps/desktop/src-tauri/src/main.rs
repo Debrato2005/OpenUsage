@@ -2137,6 +2137,7 @@ fn main() {
         .manage(display_scale::DisplayScaleService::default())
         .invoke_handler(tauri::generate_handler![
             leaderboard::load_leaderboard,
+            leaderboard::load_leaderboard_rank,
             leaderboard::refresh_leaderboard,
             leaderboard::confirm_leaderboard_sync,
             leaderboard::begin_leaderboard,

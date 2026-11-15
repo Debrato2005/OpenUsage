@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-load-leaderboard-rank"
+description = "Enables the load_leaderboard_rank command without any pre-configured scope."
+commands.allow = ["load_leaderboard_rank"]
+
+[[permission]]
+identifier = "deny-load-leaderboard-rank"
+description = "Denies the load_leaderboard_rank command without any pre-configured scope."
+commands.deny = ["load_leaderboard_rank"]

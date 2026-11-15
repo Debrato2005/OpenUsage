@@ -1,6 +1,6 @@
 use crate::Error;
 use jiff::{Span, Timestamp, civil::Date, tz::TimeZone};
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::{collections::BTreeSet, fmt};
 use zeroize::Zeroizing;
 
@@ -232,7 +232,7 @@ fn nullable<'de, D: Deserializer<'de>, T: Deserialize<'de>>(d: D) -> Result<Opti
     Option::<T>::deserialize(d)
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 pub enum Period {
     #[serde(rename = "7d")]
     SevenDays,
@@ -250,7 +250,7 @@ impl Period {
         }
     }
 }
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Metric {
     Tokens,

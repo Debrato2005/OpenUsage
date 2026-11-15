@@ -8,6 +8,7 @@
   "local": true,
   "permissions": [
     "allow-load-leaderboard",
+    "allow-load-leaderboard-rank",
     "allow-refresh-leaderboard",
     "allow-confirm-leaderboard-sync",
     "allow-begin-leaderboard",

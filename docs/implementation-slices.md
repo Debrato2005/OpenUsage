@@ -250,7 +250,9 @@ Updated November 15, 2026. Each completed item has one local commit and scoped e
 - [ ] The slices in [Order](#order). Stage 1 needs every mandatory requirement (SRS Section 0.4). The next launch item is L-1f. S-03c remains the first item after the launch track with no owner gate.
 - [x] L-3c: seven-day, thirty-day, and current-month receipts through the existing private preview/save path. Exact values, estimate marks, missing dates, no-data, and legacy annual images pass renderer and native Linux acceptance (OU-SHARE-007/008/010; receipt part of AT-106). Subscription comparisons remain open.
 - [ ] S-23: source-aware connection suggestions and access to capacity, value, and joined rank on Overview (OU-ACCT-021, OU-UI-028; AT-97).
-- [x] S-23a: preserve the local-summary component across first account creation. Native consent and renderer checks retain saved local values beside unavailable provider readings. Renderer checks also preserve provider capacity when local history is absent or fails. Suggestions and rank remain open.
+- [x] S-23a: preserve the local-summary component across first account creation. Native consent and renderer checks retain saved local values beside unavailable provider readings. Renderer checks also preserve provider capacity when local history is absent or fails. S-23b supplies rank. Suggestions remain under S-23c.
+- [x] S-23b: explicit own-rank access through Overview's existing detail panel. The [record](reviews/2026-11-16-own-rank-client.md) covers exact values, scopes, nulls, selection and reopen races, owned read jobs, native Quit, and full renderer/workspace checks on synthetic Linux. Live service and other platforms remain open.
+- [ ] S-23c: explicit connection suggestions through existing supported flows, with no automatic sign-in or profile association.
 
 ### Completed assignment: L-1f7
 

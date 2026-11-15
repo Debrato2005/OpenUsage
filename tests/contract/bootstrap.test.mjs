@@ -15,6 +15,35 @@ function desktopResponse(value) {
   globalThis.window = { __TAURI__: { core: { invoke: async () => value } } };
 }
 
+test('own rank keeps exact values and refuses stale or private responses', async () => {
+  const args = { period: '30d', metric: 'tokens' };
+  const entry = { rank: '105', login: 'synthetic-user', totalTokens: '9007199254740991', estimatedValueMicros: null };
+  const response = { title: 'Self-reported', ...args, snapshotAt: '2026-11-16T00:00:00.000Z', totalParticipants: '105', entry };
+  desktopResponse(response); assert.deepEqual(await invoke('load_leaderboard_rank', args), response);
+  for (const fields of [
+    { title: 'Verified' }, { period: '7d' }, { metric: 'value' },
+    { snapshotAt: '2026-02-30T00:00:00.000Z' }, { snapshotAt: '2026-11-16T00:00:00+00:00' },
+    { totalParticipants: 105 }, { totalParticipants: '9007199254740992' }, { totalParticipants: '104' },
+    { token: 'synthetic-only' }, { deviceId: 'private' }, { origin: 'https://outside.invalid' },
+  ]) {
+    desktopResponse({ ...response, ...fields }); await assert.rejects(invoke('load_leaderboard_rank', args));
+  }
+  for (const fields of [
+    { rank: '0' }, { rank: '106' }, { rank: 105 }, { rank: '0105' },
+    { totalTokens: '9007199254740992' }, { totalTokens: '-1' }, { estimatedValueMicros: 0 },
+    { estimatedValueMicros: '9007199254740992' }, { login: 'bad/account' }, { token: 'synthetic-only' },
+  ]) {
+    desktopResponse({ ...response, entry: { ...entry, ...fields } }); await assert.rejects(invoke('load_leaderboard_rank', args));
+  }
+  for (const period of ['7d', '30d', 'all']) for (const metric of ['tokens', 'value']) {
+    const selected = { period, metric };
+    for (const fields of [{ entry: null }, { totalParticipants: '0', entry: null }, { entry: { ...entry, estimatedValueMicros: '0' } }]) {
+      const value = { ...response, ...selected, ...fields };
+      desktopResponse(value); assert.deepEqual(await invoke('load_leaderboard_rank', selected), value);
+    }
+  }
+});
+
 test('leaderboard status distinguishes unconfigured from absent enrollment and refuses secret fields', async () => {
   const response = { configured: false, enrollment: 'not_checked', login: null, busy: false, operation: null };
   desktopResponse(response);

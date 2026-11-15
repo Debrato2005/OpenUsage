@@ -3,7 +3,10 @@ import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
 import { Checkbox } from './components/ui/checkbox';
 import { Field, FieldLabel } from './components/ui/field';
-import { invoke, type LeaderboardIssue, type LeaderboardKind, type LeaderboardView } from './contracts';
+import { invoke, type LeaderboardIssue, type LeaderboardKind, type LeaderboardMetric, type LeaderboardPeriod, type LeaderboardRank, type LeaderboardView } from './contracts';
+import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from './components/ui/select';
+import { useOpenDetail } from './detail-panel';
+import { useDateFormat } from './time-display';
 
 const issues: Record<LeaderboardIssue, string> = {
   unavailable: 'Could not complete the leaderboard action.',
@@ -18,7 +21,7 @@ const issues: Record<LeaderboardIssue, string> = {
   credential_unavailable: 'Unlock the system credential store, then try again.',
   invalid_credential: 'The saved enrollment is unavailable.',
   already_joined: 'This device is already joined.',
-  not_joined: 'Join with GitHub before you upload.',
+  not_joined: 'Join with GitHub before you continue.',
   save_failed: 'The service confirmed joining. Local saving failed. Continue with GitHub to recover this device.',
   authorization_denied: 'GitHub refused sign-in.',
   authorization_expired: 'GitHub sign-in expired. Start it again.',
@@ -34,6 +37,65 @@ const issues: Record<LeaderboardIssue, string> = {
 };
 const failure = (value: unknown) => typeof value === 'string' && Object.hasOwn(issues, value)
   ? issues[value as LeaderboardIssue] : 'Could not complete the leaderboard action.';
+
+const rankPeriods = { '7d': '7 days', '30d': '30 days', all: 'All time' } as const;
+const rankMetrics = { tokens: 'Tokens', value: 'Estimated value' } as const;
+let rankReadTail: Promise<void> = Promise.resolve();
+const exactRankCount = (value: string) => new Intl.NumberFormat('en-US').format(BigInt(value));
+const exactRankValue = (value: string | null) => {
+  if (value === null) return 'Not available';
+  const digits = value.padStart(7, '0');
+  return `$${exactRankCount(digits.slice(0, -6))}.${digits.slice(-6)}`;
+};
+
+function OwnRankDetails() {
+  const popupContainer = useRef<HTMLDivElement>(null);
+  const [period, setPeriod] = useState<LeaderboardPeriod>('30d');
+  const [metric, setMetric] = useState<LeaderboardMetric>('tokens');
+  const [refresh, setRefresh] = useState(0);
+  const [rank, setRank] = useState<LeaderboardRank | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const dates = useDateFormat();
+  useEffect(() => {
+    let current = true;
+    setLoading(true); setRank(null); setError(null);
+    const request = rankReadTail.then(async () => {
+      if (!current) return;
+      try {
+        const result = await invoke('load_leaderboard_rank', { period, metric });
+        if (current) setRank(result);
+      } catch (cause) {
+        if (current) setError(failure(cause));
+      } finally { if (current) setLoading(false); }
+    });
+    rankReadTail = request;
+    return () => { current = false; };
+  }, [period, metric, refresh]);
+  return <div ref={popupContainer} className="unlock-form" data-own-rank>
+    <div className="leaderboard-actions">
+      <Field><FieldLabel>Period</FieldLabel><Select value={period} onValueChange={value => { if (value && Object.hasOwn(rankPeriods, value)) setPeriod(value as LeaderboardPeriod); }}><SelectTrigger aria-label="Period"><SelectValue>{rankPeriods[period]}</SelectValue></SelectTrigger><SelectPopup portalProps={{ container: popupContainer }}>{Object.entries(rankPeriods).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectPopup></Select></Field>
+      <Field><FieldLabel>Rank by</FieldLabel><Select value={metric} onValueChange={value => { if (value && Object.hasOwn(rankMetrics, value)) setMetric(value as LeaderboardMetric); }}><SelectTrigger aria-label="Rank by"><SelectValue>{rankMetrics[metric]}</SelectValue></SelectTrigger><SelectPopup portalProps={{ container: popupContainer }}>{Object.entries(rankMetrics).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectPopup></Select></Field>
+      <Button variant="outline" disabled={loading} onClick={() => setRefresh(value => value + 1)}>Refresh</Button>
+    </div>
+    <dl className="detail-rows" aria-busy={loading}>
+      <dt>Rank</dt><dd data-own-rank-value>{loading ? 'Loading…' : rank?.entry ? exactRankCount(rank.entry.rank) : 'Not available'}</dd>
+      {rank && <>
+        <dt>Period</dt><dd>{rankPeriods[rank.period]}</dd>
+        <dt>Rank by</dt><dd>{rankMetrics[rank.metric]}</dd>
+        <dt>Participants</dt><dd>{exactRankCount(rank.totalParticipants)}</dd>
+        <dt>Snapshot</dt><dd><time dateTime={rank.snapshotAt} title={rank.snapshotAt}>{dates.format(new Date(rank.snapshotAt))}</time></dd>
+        {rank.entry && <><dt>Account</dt><dd><bdi>@{rank.entry.login}</bdi></dd><dt>Total tokens</dt><dd>{exactRankCount(rank.entry.totalTokens)}</dd><dt>Estimated value</dt><dd>{exactRankValue(rank.entry.estimatedValueMicros)}</dd></>}
+      </>}
+    </dl>
+    {error && <p className="operation-error" role="alert">{error}</p>}
+  </div>;
+}
+
+export function LeaderboardRankAccess({ disabled }: { disabled: boolean }) {
+  const open = useOpenDetail();
+  return <div className="leaderboard-actions"><Button variant="outline" disabled={disabled} aria-haspopup="dialog" data-own-rank-access onClick={() => open({ label: 'Self-reported rank', title: 'Self-reported rank', content: <OwnRankDetails /> })}>Self-reported rank</Button></div>;
+}
 
 export function LeaderboardSettings({ busy }: { busy: boolean }) {
   const [view, setView] = useState<LeaderboardView | null>(null);

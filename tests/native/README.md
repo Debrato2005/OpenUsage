@@ -544,6 +544,9 @@ Run timeout 360 node tests/native/leaderboard.mjs.
 The harness uses a new private home, D-Bus, GNOME Secret Service, SQLCipher, and a synthetic HTTPS service.
 Its typed Rust fixture saves local totals and keeps automatic scanners disabled.
 It checks GUI join, retained preview bytes, cancellation, fresh departure, local forgetting, store failures, deletion, and native close.
+The same journey checks own-rank reads beyond the public top 100.
+It covers period selection, immediate reopen, exact counts, nulls, refusal, deletion exclusion, and native close.
+Reads issue no join or upload.
 Screenshots and result metadata remain private.
 No live GitHub account, hosted service, provider credential home, or existing user keyring is read.
 

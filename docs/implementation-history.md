@@ -5,6 +5,14 @@
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
 
+
+## Settings before own-rank access, November 16, 2026
+
+L-5b completed Settings enrollment, retained upload review, public departure, recovery, and local forgetting in the private Linux app.
+The [record](reviews/2026-11-15-settings-leaderboard.md) owns local acceptance.
+Hosted CI for fb7c52e later passed both jobs.
+Own-rank access remained the next bounded product assignment.
+
 ## Shared upload before Settings, November 15, 2026
 
 L-5b0 moved the saved-data upload builder into Rust storage.

@@ -68,8 +68,9 @@ build another payload.
 `own_rank(&token, period, metric)` checks the returned title, selected period and
 metric, timestamp, login, rank, and participant count. V1 numeric values must be
 safe integers no larger than 9,007,199,254,740,991. The Rust API retains exact
-`u64` values and nullable estimates. Callers can send decimal strings across IPC.
+`u64` values and nullable estimates. The desktop sends decimal strings across IPC.
 A null entry stays unavailable.
+The [desktop read contract](../../docs/data-contracts.md#own-rank-exchange) owns typed results and the explicit Overview access path.
 
 ## Acceptance
 

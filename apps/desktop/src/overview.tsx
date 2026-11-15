@@ -16,6 +16,7 @@ import { ResetCountdown } from './reset-countdown';
 import { useDateFormat } from './time-display';
 import { ArrowIcon, ClockIcon, GaugeIcon, MoreIcon, PlusIcon, RefreshIcon, SearchIcon } from './icons';
 import { LocalOverview } from './local-usage';
+import { LeaderboardRankAccess } from './leaderboard';
 
 type Props = { profiles: ProfileRecord[]; revision: number; onAccounts: () => void; onAccountAction?: (action: AccountAction) => void; busy?: boolean; active?: boolean; refreshingProfileIds?: string[]; refreshWaitSeconds?: Record<string, number>; expectedProfiles?: number; notices?: ReactNode; onDeviceUsage?: () => void };
 type Reading = { activity: SavedProfileActivity | null; quota: SavedProfileQuota | null; activityFailed: boolean; quotaFailed: boolean; loading: boolean };
@@ -276,6 +277,7 @@ export function Overview({ profiles, revision, onAccounts, onAccountAction, busy
   return <section className="overview-dashboard" aria-label="Usage overview" data-overview data-overview-profile={profileId ?? undefined} aria-busy={pending}>
     {notices}
     {synthetic && <p className="overview-fixture-label">Synthetic test data</p>}
+    <LeaderboardRankAccess disabled={busy || !active} />
     <LocalOverview active={active} onOpen={onDeviceUsage} />
     {activeProfiles.length === 0 ? expectedProfiles > 0 ? <p className="overview-meta overview-loading" role="status">Loading accounts…</p> : <section className="overview-welcome" aria-labelledby="overview-welcome-heading" data-overview-welcome>
       <span className="overview-welcome-mark" aria-hidden="true"><GaugeIcon /></span>

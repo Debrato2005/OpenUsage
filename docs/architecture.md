@@ -170,7 +170,7 @@ An explicit refresh inspects the credential store without contacting the service
 
 One operation holds the shared credential guard through authorization, preview, transport, and local cleanup.
 The worker keeps the device flow, access token, service token, and retained upload in Rust.
-React receives public challenges, operation IDs, exact upload previews, and safe results through six strict commands.
+React receives public challenges, operation IDs, exact upload previews, and safe results through strict commands.
 The browser command accepts an operation ID and opens only the fixed GitHub device page.
 The renderer cannot supply a URL, credential, or replacement upload body.
 
@@ -196,6 +196,29 @@ Local forgetting takes the guard before credential erasure and constructs no HTT
 It does not require service configuration.
 
 
+## Own-rank reads
+
+Overview opens Self-reported rank through the existing detail panel.
+Launch, navigation, and the access button's initial render make no rank request.
+Opening the panel requests one read. Period, metric, and Refresh controls request later reads.
+One pending queue survives dialog and Overview remounts.
+Closed selections skip dispatch, and obsolete replies cannot change the visible result.
+Rank failure leaves provider capacity and local value available.
+
+The existing Rust worker owns a separate typed read job and reply.
+The job uses the same configured client, credential guard, admission check, and shutdown path as enrollment.
+It reads only an existing enrollment. It never joins, uploads, or changes saved usage.
+No GUI, storage, or control lock spans HTTP.
+The public reply carries no credential, URL, private device code, or provider identity.
+The worker drops read credentials before it sends the reply.
+
+An active read blocks enrollment changes and local deletion.
+A late cancellation of a finished enrollment operation preserves that receipt and leaves the read alone.
+Quit drops queued replies, settles the active bounded request, and joins the owned worker.
+A stopped receiver returns a safe stopped result.
+The read does not replace the last enrollment receipt or persist a rank snapshot.
+
+
 ## Boundaries
 
 - **Leaderboard credentials:** the [separate vault](../crates/openusage-keys/README.md#leaderboard-credential-storage) preserves the database key slot. The [session coordinator](../crates/openusage-board/README.md#serialized-enrollment) owns pending and active records, origin binding, expected-value replacement, and the shared Linux guard. CLI and Settings callers keep that guard across each complete operation.
@@ -205,7 +228,7 @@ It does not require service configuration.
 - **Processes:** the Rust supervisor owns every child process. At most two collections run at once.
 - **Numbers:** Rust does exact arithmetic. Token counts cross IPC as decimal strings. A missing value stays missing.
 - **Renderer:** React calls only registered typed commands. It has no direct file or process access. Its content security policy allows `blob:` images only so that a share preview can show the Rust-made SVG as an image, which runs no script, and draw it as PNG.
-- **Network:** The official Codex child process makes provider requests. The separate [leaderboard client](../crates/openusage-board/README.md) uses the approved [HTTP policy](decisions/2026-11-13-leaderboard-http-client.md). Missing build settings leave it inert. Explicit CLI and Settings actions use it. Private website sync remains unbuilt.
+- **Network:** The official Codex child process makes provider requests. The separate [leaderboard client](../crates/openusage-board/README.md) uses the approved [HTTP policy](decisions/2026-11-13-leaderboard-http-client.md). Missing build settings leave it inert. Explicit CLI, Settings, and Overview actions use it. Private website sync remains unbuilt.
 - **Storage:** one service coordinates all writes. Current state and history are separate.
 - **Read snapshots:** `Storage::leaderboard_upload` owns the complete saved-data upload transaction on read-write and query-only connections. Concurrent writes cannot mix source, scope, and row generations. The method returns owned bytes and ends the transaction before transport. The separate generic `read_snapshot` still accepts query-only callbacks.
 

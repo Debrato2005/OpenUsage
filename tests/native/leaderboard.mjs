@@ -18,11 +18,13 @@ const application = resolve(process.env.OPENUSAGE_NATIVE_BINARY);
 const seed = resolve(process.env.OPENUSAGE_BOARD_SEED_BINARY);
 const output = resolve(process.env.OPENUSAGE_NATIVE_EVIDENCE);
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
-const evidence = { result: 'failed', requirement: 'L-5b, OU-BOARD-001/002/003/004/005/006/010, OU-SEC-003, OU-DATA-016/017', scope: 'Compiled Linux native-test app, private display, GNOME Secret Service, SQLCipher seeded through a typed Rust fixture, and synthetic HTTPS GitHub/service endpoints. No live GitHub, hosted service, user keyring, or scanner qualification.', startedAt: new Date().toISOString(), checks: [], screenshots: [] };
+const evidence = { result: 'failed', requirement: 'L-5b, S-23b, OU-BOARD-001/002/003/004/005/006/010/013/014, OU-UI-028, OU-SEC-003, OU-DATA-016/017', scope: 'Compiled Linux native-test app, private display, GNOME Secret Service, SQLCipher seeded through a typed Rust fixture, and synthetic HTTPS GitHub/service endpoints. No live GitHub, hosted service, user keyring, or scanner qualification.', startedAt: new Date().toISOString(), checks: [], screenshots: [] };
 let fixture, driver, server, guardHolder, appPid, sequence = 0;
-const requests = [], joins = [], uploads = [], publicViews = [], issuedTokens = [];
+const requests = [], joins = [], uploads = [], publicViews = [], publicRanks = [], issuedTokens = [];
 let token = '', tokenSequence = 0, revoked = false, selection = 'alpha';
 let hold = null, held = null, saveFailure = false, cleanupFailure = false, lostAck = false, pendingOAuth = false;
+let rankMode = 'normal';
+const rankPath = '/v1/me/rank?period=30d&metric=tokens';
 const alpha = 'gho_synthetic_access_token_1234567890';
 const beta = 'gho_synthetic_beta_access_token_1234567890';
 const deviceCode = 'a'.repeat(40);
@@ -46,6 +48,20 @@ async function begin(kind, extra = {}) {
 }
 async function rejected(command, args, error) {
   assert.deepEqual(await driver.invoke(command, args), { ok: false, error });
+}
+async function readRank(period = '30d', metric = 'tokens') {
+  const result = await driver.invoke('load_leaderboard_rank', { period, metric });
+  if (result.ok) publicRanks.push(result.value);
+  return result;
+}
+async function startRankRead() {
+  await driver.execute('window.__rankOutcome=null;void window.__TAURI__.core.invoke("load_leaderboard_rank",{period:"30d",metric:"tokens"}).then(value=>{window.__rankOutcome={ok:true,value};},error=>{window.__rankOutcome={ok:false,error};});return true;');
+}
+async function finishRankRead() {
+  let result;
+  await waitFor(async () => { result = await driver.execute('return window.__rankOutcome;'); return result !== null; }, 'owned rank reply');
+  if (result.ok) publicRanks.push(result.value);
+  return result;
 }
 async function button(text, scope = '[data-leaderboard]') {
   let node;
@@ -130,6 +146,18 @@ try {
       const body = Buffer.concat(chunks).toString(); requests.push(request.url);
       const reply = (status, value) => { response.writeHead(status, { 'content-type': 'application/json' }); response.end(JSON.stringify(value)); };
       const complete = async () => {
+        const url = new URL(request.url, 'https://127.0.0.1');
+        if (url.pathname === '/v1/me/rank') {
+          assert.equal(request.method, 'GET'); assert.equal(body, '');
+          assert.equal(request.headers.authorization, `Bearer ${token}`);
+          const period = url.searchParams.get('period'), metric = url.searchParams.get('metric');
+          assert.deepEqual([...url.searchParams.keys()], ['period', 'metric']);
+          assert.ok(['7d', '30d', 'all'].includes(period)); assert.ok(['tokens', 'value'].includes(metric));
+          if (revoked) return reply(401, { error: 'not_joined' });
+          const value = { title: 'Self-reported', period, metric, snapshotAt: new Date().toISOString(), totalParticipants: rankMode === 'empty' ? 0 : 105, entry: rankMode === 'empty' ? null : { rank: 105, login: 'synthetic-user', totalTokens: rankMode === 'overflow' ? 9007199254740992 : 9007199254740991, estimatedValueMicros: rankMode === 'zero' ? 0 : null } };
+          if (rankMode === 'private_field') value.accessToken = alpha;
+          return reply(200, value);
+        }
         assert.equal(request.method, 'POST');
         if (request.url === '/login/device/code') {
           assert.equal(body, 'client_id=synthetic-native-client');
@@ -172,6 +200,10 @@ try {
   await driver.navigate('settings'); assert.equal(requests.length, 0);
   await settings(); assert.equal((await view()).enrollment, 'not_joined'); assert.equal(requests.length, 0);
   await rejected('load_leaderboard', { token: 'synthetic-only' }, 'invalid_arguments');
+  await rejected('load_leaderboard_rank', { period: '30d', metric: 'tokens', token: 'synthetic-only' }, 'invalid_arguments');
+  await rejected('load_leaderboard_rank', { period: 'yesterday', metric: 'tokens' }, 'invalid_arguments');
+  await rejected('load_leaderboard_rank', { period: '30d', metric: 'spend' }, 'invalid_arguments');
+  assert.deepEqual(await readRank(), { ok: false, error: 'not_joined' });
   await rejected('begin_leaderboard', { kind: 'join', confirmed: false }, 'consent_required');
   await rejected('begin_leaderboard', { kind: 'sync', days: 0, confirmed: true }, 'invalid_arguments');
   await rejected('begin_leaderboard', { kind: 'join', days: 1, confirmed: true }, 'invalid_arguments');
@@ -189,6 +221,48 @@ try {
   await visibleText('Joined as @synthetic-user.'); await capture('joined.png');
   const firstDevice = joins[0];
   const joinReceipt = current.operation;
+  const mutations = () => requests.filter(path => ['/v1/join', '/v1/sync', '/v1/leave', '/v1/leave/github'].includes(path)).length;
+  const writesBeforeRank = mutations();
+  await driver.navigate('overview'); await driver.click('[data-own-rank-access]');
+  await waitFor(() => driver.execute('return document.querySelector("[data-own-rank-value]")?.textContent==="105";'), 'native own rank beyond 100');
+  assert.equal(await driver.execute('return document.querySelector("[data-own-rank]").textContent.includes("9,007,199,254,740,991");'), true);
+  await driver.click('[data-own-rank] [role=combobox]');
+  let periodOption;
+  await waitFor(async () => { periodOption = await driver.execute('return [...document.querySelectorAll("[data-own-rank] [role=option]")].find(node=>node.getClientRects().length&&node.textContent.trim()==="7 days");'); return Boolean(periodOption); }, 'native rank period inside dialog');
+  await driver.request('POST', `/session/${driver.session}/element/${periodOption['element-6066-11e4-a52e-4f735466cecf']}/click`, {});
+  await waitFor(() => driver.execute('return document.querySelector("[data-own-rank] dl dd:nth-of-type(2)")?.textContent==="7 days";'), 'native selected rank scope');
+  await driver.screenshot(join(output, 'own-rank.png')); evidence.screenshots.push('own-rank.png');
+  await driver.click('[data-detail-panel][open] [data-detail-panel-close]');
+  hold = rankPath; await driver.click('[data-own-rank-access]'); await waitFor(() => Boolean(held), 'rank held before rapid reopen');
+  await driver.click('[data-detail-panel][open] [data-detail-panel-close]'); await driver.click('[data-own-rank-access]');
+  await rejected('load_leaderboard_rank', { period: 'all', metric: 'value' }, 'busy');
+  assert.equal(await driver.execute('return document.querySelector("[data-own-rank-value]")?.textContent;'), 'Loading…');
+  releaseHeld();
+  await waitFor(() => driver.execute('return document.querySelector("[data-own-rank-value]")?.textContent==="105";'), 'reopened native rank waits for the existing reader');
+  assert.equal(await driver.execute('return Boolean(document.querySelector("[data-own-rank] [role=alert]"));'), false);
+  await driver.click('[data-detail-panel][open] [data-detail-panel-close]');
+  for (const period of ['7d', '30d', 'all']) for (const metric of ['tokens', 'value']) {
+    const result = await readRank(period, metric); assert.equal(result.ok, true, JSON.stringify(result));
+    assert.equal(result.value.period, period); assert.equal(result.value.metric, metric);
+    assert.equal(result.value.entry.rank, '105'); assert.equal(result.value.totalParticipants, '105');
+    assert.equal(result.value.entry.totalTokens, '9007199254740991'); assert.equal(result.value.entry.estimatedValueMicros, null);
+  }
+  rankMode = 'empty'; let rank = await readRank(); assert.equal(rank.ok, true); assert.equal(rank.value.entry, null); assert.equal(rank.value.totalParticipants, '0');
+  rankMode = 'zero'; rank = await readRank(); assert.equal(rank.ok, true); assert.equal(rank.value.entry.estimatedValueMicros, '0');
+  for (const mode of ['overflow', 'private_field']) { rankMode = mode; assert.deepEqual(await readRank(), { ok: false, error: 'remote_unavailable' }); }
+  rankMode = 'normal'; revoked = true; assert.deepEqual(await readRank(), { ok: false, error: 'not_joined' }); revoked = false;
+  assert.equal((await readRank()).ok, true); assert.equal(mutations(), writesBeforeRank);
+  assert.deepEqual((await view()).operation, joinReceipt);
+  hold = rankPath; await startRankRead(); await waitFor(() => Boolean(held), 'rank held during admission checks');
+  const priorCancel = await driver.invoke('cancel_leaderboard', { operationId: joinReceipt.id });
+  assert.equal(priorCancel.ok, true); assert.equal(priorCancel.value.busy, false); assert.deepEqual(priorCancel.value.operation, joinReceipt);
+  await rejected('delete_all_local_data', { confirmed: true }, 'local_deletion_busy');
+  await rejected('begin_leaderboard', { kind: 'forget', confirmed: true }, 'busy');
+  await rejected('load_leaderboard_rank', { period: '7d', metric: 'tokens' }, 'busy');
+  releaseHeld(); assert.equal((await finishRankRead()).ok, true); assert.deepEqual((await view()).operation, joinReceipt);
+  assert.equal(mutations(), writesBeforeRank);
+  evidence.checks.push('Own rank reads beyond 100 in the actual GUI. Native selection and immediate reopen preserve the single reader. All periods and metrics retain exact counts, null entries, and zero estimates. Invalid responses, revocation, late cancellation, and competing deletion preserve enrollment receipts. Reads issue no join or upload.');
+  await settings();
   guardHolder = spawn(seed, ['--ignored', '--exact', 'seed_private_cli_workspace'], { env: { ...fixture.environment, OPENUSAGE_BOARD_FIXTURE_MODE: 'hold_guard' }, stdio: 'ignore', detached: true });
   const guardExit = new Promise(resolve => guardHolder.once('exit', resolve));
   await waitFor(async () => { try { await readFile(join(fixture.root, 'board-guard-ready')); return true; } catch (error) { if (error.code === 'ENOENT') return false; throw error; } }, 'competing process guard');
@@ -228,6 +302,8 @@ try {
   saveFailure = true; const partial = await begin('reconnect'); current = await terminal(partial);
   assert.deepEqual(current.operation.outcome, { state: 'failed', issue: 'save_failed', remoteEffect: 'confirmed' });
   const retainedReceipt = await view(); assert.deepEqual(retainedReceipt.operation, current.operation);
+  assert.deepEqual(await readRank(), { ok: false, error: 'credential_unavailable' });
+  assert.deepEqual((await view()).operation, retainedReceipt.operation);
   await startSecretService(fixture); const resumed = await begin('reconnect'); current = await terminal(resumed); assert.equal(current.operation.outcome.state, 'joined'); assert.equal(joins.at(-1), firstDevice);
   evidence.checks.push('Same-login foreign recovery retained the local account without joining. Confirmed remote join plus failed local saving kept its receipt and recovered the same device.');
   lostAck = true; const unknown = await begin('reconnect'); current = await terminal(unknown);
@@ -249,12 +325,14 @@ try {
   const joinAgain = await begin('join'); current = await terminal(joinAgain); assert.equal(current.operation.outcome.state, 'joined');
   await closeNormally(); delete fixture.environment.OPENUSAGE_NATIVE_BOARD_ORIGIN;
   const beforeForget = requests.length; await start(); await settings(); assert.equal((await view()).configured, false);
+  assert.deepEqual(await readRank(), { ok: false, error: 'unconfigured' }); assert.equal(requests.length, beforeForget);
   current = await confirmDestructive('forget'); assert.equal(current.operation.outcome.state, 'forgotten'); assert.equal(requests.length, beforeForget);
   evidence.checks.push('The actual confirmations distinguish global public departure from local forgetting. An unconfigured restarted build clears the local slot without service requests.');
   await closeNormally(); fixture.environment.OPENUSAGE_NATIVE_BOARD_ORIGIN = origin; await start(); await settings();
   const localJoin = await begin('join'); current = await terminal(localJoin); assert.equal(current.operation.outcome.state, 'joined');
   const beforeDelete = requests.length;
   const deletion = await driver.invoke('delete_all_local_data', { confirmed: true }); assert.equal(deletion.ok, true, JSON.stringify(deletion)); assert.equal(deletion.value.storage, 'setup_required');
+  assert.deepEqual(await readRank(), { ok: false, error: 'workspace_locked' });
   assert.equal(requests.length, beforeDelete);
   const setup = await driver.invoke('setup_workspace', { passphrase: null }); assert.equal(setup.ok, true, JSON.stringify(setup));
   assert.equal((await driver.invoke('save_local_log_consent', { tools: [] })).ok, true);
@@ -268,7 +346,11 @@ try {
   await closeNormally(async () => { releaseHeld(); }); assert.equal(joins.length, quitBefore + 1);
   await start(); await settings(); current = await view(); assert.equal(current.enrollment, 'joined');
   evidence.checks.push('A genuine native close during a reserved join settled HTTP and saved the credential before exit. Restart reads the completed enrollment.');
-  const text = JSON.stringify(publicViews) + await driver.execute('return document.documentElement.outerHTML;');
+  const readQuitWrites = mutations(); hold = rankPath; await startRankRead(); await waitFor(() => Boolean(held), 'rank held at native Quit');
+  await closeNormally(async () => { releaseHeld(); }); assert.equal(mutations(), readQuitWrites);
+  await start(); await settings(); assert.equal((await view()).enrollment, 'joined'); assert.equal((await readRank()).ok, true);
+  evidence.checks.push('Native Quit joins an active rank read before exit. Restart preserves the same enrollment and can read rank again.');
+  const text = JSON.stringify(publicViews) + JSON.stringify(publicRanks) + await driver.execute('return document.documentElement.outerHTML;');
   assert.equal(new Set(issuedTokens).size, issuedTokens.length);
   for (const secret of [alpha, beta, deviceCode, ...issuedTokens]) assert.equal(text.includes(secret), false);
   assert.equal(evidence.stubError, undefined);

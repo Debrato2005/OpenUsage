@@ -2,11 +2,12 @@
 use crate::{WorkspaceService, arguments, workspace::Workspace};
 use openusage_board::{
     ApprovedSyncBody, BoardClient, ClientContext, DepartureError, DepartureSession, DeviceFlow,
-    EnrollmentSession, EnrollmentStatus, LocalCredentialState, PollOutcome, SessionError,
+    EnrollmentSession, EnrollmentStatus, LocalCredentialState, Metric, Period, PollOutcome,
+    SessionError,
 };
 use serde::{Deserialize, Serialize};
 use std::{
-    sync::{Arc, Condvar, Mutex},
+    sync::{Arc, Condvar, Mutex, mpsc},
     thread::JoinHandle,
     time::{Duration, Instant},
 };
@@ -149,6 +150,30 @@ struct Action {
     kind: Kind,
     days: u16,
 }
+#[derive(Clone, Copy, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RankArgs {
+    period: Period,
+    metric: Metric,
+}
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RankEntryView {
+    rank: String,
+    login: String,
+    total_tokens: String,
+    estimated_value_micros: Option<String>,
+}
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct RankView {
+    title: String,
+    period: Period,
+    metric: Metric,
+    snapshot_at: String,
+    total_participants: String,
+    entry: Option<RankEntryView>,
+}
 struct Control {
     stopping: bool,
     closed: bool,
@@ -156,7 +181,7 @@ struct Control {
     requested: u64,
     completed: u64,
     result: Result<View, Issue>,
-    queued: Option<Action>,
+    queued: Option<Work>,
     working: bool,
     cancel: bool,
     dispatched: bool,
@@ -197,6 +222,7 @@ impl Drop for LocalDeletionLease {
 enum Work {
     Inspect(u64),
     Action(Action),
+    Rank(RankArgs, mpsc::SyncSender<Result<RankView, Issue>>),
 }
 impl Worker {
     pub(crate) fn start(workspace: Arc<Mutex<Option<Workspace>>>) -> Self {
@@ -230,15 +256,34 @@ impl Worker {
                         })
                         .unwrap_or_else(|p| p.into_inner());
                     if guard.stopping {
+                        guard.queued.take();
                         break;
                     }
-                    if let Some(action) = guard.queued.take() {
-                        Work::Action(action)
+                    if let Some(work) = guard.queued.take() {
+                        work
                     } else {
                         Work::Inspect(guard.requested)
                     }
                 };
                 match work {
+                    Work::Rank(args, reply) => {
+                        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                            read_rank(&workspace, &owned, args)
+                        }))
+                        .unwrap_or(Err(Issue::Unavailable));
+                        let result = {
+                            let mut control =
+                                owned.control.lock().unwrap_or_else(|p| p.into_inner());
+                            control.working = false;
+                            owned.signal.notify_all();
+                            if control.stopping {
+                                Err(Issue::Stopped)
+                            } else {
+                                result
+                            }
+                        };
+                        let _ = reply.send(result);
+                    }
                     Work::Inspect(request) => {
                         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                             inspect(&workspace)
@@ -326,6 +371,33 @@ impl Worker {
     pub(crate) fn refresh(&self) -> Result<View, Issue> {
         self.read(true)
     }
+    fn rank(&self, args: RankArgs) -> Result<RankView, Issue> {
+        let (send, receive) = mpsc::sync_channel(1);
+        {
+            let mut control = self.shared.control.lock().map_err(|_| Issue::Unavailable)?;
+            if control.stopping || control.closed {
+                return Err(Issue::Stopped);
+            }
+            if control.deleting_local_data
+                || control.working
+                || control.queued.is_some()
+                || control.requested != control.completed
+            {
+                return Err(Issue::Busy);
+            }
+            control.queued = Some(Work::Rank(args, send));
+            control.working = true;
+            self.shared.signal.notify_all();
+        }
+        receive.recv().unwrap_or_else(|_| {
+            let control = self.shared.control.lock().map_err(|_| Issue::Unavailable)?;
+            Err(if control.stopping || control.closed {
+                Issue::Stopped
+            } else {
+                Issue::Unavailable
+            })
+        })
+    }
     fn read(&self, refresh: bool) -> Result<View, Issue> {
         let mut control = self.shared.control.lock().map_err(|_| Issue::Unavailable)?;
         if control.stopping || control.closed {
@@ -396,11 +468,11 @@ impl Worker {
             progress: Progress::Preparing,
         });
         control.result = Ok(view.clone());
-        control.queued = Some(Action {
+        control.queued = Some(Work::Action(Action {
             id,
             kind,
             days: days.unwrap_or(30),
-        });
+        }));
         control.working = true;
         control.cancel = false;
         control.dispatched = false;
@@ -425,7 +497,7 @@ impl Worker {
         if !matched {
             return Err(Issue::StaleOperation);
         }
-        if !control.working {
+        if !control.working || !control.result.as_ref().is_ok_and(|view| view.busy) {
             return control.result.clone();
         }
         control.cancel = true;
@@ -770,6 +842,47 @@ fn set_credential_unknown(shared: &Shared) {
     view.enrollment = EnrollmentState::Unavailable;
     view.login = None;
 }
+fn read_rank(
+    workspace: &Arc<Mutex<Option<Workspace>>>,
+    shared: &Shared,
+    args: RankArgs,
+) -> Result<RankView, Issue> {
+    let stopped = || match check_cancel(shared) {
+        Ok(()) => Ok(()),
+        Err(Failure::Cancelled) => Err(Issue::Stopped),
+        Err(Failure::Issue(issue, _)) => Err(issue),
+    };
+    stopped()?;
+    ready(workspace)?;
+    let context = ClientContext::from_current_build().map_err(remote_issue)?;
+    let session = context.open_session().map_err(session_issue)?;
+    ready(workspace)?;
+    update_status(shared, &session);
+    let enrollment = session.enrollment().map_err(session_issue)?;
+    stopped()?;
+    let rank = context
+        .client()
+        .own_rank(enrollment.token(), args.period, args.metric)
+        .map_err(remote_issue)?;
+    stopped()?;
+    let snapshot = rank
+        .snapshot_at
+        .parse::<jiff::Timestamp>()
+        .map_err(|_| Issue::RemoteUnavailable)?;
+    Ok(RankView {
+        title: rank.title,
+        period: rank.period,
+        metric: rank.metric,
+        snapshot_at: snapshot.strftime("%Y-%m-%dT%H:%M:%S%.3fZ").to_string(),
+        total_participants: rank.total_participants.to_string(),
+        entry: rank.entry.map(|entry| RankEntryView {
+            rank: entry.rank.to_string(),
+            login: entry.login,
+            total_tokens: entry.total_tokens.to_string(),
+            estimated_value_micros: entry.estimated_value_micros.map(|value| value.to_string()),
+        }),
+    })
+}
 fn run_action(
     workspace: &Arc<Mutex<Option<Workspace>>>,
     shared: &Shared,
@@ -984,6 +1097,17 @@ pub(crate) async fn load_leaderboard(
     let _: crate::ListProfilesArgs = arguments(&request).map_err(|_| Issue::InvalidArguments)?;
     let worker = service.5.clone();
     tauri::async_runtime::spawn_blocking(move || worker.load())
+        .await
+        .map_err(|_| Issue::Unavailable)?
+}
+#[tauri::command]
+pub(crate) async fn load_leaderboard_rank(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<RankView, Issue> {
+    let args: RankArgs = arguments(&request).map_err(|_| Issue::InvalidArguments)?;
+    let worker = service.5.clone();
+    tauri::async_runtime::spawn_blocking(move || worker.rank(args))
         .await
         .map_err(|_| Issue::Unavailable)?
 }
