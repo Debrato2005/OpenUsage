@@ -95,6 +95,25 @@ impl fmt::Debug for Joined {
     }
 }
 
+/// Public departure acknowledgment. Login is descriptive metadata, never local identity proof.
+pub struct AuthenticatedDeparture {
+    pub(crate) login: String,
+    pub(crate) local_token_revoked: Option<bool>,
+}
+impl AuthenticatedDeparture {
+    pub fn login(&self) -> &str {
+        &self.login
+    }
+    pub fn local_token_revoked(&self) -> Option<bool> {
+        self.local_token_revoked
+    }
+}
+impl fmt::Debug for AuthenticatedDeparture {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("AuthenticatedDeparture([redacted])")
+    }
+}
+
 /// Validates the existing v1 schema and retains the original approved bytes unchanged.
 /// This type does not build payloads or infer missing counts.
 pub struct ApprovedSyncBody {

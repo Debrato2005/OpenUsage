@@ -9,6 +9,7 @@ const MAX_ROWS = 400;
 const MAX_COUNT = 1_000_000_000_000;
 const MAX_DEVICES = 5;
 const JOINS_PER_HOUR = 3;
+const LEAVES_PER_HOUR = 3;
 const SYNCS_PER_HOUR = 30;
 /** A user day above this total is flagged and left out of the ranks until a maintainer reviews it. */
 export const DAY_CEILING = 2_000_000_000;
@@ -104,6 +105,12 @@ function changedOne(result) {
   return result.meta.changes === 1;
 }
 
+function batchRows(results, length) {
+  if (!Array.isArray(results) || results.length !== length
+    || results.some(result => result?.success !== true || !Array.isArray(result.results))) refuse(500, 'unavailable');
+  return results[0].results;
+}
+
 async function limited(db, key, limit, now) {
   const window = hour(now);
   const result = await db.prepare(
@@ -111,8 +118,13 @@ async function limited(db, key, limit, now) {
      ON CONFLICT (key, hour) DO UPDATE SET count = count + 1 WHERE count < ?3`,
   ).bind(key, window, limit).run();
   if (!changedOne(result)) return true;
-  await db.prepare('DELETE FROM limits WHERE hour < ?1').bind(hour(new Date(now.getTime() - 2 * 3600_000))).run();
+  await pruneLimits(db, now);
   return false;
+}
+
+async function pruneLimits(db, now) {
+  const result = await db.prepare('DELETE FROM limits WHERE hour < ?1').bind(hour(new Date(now.getTime() - 2 * 3600_000))).run();
+  if (result?.success !== true || !Number.isSafeInteger(result.meta?.changes) || result.meta.changes < 0) refuse(500, 'unavailable');
 }
 
 async function tokenHash(request) {
@@ -122,72 +134,109 @@ async function tokenHash(request) {
   return sha256(token);
 }
 
-async function device(request, db) {
-  const found = await db.prepare('SELECT user_id, device_id FROM devices WHERE token_hash = ?1').bind(await tokenHash(request)).first();
+async function device(hash, db) {
+  const found = await db.prepare('SELECT d.device_id, u.github_id FROM devices d JOIN users u ON u.id = d.user_id WHERE d.token_hash = ?1').bind(hash).first();
   return found ?? refuse(401, 'not_joined');
+}
+
+async function authLimit(request, env, prefix = '') {
+  const ip = request.headers.get('cf-connecting-ip') ?? '';
+  // The edge limiter sees the IP address for a moment. The database never stores it.
+  if (!env.JOIN_LIMITER) refuse(503, 'limiter_unavailable');
+  if (!(await env.JOIN_LIMITER.limit({ key: `${prefix}${ip}` })).success) refuse(429, 'rate_limited');
+}
+
+const validGitHubToken = token => typeof token === 'string' && token.length >= 20 && token.length <= 255;
+
+async function githubAccount(token, deps) {
+  const account = await deps.fetchGitHubUser(token);
+  if (!account || !Number.isSafeInteger(account.id) || account.id <= 0 || typeof account.login !== 'string' || !LOGIN.test(account.login)) refuse(401, 'github_refused');
+  return account;
 }
 
 /** Joining reads the GitHub account once and discards the GitHub token (OU-BOARD-002). */
 async function join(request, env, deps, now) {
-  const ip = request.headers.get('cf-connecting-ip') ?? '';
-  // The edge limiter sees the IP address for a moment. The database never stores it.
-  if (!env.JOIN_LIMITER) refuse(503, 'limiter_unavailable');
-  if (!(await env.JOIN_LIMITER.limit({ key: ip })).success) refuse(429, 'rate_limited');
+  await authLimit(request, env);
   const input = await body(request);
-  if (!exactKeys(input, ['githubToken', 'deviceId']) || typeof input.githubToken !== 'string' || input.githubToken.length < 20 || input.githubToken.length > 255
+  if (!exactKeys(input, ['githubToken', 'deviceId']) || !validGitHubToken(input.githubToken)
     || typeof input.deviceId !== 'string' || !UUID.test(input.deviceId)) refuse(400, 'invalid_request');
-  const account = await deps.fetchGitHubUser(input.githubToken);
-  if (!account || !Number.isSafeInteger(account.id) || account.id <= 0 || typeof account.login !== 'string' || !LOGIN.test(account.login)) refuse(401, 'github_refused');
+  const account = await githubAccount(input.githubToken, deps);
   if (await limited(env.DB, `join:${account.id}`, JOINS_PER_HOUR, now)) refuse(429, 'rate_limited');
-  await env.DB.prepare('INSERT INTO users (github_id, login, created_at) VALUES (?1, ?2, ?3) ON CONFLICT (github_id) DO UPDATE SET login = excluded.login')
-    .bind(account.id, account.login, now.toISOString()).run();
-  const user = await env.DB.prepare('SELECT id FROM users WHERE github_id = ?1').bind(account.id).first();
   const token = newToken();
-  // The capacity check and write must share one SQL statement.
-  const result = await env.DB.prepare(
-    `INSERT INTO devices (user_id, device_id, token_hash, created_at) SELECT ?1, ?2, ?3, ?4
-     WHERE EXISTS (SELECT 1 FROM devices WHERE user_id = ?1 AND device_id = ?2)
-       OR (SELECT count(*) FROM devices WHERE user_id = ?1) < ?5
-     ON CONFLICT (user_id, device_id) DO UPDATE SET token_hash = excluded.token_hash`,
-  ).bind(user.id, input.deviceId, await sha256(token), now.toISOString(), MAX_DEVICES).run();
-  if (!changedOne(result)) refuse(409, 'too_many_devices');
+  const hash = await sha256(token);
+  // Resolve the GitHub identity, capacity, and token write in one transaction.
+  const results = await env.DB.batch([
+    env.DB.prepare('INSERT INTO users (github_id, login, created_at) VALUES (?1, ?2, ?3) ON CONFLICT (github_id) DO UPDATE SET login = excluded.login')
+      .bind(account.id, account.login, now.toISOString()),
+    env.DB.prepare(
+      `INSERT INTO devices (user_id, device_id, token_hash, created_at) SELECT u.id, ?2, ?3, ?4 FROM users u
+       WHERE u.github_id = ?1 AND (EXISTS (SELECT 1 FROM devices WHERE user_id = u.id AND device_id = ?2)
+         OR (SELECT count(*) FROM devices WHERE user_id = u.id) < ?5)
+       ON CONFLICT (user_id, device_id) DO UPDATE SET token_hash = excluded.token_hash`,
+    ).bind(account.id, input.deviceId, hash, now.toISOString(), MAX_DEVICES),
+  ]);
+  batchRows(results, 2);
+  if (!changedOne(results[1])) refuse(409, 'too_many_devices');
   return json(200, { token, login: account.login });
 }
 
 /** A repeated sync replaces the same device, date, tool and model (OU-BOARD-009). */
 async function sync(request, env, now) {
-  const { user_id: user, device_id: deviceId } = await device(request, env.DB);
-  if (await limited(env.DB, `sync:${user}`, SYNCS_PER_HOUR, now)) refuse(429, 'rate_limited');
+  const hash = await tokenHash(request);
+  const { github_id: githubId, device_id: deviceId } = await device(hash, env.DB);
+  if (await limited(env.DB, `sync-github:${githubId}`, SYNCS_PER_HOUR, now)) refuse(429, 'rate_limited');
   const input = await body(request);
   if (!exactKeys(input, ['deviceId', 'rows']) || input.deviceId !== deviceId || !validRows(input.rows, now)) refuse(400, 'invalid_request');
-  const statements = input.rows.map(row => env.DB.prepare(
+  // The token check and every mutation share one transaction, including empty syncs.
+  const statements = [env.DB.prepare('SELECT user_id FROM devices WHERE token_hash = ?1 AND device_id = ?2').bind(hash, deviceId)];
+  statements.push(...input.rows.map(row => env.DB.prepare(
     `INSERT INTO days (user_id, device_id, date, tool, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, total_tokens, estimated_value_micros)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+     SELECT d.user_id, d.device_id, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11
+     FROM devices d WHERE d.token_hash = ?1 AND d.device_id = ?2
      ON CONFLICT (user_id, device_id, date, tool, model) DO UPDATE SET input_tokens = excluded.input_tokens, output_tokens = excluded.output_tokens,
        cache_read_tokens = excluded.cache_read_tokens, cache_write_tokens = excluded.cache_write_tokens, total_tokens = excluded.total_tokens,
        estimated_value_micros = excluded.estimated_value_micros`,
-  ).bind(user, deviceId, row.date, row.tool, row.model, row.inputTokens, row.outputTokens, row.cacheReadTokens, row.cacheWriteTokens, row.totalTokens, row.estimatedValueMicros));
+  ).bind(hash, deviceId, row.date, row.tool, row.model, row.inputTokens, row.outputTokens, row.cacheReadTokens, row.cacheWriteTokens, row.totalTokens, row.estimatedValueMicros)));
   const dates = [...new Set(input.rows.map(row => row.date))];
   for (const date of dates) {
     statements.push(env.DB.prepare(
-      `INSERT INTO flags (user_id, date) SELECT ?1, ?2 WHERE (SELECT coalesce(sum(total_tokens), 0) FROM days WHERE user_id = ?1 AND date = ?2) > ?3
+      `INSERT INTO flags (user_id, date) SELECT d.user_id, ?2 FROM devices d WHERE d.token_hash = ?1
+       AND (SELECT coalesce(sum(total_tokens), 0) FROM days WHERE user_id = d.user_id AND date = ?2) > ?3
        ON CONFLICT (user_id, date) DO NOTHING`,
-    ).bind(user, date, DAY_CEILING));
+    ).bind(hash, date, DAY_CEILING));
   }
-  if (statements.length) await env.DB.batch(statements);
+  if (batchRows(await env.DB.batch(statements), statements.length).length !== 1) refuse(401, 'not_joined');
   return json(200, { accepted: input.rows.length });
 }
 
-/** Leaving removes the data from public view and from storage at once (OU-BOARD-010). */
+/** Leaving removes the account and its published data at once (OU-BOARD-010). */
 async function leave(request, env) {
-  const { user_id: user } = await device(request, env.DB);
-  await env.DB.batch([
-    env.DB.prepare('DELETE FROM days WHERE user_id = ?1').bind(user),
-    env.DB.prepare('DELETE FROM flags WHERE user_id = ?1').bind(user),
-    env.DB.prepare('DELETE FROM devices WHERE user_id = ?1').bind(user),
-    env.DB.prepare('DELETE FROM users WHERE id = ?1').bind(user),
+  const hash = await tokenHash(request);
+  const results = await env.DB.batch([
+    env.DB.prepare('SELECT user_id FROM devices WHERE token_hash = ?1').bind(hash),
+    env.DB.prepare('DELETE FROM users WHERE id = (SELECT user_id FROM devices WHERE token_hash = ?1)').bind(hash),
   ]);
+  // Foreign-key cascades remove devices, days, and flags in the same transaction.
+  if (batchRows(results, 2).length !== 1) refuse(401, 'not_joined');
   return json(200, { left: true });
+}
+
+/** Fresh GitHub authorization can remove an enrollment even when every local token is lost. */
+async function leaveGitHub(request, env, deps, now) {
+  await authLimit(request, env, 'leave:');
+  const input = await body(request);
+  if (!exactKeys(input, ['githubToken']) || !validGitHubToken(input.githubToken)) refuse(400, 'invalid_request');
+  const hash = request.headers.has('authorization') ? await tokenHash(request) : null;
+  const account = await githubAccount(input.githubToken, deps);
+  if (await limited(env.DB, `leave-github:${account.id}`, LEAVES_PER_HOUR, now)) refuse(429, 'rate_limited');
+  const results = await env.DB.batch([
+    env.DB.prepare(`SELECT EXISTS (SELECT 1 FROM devices d JOIN users u ON u.id = d.user_id
+      WHERE u.github_id = ?1 AND d.token_hash = ?2) AS local_token_revoked`).bind(account.id, hash),
+    env.DB.prepare('DELETE FROM users WHERE github_id = ?1').bind(account.id),
+  ]);
+  const rows = batchRows(results, 2);
+  if (rows.length !== 1 || ![0, 1].includes(rows[0].local_token_revoked)) refuse(500, 'unavailable');
+  return json(200, { left: true, login: account.login, localTokenRevoked: hash === null ? null : rows[0].local_token_revoked === 1 });
 }
 
 function rankingQuery(metric) {
@@ -272,6 +321,7 @@ export async function handle(request, env, deps = { fetchGitHubUser }, now = new
     if (route === 'POST /v1/join') return await join(request, env, deps, now);
     if (route === 'POST /v1/sync') return await sync(request, env, now);
     if (route === 'POST /v1/leave') return await leave(request, env);
+    if (route === 'POST /v1/leave/github') return await leaveGitHub(request, env, deps, now);
     if (route === 'GET /v1/leaderboard' || route === 'GET /v1/me/rank') {
       const period = searchParams.get('period') ?? '30d', metric = searchParams.get('metric') ?? 'tokens';
       if (!['7d', '30d', 'all'].includes(period) || !['tokens', 'value'].includes(metric) || [...searchParams.keys()].some(k => !['period', 'metric'].includes(k))
@@ -287,4 +337,9 @@ export async function handle(request, env, deps = { fetchGitHubUser }, now = new
   }
 }
 
-export default { fetch: (request, env) => handle(request, env) };
+export default {
+  fetch: (request, env) => handle(request, env),
+  async scheduled(controller, env) {
+    await pruneLimits(env.DB, new Date(controller.scheduledTime));
+  },
+};

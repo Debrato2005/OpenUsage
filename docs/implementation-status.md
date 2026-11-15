@@ -34,13 +34,11 @@ Linux input. Ordinary count defects, strict compatibility limits, legacy
 producer qualification, and saved-session migration remain open. Production pins
 and enabled tools stay unchanged.
 
-Hosted CI for `a9a7773` passed on November 15, 2026, in
-[run 43704301904](https://github.com/Debrato2005/OpenUsage/actions/runs/43704301904).
-Both Linux checks and the renderer job completed successfully. The workflow
-covers full Rust tests, Pi and Codex qualification builds, native oracles, and
-both renderer engines. The earlier held-final-account failure did not return.
-The [fixture record](reviews/2026-11-15-activity-fixture-publication.md) preserves
-the inferred cause and the original failed run's scope.
+Hosted CI for `4ac91b0` passed on November 15, 2026, in
+[run 43724743200](https://github.com/Debrato2005/OpenUsage/actions/runs/43724743200).
+Both Linux checks and the renderer job completed successfully.
+This qualifies that commit's hosted scope.
+The current departure-recovery change has separate local evidence below.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -53,7 +51,6 @@ The wider native results below are from L-1g2 and earlier. They do not certify t
 
 New in baseline 3.1:
 
-- Public departure after all local credentials are lost: L-5a6. The current service can refuse another enrollment at its device cap.
 - Private desktop-to-website sync and the responsive personal dashboard: Sections 14B and 14C, Stage 3.
 - Own-rank client views: OU-BOARD-013 and OU-BOARD-014. The service API is complete within the local scope below.
 - Joined-rank access on Overview and optional subscription-price comparisons: OU-UI-028 and OU-SHARE-009. Independent local summaries and period receipts have the scoped results below.
@@ -75,6 +72,8 @@ Kept from baseline 2.0:
 - Wake handling: OU-PROC-013, OU-MON-013.
 
 ## Partial
+
+- Departure recovery (L-5a6), November 15, 2026: explicit fresh GitHub authorization removes public account data without another enrollment slot. The exact token witness preserves unrelated and unverified local enrollment. Private Linux CLI recovery and local forgetting pass with synthetic HTTPS, GNOME Secret Service, and SQLCipher. The [record](reviews/2026-11-15-departure-recovery.md) owns checks and limits. Hosted D1, schedule, live GitHub, Settings, and other platforms remain open.
 
 - Local enrollment erasure (L-5a5), November 15, 2026: the desktop clears active, pending, malformed, and duplicate items in the selected leaderboard slot. Private Linux app and credential journeys pass. The shared guard, durable intent, competing-process refusal, and explicit resume preserve the deletion boundary. Password-protected Linux workspaces also need a usable credential store. Full renderer/workspace checks and native-feature Clippy pass. The [record](reviews/2026-11-15-local-enrollment-erasure.md) owns scope and limits. Public departure remains separate.
 
@@ -201,9 +200,17 @@ separate from document completion. The [performance report](performance-report.m
 
 The owner resumed autonomous implementation on November 15, 2026. Work continues through verified local commits and periodic pushes. Each push checks the GitHub login and includes only the reviewed branch. No release, deployment, or pull request is authorized. The latest instruction replaces the November 13 stop condition. Baseline 3.1 product scope stays unchanged.
 
-The current pass closes SC-029 within its synthetic Linux scope. An Astra agent at extra-high effort implemented the payload-independent credential eraser. Independent specification and standards reviewers found no remaining concrete source issue. The primary agent completed integration, the native app journey, visual inspection, and full regression checks. The OpenUsage Claude references continue to guide the existing matte layout and first-release priorities.
+The current pass completes L-5a6 within its synthetic Linux scope.
+Fresh GitHub departure creates no enrollment slot and preserves unrelated local credentials.
+Explicit local forgetting remains separate from public departure.
+The [recovery record](reviews/2026-11-15-departure-recovery.md) owns account-isolation corrections, executed evidence, and remaining hosted gates.
+The OpenUsage Claude references continue to guide the existing matte layout and first-release priorities.
 
-The next bounded correction is L-5a6: explicit public departure after local credential loss without consuming an enrollment slot. It must preserve unrelated local enrollment and use fresh GitHub authorization. The shared upload builder and Settings integration follow under L-5b. Own-rank client access and connection suggestions remain under S-23. Scanner activation keeps its separate qualification gates. Live service configuration and deployment remain under owner control.
+The next bounded assignment shares the saved-data upload builder with Settings under L-5b.
+Settings authorization, sync, departure, and recovery must keep secrets in Rust and use the shared credential guard.
+Own-rank client access and connection suggestions remain under S-23.
+Scanner activation keeps its separate qualification gates.
+Live service configuration and deployment remain under owner control.
 
 The repository inventory covers 941 tracked files. Graphify and source review cover the major application, storage, provider, CLI, service, and test boundaries. This is an inventory and scoped review. It does not establish a complete semantic audit. Real-provider, real-machine, and production scanner gates remain open.
 

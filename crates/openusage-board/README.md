@@ -143,3 +143,23 @@ No GitHub credential enters the enrollment record.
 
 
 See the [native CLI journey](../../tests/native/README.md#native-leaderboard-cli) for its executed boundary.
+
+## Departure recovery
+
+`leave_with_github(token, local_token)` consumes fresh GitHub authorization without joining.
+It creates no enrollment or device slot.
+An optional service token supplies a cleanup witness, not departure authority.
+The configured service origin remains the only destination.
+
+The response requires an object with exactly `left`, `login`, and `localTokenRevoked`.
+The witness must be present, including explicit `null` when no service token was supplied.
+A supplied token requires a boolean witness.
+Only `true` permits cleanup of that exact local credential.
+A login or device UUID never proves ownership.
+Missing, duplicate, unknown, wrongly typed, and positional-array replies refuse.
+All transport replies require JSON objects.
+
+The recovery encoder uses a fixed zeroizing writer of 273 bytes.
+Join keeps its separate 323-byte bound.
+Neither writer grows after secret writes.
+The [CLI contract](../openusage-cli/README.md#departure-recovery-and-local-forgetting) owns consent and local outcomes.

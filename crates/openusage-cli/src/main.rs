@@ -80,6 +80,9 @@ pub struct Env {
     pub key: Box<dyn Fn() -> Result<Option<DatabaseKey>, VaultError>>,
     /// The time that sets freshness and today. None uses the clock.
     pub now: Option<jiff::Timestamp>,
+    /// Serializes local leaderboard mutation. Tests never use the real credential store.
+    pub board_guard:
+        Box<dyn Fn() -> Result<openusage_keys::BoardGuard, openusage_keys::BoardGuardError>>,
 }
 impl Env {
     fn from_system() -> Self {
@@ -125,6 +128,7 @@ impl Env {
             workspace: data.map(|data| data.join("app.openusage.desktop").join("workspace")),
             key: Box::new(|| openusage_keys::OsVault::new()?.load()),
             now: None,
+            board_guard: Box::new(board::acquire_guard),
             home,
             ccusage,
             ccusage_digest: openusage_locallogs::pinned_sha256_here().map(str::to_string),
@@ -290,6 +294,7 @@ impl Env {
             workspace: None,
             key: Box::new(|| Err(VaultError::Unavailable)),
             now: None,
+            board_guard: Box::new(|| Err(openusage_keys::BoardGuardError::Unavailable)),
         }
     }
 }

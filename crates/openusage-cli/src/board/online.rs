@@ -13,25 +13,28 @@ pub(super) enum Command {
     Join { reconnect: bool },
     Sync { days: i32 },
     Leave,
+    RecoverLeave,
+    Forget,
 }
 impl Command {
     fn name(self) -> &'static str {
         match self {
             Self::Join { .. } => "board join",
             Self::Sync { .. } => "board sync",
-            Self::Leave => "board leave",
+            Self::Leave | Self::RecoverLeave => "board leave",
+            Self::Forget => "board forget",
         }
     }
 }
 
-fn failure(code: &'static str, exit: u8, message: impl Into<String>) -> CliError {
+pub(super) fn failure(code: &'static str, exit: u8, message: impl Into<String>) -> CliError {
     CliError {
         code,
         exit,
         message: message.into(),
     }
 }
-fn session_error(error: SessionError) -> CliError {
+pub(super) fn session_error(error: SessionError) -> CliError {
     match error {
         SessionError::Busy => failure("board_busy", 16, error.to_string()),
         SessionError::SaveFailed => failure(
@@ -42,7 +45,7 @@ fn session_error(error: SessionError) -> CliError {
         _ => failure("board_credential", 15, error.to_string()),
     }
 }
-fn remote_error(error: openusage_board::Error) -> CliError {
+pub(super) fn remote_error(error: openusage_board::Error) -> CliError {
     match error {
         openusage_board::Error::Unconfigured | openusage_board::Error::InvalidConfiguration => {
             failure("board_unconfigured", 14, error.to_string())
@@ -50,7 +53,7 @@ fn remote_error(error: openusage_board::Error) -> CliError {
         _ => failure("board_remote", 17, error.to_string()),
     }
 }
-fn consent(
+pub(super) fn consent(
     message: &str,
     yes: bool,
     env: &Env,
@@ -144,7 +147,13 @@ pub(super) fn command(
     input: &mut dyn BufRead,
     prompt: &mut dyn Write,
 ) -> Result<String, CliError> {
+    if matches!(command, Command::Forget) {
+        return super::recovery::forget(yes, json, env, input, prompt);
+    }
     let (client, fixture_directory) = configured_client().map_err(remote_error)?;
+    if matches!(command, Command::RecoverLeave) {
+        return super::recovery::leave(client, yes, json, env, input, prompt);
+    }
     let origin = client
         .service_origin()
         .ok_or_else(|| remote_error(openusage_board::Error::Unconfigured))?;
@@ -173,47 +182,7 @@ pub(super) fn command(
     match command {
         Command::Join { reconnect } => {
             let id = session.prepare_join(reconnect).map_err(session_error)?;
-            let clock = Instant::now();
-            let mut flow = client.device_start(clock.elapsed()).map_err(remote_error)?;
-            writeln!(
-                prompt,
-                "Open {} and enter {}",
-                flow.verification_uri(),
-                flow.user_code()
-            )
-            .and_then(|_| prompt.flush())
-            .map_err(|_| {
-                failure(
-                    "board_remote",
-                    17,
-                    "The authorization code could not be shown.",
-                )
-            })?;
-            let token = loop {
-                let delay = flow.retry_at().saturating_sub(clock.elapsed());
-                std::thread::sleep(delay);
-                match client
-                    .device_poll(&mut flow, clock.elapsed())
-                    .map_err(remote_error)?
-                {
-                    PollOutcome::Authorized(token) => break token,
-                    PollOutcome::Pending { .. } | PollOutcome::SlowDown { .. } => (),
-                    PollOutcome::Denied => {
-                        return Err(failure(
-                            "board_remote",
-                            17,
-                            "GitHub authorization was denied.",
-                        ));
-                    }
-                    PollOutcome::Expired => {
-                        return Err(failure(
-                            "board_remote",
-                            17,
-                            "GitHub authorization expired. Run join again.",
-                        ));
-                    }
-                }
-            };
+            let token = authorize(&client, prompt)?;
             let joined = client.join(token, &id).map_err(remote_error)?;
             session.finish_join(joined).map_err(session_error)?;
             outcome(command, "joined", Some(id.as_str()), None, json)
@@ -254,7 +223,57 @@ pub(super) fn command(
                 "The service confirmed removal of all account data. The local credential could not be removed."))?;
             outcome(command, "left", None, None, json)
         }
+        Command::RecoverLeave | Command::Forget => {
+            unreachable!("handled before the enrollment session")
+        }
     }
+}
+pub(super) fn authorize(
+    client: &BoardClient,
+    prompt: &mut dyn Write,
+) -> Result<openusage_board::GithubToken, CliError> {
+    let clock = Instant::now();
+    let mut flow = client.device_start(clock.elapsed()).map_err(remote_error)?;
+    writeln!(
+        prompt,
+        "Open {} and enter {}",
+        flow.verification_uri(),
+        flow.user_code()
+    )
+    .and_then(|_| prompt.flush())
+    .map_err(|_| {
+        failure(
+            "board_remote",
+            17,
+            "The authorization code could not be shown.",
+        )
+    })?;
+    let token = loop {
+        let delay = flow.retry_at().saturating_sub(clock.elapsed());
+        std::thread::sleep(delay);
+        match client
+            .device_poll(&mut flow, clock.elapsed())
+            .map_err(remote_error)?
+        {
+            PollOutcome::Authorized(token) => break token,
+            PollOutcome::Pending { .. } | PollOutcome::SlowDown { .. } => (),
+            PollOutcome::Denied => {
+                return Err(failure(
+                    "board_remote",
+                    17,
+                    "GitHub authorization was denied.",
+                ));
+            }
+            PollOutcome::Expired => {
+                return Err(failure(
+                    "board_remote",
+                    17,
+                    "GitHub authorization expired. Start the command again.",
+                ));
+            }
+        }
+    };
+    Ok(token)
 }
 fn configured_client() -> Result<(BoardClient, Option<std::path::PathBuf>), openusage_board::Error>
 {

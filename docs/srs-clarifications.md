@@ -35,6 +35,27 @@ This is the record of how requirements were read. Entries keep their original da
 | SC-027 | Section 17 and current DTOs | Open implementation gap, SRS unchanged |
 | SC-028 | Desktop and private website companion | Owner-authorized baseline 3.1; implementation open |
 | SC-029 | Local deletion and public enrollment | Implemented and accepted within synthetic Linux scope |
+| SC-030 | Explicit public departure after credential loss | Implemented within synthetic Linux scope |
+
+## SC-030: explicit public departure after credential loss
+
+Recorded November 15, 2026. Implementation reading, SRS unchanged.
+OU-BOARD-001 keeps service access off by default.
+OU-BOARD-010 requires public departure even when local deletion removed an enrollment credential.
+An explicit `board leave --reauthorize` starts fresh GitHub authorization after consent.
+This recovery action creates no enrollment and consumes no device slot.
+Ordinary launch, status, and dry run remain offline.
+
+Fresh numeric GitHub identity authorizes public departure.
+The service checks an optional exact service-token hash in the same deletion transaction.
+Only that match permits local cleanup.
+A login or device UUID is insufficient because logins can change and device IDs can recur across accounts.
+Unrelated or unverified local enrollment remains.
+A separate explicit `board forget` clears the local slot without public departure or network access.
+Unknown credential storage never establishes absence.
+
+The [recovery record](reviews/2026-11-15-departure-recovery.md) owns acceptance and limits.
+Hosted D1, schedule operation, live GitHub, Settings, and other-platform acceptance remain open.
 
 ## SC-029: local deletion and public enrollment
 

@@ -4,6 +4,9 @@ name = "openusage-leaderboard"
 main = "src/worker.mjs"
 compatibility_date = "2026-11-01"
 
+[triggers]
+crons = ["0 * * * *"]
+
 [[d1_databases]]
 binding = "DB"
 database_name = "openusage-leaderboard"

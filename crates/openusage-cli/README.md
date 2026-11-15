@@ -10,6 +10,10 @@ The `openusage` command (SRS Section 11A). It has no webview dependency (OU-CLI-
 | `openusage statusline` | One line for tmux and shell prompts |
 | `openusage report [--days N] [--yes] [--json]` | Local log totals for the last N days, 30 by default. It needs no database and saves nothing |
 | `openusage board sync --dry-run --device-id UUID [--days N] [--json]` | The exact prospective leaderboard body from saved local totals, with no network |
+| `openusage board join [--reconnect] [--yes] [--json]` | GitHub enrollment or explicit reconnect of the saved device |
+| `openusage board sync [--days N] [--yes] [--json]` | Exact saved local totals after consent |
+| `openusage board leave [--reauthorize] [--yes] [--json]` | Account-wide public departure through the saved token or fresh GitHub authorization |
+| `openusage board forget [--yes] [--json]` | Local enrollment erasure without a service request |
 | `openusage doctor [--json]` | One line for each check of this machine, with the fix for each failed check |
 | `openusage app` | Opens the desktop app, or prints the fix when it cannot start |
 
@@ -123,7 +127,7 @@ Each failure prints one line to standard error: the message and its code. With `
 | 0 | | Success |
 | 1 | `doctor_found_problems` | `doctor` found a check that needs a fix |
 | 2 | `usage` | An unknown command or option |
-| 3 | `consent_required` | `report` or an online board command needs consent, or `--yes` |
+| 3 | `consent_required` | `report` or a state-changing board command needs consent, or `--yes` |
 | 4 | `ccusage_unavailable` | The pinned `ccusage` is missing, changed, or not pinned for this platform |
 | 5 | `scan_failed` | A `ccusage` run failed. Nothing was saved |
 | 6 | `app_unavailable` | The desktop app is missing or stopped at start |
@@ -149,3 +153,32 @@ The CLI looks for `openusage-ccusage` and `openusage-desktop` beside its own exe
 ## Tests
 
 `cargo test -p openusage-cli` runs the commands with scripts in place of `ccusage` and the desktop app, reads a synthetic encrypted workspace, and runs the built binary to check help, exit codes and errors. The board command tests use the existing synthetic scanner report, its production parser, and a private encrypted workspace. They check exact upload rows, repeat previews, unknown estimates, empty data, pinned zones, privacy, and refusal limits. `tests/native/cli-status.mjs` reads a real key-store workspace with the `native-test` build of the CLI.
+
+## Departure recovery and local forgetting
+
+`openusage board leave --reauthorize [--yes] [--json]` starts fresh GitHub authorization.
+It removes the selected account, every device, and all its public data.
+It creates no enrollment, including at the five-device cap.
+It requires configured service endpoints and the shared credential guard.
+An unavailable credential store does not prevent this remote action.
+
+The service checks the fresh numeric GitHub identity.
+It also checks any supplied service token in the deletion transaction.
+Only an affirmative match permits removal of the exact saved local credential.
+A different account, matching display login, or matching device UUID cannot authorize local cleanup.
+Pending, malformed, and unrelated local records remain.
+A failed local cleanup after confirmed departure returns `board_partial`, exit 18.
+Restore store access, then explicitly run `board forget`.
+
+`openusage board forget [--yes] [--json]` clears this device's leaderboard credential slot only.
+It needs consent, the shared guard, and an available unlocked credential store.
+It constructs no service client and needs no service configuration or database.
+It makes no network request and does not change public data.
+It also clears pending, malformed, and duplicate records in the selected slot.
+An unavailable store refuses instead of claiming absence.
+
+Recovery JSON uses schema 2 with `command`, `state`, `login`, and `credentialState`.
+Departure returns state `left` and the authorized display login.
+The local state is `removed`, `not_present`, `retained`, or `unavailable`.
+Forgetting returns state `forgotten`, a null login, and `not_present` after confirmed absence.
+These commands do not change ordinary status or offline preview behavior.

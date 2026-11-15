@@ -837,3 +837,9 @@ Its confirmation must distinguish local erasure from public departure.
 Private native acceptance must check joined and pending records, competing operations, unavailable stores, and resumable interruption.
 Hosted recovery after all device credentials are lost remains a separate service gate.
 No new normative requirement or deployment authority is added.
+
+## November 15: enrollment erasure checkpoint before departure recovery
+
+The current pass closes SC-029 within its synthetic Linux scope. An Astra agent at extra-high effort implemented the payload-independent credential eraser. Independent specification and standards reviewers found no remaining concrete source issue. The primary agent completed integration, the native app journey, visual inspection, and full regression checks. The OpenUsage Claude references continue to guide the existing matte layout and first-release priorities.
+
+The next bounded correction is L-5a6: explicit public departure after local credential loss without consuming an enrollment slot. It must preserve unrelated local enrollment and use fresh GitHub authorization. The shared upload builder and Settings integration follow under L-5b. Own-rank client access and connection suggestions remain under S-23. Scanner activation keeps its separate qualification gates. Live service configuration and deployment remain under owner control.

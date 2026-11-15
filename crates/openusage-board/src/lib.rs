@@ -8,8 +8,8 @@ mod transport;
 pub use device::{DeviceFlow, PollOutcome};
 pub use enrollment::Enrollment;
 pub use protocol::{
-    ApprovedSyncBody, DeviceId, GithubToken, Joined, Metric, OwnRank, Period, RankEntry,
-    ServiceToken,
+    ApprovedSyncBody, AuthenticatedDeparture, DeviceId, GithubToken, Joined, Metric, OwnRank,
+    Period, RankEntry, ServiceToken,
 };
 pub use session::{EnrollmentSession, SessionError};
 
@@ -138,6 +138,15 @@ impl BoardClient {
     }
     pub fn leave(&self, token: &ServiceToken) -> Result<(), Error> {
         self.transport()?.leave(token)
+    }
+    /// Fresh authorization can leave without creating or consuming a device slot.
+    /// The optional service token is only a witness for safe local credential cleanup.
+    pub fn leave_with_github(
+        &self,
+        github: GithubToken,
+        local: Option<&ServiceToken>,
+    ) -> Result<AuthenticatedDeparture, Error> {
+        self.transport()?.leave_with_github(github, local)
     }
     pub fn own_rank(
         &self,

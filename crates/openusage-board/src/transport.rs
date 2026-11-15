@@ -1,5 +1,6 @@
 use crate::{
-    ApprovedSyncBody, DeviceId, Error, GithubToken, Joined, Metric, OwnRank, Period, ServiceToken,
+    ApprovedSyncBody, AuthenticatedDeparture, DeviceId, Error, GithubToken, Joined, Metric,
+    OwnRank, Period, ServiceToken,
     protocol::{MAX_BODY, SecretText, login},
 };
 use reqwest::{
@@ -18,6 +19,7 @@ pub(crate) const GITHUB_DEVICE: &str = "https://github.com/login/device/code";
 pub(crate) const GITHUB_POLL: &str = "https://github.com/login/oauth/access_token";
 // A 255-byte token, a 36-byte device ID, and the JSON field syntax.
 const MAX_JOIN_BODY: usize = 323;
+const MAX_DEPARTURE_BODY: usize = 273;
 pub(crate) struct Transport {
     pub origin: Url,
     pub client_id: String,
@@ -130,6 +132,58 @@ impl Transport {
         } else {
             Err(Error::UnexpectedResponse)
         }
+    }
+    pub fn leave_with_github(
+        &self,
+        github: GithubToken,
+        local: Option<&ServiceToken>,
+    ) -> Result<AuthenticatedDeparture, Error> {
+        struct Witness(Option<bool>);
+        impl<'de> Deserialize<'de> for Witness {
+            fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+                struct WitnessVisitor;
+                impl<'de> serde::de::Visitor<'de> for WitnessVisitor {
+                    type Value = Witness;
+
+                    fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        f.write_str("a boolean or null")
+                    }
+
+                    fn visit_bool<E: serde::de::Error>(self, value: bool) -> Result<Witness, E> {
+                        Ok(Witness(Some(value)))
+                    }
+
+                    fn visit_unit<E: serde::de::Error>(self) -> Result<Witness, E> {
+                        Ok(Witness(None))
+                    }
+                }
+                d.deserialize_any(WitnessVisitor)
+            }
+        }
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields, rename_all = "camelCase")]
+        struct Reply {
+            left: bool,
+            login: String,
+            local_token_revoked: Witness,
+        }
+        let reply: Reply = self.json(
+            Method::POST,
+            self.endpoint("v1/leave/github")?,
+            local,
+            Some(departure_body(&github)?),
+            "application/json",
+        )?;
+        if !reply.left
+            || !login(&reply.login)
+            || reply.local_token_revoked.0.is_some() != local.is_some()
+        {
+            return Err(Error::UnexpectedResponse);
+        }
+        Ok(AuthenticatedDeparture {
+            login: reply.login,
+            local_token_revoked: reply.local_token_revoked.0,
+        })
     }
     pub fn own_rank(
         &self,
@@ -262,6 +316,9 @@ impl Transport {
         if bytes.len() > MAX_BODY {
             return Err(Error::ResponseTooLarge);
         }
+        if bytes.iter().find(|byte| !byte.is_ascii_whitespace()) != Some(&b'{') {
+            return Err(Error::UnexpectedResponse);
+        }
         if status != reqwest::StatusCode::OK
             && !(oauth.is_some() && status == reqwest::StatusCode::BAD_REQUEST)
         {
@@ -297,17 +354,26 @@ fn join_body(github: &GithubToken, device_id: &DeviceId) -> Result<Zeroizing<Vec
         github_token: &'a str,
         device_id: &'a str,
     }
-    let mut buffer = Zeroizing::new([0_u8; MAX_JOIN_BODY]);
+    secret_json::<MAX_JOIN_BODY>(&Join {
+        github_token: github.expose(),
+        device_id: device_id.as_str(),
+    })
+}
+fn departure_body(github: &GithubToken) -> Result<Zeroizing<Vec<u8>>, Error> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Authorization<'a> {
+        github_token: &'a str,
+    }
+    secret_json::<MAX_DEPARTURE_BODY>(&Authorization {
+        github_token: github.expose(),
+    })
+}
+fn secret_json<const N: usize>(value: &impl Serialize) -> Result<Zeroizing<Vec<u8>>, Error> {
+    let mut buffer = Zeroizing::new([0_u8; N]);
     let length = {
         let mut writer = Cursor::new(&mut buffer[..]);
-        serde_json::to_writer(
-            &mut writer,
-            &Join {
-                github_token: github.expose(),
-                device_id: device_id.as_str(),
-            },
-        )
-        .map_err(|_| Error::InvalidRequest)?;
+        serde_json::to_writer(&mut writer, value).map_err(|_| Error::InvalidRequest)?;
         writer.position() as usize
     };
     Ok(Zeroizing::new(buffer[..length].to_vec()))
@@ -379,7 +445,7 @@ pub(crate) fn form(fields: &[(&str, &str)]) -> Zeroizing<Vec<u8>> {
 
 #[cfg(test)]
 mod tests {
-    use super::{MAX_JOIN_BODY, form, join_body};
+    use super::{MAX_DEPARTURE_BODY, MAX_JOIN_BODY, departure_body, form, join_body};
     use crate::{DeviceId, Error, GithubToken};
     use zeroize::Zeroizing;
 
@@ -414,6 +480,23 @@ mod tests {
             join_body(&oversized, &device_id),
             Err(Error::InvalidRequest)
         );
+    }
+
+    #[test]
+    fn departure_encoding_has_its_own_fixed_secret_bound() {
+        for length in [20, 109, 110, 111, 237, 238, 239, 255] {
+            let token = GithubToken::from_secret(Zeroizing::new("A".repeat(length))).unwrap();
+            let body = departure_body(&token).unwrap();
+            assert_eq!(
+                body.as_slice(),
+                format!("{{\"githubToken\":\"{}\"}}", "A".repeat(length)).as_bytes()
+            );
+            assert_eq!(body.capacity(), body.len());
+        }
+        let maximum = GithubToken::from_secret(Zeroizing::new("A".repeat(255))).unwrap();
+        assert_eq!(departure_body(&maximum).unwrap().len(), MAX_DEPARTURE_BODY);
+        let oversized = GithubToken(Zeroizing::new("A".repeat(256)));
+        assert_eq!(departure_body(&oversized), Err(Error::InvalidRequest));
     }
 
     #[test]

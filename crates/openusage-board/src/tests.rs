@@ -850,3 +850,82 @@ fn expiring_github_reply_is_consumed_once_and_partial_expiry_refuses() {
         server.no_request();
     }
 }
+
+#[test]
+fn fresh_departure_sends_only_github_body_and_validates_the_optional_token_witness() {
+    for (with_local, witness) in [(false, "null"), (true, "true"), (true, "false")] {
+        let reply =
+            format!(r#"{{"left":true,"login":"renamed-user","localTokenRevoked":{witness}}}"#);
+        let server = Server::start(vec![Reply::ok(&reply)]);
+        let local = service_token();
+        let departure = server
+            .client()
+            .leave_with_github(github_token(), with_local.then_some(&local))
+            .unwrap();
+        assert_eq!(departure.login(), "renamed-user");
+        assert_eq!(
+            departure.local_token_revoked(),
+            match witness {
+                "true" => Some(true),
+                "false" => Some(false),
+                _ => None,
+            }
+        );
+        let request = server.request();
+        assert_eq!(
+            (request.method.as_str(), request.target.as_str()),
+            ("POST", "/v1/leave/github")
+        );
+        assert_eq!(
+            request.body,
+            format!(r#"{{"githubToken":"{GITHUB_TOKEN}"}}"#).as_bytes()
+        );
+        assert_eq!(
+            request.headers.get("authorization").map(String::as_str),
+            with_local.then_some(format!("Bearer {TOKEN}")).as_deref()
+        );
+        assert!(!format!("{departure:?}").contains("renamed-user"));
+    }
+    for (with_local, reply) in [
+        (false, r#"{"left":true,"login":"synthetic-user"}"#),
+        (
+            false,
+            r#"{"left":true,"login":"synthetic-user","localTokenRevoked":true}"#,
+        ),
+        (
+            true,
+            r#"{"left":true,"login":"synthetic-user","localTokenRevoked":null}"#,
+        ),
+        (
+            true,
+            r#"{"left":true,"login":"synthetic-user","localTokenRevoked":1}"#,
+        ),
+        (false, r#"[true,"synthetic-user",null]"#),
+        (
+            false,
+            r#"{"left":false,"login":"synthetic-user","localTokenRevoked":null}"#,
+        ),
+        (
+            false,
+            r#"{"left":true,"login":"bad name","localTokenRevoked":null}"#,
+        ),
+        (
+            false,
+            r#"{"left":true,"login":"synthetic-user","localTokenRevoked":null,"extra":true}"#,
+        ),
+        (
+            false,
+            r#"{"left":true,"login":"synthetic-user","localTokenRevoked":null,"localTokenRevoked":null}"#,
+        ),
+    ] {
+        let server = Server::start(vec![Reply::ok(reply)]);
+        let local = service_token();
+        assert!(matches!(
+            server
+                .client()
+                .leave_with_github(github_token(), with_local.then_some(&local)),
+            Err(Error::UnexpectedResponse)
+        ));
+        server.request();
+    }
+}

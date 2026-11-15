@@ -18,11 +18,11 @@ const seed = resolve(process.env.OPENUSAGE_BOARD_SEED_BINARY);
 const output = resolve(process.env.OPENUSAGE_NATIVE_EVIDENCE);
 const evidence = {
   requirement: 'OU-BOARD-001/002/003/004/005/006/010, OU-CLI-001/002/005/007/008',
-  scope: 'Compiled Linux native-test CLI, private GNOME Secret Service and SQLCipher, synthetic local HTTPS OAuth/service stub. No live GitHub or hosted service. No user keyring.',
+  scope: `Compiled Linux ${process.env.OPENUSAGE_BOARD_EXPECT_NORMAL === '1' ? 'ordinary' : 'native-test'} CLI, private GNOME Secret Service and SQLCipher, synthetic local HTTPS OAuth/service stub. No live GitHub or hosted service. No user keyring.`,
   result: 'failed', startedAt: new Date().toISOString(), checks: [],
 };
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
-let fixture, server, port, mode = 'authorize', failSave = true, rejected = false, token = '', sequence = 0;
+let fixture, server, port, mode = 'authorize', failSave = true, rejected = false, token = '', sequence = 0, recoveryAccount = 'alpha', failRecoveryCleanup = false;
 const requests = [], joins = [], uploads = [], responses = [];
 process.once('exit', () => { fixture?.daemon?.kill('SIGKILL'); stopGroup(fixture?.bus, 'SIGKILL'); });
 async function cli(args, environment = fixture.environment) {
@@ -75,7 +75,8 @@ try {
       if (request.url === '/login/oauth/access_token') {
         assert.ok(body.includes('device_code=' + 'a'.repeat(40)));
         if (mode === 'pending') return reply(200, { error: 'authorization_pending' });
-        return reply(200, { access_token: 'gho_synthetic_access_token_1234567890', token_type: 'bearer', scope: '',
+        if (mode === 'denied') return reply(200, { error: 'access_denied' });
+        return reply(200, { access_token: recoveryAccount === 'alpha' ? 'gho_synthetic_access_token_1234567890' : 'gho_synthetic_beta_access_token_1234567890', token_type: 'bearer', scope: '',
           refresh_token: 'ghr_synthetic_refresh_token_1234567890', expires_in: 28800, refresh_token_expires_in: 15897600 });
       }
       if (request.url === '/v1/join') {
@@ -83,9 +84,21 @@ try {
         assert.deepEqual(Object.keys(parsed).sort(), ['deviceId', 'githubToken']);
         assert.equal(parsed.githubToken, 'gho_synthetic_access_token_1234567890');
         assert.match(parsed.deviceId, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
-        joins.push(parsed.deviceId); token = String.fromCharCode(98 + sequence++).repeat(64);
+        joins.push(parsed.deviceId); rejected = false; token = String.fromCharCode(98 + sequence++).repeat(64);
         if (failSave) { failSave = false; await stopSecretService(fixture); }
         return reply(200, { token, login: 'synthetic-user' });
+      }
+      if (request.url === '/v1/leave/github') {
+        const parsed = JSON.parse(body);
+        assert.deepEqual(Object.keys(parsed), ['githubToken']);
+        assert.equal(parsed.githubToken, recoveryAccount === 'alpha' ? 'gho_synthetic_access_token_1234567890' : 'gho_synthetic_beta_access_token_1234567890');
+        const supplied = request.headers.authorization;
+        if (supplied !== undefined) assert.equal(supplied, `Bearer ${token}`);
+        const matched = supplied === undefined ? null : recoveryAccount === 'alpha' && !rejected;
+        if (recoveryAccount === 'alpha') rejected = true;
+        if (failRecoveryCleanup) { failRecoveryCleanup = false; await stopSecretService(fixture); }
+        // The same display login deliberately cannot prove local credential ownership.
+        return reply(200, { left: true, login: 'synthetic-user', localTokenRevoked: matched });
       }
       assert.equal(request.headers.authorization, `Bearer ${token}`);
       if (rejected) return reply(401, { error: 'not_joined' });
@@ -93,7 +106,7 @@ try {
         uploads.push(body); return reply(200, { accepted: JSON.parse(body).rows.length });
       }
       assert.equal(request.url, '/v1/leave');
-      return reply(200, { left: true });
+      rejected = true; return reply(200, { left: true });
     } catch (error) { response.destroy(error); evidence.stubError = error.message; }
   });
   await new Promise(done => server.listen(0, '127.0.0.1', done)); port = server.address().port;
@@ -102,6 +115,7 @@ try {
     for (const action of ['join', 'sync', 'leave']) {
       assert.equal((await expected([action, '--yes'], 14)).error.code, 'board_unconfigured');
     }
+    assert.equal((await expected(['leave', '--reauthorize', '--yes'], 14)).error.code, 'board_unconfigured');
     assert.equal(requests.length, 0);
     assert.deepEqual(await stableFiles(), baseline);
     evidence.checks.push('The ordinary unconfigured build ignored a valid private endpoint override and made no requests or saved-data changes.');
@@ -173,9 +187,50 @@ try {
   const endCount = requests.length;
   assert.equal((await expected(['sync', '--yes'], 15)).error.code, 'board_credential');
   assert.equal(requests.length, endCount);
+  const joinsBeforeRecovery = joins.length;
+  assert.equal((await expected(['leave', '--reauthorize'], 3)).error.code, 'consent_required');
+  await stopSecretService(fixture);
+  const withoutStore = await expected(['leave', '--reauthorize', '--yes'], 0);
+  assert.equal(withoutStore.state, 'left'); assert.equal(withoutStore.credentialState, 'unavailable');
+  assert.equal(joins.length, joinsBeforeRecovery);
+  await startSecretService(fixture);
+  assert.equal((await expected(['sync', '--yes'], 15)).error.code, 'board_credential');
+  evidence.checks.push('Fresh departure worked without an available credential store and created no enrollment or device.');
+  const extraJoin = await expected(['join', '--yes'], 0);
+  assert.ok(extraJoin.deviceId);
+  const joinsWithLocal = joins.length;
+  recoveryAccount = 'beta';
+  const foreign = await expected(['leave', '--reauthorize', '--yes'], 0);
+  assert.equal(foreign.credentialState, 'retained');
+  assert.equal((await expected(['sync', '--yes'], 0)).accepted, 1);
+  assert.equal(joins.length, joinsWithLocal);
+  recoveryAccount = 'alpha'; failRecoveryCleanup = true;
+  assert.equal((await expected(['leave', '--reauthorize', '--yes'], 18)).error.code, 'board_partial');
+  await startSecretService(fixture);
+  const beforeOccupied = requests.length;
+  assert.equal((await expected(['join', '--yes'], 15)).error.code, 'board_credential');
+  assert.equal(requests.length, beforeOccupied);
+  const beforeForget = requests.length;
+  const unconfigured = { ...fixture.environment, OPENUSAGE_NATIVE_BOARD_ORIGIN: 'https://outside.invalid/' };
+  const forgotten = await cli(['forget', '--yes', '--json'], unconfigured);
+  assert.equal(forgotten.code, 0, forgotten.stdout + forgotten.stderr);
+  assert.equal(JSON.parse(forgotten.stdout).state, 'forgotten');
+  assert.equal(requests.length, beforeForget);
+  mode = 'denied';
+  assert.equal((await expected(['join', '--yes'], 17)).error.code, 'board_remote');
+  mode = 'authorize';
+  assert.equal((await expected(['leave', '--reauthorize', '--yes'], 0)).credentialState, 'retained');
+  const beforePendingForget = requests.length;
+  assert.equal((await expected(['forget'], 3)).error.code, 'consent_required');
+  assert.equal((await expected(['forget', '--yes'], 0)).credentialState, 'not_present');
+  assert.equal(requests.length, beforePendingForget);
+  assert.equal(joins.length, joinsWithLocal);
+  assert.equal(requests.filter(request => request.path === '/v1/leave/github').length, 4);
+  assert.equal(requests.filter(request => request.path === '/v1/leave').length, 2);
+  evidence.checks.push('A foreign account with the same login preserved the local enrollment. Confirmed departure plus failed local cleanup reported a partial result. Explicit forgetting cleared active and pending records without network or service configuration. Recovery preserved a pending record without a token witness.');
   assert.deepEqual(await stableFiles(), baseline);
   for (const response of responses) {
-    for (const secret of ['gho_synthetic', 'ghr_synthetic', 'b'.repeat(64), 'c'.repeat(64), 'd'.repeat(64), '/synthetic/project']) {
+    for (const secret of ['gho_synthetic', 'ghr_synthetic', 'b'.repeat(64), 'c'.repeat(64), 'd'.repeat(64), 'e'.repeat(64), '/synthetic/project']) {
       assert.ok(!(response.stdout + response.stderr).includes(secret));
     }
   }

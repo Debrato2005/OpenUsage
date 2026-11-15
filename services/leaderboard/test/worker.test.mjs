@@ -4,30 +4,44 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import { DAY_CEILING, TITLE, handle, validRows } from '../src/worker.mjs';
+import worker, { DAY_CEILING, TITLE, handle, validRows } from '../src/worker.mjs';
 
 /** The part of the D1 binding that the Worker uses: prepare, bind, first, all, run and batch. */
-function d1({ beforeRun, afterRun, beforeRead } = {}) {
+function d1({ beforeRun, afterRun, beforeRead, beforeBatch, afterBatch } = {}) {
   const db = new DatabaseSync(':memory:');
   db.exec('PRAGMA foreign_keys = ON');
   db.exec(readFileSync(new URL('../migrations/0001_init.sql', import.meta.url), 'utf8'));
+  const execute = (sql, params) => {
+    const before = db.prepare('SELECT total_changes() AS n').get().n;
+    const results = db.prepare(sql).all(...params);
+    return { success: true, results, meta: { changes: db.prepare('SELECT total_changes() AS n').get().n - before } };
+  };
   const statement = (sql, params = []) => ({
     bind: (...values) => statement(sql, values),
     first: async () => { await beforeRead?.(sql, params); return db.prepare(sql).get(...params) ?? null; },
-    all: async () => { await beforeRead?.(sql, params); return { results: db.prepare(sql).all(...params) }; },
+    all: async () => { await beforeRead?.(sql, params); return execute(sql, params); },
     run: async () => {
       await beforeRun?.(sql, params);
-      const result = { success: true, meta: { changes: Number(db.prepare(sql).run(...params).changes) } };
+      const result = execute(sql, params);
       return afterRun ? afterRun(sql, result) : result;
     },
-    runSync: () => db.prepare(sql).run(...params),
+    beforeRun: () => beforeRun?.(sql, params),
+    runSync: () => {
+      const result = execute(sql, params);
+      return afterRun ? afterRun(sql, result) : result;
+    },
   });
   return {
     raw: db,
     prepare: sql => statement(sql),
     async batch(statements) {
+      await beforeBatch?.();
+      // Async hooks run before the transaction. Its statements cannot interleave.
+      for (const statement of statements) await statement.beforeRun();
       db.exec('BEGIN');
-      try { for (const s of statements) s.runSync(); db.exec('COMMIT'); } catch (error) { db.exec('ROLLBACK'); throw error; }
+      let results;
+      try { results = statements.map(s => s.runSync()); db.exec('COMMIT'); } catch (error) { db.exec('ROLLBACK'); throw error; }
+      return afterBatch ? afterBatch(results) : results;
     },
   };
 }
@@ -45,8 +59,10 @@ const post = (path, body, token, extra = {}) => new Request(`https://board.examp
   method: 'POST', body: typeof body === 'string' ? body : JSON.stringify(body),
   headers: { 'content-type': 'application/json', 'cf-connecting-ip': '203.0.113.9', ...(token ? { authorization: `Bearer ${token}` } : {}), ...extra },
 });
+
 const get = (path, token) => new Request(`https://board.example${path}`, { headers: token ? { authorization: `Bearer ${token}` } : {} });
 const row = (date, total, extra = {}) => ({ date, tool: 'claude', model: 'claude-sonnet-4-5', inputTokens: total - 3, outputTokens: 1, cacheReadTokens: 1, cacheWriteTokens: 1, totalTokens: total, estimatedValueMicros: 900, ...extra });
+
 async function join(e, githubToken, deviceId = DEVICE, now = NOW) {
   const response = await handle(post('/v1/join', { githubToken, deviceId }), e, deps, now);
   return { status: response.status, body: await response.json() };
@@ -95,13 +111,256 @@ function streamedPost(path, chunks, { token, headers = {}, cancel, failAt } = {}
 
 async function bodyTarget(path) {
   const e = env();
+  if (path === '/v1/leave/github') return { e, input: { githubToken: 'gho_synthetic_token_alpha_0001' } };
   if (path === '/v1/join') return { e, input: { githubToken: 'gho_synthetic_token_alpha_0001', deviceId: DEVICE } };
   const { token } = (await join(e, 'gho_synthetic_token_alpha_0001')).body;
   return { e, token, input: { deviceId: DEVICE, rows: [row('2026-11-08', 10)] } };
 }
 
-test('join and sync accept valid JSON at the exact byte cap', async () => {
-  for (const path of ['/v1/join', '/v1/sync']) {
+test('a revoked leave cannot delete a different account after user ID reuse', async () => {
+  let armed = false, replacement;
+  const e = env({ beforeBatch: async () => {
+    if (!armed) return;
+    armed = false;
+    assert.equal((await handle(post('/v1/leave', {}, token), e, deps, NOW)).status, 200);
+    replacement = (await join(e, 'gho_synthetic_token_beta_00001')).body.token;
+    assert.equal(e.DB.raw.prepare('SELECT id FROM users').get().id, 1);
+    assert.equal((await sync(e, replacement, [row('2026-11-08', 24)])).status, 200);
+  } });
+  const token = (await join(e, 'gho_synthetic_token_alpha_0001')).body.token;
+  armed = true;
+  const response = await handle(post('/v1/leave', {}, token), e, deps, NOW);
+  assert.equal(response.status, 401);
+  assert.deepEqual(await response.json(), { error: 'not_joined' });
+  assert.equal((await ownRank(e, replacement)).body.entry.totalTokens, 24);
+});
+
+test('a stalled sync cannot write into a different account after user ID and device UUID reuse', async () => {
+  const e = env();
+  const token = (await join(e, 'gho_synthetic_token_alpha_0001')).body.token;
+  let replacement, pulls = 0;
+  const request = new Request('https://board.example/v1/sync', {
+    method: 'POST', duplex: 'half', headers: { authorization: `Bearer ${token}` },
+    body: new ReadableStream({ async pull(controller) {
+      if (pulls++) return controller.close();
+      assert.equal((await handle(post('/v1/leave', {}, token), e, deps, NOW)).status, 200);
+      replacement = (await join(e, 'gho_synthetic_token_beta_00001')).body.token;
+      assert.equal(e.DB.raw.prepare('SELECT id FROM users').get().id, 1);
+      assert.equal((await sync(e, replacement, [row('2026-11-08', 24)])).status, 200);
+      controller.enqueue(encode(JSON.stringify({ deviceId: DEVICE, rows: [row('2026-11-08', DAY_CEILING + 1)] })));
+    } }, { highWaterMark: 0 }),
+  });
+  const response = await handle(request, e, deps, NOW);
+  assert.equal(response.status, 401);
+  assert.deepEqual(await response.json(), { error: 'not_joined' });
+  assert.equal((await ownRank(e, replacement)).body.entry.totalTokens, 24);
+});
+test('joining cannot attach a fresh token to another account after user ID reuse', async () => {
+  let armed = false, replacement;
+  const e = env({ beforeRun: async sql => {
+    if (!armed || !/^INSERT INTO devices/.test(sql)) return;
+    armed = false;
+    assert.equal((await handle(post('/v1/leave', {}, token), e, deps, NOW)).status, 200);
+    replacement = (await join(e, 'gho_synthetic_token_beta_00001')).body.token;
+    assert.equal(e.DB.raw.prepare('SELECT id FROM users WHERE github_id = 202').get().id, 1);
+    assert.equal((await sync(e, replacement, [row('2026-11-08', 24)])).status, 200);
+  } });
+  const token = (await join(e, 'gho_synthetic_token_alpha_0001')).body.token;
+  armed = true;
+  const joined = await join(e, 'gho_synthetic_token_alpha_0001');
+  assert.equal(joined.status, 200);
+  const betaRank = await ownRank(e, replacement);
+  assert.equal(betaRank.status, 200);
+  assert.equal(betaRank.body.entry.login, 'beta');
+  assert.equal((await ownRank(e, joined.body.token)).body.entry, null);
+  assert.equal((await sync(e, joined.body.token, [row('2026-11-08', 10)])).status, 200);
+  assert.equal((await ownRank(e, joined.body.token)).body.entry.login, 'alpha');
+});
+test('fresh GitHub departure works at the device cap without another enrollment', async () => {
+  const e = env(), tokens = [];
+  const earlier = new Date(NOW.getTime() - 3600_000);
+  for (let n = 0; n < 5; n++) {
+    const joined = await join(e, 'gho_synthetic_token_alpha_0001', `3333333${n}-3333-4333-8333-333333333333`, n < 3 ? earlier : NOW);
+    assert.equal(joined.status, 200);
+    tokens.push(joined.body.token);
+  }
+  assert.equal((await join(e, 'gho_synthetic_token_alpha_0001')).body.error, 'too_many_devices');
+  assert.equal((await sync(e, tokens[0], [row('2026-11-08', DAY_CEILING + 1)], '33333330-3333-4333-8333-333333333333')).status, 200);
+  const beta = (await join(e, 'gho_synthetic_token_beta_00001')).body.token;
+  await sync(e, beta, [row('2026-11-08', 24)]);
+  const response = await handle(post('/v1/leave/github', { githubToken: 'gho_synthetic_token_alpha_0001' }), e,
+    { fetchGitHubUser: async () => ({ id: 101, login: 'renamed-alpha' }) }, NOW);
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { left: true, login: 'renamed-alpha', localTokenRevoked: null });
+  for (const token of tokens) assert.equal((await ownRank(e, token)).status, 401);
+  for (const table of ['users', 'devices', 'days', 'flags']) {
+    const column = table === 'users' ? 'github_id' : 'user_id';
+    assert.equal(e.DB.raw.prepare(`SELECT count(*) AS n FROM ${table} WHERE ${column} = ?`).get(table === 'users' ? 101 : 1).n, 0);
+  }
+  assert.equal((await ownRank(e, beta)).body.entry.totalTokens, 24);
+  assert.equal((await join(e, 'gho_synthetic_token_alpha_0001')).status, 429, 'Departure preserves the join allowance.');
+});
+
+test('GitHub departure reports only the exact token witness and preserves accounts with the same device UUID', async () => {
+  for (const mode of ['none', 'same', 'foreign', 'rotated', 'absent']) {
+    const e = env();
+    const alpha = (await join(e, 'gho_synthetic_token_alpha_0001')).body.token;
+    const beta = (await join(e, 'gho_synthetic_token_beta_00001')).body.token;
+    await sync(e, alpha, [row('2026-11-08', 12)]);
+    await sync(e, beta, [row('2026-11-08', 24)]);
+    if (mode === 'rotated') assert.equal((await join(e, 'gho_synthetic_token_alpha_0001')).status, 200);
+    const witness = mode === 'none' ? undefined : mode === 'foreign' ? beta : mode === 'absent' ? 'f'.repeat(64) : alpha;
+    const response = await handle(post('/v1/leave/github', { githubToken: 'gho_synthetic_token_alpha_0001' }, witness), e, deps, NOW);
+    assert.equal(response.status, 200, mode);
+    assert.deepEqual(await response.json(), { left: true, login: 'alpha', localTokenRevoked: mode === 'none' ? null : mode === 'same' });
+    assert.equal((await ownRank(e, alpha)).status, 401);
+    assert.equal((await ownRank(e, beta)).body.entry.totalTokens, 24);
+    const dump = JSON.stringify(['users', 'devices', 'days', 'flags', 'limits'].map(table => e.DB.raw.prepare(`SELECT * FROM ${table}`).all()));
+    for (const secret of [alpha, beta, 'gho_synthetic_token_alpha_0001', '203.0.113.9']) assert.ok(!dump.includes(secret));
+  }
+});
+
+test('GitHub departure uses numeric identity and succeeds when the account is already absent', async () => {
+  const e = env();
+  const alpha = (await join(e, 'gho_synthetic_token_alpha_0001')).body.token;
+  const beta = (await join(e, 'gho_synthetic_token_beta_00001')).body.token;
+  await sync(e, beta, [row('2026-11-08', 24)]);
+  const renamed = { fetchGitHubUser: async () => ({ id: 101, login: 'beta' }) };
+  for (const [witness, expected] of [[alpha, true], [alpha, false], [undefined, null]]) {
+    const response = await handle(post('/v1/leave/github', { githubToken: 'gho_synthetic_token_alpha_0001' }, witness), e, renamed, NOW);
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { left: true, login: 'beta', localTokenRevoked: expected });
+    assert.equal((await ownRank(e, beta)).body.entry.totalTokens, 24);
+  }
+  assert.equal(e.DB.raw.prepare('SELECT count(*) AS n FROM devices').get().n, 1);
+});
+
+test('GitHub departure checks the witness in the deletion snapshot after token rotation', async () => {
+  let armed = false, current;
+  const e = env({ beforeBatch: async () => {
+    if (!armed) return;
+    armed = false;
+    current = (await join(e, 'gho_synthetic_token_alpha_0001')).body.token;
+  } });
+  const alpha = (await join(e, 'gho_synthetic_token_alpha_0001')).body.token;
+  armed = true;
+  const response = await handle(post('/v1/leave/github', { githubToken: 'gho_synthetic_token_alpha_0001' }, alpha), e, deps, NOW);
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { left: true, login: 'alpha', localTokenRevoked: false });
+  assert.equal((await ownRank(e, current)).status, 401);
+});
+
+test('GitHub departure requires fresh valid GitHub authorization despite a current service token', async () => {
+  const e = env();
+  const alpha = (await join(e, 'gho_synthetic_token_alpha_0001')).body.token;
+  for (const input of [{}, { githubToken: 'short' }, { githubToken: 1 }, { githubToken: 'x'.repeat(256) },
+    { githubToken: 'gho_synthetic_token_alpha_0001', deviceId: DEVICE }, { githubToken: 'gho_synthetic_token_alpha_0001', login: 'alpha' }]) {
+    const response = await handle(post('/v1/leave/github', input, alpha), e, deps, NOW);
+    assert.equal(response.status, 400);
+    assert.deepEqual(await response.json(), { error: 'invalid_request' });
+  }
+  const invalid = await handle(post('/v1/leave/github', { githubToken: 'gho_unknown_token_for_nobody' }, alpha), e, deps, NOW);
+  assert.equal(invalid.status, 401);
+  assert.deepEqual(await invalid.json(), { error: 'github_refused' });
+  for (const account of [null, { id: 0, login: 'alpha' }, { id: '101', login: 'alpha' }, { id: Number.MAX_SAFE_INTEGER + 1, login: 'alpha' }, { id: 101, login: '<script>' }]) {
+    const response = await handle(post('/v1/leave/github', { githubToken: 'gho_synthetic_token_alpha_0001' }, alpha), e,
+      { fetchGitHubUser: async () => account }, NOW);
+    assert.equal(response.status, 401);
+    assert.deepEqual(await response.json(), { error: 'github_refused' });
+  }
+  const failed = await handle(post('/v1/leave/github', { githubToken: 'gho_synthetic_token_alpha_0001' }, alpha), e,
+    { fetchGitHubUser: async () => { throw new Error('synthetic secret'); } }, NOW);
+  assert.equal(failed.status, 500);
+  assert.deepEqual(await failed.json(), { error: 'unavailable' });
+  for (const authorization of ['', 'Basic abc', 'Bearer short']) {
+    const response = await handle(post('/v1/leave/github', { githubToken: 'gho_synthetic_token_alpha_0001' }, undefined, { authorization }), e, deps, NOW);
+    assert.equal(response.status, 401);
+  }
+  assert.equal((await ownRank(e, alpha)).status, 200);
+});
+
+test('GitHub departure has separate account and edge limits and does not spend a join allowance', async () => {
+  const e = env(), counts = new Map();
+  e.JOIN_LIMITER.limit = async ({ key }) => {
+    const count = (counts.get(key) ?? 0) + 1;
+    counts.set(key, count);
+    return { success: count <= 3 };
+  };
+  for (let n = 0; n < 3; n++) assert.equal((await join(e, 'gho_synthetic_token_alpha_0001')).status, 200);
+  for (let n = 0; n < 3; n++) assert.equal((await handle(post('/v1/leave/github', { githubToken: 'gho_synthetic_token_alpha_0001' }), e, deps, NOW)).status, 200);
+  assert.equal((await handle(post('/v1/leave/github', { githubToken: 'gho_synthetic_token_alpha_0001' }), e, deps, NOW)).status, 429);
+  assert.equal(e.DB.raw.prepare("SELECT count FROM limits WHERE key = 'join:101'").get().count, 3);
+  assert.equal(e.DB.raw.prepare("SELECT count FROM limits WHERE key = 'leave-github:101'").get().count, 3);
+  const fresh = env();
+  assert.equal((await handle(post('/v1/leave/github', { githubToken: 'gho_synthetic_token_alpha_0001' }), fresh, deps, NOW)).status, 200);
+  for (let n = 0; n < 3; n++) assert.equal((await join(fresh, 'gho_synthetic_token_alpha_0001')).status, 200);
+});
+
+test('concurrent GitHub departures share the account allowance and cross an hour independently of joins', { timeout: 5000 }, async () => {
+  const e = env({ beforeRun: simultaneousWrites(/^INSERT INTO limits/, 8) });
+  const responses = await Promise.all(Array.from({ length: 8 }, () => handle(post('/v1/leave/github', { githubToken: 'gho_synthetic_token_alpha_0001' }), e, deps, NOW)));
+  assert.equal(responses.filter(response => response.status === 200).length, 3);
+  assert.equal(responses.filter(response => response.status === 429).length, 5);
+  assert.equal((await handle(post('/v1/leave/github', { githubToken: 'gho_synthetic_token_alpha_0001' }), e, deps, new Date('2026-11-08T13:00:00Z'))).status, 200);
+  assert.equal((await join(e, 'gho_synthetic_token_alpha_0001')).status, 200);
+});
+
+test('departure batches roll back deletion failures and refuse malformed result arrays', async () => {
+  for (const route of ['/v1/leave', '/v1/leave/github']) {
+    let armed = false;
+    const e = env({ afterRun: (sql, result) => {
+      if (armed && /^DELETE FROM users/.test(sql)) throw new Error('synthetic failure after deletion');
+      return result;
+    } });
+    const alpha = (await join(e, 'gho_synthetic_token_alpha_0001')).body.token;
+    await sync(e, alpha, [row('2026-11-08', 24)]);
+    armed = true;
+    const response = await handle(post(route, { githubToken: 'gho_synthetic_token_alpha_0001' }, alpha), e, deps, NOW);
+    assert.equal(response.status, 500);
+    assert.deepEqual(await response.json(), { error: 'unavailable' });
+    assert.equal((await ownRank(e, alpha)).body.entry.totalTokens, 24);
+  }
+  for (const result of [undefined, [], [{ success: true, results: [] }], [{ success: true, results: [] }, { success: false, results: [] }],
+    [{ success: true, results: [{ local_token_revoked: 2 }] }, { success: true, results: [] }]]) {
+    let armed = false;
+    const e = env({ afterBatch: actual => armed ? result : actual });
+    const alpha = (await join(e, 'gho_synthetic_token_alpha_0001')).body.token;
+    armed = true;
+    const response = await handle(post('/v1/leave/github', { githubToken: 'gho_synthetic_token_alpha_0001' }, alpha), e, deps, NOW);
+    assert.equal(response.status, 500);
+    assert.deepEqual(await response.json(), { error: 'unavailable' });
+  }
+});
+
+test('sync rejects token rotation before its snapshot even for empty rows', async () => {
+  for (const rows of [[], [row('2026-11-08', 12)]]) {
+    let armed = false, current;
+    const e = env({ beforeBatch: async () => {
+      if (!armed) return;
+      armed = false;
+      current = (await join(e, 'gho_synthetic_token_alpha_0001')).body.token;
+    } });
+    const alpha = (await join(e, 'gho_synthetic_token_alpha_0001')).body.token;
+    armed = true;
+    assert.deepEqual(await sync(e, alpha, rows), { status: 401, body: { error: 'not_joined' } });
+    assert.equal((await ownRank(e, current)).body.entry, null);
+  }
+});
+
+test('sync limits follow GitHub identity through departure and reused user IDs', async () => {
+  const e = env();
+  const alpha = (await join(e, 'gho_synthetic_token_alpha_0001')).body.token;
+  for (let n = 0; n < 30; n++) assert.equal((await sync(e, alpha, [])).status, 200);
+  assert.equal((await handle(post('/v1/leave', {}, alpha), e, deps, NOW)).status, 200);
+  const beta = (await join(e, 'gho_synthetic_token_beta_00001')).body.token;
+  assert.equal(e.DB.raw.prepare('SELECT id FROM users').get().id, 1);
+  assert.equal((await sync(e, beta, [])).status, 200);
+  const rejoined = (await join(e, 'gho_synthetic_token_alpha_0001')).body.token;
+  assert.equal((await sync(e, rejoined, [])).status, 429);
+});
+
+test('join, sync, and GitHub departure accept valid JSON at the exact byte cap', async () => {
+  for (const path of ['/v1/join', '/v1/sync', '/v1/leave/github']) {
     for (const declared of [undefined, '1', String(BODY_CAP)]) {
       const { e, token, input } = await bodyTarget(path);
       const bytes = paddedJson(input);
@@ -112,14 +371,15 @@ test('join and sync accept valid JSON at the exact byte cap', async () => {
       assert.equal(response.status, 200, `${path}, declared ${declared}`);
       const result = await response.json();
       if (path === '/v1/join') assert.match(result.token, /^[0-9a-f]{64}$/);
+      else if (path === '/v1/leave/github') assert.deepEqual(result, { left: true, login: 'alpha', localTokenRevoked: null });
       else assert.deepEqual(result, { accepted: 1 });
       assert.deepEqual(stats, { pulls: 3, bytes: BODY_CAP, cancels: 0 });
     }
   }
 });
 
-test('join and sync cancel at one byte over the cap despite missing or smaller headers', async () => {
-  for (const path of ['/v1/join', '/v1/sync']) {
+test('join, sync, and GitHub departure cancel at one byte over the cap despite missing or smaller headers', async () => {
+  for (const path of ['/v1/join', '/v1/sync', '/v1/leave/github']) {
     for (const declared of [undefined, '1', String(BODY_CAP)]) {
       const { e, token, input } = await bodyTarget(path);
       const { request, stats } = streamedPost(path, [paddedJson(input), encode(' '), new Uint8Array(BODY_CAP)], {
@@ -136,7 +396,7 @@ test('join and sync cancel at one byte over the cap despite missing or smaller h
 });
 
 test('overflow cancels an oversized first chunk and stops an ongoing stream', async () => {
-  for (const path of ['/v1/join', '/v1/sync']) {
+  for (const path of ['/v1/join', '/v1/sync', '/v1/leave/github']) {
     for (const chunkSize of [1024 * 1024, 16 * 1024]) {
       const { e, token } = await bodyTarget(path);
       const chunk = new Uint8Array(chunkSize);
@@ -151,7 +411,7 @@ test('overflow cancels an oversized first chunk and stops an ongoing stream', as
 });
 
 test('a declared length above the cap rejects before the first body read', async () => {
-  for (const path of ['/v1/join', '/v1/sync']) {
+  for (const path of ['/v1/join', '/v1/sync', '/v1/leave/github']) {
     const { e, token, input } = await bodyTarget(path);
     const { request, stats } = streamedPost(path, [encode(JSON.stringify(input))], {
       token, headers: { 'content-length': String(BODY_CAP + 1) },
@@ -166,7 +426,7 @@ test('a declared length above the cap rejects before the first body read', async
 test('the body cap counts UTF-8 bytes and permits a split character', async () => {
   const bytes = paddedJson({ unexpected: 'é'.repeat(30_000) });
   const split = bytes.indexOf(0xc3) + 1;
-  for (const path of ['/v1/join', '/v1/sync']) {
+  for (const path of ['/v1/join', '/v1/sync', '/v1/leave/github']) {
     for (const excess of [0, 1]) {
       const { e, token } = await bodyTarget(path);
       const chunks = [bytes.subarray(0, split), bytes.subarray(split)];
@@ -183,7 +443,7 @@ test('the body cap counts UTF-8 bytes and permits a split character', async () =
 
 test('invalid JSON and invalid UTF-8 remain invalid_json errors', async () => {
   const invalid = [null, [], [encode('{')], [new Uint8Array([0xc3])], [encode('{"unexpected":"'), new Uint8Array([0xc3, 0x28]), encode('"}')]];
-  for (const path of ['/v1/join', '/v1/sync']) {
+  for (const path of ['/v1/join', '/v1/sync', '/v1/leave/github']) {
     for (const chunks of invalid) {
       const { e, token } = await bodyTarget(path);
       const request = chunks === null ? post(path, undefined, token) : streamedPost(path, chunks, { token }).request;
@@ -195,7 +455,7 @@ test('invalid JSON and invalid UTF-8 remain invalid_json errors', async () => {
 });
 
 test('stream errors never accept a partial or complete JSON body', async () => {
-  for (const path of ['/v1/join', '/v1/sync']) {
+  for (const path of ['/v1/join', '/v1/sync', '/v1/leave/github']) {
     for (const failAt of [0, 1, 2]) {
       const { e, token, input } = await bodyTarget(path);
       const bytes = encode(JSON.stringify(input));
@@ -210,7 +470,7 @@ test('stream errors never accept a partial or complete JSON body', async () => {
 });
 
 test('non-byte chunks fail closed and cancel the stream', async () => {
-  for (const path of ['/v1/join', '/v1/sync']) {
+  for (const path of ['/v1/join', '/v1/sync', '/v1/leave/github']) {
     const { e, token } = await bodyTarget(path);
     const { request, stats } = streamedPost(path, [new Uint16Array([0x7b, 0x7d]), encode(' ')], { token });
     const response = await handle(request, e, deps, NOW);
@@ -221,7 +481,7 @@ test('non-byte chunks fail closed and cancel the stream', async () => {
 });
 
 test('failed or stalled cancellation cannot delay the overflow response', { timeout: 5000 }, async () => {
-  for (const path of ['/v1/join', '/v1/sync']) {
+  for (const path of ['/v1/join', '/v1/sync', '/v1/leave/github']) {
     for (const cancel of [
       () => { throw new Error('synthetic cancellation failure'); },
       () => Promise.reject(new Error('synthetic cancellation rejection')),
@@ -242,13 +502,15 @@ test('authentication and rate limits still reject before body reads', async () =
   for (const [path, mode, status, error] of [
     ['/v1/join', 'missing-limiter', 503, 'limiter_unavailable'],
     ['/v1/join', 'edge-limit', 429, 'rate_limited'],
+    ['/v1/leave/github', 'missing-limiter', 503, 'limiter_unavailable'],
+    ['/v1/leave/github', 'edge-limit', 429, 'rate_limited'],
     ['/v1/sync', 'missing-token', 401, 'not_joined'],
     ['/v1/sync', 'hour-limit', 429, 'rate_limited'],
   ]) {
     const { e, token, input } = await bodyTarget(path);
     if (mode === 'missing-limiter') delete e.JOIN_LIMITER;
     if (mode === 'edge-limit') e.JOIN_LIMITER.limit = async () => ({ success: false });
-    if (mode === 'hour-limit') e.DB.raw.prepare('INSERT INTO limits VALUES (?1, ?2, ?3)').run('sync:1', '2026-11-08T12', 30);
+    if (mode === 'hour-limit') e.DB.raw.prepare('INSERT INTO limits VALUES (?1, ?2, ?3)').run('sync-github:101', '2026-11-08T12', 30);
     const { request, stats } = streamedPost(path, [encode(JSON.stringify(input))], { token: mode === 'missing-token' ? undefined : token });
     const response = await handle(request, e, deps, NOW);
     assert.equal(response.status, status);
@@ -294,18 +556,18 @@ test('concurrent syncs share the user limit across devices', { timeout: 5000 }, 
     const first = (await join(e, 'gho_synthetic_token_alpha_0001')).body.token;
     const second = (await join(e, 'gho_synthetic_token_alpha_0001', SECOND)).body.token;
     const beta = (await join(e, 'gho_synthetic_token_beta_00001')).body.token;
-    if (initial) e.DB.raw.prepare('INSERT INTO limits VALUES (?1, ?2, ?3)').run('sync:1', '2026-11-08T12', initial);
+    if (initial) e.DB.raw.prepare('INSERT INTO limits VALUES (?1, ?2, ?3)').run('sync-github:101', '2026-11-08T12', initial);
     armed = true;
     const responses = await Promise.all(Array.from({ length: 35 }, (_, n) => sync(e, n % 2 ? first : second, [], n % 2 ? DEVICE : SECOND)));
     assert.equal(responses.filter(x => x.status === 200).length, 30 - initial);
     for (const refused of responses.filter(x => x.status !== 200)) {
       assert.deepEqual(refused, { status: 429, body: { error: 'rate_limited' } });
     }
-    assert.equal(e.DB.raw.prepare('SELECT count FROM limits WHERE key = ?1 AND hour = ?2').get('sync:1', '2026-11-08T12').count, 30);
+    assert.equal(e.DB.raw.prepare('SELECT count FROM limits WHERE key = ?1 AND hour = ?2').get('sync-github:101', '2026-11-08T12').count, 30);
     assert.equal((await sync(e, first, [])).status, 429);
     assert.equal((await sync(e, beta, [])).status, 200);
     assert.equal((await sync(e, first, [], DEVICE, new Date('2026-11-08T13:00:00Z'))).status, 200);
-    assert.equal(e.DB.raw.prepare('SELECT count FROM limits WHERE key = ?1 AND hour = ?2').get('sync:1', '2026-11-08T13').count, 1);
+    assert.equal(e.DB.raw.prepare('SELECT count FROM limits WHERE key = ?1 AND hour = ?2').get('sync-github:101', '2026-11-08T13').count, 1);
   }
 });
 
@@ -784,6 +1046,34 @@ test('leaving removes every row at once, and more than five devices are refused'
   for (let n = 0; n < 5; n++) crowded.DB.raw.prepare('INSERT INTO users (id, github_id, login, created_at) VALUES (1, 101, ?1, ?2) ON CONFLICT DO NOTHING').run('alpha', NOW.toISOString());
   for (let n = 0; n < 5; n++) crowded.DB.raw.prepare('INSERT INTO devices VALUES (1, ?1, ?2, ?3)').run(`4444444${n}-4444-4444-8444-444444444444`, String(n).repeat(64), NOW.toISOString());
   assert.equal((await join(crowded, 'gho_synthetic_token_alpha_0001', '55555555-5555-4555-8555-555555555555')).body.error, 'too_many_devices');
+});
+
+test('scheduled cleanup removes expired counters without traffic and preserves active allowances', async () => {
+  const e = env();
+  const token = (await join(e, 'gho_synthetic_token_alpha_0001')).body.token;
+  await sync(e, token, [row('2026-11-08', 24)]);
+  await handle(post('/v1/leave', {}, token), e, deps, NOW);
+  e.DB.raw.prepare('INSERT INTO limits VALUES (?1, ?2, ?3)').run('legacy:1', '2026-10-01T00', 1);
+  await worker.scheduled({ scheduledTime: new Date('2026-11-08T14:00:00Z').getTime() }, e);
+  assert.deepEqual(e.DB.raw.prepare('SELECT key, count FROM limits ORDER BY key').all().map(x => ({ ...x })), [
+    { key: 'join:101', count: 1 }, { key: 'sync-github:101', count: 1 },
+  ]);
+  await worker.scheduled({ scheduledTime: new Date('2026-11-08T11:00:00Z').getTime() }, e);
+  assert.equal(e.DB.raw.prepare('SELECT count(*) AS n FROM limits').get().n, 2);
+  await worker.scheduled({ scheduledTime: new Date('2026-11-08T15:00:00Z').getTime() }, e);
+  assert.equal(e.DB.raw.prepare('SELECT count(*) AS n FROM limits').get().n, 0);
+  assert.match(readFileSync(new URL('../wrangler.toml', import.meta.url), 'utf8'), /\[triggers\]\s*crons = \["0 \* \* \* \*"\]/);
+});
+
+test('scheduled cleanup reports database failures and rejects an invalid clock before a write', async () => {
+  for (const result of [null, { success: false }, { success: true }, { success: true, meta: { changes: -1 } }]) {
+    let writes = 0;
+    const e = env({ beforeRun: () => { writes++; if (result === null) throw new Error('synthetic failure'); }, afterRun: () => result });
+    await assert.rejects(() => worker.scheduled({ scheduledTime: NaN }, e));
+    assert.equal(writes, 0);
+    await assert.rejects(() => worker.scheduled({ scheduledTime: NOW.getTime() }, e));
+    assert.equal(writes, 1);
+  }
 });
 
 test('the public page escapes every value and allows no script', async () => {

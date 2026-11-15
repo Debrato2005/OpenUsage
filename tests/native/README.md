@@ -525,6 +525,13 @@ Traversal, links, and extra endpoints refuse before credential access.
 Ordinary builds contain neither this endpoint override nor the fixture-store entry point.
 The harness removes its private fixture and retains result metadata.
 
+The journey also checks fresh departure without an available credential store.
+A foreign account with the same display login preserves the saved enrollment.
+Confirmed remote departure with failed cleanup reports a partial result.
+Explicit local forgetting clears active and pending records without a network request.
+A pending record remains after recovery because it supplies no token witness.
+The ordinary-build check refuses online recovery before requests or database access.
+
 ## Native setup
 
 Build the app with native-test after the renderer build.

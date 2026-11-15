@@ -7,7 +7,8 @@ use serde::Serialize;
 use std::collections::BTreeSet;
 
 mod online;
-const HELP: &str = "Usage: openusage board <join|sync|leave> [options]
+mod recovery;
+const HELP: &str = "Usage: openusage board <join|sync|leave|forget> [options]
 
   join [--reconnect] [--yes] [--json]
       Join with GitHub device authorization. Reconnect reuses the saved device ID.
@@ -18,8 +19,12 @@ const HELP: &str = "Usage: openusage board <join|sync|leave> [options]
   sync [--days N] [--yes] [--json]
       Upload saved local log totals for the enrolled device. Default: 30 days.
       Days range from 1 to 366 in each saved day zone. No scan runs.
-  leave [--yes] [--json]
+  leave [--reauthorize] [--yes] [--json]
       Remove the account, all its devices, and all its public leaderboard data.
+      Reauthorize uses GitHub when a local credential is lost or no longer accepted.
+      The GitHub account you choose is the account that leaves.
+  forget [--yes] [--json]
+      Clear only this device's local enrollment. Public data is unchanged.
 
 Options:
   --yes          Consent without a prompt. GitHub authorization still requires a person.
@@ -77,7 +82,8 @@ pub fn command(
     if args.iter().any(|a| a == "--help" || a == "-h") {
         return Ok(HELP.into());
     }
-    let Some(action @ ("join" | "sync" | "leave")) = args.first().map(String::as_str) else {
+    let Some(action @ ("join" | "sync" | "leave" | "forget")) = args.first().map(String::as_str)
+    else {
         return Err(CliError::usage("Use 'openusage board --help'."));
     };
     let mut dry_run = false;
@@ -86,6 +92,7 @@ pub fn command(
     let mut json = false;
     let mut yes = false;
     let mut reconnect = false;
+    let mut reauthorize = false;
     let mut options = args[1..].iter();
     while let Some(option) = options.next() {
         match option.as_str() {
@@ -93,6 +100,7 @@ pub fn command(
             "--json" if !json => json = true,
             "--yes" if !yes => yes = true,
             "--reconnect" if action == "join" && !reconnect => reconnect = true,
+            "--reauthorize" if action == "leave" && !reauthorize => reauthorize = true,
             "--device-id" if action == "sync" && device_id.is_none() => {
                 device_id = Some(options.next().filter(|id| uuid(id)).ok_or_else(|| {
                     CliError::usage("--device-id needs a lowercase random version 4 UUID.")
@@ -130,10 +138,24 @@ pub fn command(
         "sync" => online::Command::Sync {
             days: days.unwrap_or(30),
         },
+        "leave" if reauthorize => online::Command::RecoverLeave,
         "leave" => online::Command::Leave,
+        "forget" => online::Command::Forget,
         _ => unreachable!(),
     };
     online::command(command, yes, json, env, input, prompt)
+}
+
+pub(super) fn acquire_guard() -> Result<openusage_keys::BoardGuard, openusage_keys::BoardGuardError>
+{
+    #[cfg(all(feature = "native-test", target_os = "linux"))]
+    {
+        let root = openusage_keys::private_keyring_fixture()
+            .map_err(|_| openusage_keys::BoardGuardError::UnsafePath)?;
+        openusage_keys::BoardGuard::acquire(&root.join("leaderboard"))
+    }
+    #[cfg(not(all(feature = "native-test", target_os = "linux")))]
+    openusage_keys::BoardGuard::for_current_user()
 }
 
 fn upload(env: &Env, device_id: &str, days: i32) -> Result<String, CliError> {

@@ -475,3 +475,32 @@ fn unconfigured_online_commands_do_not_read_credentials_or_prompt() {
         assert!(prompt.is_empty());
     }
 }
+
+#[test]
+fn recovery_flags_are_explicit_and_cannot_apply_to_other_commands() {
+    let env = Env::for_tests();
+    for args in [
+        vec!["join", "--reauthorize"],
+        vec!["forget", "--reauthorize"],
+        vec!["leave", "--reauthorize", "--reauthorize"],
+        vec!["forget", "--days", "1"],
+    ] {
+        let mut all = vec!["board".into()];
+        all.extend(args.into_iter().map(str::to_owned));
+        assert_eq!(
+            crate::run(&all, &env, &mut std::io::empty(), &mut std::io::sink())
+                .0
+                .unwrap_err()
+                .exit,
+            2
+        );
+    }
+    let args = ["board", "leave", "--reauthorize", "--yes", "--json"].map(str::to_owned);
+    assert_eq!(
+        crate::run(&args, &env, &mut std::io::empty(), &mut std::io::sink())
+            .0
+            .unwrap_err()
+            .code,
+        "board_unconfigured"
+    );
+}
