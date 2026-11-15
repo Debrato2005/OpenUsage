@@ -1,20 +1,13 @@
 //! Explicit public departure and local forgetting have separate effects.
 use super::online::{authorize, consent, failure, remote_error, session_error};
 use crate::{CliError, Env, SCHEMA_VERSION};
-use openusage_board::{BoardClient, Enrollment, SessionError};
-use openusage_keys::{BoardCredential, BoardGuard, BoardGuardError, BoardVault, VaultError};
+use openusage_board::{
+    BoardClient, DepartureError, DepartureSession, LocalCredentialState as CredentialState,
+    SessionError,
+};
+use openusage_keys::{BoardGuard, BoardGuardError, BoardVault};
 use serde::Serialize;
 use std::io::{BufRead, Write};
-use zeroize::Zeroizing;
-
-#[derive(Clone, Copy, Serialize)]
-#[serde(rename_all = "snake_case")]
-enum CredentialState {
-    Removed,
-    NotPresent,
-    Retained,
-    Unavailable,
-}
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -80,60 +73,8 @@ fn guard(env: &Env) -> Result<BoardGuard, CliError> {
     })
 }
 
-struct Active {
-    vault: BoardVault,
-    expected: BoardCredential,
-    enrollment: Enrollment,
-}
-enum Local {
-    Active(Box<Active>),
-    Absent,
-    Unverified,
-    Unavailable,
-}
-impl Local {
-    fn load(origin: &str) -> Self {
-        let vault = match BoardVault::new() {
-            Ok(vault) => vault,
-            Err(_) => return Self::Unavailable,
-        };
-        let expected = match vault.load() {
-            Ok(Some(record)) => record,
-            Ok(None) => return Self::Absent,
-            Err(VaultError::InvalidKey) => return Self::Unverified,
-            Err(VaultError::Unavailable) => return Self::Unavailable,
-        };
-        match Enrollment::from_secret(origin, Zeroizing::new(expected.expose().to_vec())) {
-            Ok(enrollment) => Self::Active(Box::new(Active {
-                vault,
-                expected,
-                enrollment,
-            })),
-            Err(_) => Self::Unverified,
-        }
-    }
-    fn token(&self) -> Option<&openusage_board::ServiceToken> {
-        match self {
-            Self::Active(active) => Some(active.enrollment.token()),
-            _ => None,
-        }
-    }
-    fn finish(&self, matched: Option<bool>) -> Result<CredentialState, CliError> {
-        match self {
-            Self::Active(active) if matched == Some(true) => {
-                active.vault.remove(&active.expected).map_err(|_| failure("board_partial", 18,
-                    "Public departure was confirmed, but local credential cleanup failed. Restore store access, then run board forget."))?;
-                Ok(CredentialState::Removed)
-            }
-            Self::Active(_) | Self::Unverified => Ok(CredentialState::Retained),
-            Self::Absent => Ok(CredentialState::NotPresent),
-            Self::Unavailable => Ok(CredentialState::Unavailable),
-        }
-    }
-}
-
 pub(super) fn leave(
-    client: BoardClient,
+    client: &BoardClient,
     yes: bool,
     json: bool,
     env: &Env,
@@ -150,14 +91,17 @@ pub(super) fn leave(
         input,
         prompt,
     )?;
-    let _guard = guard(env)?;
-    let local = Local::load(origin);
-    let github = authorize(&client, prompt)?;
-    let departure = client
-        .leave_with_github(github, local.token())
-        .map_err(remote_error)?;
-    let state = local.finish(departure.local_token_revoked())?;
-    output(Finished::Departed(departure.login()), state, json)
+    let session = DepartureSession::from_guard(origin, guard(env)?).map_err(session_error)?;
+    let github = authorize(client, prompt)?;
+    let departure = session.leave(client, github).map_err(|error| match error {
+        DepartureError::Remote(error) => remote_error(error),
+        DepartureError::CleanupFailed => failure("board_partial", 18, error.to_string()),
+    })?;
+    output(
+        Finished::Departed(&departure.login),
+        departure.credential_state,
+        json,
+    )
 }
 
 pub(super) fn forget(

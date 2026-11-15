@@ -1,6 +1,12 @@
 fn main() {
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
         tauri_build::AppManifest::new().commands(&[
+            "load_leaderboard",
+            "refresh_leaderboard",
+            "confirm_leaderboard_sync",
+            "begin_leaderboard",
+            "cancel_leaderboard",
+            "open_leaderboard_login_page",
             "list_subscriptions",
             "create_subscription",
             "update_subscription",

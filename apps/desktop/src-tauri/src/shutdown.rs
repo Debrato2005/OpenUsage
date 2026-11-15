@@ -31,11 +31,16 @@ impl Shutdown {
             // No workspace or GUI lock is held while any worker is joined.
             service.4.request_stop();
             service.3.request_stop();
+            service.5.request_stop();
             service.1.close();
             let provider = service.2.close();
             let scanner = service.4.close();
             let monitoring = service.3.close();
-            let failed = provider.is_err() || scanner.is_err() || monitoring.is_err();
+            let leaderboard = service.5.close();
+            let failed = provider.is_err()
+                || scanner.is_err()
+                || monitoring.is_err()
+                || leaderboard.is_err();
             if failed {
                 // No provider frames, credentials, process arguments, or paths in diagnostics.
                 eprintln!("OpenUsage could not complete owned worker cleanup.");

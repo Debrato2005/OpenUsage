@@ -2,7 +2,7 @@
 
 # Implementation status
 
-Updated: November 15, 2026. This page holds the current state only. [History](implementation-history.md) holds past work, and [traceability](acceptance-traceability.md) holds exact evidence.
+Updated: November 16, 2026. This page holds the current state only. [History](implementation-history.md) holds past work, and [traceability](acceptance-traceability.md) holds exact evidence.
 
 OpenUsage is in development against [SRS baseline 3.1](SRS.md), authorized on November 13, 2026. There is no release. [Not built](#not-built) lists what is missing, and [Current assignment](#current-assignment) gives the launch state. The new website and private-sync requirements do not establish implemented support.
 
@@ -34,11 +34,11 @@ Linux input. Ordinary count defects, strict compatibility limits, legacy
 producer qualification, and saved-session migration remain open. Production pins
 and enabled tools stay unchanged.
 
-Hosted CI for `4ac91b0` passed on November 15, 2026, in
-[run 43724743200](https://github.com/Debrato2005/OpenUsage/actions/runs/43724743200).
-Both Linux checks and the renderer job completed successfully.
-This qualifies that commit's hosted scope.
-The current departure-recovery change has separate local evidence below.
+Hosted CI for departure commit `b29df65` passes both jobs in
+[run 43730532947](https://github.com/Debrato2005/OpenUsage/actions/runs/43730532947).
+The later shared-upload run fails its standalone native-oracle lock check.
+The [Settings record](reviews/2026-11-15-settings-leaderboard.md) owns that correction and its passing local locked test.
+Replacement hosted acceptance remains pending.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -61,7 +61,6 @@ New in baseline 3.0:
 - Source adapters (5A), audit (5B), and duplicates (5D).
 - Customizable dashboard, Start at login, and graphs: OU-UI-026, OU-UI-027, OU-MON-017.
 - The other 16 tools that the pinned `ccusage` reads (L-1f, AT-65), and session quota movement (L-1g4, OU-LOG-018).
-- Settings leaderboard integration (L-5b): OU-BOARD-001, OU-BOARD-002, OU-BOARD-005, OU-BOARD-006. The Linux CLI has the local evidence below.
 - Moving a password workspace's key to the OS key store (S-03c).
 
 Kept from baseline 2.0:
@@ -72,6 +71,8 @@ Kept from baseline 2.0:
 - Wake handling: OU-PROC-013, OU-MON-013.
 
 ## Partial
+
+- Settings leaderboard integration (L-5b), November 15, 2026: explicit join, reconnect, retained upload review, global departure, fresh GitHub departure, and local forgetting work in the private Linux app. Eleven native journey groups pass. The separate deletion journey, 508 full renderer cases, 591 workspace tests, and both Clippy modes pass. The [record](reviews/2026-11-15-settings-leaderboard.md) owns ordering, corrected blockers, checks, and remaining gates. Live GitHub, hosted acceptance, and other platforms remain open.
 
 - Departure recovery (L-5a6), November 15, 2026: explicit fresh GitHub authorization removes public account data without another enrollment slot. The exact token witness preserves unrelated and unverified local enrollment. Private Linux CLI recovery and local forgetting pass with synthetic HTTPS, GNOME Secret Service, and SQLCipher. The [record](reviews/2026-11-15-departure-recovery.md) owns checks and limits. Hosted D1, schedule, live GitHub, Settings, and other platforms remain open.
 
@@ -200,16 +201,20 @@ separate from document completion. The [performance report](performance-report.m
 
 The owner resumed autonomous implementation on November 15, 2026. Work continues through verified local commits and periodic pushes. Each push checks the GitHub login and includes only the reviewed branch. No release, deployment, or pull request is authorized. The latest instruction replaces the November 13 stop condition. Baseline 3.1 product scope stays unchanged.
 
-The current pass extracts the saved-data upload builder for Settings under L-5b0.
-The shared Rust storage method supports desktop and CLI connections with one owned snapshot.
-The CLI keeps its exact body and stable failures.
-The [review](reviews/2026-11-15-shared-leaderboard-upload.md) owns executed evidence and limits.
-Settings authorization, sync, departure, and recovery remain the next bounded assignment under L-5b.
-Secrets must stay in Rust, and every operation must use the shared credential guard.
-Own-rank client access and connection suggestions remain under S-23.
-Scanner activation keeps its separate qualification gates.
+Settings leaderboard integration is complete within the private synthetic Linux scope.
+The [record](reviews/2026-11-15-settings-leaderboard.md) owns acceptance and limits.
+All 508 renderer cases pass in Chromium and WebKit.
+The Rust workspace passes 591 tests, with two ignored tests.
+Default and native-feature Clippy pass.
+The final compiled native journey passes all eleven groups after the cancellation style correction.
+The ordinary build ignores native endpoint settings and makes no service request.
+
+The next bounded assignment adds own-rank client access under S-23.
+It must preserve exact values, missing estimates, the shared guard, and the existing matte layout.
+Local synthetic acceptance precedes hosted qualification.
+Connection suggestions and scanner activation keep their separate gates.
 Live service configuration and deployment remain under owner control.
-The OpenUsage Claude references continue to guide the existing matte layout and first-release priorities.
+The OpenUsage Claude references continue to guide the first-release priorities.
 
 The repository inventory covers 941 tracked files. Graphify and source review cover the major application, storage, provider, CLI, service, and test boundaries. This is an inventory and scoped review. It does not establish a complete semantic audit. Real-provider, real-machine, and production scanner gates remain open.
 

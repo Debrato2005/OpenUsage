@@ -75,7 +75,7 @@ Adopted November 7, 2026 (SRS Section 0.6, SC-016). The owner wants a working pr
 | L-2 | CLI with `openusage status`, `statusline` and `report` | S-14 | Done |
 | L-3 | Sharing: Wrapped summary, heatmap PNG and SVG, a README badge, and personal records | S-19 | Done |
 | L-4 | Leaderboard service on Cloudflare Workers and D1, per the [decision](decisions/2026-11-07-leaderboard-service.md) | S-21 | Done locally. Deployment waits for the owner |
-| L-5 | Leaderboard client: join with GitHub, dry run, sync, leave | S-22 | CLI complete within synthetic Linux scope. Settings and hosted setup remain |
+| L-5 | Leaderboard client: join with GitHub, dry run, sync, leave | S-22 | CLI and Settings complete within synthetic Linux scope. Hosted setup remains |
 | L-6 | Packaging: Linux packages, Windows and macOS preview builds in CI, the npm package | S-18, part of S-15 | L-6a and L-6b built. Preview builds and platform pins remain open under L-6c |
 | L-7 | Release documents and the launch checklist | S-20 | L-7a through L-7d built. Remaining documents and evidence are open under L-7e |
 | G-L | Owner: claim the npm name (OQ-2), create the Cloudflare account and GitHub OAuth App, run the real-account tests, publish | G-1, G-2, G-3 | Not started |
@@ -215,7 +215,7 @@ Updated November 15, 2026. Each completed item has one local commit and scoped e
 - [x] L-5a5: clear local leaderboard credentials during local deletion under [SC-029](srs-clarifications.md#sc-029-local-deletion-and-public-enrollment). Private Linux app and vault journeys pass active, pending, malformed, duplicate, busy, unavailable, and resumed cases. Full renderer/workspace checks and native-feature Clippy pass. Public departure remains separate. The [review](reviews/2026-11-15-local-enrollment-erasure.md) owns the password-workspace requirement and limits.
 - [x] L-5a6: explicit fresh GitHub departure works without another enrollment slot and preserves unrelated local enrollment. Separate local forgetting makes no request. Forty-eight service tests and the private native Linux journey pass. The [record](reviews/2026-11-15-departure-recovery.md) owns transactional account-isolation corrections and remaining hosted, schedule, live-account, and other-platform gates.
 - [x] L-5b0: shared saved-data upload projection in Rust storage. CLI preview and real sync use its owned snapshot. Read-write and query-only connections return the same bytes and preserve one generation across a concurrent commit. Settings UI and service callers remain under L-5b.
-- [ ] L-5b: join, sync and leave in Settings.
+- [x] L-5b: explicit Settings join, reconnect, retained exact upload, global leave, fresh GitHub departure, and local forgetting. The [record](reviews/2026-11-15-settings-leaderboard.md) covers synthetic native Linux, full renderer/workspace checks, both Clippy modes, and ordinary-build refusal. Hosted setup and other platforms remain open.
 
 **L-6 Packaging**
 
@@ -837,7 +837,7 @@ L-7e stays open for its other documents and acceptance evidence.
 | S-20 | Release documents | S-18 | L-7a through L-7d built. See L-7e for the remaining documents and evidence |
 | G-3 | Owner: real machines and first release | S-20, OQ-2 | Not started |
 | S-21 | Leaderboard service | G-3 | Built as L-4. Deployment waits for the owner |
-| S-22 | Leaderboard client | S-21 | CLI passes locally. Settings and hosted setup remain (L-5) |
+| S-22 | Leaderboard client | S-21 | CLI and Settings pass locally. Hosted setup remains (L-5) |
 
 ## Foundation
 

@@ -4,6 +4,15 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+
+## Shared upload before Settings, November 15, 2026
+
+L-5b0 moved the saved-data upload builder into Rust storage.
+Read-write desktop connections and query-only CLI connections use one owned snapshot.
+CLI output bytes and stable failures remain unchanged.
+The [record](reviews/2026-11-15-shared-leaderboard-upload.md) owns local acceptance.
+Settings authorization, sync, departure, and recovery were the next bounded assignment.
+
 ## Hosted activity failure before R-9 acceptance
 
 The held-final-account activity test failed on `f4e492b`. Its hosted output

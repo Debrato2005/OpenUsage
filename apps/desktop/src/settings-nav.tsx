@@ -1,6 +1,7 @@
 export const settingsSections = {
   general: { id: 'settings-general', title: 'General' },
   accounts: { id: 'settings-accounts', title: 'Accounts and plans' },
+  leaderboard: { id: 'settings-leaderboard', title: 'Leaderboard' },
   notifications: { id: 'settings-notifications', title: 'Alerts' },
   data: { id: 'settings-data', title: 'Backups and exports' },
   connection: { id: 'settings-connection', title: 'Connection' },

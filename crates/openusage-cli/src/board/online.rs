@@ -1,7 +1,5 @@
 use crate::{CliError, Env, SCHEMA_VERSION};
-use openusage_board::{
-    ApprovedSyncBody, BoardClient, EnrollmentSession, PollOutcome, SessionError,
-};
+use openusage_board::{ApprovedSyncBody, BoardClient, ClientContext, PollOutcome, SessionError};
 use serde::Serialize;
 use std::{
     io::{BufRead, Read, Write},
@@ -150,13 +148,14 @@ pub(super) fn command(
     if matches!(command, Command::Forget) {
         return super::recovery::forget(yes, json, env, input, prompt);
     }
-    let (client, fixture_directory) = configured_client().map_err(remote_error)?;
+    let context = ClientContext::from_current_build().map_err(remote_error)?;
+    let client = context.client();
     if matches!(command, Command::RecoverLeave) {
         return super::recovery::leave(client, yes, json, env, input, prompt);
     }
-    let origin = client
-        .service_origin()
-        .ok_or_else(|| remote_error(openusage_board::Error::Unconfigured))?;
+    if !client.is_configured() {
+        return Err(remote_error(openusage_board::Error::Unconfigured));
+    }
     if matches!(command, Command::Join { .. }) {
         consent(
             "Join the Self-reported leaderboard with GitHub. Sync shares local dates, tools, models, token counts, estimates, and a random device ID. Reconnect keeps the previous account's public data until that account leaves.",
@@ -178,11 +177,11 @@ pub(super) fn command(
             "Sync requires consent. Supply --yes for scripts.",
         ));
     }
-    let mut session = open_session(origin, fixture_directory.as_deref()).map_err(session_error)?;
+    let mut session = context.open_session().map_err(session_error)?;
     match command {
         Command::Join { reconnect } => {
             let id = session.prepare_join(reconnect).map_err(session_error)?;
-            let token = authorize(&client, prompt)?;
+            let token = authorize(client, prompt)?;
             let joined = client.join(token, &id).map_err(remote_error)?;
             session.finish_join(joined).map_err(session_error)?;
             outcome(command, "joined", Some(id.as_str()), None, json)
@@ -275,45 +274,6 @@ pub(super) fn authorize(
     };
     Ok(token)
 }
-fn configured_client() -> Result<(BoardClient, Option<std::path::PathBuf>), openusage_board::Error>
-{
-    #[cfg(all(feature = "native-test", target_os = "linux"))]
-    if let Some(origin) = std::env::var_os("OPENUSAGE_NATIVE_BOARD_ORIGIN") {
-        return native_client(origin);
-    }
-    BoardClient::from_build_config().map(|client| (client, None))
-}
-fn open_session(
-    origin: &str,
-    fixture_directory: Option<&std::path::Path>,
-) -> Result<EnrollmentSession, SessionError> {
-    #[cfg(all(feature = "native-test", target_os = "linux"))]
-    if let Some(directory) = fixture_directory {
-        return EnrollmentSession::open_fixture(origin, directory);
-    }
-    let _ = fixture_directory;
-    EnrollmentSession::open(origin)
-}
-
-#[cfg(all(feature = "native-test", target_os = "linux"))]
-fn native_client(
-    origin: std::ffi::OsString,
-) -> Result<(BoardClient, Option<std::path::PathBuf>), openusage_board::Error> {
-    let invalid = || openusage_board::Error::InvalidConfiguration;
-    let root = openusage_keys::private_keyring_fixture().map_err(|_| invalid())?;
-    let certificate_path = root.join("board-ca.pem");
-    if certificate_path.canonicalize().map_err(|_| invalid())? != certificate_path
-        || !std::fs::symlink_metadata(&certificate_path)
-            .map_err(|_| invalid())?
-            .is_file()
-    {
-        return Err(invalid());
-    }
-    let certificate = std::fs::read(certificate_path).map_err(|_| invalid())?;
-    BoardClient::for_native_fixture(origin.to_str().ok_or_else(invalid)?, &certificate)
-        .map(|client| (client, Some(root.join("leaderboard"))))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

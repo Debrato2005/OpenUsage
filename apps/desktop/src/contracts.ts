@@ -47,6 +47,29 @@ export interface Bootstrap {
   storageIssue: StorageIssue | null;
 }
 
+export type LeaderboardKind = 'join' | 'reconnect' | 'sync' | 'leave' | 'recover_leave' | 'forget';
+export const leaderboardIssues = ['unavailable','invalid_arguments','workspace_locked','busy','unsupported','stopped','unconfigured','consent_required','stale_operation','credential_unavailable','invalid_credential','already_joined','not_joined','save_failed','authorization_denied','authorization_expired','remote_unavailable','remote_refused','rate_limited','too_many_devices','incomplete_data','invalid_data','too_large','preview_expired','local_cleanup_failed'] as const;
+export type LeaderboardIssue = typeof leaderboardIssues[number];
+export type LeaderboardCredentials = 'removed' | 'not_present' | 'retained' | 'unavailable';
+export type LeaderboardOutcome = { state: 'joined'; login: string } | { state: 'cancelled' } | { state: 'forgotten' }
+  | { state: 'synced'; accepted: string }
+  | { state: 'left'; login: string | null; credentials: LeaderboardCredentials }
+  | { state: 'failed'; issue: LeaderboardIssue; remoteEffect: 'none' | 'confirmed' | 'unknown' };
+export type LeaderboardOperation = { id: string; kind: LeaderboardKind } & (
+  { phase: 'preparing' | 'dispatching' | 'settling' | 'cancelling' }
+  | { phase: 'authorizing'; userCode: string; verificationUri: 'https://github.com/login/device'; expiresInSeconds: number }
+  | { phase: 'preview'; body: string }
+  | { phase: 'finished'; outcome: LeaderboardOutcome }
+);
+export interface LeaderboardView {
+  configured: boolean;
+  enrollment: 'not_checked' | 'not_joined' | 'pending' | 'joined' | 'invalid' | 'unavailable';
+  login: string | null;
+  busy: boolean;
+  operation: LeaderboardOperation | null;
+  statusIssue?: LeaderboardIssue;
+}
+
 export interface BackupReceipt {
   fileName: string;
   directory: string;
@@ -544,6 +567,12 @@ function isSubscriptionDeletion(value: unknown): boolean {
 }
 
 interface Commands {
+  load_leaderboard: { args: undefined; result: LeaderboardView };
+  refresh_leaderboard: { args: undefined; result: LeaderboardView };
+  confirm_leaderboard_sync: { args: { operationId: string; confirmed: true }; result: LeaderboardView };
+  begin_leaderboard: { args: { kind: LeaderboardKind; days?: number; confirmed: true }; result: LeaderboardView };
+  cancel_leaderboard: { args: { operationId: string }; result: LeaderboardView };
+  open_leaderboard_login_page: { args: { operationId: string }; result: null };
   list_subscriptions: { args: { profileId: string; afterId: string | null }; result: SubscriptionsView };
   create_subscription: { args: { profileId: string; input: SubscriptionInput }; result: SubscriptionRecord };
   update_subscription: { args: { profileId: string; subscriptionId: string; expectedRevision: string; input: SubscriptionInput }; result: SubscriptionRecord };
@@ -645,8 +674,13 @@ export async function invoke<K extends keyof Commands>(
   const core = window.__TAURI__?.core;
   if (!core) throw new DesktopUnavailable('Open the installed OpenUsage desktop application.');
   const response = await core.invoke<unknown>(command, args[0]);
-  const selected = args[0] as { profileId?: string; subscriptionId?: string; history?: ProfileHistoryChoice } | undefined;
-  const valid = command === 'prepare_profile_removal' ? isProfileRemovalPreview(response) && response.profileId === selected?.profileId && response.history === selected?.history
+  const selected = args[0] as { profileId?: string; subscriptionId?: string; history?: ProfileHistoryChoice; kind?: LeaderboardKind; operationId?: string } | undefined;
+  const valid = command === 'load_leaderboard' || command === 'refresh_leaderboard' || command === 'begin_leaderboard' || command === 'cancel_leaderboard' || command === 'confirm_leaderboard_sync' ? isLeaderboardView(response)
+      && (command !== 'begin_leaderboard' || response.operation?.kind === selected?.kind)
+      && (command !== 'cancel_leaderboard' && command !== 'confirm_leaderboard_sync' || response.operation?.id === selected?.operationId)
+      && (command !== 'confirm_leaderboard_sync' || response.operation?.kind === 'sync')
+    : command === 'open_leaderboard_login_page' ? response === null
+    : command === 'prepare_profile_removal' ? isProfileRemovalPreview(response) && response.profileId === selected?.profileId && response.history === selected?.history
     : command === 'apply_profile_removal' ? isProfileView(response) && (selected?.history === 'archive'
       ? response.profiles.some(profile => profile.id === selected.profileId && profile.archived)
       : selected?.history === 'delete' && response.profiles.every(profile => profile.id !== selected.profileId))
@@ -713,6 +747,66 @@ export async function invoke<K extends keyof Commands>(
     throw new Error('The desktop response is incompatible. Restart OpenUsage after updating the application.');
   }
   return response as Commands[K]['result'];
+}
+
+function isLeaderboardPreview(body: unknown): body is string {
+  if (typeof body !== 'string' || new TextEncoder().encode(body).length > 65536) return false;
+  let value: unknown;
+  try { value = JSON.parse(body); } catch { return false; }
+  if (!exactKeys(value, ['deviceId', 'rows']) || !isUuid(value.deviceId)
+    || !Array.isArray(value.rows) || value.rows.length > 400 || JSON.stringify(value) !== body) return false;
+  const count = (n: unknown) => Number.isSafeInteger(n) && Number(n) >= 0 && Number(n) <= 1000000000000;
+  const seen = new Set<string>();
+  return value.rows.every(row => {
+    if (!exactKeys(row, ['date','tool','model','inputTokens','outputTokens','cacheReadTokens','cacheWriteTokens','totalTokens','estimatedValueMicros'])
+      || !isProviderDate(row.date) || !allTools.includes(row.tool as LocalLogTool)
+      || typeof row.model !== 'string' || !/^[a-z0-9.:-]{1,64}$/.test(row.model)
+      || ![row.inputTokens,row.outputTokens,row.cacheReadTokens,row.cacheWriteTokens,row.totalTokens].every(count)
+      || !(row.estimatedValueMicros === null || count(row.estimatedValueMicros))) return false;
+    const key = `${row.date}\0${row.tool}\0${row.model}`;
+    if (seen.has(key)) return false;
+    seen.add(key); return true;
+  });
+}
+function isLeaderboardView(value: unknown): value is LeaderboardView {
+  const commonKeys = ['configured', 'enrollment', 'login', 'busy', 'operation'];
+  if (!exactKeys(value, commonKeys) && !(exactKeys(value, [...commonKeys, 'statusIssue']) && (leaderboardIssues as readonly unknown[]).includes(value.statusIssue))) return false;
+  if (typeof value.configured !== 'boolean' || typeof value.busy !== 'boolean'
+    || !['not_checked', 'not_joined', 'pending', 'joined', 'invalid', 'unavailable'].includes(value.enrollment as string)) return false;
+  const login = (s: unknown): s is string => typeof s === 'string' && /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/.test(s);
+  if (value.enrollment === 'joined' ? !value.configured || !login(value.login) : value.login !== null) return false;
+  if (!value.configured && !['not_checked', 'not_joined', 'unavailable'].includes(value.enrollment as string)) return false;
+  if (value.operation === null) return !value.busy;
+  const op = value.operation;
+  if (!op || typeof op !== 'object' || Array.isArray(op)) return false;
+  const operation = op as Record<string, unknown>;
+  if (!isUuid(operation.id) || !['join','reconnect','sync','leave','recover_leave','forget'].includes(operation.kind as string)) return false;
+  const common = ['id', 'kind', 'phase'];
+  if (['preparing', 'dispatching', 'settling', 'cancelling'].includes(operation.phase as string)) return exactKeys(op, common) && value.busy;
+  if (operation.phase === 'authorizing') return value.busy && value.configured
+    && ['join','reconnect','recover_leave'].includes(operation.kind as string)
+    && exactKeys(op, [...common, 'userCode', 'verificationUri', 'expiresInSeconds'])
+    && typeof operation.userCode === 'string' && /^[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(operation.userCode)
+    && operation.verificationUri === 'https://github.com/login/device'
+    && Number.isInteger(operation.expiresInSeconds) && Number(operation.expiresInSeconds) >= 1 && Number(operation.expiresInSeconds) <= 900;
+  if (operation.phase === 'preview') return value.busy && operation.kind === 'sync'
+    && exactKeys(op, [...common, 'body']) && isLeaderboardPreview(operation.body);
+  if (operation.phase !== 'finished' || value.busy || !exactKeys(op, [...common, 'outcome'])) return false;
+  const outcome = operation.outcome;
+  if (!outcome || typeof outcome !== 'object' || Array.isArray(outcome)) return false;
+  const result = outcome as Record<string, unknown>;
+  if (result.state === 'cancelled') return exactKeys(result, ['state']);
+  if (result.state === 'joined') return ['join','reconnect'].includes(operation.kind as string) && exactKeys(result, ['state', 'login']) && login(result.login);
+  if (result.state === 'synced') return operation.kind === 'sync' && exactKeys(result, ['state','accepted'])
+    && typeof result.accepted === 'string' && /^(0|[1-9]\d{0,2})$/.test(result.accepted) && (result.accepted.length < 3 || result.accepted <= '400');
+  if (result.state === 'forgotten') return operation.kind === 'forget' && exactKeys(result, ['state']);
+  if (result.state === 'left') return ['leave','recover_leave'].includes(operation.kind as string)
+    && exactKeys(result, ['state','login','credentials']) && (result.login === null || login(result.login))
+    && ['removed','not_present','retained','unavailable'].includes(result.credentials as string);
+  return exactKeys(result, ['state', 'issue', 'remoteEffect']) && result.state === 'failed'
+    && ['none', 'confirmed', 'unknown'].includes(result.remoteEffect as string)
+    && (operation.kind !== 'forget' || result.remoteEffect === 'none')
+    && (leaderboardIssues as readonly unknown[]).includes(result.issue);
 }
 
 function isResetNotificationPreferences(value: unknown): value is ResetNotificationPreferences {

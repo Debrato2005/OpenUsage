@@ -512,6 +512,22 @@ impl Workspace {
         Ok(self.ready())
     }
 
+    pub fn leaderboard_ready(&self) -> bool {
+        self.storage.is_some()
+    }
+
+    pub fn leaderboard_upload(
+        &self,
+        device_id: &str,
+        days: i32,
+        now: jiff::Timestamp,
+    ) -> Result<String, openusage_storage::BoardUploadError> {
+        self.storage
+            .as_ref()
+            .ok_or(openusage_storage::BoardUploadError::ReadFailed)?
+            .leaderboard_upload(device_id, days, now)
+    }
+
     pub fn backup_snapshot(&mut self) -> Result<openusage_storage::BackupSnapshot, CommandError> {
         self.storage
             .as_mut()

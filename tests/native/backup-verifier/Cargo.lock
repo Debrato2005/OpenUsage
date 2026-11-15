@@ -516,6 +516,7 @@ dependencies = [
  "libc",
  "openusage-locallogs",
  "rusqlite",
+ "serde",
  "serde_json",
  "uuid",
  "zeroize",

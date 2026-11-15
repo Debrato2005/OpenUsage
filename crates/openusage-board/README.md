@@ -17,6 +17,10 @@ Missing settings produce an inert client. No method sends a request until both
 settings exist and pass validation. The ordinary-build API has no URL setter. GitHub
 device endpoints remain fixed. Callers do not supply credentials in URLs.
 
+`ClientContext::from_current_build()` shares the configured client and session setup
+between CLI and desktop callers. Native-test configuration requires a canonical
+private fixture before endpoint or credential access.
+
 The client requires TLS 1.2 or later and keeps connection byte logging disabled.
 Certificate and hostname validation remain enabled.
 
@@ -82,8 +86,8 @@ login, provider home, OS credential store, or cloud service.
 
 The request-deadline case shortens the timeout only in the test configuration.
 Production requests keep the five-second connect and fifteen-second total
-budgets. Hosted GitHub, Cloudflare, other platforms, and Settings integration need
-separate acceptance.
+budgets. Hosted GitHub, Cloudflare, and other platforms need separate acceptance.
+[Settings acceptance](../../docs/implementation-status.md) keeps its native scope separate.
 
 ## Enrollment credential format
 
@@ -163,3 +167,11 @@ The recovery encoder uses a fixed zeroizing writer of 273 bytes.
 Join keeps its separate 323-byte bound.
 Neither writer grows after secret writes.
 The [CLI contract](../openusage-cli/README.md#departure-recovery-and-local-forgetting) owns consent and local outcomes.
+
+## Shared departure
+
+`DepartureSession::from_guard` holds the shared guard during fresh GitHub departure.
+It keeps local credential state separate from the public result.
+Only the exact token witness permits local cleanup.
+CLI and Settings use this session.
+[SC-030](../../docs/srs-clarifications.md#sc-030-explicit-public-departure-after-credential-loss) owns the requirement reading.

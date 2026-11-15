@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-refresh-leaderboard"
+description = "Enables the refresh_leaderboard command without any pre-configured scope."
+commands.allow = ["refresh_leaderboard"]
+
+[[permission]]
+identifier = "deny-refresh-leaderboard"
+description = "Denies the refresh_leaderboard command without any pre-configured scope."
+commands.deny = ["refresh_leaderboard"]

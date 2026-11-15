@@ -276,7 +276,11 @@ test('Settings groups every topic under a section index that moves keyboard focu
   await open(page);
   await page.locator('[data-workspace-nav="settings"]').click();
   const index = page.getByRole('navigation', { name: 'Settings sections', exact: true });
-  await expect(index.getByRole('link')).toHaveText(['General', 'Accounts and plans', 'Alerts', 'Backups and exports', 'Connection', 'Privacy and data']);
+  await expect(index.getByRole('link')).toHaveText(['General', 'Accounts and plans', 'Leaderboard', 'Alerts', 'Backups and exports', 'Connection', 'Privacy and data']);
+  const leaderboardLink = index.getByRole('link', { name: 'Leaderboard', exact: true });
+  await leaderboardLink.focus();
+  await leaderboardLink.press('Enter');
+  await expect(page.locator('#settings-leaderboard')).toBeFocused();
   await index.getByRole('link', { name: 'Backups and exports', exact: true }).click();
   await expect(page.locator('#settings-data')).toBeFocused();
   await expect(page.locator('#settings-data')).toContainText('Encrypted backups');

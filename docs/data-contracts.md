@@ -26,6 +26,28 @@ Field declarations and limits stay in their linked source. Consumers must use
 those definitions rather than infer a field from a label or another route.
 The [architecture](architecture.md) owns process, storage, and IPC boundaries.
 
+## Settings exchange contract
+
+The commands are load_leaderboard, refresh_leaderboard, begin_leaderboard,
+cancel_leaderboard, confirm_leaderboard_sync, and open_leaderboard_login_page.
+All reject unknown arguments. Actions require explicit confirmation.
+Sync accepts 1 through 366 days and defaults to 30 days.
+Other actions reject day selection.
+Operation IDs are random UUIDs. The browser and confirmation commands require the current operation ID.
+
+The view separates current enrollment metadata from the last operation receipt.
+A failed inspection keeps a confirmed receipt and adds a separate status issue.
+Enrollment can be unchecked, absent, pending, joined, invalid, or unavailable.
+An unavailable credential store never means no enrollment.
+Only joined metadata supplies a current login.
+Receipts distinguish confirmed success, cancellation, failure before public dispatch, confirmed partial results, and unknown public effects.
+Accepted row counts cross IPC as decimal strings.
+
+The renderer checks the exact upload whitelist, canonical JSON, row keys, dates, known tools, bounds, and null estimates.
+Rust owns arithmetic and service validation.
+The preview is the sole exception to ordinary decimal-string count fields because it displays the exact v1 numeric wire body.
+
+
 ## Meaning of identifiers and provenance
 
 The [draft identity contract](identity-contract.md) owns identity policy,

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-confirm-leaderboard-sync"
+description = "Enables the confirm_leaderboard_sync command without any pre-configured scope."
+commands.allow = ["confirm_leaderboard_sync"]
+
+[[permission]]
+identifier = "deny-confirm-leaderboard-sync"
+description = "Denies the confirm_leaderboard_sync command without any pre-configured scope."
+commands.deny = ["confirm_leaderboard_sync"]

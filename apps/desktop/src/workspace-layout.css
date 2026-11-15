@@ -163,3 +163,9 @@
 .usage-content .empty-state { margin: 0; }
 .usage-content .empty-state button { margin-top: 12px; justify-self: center; }
 @media (max-width: 760px) { .usage-card, .usage-content .activity-saved { padding: .875rem; } }
+
+.leaderboard-actions { display: flex; align-items: end; flex-wrap: wrap; gap: .75rem; margin-block: 1rem; }
+.leaderboard-actions input[type='number'] { width: 7rem; }
+.provider-panel > details > dialog.leaderboard-dialog { position: fixed; inset: 0; width: min(32rem, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); margin: auto; padding: var(--space-5); border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--surface); color: var(--text); font: inherit; overflow: auto; overflow-wrap: anywhere; }
+.provider-panel > details > dialog.leaderboard-upload-dialog { width: min(52rem, calc(100vw - 2rem)); }
+.leaderboard-preview { max-height: 24rem; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .75rem; }

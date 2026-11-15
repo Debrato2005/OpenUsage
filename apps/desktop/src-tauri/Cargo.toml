@@ -16,6 +16,7 @@ jiff = "=0.2.38"
 libc = "=0.2.191"
 open = { version = "=5.4.4", features = ["shellexecute-on-windows"] }
 openusage-codex = { path = "../../../crates/openusage-codex" }
+openusage-board = { path = "../../../crates/openusage-board" }
 sha2 = "=0.10.9"
 openusage-import = { path = "../../../crates/openusage-import" }
 openusage-keys = { path = "../../../crates/openusage-keys" }
@@ -47,6 +48,6 @@ rusqlite = { version = "=0.40.1", features = ["bundled-sqlcipher-vendored-openss
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
-native-test = ["openusage-storage/native-test", "openusage-keys/native-test"]
+native-test = ["openusage-storage/native-test", "openusage-keys/native-test", "openusage-board/native-test"]
 pi-native-qualification = ["native-test", "openusage-locallogs/pi-qualification"]
 codex-native-qualification = ["native-test", "openusage-locallogs/codex-qualification"]

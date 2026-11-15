@@ -159,16 +159,53 @@ deletion clear pending profile consent. [The native record](reviews/2026-11-12-p
 owns executed Linux scope. Real accounts and other platforms remain unverified. WSL removal stays
 unavailable. Native calls on other platforms can outlive their timeout.
 
+## Settings leaderboard worker
+
+The desktop owns one blocking Rust worker for leaderboard operations.
+It starts idle and makes no automatic service request.
+The collapsed Settings section does not request status.
+Opening it reads local enrollment metadata only.
+Missing build configuration leaves that metadata unchecked rather than absent.
+An explicit refresh inspects the credential store without contacting the service.
+
+One operation holds the shared credential guard through authorization, preview, transport, and local cleanup.
+The worker keeps the device flow, access token, service token, and retained upload in Rust.
+React receives public challenges, operation IDs, exact upload previews, and safe results through six strict commands.
+The browser command accepts an operation ID and opens only the fixed GitHub device page.
+The renderer cannot supply a URL, credential, or replacement upload body.
+
+Sync gets one owned body from the shared storage builder before it releases the workspace lock.
+The preview waits up to five minutes for explicit confirmation.
+Confirmation identifies the retained operation and cannot replace its bytes.
+An expired, cancelled, or consumed preview requires a new operation.
+No storage or worker lock spans an HTTP request.
+
+Cancellation and public dispatch use the same mutex.
+Cancellation first prevents public mutation and discards late authorization.
+Dispatch first settles the real result and finishes local saving or cleanup.
+Quit closes admission, signals all owned workers, and joins leaderboard work before application exit.
+Transport deadlines bound requests. They do not establish one total shutdown budget.
+Local deletion holds an idle admission lease and the shared credential guard.
+The lease prevents new work. It clears cached enrollment metadata after credential preparation succeeds.
+Earlier preflight refusals preserve the confirmed receipt.
+Fresh setup in the same process cannot reuse an earlier login or receipt.
+
+The shared ClientContext owns ordinary build configuration and the separate native-test fixture checks.
+DepartureSession owns fresh departure and exact-token local cleanup for CLI and desktop callers.
+Local forgetting takes the guard before credential erasure and constructs no HTTP client.
+It does not require service configuration.
+
+
 ## Boundaries
 
-- **Leaderboard credentials:** the [separate vault](../crates/openusage-keys/README.md#leaderboard-credential-storage) preserves the database key slot. The [session coordinator](../crates/openusage-board/README.md#serialized-enrollment) owns pending and active records, origin binding, expected-value replacement, and the shared Linux guard. CLI callers keep that guard across each complete operation. Settings integration remains open.
-- **Departure recovery:** the [CLI recovery module](../crates/openusage-cli/src/board/recovery.rs) holds the shared guard while fresh GitHub authorization removes public data. The service's numeric identity and exact token witness control separate remote and local effects. Explicit local forgetting constructs no HTTP client. The [service contract](../services/leaderboard/README.md#api) owns transactional checks and scheduled rate-counter cleanup.
+- **Leaderboard credentials:** the [separate vault](../crates/openusage-keys/README.md#leaderboard-credential-storage) preserves the database key slot. The [session coordinator](../crates/openusage-board/README.md#serialized-enrollment) owns pending and active records, origin binding, expected-value replacement, and the shared Linux guard. CLI and Settings callers keep that guard across each complete operation.
+- **Departure recovery:** the [shared departure session](../crates/openusage-board/src/departure.rs) holds the shared guard while fresh GitHub authorization removes public data. The service's numeric identity and exact token witness control separate remote and local effects. Explicit local forgetting constructs no HTTP client. The [service contract](../services/leaderboard/README.md#api) owns transactional checks and scheduled rate-counter cleanup.
 - **Local enrollment erasure:** the [desktop coordinator](../apps/desktop/src-tauri/src/leaderboard_credentials.rs) owns the guard through local deletion. The existing durable intent precedes erasure of the selected slot. It has no HTTP client or public departure path. Linux requires a usable credential store even for password workspaces. Other-platform enrollment remains unqualified.
 - **Secrets:** provider sessions, credentials, and the database key stay in Rust, provider-managed homes, or the OS credential store. They never reach React.
 - **Processes:** the Rust supervisor owns every child process. At most two collections run at once.
 - **Numbers:** Rust does exact arithmetic. Token counts cross IPC as decimal strings. A missing value stays missing.
 - **Renderer:** React calls only registered typed commands. It has no direct file or process access. Its content security policy allows `blob:` images only so that a share preview can show the Rust-made SVG as an image, which runs no script, and draw it as PNG.
-- **Network:** The official Codex child process makes provider requests. The separate [leaderboard client](../crates/openusage-board/README.md) uses the approved [HTTP policy](decisions/2026-11-13-leaderboard-http-client.md). Missing build settings leave it inert. Explicit CLI commands use it. Settings integration remains open. Private website sync remains unbuilt.
+- **Network:** The official Codex child process makes provider requests. The separate [leaderboard client](../crates/openusage-board/README.md) uses the approved [HTTP policy](decisions/2026-11-13-leaderboard-http-client.md). Missing build settings leave it inert. Explicit CLI and Settings actions use it. Private website sync remains unbuilt.
 - **Storage:** one service coordinates all writes. Current state and history are separate.
 - **Read snapshots:** `Storage::leaderboard_upload` owns the complete saved-data upload transaction on read-write and query-only connections. Concurrent writes cannot mix source, scope, and row generations. The method returns owned bytes and ends the transaction before transport. The separate generic `read_snapshot` still accepts query-only callbacks.
 
@@ -178,9 +215,7 @@ unavailable. Native calls on other platforms can outlive their timeout.
 |---|---|---|
 | Source adapters and evidence | `crates/openusage-sources/` | 5A, 5B, 5D |
 | Local logs through bundled `ccusage` | An adapter in the same crate | 5C |
-| `openusage` CLI | `crates/openusage-cli/` | 11A |
 | One-command install | npm packages | 16A |
-| Opt-in leaderboard | `services/leaderboard/` | 14A |
 | Private sync and responsive companion | Not built; architecture decision required | 14B, 14C, Stage 3 |
 
 Adding a tool shall take one adapter module, its fixtures, and its declaration (OU-DES-011).

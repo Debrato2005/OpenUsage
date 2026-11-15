@@ -7,6 +7,12 @@
   ],
   "local": true,
   "permissions": [
+    "allow-load-leaderboard",
+    "allow-refresh-leaderboard",
+    "allow-confirm-leaderboard-sync",
+    "allow-begin-leaderboard",
+    "allow-cancel-leaderboard",
+    "allow-open-leaderboard-login-page",
     "allow-list-subscriptions",
     "allow-create-subscription",
     "allow-update-subscription",

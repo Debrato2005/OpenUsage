@@ -5,6 +5,7 @@ mod backup;
 mod backup_inspection;
 mod display_scale;
 mod keyvault;
+mod leaderboard;
 mod leaderboard_credentials;
 mod local_logs;
 mod local_usage;
@@ -40,6 +41,7 @@ struct WorkspaceService(
     provider::ProviderCoordinator,
     monitoring::MonitoringWorker,
     Arc<local_logs::LocalLogWorker>,
+    Arc<leaderboard::Worker>,
 );
 impl Default for WorkspaceService {
     fn default() -> Self {
@@ -47,12 +49,14 @@ impl Default for WorkspaceService {
         let provider = provider::ProviderCoordinator::default();
         let worker = monitoring::MonitoringWorker::start(workspace.clone(), provider.clone());
         let local_logs = Arc::new(local_logs::LocalLogWorker::start(workspace.clone()));
+        let leaderboard = Arc::new(leaderboard::Worker::start(workspace.clone()));
         Self(
             workspace,
             restore::RestoreCache::default(),
             provider,
             worker,
             local_logs,
+            leaderboard,
         )
     }
 }
@@ -651,8 +655,16 @@ async fn delete_all_local_data(
     if !args.confirmed {
         return Err(CommandError::InvalidArguments);
     }
+    let leaderboard = Arc::clone(&service.5);
     let service = Arc::clone(&service.0);
     tauri::async_runtime::spawn_blocking(move || {
+        let mut leaderboard_deletion =
+            leaderboard.local_deletion().map_err(|issue| match issue {
+                leaderboard::Issue::Busy | leaderboard::Issue::Stopped => {
+                    CommandError::LocalDeletionBusy
+                }
+                _ => CommandError::LocalDeletionFailed,
+            })?;
         let mut state = service
             .lock()
             .map_err(|_| CommandError::LocalDeletionFailed)?;
@@ -660,11 +672,13 @@ async fn delete_all_local_data(
         #[cfg(all(target_os = "linux", feature = "native-test"))]
         openusage_keys::private_keyring_fixture().map_err(|_| CommandError::LocalDeletionUnsafe)?;
         let vault = OsVault::new();
-        workspace.delete_all_local_data(
-            vault.as_ref().map_err(|error| *error),
-            true,
-            leaderboard_credentials::prepare,
-        )
+        workspace.delete_all_local_data(vault.as_ref().map_err(|error| *error), true, || {
+            let erasure = leaderboard_credentials::prepare()?;
+            // A preflight refusal leaves the cached receipt intact. Later failures may
+            // follow workspace changes, so clear the cache even during unwinding.
+            leaderboard_deletion.invalidate_cache();
+            Ok(erasure)
+        })
     })
     .await
     .map_err(|_| CommandError::LocalDeletionFailed)?
@@ -2122,6 +2136,12 @@ fn main() {
         .manage(shutdown::Shutdown::default())
         .manage(display_scale::DisplayScaleService::default())
         .invoke_handler(tauri::generate_handler![
+            leaderboard::load_leaderboard,
+            leaderboard::refresh_leaderboard,
+            leaderboard::confirm_leaderboard_sync,
+            leaderboard::begin_leaderboard,
+            leaderboard::cancel_leaderboard,
+            leaderboard::open_leaderboard_login_page,
             subscriptions::list_subscriptions,
             subscriptions::create_subscription,
             subscriptions::update_subscription,

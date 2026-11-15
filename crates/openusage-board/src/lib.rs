@@ -1,17 +1,21 @@
 //! Bounded opt-in leaderboard transport and serialized OS enrollment.
+mod configuration;
+mod departure;
 mod device;
 mod enrollment;
 mod protocol;
 mod session;
 mod transport;
 
+pub use configuration::ClientContext;
+pub use departure::{DepartureError, DepartureReceipt, DepartureSession, LocalCredentialState};
 pub use device::{DeviceFlow, PollOutcome};
 pub use enrollment::Enrollment;
 pub use protocol::{
     ApprovedSyncBody, AuthenticatedDeparture, DeviceId, GithubToken, Joined, Metric, OwnRank,
     Period, RankEntry, ServiceToken,
 };
-pub use session::{EnrollmentSession, SessionError};
+pub use session::{EnrollmentSession, EnrollmentStatus, SessionError};
 
 use std::{fmt, time::Duration};
 

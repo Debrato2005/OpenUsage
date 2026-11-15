@@ -15,6 +15,7 @@ import { BackupInspection } from './backup-inspection';
 import { DataExport } from './data-export';
 import { ApplicationExport } from './application-export';
 import { LocalDataDeletion } from './local-data-deletion';
+import { LeaderboardSettings } from './leaderboard';
 import { CheckpointRecovery } from './checkpoint-recovery';
 import { AlertHistory } from './alert-history';
 import { Subscriptions } from './subscriptions';
@@ -393,6 +394,9 @@ function App() {
                 <section className="account-settings"><h2>Accounts</h2><Button data-account-manager-open variant="outline" onClick={() => { setAccountPanelProfile(null); setAccountPanelOpen(true); }}>Manage accounts</Button></section>
                 {view === 'settings' && <Subscriptions profiles={profiles} revision={String(profileRevision)} busy={busy} setBusy={setBusy} />}
               </div>
+            </section>
+            <section id={settingsSections.leaderboard.id} className="settings-group" tabIndex={-1} aria-labelledby="leaderboard-heading">
+              <div className="settings-card">{view === 'settings' && <LeaderboardSettings busy={busy} />}</div>
             </section>
             <section id={settingsSections.notifications.id} className="settings-group" tabIndex={-1} aria-labelledby="settings-notifications-title">
               <h2 id="settings-notifications-title" className="settings-group-title">{settingsSections.notifications.title}</h2>

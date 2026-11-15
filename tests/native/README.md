@@ -532,6 +532,21 @@ Explicit local forgetting clears active and pending records without a network re
 A pending record remains after recovery because it supplies no token witness.
 The ordinary-build check refuses online recovery before requests or database access.
 
+## Native Settings leaderboard
+
+Build the frontend, then build the desktop with the native-test feature in the shared Cargo target.
+Build the CLI board_native fixture test with the same feature.
+Select both executable paths from Cargo artifact output.
+Set OPENUSAGE_NATIVE_BINARY, OPENUSAGE_BOARD_SEED_BINARY, and OPENUSAGE_NATIVE_EVIDENCE to absolute paths.
+Use the private Xvfb display, driver, and Secret Service settings above.
+Run timeout 360 node tests/native/leaderboard.mjs.
+
+The harness uses a new private home, D-Bus, GNOME Secret Service, SQLCipher, and a synthetic HTTPS service.
+Its typed Rust fixture saves local totals and keeps automatic scanners disabled.
+It checks GUI join, retained preview bytes, cancellation, fresh departure, local forgetting, store failures, deletion, and native close.
+Screenshots and result metadata remain private.
+No live GitHub account, hosted service, provider credential home, or existing user keyring is read.
+
 ## Native setup
 
 Build the app with native-test after the renderer build.

@@ -15,6 +15,59 @@ function desktopResponse(value) {
   globalThis.window = { __TAURI__: { core: { invoke: async () => value } } };
 }
 
+test('leaderboard status distinguishes unconfigured from absent enrollment and refuses secret fields', async () => {
+  const response = { configured: false, enrollment: 'not_checked', login: null, busy: false, operation: null };
+  desktopResponse(response);
+  assert.deepEqual(await invoke('load_leaderboard'), response);
+  for (const fields of [
+    { configured: 'false' }, { enrollment: 'joined' }, { enrollment: 'absent' },
+    { login: 'unverified-account' }, { busy: true },
+    { token: 'synthetic-only' }, { deviceCode: 'synthetic-only' },
+    { origin: 'https://outside.invalid' }, { credentials: {} },
+  ]) {
+    desktopResponse({ ...response, ...fields });
+    await assert.rejects(invoke('load_leaderboard'), /desktop response is incompatible/);
+  }
+});
+
+test('leaderboard authorization exposes one bound public challenge without private device credentials', async () => {
+  const operation = { id: '11111111-1111-4111-8111-111111111111', kind: 'join', phase: 'authorizing', userCode: 'ABCD-EFGH', verificationUri: 'https://github.com/login/device', expiresInSeconds: 600 };
+  const response = { configured: true, enrollment: 'pending', login: null, busy: true, operation };
+  desktopResponse(response);
+  assert.deepEqual(await invoke('load_leaderboard'), response);
+  for (const fields of [
+    { id: '../other' }, { kind: 'automatic_join' }, { phase: 'authorized' },
+    { userCode: 'private/device/code' }, { verificationUri: 'https://outside.invalid' },
+    { expiresInSeconds: 901 }, { expiresInSeconds: -1 },
+    { deviceCode: 'synthetic-only' }, { accessToken: 'synthetic-only' },
+  ]) {
+    desktopResponse({ ...response, operation: { ...operation, ...fields } });
+    await assert.rejects(invoke('load_leaderboard'), /desktop response is incompatible/);
+  }
+  desktopResponse({ ...response, busy: false });
+  await assert.rejects(invoke('load_leaderboard'), /desktop response is incompatible/);
+});
+
+test('leaderboard previews expose only canonical public aggregates and retain confirmed receipts through status failure', async () => {
+  const id = '11111111-1111-4111-8111-111111111111';
+  const body = JSON.stringify({ deviceId: id, rows: [{ date: '2026-11-15', tool: 'claude', model: 'claude-sonnet', inputTokens: 1, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, totalTokens: 1, estimatedValueMicros: null }] });
+  const operation = { id, kind: 'sync', phase: 'preview', body };
+  const response = { configured: true, enrollment: 'joined', login: 'synthetic-user', busy: true, operation };
+  desktopResponse(response); assert.deepEqual(await invoke('load_leaderboard'), response);
+  for (const privateBody of [
+    body.replace('"rows":', '"token":"synthetic-only","rows":'),
+    body.replace('"model":"claude-sonnet"', '"model":"/private/project","model":"claude-sonnet"'),
+    body.replace('"estimatedValueMicros":null', '"estimatedValueMicros":null,"path":"/private/project"'),
+    body.replace('"inputTokens":1', '"inputTokens":1000000000001'),
+    body.replace('"model":"claude-sonnet"', '"model":"private/project"'),
+  ]) {
+    desktopResponse({ ...response, operation: { ...operation, body: privateBody } });
+    await assert.rejects(invoke('load_leaderboard'), /desktop response is incompatible/);
+  }
+  const receipt = { configured: true, enrollment: 'unavailable', login: null, busy: false, statusIssue: 'busy', operation: { id, kind: 'join', phase: 'finished', outcome: { state: 'joined', login: 'synthetic-user' } } };
+  desktopResponse(receipt); assert.deepEqual(await invoke('load_leaderboard'), receipt);
+});
+
 test('local log consent accepts the known tools returned by Rust', async () => {
   const tools = Object.keys(toolCatalog).map(tool => ({ tool, detected: true, granted: false }));
   for (const returned of [...tools.map(tool => [tool]), tools, []]) {

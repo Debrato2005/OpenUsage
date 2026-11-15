@@ -58,6 +58,22 @@ enum State {
     Joined(Enrollment),
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum EnrollmentStatus<'a> {
+    NotJoined,
+    Pending,
+    Joined { login: &'a str },
+}
+impl fmt::Debug for EnrollmentStatus<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::NotJoined => "EnrollmentStatus::NotJoined",
+            Self::Pending => "EnrollmentStatus::Pending",
+            Self::Joined { .. } => "EnrollmentStatus::Joined([redacted])",
+        })
+    }
+}
+
 /// Owns the cross-process guard for every read, authorization, save, sync, or leave.
 /// The caller supplies its configured destination. Stored bytes never choose a host.
 pub struct EnrollmentSession {
@@ -156,6 +172,16 @@ impl EnrollmentSession {
         }
     }
 
+    pub fn status(&self) -> EnrollmentStatus<'_> {
+        match &self.state {
+            State::Vacant => EnrollmentStatus::NotJoined,
+            State::Pending(_) => EnrollmentStatus::Pending,
+            State::Joined(enrollment) => EnrollmentStatus::Joined {
+                login: enrollment.login(),
+            },
+        }
+    }
+
     /// Call only after the service confirms removal. A failed remote call must retain this record.
     pub fn clear_after_leave(&mut self) -> Result<(), SessionError> {
         self.enrollment()?;
@@ -167,7 +193,7 @@ impl EnrollmentSession {
     }
 }
 
-fn checked_origin(origin: &str) -> Result<String, SessionError> {
+pub(crate) fn checked_origin(origin: &str) -> Result<String, SessionError> {
     let origin = validate_origin(origin)
         .map_err(|_| SessionError::Configuration)?
         .to_string();
