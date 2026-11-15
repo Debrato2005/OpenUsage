@@ -249,6 +249,9 @@ The future snapshot must preserve exact values, nulls, scope, source times,
 and revision order. It must not reuse the public leaderboard schema for
 provider readings or copy the local database to a cloud service.
 
+The [response evidence producer](../crates/openusage-codex/README.md#response-evidence-producer) supplies metadata to Rust callers.
+It adds no fields to current provider display DTOs and stores no evidence.
+
 SRS Section 17 defines `MetricState`, `SourceLevel`, `ReadingStatus`, and
 `evidenceId`. Current provider DTOs instead expose their explicit freshness,
 source-kind, identity, scope, and coverage fields. They do not yet expose the

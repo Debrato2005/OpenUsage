@@ -818,7 +818,7 @@ L-7e stays open for its other documents and acceptance evidence.
 | S-03b | Rich dashboard | S-03 | Done |
 | S-03d | Modern Overview | S-03b | Done, with two recorded reasons in [status](implementation-status.md#failing-or-stale-tests) |
 | S-03c | Keychain by default | S-03b | New workspaces use the key store (L-0). The move of a password workspace follows the launch |
-| S-04 | Reading status and evidence | S-03b | Not started |
+| S-04 | Reading status and evidence | S-03b | Response metadata producer in S-04a. Durable evidence and UI remain open |
 | S-05 | Adapter layer | S-04 | Not started |
 | G-1 | Owner: real-account test on Codex | S-05 | Not started |
 | S-06 | Tray and background | S-05 | Owned scanner shutdown complete within Linux scope. Tray, autostart, and wake handling remain |
@@ -900,6 +900,10 @@ The owner asked to replace the app password with OAuth. OAuth cannot protect the
 - **Stop:** Rust tests cover the move, failure keeps the old protection, and a native journey moves a synthetic workspace.
 
 ### S-04 Reading status and evidence
+
+S-04a prepares response metadata in the existing Codex parsers.
+The [record](reviews/2026-11-16-response-evidence-producer.md) owns its checks and privacy limits.
+The schema, context, status, and interface work below remains open.
 
 Every number can say where it came from.
 

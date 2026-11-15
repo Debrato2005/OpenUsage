@@ -34,9 +34,9 @@ Linux input. Ordinary count defects, strict compatibility limits, legacy
 producer qualification, and saved-session migration remain open. Production pins
 and enabled tools stay unchanged.
 
-Hosted CI for own-rank commit `704c3da` passes both jobs in
-[run 43759009921](https://github.com/Debrato2005/OpenUsage/actions/runs/43759009921).
-The new connection suggestions have separate local evidence and await their own hosted result.
+Hosted CI for connection-suggestion commit `1385e06` passes both jobs in
+[run 43765735233](https://github.com/Debrato2005/OpenUsage/actions/runs/43765735233).
+The new response evidence producer has separate local evidence and awaits its own hosted result.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -67,6 +67,8 @@ Kept from baseline 2.0:
 - Wake handling: OU-PROC-013, OU-MON-013.
 
 ## Partial
+
+- Response evidence producer (S-04a), November 16, 2026: the existing Codex parsers prepare response metadata in Rust. The [record](reviews/2026-11-16-response-evidence-producer.md) covers privacy, accepted wire forms, canonical hashes, and scoped checks. Durable evidence, status, migration, exports, and alerts remain under S-04.
 
 - Connection suggestions (S-23c), November 16, 2026: detected, consented Codex offers the existing OpenAI flow through one Overview control. The [record](reviews/2026-11-16-connection-suggestions.md) owns consent, withdrawal, unsupported quota, unchanged profiles, the corrected stale-response race, and scoped checks.
 
@@ -201,9 +203,10 @@ separate from document completion. The [performance report](performance-report.m
 
 The owner resumed autonomous implementation on November 15, 2026. Work continues through verified local commits and periodic pushes. Each push checks the GitHub login and includes only the reviewed branch. No release, deployment, or pull request is authorized. The latest instruction replaces the November 13 stop condition. Baseline 3.1 product scope stays unchanged.
 
-The current pass completes S-23c connection suggestions under OU-ACCT-021.
-The [record](reviews/2026-11-16-connection-suggestions.md) owns acceptance and limits.
-The next bounded assignment scopes reading status and evidence under S-04 before schema or provider changes.
+The current pass verifies S-04a response metadata at the parser interface.
+The [record](reviews/2026-11-16-response-evidence-producer.md) owns acceptance and limits.
+The next bounded slice joins that metadata with source and observation context before durable acceptance.
+S-04 remains open. Identity proof and new adapters keep their separate gates.
 Scanner activation and private website sync keep their separate gates.
 Live service configuration, deployment, and release remain under owner control.
 

@@ -15,6 +15,24 @@ Sources:
 - [Official app-server documentation](https://learn.chatgpt.com/docs/app-server)
 - [Versioned protocol schemas](https://github.com/openai/codex/tree/rust-v0.163.0/codex-rs/app-server-protocol/schema/typescript)
 
+## Response evidence producer
+
+The activity and quota parsers attach immutable `ResponseEvidence` metadata after the existing response checks pass.
+Existing display serialization omits it. Typed Rust getters expose projection version, the redacted-response hash, the format fingerprint, and unused-field counts.
+
+Version 1 hashes a canonical allowlist projection of the accepted wire response with SHA-256.
+A projection change requires a new version.
+Known-field presence, null, types, containers, and exact numeric values survive the projection.
+Validated dates retain their numeric date parts. Free strings, request references, and dynamic identifiers become fixed markers.
+Anonymous map entries sort by projected content. Private identifier text cannot change that order.
+
+A separate format projection retains known-field structure and counts unused-field occurrences at fixed schema locations.
+It discards unknown names, values, and descendants. Equal counts cannot distinguish unknown renames or changes in their values or types.
+Ignored content stays ignored. The evidence pass preserves the parser's existing acceptance and strict envelope checks.
+
+This slice produces response metadata only. Persistence, reading status, source classification, observation times, comparison, exports, and alerts remain under S-04.
+Account identity evidence keeps its separate contract.
+
 ## Synthetic quota readiness
 
 The quota fixture now writes its runtime path before it exposes the child process ID (PID). This makes the PID a safe cancellation point. The existing cleanup and process-ownership assertions stay unchanged. The controlled regression in `tests/tools/test_provider_readiness.py` pauses the path write before it permits cancellation.

@@ -2,7 +2,9 @@
 //! https://github.com/openai/codex/blob/83086188ae0614bd882818ff1aa23f3194962012/codex-rs/app-server-protocol/src/protocol/v2/account.rs#L309-L354
 //! https://github.com/openai/codex/blob/83086188ae0614bd882818ff1aa23f3194962012/codex-rs/app-server-protocol/src/protocol/v2/account.rs#L601-L740
 
-use crate::{DecimalCount, ProtocolError, count, decode, validate_text};
+use crate::{
+    DecimalCount, ProtocolError, ResponseEvidence, count, decode, response_evidence, validate_text,
+};
 use serde::{
     Deserialize, Serialize,
     de::{MapAccess, SeqAccess, Visitor},
@@ -23,6 +25,14 @@ pub struct QuotaSnapshot {
     pub limits: Vec<QuotaLimit>,
     pub available_reset_credits: Option<DecimalCount>,
     pub reset_credit_details: Option<Vec<ResetCreditDetail>>,
+    #[serde(skip)]
+    response_evidence: ResponseEvidence,
+}
+
+impl QuotaSnapshot {
+    pub fn response_evidence(&self) -> &ResponseEvidence {
+        &self.response_evidence
+    }
 }
 
 impl fmt::Debug for QuotaSnapshot {
@@ -215,6 +225,7 @@ struct WindowWire {
 /// Parse a complete, matching read response. Never use this function to merge sparse events.
 pub fn parse_quota(bytes: &[u8], id: u32) -> Result<QuotaSnapshot, ProtocolError> {
     let response: FullRead = decode(bytes, id)?;
+    let authoritative_map = response.rate_limits_by_limit_id.is_some();
     if let Some(account_id) = response.account_id {
         validate_text(&account_id, 256)?;
         // It cannot be matched to a stable baseline account/read key. Do not publish or bind it.
@@ -248,6 +259,7 @@ pub fn parse_quota(bytes: &[u8], id: u32) -> Result<QuotaSnapshot, ProtocolError
         limits,
         available_reset_credits,
         reset_credit_details,
+        response_evidence: response_evidence::quota(bytes, authoritative_map)?,
     })
 }
 

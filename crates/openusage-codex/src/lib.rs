@@ -5,6 +5,7 @@ use url::Url;
 #[cfg(unix)]
 mod credential_bus;
 mod quota;
+mod response_evidence;
 pub mod session;
 pub mod supervisor;
 #[cfg(all(test, unix))]
@@ -12,6 +13,7 @@ mod test_executable;
 pub use quota::{
     QuotaLimit, QuotaSnapshot, QuotaWindow, ResetCreditDetail, ResetCreditStatus, parse_quota,
 };
+pub use response_evidence::{EvidenceLocation, ResponseEvidence, UnusedFieldChange};
 
 pub const PROTOCOL_BASELINE: &str = "rust-v0.163.0";
 pub const MAX_MESSAGE_BYTES: usize = 1_048_576;
@@ -625,6 +627,14 @@ pub struct ActivitySnapshot {
     pub summary: ActivitySummary,
     pub daily_usage_buckets: Option<Vec<DailyUsage>>,
     pub scope: ActivityScope,
+    #[serde(skip)]
+    response_evidence: ResponseEvidence,
+}
+
+impl ActivitySnapshot {
+    pub fn response_evidence(&self) -> &ResponseEvidence {
+        &self.response_evidence
+    }
 }
 
 impl fmt::Debug for DecimalCount {
@@ -719,6 +729,7 @@ pub fn parse_account_usage(bytes: &[u8], id: u32) -> Result<ActivitySnapshot, Pr
         summary,
         daily_usage_buckets,
         scope: ActivityScope::AccountActivityWithUnknownApplicationScope,
+        response_evidence: response_evidence::activity(bytes)?,
     })
 }
 
