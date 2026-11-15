@@ -97,6 +97,40 @@ test('leaderboard previews expose only canonical public aggregates and retain co
   desktopResponse(receipt); assert.deepEqual(await invoke('load_leaderboard'), receipt);
 });
 
+test('connection suggestions require detected consent and declared support', async () => {
+  const tools = [{ tool: 'codex', detected: true, granted: true }, { tool: 'claude', detected: true, granted: true }];
+  const response = { consentRequired: false, tools, scan: { state: 'idle', lastScanAtUtc: null }, connections: [{ tool: 'codex', connection: 'codex' }] };
+  desktopResponse(response); assert.deepEqual(await invoke('load_local_logs'), response);
+  for (const fields of [
+    { consentRequired: true }, { connections: [{ tool: 'claude', connection: 'codex' }] },
+    { connections: [{ tool: 'codex', connection: 'automatic' }] },
+    { connections: [...response.connections, ...response.connections] },
+    { connections: [{ ...response.connections[0], profileId: 'unverified' }] },
+    { connections: [{ ...response.connections[0], token: 'synthetic-only' }] },
+    { tools: [{ tool: 'codex', detected: false, granted: true }] },
+    { tools: [{ tool: 'codex', detected: true, granted: false }] },
+    { tools: [{ tool: 'claude', detected: true, granted: true }] },
+  ]) {
+    desktopResponse({ ...response, ...fields }); await assert.rejects(invoke('load_local_logs'));
+  }
+  const legacy = { consentRequired: false, tools, scan: response.scan };
+  desktopResponse(legacy); assert.deepEqual(await invoke('load_local_logs'), legacy);
+  desktopResponse({ ...legacy, connections: [] }); await invoke('load_local_logs');
+});
+
+test('connection suggestions reject null, undefined, and invalid connections', async t => {
+  for (const tool of ['codex', 'claude']) for (const connection of [null, undefined, 'automatic']) {
+    await t.test(`${tool} rejects ${String(connection)}`, async () => {
+      desktopResponse({
+        consentRequired: false, tools: [{ tool, detected: true, granted: true }],
+        scan: { state: 'idle', lastScanAtUtc: null }, connections: [{ tool, connection }],
+      });
+      await assert.rejects(invoke('load_local_logs'), /desktop response is incompatible/);
+      await assert.rejects(invoke('save_local_log_consent', { tools: [tool] }), /desktop response is incompatible/);
+    });
+  }
+});
+
 test('local log consent accepts the known tools returned by Rust', async () => {
   const tools = Object.keys(toolCatalog).map(tool => ({ tool, detected: true, granted: false }));
   for (const returned of [...tools.map(tool => [tool]), tools, []]) {

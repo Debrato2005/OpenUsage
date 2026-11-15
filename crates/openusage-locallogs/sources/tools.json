@@ -24,6 +24,7 @@
   },
   "codex": {
     "name": "Codex",
+    "providerConnection": "codex",
     "order": 1,
     "tint": 2,
     "enabled": true,

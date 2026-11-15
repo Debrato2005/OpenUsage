@@ -166,6 +166,15 @@ their original scan provenance. Latest scan metadata stays separate.
 prevents silent replacement or combination of legacy folder totals.
 Only Claude Code and Codex are enabled. Candidate contracts do not enable tools.
 
+`LocalLogsView` optionally returns `connections`, with one tool and one declared connection in each entry.
+Rust requires current detection and saved consent. Empty suggestions omit the field. Legacy responses without it remain valid.
+The renderer rejects undeclared, duplicate, absent, or unconsented suggestions.
+
+A connection suggestion describes a supported flow. It proves no account identity, profile association, or quota reading.
+Overview reuses its existing account control to open the unselected account manager.
+Profile creation and sign-in retain their existing explicit actions.
+The tool detail panel shows unsupported quota connections as Unsupported.
+
 Subscriptions are profile-owned, user-confirmed local terms. `price: null` is
 unknown. A supplied zero price is free. `amountMinor`, `currencyScale`, dates, renewal
 choice, and an opaque revision preserve those terms. They are not provider bills,

@@ -491,6 +491,14 @@ pub(crate) struct LocalLogsView {
     consent_required: bool,
     tools: Vec<ToolView>,
     scan: ScanStatus,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    connections: Vec<ConnectionSuggestion>,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
+struct ConnectionSuggestion {
+    tool: String,
+    connection: locallogs::ProviderConnection,
 }
 
 /// Before setup or unlock, no choice can exist yet, so every detected tool asks for consent.
@@ -503,7 +511,7 @@ fn view(
         Err(CommandError::WorkspaceLocked) => Vec::new(),
         sources => sources?,
     };
-    let tools = locallogs::tools()
+    let tools: Vec<ToolView> = locallogs::tools()
         .iter()
         .filter(|tool| tool_allowed(&tool.id))
         .map(|tool| ToolView {
@@ -515,10 +523,23 @@ fn view(
         })
         .filter(|view| view.detected || sources.iter().any(|s| s.tool == view.tool))
         .collect();
+    let connections = tools
+        .iter()
+        .filter(|tool| tool.detected && tool.granted)
+        .filter_map(|tool| {
+            locallogs::tool(&tool.tool)?
+                .provider_connection
+                .map(|connection| ConnectionSuggestion {
+                    tool: tool.tool.clone(),
+                    connection,
+                })
+        })
+        .collect();
     Ok(LocalLogsView {
         consent_required: sources.is_empty() && !detected.is_empty(),
         tools,
         scan,
+        connections,
     })
 }
 

@@ -25,9 +25,9 @@ OU-DES, OU-LOG, OU-SHARE, OU-CLI and OU-DIST have evidence. OU-DATA-027 has stor
 | OU-BOARD | AT-86 to AT-88 | Service, transport, typed OS persistence, CLI, and Settings pass locally on synthetic Linux. Hosted acceptance and deployment remain open |
 | OU-BOARD-013/014 | AT-95 | Service and desktop access pass locally; hosted acceptance remains open |
 | OU-CLI-002, OU-BOARD-005/006 | AT-96 | Preview and real upload byte equality pass on synthetic Linux |
-| OU-ACCT-021, OU-LOG-020 | AT-97 | Existing local collection has scoped evidence; new connection suggestions remain open |
+| OU-ACCT-021, OU-LOG-020 | AT-97 | Existing local collection and connection suggestions have scoped Linux evidence. Additional-tool activation stays open |
 | OU-SYNC, OU-WEB | AT-98 to AT-105 | Stage 3, not built |
-| OU-SHARE-007 to OU-SHARE-010, OU-UI-028 | AT-106 and native Overview acceptance | Period receipts and independent local Overview summaries passed on synthetic Linux. Subscription comparisons and joined-rank access remain open |
+| OU-SHARE-007 to OU-SHARE-010, OU-UI-028 | AT-106 and native Overview acceptance | Period receipts, independent local Overview summaries, and joined-rank access passed on synthetic Linux. Subscription comparisons remain open |
 
 ## Evidence log
 
@@ -35,6 +35,8 @@ Newest first. Rows keep the requirement text of their date. [SRS Section 22.1](S
 
 | Requirement or check | Implementation and executed evidence | Status |
 |---|---|---|
+| Connection suggestions, OU-ACCT-021 and part of AT-97 | The [record](reviews/2026-11-16-connection-suggestions.md) covers consent-gated metadata, strict public contracts, existing account controls, stale replies, and native consent and root isolation. | Synthetic Linux only. Tool detection establishes no account identity. Scanner activation, live providers, and other platforms retain their separate gates. |
+| Hosted own-rank acceptance | [Run 43759009921](https://github.com/Debrato2005/OpenUsage/actions/runs/43759009921) passes Renderer and Linux checks for 704c3da. | Exact hosted Linux and renderer scope for that commit. Connection suggestions require their own hosted result. |
 | Own-rank desktop access (S-23b). OU-UI-028, OU-BOARD-013/014, affected OU-SEC-003 and deletion/shutdown rules | The [record](reviews/2026-11-16-own-rank-client.md) covers rank 105, exact values, all periods and metrics, nulls and measured zero, revocation, stale replies, immediate reopen, read exclusion, and native Quit. All 518 renderer cases, 591 workspace tests, 66 IPC checks, and both Clippy modes pass. The separate native deletion journey passes. | Private synthetic Linux, HTTPS, GNOME Secret Service, and SQLCipher. Service eligibility and ordering remain unchanged. Live GitHub, hosted D1, real histories, deployment, and other platforms remain unqualified. |
 | Hosted Settings acceptance | [Run 43749261012](https://github.com/Debrato2005/OpenUsage/actions/runs/43749261012) passes Renderer and Linux checks for fb7c52e. The native-oracle lock correction passes its hosted gate. | Exact hosted Linux and renderer scope for the Settings commit. New own-rank source requires its own hosted result. |
 | Settings leaderboard(L-5b). OU-BOARD-001 through OU-BOARD-006/010, OU-SEC-003, affected OU-DATA-016/017 | The [record](reviews/2026-11-15-settings-leaderboard.md) covers eleven native journey groups, fourteen focused Chromium/WebKit cases, the native deletion journey, and compiled CLI recovery. Exact retained bytes, failed acknowledgments, partial cleanup, same-login account isolation, cancellation, and native Quit pass. | Private synthetic Linux, HTTPS, GNOME Secret Service, and SQLCipher. All 508 renderer cases, 591 workspace tests, both Clippy modes, and ordinary-build refusal pass. Live GitHub, hosted D1, deployment, real histories, and other platforms remain unqualified. |

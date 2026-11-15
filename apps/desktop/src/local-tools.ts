@@ -1,6 +1,12 @@
 import catalog from '../../../crates/openusage-locallogs/sources/tools.json' with { type: 'json' };
 
 export type LocalLogTool = keyof typeof catalog;
+export type ProviderConnection = 'codex';
+export const providerConnectionNames: Record<ProviderConnection, string> = { codex: 'OpenAI' };
+export function providerConnectionFor(tool: LocalLogTool): ProviderConnection | null {
+  const definition = catalog[tool];
+  return 'providerConnection' in definition && definition.providerConnection === 'codex' ? 'codex' : null;
+}
 export const allTools = (Object.keys(catalog) as LocalLogTool[]).sort((a, b) => catalog[a].order - catalog[b].order);
 export const localLogToolNames = Object.fromEntries(allTools.map(tool => [tool, catalog[tool].name])) as Record<LocalLogTool, string>;
 export const localLogToolTints = Object.fromEntries(allTools.map(tool => [tool, catalog[tool].tint])) as Record<LocalLogTool, number>;

@@ -26,7 +26,9 @@ async function open(page: Page, boot: Bootstrap, logs: LocalLogsView | null) {
       if (command === 'load_local_logs') { if (!state.logs) throw 'storage_unavailable'; return state.logs as T; }
       if (command === 'save_local_log_consent') {
         const tools = args.tools as string[];
-        state.logs = { consentRequired: false, tools: (state.logs?.tools ?? []).map(t => ({ ...t, granted: tools.includes(t.tool) })), scan: state.logs?.scan ?? { state: 'idle', lastScanAtUtc: null } };
+        const nextTools = (state.logs?.tools ?? []).map(t => ({ ...t, granted: tools.includes(t.tool) }));
+        const connections = state.logs?.connections === undefined ? {} : { connections: nextTools.some(t => t.tool === 'codex' && t.detected && t.granted) ? [{ tool: 'codex' as const, connection: 'codex' as const }] : [] };
+        state.logs = { consentRequired: false, tools: nextTools, scan: state.logs?.scan ?? { state: 'idle', lastScanAtUtc: null }, ...connections };
         return state.logs as T;
       }
       throw new Error(`Unexpected synthetic command ${command}`);
@@ -37,6 +39,48 @@ async function open(page: Page, boot: Bootstrap, logs: LocalLogsView | null) {
 const calls = async (page: Page, command: string) =>
   (await page.evaluate(() => (window as unknown as FixtureWindow).logFixture.calls)).filter(call => call.command === command);
 const choice = (page: Page) => page.getByRole('group', { name: 'Read token counts from local logs', exact: true });
+
+test('a consented connection suggestion reuses account controls without creating a profile', async ({ page }) => {
+  await open(page, ready, { consentRequired: false, tools: detected({ codex: true }), scan: idle, connections: [{ tool: 'codex', connection: 'codex' }] });
+  const connect = page.getByRole('button', { name: 'Connect OpenAI', exact: true });
+  await expect(connect).toBeVisible({ timeout: 3000 });
+  await expect(page.locator('[data-overview-add-account]')).toHaveCount(1);
+  const forbidden = /create_profile|provider_connection|login|attach_profile_home|association/;
+  expect((await page.evaluate(() => (window as unknown as FixtureWindow).logFixture.calls)).filter(call => forbidden.test(call.command))).toEqual([]);
+  await connect.click();
+  await expect(page.getByRole('dialog', { name: 'Manage accounts', exact: true })).toBeVisible();
+  expect((await page.evaluate(() => (window as unknown as FixtureWindow).logFixture.calls)).filter(call => forbidden.test(call.command))).toEqual([]);
+});
+
+for (const [name, tools] of [
+  ['declined consent', [{ tool: 'codex', detected: true, granted: false }]],
+  ['absent tool', [{ tool: 'codex', detected: false, granted: true }]],
+  ['unsupported tool', [{ tool: 'claude', detected: true, granted: true }]],
+] as const) test(`connection suggestions stay absent for ${name}`, async ({ page }) => {
+  await open(page, ready, { consentRequired: false, tools: [...tools], scan: idle, connections: [] });
+  await expect(page.locator('[data-overview-add-account]')).toBeVisible();
+  await expect(page.locator('[data-connection-suggestion]')).toHaveCount(0);
+});
+
+test('saved consent and withdrawal update the existing account control', async ({ page }) => {
+  await open(page, ready, { consentRequired: false, tools: detected(), scan: idle, connections: [] });
+  await expect(page.locator('[data-connection-suggestion]')).toHaveCount(0);
+  await navigate(page, 'settings');
+  const logs = page.locator('.local-log-settings');
+  await logs.getByRole('checkbox', { name: 'Codex', exact: true }).check();
+  await logs.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect.poll(async () => (await calls(page, 'save_local_log_consent')).length).toBe(1);
+  await navigate(page, 'overview');
+  await expect(page.getByRole('button', { name: 'Connect OpenAI', exact: true })).toBeVisible();
+  await expect(page.locator('[data-overview-add-account]')).toHaveCount(1);
+  await navigate(page, 'settings');
+  await logs.getByRole('checkbox', { name: 'Codex', exact: true }).uncheck();
+  await logs.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect.poll(async () => (await calls(page, 'save_local_log_consent')).length).toBe(2);
+  await navigate(page, 'overview');
+  await expect(page.locator('[data-connection-suggestion]')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Add OpenAI account', exact: true })).toBeVisible();
+});
 
 test('first launch lists every detected tool, selected, and the one action saves the choice', async ({ page }) => {
   await open(page, fresh, { consentRequired: true, tools: detected(), scan: idle });
@@ -143,4 +187,50 @@ test('Settings changes the choice and shows a failed scan', async ({ page }) => 
   await expect(save).toBeDisabled();
   await expect(settings.getByRole('checkbox', { name: 'Codex', exact: true })).toBeChecked();
   expect(await calls(page, 'save_local_log_consent')).toEqual([{ command: 'save_local_log_consent', args: { tools: ['claude', 'codex'] } }]);
+});
+
+for (const settlement of ['success', 'failure'] as const) for (const granted of [false, true])
+test(`an older load ${settlement} cannot undo ${granted ? 'withdrawn' : 'granted'} consent`, async ({ page }) => {
+  await open(page, ready, {
+    consentRequired: false, tools: detected({ codex: granted }), scan: idle,
+    connections: granted ? [{ tool: 'codex', connection: 'codex' }] : [],
+  });
+  const account = page.locator('[data-overview-add-account]');
+  await expect(account).toHaveText(granted ? 'Connect OpenAI' : 'Add OpenAI account');
+  await page.evaluate(() => {
+    const fixture = window as unknown as FixtureWindow & { settleOldLoad: (settlement: 'success' | 'failure') => void; holdLoads: boolean };
+    const original = window.__TAURI__!.core.invoke;
+    let loads = 0;
+    window.__TAURI__!.core.invoke = async <T>(command: string, args?: Record<string, unknown>) => {
+      if (command !== 'load_local_logs') return original<T>(command, args);
+      if (fixture.holdLoads) return new Promise<T>(() => {});
+      const result = original<T>(command, args);
+      // Settings loads its own choice before the main view refresh starts.
+      if (++loads !== 2) return result;
+      const snapshot = await result;
+      return new Promise<T>((resolve, reject) => {
+        fixture.settleOldLoad = settlement => settlement === 'failure' ? reject('storage_unavailable') : resolve(snapshot);
+      });
+    };
+  });
+  await navigate(page, 'settings');
+  const logs = page.locator('.local-log-settings');
+  const codex = logs.getByRole('checkbox', { name: 'Codex', exact: true });
+  await expect(codex).toBeVisible();
+  await expect.poll(() => page.evaluate(() => typeof (window as unknown as { settleOldLoad?: (settlement: 'success' | 'failure') => void }).settleOldLoad)).toBe('function');
+  await codex.setChecked(!granted);
+  const save = logs.getByRole('button', { name: 'Save', exact: true });
+  await save.click();
+  await expect(save).toBeDisabled();
+  await expect(account).toHaveText(granted ? 'Add OpenAI account' : 'Connect OpenAI');
+  await page.evaluate(async settlement => {
+    const fixture = window as unknown as { settleOldLoad: (settlement: 'success' | 'failure') => void; holdLoads: boolean };
+    fixture.holdLoads = true;
+    fixture.settleOldLoad(settlement);
+    await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+  }, settlement);
+  await navigate(page, 'overview');
+  await expect(account).toHaveText(granted ? 'Add OpenAI account' : 'Connect OpenAI');
+  const forbidden = /create_profile|provider_connection|login|attach_profile_home|association/;
+  expect((await page.evaluate(() => (window as unknown as FixtureWindow).logFixture.calls)).filter(call => forbidden.test(call.command))).toEqual([]);
 });

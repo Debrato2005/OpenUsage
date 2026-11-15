@@ -32,4 +32,6 @@ pub use runner::{
     scan_with_cancellation, sha256_hex, valid_resolved_folder,
 };
 pub use session::{SessionRow, parse_sessions};
-pub use tools::{MarkerKind, SessionShape, Tool, enabled_tools, hour_tools, tool, tools};
+pub use tools::{
+    MarkerKind, ProviderConnection, SessionShape, Tool, enabled_tools, hour_tools, tool, tools,
+};

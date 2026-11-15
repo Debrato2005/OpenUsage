@@ -3,7 +3,7 @@ import { Fragment, useEffect, useId, useRef, useState, type ReactNode } from 're
 import { Button } from './components/ui/button';
 import { Meter, MeterIndicator, MeterLabel, MeterTrack } from './components/ui/meter';
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from './components/ui/select';
-import { invoke, type ActivityView, type ProfileRecord, type SavedProfileActivity, type SavedProfileQuota, type SavedQuotaWindow } from './contracts';
+import { invoke, type ActivityView, type LocalLogsView, type ProfileRecord, type SavedProfileActivity, type SavedProfileQuota, type SavedQuotaWindow } from './contracts';
 import { ActivityPanel } from './activity-panel';
 import { useActivityDashboard } from './activity-dashboard';
 import { useAccountSeries, usePreviousPeriod } from './activity-series';
@@ -17,8 +17,9 @@ import { useDateFormat } from './time-display';
 import { ArrowIcon, ClockIcon, GaugeIcon, MoreIcon, PlusIcon, RefreshIcon, SearchIcon } from './icons';
 import { LocalOverview } from './local-usage';
 import { LeaderboardRankAccess } from './leaderboard';
+import { providerConnectionNames } from './local-tools';
 
-type Props = { profiles: ProfileRecord[]; revision: number; onAccounts: () => void; onAccountAction?: (action: AccountAction) => void; busy?: boolean; active?: boolean; refreshingProfileIds?: string[]; refreshWaitSeconds?: Record<string, number>; expectedProfiles?: number; notices?: ReactNode; onDeviceUsage?: () => void };
+type Props = { profiles: ProfileRecord[]; revision: number; onAccounts: () => void; onAccountAction?: (action: AccountAction) => void; connections?: LocalLogsView['connections']; busy?: boolean; active?: boolean; refreshingProfileIds?: string[]; refreshWaitSeconds?: Record<string, number>; expectedProfiles?: number; notices?: ReactNode; onDeviceUsage?: () => void };
 type Reading = { activity: SavedProfileActivity | null; quota: SavedProfileQuota | null; activityFailed: boolean; quotaFailed: boolean; loading: boolean };
 const exactNumbers = new Intl.NumberFormat('en-US');
 function ExactCount({ value }: { value: string | null }) {
@@ -219,7 +220,7 @@ function AccountCard({ profile, slot, reading, plan, busy, active, refreshing, w
   </article>;
 }
 
-export function Overview({ profiles, revision, onAccounts, onAccountAction, busy = false, active = true, refreshingProfileIds = [], refreshWaitSeconds = {}, expectedProfiles = 0, notices, onDeviceUsage = () => {} }: Props) {
+export function Overview({ profiles, revision, onAccounts, onAccountAction, connections = [], busy = false, active = true, refreshingProfileIds = [], refreshWaitSeconds = {}, expectedProfiles = 0, notices, onDeviceUsage = () => {} }: Props) {
   const activeProfiles = profiles.filter(profile => !profile.archived);
   const ids = activeProfiles.map(profile => profile.id).join(',');
   // A colour follows the account, so archiving another account never repaints it.
@@ -245,6 +246,9 @@ export function Overview({ profiles, revision, onAccounts, onAccountAction, busy
     return () => window.clearInterval(timer);
   }, [active, ids]);
   const act = (action: AccountAction) => onAccountAction ? onAccountAction(action) : onAccounts();
+  const suggestion = connections[0];
+  const accountAction = () => suggestion ? onAccounts() : act({ kind: 'add' });
+  const connectionLabel = suggestion ? `Connect ${providerConnectionNames[suggestion.connection]}` : null;
   const planFor = (id: string) => {
     const plan = plans[id], bindingId = readings[id]?.quota?.bindingId;
     if (!plan || plan.bindingId !== bindingId || !plan.plan) return 'Not available';
@@ -281,7 +285,7 @@ export function Overview({ profiles, revision, onAccounts, onAccountAction, busy
     <LocalOverview active={active} onOpen={onDeviceUsage} />
     {activeProfiles.length === 0 ? expectedProfiles > 0 ? <p className="overview-meta overview-loading" role="status">Loading accounts…</p> : <section className="overview-welcome" aria-labelledby="overview-welcome-heading" data-overview-welcome>
       <span className="overview-welcome-mark" aria-hidden="true"><GaugeIcon /></span>
-      <div className="overview-quota-empty"><h2 id="overview-welcome-heading">No accounts</h2><Button disabled={busy} onClick={() => act({ kind: 'add' })} data-overview-add-account><PlusIcon />Add OpenAI account</Button></div>
+      <div className="overview-quota-empty"><h2 id="overview-welcome-heading">No accounts</h2><Button disabled={busy} onClick={accountAction} data-overview-add-account data-connection-suggestion={suggestion?.connection}>{suggestion ? <ArrowIcon /> : <PlusIcon />}{connectionLabel ?? 'Add OpenAI account'}</Button></div>
     </section> : null}
     {activeProfiles.length > 0 && <>
     <section className="overview-hero" aria-labelledby="overview-hero-heading" data-overview-hero>
@@ -311,7 +315,7 @@ export function Overview({ profiles, revision, onAccounts, onAccountAction, busy
           <label className="overview-search"><SearchIcon /><span className="sr-only">Search accounts</span><input type="search" placeholder="Search accounts" autoComplete="off" value={query} onChange={event => setQuery(event.target.value)} /></label>
           <Select modal={false} value={accountFilter} items={accountFilters} onValueChange={value => { if (value) setAccountFilter(value); }}><SelectTrigger aria-label="Filter accounts"><SelectValue /></SelectTrigger><SelectPopup alignItemWithTrigger={false}>{(Object.keys(accountFilters) as AccountFilter[]).map(value => <SelectItem key={value} value={value}>{accountFilters[value]}</SelectItem>)}</SelectPopup></Select>
         </div>}
-        <Button type="button" variant="outline" disabled={busy || activeProfiles.length >= 10} onClick={() => act({ kind: 'add' })} data-overview-add-account><PlusIcon />Add account</Button></div>
+        <Button type="button" variant="outline" disabled={busy || !suggestion && activeProfiles.length >= 10} onClick={accountAction} data-overview-add-account data-connection-suggestion={suggestion?.connection}>{suggestion ? <ArrowIcon /> : <PlusIcon />}{connectionLabel ?? 'Add account'}</Button></div>
       {shownProfiles.length > 0 ? <div className="overview-account-grid" role="list" aria-label="Account readings">{shownProfiles.map(profile => <div role="listitem" key={profile.id} className="overview-account-item">
         <AccountCard profile={profile} slot={slots[profile.id] ?? 0} reading={readings[profile.id]} plan={planFor(profile.id)} busy={busy} active={active} refreshing={refreshingProfileIds.includes(profile.id)} wait={refreshWaitSeconds[profile.id] ?? 0} selected={scope === profile.id} act={act} />
       </div>)}</div> : <div className="overview-no-match"><p role="status">No accounts match.</p><Button variant="outline" onClick={() => { setQuery(''); setAccountFilter('all'); }}>Clear filters</Button></div>}

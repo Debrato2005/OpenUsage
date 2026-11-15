@@ -196,7 +196,7 @@ function App() {
   const welcomeTools = welcomeLogs ? orderedTools(welcomeLogs.tools.filter(t => t.detected).map(t => t.tool)) : [];
   const [welcomeChoice, setWelcomeChoice] = useState<LocalLogTool[] | null>(null);
   const welcomeSelected = welcomeChoice ?? welcomeTools;
-  const [readyLogs, setReadyLogs] = useLocalLogs(ready);
+  const [readyLogs, setReadyLogs] = useLocalLogs(ready, view);
   const setupWorkspace = (passphrase: string | null) => invoke('setup_workspace', { passphrase }).then(async created => {
     if (welcomeTools.length && created.storage === 'ready') await invoke('save_local_log_consent', { tools: welcomeSelected }).catch(() => undefined);
     return created;
@@ -372,7 +372,7 @@ function App() {
         {ready && readyLogs?.consentRequired && <LocalLogConsentDialog view={readyLogs} busy={busy} onSaved={setReadyLogs} />}
         {deletionPending && <LocalDataDeletion key="pending" pending busy={busy} setBusy={setBusy} onChanged={applyLocalDataState} />}
         {!ready && privacyControls}
-        {ready && <section data-workspace-view="overview" hidden={view !== 'overview'} inert={view !== 'overview'} aria-label="Overview"><Overview key={profileRevision} notices={overviewNotices} active={view === 'overview'} profiles={profiles} revision={readingRevision} onAccounts={() => { setAccountPanelProfile(null); setAccountPanelOpen(true); }} onAccountAction={requestAccountAction} busy={busy} refreshingProfileIds={refreshingProfiles} refreshWaitSeconds={refreshWaitSeconds} expectedProfiles={data?.activeProfiles ?? 0} onDeviceUsage={() => { setUsageDevice(n => n + 1); navigate('usage'); }} /></section>}
+        {ready && <section data-workspace-view="overview" hidden={view !== 'overview'} inert={view !== 'overview'} aria-label="Overview"><Overview key={profileRevision} notices={overviewNotices} active={view === 'overview'} profiles={profiles} revision={readingRevision} onAccounts={() => { setAccountPanelProfile(null); setAccountPanelOpen(true); }} onAccountAction={requestAccountAction} connections={readyLogs?.connections ?? []} busy={busy} refreshingProfileIds={refreshingProfiles} refreshWaitSeconds={refreshWaitSeconds} expectedProfiles={data?.activeProfiles ?? 0} onDeviceUsage={() => { setUsageDevice(n => n + 1); navigate('usage'); }} /></section>}
         {ready && <dialog ref={accountPanel} data-account-panel aria-modal="true" data-workspace-view="accounts" hidden={!accountPanelOpen} aria-labelledby="account-panel-heading" onCancel={event => { event.preventDefault(); setAccountPanelOpen(false); }} onClose={() => setAccountPanelOpen(false)}>
           <div className="account-panel-heading"><h2 id="account-panel-heading">{profiles.find(profile => profile.id === accountPanelProfile)?.label ?? 'Manage accounts'}</h2><Button data-account-panel-close variant="ghost" className="icon-button" aria-label="Close account details" title="Close" onClick={() => setAccountPanelOpen(false)}><CloseIcon /></Button></div>
           {connectionPreparing && <p role="status">Preparing OpenAI sign-in…</p>}
@@ -435,7 +435,7 @@ function App() {
               <h2 id="settings-privacy-title" className="settings-group-title">{settingsSections.privacy.title}</h2>
               <div className="settings-card">
                 {view === 'settings' && <div className="settings-privacy-row">{privacyControls}</div>}
-                {view === 'settings' && <LocalLogSettings busy={busy} setBusy={setBusy} />}
+                {view === 'settings' && <LocalLogSettings busy={busy} setBusy={setBusy} onSaved={setReadyLogs} />}
                 {view === 'settings' && <LocalDataDeletion key="ready" busy={busy} setBusy={setBusy} onChanged={applyLocalDataState} />}
               </div>
             </section>

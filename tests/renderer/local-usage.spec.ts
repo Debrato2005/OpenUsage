@@ -53,6 +53,13 @@ async function open(page: Page, usage: Usage | Record<string, unknown>, scopes: 
 const usageCalls = (page: Page) => page.evaluate(() => (window as unknown as FixtureWindow).usageCalls);
 const device = (page: Page) => page.locator('[data-local-usage]');
 
+test('unsupported quota connection stays explicit in local token details', async ({ page }) => {
+  await open(page, localUsage());
+  await page.locator('[data-local-overview] [data-local-tool="claude"] [data-local-tool-total]').click();
+  const dialog = page.getByRole('dialog', { name: 'Claude Code details', exact: true });
+  await expect(dialog.locator('dt:has-text("Quota connection") + dd')).toHaveText('Unsupported');
+});
+
 test('rank failure preserves available capacity and local value on Overview', async ({ page }) => {
   await open(page, localUsage(), {}, { account: true, providerAvailable: true });
   const overview = page.locator('[data-local-overview]');

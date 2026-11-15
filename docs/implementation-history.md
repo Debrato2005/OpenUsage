@@ -6,6 +6,13 @@ This is a dated record of work through November 2, 2026, written against SRS 2.0
 
 
 
+## Own-rank access before connection suggestions, November 16, 2026
+
+Own-rank desktop access completed S-23b within its synthetic Linux scope.
+The [record](reviews/2026-11-16-own-rank-client.md) owns exact values, owned reads, native Quit, and local acceptance.
+Hosted CI for 704c3da passed both jobs.
+Connection suggestions remained the next bounded assignment.
+
 ## Settings before own-rank access, November 16, 2026
 
 L-5b completed Settings enrollment, retained upload review, public departure, recovery, and local forgetting in the private Linux app.

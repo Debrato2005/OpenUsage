@@ -7,7 +7,7 @@ import { BigNumber, compactCount } from './overview-charts';
 import { localLogToolNames } from './local-logs';
 import { ShareButton } from './share';
 import './local-usage.css';
-import { localLogToolTints as toolTint } from './local-tools';
+import { localLogToolTints as toolTint, providerConnectionFor, providerConnectionNames } from './local-tools';
 
 const exact = new Intl.NumberFormat('en-US');
 const count = (value: string | null) => value === null ? 'Not available' : exact.format(BigInt(value));
@@ -47,6 +47,7 @@ function Estimate({ totals }: { totals: LocalToolTotals }) {
 
 function ToolDetails({ totals, view }: { totals: LocalToolTotals; view: LocalUsageView }) {
   const differences = view.differences.filter(d => d.tool === totals.tool);
+  const connection = providerConnectionFor(totals.tool);
   return <dl className="detail-rows">
     <dt>Input</dt><dd>{count(totals.inputTokens)}</dd>
     <dt>Output</dt><dd>{count(totals.outputTokens)}</dd>
@@ -56,6 +57,7 @@ function ToolDetails({ totals, view }: { totals: LocalToolTotals; view: LocalUsa
     <dt>Total</dt><dd>{exact.format(BigInt(totals.totalTokens))}</dd>
     <dt>Estimated value</dt><dd>{totals.estimatedValueUsdMicros === null ? 'Not available' : `${dollars(totals.estimatedValueUsdMicros)} at public API prices, not money paid`}{!totals.estimateComplete && totals.estimatedValueUsdMicros !== null && '. Some models have no price.'}</dd>
     <dt>Source</dt><dd>Local logs on this device, read by ccusage {view.scannerVersions.join(', ') || 'Not available'}</dd>
+    <dt>Quota connection</dt><dd>{connection ? providerConnectionNames[connection] : 'Unsupported'}</dd>
     <dt>Dates</dt><dd>{view.dated ? `${view.startDate} to ${view.endDate}, days in ${view.timeZone}` : 'Not available'}</dd>
     {view.scopes.filter(s => s.id === view.scope && s.folder !== null).map(s => <span className="detail-row-pair" key={s.id}><dt>Folder history</dt><dd><bdi>{s.folder}</bdi></dd></span>)}
     {differences.length > 0 && <><dt>Logs gone</dt><dd><ul className="local-differences">{differences.map((d, index) => <li key={`${d.date}:${d.model}:${d.scanAtUtc}:${index}`}>{d.date ?? 'Not available'}, {d.model ?? 'Total'}: saved {exact.format(BigInt(d.savedTotalTokens))}, a later scan read {exact.format(BigInt(d.newTotalTokens))}</li>)}</ul></dd></>}

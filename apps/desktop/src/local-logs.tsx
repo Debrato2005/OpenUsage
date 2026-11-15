@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from './components/ui/button';
 import { Checkbox } from './components/ui/checkbox';
 import { invoke, type LocalLogTool, type LocalLogsView } from './contracts';
@@ -8,15 +8,23 @@ import { localLogToolNames, orderedTools } from './local-tools';
 export { localLogToolNames, orderedTools } from './local-tools';
 
 /** Loads the local log view. A failure gives null, so no consent list appears. */
-export function useLocalLogs(enabled: boolean) {
+export function useLocalLogs(enabled: boolean, revision: string | number = 0) {
   const [view, setView] = useState<LocalLogsView | null>(null);
+  const savedRevision = useRef(0);
+  const updateView = useCallback((next: LocalLogsView | null) => {
+    savedRevision.current += 1;
+    setView(next);
+  }, []);
   useEffect(() => {
     if (!enabled) { setView(null); return; }
     let current = true;
-    void invoke('load_local_logs').then(value => { if (current) setView(value); }).catch(() => { if (current) setView(null); });
+    const startedAtRevision = savedRevision.current;
+    void invoke('load_local_logs')
+      .then(value => { if (current && startedAtRevision === savedRevision.current) setView(value); })
+      .catch(() => { if (current && startedAtRevision === savedRevision.current) setView(null); });
     return () => { current = false; };
-  }, [enabled]);
-  return [view, setView] as const;
+  }, [enabled, revision]);
+  return [view, updateView] as const;
 }
 
 /** One checkbox for each tool (OU-LOG-001, OU-LOG-002). */
@@ -63,7 +71,7 @@ export function LocalLogConsentDialog(props: { view: LocalLogsView; busy: boolea
 }
 
 /** The Settings control that changes the choice (OU-LOG-002). */
-export function LocalLogSettings({ busy, setBusy }: { busy: boolean; setBusy: (busy: boolean) => void }) {
+export function LocalLogSettings({ busy, setBusy, onSaved }: { busy: boolean; setBusy: (busy: boolean) => void; onSaved?: (view: LocalLogsView) => void }) {
   const [view, setView] = useLocalLogs(true);
   const granted = view ? orderedTools(view.tools.filter(t => t.granted).map(t => t.tool)) : [];
   const [selected, setSelected] = useState<LocalLogTool[] | null>(null);
@@ -77,7 +85,7 @@ export function LocalLogSettings({ busy, setBusy }: { busy: boolean; setBusy: (b
       <LocalLogChoice tools={view.tools.map(t => t.tool)} selected={choice} onChange={setSelected} disabled={busy} />
       <Button variant="outline" disabled={busy || !changed} onClick={() => {
         setBusy(true); setFailed(false);
-        void invoke('save_local_log_consent', { tools: choice }).then(next => { setView(next); setSelected(null); })
+        void invoke('save_local_log_consent', { tools: choice }).then(next => { setView(next); setSelected(null); onSaved?.(next); })
           .catch(() => setFailed(true)).finally(() => setBusy(false));
       }}>Save</Button>
     </>}

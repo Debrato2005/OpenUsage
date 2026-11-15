@@ -43,6 +43,7 @@ async function open(setup) {
   if (setup) {
     await waitFor(async () => (await choices()).length === 2, 'the consent list');
     assert.deepEqual(await choices(), [{ name: 'Claude Code', checked: 'true' }, { name: 'Codex', checked: 'true' }]);
+    assert.equal((await call('load_local_logs')).connections, undefined, 'Detection before consent offers no connection.');
     evidence.steps.push('The welcome screen listed Claude Code and Codex, both selected.');
     await activate('#local-log-codex', '');
     await waitFor(async () => (await choices())[1]?.checked === 'false', 'Codex unselected');
@@ -216,6 +217,40 @@ try {
   assert.deepEqual(await treeHashes(unselected), unselectedBefore);
   assert.equal(await readlink(selected), unselected);
   evidence.steps.push('A saved root replaced with a link to an unselected folder failed. The workspace stayed ready, the saved usage stayed unchanged, and both synthetic folders stayed unchanged.');
+
+  // Connection suggestions use saved consent, not a tool or model as account identity.
+  await rm(selected); await rename(retained, selected);
+  await open(false);
+  assert.equal((await call('load_local_logs')).connections, undefined);
+  await waitFor(() => driver.execute('return Boolean(document.querySelector("[data-local-overview] [data-local-tool-total]"));'), 'retained local usage');
+  await driver.click('[data-local-overview] [data-local-tool-total]');
+  await waitFor(() => driver.execute('return Boolean(document.querySelector("[data-detail-panel][open]"));'), 'unsupported connection details');
+  assert.match(await driver.execute('return document.querySelector("[data-detail-panel][open]").textContent;'), /Quota connectionUnsupported/);
+  await driver.closeDetail();
+  await driver.navigate('settings');
+  await activate('.local-log-settings #local-log-codex', '');
+  await driver.click('.local-log-settings button:not([role=checkbox])');
+  await waitFor(async () => (await call('load_local_logs')).connections?.[0]?.connection === 'codex', 'saved Codex connection suggestion');
+  await driver.navigate('overview');
+  await waitFor(() => driver.execute('return document.querySelector("[data-connection-suggestion=codex]")?.textContent.trim()==="Connect OpenAI";'), 'one explicit connection action');
+  assert.equal(await driver.execute('return document.querySelectorAll("[data-overview-add-account]").length;'), 1);
+  const profilesBeforeSuggestion = await call('list_profiles');
+  await driver.click('[data-connection-suggestion=codex]');
+  await waitFor(() => driver.execute('return Boolean(document.querySelector("[data-account-panel][open]") && document.querySelector("#account-panel-heading")?.textContent==="Manage accounts");'), 'unselected account manager');
+  assert.deepEqual(await call('list_profiles'), profilesBeforeSuggestion, 'A suggestion does not create, sign in, or associate a profile.');
+  assert.equal((await call('list_profiles')).profiles[0].connectionState, 'authentication_required');
+  await driver.click('[data-account-panel-close]');
+  await driver.screenshot(join(output, 'connection-suggestion.png'));
+  await driver.navigate('settings');
+  await activate('.local-log-settings #local-log-codex', '');
+  await driver.click('.local-log-settings button:not([role=checkbox])');
+  await waitFor(async () => (await call('load_local_logs')).connections === undefined, 'withdrawn connection suggestion');
+  await driver.navigate('overview');
+  await waitFor(() => driver.execute('return document.querySelectorAll("[data-connection-suggestion]").length===0;'), 'withdrawn Overview suggestion');
+  assert.deepEqual(await call('list_profiles'), profilesBeforeSuggestion);
+  await close();
+  assert.deepEqual(await treeHashes(logs), logsBefore);
+  evidence.steps.push('Claude Code quota connection stayed Unsupported. Granting detected Codex offered one Connect OpenAI action. It opened the unselected account manager without changing profiles or signing in. Withdrawing consent removed it. Synthetic logs stayed unchanged.');
   assert.equal(await hash(application), evidence.applicationSha256);
   evidence.result = 'passed';
 } catch (error) { evidence.error = error.stack ?? String(error); process.exitCode = 1; }

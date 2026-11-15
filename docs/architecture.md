@@ -46,6 +46,8 @@ Today Codex is the only source, and its path has no general adapter layer. The p
 
 The [local tool catalog](../crates/openusage-locallogs/sources/tools.json) defines tool names, order, colors, enabled state, roots, folder variables, and report capabilities. Rust embeds it at compile time. The renderer imports it at build time. Detection, consent, the runner, and both interfaces use this one definition. Adapter and fixture checks must pass before a tool is enabled.
 
+The catalog also declares supported provider connections. Codex declares the existing OpenAI connection. Scanner activation keeps its separate gate.
+
 The local logs crate owns the [additional period contract](../crates/openusage-locallogs/README.md#additional-period-reports) in `agent_period.rs`. The [grouped runner](../crates/openusage-locallogs/README.md#grouped-scans) collects all required reports before storage.
 
 The disabled Pi path requires one candidate snapshot command. `agent_snapshot.rs` validates its envelope and both reports before the grouped runner returns data. The candidate derives both views from the same captured entries. A failed command or report returns no accepted scan and preserves saved history.

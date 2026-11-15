@@ -34,10 +34,9 @@ Linux input. Ordinary count defects, strict compatibility limits, legacy
 producer qualification, and saved-session migration remain open. Production pins
 and enabled tools stay unchanged.
 
-Hosted CI for Settings commit `fb7c52e` passes both jobs in
-[run 43749261012](https://github.com/Debrato2005/OpenUsage/actions/runs/43749261012).
-That run includes the standalone native-oracle lock correction.
-The new own-rank source has separate local evidence below and awaits its own hosted result.
+Hosted CI for own-rank commit `704c3da` passes both jobs in
+[run 43759009921](https://github.com/Debrato2005/OpenUsage/actions/runs/43759009921).
+The new connection suggestions have separate local evidence and await their own hosted result.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -52,7 +51,6 @@ New in baseline 3.1:
 
 - Private desktop-to-website sync and the responsive personal dashboard: Sections 14B and 14C, Stage 3.
 - Optional subscription-price comparisons: OU-SHARE-009. Independent local summaries, joined rank, and period receipts have the scoped results below.
-- Explicit provider-connection suggestions: OU-ACCT-021.
 
 New in baseline 3.0:
 
@@ -70,6 +68,8 @@ Kept from baseline 2.0:
 
 ## Partial
 
+- Connection suggestions (S-23c), November 16, 2026: detected, consented Codex offers the existing OpenAI flow through one Overview control. The [record](reviews/2026-11-16-connection-suggestions.md) owns consent, withdrawal, unsupported quota, unchanged profiles, the corrected stale-response race, and scoped checks.
+
 - Own-rank desktop access (S-23b), November 16, 2026: Overview opens the existing detail panel for authenticated rank reads. Periods, metrics, snapshot context, exact counts, unavailable entries, and null estimates retain their service scope. All 518 renderer cases, 591 workspace tests, and both Clippy modes pass. Two workspace tests are ignored. The compiled native journey passes thirteen groups, and the separate deletion journey passes. The [record](reviews/2026-11-16-own-rank-client.md) owns corrections, source review, checks, and limits. Live GitHub, hosted D1, real histories, and other platforms remain open.
 
 - Settings leaderboard integration (L-5b), November 15, 2026: explicit join, reconnect, retained upload review, global departure, fresh GitHub departure, and local forgetting work in the private Linux app. Eleven native journey groups pass. The separate deletion journey, 508 full renderer cases, 591 workspace tests, and both Clippy modes pass. The [record](reviews/2026-11-15-settings-leaderboard.md) owns ordering, corrected blockers, checks, and remaining gates. Live GitHub, hosted acceptance, and other platforms remain open.
@@ -80,7 +80,7 @@ Kept from baseline 2.0:
 
 - Online leaderboard CLI (L-5a), November 15, 2026: join, sync, reconnect, and leave pass the private Linux journey. Real sync matches the exact dry-run bytes from saved SQLCipher totals. Stable-device recovery, competing processes, daemon restart, and credential removal pass. The ordinary unconfigured build ignores native endpoint settings and makes no request. Full Rust workspace checks and native-feature Clippy pass. The [review](reviews/2026-11-15-online-cli-enrollment.md) records scope and corrected boundaries. Settings, hosted GitHub and Cloudflare acceptance, and other platforms remain open.
 
-- Independent Overview summaries (S-23a), November 15, 2026: one local-summary component survives first account creation. Renderer checks cover provider failure, local failure, empty history, and exact detail panels. The native consent journey preserves 14,950 local tokens and their incomplete estimate beside the first signed-out account. Provider and local totals retain separate scopes. Connection suggestions and joined rank remain open.
+- Independent Overview summaries (S-23a), November 15, 2026: one local-summary component survives first account creation. Renderer checks cover provider failure, local failure, empty history, and exact detail panels. The native consent journey preserves 14,950 local tokens and their incomplete estimate beside the first signed-out account. Provider and local totals retain separate scopes. S-23b and S-23c supply rank and connection suggestions.
 
 - Verification interruption, November 15, 2026: the [runner](engineering-workflow.md) records completed checks and stops owned child groups on SIGINT or SIGTERM. Synthetic process regressions and the full Python tool suite pass. The original interrupted milestone remains incomplete, and its signal sender remains unknown. Separate workspace tests and Clippy pass on the corrected source.
 
@@ -201,11 +201,9 @@ separate from document completion. The [performance report](performance-report.m
 
 The owner resumed autonomous implementation on November 15, 2026. Work continues through verified local commits and periodic pushes. Each push checks the GitHub login and includes only the reviewed branch. No release, deployment, or pull request is authorized. The latest instruction replaces the November 13 stop condition. Baseline 3.1 product scope stays unchanged.
 
-The current pass completes own-rank desktop access under S-23b.
-It uses one existing detail panel, one owned Rust reader, and one typed response.
-The [record](reviews/2026-11-16-own-rank-client.md) owns acceptance and limits.
-The next bounded assignment adds explicit connection suggestions under S-23c and OU-ACCT-021.
-Suggestions must use existing supported connection flows without an automatic sign-in, profile association, or source change.
+The current pass completes S-23c connection suggestions under OU-ACCT-021.
+The [record](reviews/2026-11-16-connection-suggestions.md) owns acceptance and limits.
+The next bounded assignment scopes reading status and evidence under S-04 before schema or provider changes.
 Scanner activation and private website sync keep their separate gates.
 Live service configuration, deployment, and release remain under owner control.
 

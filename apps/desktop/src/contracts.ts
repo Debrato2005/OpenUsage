@@ -1,4 +1,4 @@
-import { allTools, type LocalLogTool } from './local-tools.ts';
+import { allTools, providerConnectionFor, type LocalLogTool, type ProviderConnection } from './local-tools.ts';
 export type { LocalLogTool } from './local-tools.ts';
 
 export type MonitoringState = 'stopped' | 'running' | 'paused';
@@ -407,22 +407,35 @@ export type LocalLogsView = {
   consentRequired: boolean;
   tools: { tool: LocalLogTool; detected: boolean; granted: boolean }[];
   scan: { state: 'idle' | 'running' | 'failed' | 'unavailable'; lastScanAtUtc: string | null };
+  connections?: { tool: LocalLogTool; connection: ProviderConnection }[];
 };
 function isLocalLogsView(value: unknown): value is LocalLogsView {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const v = value as Record<string, unknown>;
+  const tools = v.tools;
   const scan = v.scan as Record<string, unknown> | null;
-  if (Object.keys(v).length !== 3 || typeof v.consentRequired !== 'boolean' || !Array.isArray(v.tools) || v.tools.length > allTools.length
+  if ((!exactKeys(v, ['consentRequired', 'tools', 'scan']) && !exactKeys(v, ['consentRequired', 'tools', 'scan', 'connections']))
+    || typeof v.consentRequired !== 'boolean' || !Array.isArray(tools) || tools.length > allTools.length
     || !scan || typeof scan !== 'object' || Object.keys(scan).length !== 2
     || !['idle', 'running', 'failed', 'unavailable'].includes(scan.state as string)
     || !(scan.lastScanAtUtc === null || isUtcTimestamp(scan.lastScanAtUtc))) return false;
   const seen = new Set<unknown>();
-  return v.tools.every(item => {
+  if (!tools.every(item => {
     if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
     const t = item as Record<string, unknown>;
     if (Object.keys(t).length !== 3 || !allTools.includes(t.tool as LocalLogTool) || seen.has(t.tool)
       || typeof t.detected !== 'boolean' || typeof t.granted !== 'boolean') return false;
     seen.add(t.tool); return true;
+  })) return false;
+  if (!Object.hasOwn(v, 'connections')) return true;
+  if (!Array.isArray(v.connections) || v.connections.length > allTools.length || v.consentRequired && v.connections.length > 0) return false;
+  const suggested = new Set<LocalLogTool>();
+  return v.connections.every(hint => {
+    if (!exactKeys(hint, ['tool', 'connection']) || !localTool(hint.tool) || suggested.has(hint.tool)) return false;
+    const connection = providerConnectionFor(hint.tool);
+    if (connection === null || connection !== hint.connection
+      || !tools.some(tool => tool.tool === hint.tool && tool.detected === true && tool.granted === true)) return false;
+    suggested.add(hint.tool); return true;
   });
 }
 export type LocalUsagePeriod = 'hour' | 'day' | 'week' | 'month';

@@ -1,6 +1,6 @@
 //! Bundled tool definitions shared with the desktop renderer. No runtime file is read.
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::sync::OnceLock;
 
@@ -61,12 +61,19 @@ pub struct AgentReportPolicy {
     pub period: PeriodPolicy,
 }
 
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ProviderConnection {
+    Codex,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct Tool {
     #[serde(skip)]
     pub id: String,
     pub name: String,
+    pub provider_connection: Option<ProviderConnection>,
     pub order: u8,
     pub tint: u8,
     pub enabled: bool,
