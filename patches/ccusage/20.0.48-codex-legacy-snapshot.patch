@@ -1,0 +1,274 @@
+--- a/rust/adapters/codex/README.md
++++ b/rust/adapters/codex/README.md
+@@ -70,3 +70,20 @@
+ ## Build layer
+ 
+ Built in the `adapters` Crane artifact layer; the layer compiles all adapters in one Cargo invocation, so they build concurrently.
++
++## Isolated legacy snapshot
++
++The local candidate adds `codex legacy-snapshot --json --offline`.
++It returns daily and session reports from one strict capture.
++The envelope includes `historyMode: "legacy"`.
++Ordinary reports retain the parent routing and session selectors.
++
++The strict command uses the first recorded thread ID and compares complete decoded streams.
++Equal streams and exact prefixes select one longest capture.
++Missing identity, conflicting streams, duplicate keys, lineage, replay, and incomplete counters refuse.
++Session rows use recorded thread IDs. No account identity is inferred.
++
++This command remains a synthetic Linux experiment. It does not establish legacy producer support.
++Last-only counters, total-only counters, and omitted reasoning counts remain unsupported in the strict command.
++Unrelated `.zst` files and unused large or deeply nested JSON values can also cause refusal.
++Production adoption still needs source qualification, stored-session migration, performance checks, and native acceptance.
+--- a/rust/adapters/codex/src/aggregate.rs
++++ b/rust/adapters/codex/src/aggregate.rs
+@@ -78,15 +78,6 @@
+ ) -> Result<BTreeMap<String, CodexGroup>> {
+     let sources = paths::codex_usage_sources()?;
+     if let Some(mut events) = super::paginated::load(
+-        &sources
+-            .iter()
+-            .map(|source| source.dir.clone())
+-            .collect::<Vec<_>>(),
+-    )? {
+-        filter_events_by_date(&mut events, shared)?;
+-        return aggregate_events(&events, kind, shared.timezone.as_deref());
+-    }
+-    if let Some(mut events) = super::legacy::load(
+         &sources
+             .iter()
+             .map(|source| source.dir.clone())
+@@ -163,10 +154,6 @@
+     kind: AgentReportKind,
+ ) -> Result<BTreeMap<String, CodexGroup>> {
+     if let Some(mut events) = super::paginated::load(&[sessions_dir.to_path_buf()])? {
+-        filter_events_by_date(&mut events, shared)?;
+-        return aggregate_events(&events, kind, shared.timezone.as_deref());
+-    }
+-    if let Some(mut events) = super::legacy::load(&[sessions_dir.to_path_buf()])? {
+         filter_events_by_date(&mut events, shared)?;
+         return aggregate_events(&events, kind, shared.timezone.as_deref());
+     }
+--- a/rust/adapters/codex/src/legacy.rs
++++ b/rust/adapters/codex/src/legacy.rs
+@@ -11,28 +11,15 @@
+ const MAX_RECORDS: usize = 100_000;
+ const MAX_EXACT: u64 = (1_u64 << 53) - 1;
+ 
+-fn unavailable() -> crate::CliError {
++pub(super) fn unavailable() -> crate::CliError {
+     cli_error(
+         "Codex legacy capture is unavailable: incomplete, conflicting, unsupported, or over limit",
+     )
+ }
+ 
+-pub(super) fn load(roots: &[PathBuf]) -> Result<Option<Vec<CodexTokenUsageEvent>>> {
++pub(super) fn capture(roots: &[PathBuf]) -> Result<Vec<CodexTokenUsageEvent>> {
+     if roots.len() > super::record_files::MAX_ROOTS {
+         return Err(unavailable());
+-    }
+-    let mut existing = false;
+-    for root in roots {
+-        match std::fs::symlink_metadata(root) {
+-            Ok(_) => existing = true,
+-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+-            Err(_) => return Err(unavailable()),
+-        }
+-    }
+-    // Ordinary multi-tool reports allow an absent tool with no observations.
+-    // Once any source exists, every selected root enters the checked capture.
+-    if !existing {
+-        return Ok(None);
+     }
+     let mut threads: BTreeMap<String, (Vec<Vec<u8>>, [u64; 6])> = BTreeMap::new();
+     let mut bytes = 0usize;
+@@ -91,9 +78,6 @@
+         Ok(())
+     })
+     .map_err(|_| unavailable())?;
+-    if threads.is_empty() {
+-        return Ok(None);
+-    }
+     let mut events = Vec::new();
+     let mut joint = [0_u64; 6];
+     for (thread, (rows, total)) in threads {
+@@ -105,7 +89,7 @@
+         }
+         events.extend(super::parser::captured_legacy_entries(&thread, &rows)?);
+     }
+-    Ok(Some(events))
++    Ok(events)
+ }
+ 
+ fn identity(row: &Value) -> Result<&str> {
+--- a/rust/adapters/codex/src/lib.rs
++++ b/rust/adapters/codex/src/lib.rs
+@@ -52,17 +52,24 @@
+     );
+     if args.sections.is_some() {
+         let roots = paths::snapshot_usage_paths()?;
+-        let events = paginated::capture(&roots)?;
++        let events = if args.codex_legacy_snapshot {
++            legacy::capture(&roots)?
++        } else {
++            paginated::capture(&roots)?
++        };
+         if paths::snapshot_usage_paths()? != roots {
+             return Err(paginated::unavailable());
+         }
+-        let output = snapshot_json(
++        let mut output = snapshot_json(
+             &events,
+             shared.timezone.as_deref(),
+             &pricing,
+             resolve_codex_speed(args.codex_speed),
+             shared.mode,
+         )?;
++        if args.codex_legacy_snapshot {
++            output["historyMode"] = Value::String("legacy".to_owned());
++        }
+         return print_json_or_jq(output, None, false);
+     }
+     let mut groups = load_groups(&shared, args.kind)?;
+--- a/rust/adapters/codex/src/loader.rs
++++ b/rust/adapters/codex/src/loader.rs
+@@ -25,9 +25,6 @@
+     single_thread: bool,
+ ) -> Result<Vec<CodexTokenUsageEvent>> {
+     if let Some(events) = super::paginated::load(&[sessions_dir.to_path_buf()])? {
+-        return Ok(events);
+-    }
+-    if let Some(events) = super::legacy::load(&[sessions_dir.to_path_buf()])? {
+         return Ok(events);
+     }
+     let files = collect_codex_usage_files(sessions_dir);
+@@ -76,18 +73,6 @@
+             .collect::<Vec<_>>(),
+     )? {
+         let detected = !events.is_empty();
+-        return Ok((events, detected));
+-    }
+-    if let Some(mut events) = super::legacy::load(
+-        &sources
+-            .iter()
+-            .map(|source| source.dir.clone())
+-            .collect::<Vec<_>>(),
+-    )? {
+-        let detected = !events.is_empty();
+-        if let Some(shared) = shared {
+-            super::aggregate::filter_events_by_date(&mut events, shared)?;
+-        }
+         return Ok((events, detected));
+     }
+     if let [source] = sources {
+--- a/rust/crates/ccusage-cli-parser/src/parser.rs
++++ b/rust/crates/ccusage-cli-parser/src/parser.rs
+@@ -43,6 +43,7 @@
+             kind,
+             session_id: None,
+             sections: self.sections,
++            codex_legacy_snapshot: false,
+             by_agent: self.by_agent,
+             pi_path: None,
+             open_claw_path: None,
+@@ -440,6 +441,7 @@
+         kind,
+         session_id: None,
+         sections,
++        codex_legacy_snapshot: false,
+         by_agent,
+         pi_path: None,
+         open_claw_path: None,
+@@ -486,6 +488,7 @@
+         kind: AgentReportKind::Session,
+         session_id: None,
+         sections,
++        codex_legacy_snapshot: false,
+         by_agent,
+         pi_path: None,
+         open_claw_path: None,
+@@ -629,7 +632,8 @@
+     mut shared: SharedArgs,
+     config: &dyn CliConfig,
+ ) -> Result<Command, String> {
+-    let snapshot = parser.peek() == Some("snapshot");
++    let codex_legacy_snapshot = parser.peek() == Some("legacy-snapshot");
++    let snapshot = codex_legacy_snapshot || parser.peek() == Some("snapshot");
+     let kind = if snapshot {
+         parser.next();
+         AgentReportKind::Daily
+@@ -670,6 +674,7 @@
+         kind,
+         session_id,
+         sections: snapshot.then_some(vec![AgentReportKind::Daily, AgentReportKind::Session]),
++        codex_legacy_snapshot,
+         by_agent: false,
+         pi_path: None,
+         open_claw_path: None,
+@@ -722,6 +727,7 @@
+         kind,
+         session_id: None,
+         sections: snapshot.then_some(vec![AgentReportKind::Daily, AgentReportKind::Session]),
++        codex_legacy_snapshot: false,
+         by_agent: false,
+         pi_path,
+         open_claw_path: None,
+@@ -754,6 +760,7 @@
+         kind,
+         session_id: None,
+         sections: None,
++        codex_legacy_snapshot: false,
+         by_agent: false,
+         pi_path: None,
+         open_claw_path,
+@@ -787,6 +794,7 @@
+         kind,
+         session_id: None,
+         sections: None,
++        codex_legacy_snapshot: false,
+         by_agent: false,
+         pi_path: None,
+         open_claw_path: None,
+@@ -1046,7 +1054,10 @@
+             report,
+             "daily" | "weekly" | "monthly" | "session" | "blocks" | "statusline"
+         ),
+-        "codex" => matches!(report, "daily" | "monthly" | "session" | "snapshot"),
++        "codex" => matches!(
++            report,
++            "daily" | "monthly" | "session" | "snapshot" | "legacy-snapshot"
++        ),
+         "opencode" => matches!(report, "daily" | "weekly" | "monthly" | "session"),
+         "pi" => matches!(report, "daily" | "monthly" | "session" | "snapshot"),
+         "amp" | "droid" | "codebuff" | "hermes" | "goose" | "kilo" | "copilot" | "gemini"
+--- a/rust/crates/ccusage-cli/src/types.rs
++++ b/rust/crates/ccusage-cli/src/types.rs
+@@ -176,6 +176,7 @@
+     pub kind: AgentReportKind,
+     pub session_id: Option<String>,
+     pub sections: Option<Vec<AgentReportKind>>,
++    pub codex_legacy_snapshot: bool,
+     pub by_agent: bool,
+     pub pi_path: Option<String>,
+     pub open_claw_path: Option<String>,
+--- a/rust/crates/ccusage/src/cli.rs
++++ b/rust/crates/ccusage/src/cli.rs
+@@ -60,6 +60,7 @@
+             kind: AgentReportKind::Daily,
+             session_id: None,
+             sections: None,
++            codex_legacy_snapshot: false,
+             by_agent: false,
+             pi_path: None,
+             open_claw_path: None,
+--- a/rust/crates/ccusage/src/cli/last_window.rs
++++ b/rust/crates/ccusage/src/cli/last_window.rs
+@@ -97,6 +97,7 @@
+             kind,
+             session_id: None,
+             sections: None,
++            codex_legacy_snapshot: false,
+             by_agent: false,
+             pi_path: None,
+             open_claw_path: None,

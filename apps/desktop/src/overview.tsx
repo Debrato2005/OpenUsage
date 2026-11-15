@@ -276,7 +276,7 @@ export function Overview({ profiles, revision, onAccounts, onAccountAction, busy
   return <section className="overview-dashboard" aria-label="Usage overview" data-overview data-overview-profile={profileId ?? undefined} aria-busy={pending}>
     {notices}
     {synthetic && <p className="overview-fixture-label">Synthetic test data</p>}
-    {activeProfiles.length === 0 && expectedProfiles === 0 && <LocalOverview active={active} onOpen={onDeviceUsage} />}
+    <LocalOverview active={active} onOpen={onDeviceUsage} />
     {activeProfiles.length === 0 ? expectedProfiles > 0 ? <p className="overview-meta overview-loading" role="status">Loading accounts…</p> : <section className="overview-welcome" aria-labelledby="overview-welcome-heading" data-overview-welcome>
       <span className="overview-welcome-mark" aria-hidden="true"><GaugeIcon /></span>
       <div className="overview-quota-empty"><h2 id="overview-welcome-heading">No accounts</h2><Button disabled={busy} onClick={() => act({ kind: 'add' })} data-overview-add-account><PlusIcon />Add OpenAI account</Button></div>
@@ -325,7 +325,6 @@ export function Overview({ profiles, revision, onAccounts, onAccountAction, busy
     <section className="overview-activity-panel" aria-label="Token activity" data-overview-activity>
       <ActivityPanel profiles={activeProfiles} profileId={active ? profileId : null} revision={revision} dashboard={yearDashboard} />
     </section>
-    <LocalOverview active={active} onOpen={onDeviceUsage} />
     </>}
   </section>;
 }

@@ -2,7 +2,7 @@
 
 # Implementation status
 
-Updated: November 13, 2026. This page holds the current state only. [History](implementation-history.md) holds past work, and [traceability](acceptance-traceability.md) holds exact evidence.
+Updated: November 15, 2026. This page holds the current state only. [History](implementation-history.md) holds past work, and [traceability](acceptance-traceability.md) holds exact evidence.
 
 OpenUsage is in development against [SRS baseline 3.1](SRS.md), authorized on November 13, 2026. There is no release. [Not built](#not-built) lists what is missing, and [Current assignment](#current-assignment) gives the launch state. The new website and private-sync requirements do not establish implemented support.
 
@@ -26,12 +26,13 @@ Verified combined totals stay unavailable, because no approved identity contract
 
 Real accounts: two authorized Codex accounts signed in and saved readings on Linux on an earlier build. The formal real-account test, AT-60, has not run.
 
-Latest scanner result, November 13, 2026. The isolated L-1f11at experiment
-corrects both legacy identity counts, but broader valid histories regress. Its
-[review](reviews/2026-11-13-legacy-codex-identity.md) records the failed compatibility
-checks and keeps qualification open. The prior L-1f11as candidate retains its
-[scoped capture evidence](reviews/2026-11-13-legacy-capture-candidate.md), including
-both raw synthetic Codex comparisons. Production pins and enabled tools stay unchanged.
+Latest scanner result, November 15, 2026. The isolated L-1f11au candidate
+preserves ordinary report routing and selectors. Its two strict reports share
+one captured event set. The [review](reviews/2026-11-15-legacy-snapshot-compatibility.md)
+records twenty-five passing tests and 314 scanner commands on private synthetic
+Linux input. Ordinary count defects, strict compatibility limits, legacy
+producer qualification, and saved-session migration remain open. Production pins
+and enabled tools stay unchanged.
 
 Hosted CI for `d8232b3` passed in
 [run 43253994409](https://github.com/Debrato2005/OpenUsage/actions/runs/43253994409).
@@ -51,7 +52,7 @@ New in baseline 3.1:
 
 - Private desktop-to-website sync and the responsive personal dashboard: Sections 14B and 14C, Stage 3.
 - Own-rank client views: OU-BOARD-013 and OU-BOARD-014. The service API is complete within the local scope below.
-- Combined Overview access and optional subscription-price comparisons: OU-UI-028 and OU-SHARE-009. Period receipts have the scoped result below.
+- Joined-rank access on Overview and optional subscription-price comparisons: OU-UI-028 and OU-SHARE-009. Independent local summaries and period receipts have the scoped results below.
 - Explicit provider-connection suggestions: OU-ACCT-021.
 
 New in baseline 3.0:
@@ -71,9 +72,15 @@ Kept from baseline 2.0:
 
 ## Partial
 
+- Independent Overview summaries (S-23a), November 15, 2026: one local-summary component survives first account creation. Renderer checks cover provider failure, local failure, empty history, and exact detail panels. The native consent journey preserves 14,950 local tokens and their incomplete estimate beside the first signed-out account. Provider and local totals retain separate scopes. Connection suggestions and joined rank remain open.
+
+- Leaderboard credential storage (L-5a2), November 15, 2026: the [separate vault](../crates/openusage-keys/README.md#leaderboard-credential-storage) passes the private Linux Secret Service journey. Synthetic credentials survive a daemon restart. Occupied, malformed, duplicate, locked, and unavailable entries refuse safely. Database-key isolation and expected-value removal pass. Enrollment schema, online callers, hosted access, and other platforms remain open.
+
+- Verification interruption, November 15, 2026: the [runner](engineering-workflow.md) records completed checks and stops owned child groups on SIGINT or SIGTERM. Synthetic process regressions and the full Python tool suite pass. The original interrupted milestone remains incomplete, and its signal sender remains unknown. Separate workspace tests and Clippy pass on the corrected source.
+
 - Owned scanner shutdown (S-06a), November 13, 2026: [native Linux acceptance](reviews/2026-11-13-owned-scanner-shutdown.md) stops concurrent scanner and provider work on Quit. All 42 encrypted tables and the protected key remain unchanged. Unrelated processes survive. The normal build rejects the test-only scanner path. Tray, Start at login, wake handling, and other platforms remain open.
 
-- Leaderboard transport (L-5a1), November 13, 2026: the shared [Rust client](../crates/openusage-board/README.md) supports bounded GitHub device authorization, join, exact-body sync, leave, and own rank. Ten local HTTP/TLS checks pass. Scoped Clippy and formatting pass. Missing build settings leave the client inert. CLI and Settings integration, OS token storage, and hosted acceptance remain open.
+- Leaderboard transport (L-5a1), November 13, 2026: the shared [Rust client](../crates/openusage-board/README.md) supports bounded GitHub device authorization, join, exact-body sync, leave, and own rank. Ten local HTTP/TLS checks pass. Scoped Clippy and formatting pass. Missing build settings leave the client inert. CLI and Settings integration, enrollment persistence, and hosted acceptance remain open. L-5a2 covers the separate low-level vault.
 
 - Period receipts (L-3c), November 13, 2026: Wrapped offers seven days, thirty days, and the current calendar month. Rust owns date selection and exact totals. The native share journey passes with synthetic logs and encrypted storage on Linux. Both renderer engines, full workspace tests, and Clippy pass within the combined checks. Annual Heatmap and Badge behavior remains. Real histories, other platforms, public profiles, and subscription comparisons remain open.
 
@@ -160,7 +167,7 @@ Kept from baseline 2.0:
 
 ## Failing or stale tests
 
-- Matte noir, November 13, 2026: all 242 Chromium renderer tests and the production build passed. WebKit did not start, because this host lacks `libicudata.so.74` for the Playwright WebKit build. Native journeys did not run for this change, so the theme is unverified in WebKitGTK.
+- Matte noir, November 15, 2026: the current source passes all 490 Chromium and WebKit renderer cases through the project runtime. All 32 focused local-usage cases pass after screenshots disable color transitions. Visual checks cover light and dark themes at 720 pixels. The native consent and persistence journeys pass on the current Linux build. Other native journeys retain their own recorded scopes.
 
 - R-2, November 10, 2026: desktop synthetic fixtures now reuse the bounded executable writer from R-1. The deterministic inherited-writer test, 22 provider tests, full Rust checks, and native provider-lifecycle passed. The earlier cooldown failure returned ProviderUnavailable but did not expose its underlying cause. Focused diagnostics did not reproduce it. The [review](reviews/2026-11-10-desktop-fixture-writes.md) keeps that distinction explicit. The later Pi filesystem verification passed; its evidence remains separate.
 
@@ -190,15 +197,13 @@ separate from document completion. The [performance report](performance-report.m
 
 ## Current assignment
 
-The latest November 13 instruction ends this pass after checks, documentation,
-and a local commit. Work is stopped for the owner's next instruction. No next
-feature, push, deployment, or release is authorized by this checkpoint.
+The owner resumed autonomous implementation on November 15, 2026. Work continues through verified local commits and periodic pushes. Each push checks the GitHub login and includes only the reviewed branch. No release, deployment, or pull request is authorized. The latest instruction replaces the November 13 stop condition. Baseline 3.1 product scope stays unchanged.
 
-The completed local boundaries are L-3c receipts, L-5a0 offline preview,
-L-5a1 HTTP transport, and S-06a owned scanner shutdown. Their evidence and limits
-are above. The isolated L-1f11at identity experiment remains unqualified because
-its compatibility checks fail. Its review records the next correction. Online
-leaderboard callers and credential storage remain separate work.
+The current integration pass covers L-1f11au scanner compatibility, L-5a2 credential storage, S-23a independent Overview summaries, and verification interruption cleanup. Astra xhigh workers resolved bounded blockers and completed their handoffs. The primary agent owns shared documentation, final verification, and Git operations.
+
+The next client boundary is a validated enrollment envelope and online CLI callers under L-5a. Connection suggestions and joined-rank access remain under S-23. Scanner activation still needs the unresolved qualification and saved-session gates in the L-1f11au review.
+
+The repository inventory covers 918 tracked files. Graphify and source review cover the major application, storage, provider, CLI, service, and test boundaries. This is an inventory and scoped review. It does not establish a complete semantic audit. Real-provider, real-machine, and production scanner gates remain open.
 
 L-1f11as is complete within its separate legacy capture candidate scope.
 The [candidate record](reviews/2026-11-13-legacy-capture-candidate.md) lists executed

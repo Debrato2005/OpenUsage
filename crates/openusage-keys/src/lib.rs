@@ -1,10 +1,13 @@
-//! The database key in the OS credential store (SRS Section 12.2). The desktop app and the CLI
-//! share this one copy. On Linux each vault owns a small runtime for its Secret Service connection.
+//! Fixed OS credential slots for the database key and public leaderboard enrollment.
+//! On Linux each vault owns a small runtime for its Secret Service connection.
 #[cfg(any(not(target_os = "linux"), test))]
 use keyring_core::{Entry, api::CredentialStoreApi};
 use zeroize::Zeroizing;
 
 pub type DatabaseKey = Zeroizing<[u8; 32]>;
+
+mod board;
+pub use board::{BoardCredential, BoardVault};
 
 #[cfg(not(feature = "native-test"))]
 const SERVICE: &str = "app.openusage.desktop";
@@ -27,6 +30,7 @@ pub trait KeyVault {
 }
 
 pub struct OsVault {
+    account: &'static str,
     #[cfg(not(target_os = "linux"))]
     entry: Entry,
     /// Dropped inside the runtime that owns its connection.
@@ -47,6 +51,11 @@ impl Drop for OsVault {
 impl OsVault {
     #[cfg(target_os = "linux")]
     pub fn new() -> Result<Self, VaultError> {
+        Self::for_account(ACCOUNT)
+    }
+
+    #[cfg(target_os = "linux")]
+    fn for_account(account: &'static str) -> Result<Self, VaultError> {
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(1)
             .enable_all()
@@ -58,6 +67,7 @@ impl OsVault {
                 .map_err(|_| VaultError::Unavailable)
         })?;
         Ok(Self {
+            account,
             service: Some(service),
             runtime,
         })
@@ -70,6 +80,11 @@ impl OsVault {
 
     #[cfg(not(target_os = "linux"))]
     pub fn new() -> Result<Self, VaultError> {
+        Self::for_account(ACCOUNT)
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    fn for_account(account: &'static str) -> Result<Self, VaultError> {
         #[cfg(target_os = "macos")]
         let store = apple_native_keyring_store::keychain::Store::new().map_err(map_error)?;
         #[cfg(target_os = "windows")]
@@ -79,9 +94,9 @@ impl OsVault {
         #[cfg(not(target_os = "windows"))]
         let modifiers = None;
         let entry = store
-            .build(SERVICE, ACCOUNT, modifiers.as_ref())
+            .build(SERVICE, account, modifiers.as_ref())
             .map_err(map_error)?;
-        Ok(Self { entry })
+        Ok(Self { account, entry })
     }
 
     #[cfg(target_os = "linux")]
@@ -92,7 +107,7 @@ impl OsVault {
     #[cfg(target_os = "linux")]
     async fn secret_async(&self) -> Result<Option<Vec<u8>>, VaultError> {
         let attributes =
-            std::collections::HashMap::from([("service", SERVICE), ("username", ACCOUNT)]);
+            std::collections::HashMap::from([("service", SERVICE), ("username", self.account)]);
         let found = self
             .service()?
             .search_items(attributes)
@@ -142,11 +157,33 @@ impl KeyVault for OsVault {
     }
 
     fn remove(&self, expected: &[u8; 32]) -> Result<(), VaultError> {
+        self.remove_checked(|encoded| verify_expected(encoded, expected))
+    }
+
+    fn protect(&self, key: &[u8; 32]) -> Result<(), VaultError> {
+        const HEX: &[u8; 16] = b"0123456789abcdef";
+        let mut encoded = Zeroizing::new(Vec::with_capacity(67));
+        encoded.extend_from_slice(b"v1:");
+        for byte in key {
+            encoded.push(HEX[usize::from(byte >> 4)]);
+            encoded.push(HEX[usize::from(byte & 15)]);
+        }
+        self.protect_secret("OpenUsage encrypted database key", &encoded)
+    }
+}
+
+impl OsVault {
+    fn remove_checked(
+        &self,
+        verify: impl FnOnce(Vec<u8>) -> Result<(), VaultError>,
+    ) -> Result<(), VaultError> {
         #[cfg(target_os = "linux")]
         {
             bounded(&self.runtime, async {
-                let attributes =
-                    std::collections::HashMap::from([("service", SERVICE), ("username", ACCOUNT)]);
+                let attributes = std::collections::HashMap::from([
+                    ("service", SERVICE),
+                    ("username", self.account),
+                ]);
                 let found = self
                     .service()?
                     .search_items(attributes)
@@ -168,36 +205,28 @@ impl KeyVault for OsVault {
                     .await
                     .map_err(|_| VaultError::Unavailable)?;
                 if attributes.get("service").map(String::as_str) != Some(SERVICE)
-                    || attributes.get("username").map(String::as_str) != Some(ACCOUNT)
+                    || attributes.get("username").map(String::as_str) != Some(self.account)
                 {
                     return Err(VaultError::InvalidKey);
                 }
-                verify_expected(
+                verify(
                     item.get_secret()
                         .await
                         .map_err(|_| VaultError::Unavailable)?,
-                    expected,
                 )?;
                 // Item::delete rechecks its locked property before deletion.
                 item.delete().await.map_err(|_| VaultError::Unavailable)
             })
         }
         #[cfg(not(target_os = "linux"))]
-        remove_entry(&self.entry, expected)
+        remove_entry_checked(&self.entry, verify)
     }
 
-    fn protect(&self, key: &[u8; 32]) -> Result<(), VaultError> {
-        const HEX: &[u8; 16] = b"0123456789abcdef";
-        let mut encoded = Zeroizing::new(Vec::with_capacity(67));
-        encoded.extend_from_slice(b"v1:");
-        for byte in key {
-            encoded.push(HEX[usize::from(byte >> 4)]);
-            encoded.push(HEX[usize::from(byte & 15)]);
-        }
+    fn protect_secret(&self, label: &str, encoded: &[u8]) -> Result<(), VaultError> {
         #[cfg(target_os = "linux")]
         {
             bounded(&self.runtime, async {
-                if self.secret_async().await?.is_some() {
+                if self.secret_async().await?.map(Zeroizing::new).is_some() {
                     return Err(VaultError::InvalidKey);
                 }
                 let collection = self
@@ -212,23 +241,25 @@ impl KeyVault for OsVault {
                 {
                     return Err(VaultError::Unavailable);
                 }
-                let attributes =
-                    std::collections::HashMap::from([("service", SERVICE), ("username", ACCOUNT)]);
+                let attributes = std::collections::HashMap::from([
+                    ("service", SERVICE),
+                    ("username", self.account),
+                ]);
                 collection
-                    .create_item(
-                        "OpenUsage encrypted database key",
-                        attributes,
-                        &encoded,
-                        false,
-                        "text/plain",
-                    )
+                    .create_item(label, attributes, encoded, false, "text/plain")
                     .await
                     .map_err(|_| VaultError::Unavailable)?;
                 Ok(())
             })
         }
         #[cfg(not(target_os = "linux"))]
-        self.entry.set_secret(&encoded).map_err(map_error)
+        {
+            let _ = label;
+            if self.account != ACCOUNT && self.secret()?.map(Zeroizing::new).is_some() {
+                return Err(VaultError::InvalidKey);
+            }
+            self.entry.set_secret(encoded).map_err(map_error)
+        }
     }
 }
 
@@ -261,14 +292,22 @@ fn verify_expected(encoded: Vec<u8>, expected: &[u8; 32]) -> Result<(), VaultErr
     }
     Ok(())
 }
-#[cfg(any(not(target_os = "linux"), test))]
+#[cfg(test)]
 fn remove_entry(entry: &Entry, expected: &[u8; 32]) -> Result<(), VaultError> {
+    remove_entry_checked(entry, |encoded| verify_expected(encoded, expected))
+}
+
+#[cfg(any(not(target_os = "linux"), test))]
+fn remove_entry_checked(
+    entry: &Entry,
+    verify: impl FnOnce(Vec<u8>) -> Result<(), VaultError>,
+) -> Result<(), VaultError> {
     let encoded = match entry.get_secret() {
         Ok(secret) => secret,
         Err(keyring_core::Error::NoEntry) => return Ok(()),
         Err(error) => return Err(map_error(error)),
     };
-    verify_expected(encoded, expected)?;
+    verify(encoded)?;
     match entry.delete_credential() {
         Ok(()) | Err(keyring_core::Error::NoEntry) => Ok(()),
         Err(error) => Err(map_error(error)),

@@ -2,6 +2,7 @@
 """Offline environment checks, change-aware verification and content-free trace metrics."""
 import argparse
 from collections import Counter
+from contextlib import contextmanager
 from datetime import datetime
 import hashlib
 import json
@@ -199,8 +200,28 @@ def stop_process(process):
     process.wait(timeout=5)
 
 
-def execute(argv, root, env, timeout):
+@contextmanager
+def verification_signals():
+    interruption = {'signal': None}
+    previous = {}
+
+    def record_signal(signum, _frame):
+        if interruption['signal'] is None:
+            interruption['signal'] = signum
+
+    try:
+        for signum in (signal.SIGINT, signal.SIGTERM):
+            previous[signum] = signal.signal(signum, record_signal)
+        yield interruption
+    finally:
+        for signum, handler in previous.items():
+            signal.signal(signum, handler)
+
+
+def execute(argv, root, env, timeout, interruption=None):
     """Drain output without retaining message text; keep fixed diagnostic counters."""
+    if interruption is not None and interruption['signal'] is not None:
+        return {'status': 'interrupted', 'signal': interruption['signal'], 'elapsedSeconds': 0}
     executable = shutil.which(argv[0], path=env.get('PATH'))
     if not executable:
         return {'status': 'missing_dependency', 'elapsedSeconds': 0}
@@ -222,9 +243,23 @@ def execute(argv, root, env, timeout):
     reader.start()
     status = 'passed'
     try:
-        process.wait(timeout=timeout)
-        if process.returncode:
-            status = 'failed'
+        while True:
+            if interruption is not None and interruption['signal'] is not None:
+                status = 'interrupted'
+                stop_process(process)
+                break
+            remaining = timeout - (time.monotonic() - started)
+            if remaining <= 0:
+                raise subprocess.TimeoutExpired(argv, timeout)
+            try:
+                process.wait(timeout=min(remaining, .1) if interruption is not None else remaining)
+            except subprocess.TimeoutExpired:
+                if interruption is not None:
+                    continue
+                raise
+            if process.returncode:
+                status = 'failed'
+            break
     except subprocess.TimeoutExpired:
         status = 'timeout'
         stop_process(process)
@@ -239,8 +274,17 @@ def execute(argv, root, env, timeout):
     if reader.is_alive():
         raise RuntimeError('Child output did not close after bounded process cleanup')
     process.stdout.close()
-    return {'status': status, 'exitCode': process.returncode,
-            'elapsedSeconds': round(time.monotonic() - started, 3), **counts}
+    result = {'status': status, 'exitCode': process.returncode,
+              'elapsedSeconds': round(time.monotonic() - started, 3), **counts}
+    if status == 'interrupted':
+        result['signal'] = interruption['signal']
+    return result
+
+
+def save_checks(directory, result):
+    pending = directory / '.checks.pending'
+    pending.write_text(json.dumps(result, indent=2), encoding='utf-8')
+    os.replace(pending, directory / 'checks.log')
 
 
 def verify(root, args):
@@ -268,18 +312,28 @@ def verify(root, args):
         raise ValueError('Choose targeted renderer tests before running this plan')
     env = environment(root)
     deadline = time.monotonic() + args.timeout
-    with storage.diagnostic_run(root, 'engineering', count=3, max_bytes=16 * 1024**2) as directory:
+    with verification_signals() as interruption, storage.diagnostic_run(
+            root, 'engineering', count=3, max_bytes=16 * 1024**2) as directory:
         result['logDirectory'] = str(directory.relative_to(root))
         steps = []
+        result.update(results=steps, status='running')
+        save_checks(directory, result)
         for command in result['commands']:
+            if interruption['signal'] is not None:
+                break
+            result['activeCommand'] = command['id']
+            save_checks(directory, result)
             remaining = deadline - time.monotonic()
-            outcome = execute(command['argv'], root, env, remaining) if remaining > 0 else {'status': 'timeout', 'elapsedSeconds': 0}
+            outcome = execute(command['argv'], root, env, remaining, interruption) if remaining > 0 else {'status': 'timeout', 'elapsedSeconds': 0}
             steps.append({'id': command['id'], **outcome})
+            del result['activeCommand']
+            save_checks(directory, result)
             if outcome['status'] != 'passed':
                 break
-        result['results'] = steps
         result['status'] = 'checks_passed' if len(steps) == len(result['commands']) and all(s['status'] == 'passed' for s in steps) else 'failed'
-        (directory / 'checks.log').write_text(json.dumps(result, indent=2), encoding='utf-8')
+        if interruption['signal'] is not None:
+            result.update(status='interrupted', signal=interruption['signal'])
+        save_checks(directory, result)
     return result
 
 
@@ -410,6 +464,8 @@ def main():
                 result = verify(root, args)
         result['elapsedSeconds'] = round(time.monotonic() - started, 3)
         print(json.dumps(result, sort_keys=True))
+        if result.get('status') == 'interrupted':
+            return 128 + result['signal']
         return 1 if result.get('status') == 'failed' else 0
     except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as error:
         # Exception text can contain private paths, arguments or child output.

@@ -8,24 +8,106 @@ type Usage = ReturnType<typeof localUsage>;
 type FixtureWindow = Window & { usageCalls: Record<string, unknown>[] };
 const ready = { storage: 'ready', theme: 'light', schemaVersion: 10, activeProfiles: 0, monitoring: 'stopped', provider: 'not_configured', keyProtection: 'os_store', storageIssue: null };
 
-async function open(page: Page, usage: Usage | Record<string, unknown>, scopes: Record<string, unknown> = {}) {
-  await page.addInitScript(({ boot, usage, scopes }) => {
+async function open(page: Page, usage: Usage | Record<string, unknown>, scopes: Record<string, unknown> = {}, options: { account?: boolean; failLocal?: boolean; deferLocalAfterAdd?: boolean; providerAvailable?: boolean; theme?: 'light' | 'dark' } = {}) {
+  await page.addInitScript(({ boot, usage, scopes, options }) => {
     const calls: Record<string, unknown>[] = []; Object.assign(window, { usageCalls: calls });
+    const id = '22222222-2222-4222-8222-222222222222';
+    let created = options.account ?? false;
+    const profiles = () => ({ activeProfiles: created ? 1 : 0, profiles: created ? [{ id, label: 'Account A', environment: 'native', archived: false, connectionState: options.providerAvailable ? 'connected' : 'offline' }] : [] });
     window.__TAURI__ = { core: { invoke: async <T>(command: string, args: Record<string, unknown> = {}) => {
       if (command === 'load_time_zone') return { timeZone: 'UTC' } as T;
-      if (command === 'bootstrap') return boot as T;
+      if (command === 'bootstrap') return { ...boot, activeProfiles: created ? 1 : 0, theme: options.theme ?? 'light' } as T;
       if (command === 'get_display_scale') return { percent: 100 } as T;
-      if (command === 'list_profiles') return { activeProfiles: 0, profiles: [] } as T;
+      if (command === 'list_profiles') return profiles() as T;
+      if (command === 'create_profile') { created = true; return profiles() as T; }
+      if (command === 'prepare_provider_connection') throw 'provider_source_unverified';
+      if (command === 'load_profile_refresh_status') return { profileId: id, retryAfterSeconds: 0 } as T;
+      if (command === 'load_profile_quota' && options.providerAvailable) return {
+        profileId: id, bindingId: '33333333-3333-4333-8333-333333333333', collectionRunId: '44444444-4444-4444-8444-444444444444',
+        providerVersion: '0.163.0', sourceKind: 'test_fixture', observedAtUtc: '2026-11-08T08:00:00.000Z', identityConfidence: 'provisional', verifiedIdentityKey: null,
+        monitoring: 'stopped', accepted: true, coverage: 'unknown', scope: 'account_quota_with_unknown_application_scope', freshness: 'fresh', availableResetCredits: null, resetCreditDetails: null,
+        limits: [{ limitId: 'codex', limitName: 'Codex', reachedType: null, monthlyCreditLimit: null, spendControlReached: null,
+          primary: { usedPercent: 25, derivedRemainingPercent: 75, windowDurationMins: 300, resetsAtUnix: null, label: 'Five-hour', resetState: 'expected' }, secondary: null }],
+      } as T;
+      if (command === 'load_profile_plan') return { profileId: id, bindingId: args.bindingId, plan: 'plus' } as T;
+      if (command === 'load_profile_activity' || command === 'load_profile_quota' || command === 'load_profile_heatmap' || command === 'load_activity_dashboard') {
+        if (options.providerAvailable) {
+          if (command === 'load_activity_dashboard') return { view: args.view, status: 'unavailable', mode: args.mode, periodStart: args.startDate, periodEnd: args.endDate, sourceKind: 'unverified', observedAtUtc: null, scopeVerified: false, totalTokens: null, knownContributions: 0, expectedContributions: 0, scaleMaximum: null, members: [], exclusions: [{ profileId: id, reason: 'activity_unavailable' }], cells: [] } as T;
+          return null as T;
+        }
+        throw 'provider_unavailable';
+      }
       if (command === 'load_monitoring') return { state: 'stopped', readingRevision: '11111111-1111-4111-8111-111111111111', profiles: [] } as T;
       if (command === 'load_local_logs') return { consentRequired: false, tools: [{ tool: 'claude', detected: true, granted: true }, { tool: 'codex', detected: true, granted: true }], scan: { state: 'idle', lastScanAtUtc: null } } as T;
-      if (command === 'load_local_usage') { calls.push(args); return (scopes[String(args.scope)] ?? usage) as T; }
+      if (command === 'load_local_usage') {
+        calls.push(args);
+        if (options.failLocal) throw 'local_usage_unavailable';
+        if (options.deferLocalAfterAdd && created) return await new Promise<T>(() => {});
+        return (scopes[String(args.scope)] ?? usage) as T;
+      }
       throw new Error(`Unexpected synthetic command ${command}`);
     } } };
-  }, { boot: ready, usage, scopes });
+  }, { boot: ready, usage, scopes, options });
   await page.goto('/');
 }
 const usageCalls = (page: Page) => page.evaluate(() => (window as unknown as FixtureWindow).usageCalls);
 const device = (page: Page) => page.locator('[data-local-usage]');
+
+test('adding the first account keeps saved local value while provider and later local reads are unavailable', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 720, height: 900 });
+  await open(page, localUsage(), {}, { deferLocalAfterAdd: true });
+  const overview = page.locator('[data-local-overview]');
+  await expect(overview.locator('[data-local-tool="claude"] .local-tool-context')).toHaveText('Estimated $184.32Incomplete');
+  await page.locator('[data-overview-add-account]').click();
+  await expect(page.locator('[data-account-panel]')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('[data-overview-account="22222222-2222-4222-8222-222222222222"]')).toContainText('Offline');
+  await expect(overview.locator('[data-local-tool="claude"] .local-tool-context')).toHaveText('Estimated $184.32Incomplete');
+  await expect(page.locator('[data-overview-summary="quota"]')).toContainText('Not available');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath('first-account-local-value.png'), fullPage: true, animations: 'disabled' });
+  await overview.locator('[data-local-tool="claude"] [data-local-tool-total]').click();
+  const panel = page.locator('[data-detail-panel][open]');
+  await expect(panel).toContainText('Estimated value$184.32 at public API prices, not money paid. Some models have no price.');
+  await expect(panel).toContainText('Local logs on this device, read by ccusage 20.0.48');
+  await expect(panel).toContainText('2026-10-10 to 2026-11-08, days in Asia/Kolkata');
+  await page.screenshot({ path: testInfo.outputPath('local-value-details.png'), animations: 'disabled' });
+  await page.keyboard.press('Escape');
+  await overview.getByRole('button', { name: 'Open in Usage', exact: true }).click();
+  await expect(page.getByRole('group', { name: 'Source', exact: true }).getByRole('button', { name: 'This device', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(overview).not.toBeVisible();
+});
+
+test('empty local history keeps provider capacity available without a local zero', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 720, height: 900 });
+  const empty = { ...localUsage(), tools: [], models: [], buckets: [], differences: [], sessions: [], projects: [], activeDays: 0, longestStreakDays: 0, busiestDay: null };
+  await open(page, empty, {}, { account: true, providerAvailable: true });
+  await expect(page.locator('[data-overview-summary="quota"]')).toContainText('75%');
+  await expect(page.locator('[data-local-overview]')).toHaveCount(0);
+  await page.screenshot({ path: testInfo.outputPath('empty-local-provider-capacity.png'), fullPage: true, animations: 'disabled' });
+  await navigate(page, 'usage');
+  await page.getByRole('group', { name: 'Source', exact: true }).getByRole('button', { name: 'This device', exact: true }).click();
+  await expect(device(page).getByRole('heading', { name: 'No saved local usage for these dates', exact: true })).toBeVisible();
+  await expect(device(page).locator('[data-local-tool-total]')).toHaveCount(0);
+});
+
+test('a local read failure keeps provider capacity and its detail panel available', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 720, height: 900 });
+  await open(page, localUsage(), {}, { account: true, providerAvailable: true, failLocal: true, theme: 'dark' });
+  const capacity = page.locator('[data-overview-summary="quota"]');
+  await expect(capacity).toContainText('75%');
+  await expect(page.locator('[data-local-overview]')).toHaveCount(0);
+  await capacity.getByRole('button').click();
+  await expect(page.locator('[data-detail-panel][open]')).toContainText('AccountAccount A');
+  await expect(page.locator('[data-detail-panel][open]')).toContainText('Calculation100% − 25% used');
+  await page.keyboard.press('Escape');
+  await page.screenshot({ path: testInfo.outputPath('local-unavailable-provider-capacity.png'), fullPage: true, animations: 'disabled' });
+  await navigate(page, 'usage');
+  await page.getByRole('group', { name: 'Source', exact: true }).getByRole('button', { name: 'This device', exact: true }).click();
+  await expect(device(page).getByRole('alert')).toHaveText('OpenUsage could not read saved local usage. Try again.');
+  await expect(device(page).locator('[data-local-tool-total]')).toHaveCount(0);
+  await page.screenshot({ path: testInfo.outputPath('local-read-error.png'), animations: 'disabled' });
+});
 
 test('first launch with logs and no account shows This device on Overview and opens it in Usage', async ({ page }) => {
   const usage = localUsage();

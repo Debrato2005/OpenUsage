@@ -45,6 +45,12 @@ The owner later narrowed execution to the work already in progress. Complete
 its checks and docs, commit locally, then wait for the next instruction. This
 latest direction changes the stopping condition, not baseline 3.1 scope.
 
+The owner resumed autonomous building on November 15 and explicitly authorized
+periodic commits and pushes. This replaces that stop condition and the
+publication prohibition for reviewed branch pushes only. Check the GitHub
+login before each push. Releases, deployment, and pull requests still need
+separate approval. Product scope remains baseline 3.1.
+
 The accepted product has three benefits: remaining limits, estimated API value,
 and public rank. The desktop runs collection internally. A responsive website
 shows approved synced personal summaries on computers and phones. It is not

@@ -29,6 +29,11 @@ Leaderboard source, tests, migrations, and configuration select `bun run test:le
 
 The runner stops at the first failure. One total deadline covers all checks, followed by bounded child cleanup. It never retries. It uses one Cargo target with incremental builds disabled. Missing renderer selections refuse execution. Use `--milestone` for applicable full renderer/workspace regression. Native acceptance, SQLCipher/restore, authentication isolation and SRS gates remain separate requirements.
 
+The runner records each completed check before the next command starts.
+On SIGINT or SIGTERM, the runner stops the active child group, preserves
+completed checks, and returns an interrupted summary. Interruption never
+counts as acceptance. A forced termination can still leave an incomplete record.
+
 Logs retain commands, timing, exit codes and fixed diagnostic counters. They discard raw child output. For full diagnostics, rerun the indicated command locally. Logs remain ignored and use the existing ownership-controlled retention: three completed runs, seven days, 16 MiB. No executable copies are retained.
 
 `trace` reads only the selected regular JSONL file. It emits counts and owner-scoped token high-water marks without messages, arguments, identifiers or raw outputs. Copied parent history is flagged. Do not add token snapshots or interpret them as billing. Repeats and category matches indicate review candidates, not proven waste.

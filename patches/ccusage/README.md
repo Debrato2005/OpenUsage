@@ -121,3 +121,15 @@ reuse patches. The [record candidate](../../docs/reviews/2026-11-11-opencode-rec
 owns zero observations, metadata validation, source identity, digests, and
 remaining gates. Use its separate variables to run
 `test_ccusage_opencode_records.py`. OpenCode stays disabled.
+
+## Legacy Codex snapshot compatibility candidate
+
+Apply `20.0.48-codex-legacy-snapshot.patch` after the legacy identity patch and
+its prior layers. The [pin](../../tests/tools/fixtures/codex-legacy-snapshot-candidate/pin.json)
+owns the exact patch order and build inputs. Its version is `20.0.48-openusage.6`.
+The [review](../../docs/reviews/2026-11-15-legacy-snapshot-compatibility.md) owns
+the executed checks and reproduction commands.
+
+Ordinary reports retain their parent routing and known count defects. The
+explicit strict command derives both reports from one capture. Strict support
+and production activation retain the remaining gates in the review.

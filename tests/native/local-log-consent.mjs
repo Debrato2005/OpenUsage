@@ -21,8 +21,8 @@ const password = 'OpenUsage synthetic local log workspace 2026';
 const hash = async path => createHash('sha256').update(await readFile(path)).digest('hex');
 const evidence = {
   requirement: 'NATIVE-LOCAL-LOG-CONSENT-001', result: 'failed', startedAt: new Date().toISOString(),
-  scope: 'Actual Linux Tauri native-test build, a private SQLCipher 4 password workspace, synthetic Claude Code and Codex logs in a private home, and the real pinned ccusage 20.0.48. No real logs and no provider account.',
-  expectedResult: ['The welcome screen lists both detected tools, selected.', 'Only the chosen tool is granted and scanned.', 'With no account, Overview shows the saved Claude Code total (AT-91).', 'The scan saves each Claude Code session with its project and times (SC-021).', 'A restart asks no second consent and a second scan gives the same totals.', 'The synthetic logs stay unchanged.'],
+  scope: 'Actual Linux Tauri native-test build, a private SQLCipher 4 password workspace, synthetic Claude Code and Codex logs in a private home, and the real pinned ccusage 20.0.48. The first provider profile uses an approved synthetic executable and stays signed out. No real logs or provider account.',
+  expectedResult: ['The welcome screen lists both detected tools, selected.', 'Only the chosen tool is granted and scanned.', 'With no account, Overview shows the saved Claude Code total (AT-91).', 'Adding the first signed-out provider profile preserves local totals, estimates, and their detail panel (OU-UI-028 partial).', 'The scan saves each Claude Code session with its project and times (SC-021).', 'A restart asks no second consent and a second scan gives the same totals.', 'The synthetic logs stay unchanged.'],
   steps: [], oracles: [],
 };
 let fixture, driver, sequence = 0;
@@ -101,6 +101,8 @@ try {
   assert.equal(await hash(ccusage), ccusageDigest);
   evidence.applicationSha256 = await hash(application);
   fixture = await createFixture('local-log-consent');
+  fixture.environment.HOME = join(fixture.root, 'synthetic-home');
+  await mkdir(fixture.environment.HOME, { mode: 0o700 });
   const logs = join(fixture.root, 'logs home café');
   await cp(join(repository, 'crates/openusage-locallogs/tests/fixtures/home/.claude'), join(logs, '.claude'), { recursive: true });
   await cp(join(repository, 'crates/openusage-locallogs/tests/fixtures/codex'), join(logs, '.codex'), { recursive: true });
@@ -131,6 +133,35 @@ try {
   assert.deepEqual(await driver.execute('return [...document.querySelectorAll("[data-local-overview] [data-local-tool-total]")].map(n=>n.getAttribute("aria-label"));'), ['Claude Code: 14,950 tokens']);
   assert.equal(await driver.execute('return Boolean(document.querySelector("[data-overview-add-account]"));'), true);
   evidence.steps.push('With no account, Overview showed Claude Code: 14,950 tokens and no Codex card.');
+  const executable = join(fixture.root, 'synthetic-provider.py');
+  await copyFile(join(repository, 'crates/openusage-codex/tests/fixtures/synthetic-collection-provider.py'), executable);
+  await chmod(executable, 0o700);
+  await driver.navigate('settings'); await driver.click('[data-provider-settings]'); await driver.click('[data-provider-manual]');
+  await driver.type('#provider-executable', executable); await driver.click('.provider-inspection-form button[type=submit]');
+  await waitFor(() => driver.execute('return Boolean(document.querySelector("#provider-executable-approved")&&!document.querySelector("#provider-executable-approved").disabled);'), 'synthetic provider review');
+  await driver.click('#provider-executable-approved'); await driver.click('.provider-approval-form button[type=submit]');
+  await waitFor(() => driver.execute('return Boolean(document.querySelector(".provider-approval-result"));'), 'synthetic provider approval');
+  await driver.navigate('overview');
+  await waitFor(() => driver.execute('return Boolean(document.querySelector("[data-local-overview] [data-local-tool-total]"));'), 'saved local value before account creation');
+  await driver.click('[data-overview-add-account]');
+  await waitFor(async () => (await call('list_profiles')).activeProfiles === 1, 'first provider profile');
+  const profile = (await call('list_profiles')).profiles[0];
+  assert.equal(profile.connectionState, 'authentication_required');
+  await driver.click('[data-account-panel-close]');
+  await waitFor(() => driver.execute('return Boolean(document.querySelector("[data-overview-account]")&&document.querySelector("[data-local-overview] [data-local-tool-total]"));'), 'local value beside the signed-out account');
+  assert.deepEqual(await driver.execute('return [...document.querySelectorAll("[data-local-overview] [data-local-tool-total]")].map(n=>n.getAttribute("aria-label"));'), ['Claude Code: 14,950 tokens']);
+  assert.match(await driver.execute('return document.querySelector("[data-local-overview] .local-tool-context").textContent;'), /Estimated \$0\.11Incomplete/);
+  assert.match(await driver.execute('return document.querySelector("[data-overview-summary=quota]").textContent;'), /Not available/);
+  await driver.execute('scrollTo(0,0);return true;'); await driver.screenshot(join(output, 'first-account-local-value.png'));
+  await driver.click('[data-local-overview] [data-local-tool-total]');
+  await waitFor(() => driver.execute('return Boolean(document.querySelector("[data-detail-panel][open]"));'), 'local value detail panel');
+  const details = await driver.execute('return document.querySelector("[data-detail-panel][open]").textContent;');
+  assert.match(details, /Total14,950/);
+  assert.match(details, /Estimated value\$0\.11 at public API prices, not money paid\. Some models have no price\./);
+  assert.match(details, /Local logs on this device, read by ccusage 20\.0\.48/);
+  await driver.screenshot(join(output, 'local-value-details.png'));
+  await driver.closeDetail();
+  evidence.steps.push('Adding the first signed-out provider profile preserved the 14,950 local tokens, the incomplete $0.11 API-price estimate, and exact local details. Provider capacity stayed Not available.');
   // The same scan saved the Claude Code sessions with their project, and no reasoning count (SC-021).
   const usage = await call('load_local_usage', { days: 30, period: 'day' });
   assert.deepEqual(usage.sessions.map(s => [s.tool, s.key, s.project, s.startUtc, s.endUtc, s.totalTokens, s.reasoningTokens]), [

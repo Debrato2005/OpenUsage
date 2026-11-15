@@ -1,6 +1,6 @@
 # Implementation slices
 
-Updated: November 13, 2026. This page owns the order and boundaries of planned work. The [SRS](SRS.md) owns what each requirement says, and [status](implementation-status.md) owns what works today.
+Updated: November 15, 2026. This page owns the order and boundaries of planned work. The [SRS](SRS.md) owns what each requirement says, and [status](implementation-status.md) owns what works today.
 
 ## Run a slice
 
@@ -39,7 +39,7 @@ Renderer tests, native journeys, and the local commit therefore need approval to
 
 [AGENTS.md](../AGENTS.md) applies, including OU-DES-001 and OU-ENG-012. These rules add to it.
 
-- Use bounded slices. The latest November 13 instruction closes the work already in progress, with separate worker ownership. Complete checks and docs, commit locally, then stop for the owner's next instruction.
+- Use bounded slices with separate worker ownership. The November 15 instruction authorizes continued implementation, verified local commits, and periodic pushes. Check the GitHub login before each push.
 - Keep existing behavior, stored data, and safety rules (OU-DES-002).
 - Add a setting, screen, state, or dependency only under OU-DES-013.
 - Reuse local caches where practical. Download required source and build dependencies from official sources at pinned revisions or locked versions. Check published digests when available. New dependencies still need the architecture review above. The owner approved these downloads on November 8, 2026.
@@ -62,7 +62,7 @@ Renderer tests, native journeys, and the local commit therefore need approval to
 - The [workflow](engineering-workflow.md) checks pass. UI changes also need the full renderer suite in Chromium and WebKit. Rust changes also need the full workspace tests.
 - UI changes are checked by eye in screenshots: light, dark, a 720-pixel window, and empty, populated, and error states. Empty fixtures hide layout problems, so always check real-looking data. Each screen answers one question, its main action is obvious, and nothing is clipped or repeated.
 - Docs are updated as the [documentation map](README.md) lists, and the slice is marked Done below.
-- The slice has a local commit. Then report and stop. The latest November 13 instruction replaces the earlier direction to continue automatically.
+- Commit each verified slice. Continue to the next authorized checklist item. The November 15 instruction replaces the earlier stop condition.
 
 ## Launch track
 
@@ -84,7 +84,7 @@ The other slices below follow the launch, unless a launch slice needs part of on
 
 ## Build checklist
 
-Updated November 12, 2026. Each completed item has one local commit and scoped evidence. L-1f11ar records the latest scoped result. The remaining work stays below. Owner items wait for the owner.
+Updated November 15, 2026. Each completed item has one local commit and scoped evidence. L-1f11au records the latest scanner result. The remaining work stays below. Owner items wait for the owner.
 
 **Verification before release**
 
@@ -101,6 +101,7 @@ Updated November 12, 2026. Each completed item has one local commit and scoped e
 
 - [x] L-1f11as: isolate whole-report refusal for five malformed-peer cases. The [candidate record](reviews/2026-11-13-legacy-capture-candidate.md) records 422 scanner commands and both exact raw Codex comparisons. Two identity cases still fail. Production support stays unchanged.
 - [ ] L-1f11at: the [isolated experiment](reviews/2026-11-13-legacy-codex-identity.md) corrects both identity counts, but valid legacy histories regress. Qualification remains open. Preserve ordinary routing, resolve compatibility and saved-session migration, and qualify the source boundary before production use.
+- [x] L-1f11au: the [separate snapshot candidate](reviews/2026-11-15-legacy-snapshot-compatibility.md) preserves ordinary routing and selectors. Its strict reports share one capture. Twenty-five tests and 314 scanner commands pass on private synthetic Linux input. Ordinary count defects, strict compatibility limits, producer qualification, and saved-session migration remain open. Production support stays unchanged.
 
 - [x] L-1a: pin, provision, run and parse `ccusage` (OU-LOG-005 to OU-LOG-007).
 - [x] L-1b: store totals and differences at schema 10 (OU-LOG-003, OU-LOG-010 to OU-LOG-013).
@@ -207,6 +208,7 @@ Updated November 12, 2026. Each completed item has one local commit and scoped e
 
 - [x] L-5a0: offline `sync --dry-run` from one read-only saved-data snapshot. Seven encrypted-storage command checks and two process checks pass, with full workspace tests and Clippy. Ambiguous or incomplete rows refuse. No network or enrollment side effects occur (OU-BOARD-005/006, OU-CLI-002; AT-96). Real-upload equality remains open.
 - [x] L-5a1: reusable Rust HTTP transport under the [client decision](decisions/2026-11-13-leaderboard-http-client.md). Ten local HTTP/TLS checks, scoped Clippy, and formatting pass. It has no production caller or credential persistence.
+- [x] L-5a2: a [separate OS credential slot](../crates/openusage-keys/README.md#leaderboard-credential-storage) for future enrollment. Private Linux Secret Service checks pass across restart, occupied slots, malformed and duplicate entries, locks, service absence, and database-key isolation. Enrollment schema and online callers remain open.
 - [ ] L-5a: `openusage board join`, `sync --dry-run`, `sync` and `leave` through one upload builder, with the token in the OS credential store (OU-BOARD-001, OU-BOARD-002, OU-BOARD-005, OU-BOARD-006; AT-86 to AT-88). Integrate the qualified transport with explicit enrollment and OS token storage. Exact real-upload comparison remains open.
 - [ ] L-5b: join, sync and leave in Settings.
 
@@ -243,6 +245,7 @@ Updated November 12, 2026. Each completed item has one local commit and scoped e
 - [ ] The slices in [Order](#order). Stage 1 needs every mandatory requirement (SRS Section 0.4). The next launch item is L-1f. S-03c remains the first item after the launch track with no owner gate.
 - [x] L-3c: seven-day, thirty-day, and current-month receipts through the existing private preview/save path. Exact values, estimate marks, missing dates, no-data, and legacy annual images pass renderer and native Linux acceptance (OU-SHARE-007/008/010; receipt part of AT-106). Subscription comparisons remain open.
 - [ ] S-23: source-aware connection suggestions and access to capacity, value, and joined rank on Overview (OU-ACCT-021, OU-UI-028; AT-97).
+- [x] S-23a: preserve the local-summary component across first account creation. Native consent and renderer checks retain saved local values beside unavailable provider readings. Renderer checks also preserve provider capacity when local history is absent or fails. Suggestions and rank remain open.
 
 ### Completed assignment: L-1f7
 

@@ -33,7 +33,7 @@ Today Codex is the only source, and its path has no general adapter layer. The p
 | `crates/openusage-import/` | Encrypted backup archive format |
 | `crates/openusage-locallogs/` | Pinned `ccusage` binary checks, folder detection, the hardened runner, and the strict daily, session and hourly report parsers for local logs |
 | `crates/openusage-cli/` | The `openusage` command, with no webview dependency |
-| `crates/openusage-keys/` | The database key in the OS credential store, for the app and the CLI |
+| `crates/openusage-keys/` | Separate OS credential slots for the database key and future leaderboard enrollment |
 | `crates/openusage-board/` | Bounded GitHub device authorization and public leaderboard HTTP transport. CLI and desktop integration remain open |
 | `services/leaderboard/` | The opt-in leaderboard Worker and its D1 schema |
 | `packaging/` | The npm launcher, its README, and third-party notices for the packages |
@@ -161,6 +161,7 @@ unavailable. Native calls on other platforms can outlive their timeout.
 
 ## Boundaries
 
+- **Leaderboard credentials:** the [separate vault](../crates/openusage-keys/README.md#leaderboard-credential-storage) stores a bounded opaque envelope in the OS credential store. It preserves the database key slot and never falls back to plaintext storage. Callers must validate the enrollment schema and serialize credential operations. Online enrollment remains open.
 - **Secrets:** provider sessions, credentials, and the database key stay in Rust, provider-managed homes, or the OS credential store. They never reach React.
 - **Processes:** the Rust supervisor owns every child process. At most two collections run at once.
 - **Numbers:** Rust does exact arithmetic. Token counts cross IPC as decimal strings. A missing value stays missing.

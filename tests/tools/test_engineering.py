@@ -3,6 +3,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import signal
 import subprocess
 import sys
 import tempfile
@@ -183,7 +184,8 @@ class EngineeringTests(unittest.TestCase):
         self.assertEqual(result['status'], 'passed')
         self.assertNotIn(private, json.dumps(result))
         self.assertGreater(result['outputBytes'], 0)
-        result = engineering.execute([sys.executable, '-c', 'import time; time.sleep(30)'], self.root, os.environ.copy(), .1)
+        result = engineering.execute([sys.executable, '-c', 'import time; time.sleep(30)'], self.root,
+                                     os.environ.copy(), .1, interruption={'signal': None})
         self.assertEqual(result['status'], 'timeout')
         self.assertLess(result['elapsedSeconds'], 8)
 
@@ -196,6 +198,96 @@ class EngineeringTests(unittest.TestCase):
         self.assertEqual(result['status'], 'timeout')
         time.sleep(1.1)
         self.assertFalse(marker.exists())
+
+    @unittest.skipIf(os.name == 'nt', 'POSIX signal and process-group behavior needs a POSIX host')
+    def test_sigterm_stops_children_and_preserves_completed_checks(self):
+        self.assert_signal_interrupts_verification(signal.SIGTERM)
+
+    @unittest.skipIf(os.name == 'nt', 'POSIX signal and process-group behavior needs a POSIX host')
+    def test_sigint_stops_children_and_preserves_completed_checks(self):
+        self.assert_signal_interrupts_verification(signal.SIGINT)
+
+    def test_interruption_does_not_start_another_child(self):
+        marker = self.root / 'unexpected-child.txt'
+        command = [sys.executable, '-c', f'from pathlib import Path; Path({str(marker)!r}).touch()']
+        result = engineering.execute(command, self.root, os.environ.copy(), 5,
+                                     interruption={'signal': signal.SIGTERM})
+        self.assertEqual(result['status'], 'interrupted')
+        self.assertFalse(marker.exists())
+
+    def assert_signal_interrupts_verification(self, signum):
+        (self.root / '.git').mkdir()
+        ready = self.root / 'ready.json'
+        pending = self.root / 'ready.pending'
+        survived = self.root / 'descendant-survived.txt'
+        unexpected = self.root / 'unexpected-step.txt'
+        private = 'SYNTHETIC-PRIVATE-CHILD-OUTPUT'
+        descendant = ('import time; from pathlib import Path; time.sleep(1); '
+                      f'Path({str(survived)!r}).write_text("survived"); time.sleep(30)')
+        active = ('import json, os, subprocess, sys, time; from pathlib import Path; '
+                  f'child = subprocess.Popen([sys.executable, "-c", {descendant!r}]); '
+                  f'Path({str(pending)!r}).write_text(json.dumps({{"pid": os.getpid()}})); '
+                  f'os.replace({str(pending)!r}, {str(ready)!r}); '
+                  'print(os.environ["OPENUSAGE_SYNTHETIC_OUTPUT"], flush=True); time.sleep(30)')
+        commands = [
+            {'id': 'completed', 'argv': [sys.executable, '-c', 'print("completed")']},
+            {'id': 'active', 'argv': [sys.executable, '-c', active]},
+            {'id': 'unstarted', 'argv': [sys.executable, '-c',
+                f'from pathlib import Path; Path({str(unexpected)!r}).touch()']},
+        ]
+        wrapper = (f'import sys; from pathlib import Path; sys.path.insert(0, {str(SCRIPTS)!r}); '
+                   'import engineering; '
+                   f'engineering.ROOT = Path({str(self.root)!r}); '
+                   'engineering.changed_paths = lambda *args: []; '
+                   'engineering.git = lambda *args: ""; '
+                   f'engineering.plan = lambda *args: {{"commands": {commands!r}, "manualGates": []}}; '
+                   'sys.argv = ["engineering.py", "verify", "--run", "--timeout", "20"]; '
+                   'raise SystemExit(engineering.main())')
+        process = subprocess.Popen([sys.executable, '-c', wrapper], stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE, start_new_session=True,
+                                   env={**os.environ, 'OPENUSAGE_SYNTHETIC_OUTPUT': private})
+        child_pid = None
+        try:
+            deadline = time.monotonic() + 5
+            while not ready.exists():
+                if process.poll() is not None or time.monotonic() >= deadline:
+                    self.fail('Synthetic child did not become ready')
+                time.sleep(.01)
+            child_pid = json.loads(ready.read_text())['pid']
+            directory = next((self.root / '.recovery/diagnostics').glob('engineering-*'))
+            log = directory / 'checks.log'
+            checkpoint = json.loads(log.read_text()) if log.exists() else None
+            started = time.monotonic()
+            process.send_signal(signum)
+            stdout, stderr = process.communicate(timeout=8)
+            self.assertLess(time.monotonic() - started, 8)
+            self.assertEqual(process.returncode, 128 + signum)
+            result = json.loads(stdout)
+            self.assertEqual(result['status'], 'interrupted')
+            self.assertEqual(result['signal'], signum)
+            self.assertEqual([(step['id'], step['status']) for step in result['results']],
+                             [('completed', 'passed'), ('active', 'interrupted')])
+            self.assertEqual(checkpoint['results'][0]['status'], 'passed')
+            self.assertEqual(checkpoint['activeCommand'], 'active')
+            saved = json.loads(log.read_text())
+            self.assertEqual(saved['results'], result['results'])
+            self.assertEqual(saved['status'], 'interrupted')
+            self.assertEqual(json.loads((directory / engineering.storage.MARKER).read_text())['state'], 'finished')
+            self.assertNotIn(private, stdout.decode() + stderr.decode() + log.read_text())
+            with self.assertRaises(ProcessLookupError):
+                os.kill(child_pid, 0)
+            time.sleep(1.1)
+            self.assertFalse(survived.exists())
+            self.assertFalse(unexpected.exists())
+        finally:
+            if child_pid is not None:
+                try:
+                    os.killpg(child_pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+            if process.poll() is None:
+                os.killpg(process.pid, signal.SIGKILL)
+            process.communicate(timeout=5)
 
     def test_failed_run_stops_after_first_check_and_retention_stays_bounded(self):
         self.repository()
