@@ -222,6 +222,14 @@ struct ProfileHistoryArgs {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ReadingEvidenceArgs {
+    profile_id: String,
+    run_id: String,
+    method: openusage_storage::EvidenceMethod,
+}
+
+#[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct DisplayScaleArgs {
     percent: u16,
@@ -1919,6 +1927,27 @@ async fn load_profile_heatmap(
 }
 
 #[tauri::command]
+async fn load_profile_reading_evidence(
+    request: tauri::ipc::Request<'_>,
+    service: State<'_, WorkspaceService>,
+) -> Result<Option<workspace::ProfileReadingEvidence>, CommandError> {
+    let args: ReadingEvidenceArgs = arguments(&request)?;
+    workspace::validate_profile_id(&args.profile_id)?;
+    workspace::validate_profile_id(&args.run_id).map_err(|_| CommandError::InvalidArguments)?;
+    let service = Arc::clone(&service.0);
+    tauri::async_runtime::spawn_blocking(move || {
+        service
+            .lock()
+            .map_err(|_| CommandError::StorageUnavailable)?
+            .as_ref()
+            .ok_or(CommandError::WorkspaceLocked)?
+            .load_profile_reading_evidence(&args.profile_id, args.method, &args.run_id)
+    })
+    .await
+    .map_err(|_| CommandError::StorageUnavailable)?
+}
+
+#[tauri::command]
 async fn load_profile_activity(
     request: tauri::ipc::Request<'_>,
     service: State<'_, WorkspaceService>,
@@ -2217,6 +2246,7 @@ fn main() {
             review_profile_quota_association,
             begin_profile_quota_reassociation,
             load_profile_activity,
+            load_profile_reading_evidence,
             load_profile_heatmap,
             load_combined_heatmap,
             load_activity_dashboard,

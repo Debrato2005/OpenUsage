@@ -62,6 +62,7 @@ fn main() {
             "complete_profile_login",
             "cancel_profile_login",
             "discover_provider_executables",
+            "load_profile_reading_evidence",
             "load_profile_activity",
             "load_profile_activity_history",
             "load_profile_heatmap",

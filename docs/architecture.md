@@ -33,7 +33,10 @@ All evidence writes share the transaction for association, readings, history, ca
 Schema 14 adds complete evidence and explicit markers for historical gaps.
 The evidence lookup distinguishes a complete record, a historical gap, an unknown run, and corrupt absence.
 SQL rejects updates. Existing deletion cascades remove evidence with its collection run.
-Backup validation and trusted copies preserve both tables. No new renderer command exposes them.
+Backup validation and trusted copies preserve both tables.
+The read-only command loads one record through a typed profile, method, and run target.
+The existing Overview detail panel requests evidence only after Show. No provider process runs for this read.
+The [evidence access contract](data-contracts.md#evidence-access) owns request, response, cache, and absence rules.
 The [data contract](data-contracts.md#reading-evidence) owns field meanings and version rules.
 The [open historical conflict](srs-clarifications.md#sc-031-evidence-for-historical-readings) approves no SRS exception.
 

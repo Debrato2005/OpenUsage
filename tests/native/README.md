@@ -156,6 +156,12 @@ The enlarged capture proves that the dialog fills the viewport, then scales and 
 It checks baseline, enlarged, and restored sizes, plus title and Close geometry.
 This is text layout, not operating-system scaling.
 
+The summary journey also opens complete saved evidence for all four activity panels and quota.
+It checks exact profile, method, run, observation context, hashes and checks through the real command.
+Locked, malformed, and wrong-target requests must retain their expected errors or unavailable result.
+Evidence reads must preserve saved activity, quota, the protected key, and provider requests.
+Expanded hash captures check both themes at 360 pixels and 200% text with the same dialog-only scaling and restoration assertions.
+
 ## Native persistence
 
 Build the application with the `native-test` Cargo feature before `node tests/native/persistence.mjs`.

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-load-profile-reading-evidence"
+description = "Enables the load_profile_reading_evidence command without any pre-configured scope."
+commands.allow = ["load_profile_reading_evidence"]
+
+[[permission]]
+identifier = "deny-load-profile-reading-evidence"
+description = "Denies the load_profile_reading_evidence command without any pre-configured scope."
+commands.deny = ["load_profile_reading_evidence"]

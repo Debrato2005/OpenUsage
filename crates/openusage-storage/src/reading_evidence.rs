@@ -20,11 +20,18 @@ pub(crate) const TABLES: &[(&str, &str)] = &[
 
 type Result<T> = std::result::Result<T, ActivityError>;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum EvidenceMethod {
     Activity,
     Quota,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct ReadingEvidenceTarget<'a> {
+    pub profile_id: &'a str,
+    pub method: EvidenceMethod,
+    pub run_id: &'a str,
 }
 
 impl EvidenceMethod {
@@ -366,12 +373,16 @@ struct EvidenceRow {
 }
 
 impl Storage {
-    /// A single snapshot distinguishes unknown runs, explicit historical gaps, and complete records.
-    pub fn reading_evidence(&self, run_id: &str) -> Result<Option<ReadingEvidenceAvailability>> {
-        require_uuid(run_id)?;
+    /// One snapshot binds evidence availability to the selected profile, method, and run.
+    pub fn reading_evidence(
+        &self,
+        target: ReadingEvidenceTarget<'_>,
+    ) -> Result<Option<ReadingEvidenceAvailability>> {
+        require_uuid(target.profile_id)?;
+        require_uuid(target.run_id)?;
         let row = self.connection.query_row(
-            "SELECT r.id,r.provider_version,r.source_kind,r.observed_at_utc,r.source_method,e.collection_run_id,e.adapter_id,e.adapter_revision,e.projection_version,e.source_level,e.reading_status,e.check_results,e.comparison_result,e.redacted_response_hash,e.format_fingerprint,e.unused_fields,l.collection_run_id FROM collection_runs r LEFT JOIN reading_evidence e ON e.collection_run_id=r.id LEFT JOIN reading_evidence_legacy l ON l.collection_run_id=r.id WHERE r.id=?1",
-            [run_id],
+            "SELECT r.id,r.provider_version,r.source_kind,r.observed_at_utc,r.source_method,e.collection_run_id,e.adapter_id,e.adapter_revision,e.projection_version,e.source_level,e.reading_status,e.check_results,e.comparison_result,e.redacted_response_hash,e.format_fingerprint,e.unused_fields,l.collection_run_id FROM collection_runs r LEFT JOIN reading_evidence e ON e.collection_run_id=r.id LEFT JOIN reading_evidence_legacy l ON l.collection_run_id=r.id WHERE r.id=?1 AND r.profile_id=?2 AND r.source_method=?3",
+            params![target.run_id, target.profile_id, target.method.as_str()],
             |row| Ok(EvidenceRow {
                 run_id: row.get(0)?, provider_version: row.get(1)?, source_kind: row.get(2)?, observed_at: row.get(3)?, method: row.get(4)?,
                 complete: if row.get::<_, Option<String>>(5)?.is_some() { Some(StoredEvidence {

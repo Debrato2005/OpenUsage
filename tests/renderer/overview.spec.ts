@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
-import type { ProfileRecord, ProfileRemovalPreview, SavedProfileActivity, SavedProfileQuota, SavedProfileHeatmap } from '../../apps/desktop/src/contracts';
+import type { ProfileRecord, ProfileRemovalPreview, SavedProfileActivity, SavedProfileQuota, SavedProfileHeatmap, ReadingEvidenceTarget, ProfileReadingEvidence } from '../../apps/desktop/src/contracts';
 import { closeDetail, navigate, openOptions, openReadingDetails, openReadings, selectedCard } from './navigation';
 
 // Synthetic renderer fixtures. Native provider processes and encrypted storage are separate acceptance checks.
@@ -21,11 +21,22 @@ function quota(profileId: string, remaining = 0): SavedProfileQuota {
     availableResetCredits: '0', resetCreditDetails: null, limits: [{ limitId: 'codex', limitName: 'Synthetic account limit', reachedType: null, monthlyCreditLimit: null, spendControlReached: null,
       primary: { usedPercent: 100 - remaining, derivedRemainingPercent: remaining, windowDurationMins: 300, resetsAtUnix: null, label: 'Five-hour', resetState: 'expected' }, secondary: null }] };
 }
+function savedEvidence(reading: SavedProfileActivity | SavedProfileQuota, method: 'activity' | 'quota'): Extract<ProfileReadingEvidence, { availability: 'complete' }> {
+  return {
+    profileId: reading.profileId, availability: 'complete', record: {
+      runId: reading.collectionRunId, method, adapterId: 'codex_app_server', adapterRevision: 7,
+      sourceLevel: 'official', readingStatus: 'official', sourceKind: reading.sourceKind, providerVersion: reading.providerVersion, observedAtUtc: reading.observedAtUtc,
+      projectionVersion: 1, redactedResponseHash: (method === 'activity' ? 'a' : 'c').repeat(64), formatFingerprint: (method === 'activity' ? 'b' : 'd').repeat(64),
+      checkResults: [{ id: 'rpc_envelope', result: 'passed' }, { id: 'request_id', result: 'passed' }, { id: 'response_fields', result: 'passed' }],
+      comparisonResult: 'not_performed', unusedFields: [],
+    },
+  };
+}
 type Pending = { profileId: string; kind: string; resolve: (value: unknown) => void };
-type Fixture = { calls: string[]; deferFirst: boolean; mismatchFirst: boolean; pending: Pending[]; profiles: ProfileRecord[]; quotas: Record<string, SavedProfileQuota | null>; rejectQuota: string[]; mismatchQuota: string[]; deferQuota: string[]; removalPreview: ProfileRemovalPreview | null; removalCalls: { command: string; args: Record<string, unknown> }[]; rejectRemoval: boolean; deferRemoval: boolean };
+type Fixture = { calls: string[]; deferFirst: boolean; mismatchFirst: boolean; pending: Pending[]; profiles: ProfileRecord[]; quotas: Record<string, SavedProfileQuota | null>; rejectQuota: string[]; mismatchQuota: string[]; deferQuota: string[]; removalPreview: ProfileRemovalPreview | null; removalCalls: { command: string; args: Record<string, unknown> }[]; rejectRemoval: boolean; deferRemoval: boolean; evidence: Record<string, unknown>; evidenceRequests: ReadingEvidenceTarget[]; deferEvidence: boolean; rejectEvidence: boolean };
 type FixtureWindow = Window & { overviewFixture: Fixture };
 
-async function open(page: Page, options: { empty?: boolean; deferFirst?: boolean; chart?: boolean; count?: number; freshQuotas?: boolean; deferSecond?: boolean; year?: boolean; aggregation?: boolean; activities?: Record<string, SavedProfileActivity | null>; quotas?: Record<string, SavedProfileQuota | null> } = {}) {
+async function open(page: Page, options: { empty?: boolean; deferFirst?: boolean; chart?: boolean; count?: number; freshQuotas?: boolean; deferSecond?: boolean; year?: boolean; aggregation?: boolean; activities?: Record<string, SavedProfileActivity | null>; quotas?: Record<string, SavedProfileQuota | null>; evidence?: Record<string, unknown> } = {}) {
   const chartActivity = activity(first, '0');
   if (options.chart) {
     chartActivity.dailyState = 'returned';
@@ -57,12 +68,19 @@ async function open(page: Page, options: { empty?: boolean; deferFirst?: boolean
   if (options.aggregation) { heatmap.cells[2]!.tokens = '30'; heatmap.scaleMaximum = '30'; }
   await page.addInitScript(({ first, second, ids, readings, quotas, options, heatmap }) => {
     const observedAtUtc = heatmap.observedAtUtc;
-    const fixture: Fixture = { calls: [], deferFirst: options.deferFirst ?? false, mismatchFirst: false, pending: [], profiles: ids.map((id, index) => ({ id, label: index === 0 ? 'Zero fixture' : index === 1 ? 'Large fixture' : `Fixture ${index + 1}`, environment: 'native', archived: false, connectionState: options.aggregation ? 'connected' : 'authentication_required' })), quotas, rejectQuota: [], mismatchQuota: [], deferQuota: options.deferSecond ? [second] : [], removalPreview: null, removalCalls: [], rejectRemoval: false, deferRemoval: false };
+    const fixture: Fixture = { calls: [], deferFirst: options.deferFirst ?? false, mismatchFirst: false, pending: [], profiles: ids.map((id, index) => ({ id, label: index === 0 ? 'Zero fixture' : index === 1 ? 'Large fixture' : `Fixture ${index + 1}`, environment: 'native', archived: false, connectionState: options.aggregation ? 'connected' : 'authentication_required' })), quotas, rejectQuota: [], mismatchQuota: [], deferQuota: options.deferSecond ? [second] : [], removalPreview: null, removalCalls: [], rejectRemoval: false, deferRemoval: false, evidence: options.evidence ?? {}, evidenceRequests: [], deferEvidence: false, rejectEvidence: false };
     Object.assign(window, { overviewFixture: fixture });
     let theme = 'light';
     let removalSequence = 1;
     window.__TAURI__ = { core: { invoke: async <T>(command: string, args: Record<string, unknown> = {}) => {
       fixture.calls.push(command);
+      if (command === 'load_profile_reading_evidence') {
+        const target = { profileId: String(args.profileId), runId: String(args.runId), method: String(args.method) } as ReadingEvidenceTarget;
+        fixture.evidenceRequests.push(target);
+        if (fixture.deferEvidence) return await new Promise<unknown>(resolve => fixture.pending.push({ profileId: target.profileId, kind: `evidence:${target.method}`, resolve })) as T;
+        if (fixture.rejectEvidence) throw 'provider_evidence_load_failed';
+        return structuredClone(fixture.evidence[`${target.profileId}:${target.method}:${target.runId}`] ?? null) as T;
+      }
       if (command === 'load_time_zone') return { timeZone: localStorage.getItem('fixture-zone') ?? 'UTC' } as T;
       if (command === 'set_time_zone') { localStorage.setItem('fixture-zone', String(args.timeZone)); return { timeZone: args.timeZone } as T; }
       if (command === 'load_combined_heatmap') return { status: 'unavailable', includedProfileIds: [], exclusions: (args.profileIds as string[]).map(profileId => ({ profileId, reason: 'not_connected' })) } as T;
@@ -151,6 +169,101 @@ async function choose(page: Page, label: string) {
   await expect(selectedCard(page)).toContainText(label);
 }
 const exactLarge = '9,223,372,036,854,775,807';
+
+test('saved reading evidence loads only on request and stays with its selected method', async ({ page }) => {
+  const savedActivity = activity(first, '9007199254740993'), savedQuota = quota(first);
+  const activityEvidence = savedEvidence(savedActivity, 'activity'), quotaEvidence = savedEvidence(savedQuota, 'quota');
+  activityEvidence.record.unusedFields = [{ location: 'activity_summary', fieldCount: 2 }];
+  quotaEvidence.record.unusedFields = [{ location: 'quota_window', fieldCount: 3 }];
+  await open(page, { activities: { [first]: savedActivity }, evidence: {
+    [`${first}:activity:${savedActivity.collectionRunId}`]: activityEvidence,
+    [`${first}:quota:${savedQuota.collectionRunId}`]: quotaEvidence,
+  } });
+  await choose(page, 'Zero fixture');
+  await selectedCard(page).locator('[data-overview-stat="lifetime"]').click();
+  let detail = page.getByRole('dialog', { name: 'Lifetime details', exact: true });
+  expect(await page.evaluate(() => (window as unknown as FixtureWindow).overviewFixture.evidenceRequests)).toEqual([]);
+  await detail.getByRole('button', { name: 'Show evidence', exact: true }).click();
+  const row = (label: string) => detail.locator('dt').filter({ hasText: new RegExp(`^${label}$`) }).locator('+ dd');
+  await expect(row('Reading status')).toHaveText('Official');
+  await expect(row('Adapter revision')).toHaveText('7');
+  await expect(row('Response hash')).toHaveText('a'.repeat(64));
+  await expect(row('Format fingerprint')).toHaveText('b'.repeat(64));
+  await expect(row('Unused fields')).toHaveText('Activity summary: 2');
+  await expect(row('Exact value')).toHaveText('9,007,199,254,740,993');
+  await detail.getByRole('button', { name: 'Hide evidence', exact: true }).click();
+  await detail.getByRole('button', { name: 'Show evidence', exact: true }).click();
+  expect(await page.evaluate(() => (window as unknown as FixtureWindow).overviewFixture.evidenceRequests)).toHaveLength(1);
+  await closeDetail(page); await selectedCard(page).locator('[data-overview-reading-details]').click();
+  detail = page.getByRole('dialog', { name: 'Reading details', exact: true });
+  await detail.getByRole('button', { name: 'Show evidence', exact: true }).click();
+  await expect(row('Response hash')).toHaveText('c'.repeat(64));
+  await expect(row('Unused fields')).toHaveText('Quota window: 3');
+  await expect(row('Scope')).toHaveText('Account quota; application scope unknown');
+  expect(await page.evaluate(() => (window as unknown as FixtureWindow).overviewFixture.evidenceRequests)).toEqual([
+    { profileId: first, runId: savedActivity.collectionRunId, method: 'activity' },
+    { profileId: first, runId: savedQuota.collectionRunId, method: 'quota' },
+  ]);
+});
+
+test('historical unavailable and rejected evidence preserve the selected saved value', async ({ page }) => {
+  const reading = activity(first, '9007199254740993'), good = savedEvidence(reading, 'activity');
+  const key = `${first}:activity:${reading.collectionRunId}`;
+  const gap: ProfileReadingEvidence = { profileId: first, availability: 'legacy_gap', runId: reading.collectionRunId, method: 'activity' };
+  await open(page, { activities: { [first]: reading } }); await choose(page, 'Zero fixture');
+  await expect(selectedCard(page).locator('[data-overview-lifetime]')).toHaveAttribute('data-exact-value', '9007199254740993');
+  for (const [reply, reason] of [
+    [gap, 'Historical reading'], [null, null],
+    [{ ...good, record: { ...good.record, providerVersion: '0.164.0' } }, 'Reading changed'],
+    [{ ...good, record: { ...good.record, email: 'synthetic-private@example.invalid' } }, 'Read failed'],
+  ] as const) {
+    await page.evaluate(({ key, reply }) => { (window as unknown as FixtureWindow).overviewFixture.evidence[key] = reply; }, { key, reply });
+    await selectedCard(page).locator('[data-overview-stat="lifetime"]').click();
+    const detail = page.getByRole('dialog', { name: 'Lifetime details', exact: true });
+    const row = (label: string) => detail.locator('dt').filter({ hasText: new RegExp(`^${label}$`) }).locator('+ dd');
+    await detail.getByRole('button', { name: 'Show evidence', exact: true }).click();
+    await expect(row('Evidence status')).toContainText('Not available');
+    if (reason) await expect(row('Reason')).toHaveText(reason);
+    else await expect(row('Reason')).toHaveCount(0);
+    await expect(row('Reading status')).toHaveCount(0); await expect(row('Response hash')).toHaveCount(0);
+    await expect(row('Exact value')).toHaveText('9,007,199,254,740,993');
+    await expect(detail).not.toContainText('synthetic-private@example.invalid');
+    await closeDetail(page);
+  }
+  await page.evaluate(() => { (window as unknown as FixtureWindow).overviewFixture.rejectEvidence = true; });
+  await selectedCard(page).locator('[data-overview-stat="lifetime"]').click();
+  const detail = page.getByRole('dialog', { name: 'Lifetime details', exact: true });
+  await detail.getByRole('button', { name: 'Show evidence', exact: true }).click();
+  await expect(detail.getByRole('alert')).toHaveText('Not available');
+  await page.evaluate(({ key, good }) => { const fixture = (window as unknown as FixtureWindow).overviewFixture; fixture.rejectEvidence = false; fixture.evidence[key] = good; }, { key, good });
+  await detail.getByRole('button', { name: 'Retry evidence', exact: true }).click();
+  await expect(detail.locator('dt').filter({ hasText: /^Reading status$/ }).locator('+ dd')).toHaveText('Official');
+  await expect(detail.locator('dt').filter({ hasText: /^Exact value$/ }).locator('+ dd')).toHaveText('9,007,199,254,740,993');
+});
+
+test('a closed evidence request cannot replace another profiles selected record', async ({ page }) => {
+  const firstReading = activity(first, '9007199254740993');
+  const secondReading = { ...activity(second, '9223372036854775807'), collectionRunId: '66666666-6666-4666-8666-666666666666' };
+  const firstReply = savedEvidence(firstReading, 'activity'), secondReply = savedEvidence(secondReading, 'activity');
+  secondReply.record.redactedResponseHash = 'e'.repeat(64); secondReply.record.adapterRevision = 19;
+  await open(page, { activities: { [first]: firstReading, [second]: secondReading } }); await choose(page, 'Zero fixture');
+  await page.evaluate(() => { (window as unknown as FixtureWindow).overviewFixture.deferEvidence = true; });
+  await selectedCard(page).locator('[data-overview-stat="lifetime"]').click();
+  await page.getByRole('dialog', { name: 'Lifetime details', exact: true }).getByRole('button', { name: 'Show evidence', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => (window as unknown as FixtureWindow).overviewFixture.pending.filter(item => item.kind === 'evidence:activity').length)).toBe(1);
+  await closeDetail(page); await choose(page, 'Large fixture');
+  await selectedCard(page).locator('[data-overview-stat="lifetime"]').click();
+  const detail = page.getByRole('dialog', { name: 'Lifetime details', exact: true });
+  await detail.getByRole('button', { name: 'Show evidence', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => (window as unknown as FixtureWindow).overviewFixture.pending.filter(item => item.kind === 'evidence:activity').length)).toBe(2);
+  await page.evaluate(({ second, reply }) => { const pending = (window as unknown as FixtureWindow).overviewFixture.pending; pending.splice(pending.findIndex(item => item.profileId === second && item.kind === 'evidence:activity'), 1)[0]!.resolve(reply); }, { second, reply: secondReply });
+  const hash = detail.locator('dt').filter({ hasText: /^Response hash$/ }).locator('+ dd');
+  await expect(hash).toHaveText('e'.repeat(64));
+  await page.evaluate(({ first, reply }) => { const pending = (window as unknown as FixtureWindow).overviewFixture.pending; pending.splice(pending.findIndex(item => item.profileId === first && item.kind === 'evidence:activity'), 1)[0]!.resolve(reply); }, { first, reply: firstReply });
+  await expect(hash).toHaveText('e'.repeat(64));
+  await expect(detail.locator('dt').filter({ hasText: /^Adapter revision$/ }).locator('+ dd')).toHaveText('19');
+  await expect(detail.locator('dt').filter({ hasText: /^Exact value$/ }).locator('+ dd')).toHaveText(exactLarge);
+});
 
 test('account activity summary details use their own saved source and observation', async ({ page }) => {
   const savedActivity: SavedProfileActivity = {

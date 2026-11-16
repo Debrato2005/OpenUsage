@@ -4,6 +4,7 @@ import { DetailPanel, Mark } from './detail-panel';
 import { BigNumber } from './overview-charts';
 import { ResetCountdown } from './reset-countdown';
 import { useDateFormat } from './time-display';
+import { ReadingEvidenceDetails } from './reading-evidence';
 
 type Props = {
   profiles: ProfileRecord[]; quotas: Record<string, SavedProfileQuota | null | undefined>; plans: string[];
@@ -30,6 +31,7 @@ export function ReadingDetails({ quota }: { quota: SavedProfileQuota }) {
     <dt>Scope</dt><dd>Account quota; application scope unknown</dd>
     <dt>Coverage</dt><dd>Unknown</dd>
     <dt>Identity</dt><dd>Provisional</dd>
+    <ReadingEvidenceDetails reading={quota} method="quota" />
   </>;
 }
 
@@ -42,6 +44,7 @@ export function ActivityDetails({ activity }: { activity: SavedProfileActivity |
     <dt>Scope</dt><dd>Account activity; application scope unknown</dd>
     <dt>Coverage</dt><dd>Unknown</dd>
     <dt>Identity</dt><dd>{activity ? 'Provisional' : 'Not available'}</dd>
+    {activity ? <ReadingEvidenceDetails reading={activity} method="activity" /> : <><dt>Evidence</dt><dd>Not available</dd></>}
   </>;
 }
 

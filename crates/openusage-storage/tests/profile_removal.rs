@@ -262,11 +262,25 @@ fn fixture_has_every_current_table_and_retains_zero_and_missing_values() {
     );
     for n in 1..=2 {
         assert!(matches!(
-            fixture.storage.reading_evidence(&id(n * 1000 + 2)).unwrap(),
+            fixture
+                .storage
+                .reading_evidence(ReadingEvidenceTarget {
+                    profile_id: &id(n),
+                    method: EvidenceMethod::Activity,
+                    run_id: &id(n * 1000 + 2)
+                })
+                .unwrap(),
             Some(ReadingEvidenceAvailability::LegacyGap)
         ));
         assert!(matches!(
-            fixture.storage.reading_evidence(&id(n * 1000 + 3)).unwrap(),
+            fixture
+                .storage
+                .reading_evidence(ReadingEvidenceTarget {
+                    profile_id: &id(n),
+                    method: EvidenceMethod::Activity,
+                    run_id: &id(n * 1000 + 3)
+                })
+                .unwrap(),
             Some(ReadingEvidenceAvailability::Complete(_))
         ));
     }

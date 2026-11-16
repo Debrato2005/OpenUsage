@@ -47,7 +47,7 @@ mod reading_evidence;
 pub use reading_evidence::{
     EvidenceLocation, EvidenceMethod, EvidenceUnusedField, ReadingEvidenceAvailability,
     ReadingEvidenceCheck, ReadingEvidenceContext, ReadingEvidenceInput, ReadingEvidenceRecord,
-    ResponseEvidenceInput,
+    ReadingEvidenceTarget, ResponseEvidenceInput,
 };
 mod quota_history;
 pub use quota_history::QuotaHistoryPage;

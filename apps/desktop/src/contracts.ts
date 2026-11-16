@@ -344,6 +344,23 @@ export interface SavedProfileActivity {
   dailyChart: { maxTokens: string | null; bars: { date: string; heightBasisPoints: number }[] };
 }
 
+export type EvidenceMethod = 'activity' | 'quota';
+export type ReadingEvidenceTarget = { profileId: string; runId: string; method: EvidenceMethod };
+const evidenceLocations = ['activity_result', 'activity_summary', 'activity_daily_bucket', 'quota_result', 'quota_limit', 'quota_window', 'quota_individual_limit', 'quota_reset_credits', 'quota_credit_detail'] as const;
+export type EvidenceLocation = (typeof evidenceLocations)[number];
+const evidenceChecks = ['rpc_envelope', 'request_id', 'response_fields'] as const;
+export interface ReadingEvidenceRecord {
+  runId: string; method: EvidenceMethod; adapterId: 'codex_app_server'; adapterRevision: number;
+  sourceLevel: 'official'; readingStatus: 'official'; sourceKind: 'official_artifact' | 'test_fixture';
+  providerVersion: string; observedAtUtc: string; projectionVersion: 1;
+  redactedResponseHash: string; formatFingerprint: string;
+  checkResults: { id: (typeof evidenceChecks)[number]; result: 'passed' }[];
+  comparisonResult: 'not_performed'; unusedFields: { location: EvidenceLocation; fieldCount: number }[];
+}
+export type ProfileReadingEvidence =
+  | { profileId: string; availability: 'complete'; record: ReadingEvidenceRecord }
+  | { profileId: string; availability: 'legacy_gap'; runId: string; method: EvidenceMethod };
+
 export interface ActivityHistoryEntry {
   profileId: string; bindingId: string; collectionRunId: string; observedAtUtc: string;
   sourceKind: 'official_artifact' | 'test_fixture'; providerVersion: string;
@@ -590,6 +607,7 @@ function isSubscriptionDeletion(value: unknown): boolean {
 }
 
 interface Commands {
+  load_profile_reading_evidence: { args: ReadingEvidenceTarget; result: ProfileReadingEvidence | null };
   load_leaderboard: { args: undefined; result: LeaderboardView };
   load_leaderboard_rank: { args: { period: LeaderboardPeriod; metric: LeaderboardMetric }; result: LeaderboardRank };
   refresh_leaderboard: { args: undefined; result: LeaderboardView };
@@ -698,7 +716,7 @@ export async function invoke<K extends keyof Commands>(
   const core = window.__TAURI__?.core;
   if (!core) throw new DesktopUnavailable('Open the installed OpenUsage desktop application.');
   const response = await core.invoke<unknown>(command, args[0]);
-  const selected = args[0] as { profileId?: string; subscriptionId?: string; history?: ProfileHistoryChoice; kind?: LeaderboardKind; operationId?: string; period?: LeaderboardPeriod; metric?: LeaderboardMetric } | undefined;
+  const selected = args[0] as { profileId?: string; runId?: string; method?: EvidenceMethod; subscriptionId?: string; history?: ProfileHistoryChoice; kind?: LeaderboardKind; operationId?: string; period?: LeaderboardPeriod; metric?: LeaderboardMetric } | undefined;
   const valid = command === 'load_leaderboard' || command === 'refresh_leaderboard' || command === 'begin_leaderboard' || command === 'cancel_leaderboard' || command === 'confirm_leaderboard_sync' ? isLeaderboardView(response)
       && (command !== 'begin_leaderboard' || response.operation?.kind === selected?.kind)
       && (command !== 'cancel_leaderboard' && command !== 'confirm_leaderboard_sync' || response.operation?.id === selected?.operationId)
@@ -736,6 +754,11 @@ export async function invoke<K extends keyof Commands>(
     : command === 'review_profile_activity_association' ? isActivityAssociationReview(response)
     : command === 'complete_profile_activity_read' ? isProfileActivitySavedRead(response)
     : command === 'load_profile_activity' ? isSavedProfileActivity(response)
+    : command === 'load_profile_reading_evidence' ? isProfileReadingEvidence(response)
+      && (response === null || response.profileId === selected?.profileId
+        && (response.availability === 'complete'
+          ? response.record.runId === selected?.runId && response.record.method === selected?.method
+          : response.runId === selected?.runId && response.method === selected?.method))
     : command === 'load_profile_heatmap' ? isSavedProfileHeatmap(response)
     : command === 'load_combined_heatmap' ? isCombinedHeatmapEligibility(response)
     : command === 'load_activity_dashboard' ? isActivityDashboard(response) && matchesActivitySelection(response, args[0])
@@ -1001,6 +1024,41 @@ function isWideCount(value: unknown): value is string {
 function isUtcTimestamp(value: unknown): value is string {
   return typeof value === 'string' && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(value)
     && Number.isFinite(Date.parse(value)) && new Date(value).toISOString() === value;
+}
+
+function isReadingEvidenceRecord(value: unknown): value is ReadingEvidenceRecord {
+  const v = value as ReadingEvidenceRecord;
+  if (!exactKeys(value, ['runId', 'method', 'adapterId', 'adapterRevision', 'sourceLevel', 'readingStatus', 'sourceKind', 'providerVersion', 'observedAtUtc', 'projectionVersion', 'redactedResponseHash', 'formatFingerprint', 'checkResults', 'comparisonResult', 'unusedFields'])) return false;
+  if (!isUuid(v.runId) || !['activity', 'quota'].includes(v.method) || v.adapterId !== 'codex_app_server'
+    || !Number.isInteger(v.adapterRevision) || v.adapterRevision < 1 || v.adapterRevision > 65535
+    || v.sourceLevel !== 'official' || v.readingStatus !== 'official' || !['official_artifact', 'test_fixture'].includes(v.sourceKind)
+    || typeof v.providerVersion !== 'string' || v.providerVersion.length > 32
+    || !isUtcTimestamp(v.observedAtUtc) || v.observedAtUtc.startsWith('0000-') || v.projectionVersion !== 1 || v.comparisonResult !== 'not_performed'
+    || typeof v.redactedResponseHash !== 'string' || !/^[0-9a-f]{64}$/.test(v.redactedResponseHash)
+    || typeof v.formatFingerprint !== 'string' || !/^[0-9a-f]{64}$/.test(v.formatFingerprint)
+    || !Array.isArray(v.checkResults) || v.checkResults.length !== evidenceChecks.length
+    || !v.checkResults.every((check, index) => exactKeys(check, ['id', 'result']) && check.id === evidenceChecks[index] && check.result === 'passed')
+    || !Array.isArray(v.unusedFields) || v.unusedFields.length > evidenceLocations.length) return false;
+  const parts = v.providerVersion.split('.');
+  if (parts.length !== 3 || !parts.every(part => /^[0-9]+$/.test(part) && Number(part) <= 4294967295)) return false;
+  const allowed = v.method === 'activity' ? evidenceLocations.slice(0, 3) : evidenceLocations.slice(3);
+  let previous = -1, count = 0;
+  for (const field of v.unusedFields) {
+    if (!exactKeys(field, ['location', 'fieldCount']) || !allowed.includes(field.location)
+      || !Number.isInteger(field.fieldCount) || field.fieldCount < 1 || field.fieldCount > 1048576) return false;
+    const position = evidenceLocations.indexOf(field.location);
+    if (position <= previous) return false;
+    previous = position; count += field.fieldCount;
+  }
+  return count <= 1048576;
+}
+
+function isProfileReadingEvidence(value: unknown): value is ProfileReadingEvidence | null {
+  if (value === null) return true;
+  if (typeof value !== 'object' || Array.isArray(value)) return false;
+  const v = value as ProfileReadingEvidence;
+  if (v.availability === 'complete') return exactKeys(v, ['profileId', 'availability', 'record']) && isUuid(v.profileId) && isReadingEvidenceRecord(v.record);
+  return v.availability === 'legacy_gap' && exactKeys(v, ['profileId', 'availability', 'runId', 'method']) && isUuid(v.profileId) && isUuid(v.runId) && ['activity', 'quota'].includes(v.method);
 }
 
 function isActivityAssociationReview(value: unknown): value is ProfileActivityAssociationReview {

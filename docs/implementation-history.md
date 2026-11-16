@@ -6,6 +6,13 @@ This is a dated record of work through November 2, 2026, written against SRS 2.0
 
 
 
+## Activity provenance before evidence access, November 16, 2026
+
+S-04c0 corrected the four Overview activity details to use their saved activity observation.
+The [record](reviews/2026-11-16-activity-provenance.md) owns renderer and native acceptance, including corrected capture scaling.
+Hosted CI for `6b8edad` passed both jobs in run 43793461147.
+Evidence access and selected exports remained open at that checkpoint.
+
 ## Durable evidence before the activity correction, November 16, 2026
 
 S-04b accepted complete evidence for new method observations at schema 14.

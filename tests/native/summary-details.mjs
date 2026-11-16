@@ -34,12 +34,26 @@ async function closed(id) {
   assert.equal(await driver.execute('return document.activeElement===document.querySelector(arguments[0]);', [trigger(id)]), true, 'Focus returns to the summary.');
 }
 async function openQuota() { await driver.click(trigger('quota')); await opened('Runs out first'); }
+async function showEvidence(expected) {
+  await driver.click(`${panel} [aria-label="Show evidence"]`);
+  await waitFor(() => driver.execute('return [...document.querySelectorAll(arguments[0]+" dt")].some(node=>node.textContent==="Reading status"&&node.nextElementSibling.textContent==="Official");', [panel]), 'saved evidence disclosure');
+  const rows = await driver.execute('return [...document.querySelectorAll(arguments[0]+" dt")].map(node=>({label:node.textContent,value:node.nextElementSibling.textContent}));', [panel]);
+  const row = label => { const matching = rows.filter(item => item.label === label); assert.equal(matching.length, 1, `One ${label} evidence row.`); return matching[0].value; };
+  assert.equal(row('Reading status'), expected.readingStatus === 'official' ? 'Official' : 'unsupported');
+  assert.equal(row('Source level'), 'Official'); assert.equal(row('Evidence ID'), expected.runId);
+  assert.equal(row('Adapter'), expected.adapterId); assert.equal(row('Adapter revision'), String(expected.adapterRevision));
+  assert.equal(row('Projection version'), String(expected.projectionVersion));
+  assert.equal(row('Format fingerprint'), expected.formatFingerprint); assert.equal(row('Response hash'), expected.redactedResponseHash);
+  assert.equal(row('Comparison'), 'Not performed');
+  assert.match(row('Checks'), /Envelope: Passed/); assert.match(row('Checks'), /Request: Passed/); assert.match(row('Checks'), /Fields: Passed/);
+  (evidence.readingEvidenceViews ??= []).push({ method: expected.method, runId: expected.runId, storedMetadataDisplayed: true });
+}
 async function detailLayout() {
   return driver.execute(`const dialog=document.querySelector(arguments[0]),heading=dialog.querySelector('h2'),header=heading.parentElement,close=dialog.querySelector('[data-detail-panel-close]'),rows=dialog.querySelector('.detail-rows');
     const box=node=>{const r=node.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width,height:r.height};};
     return {title:heading.textContent,dialog:box(dialog),fonts:{heading:parseFloat(getComputedStyle(heading).fontSize),rows:parseFloat(getComputedStyle(rows).fontSize)},heading:box(heading),header:box(header),close:box(close),rows:box(rows),lineHeight:parseFloat(getComputedStyle(heading).lineHeight)};`, [panel]);
 }
-async function capture(name, width, scale = 1) {
+async function capture(name, width, scale = 1, scrollLabel) {
   for (let adjustment = 0; adjustment < 3; adjustment++) {
     const view = await driver.execute('return {width:innerWidth,height:innerHeight};');
     if (view.width === width && view.height === 850) break;
@@ -70,6 +84,8 @@ async function capture(name, width, scale = 1) {
     fontCheck.scaling = await driver.execute('const nodes=window.__summaryFonts.filter(item=>item.node.isConnected&&item.node.getClientRects().length);return {count:nodes.length,mismatches:nodes.filter(item=>Math.abs(parseFloat(getComputedStyle(item.node).fontSize)-item.size*arguments[0])>0.01).map(item=>({tag:item.node.tagName,expected:item.size*arguments[0],actual:getComputedStyle(item.node).fontSize}))};', [scale]);
     assert.ok(fontCheck.scaling.count > 0);
     assert.deepEqual(fontCheck.scaling.mismatches, [], 'Every rendered font must receive the requested scale.');
+    if (scrollLabel) await driver.execute('const label=[...document.querySelectorAll(arguments[0]+" dt")].find(node=>node.textContent===arguments[1]);if(!label)throw new Error("Missing requested evidence row");label.nextElementSibling.scrollIntoView({block:"center"});return true;', [panel, scrollLabel]);
+    if (scrollLabel) assert.equal((await settleViewport(driver, width, 850)).ok, true);
     const layout = fontCheck.scaled;
     assert.ok(layout.heading.height <= layout.lineHeight * 2 + 1, 'The detail title must fit within two lines.');
     assert.ok(layout.header.height <= 850 / 4 && layout.rows.top < 850 / 2, 'The heading must leave the initial detail rows visible.');
@@ -102,6 +118,7 @@ try {
   await driver.start();
   await waitFor(() => driver.execute('return Boolean(document.querySelector("#workspace-passphrase")&&!document.querySelector("#workspace-passphrase").disabled);'), 'private setup');
   const password = 'OpenUsage synthetic summary details 2026';
+  assert.deepEqual(await driver.invoke('load_profile_reading_evidence', { profileId: '11111111-1111-4111-8111-111111111111', runId: '33333333-3333-4333-8333-333333333333', method: 'activity' }), { ok: false, error: 'workspace_locked' });
   await driver.type('#workspace-passphrase', password);
   await driver.type('#workspace-confirmation', password);
   await driver.click('.unlock-form button[type=submit]');
@@ -138,6 +155,28 @@ try {
   const providerLog = join(home, 'synthetic-collection-observations.jsonl');
   const providerBefore = await hash(providerLog);
   const keyBefore = await hash(join(dirname(fixture.database), 'database-key.v1'));
+  const records = {};
+  for (const [method, reading] of [['activity', activityBefore], ['quota', before]]) {
+    const target = { profileId: profiles[0].id, runId: reading.collectionRunId, method };
+    const reply = await call('load_profile_reading_evidence', target);
+    assert.equal(reply.profileId, target.profileId); assert.equal(reply.availability, 'complete');
+    const record = reply.record;
+    assert.equal(record.runId, target.runId); assert.equal(record.method, method);
+    assert.equal(record.providerVersion, reading.providerVersion); assert.equal(record.observedAtUtc, reading.observedAtUtc);
+    assert.equal(record.sourceKind, 'test_fixture'); assert.equal(record.readingStatus, 'official'); assert.equal(record.sourceLevel, 'official');
+    assert.equal(record.adapterId, 'codex_app_server'); assert.equal(record.adapterRevision, 1); assert.equal(record.projectionVersion, 1);
+    assert.equal(record.comparisonResult, 'not_performed');
+    assert.match(record.redactedResponseHash, /^[0-9a-f]{64}$/); assert.match(record.formatFingerprint, /^[0-9a-f]{64}$/);
+    assert.equal(JSON.stringify(reply).includes('@'), false); assert.equal(JSON.stringify(reply).includes(fixture.root), false);
+    assert.equal(await call('load_profile_reading_evidence', { ...target, profileId: profiles[1].id }), null);
+    assert.equal(await call('load_profile_reading_evidence', { ...target, method: method === 'activity' ? 'quota' : 'activity' }), null);
+    assert.equal(await call('load_profile_reading_evidence', { ...target, runId: '77777777-7777-4777-8777-777777777777' }), null);
+    for (const fields of [{ method: 'unknown' }, { runId: '../private' }, { unexpected: true }, { runId: null }]) assert.deepEqual(await driver.invoke('load_profile_reading_evidence', { ...target, ...fields }), { ok: false, error: 'invalid_arguments' });
+    records[method] = record;
+  }
+  assert.notEqual(records.activity.redactedResponseHash, records.quota.redactedResponseHash);
+  assert.notEqual(records.activity.formatFingerprint, records.quota.formatFingerprint);
+  evidence.readingEvidenceCommands = { lockedRejected: true, strictArguments: true, profileMethodAndRunScoped: true, noPrivateFields: true };
   await driver.execute('document.querySelector(arguments[0]).focus();return true;', [trigger('accounts')]);
   await key('\uE007'); await opened('Connected accounts');
   await key('\uE00C'); await closed('accounts');
@@ -150,6 +189,7 @@ try {
   const details = await driver.execute('return document.querySelector(arguments[0]).textContent;', [`${panel} .detail-rows`]);
   assert.ok(details.includes(profiles[0].label) && details.includes('Seven-day') && details.includes('Synthetic test data') && details.includes('Calculation100% − 40% used'));
   assert.ok(details.includes('ScopeAccount quota; application scope unknown'));
+  await showEvidence(records.quota); await driver.click(`${panel} [aria-label="Hide evidence"]`);
   await capture('summary-light-desktop.png', 1280);
   await capture('summary-light-narrow.png', 360);
   await driver.setAppearance('dark'); await openQuota();
@@ -173,10 +213,16 @@ try {
     assert.equal(row('Scope').value, 'Account activity; application scope unknown');
     assert.equal(row('Coverage').value, 'Unknown'); assert.equal(row('Identity').value, 'Provisional');
     evidence.activityDetails.push({ metric: id, actualSavedActivityMetadataMatched: true });
+    await showEvidence(records.activity); await driver.click(`${panel} [aria-label="Hide evidence"]`);
     if (id === 'lifetime') {
       await capture('activity-provenance-light-narrow-text.png', 360, 2);
       await driver.setAppearance('dark'); await driver.click(button); await opened(name);
       await capture('activity-provenance-dark-narrow-text.png', 360, 2);
+      await driver.setAppearance('light'); await driver.click(button); await opened(name);
+      await showEvidence(records.activity);
+      await capture('activity-evidence-light-narrow-text.png', 360, 2, 'Response hash');
+      await driver.setAppearance('dark'); await driver.click(button); await opened(name); await showEvidence(records.activity);
+      await capture('activity-evidence-dark-narrow-text.png', 360, 2, 'Response hash');
       await driver.setAppearance('light'); await driver.click(button); await opened(name);
     }
     await key('\uE00C');

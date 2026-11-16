@@ -40,6 +40,7 @@ pub(crate) use profile_plan::SavedProfilePlan;
 pub(crate) use profile_removal::{ProfileHistoryChoice, ProfileRemovalPreview};
 pub(crate) use quota_history::ProfileQuotaHistory;
 pub(crate) use quota_storage::SavedProfileQuota;
+pub(crate) use reading_evidence::ProfileReadingEvidence;
 pub(crate) use reset_notifications::{NotificationPreferences, ResetNotificationPreferences};
 
 const DATABASE_FILE: &str = "openusage.db";
@@ -158,6 +159,7 @@ pub enum CommandError {
     ProviderActivityAssociationChanged,
     ProviderActivityReviewUnavailable,
     ProviderActivityLoadFailed,
+    ProviderEvidenceLoadFailed,
     ProviderQuotaNotFound,
     ProviderQuotaInProgress,
     ProviderQuotaCancelled,

@@ -73,6 +73,7 @@
     "allow-complete-profile-login",
     "allow-cancel-profile-login",
     "allow-discover-provider-executables",
+    "allow-load-profile-reading-evidence",
     "allow-load-profile-activity",
     "allow-load-profile-activity-history",
     "allow-load-profile-heatmap",

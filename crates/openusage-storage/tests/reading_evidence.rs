@@ -5,8 +5,8 @@ use openusage_storage::{
     EvidenceMethod, EvidenceUnusedField, ProfileBinding, ProfileBindingInput, ProfileHistoryChoice,
     ProfileIdentityEvidence, ProfileRemovalRequest, QuotaLimit, QuotaReading, QuotaWindow,
     ReadingEvidenceAvailability, ReadingEvidenceContext, ReadingEvidenceInput,
-    ResponseEvidenceInput, RestoreHomeMapping, Storage, validate_backup_snapshot,
-    validate_checkpoint_restore_input, validate_restore_input,
+    ReadingEvidenceTarget, ResponseEvidenceInput, RestoreHomeMapping, Storage,
+    validate_backup_snapshot, validate_checkpoint_restore_input, validate_restore_input,
 };
 
 const KEY: [u8; 32] = [83; 32];
@@ -16,6 +16,70 @@ const RUN: &str = "33333333-3333-4333-8333-333333333333";
 const TIME: &str = "2026-11-16T00:00:00.000Z";
 const HOME: &str = "44444444-4444-4444-8444-444444444444";
 const EMAIL: &str = "synthetic-private-email@example.invalid";
+
+#[test]
+fn evidence_lookup_is_bound_to_the_exact_profile_method_and_run() {
+    let directory = private_directory();
+    let mut storage = Storage::create(&directory.path().join("scoped-evidence.db"), &KEY).unwrap();
+    storage.create_profile(PROFILE, "Synthetic", HOME).unwrap();
+    let mut reading = activity();
+    reading.evidence = Some(evidence(&reading));
+    storage
+        .accept_activity_with_binding(reading.clone(), Some(association(&reading)))
+        .unwrap();
+    storage
+        .create_profile(
+            "55555555-5555-4555-8555-555555555555",
+            "Other owner",
+            "66666666-6666-4666-8666-666666666666",
+        )
+        .unwrap();
+    let target = ReadingEvidenceTarget {
+        profile_id: PROFILE,
+        method: EvidenceMethod::Activity,
+        run_id: RUN,
+    };
+    let mut before = Vec::new();
+    storage.write_application_export(&mut before, TIME).unwrap();
+    assert!(matches!(
+        storage.reading_evidence(target).unwrap(),
+        Some(ReadingEvidenceAvailability::Complete(_))
+    ));
+    for wrong in [
+        ReadingEvidenceTarget {
+            profile_id: "55555555-5555-4555-8555-555555555555",
+            ..target
+        },
+        ReadingEvidenceTarget {
+            method: EvidenceMethod::Quota,
+            ..target
+        },
+        ReadingEvidenceTarget {
+            run_id: "55555555-5555-4555-8555-555555555555",
+            ..target
+        },
+    ] {
+        assert!(storage.reading_evidence(wrong).unwrap().is_none());
+    }
+    for invalid in [
+        ReadingEvidenceTarget {
+            profile_id: "../private",
+            ..target
+        },
+        ReadingEvidenceTarget {
+            run_id: "../private",
+            ..target
+        },
+    ] {
+        assert!(matches!(
+            storage.reading_evidence(invalid),
+            Err(ActivityError::InvalidInput)
+        ));
+    }
+    let mut after = Vec::new();
+    storage.write_application_export(&mut after, TIME).unwrap();
+    assert_eq!(after, before);
+}
 
 fn controlled_connection(path: &std::path::Path) -> rusqlite::Connection {
     let connection = rusqlite::Connection::open(path).unwrap();
@@ -145,9 +209,17 @@ fn application_export(storage: &mut Storage) -> Vec<u8> {
     bytes
 }
 
-fn complete_evidence(storage: &Storage, run_id: &str) -> serde_json::Value {
+fn target(run_id: &str, method: EvidenceMethod) -> ReadingEvidenceTarget<'_> {
+    ReadingEvidenceTarget {
+        profile_id: PROFILE,
+        method,
+        run_id,
+    }
+}
+
+fn complete_evidence(storage: &Storage, run_id: &str, method: EvidenceMethod) -> serde_json::Value {
     let Some(ReadingEvidenceAvailability::Complete(record)) =
-        storage.reading_evidence(run_id).unwrap()
+        storage.reading_evidence(target(run_id, method)).unwrap()
     else {
         panic!("An accepted method must retain its complete evidence.");
     };
@@ -161,7 +233,12 @@ fn non_live_acceptance_requires_evidence_and_preserves_it_with_exact_readings() 
     let mut storage = Storage::create(&path, &KEY).unwrap();
     assert_eq!(storage.metadata().unwrap().schema_version, 14);
     storage.create_profile(PROFILE, "Synthetic", HOME).unwrap();
-    assert!(storage.reading_evidence(RUN).unwrap().is_none());
+    assert!(
+        storage
+            .reading_evidence(target(RUN, EvidenceMethod::Activity))
+            .unwrap()
+            .is_none()
+    );
 
     let mut reading = activity();
     assert_eq!(
@@ -170,14 +247,20 @@ fn non_live_acceptance_requires_evidence_and_preserves_it_with_exact_readings() 
     );
     assert_eq!(storage.profile_binding(PROFILE).unwrap(), None);
     assert_eq!(storage.current_activity(PROFILE).unwrap(), None);
-    assert!(storage.reading_evidence(RUN).unwrap().is_none());
+    assert!(
+        storage
+            .reading_evidence(target(RUN, EvidenceMethod::Activity))
+            .unwrap()
+            .is_none()
+    );
 
     reading.evidence = Some(evidence(&reading));
     storage
         .accept_activity_with_binding(reading.clone(), Some(association(&reading)))
         .unwrap();
-    let Some(ReadingEvidenceAvailability::Complete(record)) =
-        storage.reading_evidence(RUN).unwrap()
+    let Some(ReadingEvidenceAvailability::Complete(record)) = storage
+        .reading_evidence(target(RUN, EvidenceMethod::Activity))
+        .unwrap()
     else {
         panic!("An accepted method must retain its complete evidence.");
     };
@@ -215,7 +298,9 @@ fn non_live_acceptance_requires_evidence_and_preserves_it_with_exact_readings() 
 
     let readonly = Storage::open_read_only(&path, &KEY).unwrap();
     assert!(matches!(
-        readonly.reading_evidence(RUN).unwrap(),
+        readonly
+            .reading_evidence(target(RUN, EvidenceMethod::Activity))
+            .unwrap(),
         Some(ReadingEvidenceAvailability::Complete(_))
     ));
 }
@@ -296,6 +381,11 @@ fn each_method_keeps_exact_evidence_through_archive_and_encrypted_checkpoint_res
         |(run, method, revision, hash, fingerprint, location, count)| {
             (
                 run,
+                match method {
+                    "activity" => EvidenceMethod::Activity,
+                    "quota" => EvidenceMethod::Quota,
+                    _ => unreachable!(),
+                },
                 serde_json::json!({
                     "runId": run,
                     "method": method,
@@ -321,8 +411,8 @@ fn each_method_keeps_exact_evidence_through_archive_and_encrypted_checkpoint_res
         },
     )
     .collect();
-    for (run, record) in &expected {
-        assert_eq!(complete_evidence(&storage, run), *record);
+    for (run, method, record) in &expected {
+        assert_eq!(complete_evidence(&storage, run, *method), *record);
     }
     let saved_activity = storage.current_activity(PROFILE).unwrap().unwrap();
     let saved_quota = storage.current_quota(PROFILE).unwrap().unwrap();
@@ -362,8 +452,13 @@ fn each_method_keeps_exact_evidence_through_archive_and_encrypted_checkpoint_res
                     &revision,
                 )
                 .unwrap();
-            for (run, _) in &expected {
-                assert!(storage.reading_evidence(run).unwrap().is_none());
+            for (run, method, _) in &expected {
+                assert!(
+                    storage
+                        .reading_evidence(target(run, *method))
+                        .unwrap()
+                        .is_none()
+                );
             }
             drop(storage);
             storage = Storage::open(&path, &KEY).unwrap();
@@ -403,8 +498,8 @@ fn each_method_keeps_exact_evidence_through_archive_and_encrypted_checkpoint_res
         }
         drop(storage);
         storage = Storage::open(&path, &KEY).unwrap();
-        for (run, record) in &expected {
-            assert_eq!(complete_evidence(&storage, run), *record);
+        for (run, method, record) in &expected {
+            assert_eq!(complete_evidence(&storage, run, *method), *record);
         }
         assert_eq!(
             storage.current_activity(PROFILE).unwrap(),
@@ -469,7 +564,12 @@ fn mismatched_or_malformed_evidence_never_changes_any_application_record() {
             Err(ActivityError::InvalidInput),
             "synthetic case {case}",
         );
-        assert!(storage.reading_evidence(RUN).unwrap().is_none());
+        assert!(
+            storage
+                .reading_evidence(target(RUN, EvidenceMethod::Activity))
+                .unwrap()
+                .is_none()
+        );
         let mut after = Vec::new();
         storage.write_application_export(&mut after, TIME).unwrap();
         assert_eq!(after, baseline, "synthetic case {case}");
@@ -502,9 +602,26 @@ fn schema_thirteen_history_migrates_without_fabricating_response_evidence() {
     assert_eq!(migrated.metadata().unwrap().schema_version, 14);
     assert_eq!(migrated.current_activity(PROFILE).unwrap().unwrap(), saved);
     assert!(matches!(
-        migrated.reading_evidence(RUN).unwrap(),
+        migrated
+            .reading_evidence(target(RUN, EvidenceMethod::Activity))
+            .unwrap(),
         Some(ReadingEvidenceAvailability::LegacyGap)
     ));
+    assert!(
+        migrated
+            .reading_evidence(target(RUN, EvidenceMethod::Quota))
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        migrated
+            .reading_evidence(ReadingEvidenceTarget {
+                profile_id: "55555555-5555-4555-8555-555555555555",
+                ..target(RUN, EvidenceMethod::Activity)
+            })
+            .unwrap()
+            .is_none()
+    );
     let baseline = application_export(&mut migrated);
     let control = controlled_connection(&path);
     for statement in [
@@ -516,7 +633,9 @@ fn schema_thirteen_history_migrates_without_fabricating_response_evidence() {
         assert!(control.execute(statement, [RUN]).is_err(), "{statement}");
         assert_eq!(application_export(&mut migrated), baseline, "{statement}");
         assert!(matches!(
-            migrated.reading_evidence(RUN).unwrap(),
+            migrated
+                .reading_evidence(target(RUN, EvidenceMethod::Activity))
+                .unwrap(),
             Some(ReadingEvidenceAvailability::LegacyGap)
         ));
     }
@@ -560,7 +679,9 @@ fn schema_thirteen_history_migrates_without_fabricating_response_evidence() {
     assert_eq!(restored.metadata().unwrap().schema_version, 14);
     assert_eq!(restored.current_activity(PROFILE).unwrap().unwrap(), saved);
     assert!(matches!(
-        restored.reading_evidence(RUN).unwrap(),
+        restored
+            .reading_evidence(target(RUN, EvidenceMethod::Activity))
+            .unwrap(),
         Some(ReadingEvidenceAvailability::LegacyGap)
     ));
     let document: serde_json::Value =
@@ -588,7 +709,12 @@ fn schema_thirteen_history_migrates_without_fabricating_response_evidence() {
             &revision,
         )
         .unwrap();
-    assert!(restored.reading_evidence(RUN).unwrap().is_none());
+    assert!(
+        restored
+            .reading_evidence(target(RUN, EvidenceMethod::Activity))
+            .unwrap()
+            .is_none()
+    );
     let snapshot = restored.backup_snapshot().unwrap();
     validate_backup_snapshot(&snapshot.bytes, 14).unwrap();
 }
@@ -614,7 +740,12 @@ fn evidence_write_failure_rolls_back_the_entire_first_association() {
     control
         .execute_batch("DROP TRIGGER synthetic_evidence_failure;")
         .unwrap();
-    assert!(storage.reading_evidence(RUN).unwrap().is_none());
+    assert!(
+        storage
+            .reading_evidence(target(RUN, EvidenceMethod::Activity))
+            .unwrap()
+            .is_none()
+    );
     let mut after = Vec::new();
     storage.write_application_export(&mut after, TIME).unwrap();
     assert_eq!(after, baseline);
@@ -633,7 +764,7 @@ fn committed_evidence_is_immutable_and_unexplained_absence_is_not_legacy() {
         .unwrap();
     let control = controlled_connection(&path);
     let baseline = application_export(&mut storage);
-    let original = complete_evidence(&storage, RUN);
+    let original = complete_evidence(&storage, RUN, EvidenceMethod::Activity);
     for statement in [
         "UPDATE reading_evidence SET redacted_response_hash=printf('%064d',0) WHERE collection_run_id=?1",
         "INSERT INTO reading_evidence SELECT * FROM reading_evidence WHERE collection_run_id=?1",
@@ -642,7 +773,11 @@ fn committed_evidence_is_immutable_and_unexplained_absence_is_not_legacy() {
     ] {
         assert!(control.execute(statement, [RUN]).is_err(), "{statement}");
         assert_eq!(application_export(&mut storage), baseline, "{statement}");
-        assert_eq!(complete_evidence(&storage, RUN), original, "{statement}");
+        assert_eq!(
+            complete_evidence(&storage, RUN, EvidenceMethod::Activity),
+            original,
+            "{statement}"
+        );
     }
     assert!(
         control
@@ -654,7 +789,9 @@ fn committed_evidence_is_immutable_and_unexplained_absence_is_not_legacy() {
     );
     assert_eq!(application_export(&mut storage), baseline);
     assert!(matches!(
-        storage.reading_evidence(RUN).unwrap(),
+        storage
+            .reading_evidence(target(RUN, EvidenceMethod::Activity))
+            .unwrap(),
         Some(ReadingEvidenceAvailability::Complete(_))
     ));
 
@@ -666,7 +803,7 @@ fn committed_evidence_is_immutable_and_unexplained_absence_is_not_legacy() {
         )
         .unwrap();
     assert!(matches!(
-        storage.reading_evidence(RUN),
+        storage.reading_evidence(target(RUN, EvidenceMethod::Activity)),
         Err(ActivityError::ReadFailed)
     ));
     let snapshot = storage.backup_snapshot().unwrap();
@@ -706,8 +843,18 @@ fn second_method_evidence_failure_rolls_back_the_whole_live_collection() {
     let mut after = Vec::new();
     storage.write_application_export(&mut after, TIME).unwrap();
     assert_eq!(after, baseline);
-    assert!(storage.reading_evidence(&quota.run_id).unwrap().is_none());
-    assert!(storage.reading_evidence(RUN).unwrap().is_none());
+    assert!(
+        storage
+            .reading_evidence(target(&quota.run_id, EvidenceMethod::Quota))
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        storage
+            .reading_evidence(target(RUN, EvidenceMethod::Activity))
+            .unwrap()
+            .is_none()
+    );
     storage
         .accept_live_collection(
             Some(quota.clone()),
@@ -721,7 +868,7 @@ fn second_method_evidence_failure_rolls_back_the_whole_live_collection() {
         (&activity.run_id, EvidenceMethod::Activity),
     ] {
         let Some(ReadingEvidenceAvailability::Complete(record)) =
-            storage.reading_evidence(id).unwrap()
+            storage.reading_evidence(target(id, method)).unwrap()
         else {
             panic!("Complete method evidence required.")
         };

@@ -15,6 +15,57 @@ function desktopResponse(value) {
   globalThis.window = { __TAURI__: { core: { invoke: async () => value } } };
 }
 
+test('reading evidence accepts metadata without private fields for the selected profile method and run', async () => {
+  const args = { profileId: '11111111-1111-4111-8111-111111111111', runId: '33333333-3333-4333-8333-333333333333', method: 'activity' };
+  const record = {
+    runId: args.runId, method: 'activity', adapterId: 'codex_app_server', adapterRevision: 1,
+    sourceLevel: 'official', readingStatus: 'official', sourceKind: 'test_fixture', providerVersion: '0.163.0',
+    observedAtUtc: '2026-11-16T00:00:00.000Z', projectionVersion: 1,
+    redactedResponseHash: 'a'.repeat(64), formatFingerprint: 'b'.repeat(64),
+    checkResults: [{ id: 'rpc_envelope', result: 'passed' }, { id: 'request_id', result: 'passed' }, { id: 'response_fields', result: 'passed' }],
+    comparisonResult: 'not_performed', unusedFields: [{ location: 'activity_summary', fieldCount: 2 }],
+  };
+  const response = { profileId: args.profileId, availability: 'complete', record };
+  desktopResponse(response); assert.deepEqual(await invoke('load_profile_reading_evidence', args), response);
+  for (const fields of [
+    { runId: '44444444-4444-4444-8444-444444444444' }, { method: 'quota', unusedFields: [] },
+    { adapterId: '/private/provider' }, { adapterRevision: 0 }, { adapterRevision: 65536 },
+    { sourceLevel: 'unofficial' }, { readingStatus: 'matched' }, { sourceKind: 'unverified' },
+    { providerVersion: 'synthetic-email@example.invalid' }, { providerVersion: '0.4294967296.0' },
+    { observedAtUtc: '2026-02-30T00:00:00.000Z' }, { observedAtUtc: '0000-01-01T00:00:00.000Z' }, { projectionVersion: 2 },
+    { redactedResponseHash: 'A'.repeat(64) }, { formatFingerprint: 'private-response' },
+    { checkResults: [] }, { checkResults: record.checkResults.map((entry, index) => index === 1 ? { ...entry, result: 'failed' } : entry) },
+    { comparisonResult: 'matched' }, { unusedFields: [{ location: 'quota_window', fieldCount: 1 }] },
+    { unusedFields: [{ location: 'activity_summary', fieldCount: 0 }] },
+    { unusedFields: [{ location: 'activity_summary', fieldCount: 1 }, { location: 'activity_summary', fieldCount: 2 }] },
+    { unusedFields: [{ location: 'activity_summary', fieldCount: 1048577 }] },
+    { unusedFields: [{ location: '/private/unknown-field', fieldCount: 1 }] },
+    { email: 'synthetic-email@example.invalid' },
+  ]) {
+    desktopResponse({ ...response, record: { ...record, ...fields } });
+    await assert.rejects(invoke('load_profile_reading_evidence', args), /desktop response is incompatible/);
+  }
+  for (const fields of [{ profileId: '22222222-2222-4222-8222-222222222222' }, { token: 'synthetic-private-value' }]) {
+    desktopResponse({ ...response, ...fields });
+    await assert.rejects(invoke('load_profile_reading_evidence', args), /desktop response is incompatible/);
+  }
+});
+
+test('historical evidence gaps and unavailable runs invent no evidence metadata', async () => {
+  const args = { profileId: '11111111-1111-4111-8111-111111111111', runId: '33333333-3333-4333-8333-333333333333', method: 'quota' };
+  const gap = { profileId: args.profileId, runId: args.runId, method: args.method, availability: 'legacy_gap' };
+  desktopResponse(null); assert.equal(await invoke('load_profile_reading_evidence', args), null);
+  desktopResponse(gap); assert.deepEqual(await invoke('load_profile_reading_evidence', args), gap);
+  for (const fields of [
+    { profileId: '22222222-2222-4222-8222-222222222222' }, { runId: '44444444-4444-4444-8444-444444444444' }, { method: 'activity' },
+    { readingStatus: 'official' }, { record: null }, { redactedResponseHash: 'a'.repeat(64) },
+    { comparisonResult: 'not_performed' }, { providerVersion: '0.163.0' }, { availability: 'missing' },
+  ]) {
+    desktopResponse({ ...gap, ...fields });
+    await assert.rejects(invoke('load_profile_reading_evidence', args), /desktop response is incompatible/);
+  }
+});
+
 test('own rank keeps exact values and refuses stale or private responses', async () => {
   const args = { period: '30d', metric: 'tokens' };
   const entry = { rank: '105', login: 'synthetic-user', totalTokens: '9007199254740991', estimatedValueMicros: null };

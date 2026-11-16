@@ -121,7 +121,7 @@ SQL rejects updates after insertion. Explicit record deletion follows the existi
 
 Trusted migration marks preexisting method runs in `reading_evidence_legacy`.
 It invents no historical hashes, checks, adapter revisions, comparisons, or status records.
-Lookup returns `LegacyGap` for a marker, `None` for an unknown run, and an error for unexplained or conflicting absence.
+Lookup returns `LegacyGap` for a marker, `None` for an unknown or mismatched target, and an error for unexplained or conflicting absence.
 Complete records and markers cannot coexist for one run.
 Schema-14 snapshot checks require exactly one of them for every collection run.
 The [SC-031 conflict](srs-clarifications.md#sc-031-evidence-for-historical-readings) remains open. It approves no exception to OU-AUD-001.
@@ -130,6 +130,32 @@ Encrypted backup validation supports schemas 1 through 14.
 Trusted normalization preserves old values and adds only the migration markers.
 Restore, checkpoints, and complete application export preserve the two evidence tables.
 Selected reading exports and provider display DTOs still lack the full SRS status and evidence contract.
+
+## Evidence access
+
+The Rust lookup accepts one `ReadingEvidenceTarget`: profile UUID, method, and run UUID.
+One SQL snapshot requires all three to match.
+A wrong target returns no record. Malformed identifiers and corrupt evidence remain errors.
+The read changes no stored record and requires no provider approval or request.
+
+The command `load_profile_reading_evidence` accepts only `profileId`, `runId`, and `method`.
+Methods are `activity` and `quota`.
+The workspace must be unlocked and the profile must exist. Archived profiles remain readable.
+A complete response contains `profileId`, `availability: "complete"`, and the validated record.
+A historical response contains only `profileId`, `availability: "legacy_gap"`, `runId`, and `method`.
+An unavailable target returns null. A failed read never becomes a historical gap.
+
+The renderer rejects extra fields and binds each response to the requested profile, method, and run.
+It checks hashes, canonical dates, numeric versions, fixed checks, known locations, and count bounds.
+Evidence dates use positive Gregorian years, as Rust storage requires.
+The Overview activity and quota panels load evidence only after Show.
+Their cache also binds provider version, origin, and observation time.
+A late or mismatched response cannot replace another selection. Evidence failure preserves the displayed metric.
+
+Normal cards remain unchanged. The existing panel shows status, source level, adapter revision, projection version, hashes, checks, comparison, and unused-field counts.
+A historical gap shows no invented status or hashes.
+Current metric DTOs remain unchanged. This separate evidence view covers only the existing Codex interface.
+Uniform status DTOs, other detail routes, CLI evidence access, selected exports, and all-status alerts remain open.
 
 ## Exact values, missing values, and units
 
@@ -292,7 +318,7 @@ and revision order. It must not reuse the public leaderboard schema for
 provider readings or copy the local database to a cloud service.
 
 The [response evidence producer](../crates/openusage-codex/README.md#response-evidence-producer) supplies metadata to Rust callers.
-The desktop and storage now retain that metadata under the contract above. Current provider display DTOs remain unchanged.
+The desktop and storage now retain that metadata under the contract above. Current metric DTOs remain unchanged. The separate [evidence access contract](#evidence-access) now supplies Overview detail disclosure.
 
 SRS Section 17 defines `MetricState`, `SourceLevel`, `ReadingStatus`, and
 `evidenceId`. Current provider DTOs instead expose their explicit freshness,
