@@ -20,6 +20,7 @@ fn preferences(enabled: bool) -> ResetAlertPreferences {
 fn baseline_official(enabled: bool) -> (tempfile::TempDir, Storage, QuotaReading) {
     let (dir, mut storage, mut original) = fixture();
     original.source_kind = ActivitySourceKind::OfficialArtifact;
+    original = crate::reading_evidence::fixture_quota(original);
     original.limits[0].primary.as_mut().unwrap().used_percent = 100;
     original.limits[0].primary.as_mut().unwrap().resets_at_unix = Some(0);
     storage
@@ -244,6 +245,7 @@ fn quiet_events_wait_until_eight_and_require_a_fresh_same_generation_reading() {
     let mut reading = super::alert_tests::next(&original, 1);
     reading.observed_at_utc = "2026-10-18T22:00:01.000Z".into();
     reading.completed_at_utc = reading.observed_at_utc.clone();
+    reading = crate::reading_evidence::fixture_quota(reading);
     storage.accept_quota(reading.clone(), None).unwrap();
     assert!(
         storage
@@ -260,6 +262,7 @@ fn quiet_events_wait_until_eight_and_require_a_fresh_same_generation_reading() {
     let mut fresh = super::alert_tests::next(&original, 2);
     fresh.observed_at_utc = "2026-10-19T07:59:59.000Z".into();
     fresh.completed_at_utc = fresh.observed_at_utc.clone();
+    fresh = crate::reading_evidence::fixture_quota(fresh);
     fresh.limits[0].primary.as_mut().unwrap().resets_at_unix = Some(1);
     storage.accept_quota(fresh, None).unwrap();
     assert!(

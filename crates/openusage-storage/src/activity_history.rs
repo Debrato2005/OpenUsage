@@ -194,7 +194,7 @@ mod tests {
         (dir, storage)
     }
     fn reading(run: u32, profile: u32, home: u32, binding: u32, time: &str) -> ActivityReading {
-        ActivityReading {
+        crate::reading_evidence::fixture_activity(ActivityReading {
             run_id: id(run),
             binding: ProfileBinding {
                 profile_id: id(profile),
@@ -212,7 +212,8 @@ mod tests {
             completed_at_utc: time.into(),
             summary: ActivitySummaryValues::default(),
             daily_usage: None,
-        }
+            evidence: None,
+        })
     }
     fn accept(storage: &mut Storage, reading: ActivityReading) {
         let previous = storage
@@ -303,7 +304,7 @@ mod tests {
         let activity = reading(102, 1, 2, 3, TIME);
         storage
             .accept_quota(
-                QuotaReading {
+                crate::reading_evidence::fixture_quota(QuotaReading {
                     run_id: activity.run_id,
                     binding: activity.binding,
                     identity_evidence: activity.identity_evidence,
@@ -315,7 +316,8 @@ mod tests {
                     limits: vec![],
                     available_reset_credits: None,
                     reset_credit_details: None,
-                },
+                    evidence: None,
+                }),
                 None,
             )
             .unwrap();
@@ -362,7 +364,10 @@ mod tests {
             provider_date: "2026-10-21".into(),
             tokens: "0".into(),
         }]);
-        accept(&mut storage, latest);
+        accept(
+            &mut storage,
+            crate::reading_evidence::fixture_activity(latest),
+        );
         storage.set_profile_archived(&id(1), true).unwrap();
         drop(storage);
         let mut storage = Storage::open(&dir.path().join("activity-history.db"), &KEY).unwrap();

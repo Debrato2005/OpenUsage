@@ -1,4 +1,6 @@
 //! Bounded synthetic summary snapshots in a marker-owned, closed native workspace.
+#[path = "../evidence_fixture.rs"]
+mod evidence_fixture;
 use openusage_storage::{
     ActivityDayValue, ActivityReading, ActivitySourceKind, ActivitySummaryValues,
     CURRENT_SCHEMA_VERSION, ProfileBinding, ProfileBindingInput, Storage, keywrap::unwrap_key,
@@ -134,11 +136,8 @@ fn main() {
         }
     }
     let mut storage = Storage::open(&database, &key).unwrap();
-    assert_eq!(
-        storage.metadata().unwrap().schema_version,
-        CURRENT_SCHEMA_VERSION
-    );
-    assert_eq!(CURRENT_SCHEMA_VERSION, 13);
+    assert_eq!(storage.metadata().unwrap().schema_version, 14);
+    assert_eq!(CURRENT_SCHEMA_VERSION, 14);
     assert!(
         storage
             .list_profiles()
@@ -221,7 +220,7 @@ fn main() {
         };
         storage
             .accept_activity_with_binding(
-                ActivityReading {
+                evidence_fixture::activity(ActivityReading {
                     run_id: format!("{:08x}-bbbb-4bbb-8bbb-bbbbbbbbbbbb", number + 60_000),
                     binding: binding.clone(),
                     identity_evidence: identity.clone(),
@@ -232,7 +231,8 @@ fn main() {
                     completed_at_utc: saved.commit.observed_at_utc.clone(),
                     summary,
                     daily_usage,
-                },
+                    evidence: None,
+                }),
                 association,
             )
             .unwrap();

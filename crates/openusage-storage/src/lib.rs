@@ -43,6 +43,12 @@ pub use subscriptions::{
     SubscriptionRecord, subscription_currencies,
 };
 mod quota;
+mod reading_evidence;
+pub use reading_evidence::{
+    EvidenceLocation, EvidenceMethod, EvidenceUnusedField, ReadingEvidenceAvailability,
+    ReadingEvidenceCheck, ReadingEvidenceContext, ReadingEvidenceInput, ReadingEvidenceRecord,
+    ResponseEvidenceInput,
+};
 mod quota_history;
 pub use quota_history::QuotaHistoryPage;
 mod alerts;
@@ -98,6 +104,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("schema_v11.sql"),
     include_str!("schema_v12.sql"),
     include_str!("schema_v13.sql"),
+    include_str!("schema_v14.sql"),
 ];
 pub const CURRENT_SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
 const MAX_BACKUP_SNAPSHOT_SIZE: u64 = 5 * 1024 * 1024 * 1024;

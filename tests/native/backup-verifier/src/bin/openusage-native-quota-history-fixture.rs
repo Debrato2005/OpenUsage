@@ -1,4 +1,6 @@
 //! Seeds bounded synthetic history through the production storage API in an owned native-test workspace.
+#[path = "../evidence_fixture.rs"]
+mod evidence_fixture;
 use openusage_storage::{QuotaReading, Storage, keywrap::unwrap_key};
 use serde_json::Value;
 use std::{
@@ -54,7 +56,7 @@ fn main() {
         }
         storage
             .accept_quota(
-                QuotaReading {
+                evidence_fixture::quota(QuotaReading {
                     run_id: format!("{:08x}-aaaa-4aaa-8aaa-aaaaaaaaaaaa", number + 50_000),
                     binding: saved.binding.clone(),
                     identity_evidence: evidence.clone(),
@@ -66,7 +68,8 @@ fn main() {
                     limits,
                     available_reset_credits: None,
                     reset_credit_details: None,
-                },
+                    evidence: None,
+                }),
                 None,
             )
             .unwrap();

@@ -10,7 +10,7 @@ OU-DES, OU-LOG, OU-SHARE, OU-CLI and OU-DIST have evidence. OU-DATA-027 has stor
 |---|---|---|
 | OU-DES | AT-85 | Passed on the renderer and in native Linux journeys, with one exception |
 | OU-SRC, OU-ACCT-020 | AT-61, AT-62, AT-84 | Not started |
-| OU-AUD, OU-ALERT-019, OU-STATE-010, OU-STATE-011, OU-RESET-005, OU-RESET-006 | AT-56 to AT-61 | S-04a has scoped response-producer evidence. Durable audit, statuses, alerts, and reset rules remain open |
+| OU-AUD, OU-ALERT-019, OU-STATE-010, OU-STATE-011, OU-RESET-005, OU-RESET-006 | AT-56 to AT-61 | S-04a/b have scoped producer and new-reading storage evidence. Historical compliance, display status, selected exports, alerts, and reset rules remain open |
 | OU-LOG, OU-SEC-021, OU-HEAT-026, OU-HEAT-027 | AT-65 to AT-74, AT-93 | Storage part of AT-66 to AT-69, AT-73 and AT-94 passed. In the app, part of AT-70, AT-72 and AT-93 passed. AT-65 waits for L-1f. The rest not started |
 | OU-DUP, OU-ID-013 | AT-63, AT-64, AT-75, AT-76 | Not started |
 | OU-SHARE | AT-82 | Passed on Linux with synthetic data, without a network trace |
@@ -35,6 +35,7 @@ Newest first. Rows keep the requirement text of their date. [SRS Section 22.1](S
 
 | Requirement or check | Implementation and executed evidence | Status |
 |---|---|---|
+| Durable reading evidence (S-04b), part of OU-AUD-001/002/003 and AT-57/58/59 | The [record](reviews/2026-11-16-durable-reading-evidence.md) owns exact context, atomic acceptance, immutable records, historical gaps, backup, restore, export, deletion, and corrected native fixture checks. | Private synthetic Linux scope. Full S-04, historical compliance under SC-031, display status, selected exports, all-status alerts, real-provider qualification, and other platforms remain open. |
 | Response evidence producer (S-04a), part of OU-AUD-001/002/003 and AT-57/58/59 | The [record](reviews/2026-11-16-response-evidence-producer.md) covers exact values, accepted wire forms, privacy, unused additions, and canonical hashes. | Synthetic Linux producer scope. Durable evidence, source context, status, comparison, and interface integration remain open. |
 | Hosted connection-suggestion acceptance | [Run 43765735233](https://github.com/Debrato2005/OpenUsage/actions/runs/43765735233) passes Renderer and Linux checks for 1385e06. | Exact hosted scope for that commit. The response evidence producer requires its own hosted result. |
 | Connection suggestions, OU-ACCT-021 and part of AT-97 | The [record](reviews/2026-11-16-connection-suggestions.md) covers consent-gated metadata, strict public contracts, existing account controls, stale replies, and native consent and root isolation. | Synthetic Linux only. Tool detection establishes no account identity. Scanner activation, live providers, and other platforms retain their separate gates. |

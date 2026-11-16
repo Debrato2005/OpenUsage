@@ -63,7 +63,7 @@ fn constrain(connection: &Connection) {
         .query_row("PRAGMA cipher_version", [], |r| r.get(0))
         .unwrap();
     assert!(version.starts_with("4."));
-    assert!([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13].contains(&schema_version(connection)));
+    assert!([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14].contains(&schema_version(connection)));
     assert_eq!(
         connection
             .query_row("PRAGMA integrity_check", [], |r| r.get::<_, String>(0))
@@ -167,6 +167,12 @@ fn state(connection: &Connection, include_profile_state: bool) -> Value {
                 "local_usage_scan_differences",
                 "record_id,saved_total_tokens,new_total_tokens",
             ),
+        ]);
+    }
+    if schema_version(connection) >= 14 {
+        selected.extend([
+            ("reading_evidence", "collection_run_id"),
+            ("reading_evidence_legacy", "collection_run_id"),
         ]);
     }
     if include_profile_state {
@@ -282,7 +288,8 @@ fn main() {
         )
         .expect("Synthetic archive did not authenticate.");
         assert!(
-            [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13].contains(&verified.manifest().schema_version)
+            [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
+                .contains(&verified.manifest().schema_version)
         );
         assert_eq!(verified.manifest().entries.len(), 1);
         assert_eq!(verified.manifest().entries[0].name, "records.sqlite");
@@ -346,8 +353,8 @@ fn main() {
     }
     if include_profile_state {
         assert!(
-            [4, 5, 6, 7, 8, 9, 10, 11, 12, 13].contains(&schema_version),
-            "Profile-state verification requires schema 4 through 13."
+            [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14].contains(&schema_version),
+            "Profile-state verification requires schema 4 through 14."
         );
     }
     let actual = state(&connection, include_profile_state);

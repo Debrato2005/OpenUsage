@@ -1,3 +1,4 @@
+import { EXPECTED_SCHEMA_VERSION, EXPECTED_TABLE_COUNT } from './schema.mjs';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
@@ -26,7 +27,7 @@ async function open(setup = false) {
   await driver.type('#workspace-passphrase', password); if (setup) await driver.type('#workspace-confirmation', password);
   await driver.click('.unlock-form button[type=submit]');
   await waitFor(async () => (await call('bootstrap')).storage === 'ready', 'ready activity history workspace');
-  assert.equal((await call('bootstrap')).schemaVersion, 13);
+  assert.equal((await call('bootstrap')).schemaVersion, EXPECTED_SCHEMA_VERSION);
 }
 async function close() {
   const queue = [driver.child.pid]; let owned;
@@ -55,7 +56,7 @@ async function oracle(label) {
     if (before[`${fixture.database}-wal`] !== null) { await copyFile(`${fixture.database}-wal`, `${database}-wal`); await chmod(`${database}-wal`, 0o600); }
     const report = JSON.parse(await runLoginVerifier(verifier, verifierDigest, ['database', database, join(dirname(fixture.database), 'database-key.v1'), '--profile-state'], { input: JSON.stringify({ passphrase: password }), encoding: 'utf8', env: fixture.environment, timeout: 30000, maxBuffer: 8 * 1024 * 1024 }));
     for (const field of ['verified', 'readOnly', 'inputUnchanged', 'keyEnvelopeUnchanged', 'walRecordsUnchanged']) assert.equal(report[field], true, field);
-    assert.equal(report.schemaVersion, 13); assert.equal(report.plaintextDiskStaging, false); assert.equal(Object.keys(report.state.tables).length, 42);
+    assert.equal(report.schemaVersion, EXPECTED_SCHEMA_VERSION); assert.equal(report.plaintextDiskStaging, false); assert.equal(Object.keys(report.state.tables).length, EXPECTED_TABLE_COUNT);
     assert.deepEqual(await liveHashes(), before);
     evidence.oracles.push({ label, allNamedTables: 42, databaseWalKeyUnchanged: true, tables: Object.fromEntries(Object.entries(report.state.tables).map(([name, records]) => [name, { rows: records.length, sha256: createHash('sha256').update(JSON.stringify(records)).digest('hex') }])) });
     return report.state.tables;

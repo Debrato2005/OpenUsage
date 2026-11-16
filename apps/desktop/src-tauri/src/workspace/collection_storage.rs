@@ -184,7 +184,7 @@ impl Workspace {
             .as_ref()
             .map(|read| -> Result<_, CommandError> {
                 let quota = &read.value;
-                Ok(openusage_storage::QuotaReading {
+                let mut reading = openusage_storage::QuotaReading {
                     run_id: quota_run.into(),
                     binding: local_binding.clone(),
                     identity_evidence: evidence.clone(),
@@ -233,7 +233,10 @@ impl Workspace {
                             })
                             .collect()
                     }),
-                })
+                    evidence: None,
+                };
+                reading.evidence = Some(super::reading_evidence::quota(&reading, quota));
+                Ok(reading)
             })
             .transpose()?;
         let activity = probe
@@ -244,7 +247,7 @@ impl Workspace {
                 let exact = |v: &Option<openusage_codex::DecimalCount>| {
                     v.as_ref().map(|v| v.as_str().into())
                 };
-                Ok(openusage_storage::ActivityReading {
+                let mut reading = openusage_storage::ActivityReading {
                     run_id: activity_run.into(),
                     binding: local_binding.clone(),
                     identity_evidence: evidence.clone(),
@@ -268,7 +271,10 @@ impl Workspace {
                             })
                             .collect()
                     }),
-                })
+                    evidence: None,
+                };
+                reading.evidence = Some(super::reading_evidence::activity(&reading, &read.value));
+                Ok(reading)
             })
             .transpose()?;
         let fresh = probe

@@ -371,21 +371,24 @@ mod tests {
         let mut old_binding = live.current_activity(&id(1)).unwrap().unwrap().binding;
         old_binding.home_reference = id(3);
         assert_eq!(
-            live.accept_activity(crate::ActivityReading {
-                run_id: id(300),
-                binding: old_binding,
-                identity_evidence: crate::ProfileIdentityEvidence {
-                    email: "synthetic-history@example.invalid".into(),
-                    plan: Some("synthetic".into())
-                },
-                provider_version: "0.163.0-synthetic".into(),
-                source_kind: crate::ActivitySourceKind::TestFixture,
-                started_at_utc: "2024-02-29T14:00:00.000Z".into(),
-                observed_at_utc: "2024-02-29T14:00:00.000Z".into(),
-                completed_at_utc: "2024-02-29T14:00:00.000Z".into(),
-                summary: Default::default(),
-                daily_usage: None,
-            }),
+            live.accept_activity(crate::reading_evidence::fixture_activity(
+                crate::ActivityReading {
+                    run_id: id(300),
+                    binding: old_binding,
+                    identity_evidence: crate::ProfileIdentityEvidence {
+                        email: "synthetic-history@example.invalid".into(),
+                        plan: Some("synthetic".into())
+                    },
+                    provider_version: "0.163.0".into(),
+                    source_kind: crate::ActivitySourceKind::TestFixture,
+                    started_at_utc: "2024-02-29T14:00:00.000Z".into(),
+                    observed_at_utc: "2024-02-29T14:00:00.000Z".into(),
+                    completed_at_utc: "2024-02-29T14:00:00.000Z".into(),
+                    summary: Default::default(),
+                    daily_usage: None,
+                    evidence: None,
+                }
+            )),
             Err(crate::ActivityError::BindingChanged)
         );
         assert_eq!(
@@ -634,33 +637,36 @@ mod tests {
         crate::backup_validation::activity_fixture(&mut source, &id(1), &id(1), 100);
         let binding = source.current_activity(&id(1)).unwrap().unwrap().binding;
         source
-            .accept_activity(crate::ActivityReading {
-                run_id: id(999),
-                binding,
-                identity_evidence: crate::ProfileIdentityEvidence {
-                    email: "synthetic-history@example.invalid".into(),
-                    plan: Some("synthetic".into()),
+            .accept_activity(crate::reading_evidence::fixture_activity(
+                crate::ActivityReading {
+                    run_id: id(999),
+                    binding,
+                    identity_evidence: crate::ProfileIdentityEvidence {
+                        email: "synthetic-history@example.invalid".into(),
+                        plan: Some("synthetic".into()),
+                    },
+                    provider_version: "0.163.0".into(),
+                    source_kind: crate::ActivitySourceKind::TestFixture,
+                    started_at_utc: "2024-02-29T14:00:00.000Z".into(),
+                    observed_at_utc: "2024-02-29T14:00:00.000Z".into(),
+                    completed_at_utc: "2024-02-29T14:00:00.000Z".into(),
+                    summary: Default::default(),
+                    daily_usage: Some(
+                        (0..4096)
+                            .map(|n| crate::ActivityDayValue {
+                                provider_date: format!(
+                                    "{:04}-{:02}-{:02}",
+                                    2000 + n / 336,
+                                    n % 336 / 28 + 1,
+                                    n % 28 + 1
+                                ),
+                                tokens: "9223372036854775807".into(),
+                            })
+                            .collect(),
+                    ),
+                    evidence: None,
                 },
-                provider_version: "0.163.0-synthetic".into(),
-                source_kind: crate::ActivitySourceKind::TestFixture,
-                started_at_utc: "2024-02-29T14:00:00.000Z".into(),
-                observed_at_utc: "2024-02-29T14:00:00.000Z".into(),
-                completed_at_utc: "2024-02-29T14:00:00.000Z".into(),
-                summary: Default::default(),
-                daily_usage: Some(
-                    (0..4096)
-                        .map(|n| crate::ActivityDayValue {
-                            provider_date: format!(
-                                "{:04}-{:02}-{:02}",
-                                2000 + n / 336,
-                                n % 336 / 28 + 1,
-                                n % 28 + 1
-                            ),
-                            tokens: "9223372036854775807".into(),
-                        })
-                        .collect(),
-                ),
-            })
+            ))
             .unwrap();
         let snapshot = source.backup_snapshot().unwrap();
         let incoming_history = crate::backup_validation::activity_records(&source.connection);

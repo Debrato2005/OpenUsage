@@ -462,6 +462,13 @@ pub fn statusline(args: &[String], env: &Env) -> Result<String, CliError> {
 
 #[cfg(test)]
 mod tests {
+    mod evidence_fixture {
+        use openusage_storage as storage;
+        include!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/support/reading_evidence.rs"
+        ));
+    }
     use super::*;
     use openusage_storage::{
         ActivitySourceKind, LogConsent, ProfileBinding, ProfileBindingInput,
@@ -524,7 +531,7 @@ mod tests {
         };
         storage
             .accept_quota(
-                QuotaReading {
+                evidence_fixture::quota(QuotaReading {
                     run_id: "00000004-0000-4000-8000-000000000000".into(),
                     binding,
                     identity_evidence: evidence,
@@ -552,7 +559,8 @@ mod tests {
                     }],
                     available_reset_credits: None,
                     reset_credit_details: None,
-                },
+                    evidence: None,
+                }),
                 Some(association),
             )
             .unwrap();

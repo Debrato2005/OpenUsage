@@ -701,7 +701,7 @@ mod tests {
             email: "selected@example.invalid".into(),
             plan: Some("private-plan".into()),
         };
-        let q = QuotaReading {
+        let q = crate::reading_evidence::fixture_quota(QuotaReading {
             run_id: id(n),
             binding: binding.clone(),
             identity_evidence: evidence.clone(),
@@ -730,8 +730,9 @@ mod tests {
                 granted_at_unix: 0,
                 expires_at_unix: None,
             }]),
-        };
-        let a = ActivityReading {
+            evidence: None,
+        });
+        let a = crate::reading_evidence::fixture_activity(ActivityReading {
             run_id: id(n + 1),
             binding,
             identity_evidence: evidence,
@@ -756,7 +757,8 @@ mod tests {
                     tokens: "0".into(),
                 },
             ]),
-        };
+            evidence: None,
+        });
         (q, a)
     }
     fn setup() -> (tempfile::TempDir, Storage) {
@@ -831,7 +833,9 @@ mod tests {
                 quota.available_reset_credits = None;
                 quota.reset_credit_details = None;
             }
-            storage.accept_quota(quota, association).unwrap();
+            storage
+                .accept_quota(crate::reading_evidence::fixture_quota(quota), association)
+                .unwrap();
         }
         storage.set_profile_archived(&id(1), true).unwrap();
         let before = files(directory.path());
@@ -1298,6 +1302,7 @@ mod tests {
         q.available_reset_credits = None;
         q.reset_credit_details = None;
         a.provider_version = "0.164.0".into();
+        a = crate::reading_evidence::fixture_activity(a);
         a.summary.lifetime_tokens = Some("7".into());
         a.daily_usage = None;
         storage.accept_quota(q, None).unwrap();
@@ -1539,7 +1544,10 @@ mod tests {
                 observed_at_utc: activity.observed_at_utc.clone(),
             });
             storage
-                .accept_activity_with_binding(activity, association)
+                .accept_activity_with_binding(
+                    crate::reading_evidence::fixture_activity(activity),
+                    association,
+                )
                 .unwrap();
         }
         let (_, mut other) = pair(5000, 30);
@@ -1556,7 +1564,10 @@ mod tests {
             observed_at_utc: other.observed_at_utc.clone(),
         };
         storage
-            .accept_activity_with_binding(other, Some(association))
+            .accept_activity_with_binding(
+                crate::reading_evidence::fixture_activity(other),
+                Some(association),
+            )
             .unwrap();
         storage
             .create_profile(&id(8), "Empty activity history", &id(9))

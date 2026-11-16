@@ -22,6 +22,21 @@ All data follows one path (OU-DES-009).
 
 Today Codex is the only source, and its path has no general adapter layer. The planned `openusage-sources` crate adds that layer without adding a second path.
 
+## Reading evidence
+
+The Codex parsers prepare immutable response metadata in Rust.
+The desktop binds that metadata to the actual method, run, association, provider version, executable origin, and observation time.
+Storage requires matching context for every new activity or quota acceptance, including delayed observations.
+A combined collection keeps one evidence record for each accepted method.
+All evidence writes share the transaction for association, readings, history, caches, and alerts.
+
+Schema 14 adds complete evidence and explicit markers for historical gaps.
+The evidence lookup distinguishes a complete record, a historical gap, an unknown run, and corrupt absence.
+SQL rejects updates. Existing deletion cascades remove evidence with its collection run.
+Backup validation and trusted copies preserve both tables. No new renderer command exposes them.
+The [data contract](data-contracts.md#reading-evidence) owns field meanings and version rules.
+The [open historical conflict](srs-clarifications.md#sc-031-evidence-for-historical-readings) approves no SRS exception.
+
 ## Code map
 
 | Path | Owns |
@@ -99,7 +114,7 @@ Desktop and sharing views use the shared read result. Saved history can select a
 
 Token categories, model totals, reasoning counts, and session times cross IPC as nullable values. The renderer accepts saved records from the full catalog without enabling a scanner. Undated usage stays outside charts, records, and share images. Legacy sessions and hours retain their source filter. Missing days and saved zero days remain distinct in charts and shared heatmaps.
 
-Share images use the same selected dated scope and its zone. Both PNG and SVG saves check the scope again. Images exclude folder paths, projects, and identity fields. An incomplete model breakdown has no top model. Backup and export retain the stored fields under schema 13.
+Share images use the same selected dated scope and its zone. Both PNG and SVG saves check the scope again. Images exclude folder paths, projects, and identity fields. An incomplete model breakdown has no top model. Backup and export retain the stored fields under the current schema.
 
 The CLI reads today's value separately for each saved scope and zone. Legacy, grouped, and unplaced records never enter one combined total. Its [version 2 JSON](../crates/openusage-cli/README.md#output) gives each local measurement an exact value or null, its state, source, status, and observation time. Legacy maxima have no per-record time. Their latest scan time stays separate. `report` scans all detected roots of each enabled tool together, filters the full daily report, and saves nothing.
 

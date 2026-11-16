@@ -588,7 +588,7 @@ mod tests {
         let binding_id = "10000000-0000-4000-8000-000000000001".to_string();
         storage
             .accept_activity_with_binding(
-                ActivityReading {
+                crate::workspace::reading_evidence::fixtures::activity(ActivityReading {
                     run_id: "20000000-0000-4000-8000-000000000001".into(),
                     binding: openusage_storage::ProfileBinding {
                         profile_id: ids[2].clone(),
@@ -606,7 +606,8 @@ mod tests {
                         provider_date: "2026-10-21".into(),
                         tokens: "7".into(),
                     }]),
-                },
+                    evidence: None,
+                }),
                 Some(ProfileBindingInput {
                     profile_id: ids[2].clone(),
                     expected_home_reference: ids[2].clone(),

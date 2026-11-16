@@ -308,7 +308,7 @@ fn current_schema_is_explicit_and_mismatch_refusal_preserves_the_synthetic_works
             assert_eq!(report["plaintextDiskStaging"], false);
             let mut tables = report["state"]["tables"].as_object().unwrap().clone();
             if flag.is_none() {
-                assert_eq!(tables.len(), 39);
+                assert_eq!(tables.len(), 41);
                 assert_eq!(tables["log_sources"].as_array().unwrap().len(), 1);
                 assert_eq!(tables.get("subscriptions"), Some(&json!([])));
                 assert_eq!(tables.get("alert_events"), Some(&json!([])));
@@ -330,13 +330,15 @@ fn current_schema_is_explicit_and_mismatch_refusal_preserves_the_synthetic_works
                     "local_usage_differences",
                     "local_usage_sessions",
                     "local_usage_hours",
+                    "reading_evidence",
+                    "reading_evidence_legacy",
                 ] {
                     assert_eq!(tables.get(table), Some(&json!([])), "{table}");
                 }
                 assert!(!tables.contains_key("profiles"));
                 default_tables = Some(tables);
             } else {
-                assert_eq!(tables.len(), 42);
+                assert_eq!(tables.len(), 44);
                 let records = tables["local_usage_records"].as_array().unwrap();
                 assert_eq!(records.len(), 1);
                 assert_eq!(records[0]["total_tokens"], "173");

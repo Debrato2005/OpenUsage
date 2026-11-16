@@ -185,7 +185,7 @@ pub(crate) fn with_validated_snapshot<T, E: From<BackupValidationError>>(
 
 pub(crate) fn supported_schema_version(version: u32) -> bool {
     // A later migration must add explicit content/copy support before becoming restorable.
-    matches!(version, 1..=13) && version <= CURRENT_SCHEMA_VERSION
+    matches!(version, 1..=14) && version <= CURRENT_SCHEMA_VERSION
 }
 
 fn validate_size(size: u64) -> Result<()> {
@@ -353,6 +353,10 @@ pub(crate) fn validate_schema_connection(
     }
     if manifest_version >= 13 {
         crate::local_periods::validate(connection, schema)?;
+    }
+    if manifest_version >= 14 {
+        crate::reading_evidence::validate_snapshot(connection, schema)
+            .map_err(|_| BackupValidationError::InvalidDatabase)?;
     }
     if !settings_supported || !accounts_supported {
         return Err(BackupValidationError::UnsupportedContent);
@@ -674,6 +678,11 @@ pub(crate) fn copy_activity_records(
     }
     if version >= 13 {
         for (table, columns) in crate::local_periods::TABLES {
+            copy_fields(source, target, schema, table, columns, columns)?;
+        }
+    }
+    if version >= 14 {
+        for (table, columns) in crate::reading_evidence::TABLES {
             copy_fields(source, target, schema, table, columns, columns)?;
         }
     }
@@ -1069,11 +1078,11 @@ pub(crate) fn activity_fixture(storage: &mut crate::Storage, profile: &str, home
                 _ => "0",
             };
             storage
-                .accept_activity(ActivityReading {
+                .accept_activity(crate::reading_evidence::fixture_activity(ActivityReading {
                     run_id: id(seed + 10 + generation * 2 + index),
                     binding: binding.clone(),
                     identity_evidence: evidence.clone(),
-                    provider_version: "0.163.0-synthetic".into(),
+                    provider_version: "0.163.0".into(),
                     source_kind: ActivitySourceKind::TestFixture,
                     started_at_utc: "2024-02-29T11:00:00.000Z".into(),
                     observed_at_utc: format!("2024-02-29T12:00:0{index}.000Z"),
@@ -1090,7 +1099,8 @@ pub(crate) fn activity_fixture(storage: &mut crate::Storage, profile: &str, home
                             tokens: tokens.into(),
                         }])
                     },
-                })
+                    evidence: None,
+                }))
                 .unwrap();
         }
         previous = Some(binding.binding_id);
@@ -1127,11 +1137,15 @@ pub(crate) fn activity_records(connection: &Connection) -> Vec<Vec<Vec<rusqlite:
         "operational_alert_events",
         "operational_alert_preferences",
         "operational_alert_overrides",
+        "reading_evidence",
+        "reading_evidence_legacy",
     ]
     .into_iter()
     .map(|table| {
         let order = if table == "notification_event_ids" {
             "1"
+        } else if matches!(table, "reading_evidence" | "reading_evidence_legacy") {
+            "collection_run_id"
         } else {
             "1,2"
         };

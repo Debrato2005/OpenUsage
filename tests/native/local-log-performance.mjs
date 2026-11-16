@@ -1,3 +1,4 @@
+import { EXPECTED_SCHEMA_VERSION } from './schema.mjs';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -59,7 +60,7 @@ try {
     `, [String(source.tokens)]);
     await driver.request('POST', `/session/${driver.session}/actions`, { actions: [{ type: 'key', id: 'consent', actions: [{ type: 'keyDown', value: '\uE007' }, { type: 'keyUp', value: '\uE007' }] }] });
     await waitFor(async () => (await call('bootstrap')).storage === 'ready', 'ready workspace', 30000);
-    assert.equal((await call('bootstrap')).schemaVersion, 13);
+    assert.equal((await call('bootstrap')).schemaVersion, EXPECTED_SCHEMA_VERSION);
     await waitFor(() => driver.execute('return window.__historyTiming.end!==null;'), 'visible saved history', 90000);
     const seconds = await driver.execute('return (window.__historyTiming.end-window.__historyTiming.start)/1000;');
     const report = await call('load_local_usage', { days: 30, period: 'day' });

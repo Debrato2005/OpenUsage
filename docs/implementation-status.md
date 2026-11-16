@@ -12,7 +12,7 @@ The app runs on Linux only. Results below use synthetic data unless they say oth
 
 | Area | State |
 |---|---|
-| Storage | SQLCipher 4 with WAL at schema 13, with OS key store and passphrase fallback |
+| Storage | SQLCipher 4 with WAL at schema 14, with OS key store and passphrase fallback |
 | Accounts | Up to 10 Codex profiles, device-code sign-in, sign-out, Archive History, and Delete History |
 | Quotas | Reported windows, reset countdowns, conservative reset confirmation, and history |
 | Token activity | Provider daily buckets, heatmaps, and Individual and Profile sum views |
@@ -34,9 +34,9 @@ Linux input. Ordinary count defects, strict compatibility limits, legacy
 producer qualification, and saved-session migration remain open. Production pins
 and enabled tools stay unchanged.
 
-Hosted CI for connection-suggestion commit `1385e06` passes both jobs in
-[run 43765735233](https://github.com/Debrato2005/OpenUsage/actions/runs/43765735233).
-The new response evidence producer has separate local evidence and awaits its own hosted result.
+Hosted CI for the prior response-producer commit `af19f5e` passes both jobs in
+[run 43770126946](https://github.com/Debrato2005/OpenUsage/actions/runs/43770126946).
+The durable-evidence commit needs its own hosted result.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -54,7 +54,7 @@ New in baseline 3.1:
 
 New in baseline 3.0:
 
-- Source adapters (5A), audit (5B), and duplicates (5D).
+- Source adapters (5A), complete audit support (5B), and duplicates (5D).
 - Customizable dashboard, Start at login, and graphs: OU-UI-026, OU-UI-027, OU-MON-017.
 - The other 16 tools that the pinned `ccusage` reads (L-1f, AT-65), and session quota movement (L-1g4, OU-LOG-018).
 - Moving a password workspace's key to the OS key store (S-03c).
@@ -68,7 +68,7 @@ Kept from baseline 2.0:
 
 ## Partial
 
-- Response evidence producer (S-04a), November 16, 2026: the existing Codex parsers prepare response metadata in Rust. The [record](reviews/2026-11-16-response-evidence-producer.md) covers privacy, accepted wire forms, canonical hashes, and scoped checks. Durable evidence, status, migration, exports, and alerts remain under S-04.
+- Durable reading evidence (S-04b), November 16, 2026: every new Codex method acceptance requires evidence in the existing transaction. Schema 14 preserves historical values with explicit evidence-gap markers. The [record](reviews/2026-11-16-durable-reading-evidence.md) owns corrections, checks, and native scope. Historical compliance under SC-031, display status, selected exports, and all-status alerts remain open.
 
 - Connection suggestions (S-23c), November 16, 2026: detected, consented Codex offers the existing OpenAI flow through one Overview control. The [record](reviews/2026-11-16-connection-suggestions.md) owns consent, withdrawal, unsupported quota, unchanged profiles, the corrected stale-response race, and scoped checks.
 
@@ -203,9 +203,9 @@ separate from document completion. The [performance report](performance-report.m
 
 The owner resumed autonomous implementation on November 15, 2026. Work continues through verified local commits and periodic pushes. Each push checks the GitHub login and includes only the reviewed branch. No release, deployment, or pull request is authorized. The latest instruction replaces the November 13 stop condition. Baseline 3.1 product scope stays unchanged.
 
-The current pass verifies S-04a response metadata at the parser interface.
-The [record](reviews/2026-11-16-response-evidence-producer.md) owns acceptance and limits.
-The next bounded slice joins that metadata with source and observation context before durable acceptance.
+The current pass accepts S-04b within its new-reading storage scope.
+The [record](reviews/2026-11-16-durable-reading-evidence.md) owns acceptance and limits.
+The next bounded slice adds evidence and status to the existing detail views and selected reading exports.
 S-04 remains open. Identity proof and new adapters keep their separate gates.
 Scanner activation and private website sync keep their separate gates.
 Live service configuration, deployment, and release remain under owner control.

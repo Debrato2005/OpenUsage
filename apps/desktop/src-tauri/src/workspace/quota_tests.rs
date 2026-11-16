@@ -303,35 +303,37 @@ fn saved_quota_reset_state_keeps_every_accepted_measurement_unchanged() {
     }
     let storage = fixture.workspace.storage.as_mut().unwrap();
     let original = storage.current_quota(&id).unwrap().unwrap();
-    let reading = openusage_storage::QuotaReading {
-        run_id: provider::new_id().unwrap(),
-        binding: original.binding.clone(),
-        identity_evidence: storage.profile_binding_evidence(&original.binding).unwrap(),
-        provider_version: original.provider_version.clone(),
-        source_kind: original.source_kind,
-        started_at_utc: original.commit.observed_at_utc.clone(),
-        observed_at_utc: original.commit.observed_at_utc.clone(),
-        completed_at_utc: original.commit.observed_at_utc.clone(),
-        limits: vec![openusage_storage::QuotaLimit {
-            limit_id: "synthetic-reset-boundaries".into(),
-            limit_name: None,
-            primary: Some(openusage_storage::QuotaWindow {
-                used_percent: 25,
-                window_duration_mins: Some(300),
-                resets_at_unix: Some(-1),
-            }),
-            secondary: Some(openusage_storage::QuotaWindow {
-                used_percent: 75,
-                window_duration_mins: Some(10_080),
-                resets_at_unix: Some(253_402_300_799),
-            }),
-            reached_type: None,
-            monthly_credit_limit: None,
-            spend_control_reached: None,
-        }],
-        available_reset_credits: original.available_reset_credits,
-        reset_credit_details: original.reset_credit_details,
-    };
+    let reading =
+        crate::workspace::reading_evidence::fixtures::quota(openusage_storage::QuotaReading {
+            run_id: provider::new_id().unwrap(),
+            binding: original.binding.clone(),
+            identity_evidence: storage.profile_binding_evidence(&original.binding).unwrap(),
+            provider_version: original.provider_version.clone(),
+            source_kind: original.source_kind,
+            started_at_utc: original.commit.observed_at_utc.clone(),
+            observed_at_utc: original.commit.observed_at_utc.clone(),
+            completed_at_utc: original.commit.observed_at_utc.clone(),
+            limits: vec![openusage_storage::QuotaLimit {
+                limit_id: "synthetic-reset-boundaries".into(),
+                limit_name: None,
+                primary: Some(openusage_storage::QuotaWindow {
+                    used_percent: 25,
+                    window_duration_mins: Some(300),
+                    resets_at_unix: Some(-1),
+                }),
+                secondary: Some(openusage_storage::QuotaWindow {
+                    used_percent: 75,
+                    window_duration_mins: Some(10_080),
+                    resets_at_unix: Some(253_402_300_799),
+                }),
+                reached_type: None,
+                monthly_credit_limit: None,
+                spend_control_reached: None,
+            }],
+            available_reset_credits: original.available_reset_credits,
+            reset_credit_details: original.reset_credit_details,
+            evidence: None,
+        });
     storage.accept_quota(reading, None).unwrap();
     let accepted = storage.current_quota(&id).unwrap();
     let revision = storage.restore_state().unwrap().revision;

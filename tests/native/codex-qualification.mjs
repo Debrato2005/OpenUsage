@@ -1,3 +1,4 @@
+import { EXPECTED_SCHEMA_VERSION } from './schema.mjs';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
@@ -76,7 +77,7 @@ async function open(setup) {
   if (setup) await driver.type('#workspace-confirmation', password);
   await key('\uE007');
   await waitFor(async () => (await call('bootstrap')).storage === 'ready', 'ready workspace');
-  assert.equal((await call('bootstrap')).schemaVersion, 13);
+  assert.equal((await call('bootstrap')).schemaVersion, EXPECTED_SCHEMA_VERSION);
 }
 async function close() {
   const pending = [driver.child.pid];
@@ -171,7 +172,7 @@ async function oracle(label, mode = 'database', path = fixture.database) {
       input: raw, encoding: 'utf8', timeout: 10000, maxBuffer: 8 * 1024 * 1024, env: fixture.environment,
     }));
     for (const flag of ['verified', 'readOnly', 'inputUnchanged', 'keyEnvelopeUnchanged', 'walRecordsUnchanged']) assert.equal(report[flag], true);
-    assert.equal(report.schemaVersion, '13');
+    assert.equal(report.schemaVersion, String(EXPECTED_SCHEMA_VERSION));
     evidence.oracles.push({ label, mode, tables: Object.fromEntries(Object.entries(report.state.tables).map(([name, rows]) => [name, { count: rows.length, sha256: createHash('sha256').update(JSON.stringify(rows)).digest('hex') }])) });
     return report.state.tables;
   } finally { await rm(temporary, { recursive: true, force: true }); }

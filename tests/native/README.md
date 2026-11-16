@@ -282,7 +282,7 @@ not OS scaling or complete assistive-technology qualification.
 Run `node tests/native/collection.mjs` with the same private display settings.
 Set `OPENUSAGE_LOGIN_VERIFIER` to the activity verifier and set
 `OPENUSAGE_LOGIN_VERIFIER_SHA256` to its checked digest. The journey refuses a
-mismatch before the oracle starts. Its encrypted-copy view includes all 42
+mismatch before the oracle starts. Its encrypted-copy view includes all 44
 current tables. It checks populated selected-profile deletion while two owned
 provider operations are pending. The other profile's worker must remain alive.
 This journey does not exercise scheduled monitoring.

@@ -1,3 +1,4 @@
+import { EXPECTED_SCHEMA_VERSION, EXPECTED_TABLE_COUNT } from './schema.mjs';
 import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
@@ -18,7 +19,7 @@ const password = 'OpenUsage synthetic owned shutdown workspace 2026';
 const hash = async path => createHash('sha256').update(await readFile(path)).digest('hex');
 const evidence = { requirement: production ? 'NATIVE-SCANNER-PRODUCTION-GATE-001' : 'NATIVE-OWNED-SHUTDOWN-001',
   result: 'failed', startedAt: new Date().toISOString(),
-  scope: production ? 'Normal Linux build ignores the exact native-test scanner override in a private password workspace. No real logs, provider, credential, or startup setting.' : 'Actual Linux native-test app Quit with a slow owned scanner, a test-owned inherited stdout keeper, an unrelated sentinel, and a pending scheduled synthetic provider collection. All encrypted schema-13 tables are compared through a read-only oracle. No live provider, tray, autostart, Windows, or macOS acceptance.', steps: [], oracles: [] };
+  scope: production ? 'Normal Linux build ignores the exact native-test scanner override in a private password workspace. No real logs, provider, credential, or startup setting.' : 'Actual Linux native-test app Quit with a slow owned scanner, a test-owned inherited stdout keeper, an unrelated sentinel, and a pending scheduled synthetic provider collection. All encrypted schema-14 tables are compared through a read-only oracle. No live provider, tray, autostart, Windows, or macOS acceptance.', steps: [], oracles: [] };
 let fixture, driver, keeper, sentinel, logs, scanner, workspace;
 const call = async (command, args = {}) => { const reply = await driver.invoke(command, args); assert.equal(reply.ok, true, `${command}: ${JSON.stringify(reply)}`); return reply.value; };
 async function rows(path) { try { return (await readFile(path, 'utf8')).trim().split('\n').filter(Boolean).map(JSON.parse); } catch (error) { if (error.code === 'ENOENT') return []; throw error; } }
@@ -42,7 +43,7 @@ async function oracle(label) {
     const report = JSON.parse(await runLoginVerifier(process.env.OPENUSAGE_LOGIN_VERIFIER, loginVerifierDigest(),
       ['database', database, join(workspace, 'database-key.v1'), '--profile-state'], { input: JSON.stringify({ passphrase: password }), env: fixture.environment, encoding: 'utf8', timeout: 60000, maxBuffer: 16 * 1024 * 1024 }));
     for (const key of ['verified', 'readOnly', 'encryptedPagesAuthenticated', 'originalProtectedKeyUsed', 'inputUnchanged', 'keyEnvelopeUnchanged', 'walRecordsUnchanged']) assert.equal(report[key], true, key);
-    assert.equal(report.schemaVersion, 13); assert.equal(Object.keys(report.state.tables).length, 42);
+    assert.equal(report.schemaVersion, EXPECTED_SCHEMA_VERSION); assert.equal(Object.keys(report.state.tables).length, EXPECTED_TABLE_COUNT);
     evidence.oracles.push({ label, schemaVersion: report.schemaVersion, tables: Object.fromEntries(Object.entries(report.state.tables).map(([name, value]) => [name, { rows: value.length, sha256: createHash('sha256').update(JSON.stringify(value)).digest('hex') }])), readOnly: true, encryptedCopy: true });
     return report.state.tables;
   } finally { await rm(directory, { recursive: true, force: true }); }

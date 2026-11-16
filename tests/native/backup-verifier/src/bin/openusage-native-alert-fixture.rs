@@ -1,4 +1,6 @@
 //! Test-only quota proofs in a marker-owned synthetic workspace, through public storage APIs.
+#[path = "../evidence_fixture.rs"]
+mod evidence_fixture;
 use openusage_storage::{
     ActivitySourceKind, CURRENT_SCHEMA_VERSION, ProfileBinding, ProfileBindingInput,
     ProfileIdentityEvidence, QuotaLimit, QuotaReading, QuotaWindow, Storage, keywrap::unwrap_key,
@@ -91,6 +93,7 @@ fn reading(
         }],
         available_reset_credits: None,
         reset_credit_details: None,
+        evidence: None,
     };
     if let Some(times) = times {
         let observations = times["observations"]
@@ -113,7 +116,7 @@ fn reading(
         // storage feature may enqueue these packets; production must refuse them.
         assert!(cfg!(feature = "native-test"));
     }
-    result
+    evidence_fixture::quota(result)
 }
 
 fn threshold_readings(
@@ -344,10 +347,7 @@ fn main() {
             && metadata.nlink() == 1
     );
     let mut storage = Storage::open(&database, &key).expect("Cannot open synthetic storage.");
-    assert_eq!(
-        storage.metadata().unwrap().schema_version,
-        CURRENT_SCHEMA_VERSION
-    );
+    assert_eq!(storage.metadata().unwrap().schema_version, 14);
     let profiles = storage.list_profiles().unwrap();
     assert!(
         profiles

@@ -6,6 +6,13 @@ This is a dated record of work through November 2, 2026, written against SRS 2.0
 
 
 
+## Response evidence producer before durable storage, November 16, 2026
+
+S-04a prepared immutable metadata in the existing Codex parsers.
+Its [record](reviews/2026-11-16-response-evidence-producer.md) owns producer acceptance and privacy limits.
+Durable evidence, source context, display status, selected exports, and alerts remained open at that checkpoint.
+Hosted CI for `af19f5e` passed both jobs.
+
 ## Connection suggestions before response evidence, November 16, 2026
 
 S-23c completed consent-gated connection suggestions through the existing account manager.

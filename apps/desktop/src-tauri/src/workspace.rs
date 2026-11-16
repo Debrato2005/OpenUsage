@@ -24,6 +24,7 @@ mod profile_plan;
 mod profile_removal;
 mod quota_history;
 mod quota_storage;
+mod reading_evidence;
 mod reset_notifications;
 mod sign_out;
 pub(crate) mod subscriptions;

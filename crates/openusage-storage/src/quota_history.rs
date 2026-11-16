@@ -117,7 +117,7 @@ mod tests {
         (dir, storage)
     }
     fn reading(run: u32, profile: u32, home: u32, binding: u32, time: &str) -> QuotaReading {
-        QuotaReading {
+        crate::reading_evidence::fixture_quota(QuotaReading {
             run_id: id(run),
             binding: ProfileBinding {
                 profile_id: id(profile),
@@ -148,7 +148,8 @@ mod tests {
             }],
             available_reset_credits: None,
             reset_credit_details: None,
-        }
+            evidence: None,
+        })
     }
     fn accept(storage: &mut Storage, reading: QuotaReading) {
         let previous = storage
@@ -239,7 +240,7 @@ mod tests {
         accept(&mut storage, reading(101, 10, 11, 12, TIME));
         let quota = reading(102, 1, 2, 3, TIME);
         storage
-            .accept_activity(ActivityReading {
+            .accept_activity(crate::reading_evidence::fixture_activity(ActivityReading {
                 run_id: quota.run_id,
                 binding: quota.binding,
                 identity_evidence: quota.identity_evidence,
@@ -250,7 +251,8 @@ mod tests {
                 completed_at_utc: TIME.into(),
                 summary: ActivitySummaryValues::default(),
                 daily_usage: None,
-            })
+                evidence: None,
+            }))
             .unwrap();
         let before = crate::backup_validation::activity_records(&storage.connection);
         for cursor in [id(101), id(102), id(999), "invalid".into()] {

@@ -1,3 +1,4 @@
+import { EXPECTED_SCHEMA_VERSION } from './schema.mjs';
 import assert from 'node:assert/strict';
 import { execFile, execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
@@ -75,7 +76,7 @@ async function heading(text) {
 
 async function ready(theme, protection) {
   await heading('Overview');
-  await state({ storage: 'ready', theme, keyProtection: protection, schemaVersion: 13, activeProfiles: 0, storageIssue: null });
+  await state({ storage: 'ready', theme, keyProtection: protection, schemaVersion: EXPECTED_SCHEMA_VERSION, activeProfiles: 0, storageIssue: null });
   await driver.navigate('accounts');
   await waitFor(async () => driver.execute('const count=document.querySelector(".accounts-section .muted-tag");return Boolean(count&&count.textContent.trim()==="0 of 10 active"&&count.getClientRects().length);'), 'visible Accounts active count');
   await driver.navigate('overview');

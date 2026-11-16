@@ -1,3 +1,4 @@
+import { EXPECTED_SCHEMA_VERSION } from './schema.mjs';
 // Actual production GUI, fresh synthetic workspace, official executable metadata and signed-out check.
 import assert from 'node:assert/strict';
 import { link, lstat, mkdir, open, writeFile, rm } from 'node:fs/promises';
@@ -45,7 +46,7 @@ try{
  await capture('setup-focused-light.png');
  await driver.type('#workspace-passphrase',password);await driver.type('#workspace-confirmation',password);await driver.click('.unlock-form button[type=submit]');
  await waitFor(async()=>(await driver.invoke('bootstrap')).value?.storage==='ready','private SQLCipher workspace');
- assert.equal((await call('bootstrap')).schemaVersion,13);
+ assert.equal((await call('bootstrap')).schemaVersion,EXPECTED_SCHEMA_VERSION);
  if(inlineAccount){await driver.navigate('accounts');await driver.click('[data-account-connect]');}
  else{await driver.openProfileCreate();await driver.type('#profile-label','Synthetic official provider check');await driver.click('.profile-create-form button[type=submit]');}
  let profile;await waitFor(async()=>{profile=(await call('list_profiles')).profiles[0];return Boolean(profile);},'fresh profile');

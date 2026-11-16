@@ -528,6 +528,10 @@ fn legacy(storage: &mut Storage, source: &str, zone: &str, model: &str, total: u
         .unwrap();
 }
 fn downgrade_to_twelve(storage: &mut Storage) {
+    storage
+        .connection
+        .execute_batch("DROP TABLE reading_evidence; DROP TABLE reading_evidence_legacy;")
+        .unwrap();
     for (table, _) in TABLES.iter().rev() {
         storage
             .connection

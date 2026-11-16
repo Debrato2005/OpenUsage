@@ -8,7 +8,7 @@ fn next(r: &QuotaReading, n: u32, used: u8, reset: Option<i64>) -> QuotaReading 
     r.completed_at_utc = r.observed_at_utc.clone();
     r.limits[0].primary.as_mut().unwrap().used_percent = used;
     r.limits[0].primary.as_mut().unwrap().resets_at_unix = reset;
-    r
+    crate::reading_evidence::fixture_quota(r)
 }
 fn baseline() -> (tempfile::TempDir, Storage, QuotaReading) {
     let (dir, mut storage, mut r) = fixture();
@@ -53,7 +53,8 @@ fn quota_reset_confirms_once_and_keeps_generation_and_pending_deadline_after_reo
         saved.reset_assessments
     );
     let mut uncertain = next(&repeated, 3, 30, Some(2_208_988_800));
-    uncertain.provider_version = "different-reviewed-version".into();
+    uncertain.provider_version = "0.164.0".into();
+    uncertain = crate::reading_evidence::fixture_quota(uncertain);
     storage.accept_quota(uncertain.clone(), None).unwrap();
     let current = storage.current_quota(&id(1)).unwrap().unwrap();
     assert_eq!(current.limits, uncertain.limits);
@@ -132,10 +133,11 @@ fn quota_reset_every_missing_rule_or_incompatible_bucket_preserves_measurement_w
             }
             6 => changed.limits[0].limit_id = "different".into(),
             7 => changed.limits[0].secondary = changed.limits[0].primary.take(),
-            8 => changed.provider_version = "different-reviewed-version".into(),
+            8 => changed.provider_version = "0.164.0".into(),
             9 => changed.source_kind = ActivitySourceKind::OfficialArtifact,
             _ => {}
         }
+        changed = crate::reading_evidence::fixture_quota(changed);
         storage.accept_quota(changed.clone(), None).unwrap();
         let saved = storage.current_quota(&id(1)).unwrap().unwrap();
         assert_eq!(saved.limits, changed.limits, "fault {fault}");

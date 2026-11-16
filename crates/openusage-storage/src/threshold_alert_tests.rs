@@ -19,6 +19,7 @@ fn baseline(
 ) -> (tempfile::TempDir, Storage, QuotaReading) {
     let (dir, mut storage, mut original) = fixture();
     original.source_kind = source;
+    original = crate::reading_evidence::fixture_quota(original);
     original.limits[0].primary.as_mut().unwrap().used_percent = 100;
     original.limits[0].primary.as_mut().unwrap().resets_at_unix = Some(0);
     storage
@@ -42,7 +43,7 @@ fn packet(original: &QuotaReading, n: u32, used: u8) -> QuotaReading {
     reading.completed_at_utc = time(n);
     reading.limits[0].primary.as_mut().unwrap().used_percent = used;
     reading.limits[0].primary.as_mut().unwrap().resets_at_unix = Some(1);
-    reading
+    crate::reading_evidence::fixture_quota(reading)
 }
 fn live(storage: &mut Storage, original: &QuotaReading, n: u32, used: u8) {
     storage
@@ -176,6 +177,7 @@ fn only_exact_confirmed_generation_qualifies_and_timestamp_changes_do_not_create
     changed.completed_at_utc = time(2);
     changed.limits[0].primary.as_mut().unwrap().used_percent = 95;
     changed.limits[0].primary.as_mut().unwrap().resets_at_unix = Some(2);
+    changed = crate::reading_evidence::fixture_quota(changed);
     storage.accept_live_quota(changed, None, &time(2)).unwrap();
     assert_eq!(threshold_events(&storage).len(), 2);
     let mut changed = packet(&original, 3, 100);
@@ -582,7 +584,7 @@ fn schema_six_receipts_migrate_with_proof_backfill_but_orphans_keep_unknown_anch
             "CREATE TABLE reset_notification_receipts{definition}"
         ))
         .unwrap();
-    storage.connection.execute_batch("INSERT INTO reset_notification_receipts SELECT event_key,attempt_id,state,attempted_at_utc,completed_at_utc FROM current_receipts; DROP TABLE current_receipts; PRAGMA user_version=6;").unwrap();
+    storage.connection.execute_batch("INSERT INTO reset_notification_receipts SELECT event_key,attempt_id,state,attempted_at_utc,completed_at_utc FROM current_receipts; DROP TABLE current_receipts; DROP TABLE reading_evidence; DROP TABLE reading_evidence_legacy; PRAGMA user_version=6;").unwrap();
     let key: String = storage
         .connection
         .query_row(

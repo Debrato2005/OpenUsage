@@ -1,3 +1,4 @@
+import { EXPECTED_SCHEMA_VERSION } from './schema.mjs';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
@@ -17,7 +18,7 @@ const passphrase = 'OpenUsage synthetic apply workspace 2026';
 const password = 'OpenUsage synthetic apply archive 2026';
 const hash = async (path) => createHash('sha256').update(await readFile(path)).digest('hex');
 const liveVerifier = resolve(process.env.OPENUSAGE_LIVE_VERIFIER ?? join(harness, 'backup-verifier/target/debug/openusage-native-live-verifier'));
-const expectedSchemaVersion = 13;
+const expectedSchemaVersion = EXPECTED_SCHEMA_VERSION;
 const evidence = {requirement:'NATIVE-RESTORE-APPLY-001',startedAt:new Date().toISOString(),result:'failed',scope:'Actual Tauri GUI confirmation and atomic native restore with synthetic records only. Direct production IPC fault checks. Exact selected semantic fields under the protected SQLCipher key and fresh homes after restart. Timestamps and unselected columns are not compared. No provider login, undo, interrupted-commit crash qualification, or cross-platform acceptance.',platform:{os:platform(),release:release()},screenshots:[],steps:[],checkpoints:[],views:[]};
 let fixture, driver, workspace, checkpointDirectory, archive, fileName, sequence = 0;
 const markers = new Map();

@@ -30,7 +30,10 @@ A separate format projection retains known-field structure and counts unused-fie
 It discards unknown names, values, and descendants. Equal counts cannot distinguish unknown renames or changes in their values or types.
 Ignored content stays ignored. The evidence pass preserves the parser's existing acceptance and strict envelope checks.
 
-This slice produces response metadata only. Persistence, reading status, source classification, observation times, comparison, exports, and alerts remain under S-04.
+The producer returns metadata to Rust callers. The desktop joins it with observation context before storage.
+The [durable evidence contract](../../docs/data-contracts.md#reading-evidence) owns persisted fields and versions.
+The current adapter revision is separate from the Codex provider version and response projection version.
+Display status, selected exports, and all-status alerts remain under S-04.
 Account identity evidence keeps its separate contract.
 
 ## Synthetic quota readiness

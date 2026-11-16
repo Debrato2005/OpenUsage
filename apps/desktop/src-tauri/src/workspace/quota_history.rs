@@ -176,39 +176,42 @@ mod tests {
             .as_mut()
             .unwrap()
             .accept_quota(
-                openusage_storage::QuotaReading {
-                    run_id: run.into(),
-                    binding: openusage_storage::ProfileBinding {
-                        profile_id: first.clone(),
-                        home_reference: first.clone(),
-                        binding_id: binding.into(),
+                crate::workspace::reading_evidence::fixtures::quota(
+                    openusage_storage::QuotaReading {
+                        run_id: run.into(),
+                        binding: openusage_storage::ProfileBinding {
+                            profile_id: first.clone(),
+                            home_reference: first.clone(),
+                            binding_id: binding.into(),
+                        },
+                        identity_evidence: evidence.clone(),
+                        provider_version: "0.163.0".into(),
+                        source_kind: openusage_storage::ActivitySourceKind::TestFixture,
+                        started_at_utc: time.into(),
+                        observed_at_utc: time.into(),
+                        completed_at_utc: time.into(),
+                        limits: vec![openusage_storage::QuotaLimit {
+                            limit_id: "synthetic".into(),
+                            limit_name: None,
+                            primary: Some(openusage_storage::QuotaWindow {
+                                used_percent: 0,
+                                window_duration_mins: Some(300),
+                                resets_at_unix: Some(253_402_300_799),
+                            }),
+                            secondary: Some(openusage_storage::QuotaWindow {
+                                used_percent: 100,
+                                window_duration_mins: None,
+                                resets_at_unix: None,
+                            }),
+                            reached_type: None,
+                            monthly_credit_limit: None,
+                            spend_control_reached: None,
+                        }],
+                        available_reset_credits: Some("9223372036854775807".into()),
+                        reset_credit_details: None,
+                        evidence: None,
                     },
-                    identity_evidence: evidence.clone(),
-                    provider_version: "0.163.0".into(),
-                    source_kind: openusage_storage::ActivitySourceKind::TestFixture,
-                    started_at_utc: time.into(),
-                    observed_at_utc: time.into(),
-                    completed_at_utc: time.into(),
-                    limits: vec![openusage_storage::QuotaLimit {
-                        limit_id: "synthetic".into(),
-                        limit_name: None,
-                        primary: Some(openusage_storage::QuotaWindow {
-                            used_percent: 0,
-                            window_duration_mins: Some(300),
-                            resets_at_unix: Some(253_402_300_799),
-                        }),
-                        secondary: Some(openusage_storage::QuotaWindow {
-                            used_percent: 100,
-                            window_duration_mins: None,
-                            resets_at_unix: None,
-                        }),
-                        reached_type: None,
-                        monthly_credit_limit: None,
-                        spend_control_reached: None,
-                    }],
-                    available_reset_credits: Some("9223372036854775807".into()),
-                    reset_credit_details: None,
-                },
+                ),
                 Some(openusage_storage::ProfileBindingInput {
                     profile_id: first.clone(),
                     expected_home_reference: first.clone(),

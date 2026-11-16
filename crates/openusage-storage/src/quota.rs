@@ -74,6 +74,7 @@ pub struct QuotaReading {
     pub limits: Vec<QuotaLimit>,
     pub available_reset_credits: Option<String>,
     pub reset_credit_details: Option<Vec<QuotaCreditDetail>>,
+    pub evidence: Option<crate::ReadingEvidenceInput>,
 }
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct QuotaCommit {
@@ -208,6 +209,13 @@ pub(crate) fn accept_live_in_transaction(
         .map(|run| load_snapshot(tx, "main", run))
         .transpose()?;
     tx.execute("INSERT INTO collection_runs VALUES (?1,?2,?3,?4,?5,?6,'account/rateLimits/read',?7,?8,'account_quota_with_unknown_application_scope',NULL,'percent','unknown','provisional',NULL,'accepted')",params![reading.run_id,reading.binding.profile_id,reading.binding.binding_id,reading.started_at_utc,reading.completed_at_utc,reading.observed_at_utc,reading.provider_version,reading.source_kind.as_str()]).map_err(write_error)?;
+    crate::reading_evidence::write(
+        tx,
+        reading
+            .evidence
+            .as_ref()
+            .ok_or(ActivityError::InvalidInput)?,
+    )?;
     let detail_state = match &reading.reset_credit_details {
         None => "unavailable",
         Some(v) if v.is_empty() => "empty",
@@ -424,6 +432,17 @@ pub(crate) fn utc_to_unix(value: &str) -> Result<i64> {
     Ok(value)
 }
 pub(crate) fn validate_reading(r: &QuotaReading) -> Result<()> {
+    crate::reading_evidence::validate(
+        r.evidence.as_ref(),
+        crate::reading_evidence::EvidenceBinding {
+            method: crate::EvidenceMethod::Quota,
+            run_id: &r.run_id,
+            binding: &r.binding,
+            provider_version: &r.provider_version,
+            source_kind: r.source_kind,
+            observed_at_utc: &r.observed_at_utc,
+        },
+    )?;
     for id in [
         &r.run_id,
         &r.binding.profile_id,

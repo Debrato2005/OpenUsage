@@ -1,3 +1,4 @@
+import { EXPECTED_SCHEMA_VERSION, EXPECTED_TABLE_COUNT } from './schema.mjs';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
@@ -24,11 +25,11 @@ const restoreRace = process.env.OPENUSAGE_MONITORING_RESTORE_RACE === '1';
 const readingsExport = process.env.OPENUSAGE_NATIVE_READINGS_EXPORT === '1';
 const profileRemoval = process.env.OPENUSAGE_NATIVE_PROFILE_REMOVAL === '1';
 assert.ok([diagnostic, restoreRace, readingsExport, profileRemoval].filter(Boolean).length <= 1, 'Select one monitoring journey mode.');
-const exportScope = 'Actual native CSV/JSON export of selected latest saved synthetic readings. GUI privacy consent, profile selection, identifier opt-in, exact numeric strings, null values, provenance, CSV quoting and refusal of a known formula prefix, private files, strict IPC refusal, forty-two-table and database/WAL/key preservation, and genuine restart. Daily/credit history is not populated; no universal spreadsheet safety, live provider, all-history export, aggregation, encryption, or platform qualification.';
-const removalScope = 'Synthetic Linux native profile deletion during the first scheduled worker. Public typed commands seed accepted pairs and complete actual synthetic device-code sign-in for both profiles. Matching login completion and account validation grant runtime eligibility. GUI Start reaches pending activity. GUI Delete History consent revokes that grant and reaps the owned worker. Independent checks compare all 42 schema-13 tables, retained private homes, provider markers, and the protected key. An earlier manual receipt and deleted-profile start and refresh calls are refused. No automatic post-login read, direct replay of the hidden scheduled request, 300-second interval, real-provider, or other-platform acceptance.';
+const exportScope = 'Actual native CSV/JSON export of selected latest saved synthetic readings. GUI privacy consent, profile selection, identifier opt-in, exact numeric strings, null values, provenance, CSV quoting and refusal of a known formula prefix, private files, strict IPC refusal, forty-four-table and database/WAL/key preservation, and genuine restart. Daily/credit history is not populated; no universal spreadsheet safety, live provider, all-history export, aggregation, encryption, or platform qualification.';
+const removalScope = 'Synthetic Linux native profile deletion during the first scheduled worker. Public typed commands seed accepted pairs and complete actual synthetic device-code sign-in for both profiles. Matching login completion and account validation grant runtime eligibility. GUI Start reaches pending activity. GUI Delete History consent revokes that grant and reaps the owned worker. Independent checks compare all 44 schema-14 tables, retained private homes, provider markers, and the protected key. An earlier manual receipt and deleted-profile start and refresh calls are refused. No automatic post-login read, direct replay of the hidden scheduled request, 300-second interval, real-provider, or other-platform acceptance.';
 const evidence = {
   requirement: profileRemoval ? 'NATIVE-MONITORING-PROFILE-REMOVAL-001' : readingsExport ? 'NATIVE-SAVED-READINGS-EXPORT-001' : 'NATIVE-RUNTIME-MONITORING-001', result: 'failed', startedAt: new Date().toISOString(),
-  scope: profileRemoval ? removalScope : readingsExport ? exportScope : 'Actual native synthetic login and explicit Start/Pause; a real 300-second scheduled interval, one accepted scheduled pair, an independent manual pair, and one pending scheduled pair cancelled before COMMIT. Independent encrypted-copy checks cover every column in forty-two schema-13 tables. Runtime eligibility is not inferred from saved connection status, a provider-owned synthetic marker, or metric bindings. No live authentication, real credentials, verified identity, populated daily or credit history, sleep injection, crash durability, OS scaling, or release-platform qualification.',
+  scope: profileRemoval ? removalScope : readingsExport ? exportScope : 'Actual native synthetic login and explicit Start/Pause; a real 300-second scheduled interval, one accepted scheduled pair, an independent manual pair, and one pending scheduled pair cancelled before COMMIT. Independent encrypted-copy checks cover every column in forty-four schema-14 tables. Runtime eligibility is not inferred from saved connection status, a provider-owned synthetic marker, or metric bindings. No live authentication, real credentials, verified identity, populated daily or credit history, sleep injection, crash durability, OS scaling, or release-platform qualification.',
   steps: [], screenshots: [], oracles: [], closes: [],
 };
 let fixture, driver, workspace, executable, approvalId, sequence = 0;
@@ -48,6 +49,10 @@ function pair(value, profile) { assert.equal(value.quota.profileId, profile.id);
 function corroboratePair(before, after, profile, reading) {
   const added = after.tables.collection_runs.filter(row => row.profile_id === profile.id && !before.tables.collection_runs.some(previous => previous.id === row.id));
   assert.equal(added.length, 2, 'Exactly two accepted method-specific runs must reach encrypted storage.');
+  const addedEvidence = after.tables.reading_evidence.filter(row => !before.tables.reading_evidence.some(previous => previous.collection_run_id === row.collection_run_id));
+  assert.equal(addedEvidence.length, 2, 'Exactly two accepted methods must add evidence.');
+  assert.deepEqual(addedEvidence.map(row => row.collection_run_id).sort(), added.map(row => row.id).sort());
+  assert.deepEqual(after.tables.reading_evidence_legacy, before.tables.reading_evidence_legacy, 'Accepted methods must not create or change historical evidence gaps.');
   for (const [kind, method, table] of [['quota', 'account/rateLimits/read', 'current_quota_readings'], ['activity', 'account/usage/read', 'current_activity']]) {
     const receipt = reading[kind], rows = after.tables[table].filter(row => row.profile_id === profile.id); assert.equal(rows.length, 1);
     assert.equal(rows[0].binding_id, receipt.bindingId); assert.equal(rows[0].collection_run_id, receipt.collectionRunId);
@@ -56,7 +61,7 @@ function corroboratePair(before, after, profile, reading) {
   const summary = after.tables.activity_summaries.find(row => row.id === reading.activity.collectionRunId); assert.ok(summary);
   assert.equal(summary.lifetime_tokens, reading.activity.summary.lifetimeTokens); assert.equal(summary.peak_daily_tokens, reading.activity.summary.peakDailyTokens);
   const quota = after.tables.quota_limits.find(row => row.collection_run_id === reading.quota.collectionRunId && row.limit_id === 'codex'); assert.ok(quota); assert.equal(String(quota.primary_used_percent), '25');
-  for (const name of ['collection_runs', 'activity_summaries', 'activity_day_history', 'quota_snapshots', 'quota_limits', 'credit_snapshots', 'quota_reset_assessments', 'alert_events']) for (const row of before.tables[name]) assert.ok(after.tables[name].some(current => JSON.stringify(current) === JSON.stringify(row)), `Immutable ${name} history must remain unchanged.`);
+  for (const name of ['collection_runs', 'reading_evidence', 'reading_evidence_legacy', 'activity_summaries', 'activity_day_history', 'quota_snapshots', 'quota_limits', 'credit_snapshots', 'quota_reset_assessments', 'alert_events']) for (const row of before.tables[name]) assert.ok(after.tables[name].some(current => JSON.stringify(current) === JSON.stringify(row)), `Immutable ${name} history must remain unchanged.`);
   for (const name of ['reset_alert_preferences', 'reset_alert_overrides', 'reset_notification_outbox', 'reset_notification_receipts']) assert.deepEqual(after.tables[name], before.tables[name], `Synthetic provider reads must not change ${name} or queue desktop effects.`);
 }
 async function liveHashes() { const result = {}; for (const path of [fixture.database, `${fixture.database}-wal`, join(workspace, 'database-key.v1')]) try { result[path] = await hash(path); } catch (error) { if (error.code !== 'ENOENT') throw error; } return result; }
@@ -68,7 +73,7 @@ async function oracle(label) {
     try { await copyFile(`${fixture.database}-wal`, `${database}-wal`); await chmod(`${database}-wal`, 0o600); } catch (error) { if (error.code !== 'ENOENT') throw error; }
     const report = JSON.parse(await runLoginVerifier(verifier, verifierDigest, ['database', database, join(workspace, 'database-key.v1'), '--profile-state'], { input: JSON.stringify({ passphrase }), env: fixture.environment, encoding: 'utf8', timeout: 60000, maxBuffer: 16 * 1024 * 1024 }));
     for (const key of ['verified', 'readOnly', 'encryptedPagesAuthenticated', 'originalProtectedKeyUsed', 'inputUnchanged', 'keyEnvelopeUnchanged', 'walRecordsUnchanged']) assert.equal(report[key], true, key);
-    assert.equal(report.schemaVersion, 13); assert.equal(report.plaintextDiskStaging, false); assert.equal(Object.keys(report.state.tables).length, 42);
+    assert.equal(report.schemaVersion, EXPECTED_SCHEMA_VERSION); assert.equal(report.plaintextDiskStaging, false); assert.equal(Object.keys(report.state.tables).length, EXPECTED_TABLE_COUNT);
     assert.deepEqual(await liveHashes(), original);
     evidence.oracles.push({ label, actualSchemaVersion: report.schemaVersion, allFortyTwoTables: Object.fromEntries(Object.entries(report.state.tables).map(([name, rows]) => [name, { rows: rows.length, sha256: createHash('sha256').update(JSON.stringify(rows)).digest('hex') }])), derivedEncryptedCopy: true, persistentStateIsNotRuntimeMonitoringStatus: true, verification: { ...report, state: undefined } });
     return report.state;
@@ -78,7 +83,7 @@ async function open(setup = false) {
   driver = new NativeDriver(application, fixture.environment, join(output, `driver-${++sequence}.log`)); await driver.start();
   await waitFor(async () => driver.execute('const input=document.querySelector("#workspace-passphrase");return Boolean(input&&!input.disabled&&(!arguments[0]||document.querySelector("#workspace-confirmation")));', [setup]), 'native unlock fields');
   await driver.type('#workspace-passphrase', passphrase); if (setup) await driver.type('#workspace-confirmation', passphrase); await driver.click('.unlock-form button[type=submit]');
-  await waitFor(async () => (await driver.invoke('bootstrap')).value?.storage === 'ready', 'unlocked monitoring workspace'); assert.equal((await call('bootstrap')).schemaVersion, 13);
+  await waitFor(async () => (await driver.invoke('bootstrap')).value?.storage === 'ready', 'unlocked monitoring workspace'); assert.equal((await call('bootstrap')).schemaVersion, EXPECTED_SCHEMA_VERSION);
 }
 async function ownedPid() { const queue = [driver.child.pid]; for (let count = 0; queue.length && count < 64; count++) { const pid = queue.shift(); try { if (await readlink(`/proc/${pid}/exe`) === application) return pid; queue.push(...(await readFile(`/proc/${pid}/task/${pid}/children`, 'utf8')).trim().split(/\s+/).filter(Boolean).map(Number)); } catch (error) { if (error.code !== 'ENOENT') throw error; } } assert.fail('No owned frozen desktop process.'); }
 async function closeNormally() { const pid = await ownedPid(); evidence.closes.push(JSON.parse(execFileSync('/usr/bin/python3', [join(harness, 'x11-close.py'), String(pid)], { env: fixture.environment, encoding: 'utf8', timeout: 10000 }))); await waitFor(async () => { try { await readlink(`/proc/${pid}/exe`); return false; } catch (error) { if (error.code === 'ENOENT') return true; throw error; } }, 'normal native exit joins scheduler'); driver.session = undefined; await driver.stop(); driver = undefined; }
@@ -169,12 +174,14 @@ async function removeWhileMonitoring(first, other, earlierReceipt, initialKeyHas
     return snapshot;
   }
   function withoutProfile(state, profileId) {
+    const methodRuns = new Set(state.tables.collection_runs.filter(row => row.profile_id === profileId).map(row => row.id));
     const result = structuredClone(state);
     const owned = new Set(['profile_identity_events', 'profile_bindings', 'collection_runs', 'activity_summaries', 'current_activity', 'current_activity_days', 'activity_day_history', 'quota_snapshots', 'quota_limits', 'credit_snapshots', 'current_quota_readings', 'current_quota', 'quota_reset_assessments', 'alert_events', 'operational_alert_events', 'operational_alert_outcomes', 'subscriptions', 'reset_alert_overrides', 'threshold_alert_overrides', 'operational_alert_overrides']);
     const events = new Set(['alert_events', 'operational_alert_events'].flatMap(name => state.tables[name].filter(row => row.profile_id === profileId).map(row => row.id)));
     for (const [name, rows] of Object.entries(result.tables)) {
       if (name === 'profiles') result.tables[name] = rows.filter(row => row.id !== profileId);
       else if (owned.has(name)) result.tables[name] = rows.filter(row => row.profile_id !== profileId);
+      else if (['reading_evidence', 'reading_evidence_legacy'].includes(name)) result.tables[name] = rows.filter(row => !methodRuns.has(row.collection_run_id));
       else if (['reset_notification_outbox', 'threshold_alert_events'].includes(name)) result.tables[name] = rows.filter(row => !events.has(row.event_id));
       else if (name === 'notification_event_ids') result.tables[name] = rows.filter(row => !events.has(row.id));
     }
@@ -377,10 +384,10 @@ async function exportSavedReadings(first, other, initialKeyHash, initialSentinel
   await waitFor(async () => driver.execute('return document.activeElement===document.querySelector("[data-export-error]");'), 'unsafe formula-like CSV text refused with actionable GUI error');
   assert.match(await driver.execute('return document.querySelector("[data-export-error]").textContent;'), /JSON/); assert.deepEqual(await files(), beforeUnsafe, 'A refused CSV must leave no published or temporary file.'); await unchecked(); await capture('readings-unsafe-csv-refused.png', '[data-export-error]');
   assert.deepEqual(await driver.invoke('export_saved_readings', { profileIds: [first.id], format: 'csv', includeIdentifiers: true, confirmed: true }), { ok: false, error: 'export_unsafe_text' }); assert.deepEqual(await files(), beforeUnsafe);
-  assert.deepEqual(await liveHashes(), bytesBefore); assert.deepEqual(await oracle('forty-two tables unchanged by default CSV, identifier JSON and unsafe CSV refusal'), before); assert.deepEqual(await homes(), homesBefore); assert.deepEqual([await appStarts(first), await appStarts(other)], startsBefore);
+  assert.deepEqual(await liveHashes(), bytesBefore); assert.deepEqual(await oracle('forty-four tables unchanged by default CSV, identifier JSON and unsafe CSV refusal'), before); assert.deepEqual(await homes(), homesBefore); assert.deepEqual([await appStarts(first), await appStarts(other)], startsBefore);
   await renameFirst(normalLabel); const quotedBefore = await oracle('after explicit quoted-label rename before CSV export'), quotedBytes = await liveHashes(); await options(); await unchecked();
   await save('csv', 1, true, 'readings-csv-quoted-text');
-  assert.deepEqual(await liveHashes(), quotedBytes); assert.deepEqual(await oracle('all forty-two tables unchanged by quoted CSV export'), quotedBefore);
+  assert.deepEqual(await liveHashes(), quotedBytes); assert.deepEqual(await oracle('all forty-four tables unchanged by quoted CSV export'), quotedBefore);
   const valid = { profileIds: [first.id], format: 'csv', includeIdentifiers: false, confirmed: true }, completedFiles = await files();
   for (const [args, error] of [
     [{ ...valid, destination: directory }, 'invalid_arguments'], [{ ...valid, confirmed: false }, 'invalid_arguments'], [{ ...valid, format: 'xml' }, 'invalid_arguments'],
@@ -404,7 +411,7 @@ async function exportSavedReadings(first, other, initialKeyHash, initialSentinel
 
 async function restoreWhilePending(profile) {
   evidence.requirement = 'NATIVE-MONITORING-RESTORE-001';
-  evidence.scope = 'Actual native synthetic login, pending paired reads, rejected cancelled/missing tokens, confirmed GUI archive restore and GUI Undo. Every column in forty-two SQLCipher tables is compared, allowing only documented restored connection state, stopped monitoring, one bounded restore timestamp, and fresh private home mappings for archive restore. Undo retains the exact saved mappings. Daily and credit-history tables are empty. No live credentials, crash durability, or release-platform qualification.';
+  evidence.scope = 'Actual native synthetic login, pending paired reads, rejected cancelled/missing tokens, confirmed GUI archive restore and GUI Undo. Every column in forty-four SQLCipher tables is compared, allowing only documented restored connection state, stopped monitoring, one bounded restore timestamp, and fresh private home mappings for archive restore. Undo retains the exact saved mappings. Daily and credit-history tables are empty. No live credentials, crash durability, or release-platform qualification.';
   const password = 'OpenUsage synthetic restore race archive 2026';
   async function button(text) {
     const node = await driver.execute('return [...document.querySelectorAll("button")].find(node=>node.textContent.trim()===arguments[0]&&node.getClientRects().length);', [text]);
@@ -476,7 +483,7 @@ async function restoreWhilePending(profile) {
     assert.equal(after.state, 'running', 'An unknown or cancelled preview must not stop monitoring.');
     assert.equal(after.eligible, true, 'A rejected restore must not revoke the current login grant.');
     assert.equal(after.readingActive, true); assert.equal(after.readingRevision, previous.readingRevision); process.kill(child.pid, 0);
-    assert.deepEqual(await oracle('rejected token preserves all forty-two tables'), before);
+    assert.deepEqual(await oracle('rejected token preserves all forty-four tables'), before);
   }
   await capture('rejected-restore-retains-pending-read.png', pauseButton(profile));
   await driver.navigate('settings'); await button('Inspect a backup');
@@ -489,7 +496,7 @@ async function restoreWhilePending(profile) {
   const checkpoint = join(workspace, 'restore-checkpoints', `${checkpointId}.sqlite`), checkpointHash = await hash(checkpoint);
   assert.equal((await stat(checkpoint)).mode & 0o777, 0o600);
   assert.equal((await readFile(checkpoint)).subarray(0, 16).equals(Buffer.from('SQLite format 3\0')), false);
-  // Full checkpoint content is checked after actual Undo against all forty-two original state B tables.
+  // Full checkpoint content is checked after actual Undo against all forty-four original state B tables.
   const restored = await confirm(original, child, 'archive-restore', true);
   assert.equal(await hash(checkpoint), checkpointHash);
   await approve(profile); await login(profile); const undoChild = await pending();

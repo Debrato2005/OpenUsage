@@ -1,3 +1,4 @@
+import { EXPECTED_SCHEMA_VERSION } from './schema.mjs';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
@@ -117,7 +118,7 @@ async function oracle(label) {
     });
     const result = JSON.parse(raw);
     assert.equal(result.verified, true);
-    assert.equal(Number(result.schemaVersion), 13);
+    assert.equal(Number(result.schemaVersion), EXPECTED_SCHEMA_VERSION);
     const tables = result.state.tables;
     const saved = {
       sources: tables.log_sources.map(row => [row.tool, row.consent, row.time_zone]),

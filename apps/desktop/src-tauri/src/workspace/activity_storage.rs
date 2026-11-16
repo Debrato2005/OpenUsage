@@ -476,7 +476,7 @@ impl Workspace {
             binding_id: next_binding_id,
         };
         let summary = &probe.activity.summary;
-        let reading = ActivityReading {
+        let mut reading = ActivityReading {
             run_id: request_id.into(),
             binding: local_binding,
             identity_evidence: evidence,
@@ -502,7 +502,9 @@ impl Workspace {
                     })
                     .collect()
             }),
+            evidence: None,
         };
+        reading.evidence = Some(super::reading_evidence::activity(&reading, &probe.activity));
         let now = restore::timestamp(SystemTime::now())
             .ok_or(CommandError::ProviderActivitySaveFailed)?;
         if probe.observed_monotonic.elapsed() < Duration::from_secs(600) {

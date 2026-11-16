@@ -1,3 +1,4 @@
+import { EXPECTED_SCHEMA_VERSION, EXPECTED_TABLE_COUNT } from './schema.mjs';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
@@ -20,7 +21,7 @@ const fixtureDigest = '53a853b737ceca311649e9f1d9ebd1341154a5f782efd8e915f7f834c
 const verifierDigest = loginVerifierDigest();
 const passphrase = 'OpenUsage synthetic combined collection workspace 2026';
 const hash = async path => createHash('sha256').update(await readFile(path)).digest('hex');
-const evidence = { requirement: 'NATIVE-COMBINED-COLLECTION-001', result: 'failed', startedAt: new Date().toISOString(), scope: 'Synthetic native combined collection and profile removal with private SQLCipher data. Actual GUI consent, selected-process cancellation, restart, and comparisons of all 42 tables. No real-provider or other-platform acceptance.', steps: [], cases: [], screenshots: [], oracles: [], closes: [] };
+const evidence = { requirement: 'NATIVE-COMBINED-COLLECTION-001', result: 'failed', startedAt: new Date().toISOString(), scope: 'Synthetic native combined collection and profile removal with private SQLCipher data. Actual GUI consent, selected-process cancellation, restart, and comparisons of all tables. No real-provider or other-platform acceptance.', steps: [], cases: [], screenshots: [], oracles: [], closes: [] };
 let fixture, driver, workspace, executable, approvalId, sequence = 0;
 const profiles = [];
 const active = new Map();
@@ -45,10 +46,28 @@ async function oracle(label) {
     try { await copyFile(`${fixture.database}-wal`, `${database}-wal`); await chmod(`${database}-wal`, 0o600); } catch (error) { if (error.code !== 'ENOENT') throw error; }
     const report = JSON.parse(await runLoginVerifier(verifier, verifierDigest, ['database', database, join(workspace, 'database-key.v1'), '--profile-state'], { input: JSON.stringify({ passphrase }), env: fixture.environment, encoding: 'utf8', timeout: 60000, maxBuffer: 16 * 1024 * 1024 }));
     for (const key of ['verified', 'readOnly', 'encryptedPagesAuthenticated', 'originalProtectedKeyUsed', 'inputUnchanged', 'keyEnvelopeUnchanged', 'walRecordsUnchanged']) assert.equal(report[key], true, key);
-    // This oracle reports the actual schema; this caller requires exactly schema 13.
-    assert.equal(report.schemaVersion, 13); assert.equal(report.plaintextDiskStaging, false); assert.equal(report.state.monitoring, 'stopped'); assert.equal(Object.keys(report.state.tables).length, 42);
+    // This oracle reports the actual schema; this caller requires the current schema.
+    assert.equal(report.schemaVersion, EXPECTED_SCHEMA_VERSION); assert.equal(report.plaintextDiskStaging, false); assert.equal(report.state.monitoring, 'stopped'); assert.equal(Object.keys(report.state.tables).length, EXPECTED_TABLE_COUNT);
+    assert.equal(report.state.tables.reading_evidence_legacy.length, 0, 'A fresh workspace must not invent historical gaps.');
+    assert.equal(report.state.tables.reading_evidence.length, report.state.tables.collection_runs.length);
+    for (const run of report.state.tables.collection_runs) {
+      const rows = report.state.tables.reading_evidence.filter(row => row.collection_run_id === run.id);
+      assert.equal(rows.length, 1, 'Every accepted method must retain exactly one evidence record.');
+      const row = rows[0];
+      assert.equal(row.adapter_id, 'codex_app_server'); assert.equal(String(row.adapter_revision), '1');
+      assert.equal(row.source_level, 'official'); assert.equal(row.reading_status, 'official');
+      assert.equal(row.comparison_result, 'not_performed'); assert.equal(String(row.projection_version), '1');
+      assert.deepEqual(JSON.parse(row.check_results), ['rpc_envelope', 'request_id', 'response_fields'].map(id => ({ id, result: 'passed' })));
+      assert.match(row.redacted_response_hash, /^[0-9a-f]{64}$/); assert.match(row.format_fingerprint, /^[0-9a-f]{64}$/);
+      assert.equal(JSON.stringify(row).includes('@'), false);
+    }
+    const byMethod = method => report.state.tables.collection_runs.filter(run => run.source_method === method).map(run => report.state.tables.reading_evidence.find(row => row.collection_run_id === run.id));
+    for (const activity of byMethod('account/usage/read')) for (const quota of byMethod('account/rateLimits/read')) {
+      assert.notEqual(activity.redacted_response_hash, quota.redacted_response_hash);
+      assert.notEqual(activity.format_fingerprint, quota.format_fingerprint);
+    }
     assert.deepEqual(await liveHashes(), before);
-    evidence.oracles.push({ label, expectedSchemaVersion: 13, schemaExpectationEnforcedByCaller: true, actualSchemaVersion: report.schemaVersion, derivedEncryptedCopy: true, plaintextDiskStaging: false, tableHashes: Object.fromEntries(Object.entries(report.state.tables).map(([name, values]) => [name, { rows: values.length, sha256: createHash('sha256').update(JSON.stringify(values)).digest('hex') }])), verification: { ...report, state: undefined } });
+    evidence.oracles.push({ label, expectedSchemaVersion: EXPECTED_SCHEMA_VERSION, schemaExpectationEnforcedByCaller: true, actualSchemaVersion: report.schemaVersion, derivedEncryptedCopy: true, plaintextDiskStaging: false, tableHashes: Object.fromEntries(Object.entries(report.state.tables).map(([name, values]) => [name, { rows: values.length, sha256: createHash('sha256').update(JSON.stringify(values)).digest('hex') }])), verification: { ...report, state: undefined } });
     return report.state;
   } finally { await rm(copy, { recursive: true, force: true }); }
 }
@@ -56,11 +75,13 @@ async function cached(profile) { return { quota: await call('load_profile_quota'
 function metrics(value) { const copy = structuredClone(value); for (const item of Object.values(copy)) if (item) delete item.freshness; return copy; }
 function withoutProfile(state, profileId) {
   const result = structuredClone(state);
+  const methodRuns = new Set(state.tables.collection_runs.filter(row => row.profile_id === profileId).map(row => row.id));
   const owned = new Set(['profile_identity_events', 'profile_bindings', 'collection_runs', 'activity_summaries', 'current_activity', 'current_activity_days', 'activity_day_history', 'quota_snapshots', 'quota_limits', 'credit_snapshots', 'current_quota_readings', 'current_quota', 'quota_reset_assessments', 'alert_events', 'operational_alert_events', 'operational_alert_outcomes', 'subscriptions', 'reset_alert_overrides', 'threshold_alert_overrides', 'operational_alert_overrides']);
   const events = new Set(['alert_events', 'operational_alert_events'].flatMap(name => state.tables[name].filter(row => row.profile_id === profileId).map(row => row.id)));
   for (const [name, rows] of Object.entries(result.tables)) {
     if (name === 'profiles') result.tables[name] = rows.filter(row => row.id !== profileId);
     else if (owned.has(name)) result.tables[name] = rows.filter(row => row.profile_id !== profileId);
+    else if (['reading_evidence', 'reading_evidence_legacy'].includes(name)) result.tables[name] = rows.filter(row => !methodRuns.has(row.collection_run_id));
     else if (['reset_notification_outbox', 'threshold_alert_events'].includes(name)) result.tables[name] = rows.filter(row => !events.has(row.event_id));
     else if (name === 'notification_event_ids') result.tables[name] = rows.filter(row => !events.has(row.id));
   }
@@ -77,20 +98,26 @@ function onlyCapabilityChanged(before, after, profile, capability) {
   const added = after.tables.collection_runs.filter(row => row.profile_id === profile.id && !before.tables.collection_runs.some(previous => previous.id === row.id));
   assert.equal(added.length, 1, 'Exactly one supported method may add an accepted run.');
   assert.equal(added[0].source_method, method); assert.equal(added[0].outcome, 'accepted');
+  const addedEvidence = after.tables.reading_evidence.filter(row => !before.tables.reading_evidence.some(previous => previous.collection_run_id === row.collection_run_id));
+  assert.equal(addedEvidence.length, 1, 'Exactly one supported method must add evidence.');
+  assert.equal(addedEvidence[0].collection_run_id, added[0].id);
+  for (const previous of before.tables.reading_evidence) assert.deepEqual(after.tables.reading_evidence.find(row => row.collection_run_id === previous.collection_run_id), previous);
+  left.tables.reading_evidence = left.tables.reading_evidence.filter(row => row.collection_run_id !== added[0].id);
+  right.tables.reading_evidence = right.tables.reading_evidence.filter(row => row.collection_run_id !== added[0].id);
   for (const name of allowed) {
     const retained = row => row.profile_id !== profile.id || (name === 'collection_runs' && row.source_method !== method);
     left.tables[name] = left.tables[name].filter(retained);
     right.tables[name] = right.tables[name].filter(retained);
   }
   assert.deepEqual(right, left, 'Only supported capability rows for the selected profile may change.');
-  for (const name of ['collection_runs', 'activity_summaries', 'activity_day_history', 'quota_snapshots', 'quota_limits', 'credit_snapshots', 'quota_reset_assessments', 'alert_events']) for (const row of before.tables[name]) assert.ok(after.tables[name].some(current => JSON.stringify(current) === JSON.stringify(row)), `Immutable history retained: ${name}`);
+  for (const name of ['collection_runs', 'reading_evidence', 'reading_evidence_legacy', 'activity_summaries', 'activity_day_history', 'quota_snapshots', 'quota_limits', 'credit_snapshots', 'quota_reset_assessments', 'alert_events']) for (const row of before.tables[name]) assert.ok(after.tables[name].some(current => JSON.stringify(current) === JSON.stringify(row)), `Immutable history retained: ${name}`);
 }
 async function open(setup = false) {
   driver = new NativeDriver(application, fixture.environment, join(output, `driver-${++sequence}.log`)); await driver.start();
   await waitFor(async () => driver.execute('const a=document.querySelector("#workspace-passphrase"),b=document.querySelector("#workspace-confirmation");return Boolean(a&&!a.disabled&&(!arguments[0]||b&&!b.disabled));', [setup]), 'native unlock fields');
   await driver.type('#workspace-passphrase', passphrase); if (setup) await driver.type('#workspace-confirmation', passphrase); await driver.click('.unlock-form button[type=submit]');
-  await waitFor(async () => (await driver.invoke('bootstrap')).value?.storage === 'ready', 'unlocked schema-13 collection workspace');
-  assert.equal((await call('bootstrap')).schemaVersion, 13);
+  await waitFor(async () => (await driver.invoke('bootstrap')).value?.storage === 'ready', 'unlocked collection workspace');
+  assert.equal((await call('bootstrap')).schemaVersion, EXPECTED_SCHEMA_VERSION);
 }
 async function ownedDesktopPid() {
   const queue = [driver.child.pid]; let pid;
@@ -155,7 +182,7 @@ async function capture(name, selector, width = 1280) { for (let attempt = 0; att
 await mkdir(output, { recursive: true, mode: 0o700 });
 process.once('exit', () => { driver?.kill('SIGKILL'); stopGroup(fixture?.bus, 'SIGKILL'); });
 try {
-  evidence.application = { path: application, sha256: await hash(application) }; assert.equal(await hash(verifier), verifierDigest); evidence.verifier = { path: verifier, sha256: verifierDigest, reusedReadOnlyQueryLogic: true, expectedSchemaVersion: 13, schemaExpectationEnforcedByCaller: true };
+  evidence.application = { path: application, sha256: await hash(application) }; assert.equal(await hash(verifier), verifierDigest); evidence.verifier = { path: verifier, sha256: verifierDigest, reusedReadOnlyQueryLogic: true, expectedSchemaVersion: EXPECTED_SCHEMA_VERSION, schemaExpectationEnforcedByCaller: true };
   evidence.sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repository, encoding: 'utf8' }).trim();
   evidence.sourceHashes = {}; const sources = execFileSync('rg', ['--files', 'apps/desktop/src', 'apps/desktop/src-tauri/src', 'crates/openusage-codex/src', 'crates/openusage-storage/src'], { cwd: repository, encoding: 'utf8' }).trim().split('\n'); for (const path of [...sources, coreFixture, 'Cargo.lock']) evidence.sourceHashes[path] = await hash(join(repository, path));
   evidence.harnessHashes = {}; for (const path of ['collection.mjs', 'webdriver.mjs', 'private-fixture.mjs', 'x11-close.py', 'x11-reverse-tab.py']) evidence.harnessHashes[path] = await hash(join(harness, path));
@@ -183,7 +210,7 @@ try {
   const beforeRestart = await oracle('seeded selected-profile data before genuine restart');
   await closeNormally(); await open();
   await refused('begin_profile_collection_read', { profileId: first.id, approvalId }, 'provider_executable_not_approved');
-  validatePair(await cached(first), first); assert.deepEqual(metrics(await cached(first)), metrics(initial)); assert.deepEqual(await oracle('genuine restart preserves all twenty-one tables without executable approval'), beforeRestart);
+  validatePair(await cached(first), first); assert.deepEqual(metrics(await cached(first)), metrics(initial)); assert.deepEqual(await oracle('genuine restart preserves all tables without executable approval'), beforeRestart);
   await driver.openProfileReadings(first.id); await capture('collection-saved-after-restart-no-approval.png', `[data-profile-id="${first.id}"]`);
   await approveGui(first);
   // Establish fresh anchors in this process; later unsupported reads must retain them.
@@ -209,11 +236,15 @@ try {
   expectedMonitoring = 'paused';
   const reassociated = await cached(reassociation); validatePair(reassociated, reassociation); assert.notEqual(reassociated.quota.bindingId, previousBinding);
   const afterReview = await oracle('explicit reassociation commits both under one new binding');
-  for (const name of ['profile_identity_events', 'collection_runs', 'activity_summaries', 'activity_day_history', 'quota_snapshots', 'quota_limits', 'credit_snapshots', 'quota_reset_assessments', 'alert_events']) for (const row of beforeReview.tables[name]) assert.ok(afterReview.tables[name].some(current => JSON.stringify(current) === JSON.stringify(row)), `Reassociation retains complete ${name} history.`);
+  for (const name of ['profile_identity_events', 'collection_runs', 'reading_evidence', 'reading_evidence_legacy', 'activity_summaries', 'activity_day_history', 'quota_snapshots', 'quota_limits', 'credit_snapshots', 'quota_reset_assessments', 'alert_events']) for (const row of beforeReview.tables[name]) assert.ok(afterReview.tables[name].some(current => JSON.stringify(current) === JSON.stringify(row)), `Reassociation retains complete ${name} history.`);
   const beforeOtherProfiles = structuredClone(beforeReview), afterOtherProfiles = structuredClone(afterReview);
-  for (const name of Object.keys(beforeOtherProfiles.tables)) {
-    beforeOtherProfiles.tables[name] = beforeOtherProfiles.tables[name].filter(row => row.profile_id !== reassociation.id);
-    afterOtherProfiles.tables[name] = afterOtherProfiles.tables[name].filter(row => row.profile_id !== reassociation.id);
+  for (const state of [beforeOtherProfiles, afterOtherProfiles]) {
+    const methodRuns = new Set(state.tables.collection_runs.filter(row => row.profile_id === reassociation.id).map(row => row.id));
+    for (const [name, rows] of Object.entries(state.tables)) {
+      state.tables[name] = ['reading_evidence', 'reading_evidence_legacy'].includes(name)
+        ? rows.filter(row => !methodRuns.has(row.collection_run_id))
+        : rows.filter(row => row.profile_id !== reassociation.id);
+    }
   }
   assert.deepEqual(afterOtherProfiles, beforeOtherProfiles, 'Reassociation must preserve other profiles and application settings.');
   await capture('collection-reassociated-both-saved.png', resultSelector(reassociation));

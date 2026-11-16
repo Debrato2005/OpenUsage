@@ -1,3 +1,4 @@
+import { EXPECTED_SCHEMA_VERSION } from './schema.mjs';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
@@ -57,7 +58,7 @@ async function open(setup = false) {
   if (setup) await driver.type('#workspace-confirmation', password);
   await driver.click('.unlock-form button[type=submit]');
   await waitFor(async () => (await driver.invoke('bootstrap')).value?.storage === 'ready', 'unlocked private workspace');
-  assert.equal((await call('bootstrap')).schemaVersion, 13);
+  assert.equal((await call('bootstrap')).schemaVersion, EXPECTED_SCHEMA_VERSION);
 }
 async function desktopPid() {
   const queue = [driver.child.pid];

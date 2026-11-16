@@ -1,6 +1,6 @@
 # Data contracts
 
-Reviewed: November 12, 2026, against source `9d9b113`. This document describes
+Updated: November 16, 2026. The [evidence record](reviews/2026-11-16-durable-reading-evidence.md) covers the schema-14 change. This document describes
 implemented records and interfaces. [SRS Sections 12 and 17](SRS.md#17-data-contracts-and-numeric-rules)
 remain normative. Planned fields stay explicit below. This document adds no API,
 migration, adapter support, or acceptance result.
@@ -9,7 +9,7 @@ migration, adapter support, or acceptance result.
 
 | Boundary | Canonical definition | Current version or result |
 |---|---|---|
-| Encrypted application records | [Storage migrations](../crates/openusage-storage/src/lib.rs) and `schema.sql` through `schema_v13.sql` beside it | Database schema 13, SQLCipher with WAL |
+| Encrypted application records | [Storage migrations](../crates/openusage-storage/src/lib.rs) and `schema.sql` through `schema_v14.sql` beside it | Database schema 14, SQLCipher with WAL |
 | Rust to renderer | [Commands, result types, and validators](../apps/desktop/src/contracts.ts) | Typed commands and results. No single version covers every command |
 | CLI JSON | [CLI output contract](../crates/openusage-cli/README.md#output) | `schemaVersion: 2` |
 | Shared leaderboard upload | [Shared projection](#shared-leaderboard-upload) and [CLI preview contract](../crates/openusage-cli/README.md#offline-leaderboard-preview) | Exact prospective `/v1/sync` body. It is not wrapped in CLI schema 2 |
@@ -17,7 +17,7 @@ migration, adapter support, or acceptance result.
 | Leaderboard credential vault, added November 15 | [Vault contract](../crates/openusage-keys/README.md#leaderboard-credential-storage) and [enrollment format](../crates/openusage-board/README.md#enrollment-credential-format) | Pending and active version 1 records inside the opaque OS slot. The [session contract](../crates/openusage-board/README.md#serialized-enrollment) owns recovery and origin binding |
 | Fresh departure and local forgetting | [Recovery contract](../crates/openusage-cli/README.md#departure-recovery-and-local-forgetting) and [service API](../services/leaderboard/README.md#api) | Fresh departure requires an explicit nullable token witness. CLI schema 2 reports confirmed remote state separately from local credential state. Login and device ID are not ownership proof |
 | Complete local enrollment erasure | [Vault erasure contract](../crates/openusage-keys/README.md#complete-local-credential-erasure) | The existing local-deletion intent stays version 1. It contains no leaderboard token or payload. A failed erasure retains the intent for explicit resume |
-| Complete application export | [Writer](../crates/openusage-storage/src/application_export.rs) | `format: openusage.application-records`, `formatVersion: 1`, `schemaVersion: 13` |
+| Complete application export | [Writer](../crates/openusage-storage/src/application_export.rs) | `format: openusage.application-records`, `formatVersion: 1`, `schemaVersion: 14` |
 | Selected reading exports | [Record columns](../crates/openusage-storage/src/readings_export.rs) and [file writer](../apps/desktop/src-tauri/src/readings_export.rs) | JSON uses `schemaVersion: 1`. Latest, quota-history, and activity-history selections stay distinct |
 | Encrypted backup | [Archive codec](../crates/openusage-import/src/lib.rs) and [backup validation](../crates/openusage-storage/src/backup_validation.rs) | Archive format 1, with a separate database schema version |
 
@@ -92,6 +92,44 @@ quota, activity, or both supported methods in one transaction. Two accepted meth
 keep distinct run IDs and matching association and source metadata. A missing
 capability preserves its previous accepted state unless approved reassociation
 clears it. A failed or cancelled collection cannot publish half of a supported pair.
+
+## Reading evidence
+
+[Evidence inputs and lookup](../crates/openusage-storage/src/reading_evidence.rs) belong to Rust.
+Every new activity or quota method acceptance requires evidence with matching run, method, profile, binding, provider version, origin, and observation time.
+This includes the delayed, non-live acceptance routes.
+A combined collection commits one record per accepted method in the same transaction.
+Replayed run IDs and malformed or mismatched evidence fail without retained writes.
+
+Three versions have different meanings: the Codex provider version, the adapter revision, and the response projection version.
+The current adapter ID is `codex_app_server`, adapter revision is 1, and response projection version is 1.
+The adapter revision changes when its parser or checks change.
+Evidence records the method observation time from its parent collection run.
+The fixed parser checks are `rpc_envelope`, `request_id`, and `response_fields`, each `passed`.
+The comparison result is `not_performed`. No independent comparison is implied.
+
+Source level and reading status are `official` for the existing official Codex interface.
+The separate executable origin remains `official_artifact` or `test_fixture`.
+A synthetic fixture does not establish real-provider qualification or verified identity.
+The provisional account association remains separate from response evidence.
+
+Evidence stores lowercase hexadecimal SHA-256 hashes for the redacted response and format fingerprint.
+The [producer contract](../crates/openusage-codex/README.md#response-evidence-producer) owns projection and privacy rules.
+Unused-field metadata contains positive counts at nine fixed schema locations, without names or values.
+The record contains no email, home path, account description, prompt, code, token, or cookie.
+SQL rejects updates after insertion. Explicit record deletion follows the existing collection-run cascade.
+
+Trusted migration marks preexisting method runs in `reading_evidence_legacy`.
+It invents no historical hashes, checks, adapter revisions, comparisons, or status records.
+Lookup returns `LegacyGap` for a marker, `None` for an unknown run, and an error for unexplained or conflicting absence.
+Complete records and markers cannot coexist for one run.
+Schema-14 snapshot checks require exactly one of them for every collection run.
+The [SC-031 conflict](srs-clarifications.md#sc-031-evidence-for-historical-readings) remains open. It approves no exception to OU-AUD-001.
+
+Encrypted backup validation supports schemas 1 through 14.
+Trusted normalization preserves old values and adds only the migration markers.
+Restore, checkpoints, and complete application export preserve the two evidence tables.
+Selected reading exports and provider display DTOs still lack the full SRS status and evidence contract.
 
 ## Exact values, missing values, and units
 
@@ -182,7 +220,7 @@ payments, exchange-rate conversions, or proof of a subscription cancellation.
 
 ## Record catalog
 
-The following groups cover all 42 tables in schema 13. The migrations own columns,
+The following groups cover all 44 tables in schema 14. The migrations own columns,
 constraints, indexes, and foreign keys. Table membership does not imply shared
 identity or permission to combine metrics.
 
@@ -190,6 +228,7 @@ identity or permission to combine metrics.
 |---|---|
 | Workspace and association | `settings`, `profiles`, `accounts`, `profile_identity_events`, `profile_bindings` |
 | Provider records | `collection_runs`, `activity_summaries`, `current_activity`, `current_activity_days`, `activity_day_history`, `quota_snapshots`, `quota_limits`, `credit_snapshots`, `current_quota_readings`, `current_quota`, `quota_reset_assessments` |
+| Reading evidence | `reading_evidence`, `reading_evidence_legacy` |
 | Local usage | `log_sources`, `local_usage_days`, `local_usage_differences`, `local_usage_sessions`, `local_usage_hours`, `local_usage_scopes`, `local_usage_scans`, `local_usage_scan_roots`, `local_usage_records`, `local_usage_record_models`, `local_usage_scan_differences` |
 | Subscription terms | `subscriptions` |
 | Alerts and delivery | `alert_events`, `notification_event_ids`, `reset_alert_preferences`, `reset_alert_overrides`, `reset_notification_outbox`, `reset_notification_receipts`, `threshold_alert_preferences`, `threshold_alert_overrides`, `threshold_alert_events`, `operational_alert_preferences`, `operational_alert_overrides`, `operational_alert_events`, `operational_alert_outcomes`, `operational_alert_state` |
@@ -250,7 +289,7 @@ and revision order. It must not reuse the public leaderboard schema for
 provider readings or copy the local database to a cloud service.
 
 The [response evidence producer](../crates/openusage-codex/README.md#response-evidence-producer) supplies metadata to Rust callers.
-It adds no fields to current provider display DTOs and stores no evidence.
+The desktop and storage now retain that metadata under the contract above. Current provider display DTOs remain unchanged.
 
 SRS Section 17 defines `MetricState`, `SourceLevel`, `ReadingStatus`, and
 `evidenceId`. Current provider DTOs instead expose their explicit freshness,

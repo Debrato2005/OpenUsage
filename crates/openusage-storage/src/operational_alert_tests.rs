@@ -17,6 +17,7 @@ fn prefs(enabled: bool) -> OperationalAlertPreferences {
 fn baseline(kind: ActivitySourceKind, enabled: bool) -> (tempfile::TempDir, Storage, QuotaReading) {
     let (dir, mut storage, mut original) = fixture();
     original.source_kind = kind;
+    original = crate::reading_evidence::fixture_quota(original);
     storage
         .save_notification_preferences(
             &ResetAlertPreferences {
@@ -58,7 +59,7 @@ fn fresh_reading(original: &QuotaReading, n: u32) -> QuotaReading {
     q.run_id = id(800 + n);
     q.observed_at_utc = time(n);
     q.completed_at_utc = time(n);
-    q
+    crate::reading_evidence::fixture_quota(q)
 }
 fn claim(storage: &mut Storage, n: u32) -> crate::OperationalNotification {
     match storage.claim_notification(&time(n)).unwrap().unwrap() {
@@ -314,7 +315,7 @@ fn activity_only_and_paired_live_success_close_once_with_real_accepted_run_ancho
             OperationalFailureKind::AuthenticationRequired,
         );
         let q = fresh_reading(&original, 2);
-        let activity = ActivityReading {
+        let activity = crate::reading_evidence::fixture_activity(ActivityReading {
             run_id: id(900),
             binding: q.binding.clone(),
             identity_evidence: q.identity_evidence.clone(),
@@ -325,7 +326,8 @@ fn activity_only_and_paired_live_success_close_once_with_real_accepted_run_ancho
             completed_at_utc: q.completed_at_utc.clone(),
             summary: ActivitySummaryValues::default(),
             daily_usage: None,
-        };
+            evidence: None,
+        });
         if paired {
             storage
                 .accept_live_collection(Some(q.clone()), Some(activity.clone()), None, &time(2))
@@ -618,6 +620,7 @@ fn wrong_profile_target_and_duplicate_request_reclassification_preserve_other_ac
     second.binding.profile_id = id(10);
     second.binding.home_reference = id(11);
     second.binding.binding_id = id(13);
+    second = crate::reading_evidence::fixture_quota(second);
     storage
         .accept_live_quota(second.clone(), Some(association(&second, None)), TIME)
         .unwrap();

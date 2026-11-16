@@ -1,3 +1,4 @@
+import { EXPECTED_SCHEMA_VERSION } from './schema.mjs';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
@@ -136,7 +137,7 @@ async function quotaOracle(label, mode = 'database', input) {
       try { await copyFile(`${fixture.database}-wal`, `${target}-wal`); await chmod(`${target}-wal`, 0o600); } catch (error) { if (error.code !== 'ENOENT') throw error; }
     }
     const report = JSON.parse(await runLoginVerifier(verifier, verifierDigest, [mode, target, join(workspace, 'database-key.v1')], { input: JSON.stringify({ passphrase: password, backupPassword }), env: fixture.environment, encoding: 'utf8', timeout: 60000, maxBuffer: 64 * 1024 * 1024 }));
-    assert.equal(report.verified, true); assert.equal(report.readOnly, true); assert.equal(report.schemaVersion, 13); assert.equal(report.plaintextDiskStaging, false); assert.equal(report.walRecordsUnchanged, true); assert.deepEqual(await liveHashes(), before);
+    assert.equal(report.verified, true); assert.equal(report.readOnly, true); assert.equal(report.schemaVersion, EXPECTED_SCHEMA_VERSION); assert.equal(report.plaintextDiskStaging, false); assert.equal(report.walRecordsUnchanged, true); assert.deepEqual(await liveHashes(), before);
     assert.equal(Object.keys(report.state.tables).length, 39);
     const tableHashes = Object.fromEntries(Object.entries(report.state.tables).map(([name, rows]) => [name, { rows: rows.length, sha256: createHash('sha256').update(JSON.stringify(rows)).digest('hex') }]));
     evidence.oracles.push({ label, mode, inputSha256: await hash(target), derivedEncryptedCopy: mode === 'database', tableHashes, verification: { ...report, state: undefined } });

@@ -171,6 +171,16 @@ fn column(table: &Value, name: &str) -> usize {
 }
 
 fn expected_deleted(before: &BTreeMap<String, Value>, profile: &str) -> BTreeMap<String, Value> {
+    let runs = &before["collection_runs"];
+    let run_owner = column(runs, "profile_id");
+    let run_id = column(runs, "id");
+    let run_ids = runs["rows"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|row| row[run_owner] == profile)
+        .map(|row| row[run_id].clone())
+        .collect::<Vec<_>>();
     let event_ids = ["alert_events", "operational_alert_events"]
         .into_iter()
         .flat_map(|name| {
@@ -204,6 +214,12 @@ fn expected_deleted(before: &BTreeMap<String, Value>, profile: &str) -> BTreeMap
                 .as_array_mut()
                 .unwrap()
                 .retain(|r| r[index] != profile);
+        } else if ["reading_evidence", "reading_evidence_legacy"].contains(&name.as_str()) {
+            let index = column(table, "collection_run_id");
+            table["rows"]
+                .as_array_mut()
+                .unwrap()
+                .retain(|r| !run_ids.contains(&r[index]));
         } else if [
             "notification_event_ids",
             "reset_notification_outbox",
@@ -231,7 +247,30 @@ fn expected_deleted(before: &BTreeMap<String, Value>, profile: &str) -> BTreeMap
 #[test]
 fn fixture_has_every_current_table_and_retains_zero_and_missing_values() {
     let mut fixture = populated();
-    for (name, table) in records(&mut fixture.storage) {
+    let tables = records(&mut fixture.storage);
+    assert_eq!(tables.len(), 44);
+    assert_eq!(
+        tables["reading_evidence"]["rows"].as_array().unwrap().len(),
+        14
+    );
+    assert_eq!(
+        tables["reading_evidence_legacy"]["rows"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    for n in 1..=2 {
+        assert!(matches!(
+            fixture.storage.reading_evidence(&id(n * 1000 + 2)).unwrap(),
+            Some(ReadingEvidenceAvailability::LegacyGap)
+        ));
+        assert!(matches!(
+            fixture.storage.reading_evidence(&id(n * 1000 + 3)).unwrap(),
+            Some(ReadingEvidenceAvailability::Complete(_))
+        ));
+    }
+    for (name, table) in tables {
         assert!(
             !table["rows"].as_array().unwrap().is_empty(),
             "empty fixture table: {name}"

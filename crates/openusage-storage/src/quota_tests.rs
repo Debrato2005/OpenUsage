@@ -12,7 +12,7 @@ fn evidence() -> ProfileIdentityEvidence {
     }
 }
 fn reading(n: u32, binding: ProfileBinding) -> QuotaReading {
-    QuotaReading {
+    crate::reading_evidence::fixture_quota(QuotaReading {
         run_id: id(n),
         binding,
         identity_evidence: evidence(),
@@ -41,7 +41,8 @@ fn reading(n: u32, binding: ProfileBinding) -> QuotaReading {
             granted_at_unix: -62_135_596_800,
             expires_at_unix: None,
         }]),
-    }
+        evidence: None,
+    })
 }
 fn association(r: &QuotaReading, previous: Option<String>) -> ProfileBindingInput {
     ProfileBindingInput {
@@ -135,7 +136,9 @@ fn quota_reset_seconds_store_as_exact_utc_text_across_epoch_and_calendar_boundar
         } else {
             None
         };
-        storage.accept_quota(r.clone(), input).unwrap();
+        storage
+            .accept_quota(crate::reading_evidence::fixture_quota(r.clone()), input)
+            .unwrap();
         let history: (String, String) = storage.connection.query_row(
             "SELECT typeof(primary_resets_at_utc),primary_resets_at_utc FROM quota_limits WHERE collection_run_id=?1",
             [&r.run_id], |row| Ok((row.get(0)?, row.get(1)?)),
@@ -159,6 +162,7 @@ fn quota_atomic_reassociation_cannot_bypass_source_time_or_identity_fences() {
     let (_dir, mut storage, mut r) = fixture();
     r.observed_at_utc = LATER.into();
     r.completed_at_utc = LATER.into();
+    r = crate::reading_evidence::fixture_quota(r);
     storage
         .accept_quota(r.clone(), Some(association(&r, None)))
         .unwrap();
@@ -170,14 +174,14 @@ fn quota_atomic_reassociation_cannot_bypass_source_time_or_identity_fences() {
     next.completed_at_utc = TIME.into();
     let input = association(&next, Some(r.binding.binding_id.clone()));
     assert_eq!(
-        storage.accept_quota(next, Some(input)),
+        storage.accept_quota(crate::reading_evidence::fixture_quota(next), Some(input)),
         Err(ActivityError::StaleObservation)
     );
     let mut changed = r.clone();
     changed.run_id = id(7);
     changed.identity_evidence.email = "different@example.invalid".into();
     assert_eq!(
-        storage.accept_quota(changed, None),
+        storage.accept_quota(crate::reading_evidence::fixture_quota(changed), None),
         Err(ActivityError::IdentityChanged)
     );
     assert_eq!(all(&storage), before);
@@ -194,7 +198,7 @@ fn activity_reassociation_clears_quota_cache_atomically_and_retains_accepted_quo
     new_quota_binding.binding.binding_id = id(6);
     new_quota_binding.observed_at_utc = LATER.into();
     let input = association(&new_quota_binding, Some(r.binding.binding_id));
-    let activity = crate::ActivityReading {
+    let activity = crate::reading_evidence::fixture_activity(crate::ActivityReading {
         run_id: id(5),
         binding: new_quota_binding.binding.clone(),
         identity_evidence: r.identity_evidence,
@@ -205,7 +209,8 @@ fn activity_reassociation_clears_quota_cache_atomically_and_retains_accepted_quo
         completed_at_utc: LATER.into(),
         summary: crate::ActivitySummaryValues::default(),
         daily_usage: None,
-    };
+        evidence: None,
+    });
     storage.connection.execute_batch("CREATE TRIGGER fault BEFORE INSERT ON activity_summaries BEGIN SELECT RAISE(ABORT,'synthetic activity write fault'); END").unwrap();
     assert_eq!(
         storage.accept_activity_with_binding(activity.clone(), Some(input)),
@@ -271,7 +276,9 @@ fn quota_backup_and_encrypted_checkpoint_restore_all_fields_and_history() {
     next.available_reset_credits = None;
     next.reset_credit_details = None;
     let revision = storage.restore_state().unwrap().revision;
-    storage.accept_quota(next, None).unwrap();
+    storage
+        .accept_quota(crate::reading_evidence::fixture_quota(next), None)
+        .unwrap();
     assert_ne!(storage.restore_state().unwrap().revision, revision);
     let recovered = storage.read_encrypted_checkpoint(&checkpoint).unwrap();
     let homes =
@@ -403,7 +410,9 @@ fn quota_full_snapshot_null_empty_zero_and_error_replacements_preserve_history()
     next.limits.clear();
     next.available_reset_credits = Some("0".into());
     next.reset_credit_details = Some(vec![]);
-    storage.accept_quota(next.clone(), None).unwrap();
+    storage
+        .accept_quota(crate::reading_evidence::fixture_quota(next.clone()), None)
+        .unwrap();
     let current = storage.current_quota(&id(1)).unwrap().unwrap();
     assert!(current.limits.is_empty());
     assert_eq!(current.available_reset_credits.as_deref(), Some("0"));
@@ -419,7 +428,9 @@ fn quota_full_snapshot_null_empty_zero_and_error_replacements_preserve_history()
     next.run_id = id(6);
     next.available_reset_credits = None;
     next.reset_credit_details = None;
-    storage.accept_quota(next.clone(), None).unwrap();
+    storage
+        .accept_quota(crate::reading_evidence::fixture_quota(next.clone()), None)
+        .unwrap();
     assert_eq!(
         storage
             .current_quota(&id(1))
@@ -430,13 +441,13 @@ fn quota_full_snapshot_null_empty_zero_and_error_replacements_preserve_history()
     );
     let before = all(&storage);
     assert_eq!(
-        storage.accept_quota(next.clone(), None),
+        storage.accept_quota(crate::reading_evidence::fixture_quota(next.clone()), None),
         Err(ActivityError::AlreadyAccepted)
     );
     next.run_id = id(7);
     next.observed_at_utc = TIME.into();
     assert_eq!(
-        storage.accept_quota(next, None),
+        storage.accept_quota(crate::reading_evidence::fixture_quota(next), None),
         Err(ActivityError::StaleObservation)
     );
     assert_eq!(all(&storage), before);
@@ -453,7 +464,9 @@ fn quota_and_activity_share_one_binding_and_reassociation_retains_both_histories
     let old = storage.profile_binding(&id(1)).unwrap().unwrap();
     r.binding = old.clone();
     r.identity_evidence = storage.profile_binding_evidence(&old).unwrap();
-    storage.accept_quota(r.clone(), None).unwrap();
+    storage
+        .accept_quota(crate::reading_evidence::fixture_quota(r.clone()), None)
+        .unwrap();
     let before = all(&storage);
     let old_activity = storage.current_activity(&id(1)).unwrap();
     assert!(old_activity.is_some());
@@ -464,7 +477,12 @@ fn quota_and_activity_share_one_binding_and_reassociation_retains_both_histories
     changed.observed_at_utc = LATER.into();
     changed.completed_at_utc = LATER.into();
     let input = association(&changed, Some(old.binding_id));
-    storage.accept_quota(changed.clone(), Some(input)).unwrap();
+    storage
+        .accept_quota(
+            crate::reading_evidence::fixture_quota(changed.clone()),
+            Some(input),
+        )
+        .unwrap();
     assert_eq!(storage.current_activity(&id(1)).unwrap(), None);
     assert_eq!(
         storage.current_quota(&id(1)).unwrap().unwrap().binding,
@@ -503,7 +521,8 @@ fn quota_reassociation_rolls_back_all_current_and_history_rows_at_each_write_sta
         next.completed_at_utc = LATER.into();
         storage.connection.execute_batch(&format!("CREATE TRIGGER fault BEFORE {stage} BEGIN SELECT RAISE(ABORT,'synthetic quota write fault'); END;")).unwrap();
         let input = association(&next, Some(r.binding.binding_id));
-        let result = storage.accept_quota(next, Some(input));
+        let result =
+            storage.accept_quota(crate::reading_evidence::fixture_quota(next), Some(input));
         assert_eq!(result, Err(ActivityError::WriteFailed), "{stage}");
         assert_eq!(all(&storage), before, "{stage}");
     }
@@ -544,7 +563,7 @@ fn quota_validation_shared_cas_and_profile_isolation_refuse_without_writes() {
             _ => invalid.available_reset_credits = None,
         };
         assert_eq!(
-            storage.accept_quota(invalid, None),
+            storage.accept_quota(crate::reading_evidence::fixture_quota(invalid), None),
             Err(ActivityError::InvalidInput)
         );
         assert_eq!(all(&storage), before);
@@ -554,7 +573,7 @@ fn quota_validation_shared_cas_and_profile_isolation_refuse_without_writes() {
     next.binding.binding_id = id(21);
     let input = association(&next, None);
     assert_eq!(
-        storage.accept_quota(next, Some(input)),
+        storage.accept_quota(crate::reading_evidence::fixture_quota(next), Some(input)),
         Err(ActivityError::BindingChanged)
     );
     assert_eq!(all(&storage), before);

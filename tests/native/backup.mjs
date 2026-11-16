@@ -1,3 +1,4 @@
+import { EXPECTED_SCHEMA_VERSION } from './schema.mjs';
 import assert from 'node:assert/strict';
 import { spawn, execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
@@ -13,7 +14,7 @@ const repository = resolve(process.env.OPENUSAGE_NATIVE_SOURCE_ROOT ?? join(dirn
 const application = resolve(process.env.OPENUSAGE_NATIVE_BINARY ?? join(repository, 'target/debug/openusage-desktop'));
 const verifier = process.env.OPENUSAGE_BACKUP_VERIFIER;
 const output = resolve(process.env.OPENUSAGE_NATIVE_EVIDENCE ?? join(tmpdir(), `openusage-backup-evidence-${randomUUID()}`));
-const expectedSchemaVersion = 13;
+const expectedSchemaVersion = EXPECTED_SCHEMA_VERSION;
 const backupPassword = 'OpenUsage synthetic backup password 2026';
 const workspacePassphrase = 'OpenUsage synthetic workspace password 2026';
 const evidence = {

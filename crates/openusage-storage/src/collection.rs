@@ -147,7 +147,7 @@ mod tests {
             email: "collection@example.invalid".into(),
             plan: Some("synthetic".into()),
         };
-        let q = QuotaReading {
+        let q = crate::reading_evidence::fixture_quota(QuotaReading {
             run_id: id(n),
             binding: binding.clone(),
             identity_evidence: evidence.clone(),
@@ -176,8 +176,9 @@ mod tests {
                 granted_at_unix: 0,
                 expires_at_unix: None,
             }]),
-        };
-        let a = ActivityReading {
+            evidence: None,
+        });
+        let a = crate::reading_evidence::fixture_activity(ActivityReading {
             run_id: id(n + 1),
             binding,
             identity_evidence: evidence,
@@ -196,7 +197,8 @@ mod tests {
                 provider_date: "2026-10-20".into(),
                 tokens: "9007199254740993".into(),
             }]),
-        };
+            evidence: None,
+        });
         (q, a)
     }
     fn association(q: &QuotaReading, previous: Option<u32>) -> ProfileBindingInput {
@@ -419,6 +421,7 @@ mod tests {
                 8 => a.completed_at_utc = time(9),
                 _ => a.run_id = q.run_id.clone(),
             }
+            let a = crate::reading_evidence::fixture_activity(a);
             assert_eq!(
                 s.accept_collection(Some(q), Some(a), None),
                 Err(ActivityError::InvalidInput)
@@ -432,6 +435,8 @@ mod tests {
             } else {
                 q.run_id = id(10);
             }
+            q = crate::reading_evidence::fixture_quota(q);
+            a = crate::reading_evidence::fixture_activity(a);
             let input = association(&q, Some(3));
             assert_eq!(
                 s.accept_collection(Some(q), Some(a), Some(input)),
@@ -443,6 +448,8 @@ mod tests {
             } else {
                 q.observed_at_utc = time(0);
             }
+            q = crate::reading_evidence::fixture_quota(q);
+            a = crate::reading_evidence::fixture_activity(a);
             let input = association(&q, Some(3));
             assert_eq!(
                 s.accept_collection(Some(q), Some(a), Some(input)),

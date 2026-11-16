@@ -16,6 +16,8 @@ pub use quota::{
 pub use response_evidence::{EvidenceLocation, ResponseEvidence, UnusedFieldChange};
 
 pub const PROTOCOL_BASELINE: &str = "rust-v0.163.0";
+/// Increase this revision when used-field parsing or checks change.
+pub const ADAPTER_REVISION: u32 = 1;
 pub const MAX_MESSAGE_BYTES: usize = 1_048_576;
 /// Application preview guard, not a provider coverage or history maximum.
 pub const MAX_ACTIVITY_DAILY_BUCKETS: usize = 4096;

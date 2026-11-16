@@ -33,7 +33,8 @@ pub struct ProfileBindingInput {
     pub evidence: ProfileIdentityEvidence,
     pub observed_at_utc: String,
 }
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ActivitySourceKind {
     OfficialArtifact,
     TestFixture,
@@ -81,6 +82,7 @@ pub struct ActivityReading {
     pub completed_at_utc: String,
     pub summary: ActivitySummaryValues,
     pub daily_usage: Option<Vec<ActivityDayValue>>,
+    pub evidence: Option<crate::ReadingEvidenceInput>,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ActivityCommit {
@@ -435,6 +437,13 @@ pub(crate) fn accept_in_transaction(
     }
     require_new_reading(tx, &reading)?;
     tx.execute("INSERT INTO collection_runs(id,profile_id,binding_id,started_at_utc,completed_at_utc,observed_at_utc,source_method,provider_version,source_kind,source_scope,raw_scope,normalized_unit,coverage,identity_confidence,verified_identity_key,outcome) VALUES (?1,?2,?3,?4,?5,?6,'account/usage/read',?7,?8,'account_activity_with_unknown_application_scope',NULL,'tokens','unknown','provisional',NULL,'accepted')",params![reading.run_id,reading.binding.profile_id,reading.binding.binding_id,reading.started_at_utc,reading.completed_at_utc,reading.observed_at_utc,reading.provider_version,reading.source_kind.as_str()]).map_err(write_error)?;
+    crate::reading_evidence::write(
+        tx,
+        reading
+            .evidence
+            .as_ref()
+            .ok_or(ActivityError::InvalidInput)?,
+    )?;
     let daily_state = match &reading.daily_usage {
         None => "unavailable",
         Some(rows) if rows.is_empty() => "empty",
@@ -466,6 +475,17 @@ pub(crate) fn require_profile(connection: &Connection, id: &str, home: &str) -> 
     }
 }
 pub(crate) fn validate_reading(r: &ActivityReading) -> Result<()> {
+    crate::reading_evidence::validate(
+        r.evidence.as_ref(),
+        crate::reading_evidence::EvidenceBinding {
+            method: crate::EvidenceMethod::Activity,
+            run_id: &r.run_id,
+            binding: &r.binding,
+            provider_version: &r.provider_version,
+            source_kind: r.source_kind,
+            observed_at_utc: &r.observed_at_utc,
+        },
+    )?;
     for id in [
         &r.run_id,
         &r.binding.profile_id,
@@ -672,7 +692,7 @@ mod tests {
         assert_eq!(all_activity_records(&storage), original);
     }
     fn reading(binding: &ProfileBinding, number: u32, time: &str) -> ActivityReading {
-        ActivityReading {
+        crate::reading_evidence::fixture_activity(ActivityReading {
             run_id: format!("40000000-0000-4000-8000-{number:012x}"),
             binding: binding.clone(),
             identity_evidence: evidence(),
@@ -698,7 +718,8 @@ mod tests {
                     tokens: "0".into(),
                 },
             ]),
-        }
+            evidence: None,
+        })
     }
     fn counts(storage: &Storage) -> (i64, i64, i64, i64) {
         storage.connection.query_row("SELECT (SELECT count(*) FROM collection_runs),(SELECT count(*) FROM activity_summaries),(SELECT count(*) FROM current_activity_days),(SELECT count(*) FROM activity_day_history)",[],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).unwrap()
@@ -726,6 +747,8 @@ mod tests {
                 "profile_id,provider_date,source_scope",
             ),
             ("activity_day_history", "id"),
+            ("reading_evidence", "collection_run_id"),
+            ("reading_evidence_legacy", "collection_run_id"),
         ]
         .into_iter()
         .map(|(table, order)| {

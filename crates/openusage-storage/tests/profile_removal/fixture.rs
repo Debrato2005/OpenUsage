@@ -1,3 +1,10 @@
+mod evidence_fixture {
+    use openusage_storage as storage;
+    include!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../tests/support/reading_evidence.rs"
+    ));
+}
 use super::*;
 use openusage_locallogs::{AgentPeriod, AgentSession, ModelDetail, TokenDetails, UsagePeriod};
 use rusqlite::{Connection, params};
@@ -110,7 +117,31 @@ pub fn populated() -> Fixture {
             )
             .unwrap();
     }
-    let conn = connection(&fixture.path());
+    let mut conn = connection(&fixture.path());
+    // Simulate migrated history beside new evidence for both synthetic owners.
+    let transaction = conn.transaction().unwrap();
+    for n in 1..=2 {
+        let run = id(n * 1000 + 2);
+        assert_eq!(
+            transaction
+                .execute(
+                    "DELETE FROM reading_evidence WHERE collection_run_id=?1",
+                    [&run],
+                )
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            transaction
+                .execute(
+                    "INSERT INTO reading_evidence_legacy(collection_run_id) VALUES(?1)",
+                    [&run],
+                )
+                .unwrap(),
+            1
+        );
+    }
+    transaction.commit().unwrap();
     for n in 90..=92 {
         conn.execute("INSERT INTO accounts VALUES (?1,NULL,'unknown','synthetic@example.invalid',NULL,?2,?2)", params![id(n), NOW]).unwrap();
     }
@@ -135,7 +166,7 @@ fn profile_history(storage: &mut Storage, n: u32) {
         };
         for revision in 0..2 {
             let now = time(offset + revision);
-            let reading = ActivityReading {
+            let reading = evidence_fixture::activity(ActivityReading {
                 run_id: id(base + offset + 2 + revision),
                 binding: binding.clone(),
                 identity_evidence: evidence(),
@@ -153,7 +184,8 @@ fn profile_history(storage: &mut Storage, n: u32) {
                     provider_date: "2026-10-18".into(),
                     tokens: revision.to_string(),
                 }]),
-            };
+                evidence: None,
+            });
             let association = (revision == 0).then(|| ProfileBindingInput {
                 profile_id: id(n),
                 expected_home_reference: id(n + 10),
@@ -168,7 +200,7 @@ fn profile_history(storage: &mut Storage, n: u32) {
         }
         for revision in 0..2 {
             let now = time(offset + revision + 2);
-            let reading = QuotaReading {
+            let reading = evidence_fixture::quota(QuotaReading {
                 run_id: id(base + offset + 4 + revision),
                 binding: binding.clone(),
                 identity_evidence: evidence(),
@@ -197,7 +229,8 @@ fn profile_history(storage: &mut Storage, n: u32) {
                     granted_at_unix: 0,
                     expires_at_unix: None,
                 }]),
-            };
+                evidence: None,
+            });
             storage.accept_live_quota(reading, None, &now).unwrap();
         }
         previous = Some(binding.binding_id);

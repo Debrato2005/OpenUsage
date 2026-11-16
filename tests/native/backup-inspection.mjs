@@ -1,3 +1,4 @@
+import { EXPECTED_SCHEMA_VERSION } from './schema.mjs';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
@@ -16,7 +17,7 @@ const output = resolve(process.env.OPENUSAGE_NATIVE_EVIDENCE ?? join(tmpdir(), `
 const password = 'OpenUsage synthetic inspection password 2026';
 const passphrase = 'OpenUsage synthetic inspection workspace 2026';
 const missingName = 'openusage-backup-0000000000000000.oubackup';
-const expectedSchemaVersion = 13;
+const expectedSchemaVersion = EXPECTED_SCHEMA_VERSION;
 const evidence = {
   requirement: 'NATIVE-BACKUP-CONTENT-001', startedAt: new Date().toISOString(), result: 'failed',
   scope: 'Actual native archive authentication and read-only content checks from a GUI-exported synthetic workspace. GUI profiles, wrong-password handling, valid counts, and authenticated invalid/unsupported fixtures. Direct production IPC fault checks. No restore, provider login, or cross-platform acceptance.',

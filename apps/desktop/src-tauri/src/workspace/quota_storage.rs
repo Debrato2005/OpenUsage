@@ -280,7 +280,7 @@ impl Workspace {
             evidence: evidence.clone(),
             observed_at_utc: observed.clone(),
         });
-        let reading = openusage_storage::QuotaReading {
+        let mut reading = openusage_storage::QuotaReading {
             run_id: request.into(),
             binding: openusage_storage::ProfileBinding {
                 profile_id: binding.profile_id.clone(),
@@ -337,7 +337,9 @@ impl Workspace {
                     })
                     .collect()
             }),
+            evidence: None,
         };
+        reading.evidence = Some(super::reading_evidence::quota(&reading, &probe.quota));
         let now =
             restore::timestamp(SystemTime::now()).ok_or(CommandError::ProviderQuotaSaveFailed)?;
         if probe.observed_monotonic.elapsed() < Duration::from_secs(600) {
