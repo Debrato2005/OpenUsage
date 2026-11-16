@@ -6,6 +6,13 @@ This is a dated record of work through November 2, 2026, written against SRS 2.0
 
 
 
+## Evidence details before selected exports, November 16, 2026
+
+S-04c1 exposed complete evidence and historical gaps through the existing Overview panels.
+The [record](reviews/2026-11-16-reading-evidence-details.md) owns scoped reads, permission correction, privacy, and synthetic Linux acceptance.
+Hosted CI for `fcf5120` passed both jobs in run 43805348080.
+Selected exports and the uniform status contract remained open at that checkpoint.
+
 ## Activity provenance before evidence access, November 16, 2026
 
 S-04c0 corrected the four Overview activity details to use their saved activity observation.

@@ -143,6 +143,25 @@ scanner. The ordinary build must ignore the candidate override. These experiment
 do not change the production pin or qualify real histories, other platforms,
 or a release.
 
+## Native reading exports
+
+Build the frontend and standalone oracles before the final native-test desktop build.
+Set `OPENUSAGE_NATIVE_ACTIVITY_HISTORY_FIXTURE` to the current activity-history fixture binary.
+Set `OPENUSAGE_LOGIN_VERIFIER` to the current activity verifier.
+Set `OPENUSAGE_LOGIN_VERIFIER_SHA256` to that verifier's digest.
+Use the private display, drivers, binary, source-root, and evidence settings above.
+Run `node tests/native/activity-history-export.mjs` with a new evidence directory.
+For quota history, set `OPENUSAGE_NATIVE_HISTORY_FIXTURE` to the quota-history fixture binary.
+Run `node tests/native/quota-history.mjs` in a new evidence directory.
+For latest-reading export, set `OPENUSAGE_NATIVE_READINGS_EXPORT=1` and run `node tests/native/monitoring.mjs`.
+This mode checks saved-reading export. It does not run the scheduled-monitoring interval.
+
+The activity-history export journey also compares all eleven audit fields with the independent encrypted-copy oracle.
+All three selected export routes use CSV and schema-2 JSON.
+Activity history compares every metric and audit field across all retained observations.
+Latest and quota-history exports compare saved audit fields within their existing route checks.
+The metadata receipt uses the current schema's table count.
+These checks retain private files, identifier consent, aliases, exact values, and unchanged encrypted source records.
 
 ## Native summary details
 

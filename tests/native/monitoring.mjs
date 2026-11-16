@@ -288,7 +288,7 @@ function csvRecords(text, columns) {
 async function exportSavedReadings(first, other, initialKeyHash, initialSentinelHash) {
   evidence.requirement = 'NATIVE-SAVED-READINGS-EXPORT-001';
   evidence.scope = exportScope;
-  const columns = ['profile', 'profile_id', 'profile_label', 'email', 'record_kind', 'metric', 'value', 'unit', 'provider_date', 'observed_at_utc', 'source_method', 'source_kind', 'provider_version', 'source_scope', 'raw_scope', 'identity_confidence', 'coverage', 'status', 'inclusion_rule', 'limit_id', 'window_role'];
+  const columns = ['profile', 'profile_id', 'profile_label', 'email', 'record_kind', 'metric', 'value', 'unit', 'provider_date', 'observed_at_utc', 'source_method', 'source_kind', 'provider_version', 'source_scope', 'raw_scope', 'identity_confidence', 'coverage', 'status', 'inclusion_rule', 'limit_id', 'window_role', 'evidence_availability', 'reading_status', 'source_level', 'adapter_id', 'adapter_revision', 'projection_version', 'redacted_response_hash', 'format_fingerprint', 'check_results', 'comparison_result', 'unused_fields'];
   const directory = join(fixture.dirs.downloads, 'OpenUsage'), maliciousLabel = '=SUM(1,2) "Synthetic"', normalLabel = 'Synthetic, "quoted" profile';
   const files = async () => { try { return (await readdir(directory)).sort(); } catch (error) { if (error.code === 'ENOENT') return []; throw error; } };
   async function homes() {
@@ -319,6 +319,7 @@ async function exportSavedReadings(first, other, initialKeyHash, initialSentinel
       assert.equal(row.provider_date, null, 'This fixture has no accepted daily bucket.');
       assert.equal(row.raw_scope, null);
       if (row.profile === alias) {
+        assert.equal(row.evidence_availability, 'complete'); assert.equal(row.reading_status, 'official'); assert.equal(row.source_level, 'official');
         assert.equal(row.source_kind, 'test_fixture'); assert.equal(row.provider_version, '0.163.0'); assert.equal(row.identity_confidence, 'provisional'); assert.equal(row.coverage, 'unknown');
         assert.ok(Number.isFinite(Date.parse(row.observed_at_utc)));
         const activity = row.record_kind.startsWith('activity');
@@ -326,6 +327,7 @@ async function exportSavedReadings(first, other, initialKeyHash, initialSentinel
         assert.equal(row.source_method, activity ? 'account/usage/read' : 'account/rateLimits/read');
         assert.equal(row.source_scope, activity ? 'account_activity_with_unknown_application_scope' : 'account_quota_with_unknown_application_scope');
       } else {
+        assert.equal(row.evidence_availability, 'not_available'); assert.equal(row.reading_status, null); assert.equal(row.source_level, null);
         assert.equal(count, 2); assert.equal(row.value, null); assert.equal(row.status, 'unavailable');
         for (const field of ['source_method', 'source_kind', 'provider_version', 'source_scope', 'identity_confidence', 'coverage', 'observed_at_utc']) assert.equal(row[field], null, 'An unread profile must not acquire fabricated provenance.');
       }
@@ -365,7 +367,7 @@ async function exportSavedReadings(first, other, initialKeyHash, initialSentinel
     const path = join(directory, shown.fileName), metadata = await lstat(path), folder = await lstat(directory); assert.equal(metadata.isFile(), true); assert.equal(metadata.isSymbolicLink(), false); assert.equal(metadata.mode & 0o777, 0o600); assert.equal(metadata.nlink, 1); assert.equal(folder.isDirectory(), true); assert.equal(folder.isSymbolicLink(), false); assert.equal(folder.mode & 0o777, 0o700);
     const text = await readFile(path, 'utf8'); for (const secret of forbidden) assert.equal(text.includes(secret), false, 'Exports must omit private paths, credentials and internal reading identifiers.');
     let rows;
-    if (format === 'json') { const value = JSON.parse(text); assert.deepEqual(Object.keys(value).sort(), ['exportedAt', 'records', 'schemaVersion', 'selection']); assert.equal(value.schemaVersion, 1); assert.equal(value.exportedAt, shown.exportedAt); assert.deepEqual(value.selection, { profileCount: count, identifiersIncluded: identifiers }); rows = value.records; }
+    if (format === 'json') { const value = JSON.parse(text); assert.deepEqual(Object.keys(value).sort(), ['exportedAt', 'records', 'schemaVersion', 'selection']); assert.equal(value.schemaVersion, 2); assert.equal(value.exportedAt, shown.exportedAt); assert.deepEqual(value.selection, { profileCount: count, identifiersIncluded: identifiers }); rows = value.records; }
     else rows = csvRecords(text, columns);
     assert.equal(rows.length, Number(summary[3])); const selected = records(rows, identifiers, count === 1 ? 'profile-1' : `profile-${order.findIndex(row => row.id === first.id) + 1}`, count);
     if (!identifiers) for (const secret of [first.id, other.id, first.label, other.label, 'synthetic-collection@example.invalid']) assert.equal(text.includes(secret), false);
@@ -405,7 +407,7 @@ async function exportSavedReadings(first, other, initialKeyHash, initialSentinel
   await options(); await unchecked(); assert.equal(await driver.execute('return document.querySelector("#reading-export-identifiers").getAttribute("aria-checked");'), 'false'); assert.deepEqual(await files(), completedFiles); for (const item of evidence.exports) assert.equal(await hash(join(directory, item.fileName)), item.sha256);
   assert.deepEqual(await readdir(fixture.dirs.codex), ['synthetic-fixture.txt']); assert.equal(await hash(join(fixture.dirs.codex, 'synthetic-fixture.txt')), initialSentinelHash); assert.equal(await hash(join(workspace, 'database-key.v1')), initialKeyHash); assert.equal(await hash(application), evidence.application.sha256); assert.equal(await hash(executable), providerSha);
   await capture('readings-export-restart-private-defaults.png', '[data-reading-export]');
-  evidence.steps.push({ actualGuiFiles: 3, defaultCsvOmitsIdentifiers: true, selectedJsonPreservesExactNumericStringsAndNulls: true, knownFormulaPrefixCsvRefusedWithoutOutput: true, csvQuotingPreservesSourceText: true, explicitUncheckedConsentRequired: true, invalidSelectionsCreateNoFiles: true, latestReadingsOnlyNoAggregation: true, allFortyTwoTablesAndLiveDatabaseWalKeyUnchangedByEachExportGroup: true, explicitGuiRenamesComparedSeparately: true, genuineRestartWithoutProviderApproval: true, privateSyntheticHomesUnchanged: true });
+  evidence.steps.push({ actualGuiFiles: 3, defaultCsvOmitsIdentifiers: true, selectedJsonPreservesExactNumericStringsAndNulls: true, knownFormulaPrefixCsvRefusedWithoutOutput: true, csvQuotingPreservesSourceText: true, explicitUncheckedConsentRequired: true, invalidSelectionsCreateNoFiles: true, latestReadingsOnlyNoAggregation: true, allSchemaTablesAndLiveDatabaseWalKeyUnchangedByEachExportGroup: true, explicitGuiRenamesComparedSeparately: true, genuineRestartWithoutProviderApproval: true, privateSyntheticHomesUnchanged: true });
   await closeNormally();
 }
 

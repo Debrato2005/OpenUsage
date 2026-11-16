@@ -818,7 +818,7 @@ L-7e stays open for its other documents and acceptance evidence.
 | S-03b | Rich dashboard | S-03 | Done |
 | S-03d | Modern Overview | S-03b | Done, with two recorded reasons in [status](implementation-status.md#failing-or-stale-tests) |
 | S-03c | Keychain by default | S-03b | New workspaces use the key store (L-0). The move of a password workspace follows the launch |
-| S-04 | Reading status and evidence | S-03b | S-04a/b cover new-reading evidence, and S-04c1 adds scoped Overview access. Historical compliance, uniform status, and selected exports remain open |
+| S-04 | Reading status and evidence | S-03b | S-04a/b/c1/d cover new-reading evidence, Overview access, and selected exports. Historical compliance and uniform status remain open |
 | S-05 | Adapter layer | S-04 | Not started |
 | G-1 | Owner: real-account test on Codex | S-05 | Not started |
 | S-06 | Tray and background | S-05 | Owned scanner shutdown complete within Linux scope. Tray, autostart, and wake handling remain |
@@ -910,7 +910,9 @@ The [provenance record](reviews/2026-11-16-activity-provenance.md) owns its sepa
 Historical compliance remains open under [SC-031](srs-clarifications.md#sc-031-evidence-for-historical-readings).
 S-04c1 adds on-demand evidence access in the existing Overview activity and quota panels.
 The [details record](reviews/2026-11-16-reading-evidence-details.md) owns target scoping, strict contracts, privacy, native permission correction, and executed checks.
-The uniform reading-status contract, selected exports, all-status alerts, and reset rules remain open.
+S-04d carries saved audit metadata through all three selected provider-reading export routes.
+The [export record](reviews/2026-11-16-reading-evidence-exports.md) owns exact fields, historical gaps, privacy, snapshots, and native acceptance.
+The uniform status contract, other evidence clients, all-status alerts, and reset rules remain open.
 
 Every number can say where it came from.
 

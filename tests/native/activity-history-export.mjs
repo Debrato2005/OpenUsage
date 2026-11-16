@@ -63,7 +63,7 @@ async function oracle(label) {
     for (const field of ['verified', 'readOnly', 'inputUnchanged', 'keyEnvelopeUnchanged', 'walRecordsUnchanged']) assert.equal(report[field], true, field);
     assert.equal(report.schemaVersion, EXPECTED_SCHEMA_VERSION); assert.equal(report.plaintextDiskStaging, false); assert.equal(Object.keys(report.state.tables).length, EXPECTED_TABLE_COUNT);
     assert.deepEqual(await liveHashes(), before);
-    evidence.oracles.push({ label, allNamedTables: 42, databaseWalKeyUnchanged: true, tables: Object.fromEntries(Object.entries(report.state.tables).map(([name, records]) => [name, { rows: records.length, sha256: createHash('sha256').update(JSON.stringify(records)).digest('hex') }])) });
+    evidence.oracles.push({ label, allNamedTables: EXPECTED_TABLE_COUNT, databaseWalKeyUnchanged: true, tables: Object.fromEntries(Object.entries(report.state.tables).map(([name, records]) => [name, { rows: records.length, sha256: createHash('sha256').update(JSON.stringify(records)).digest('hex') }])) });
     return report.state.tables;
   } finally { await rm(temporary, { recursive: true, force: true }); }
 }
@@ -76,6 +76,9 @@ async function showHistory(profile) {
   await waitFor(() => driver.execute('return document.querySelectorAll(arguments[0]+" [data-activity-history-run]").length>0;', [scope]), 'visible activity summary history');
 }
 const columns = ['profile', 'profile_id', 'profile_label', 'email', 'record_kind', 'metric', 'value', 'unit', 'provider_date', 'observed_at_utc', 'source_method', 'source_kind', 'provider_version', 'source_scope', 'raw_scope', 'identity_confidence', 'coverage', 'status', 'inclusion_rule', 'limit_id', 'window_role', 'collection_run_id', 'binding_id'];
+const auditColumns = ['evidence_availability', 'reading_status', 'source_level', 'adapter_id', 'adapter_revision', 'projection_version', 'redacted_response_hash', 'format_fingerprint', 'check_results', 'comparison_result', 'unused_fields'];
+const allColumns = [...columns, ...auditColumns];
+
 const exportDirectory = () => join(fixture.dirs.downloads, 'OpenUsage');
 async function exportNames() { try { return (await readdir(exportDirectory())).sort(); } catch (error) { if (error.code !== 'ENOENT') throw error; return []; } }
 const chronological = (a, b) => a.observed_at_utc === b.observed_at_utc ? a.id < b.id ? -1 : a.id > b.id ? 1 : 0 : a.observed_at_utc < b.observed_at_utc ? -1 : 1;
@@ -88,7 +91,7 @@ function expectedRecords(tables, profile, identifiers) {
     const base = { profile: 'profile-1', profile_id: identifiers ? profile.id : null, profile_label: identifiers ? profile.label : null, email: null,
       observed_at_utc: run.observed_at_utc, source_method: run.source_method, source_kind: run.source_kind, provider_version: run.provider_version, source_scope: run.source_scope,
       raw_scope: run.raw_scope, identity_confidence: run.identity_confidence, coverage: run.coverage, inclusion_rule: 'separate_profile_no_aggregation', limit_id: null, window_role: null,
-      collection_run_id: identifiers ? run.id : `reading-${index + 1}`, binding_id: identifiers ? run.binding_id : bindings.get(run.binding_id) };
+      collection_run_id: identifiers ? run.id : `reading-${index + 1}`, binding_id: identifiers ? run.binding_id : bindings.get(run.binding_id), ...expectedAudit(tables, run.id) };
     const row = (kind, metric, value, unit, date = null) => ({ ...base, record_kind: kind, metric, value, unit, provider_date: date, status: value === null ? 'unavailable' : 'available' });
     const summary = summaries.get(run.id);
     for (const [metric, field, unit] of [['lifetime_tokens', 'lifetime_tokens', 'tokens'], ['peak_daily_tokens', 'peak_daily_tokens', 'tokens'], ['longest_running_turn_sec', 'longest_running_turn_sec', 'seconds'], ['current_streak_days', 'current_streak_days', 'days'], ['longest_streak_days', 'longest_streak_days', 'days'], ['daily_buckets_state', 'daily_state', 'text']]) expected.push(row('activity_summary', metric, summary[field], unit));
@@ -100,7 +103,24 @@ function expectedRecords(tables, profile, identifiers) {
   }
   return { rows: expected, runCount: runs.length, bindingCount: bindings.size, retainedDayCount: tables.activity_day_history.filter(row => row.profile_id === profile.id && summaries.has(row.collection_run_id)).length };
 }
-const signatures = records => records.map(row => JSON.stringify(columns.map(name => row[name]))).sort();
+function expectedAudit(tables, runId) {
+  const record = tables.reading_evidence.find(row => row.collection_run_id === runId);
+  assert.ok(record, 'Every synthetic accepted observation has a saved evidence record.');
+  assert.ok(Number.isInteger(record.adapter_revision) && record.adapter_revision >= 1 && record.adapter_revision <= 65535, 'The saved adapter revision is an integer from 1 through 65535.');
+  assert.equal(record.projection_version, 1, 'The saved projection version is the supported integer 1.');
+  return Object.fromEntries(auditColumns.map(name => [name, name === 'evidence_availability' ? 'complete'
+    : name === 'adapter_revision' || name === 'projection_version' ? String(record[name]) : record[name]]));
+}
+function assertAudit(records, tables, profile) {
+  for (const row of records) {
+    const run = row.collection_run_id && tables.collection_runs.find(run => run.id === row.collection_run_id)
+      || tables.collection_runs.find(run => run.profile_id === profile.id && run.source_method === row.source_method && run.observed_at_utc === row.observed_at_utc && run.provider_version === row.provider_version);
+    assert.ok(run, 'Each exported row retains a known saved observation.');
+    assert.deepEqual(Object.fromEntries(auditColumns.map(name => [name, row[name]])), expectedAudit(tables, run.id));
+  }
+}
+
+const signatures = records => records.map(row => JSON.stringify(allColumns.map(name => row[name]))).sort();
 function assertExpected(records, expected) {
   assert.equal(records.length, expected.rows.length);
   assert.deepEqual(signatures(records), signatures(expected.rows), 'Independent encrypted-copy summaries and retained day observations establish every exported field.');
@@ -117,12 +137,12 @@ async function readExport(receipt, kind = 'activity') {
   if (receipt.format === 'json') {
     const value = JSON.parse(await readFile(path, 'utf8'));
     assert.deepEqual(Object.keys(value).sort(), ['schemaVersion', 'exportedAt', 'selection', 'records'].sort());
-    assert.equal(value.schemaVersion, 1); assert.equal(value.exportedAt, receipt.exportedAt);
+    assert.equal(value.schemaVersion, 2); assert.equal(value.exportedAt, receipt.exportedAt);
     assert.deepEqual(value.selection, { profileCount: 1, identifiersIncluded: receipt.identifiersIncluded }); records = value.records;
   } else records = JSON.parse(execFileSync('/usr/bin/python3', ['-c', 'import csv,json,sys; f=open(sys.argv[1],newline="",encoding="utf-8"); print(json.dumps(list(csv.DictReader(f))))', path], { encoding: 'utf8', timeout: 10000, env: { PATH: '/usr/bin:/bin' } }));
   assert.equal(receipt.rowCount, records.length); assert.ok(records.length > 0 && records.length <= 50000);
   for (const row of records) {
-    assert.deepEqual(Object.keys(row).sort(), (kind === 'latest' ? columns.slice(0, 21) : columns).slice().sort());
+    assert.deepEqual(Object.keys(row).sort(), [...(kind === 'latest' ? columns.slice(0, 21) : columns), ...auditColumns].sort());
     assert.equal(row.source_kind, 'test_fixture'); assert.equal(row.identity_confidence, 'provisional'); assert.equal(row.coverage, 'unknown'); assert.equal(row.inclusion_rule, 'separate_profile_no_aggregation');
     for (const value of Object.values(row)) assert.ok(value === null || typeof value === 'string');
     if (kind !== 'latest') assert.equal(row.email || null, null);
@@ -131,9 +151,9 @@ async function readExport(receipt, kind = 'activity') {
   evidence.exports.push({ kind, format: receipt.format, rowCount: records.length, localIdentifiers: receipt.identifiersIncluded, privateFile: true, sha256: await hash(path) });
   return records;
 }
-async function exported(profile, identifiers, command = 'export_activity_history') {
-  const args = { format: 'json', includeIdentifiers: identifiers, confirmed: true, ...(command === 'export_saved_readings' ? { profileIds: [profile.id] } : { profileId: profile.id }) };
-  const receipt = await call(command, args); assert.equal(receipt.format, 'json'); assert.equal(receipt.identifiersIncluded, identifiers);
+async function exported(profile, identifiers, command = 'export_activity_history', format = 'json') {
+  const args = { format, includeIdentifiers: identifiers, confirmed: true, ...(command === 'export_saved_readings' ? { profileIds: [profile.id] } : { profileId: profile.id }) };
+  const receipt = await call(command, args); assert.equal(receipt.format, format); assert.equal(receipt.identifiersIncluded, identifiers);
   return readExport(receipt, command === 'export_saved_readings' ? 'latest' : command === 'export_quota_history' ? 'quota' : 'activity');
 }
 async function guiExport(profile, format, identifiers = false) {
@@ -230,10 +250,16 @@ try {
   // These two calls check the shared native file writer routes without repeating
   // the existing current-reading and quota-history export qualification.
   const latest = await exported(profiles[1], true, 'export_saved_readings');
+  assertAudit(latest, tables, profiles[1]);
+  const latestCsv = await exported(profiles[1], false, 'export_saved_readings', 'csv');
+  assertAudit(latestCsv, tables, profiles[1]);
   assert.ok(latest.some(row => row.record_kind === 'activity_summary')); assert.ok(latest.some(row => row.record_kind === 'quota_summary'));
   assert.equal(latest.every(row => row.profile_id === profiles[1].id && ['account/usage/read', 'account/rateLimits/read'].includes(row.source_method)), true);
   assert.equal(JSON.stringify(latest).includes(profiles[0].id), false);
   const quota = await exported(profiles[0], true, 'export_quota_history');
+  assertAudit(quota, tables, profiles[0]);
+  const quotaCsv = await exported(profiles[0], false, 'export_quota_history', 'csv');
+  assertAudit(quotaCsv, tables, profiles[0]);
   assert.equal(quota.every(row => row.profile_id === profiles[0].id && row.record_kind.startsWith('quota_') && row.source_method === 'account/rateLimits/read' && row.collection_run_id === initialQuota.collectionRunId), true);
   assert.equal(JSON.stringify(quota).includes(profiles[1].id), false);
   assert.deepEqual(await liveHashes(), before); assert.deepEqual(await oracle('all three export routes and refusals preserve source records'), tables);
@@ -248,7 +274,7 @@ try {
   const sessions = await Promise.all(profiles.map(async profile => (await readFile(join(dirname(fixture.database), 'profiles', profile.id, 'synthetic-collection-observations.jsonl'), 'utf8')).trim().split('\n').map(JSON.parse).filter(row => row.kind === 'start' && row.arguments[0] === 'app-server').length));
   assert.deepEqual(sessions, [2, 2]);
   evidence.acceptance = { summarySnapshots: expectedDefault.runCount, priorAndCurrentAssociations: expectedDefault.bindingCount, retainedDayObservations: expectedDefault.retainedDayCount,
-    exactExpectedRows: expectedDefault.rows.length, allPagesIncludedBeyondVisible20: true, csvJsonParity: true, explicitPlaintextConsent: true, consentClearedAfterSave: true,
+    exactExpectedRows: expectedDefault.rows.length, savedAuditFieldsComparedWithIndependentOracle: true, allThreeRoutesCsvAndJsonAudit: true, allPagesIncludedBeyondVisible20: true, csvJsonParity: true, explicitPlaintextConsent: true, consentClearedAfterSave: true,
     defaultNamesAndLocalIdsOmitted: true, optedInLocalReferencesExact: true, historyEmailAlwaysOmitted: true, nullZeroLargeIntegerAndDatePreserved: true,
     invalidRequestsSaveNoFiles: true, latestAndQuotaSharedWriterRoutesRemainSeparate: true, archivedAfterGenuineRestart: true, providerSessions: sessions };
   assert.equal(await hash(application), evidence.applicationSha256); assert.equal(await hash(seeder), evidence.seederSha256); assert.equal(await hash(executable), providerDigest);

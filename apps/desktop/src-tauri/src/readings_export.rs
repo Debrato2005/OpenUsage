@@ -188,7 +188,7 @@ pub fn create(
                 ExportFormat::Json => serde_json::to_writer(
                     writer,
                     &Document {
-                        schema_version: 1,
+                        schema_version: 2,
                         exported_at: &exported_at,
                         selection: Selection {
                             profile_count: data.profile_count,
@@ -388,7 +388,7 @@ mod tests {
         assert_eq!(json["records"][0]["value"], "9007199254740993");
         assert!(json["records"][1]["value"].is_null());
         assert_eq!(json["records"][1]["status"], "unavailable");
-        assert_eq!(json["schemaVersion"], 1);
+        assert_eq!(json["schemaVersion"], 2);
         let receipt = create(
             dir.path(),
             data("a,\"b\"\nnext"),

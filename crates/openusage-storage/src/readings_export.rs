@@ -1,5 +1,8 @@
 //! Selected current readings, without attribution or aggregation across provisional profiles.
-use crate::{Storage, activity::require_uuid, quota::load_snapshot};
+use crate::{
+    EvidenceMethod, ReadingEvidenceAvailability, ReadingEvidenceTarget, Storage,
+    activity::require_uuid, quota::load_snapshot,
+};
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -8,7 +11,7 @@ use std::{
 use zeroize::Zeroizing;
 
 const MAX_ROWS: usize = 50_000;
-const COLUMNS: &[&str] = &[
+const BASE_COLUMNS: &[&str] = &[
     "profile",
     "profile_id",
     "profile_label",
@@ -31,7 +34,7 @@ const COLUMNS: &[&str] = &[
     "limit_id",
     "window_role",
 ];
-const HISTORY_COLUMNS: &[&str] = &[
+const HISTORY_BASE_COLUMNS: &[&str] = &[
     "profile",
     "profile_id",
     "profile_label",
@@ -56,6 +59,71 @@ const HISTORY_COLUMNS: &[&str] = &[
     "collection_run_id",
     "binding_id",
 ];
+
+const EVIDENCE_COLUMNS: &[&str] = &[
+    "evidence_availability",
+    "reading_status",
+    "source_level",
+    "adapter_id",
+    "adapter_revision",
+    "projection_version",
+    "redacted_response_hash",
+    "format_fingerprint",
+    "check_results",
+    "comparison_result",
+    "unused_fields",
+];
+const fn with_evidence_columns<const N: usize>(base: &[&'static str]) -> [&'static str; N] {
+    assert!(N == base.len() + EVIDENCE_COLUMNS.len());
+    let mut columns = [""; N];
+    let mut index = 0;
+    while index < N {
+        columns[index] = if index < base.len() {
+            base[index]
+        } else {
+            EVIDENCE_COLUMNS[index - base.len()]
+        };
+        index += 1;
+    }
+    columns
+}
+const COLUMNS: &[&str] = &with_evidence_columns::<32>(BASE_COLUMNS);
+const HISTORY_COLUMNS: &[&str] = &with_evidence_columns::<34>(HISTORY_BASE_COLUMNS);
+
+fn evidence_context(
+    connection: &Connection,
+    target: ReadingEvidenceTarget<'_>,
+    base: &mut [Option<String>],
+) -> Result<(), ExportError> {
+    let offset = base.len() - EVIDENCE_COLUMNS.len();
+    match crate::reading_evidence::read(connection, target).map_err(|_| ExportError::ReadFailed)? {
+        Some(ReadingEvidenceAvailability::Complete(record)) => {
+            let checks = serde_json::to_string(&record.check_results)
+                .map_err(|_| ExportError::ReadFailed)?;
+            let unused = serde_json::to_string(&record.unused_fields)
+                .map_err(|_| ExportError::ReadFailed)?;
+            let fields = [
+                "complete".into(),
+                record.reading_status.into(),
+                record.source_level.into(),
+                record.adapter_id.into(),
+                record.adapter_revision.to_string(),
+                record.projection_version.to_string(),
+                record.redacted_response_hash,
+                record.format_fingerprint,
+                checks,
+                record.comparison_result.into(),
+                unused,
+            ];
+            for (slot, value) in base[offset..].iter_mut().zip(fields) {
+                *slot = Some(value);
+            }
+        }
+        Some(ReadingEvidenceAvailability::LegacyGap) => base[offset] = Some("legacy_gap".into()),
+        None => return Err(ExportError::ReadFailed),
+    }
+    Ok(())
+}
 
 pub struct ReadingsExport {
     pub columns: &'static [&'static str],
@@ -137,6 +205,7 @@ fn context(
     alias: &str,
     label: Option<&str>,
     run: Option<&str>,
+    method: EvidenceMethod,
     identifiers: bool,
 ) -> Result<Zeroizing<Vec<Option<String>>>, ExportError> {
     let mut base = Zeroizing::new(vec![None; COLUMNS.len()]);
@@ -146,6 +215,7 @@ fn context(
         base[2] = label.map(str::to_owned);
     }
     base[18] = Some("separate_profile_no_aggregation".into());
+    base[BASE_COLUMNS.len()] = Some("not_available".into());
     if let Some(run) = run {
         connection.query_row(
             "SELECT r.observed_at_utc,r.source_method,r.source_kind,r.provider_version,r.source_scope,r.raw_scope,r.identity_confidence,r.coverage,e.returned_email FROM collection_runs r JOIN profile_identity_events e ON e.id=r.binding_id AND e.profile_id=r.profile_id WHERE r.id=?1 AND r.profile_id=?2",
@@ -158,6 +228,15 @@ fn context(
                 Ok(())
             },
         ).map_err(read_error)?;
+        evidence_context(
+            connection,
+            ReadingEvidenceTarget {
+                profile_id: id,
+                method,
+                run_id: run,
+            },
+            &mut base,
+        )?;
     }
     Ok(base)
 }
@@ -222,6 +301,15 @@ impl Storage {
                     base[21] = Some(format!("reading-{ordinal}"));
                     base[22] = Some(binding_alias.clone());
                 }
+                evidence_context(
+                    &tx,
+                    ReadingEvidenceTarget {
+                        profile_id,
+                        method: EvidenceMethod::Quota,
+                        run_id: &run_id,
+                    },
+                    &mut base,
+                )?;
                 export_quota(&tx, &run_id, &base, &mut rows)?;
             }
         }
@@ -326,6 +414,15 @@ impl Storage {
                     base[21] = Some(format!("reading-{ordinal}"));
                     base[22] = Some(binding_alias.clone());
                 }
+                evidence_context(
+                    &tx,
+                    ReadingEvidenceTarget {
+                        profile_id,
+                        method: EvidenceMethod::Activity,
+                        run_id: &run_id,
+                    },
+                    &mut base,
+                )?;
                 export_activity_history_run(
                     &tx,
                     &run_id,
@@ -387,6 +484,7 @@ impl Storage {
                 &alias,
                 label,
                 quota.as_deref(),
+                EvidenceMethod::Quota,
                 include_identifiers,
             )?;
             if let Some(run) = quota {
@@ -413,6 +511,7 @@ impl Storage {
                 &alias,
                 label,
                 activity.as_deref(),
+                EvidenceMethod::Activity,
                 include_identifiers,
             )?;
             export_activity(&tx, activity.as_deref(), &base, &mut rows)?;
@@ -423,7 +522,15 @@ impl Storage {
                 let date: String = day.get(0).map_err(read_error)?;
                 let value: String = day.get(1).map_err(read_error)?;
                 let run: String = day.get(2).map_err(read_error)?;
-                let base = context(&tx, id, &alias, label, Some(&run), include_identifiers)?;
+                let base = context(
+                    &tx,
+                    id,
+                    &alias,
+                    label,
+                    Some(&run),
+                    EvidenceMethod::Activity,
+                    include_identifiers,
+                )?;
                 let mut entry = metric("activity_daily", "tokens", Some(value), "tokens");
                 entry.date = Some(&date);
                 emit(&mut rows, &base, entry)?;
@@ -842,14 +949,19 @@ mod tests {
         let records = crate::backup_validation::activity_records(&storage.connection);
         let redacted = storage.quota_history_export(&id(1), false).unwrap();
         assert_eq!(redacted.profile_count, 1);
-        assert_eq!(&redacted.columns[..21], COLUMNS);
+        assert_eq!(&redacted.columns[..21], BASE_COLUMNS);
         assert_eq!(
-            &redacted.columns[21..],
+            &redacted.columns[21..23],
             &["collection_run_id", "binding_id"]
         );
-        assert!(redacted.rows.iter().all(|row| row.len() == 23
-            && row[0].as_deref() == Some("profile-1")
-            && row[1..4].iter().all(Option::is_none)));
+        assert!(
+            redacted
+                .rows
+                .iter()
+                .all(|row| row.len() == HISTORY_COLUMNS.len()
+                    && row[0].as_deref() == Some("profile-1")
+                    && row[1..4].iter().all(Option::is_none))
+        );
         let summaries = redacted
             .rows
             .iter()
@@ -1143,7 +1255,7 @@ mod tests {
             export
                 .rows
                 .iter()
-                .all(|r| r.len() == 21 && r[1..4].iter().all(Option::is_none))
+                .all(|r| r.len() == COLUMNS.len() && r[1..4].iter().all(Option::is_none))
         );
         let joined = export
             .rows
@@ -1578,9 +1690,14 @@ mod tests {
         let redacted = storage.activity_history_export(&id(1), false).unwrap();
         assert_eq!(redacted.profile_count, 1);
         assert_eq!(redacted.columns, HISTORY_COLUMNS);
-        assert!(redacted.rows.iter().all(|row| row.len() == 23
-            && row[0].as_deref() == Some("profile-1")
-            && row[1..4].iter().all(Option::is_none)));
+        assert!(
+            redacted
+                .rows
+                .iter()
+                .all(|row| row.len() == HISTORY_COLUMNS.len()
+                    && row[0].as_deref() == Some("profile-1")
+                    && row[1..4].iter().all(Option::is_none))
+        );
         let summaries = redacted
             .rows
             .iter()

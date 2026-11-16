@@ -378,9 +378,17 @@ impl Storage {
         &self,
         target: ReadingEvidenceTarget<'_>,
     ) -> Result<Option<ReadingEvidenceAvailability>> {
-        require_uuid(target.profile_id)?;
-        require_uuid(target.run_id)?;
-        let row = self.connection.query_row(
+        read(&self.connection, target)
+    }
+}
+
+pub(crate) fn read(
+    connection: &Connection,
+    target: ReadingEvidenceTarget<'_>,
+) -> Result<Option<ReadingEvidenceAvailability>> {
+    require_uuid(target.profile_id)?;
+    require_uuid(target.run_id)?;
+    let row = connection.query_row(
             "SELECT r.id,r.provider_version,r.source_kind,r.observed_at_utc,r.source_method,e.collection_run_id,e.adapter_id,e.adapter_revision,e.projection_version,e.source_level,e.reading_status,e.check_results,e.comparison_result,e.redacted_response_hash,e.format_fingerprint,e.unused_fields,l.collection_run_id FROM collection_runs r LEFT JOIN reading_evidence e ON e.collection_run_id=r.id LEFT JOIN reading_evidence_legacy l ON l.collection_run_id=r.id WHERE r.id=?1 AND r.profile_id=?2 AND r.source_method=?3",
             params![target.run_id, target.profile_id, target.method.as_str()],
             |row| Ok(EvidenceRow {
@@ -391,45 +399,44 @@ impl Storage {
                 legacy: row.get::<_, Option<String>>(16)?.is_some(),
             }),
         ).optional().map_err(read_error)?;
-        let Some(row) = row else { return Ok(None) };
-        match (row.complete, row.legacy) {
-            (None, true) => Ok(Some(ReadingEvidenceAvailability::LegacyGap)),
-            (Some(_), true) | (None, false) => Err(ActivityError::ReadFailed),
-            (Some(evidence), false) => {
-                let method = EvidenceMethod::parse(&row.method)?;
-                let unused =
-                    validate_stored(&evidence, &row.provider_version, &row.observed_at, method)?;
-                let source_kind = match row.source_kind.as_str() {
-                    "official_artifact" => ActivitySourceKind::OfficialArtifact,
-                    "test_fixture" => ActivitySourceKind::TestFixture,
-                    _ => return Err(ActivityError::ReadFailed),
-                };
-                Ok(Some(ReadingEvidenceAvailability::Complete(Box::new(
-                    ReadingEvidenceRecord {
-                        run_id: row.run_id,
-                        method,
-                        adapter_id: ADAPTER,
-                        adapter_revision: evidence.revision,
-                        source_level: "official",
-                        reading_status: "official",
-                        source_kind,
-                        provider_version: row.provider_version,
-                        observed_at_utc: row.observed_at,
-                        projection_version: evidence.projection,
-                        redacted_response_hash: evidence.response_hash,
-                        format_fingerprint: evidence.fingerprint,
-                        check_results: ["rpc_envelope", "request_id", "response_fields"]
-                            .into_iter()
-                            .map(|id| ReadingEvidenceCheck {
-                                id,
-                                result: "passed",
-                            })
-                            .collect(),
-                        comparison_result: "not_performed",
-                        unused_fields: unused,
-                    },
-                ))))
-            }
+    let Some(row) = row else { return Ok(None) };
+    match (row.complete, row.legacy) {
+        (None, true) => Ok(Some(ReadingEvidenceAvailability::LegacyGap)),
+        (Some(_), true) | (None, false) => Err(ActivityError::ReadFailed),
+        (Some(evidence), false) => {
+            let method = EvidenceMethod::parse(&row.method)?;
+            let unused =
+                validate_stored(&evidence, &row.provider_version, &row.observed_at, method)?;
+            let source_kind = match row.source_kind.as_str() {
+                "official_artifact" => ActivitySourceKind::OfficialArtifact,
+                "test_fixture" => ActivitySourceKind::TestFixture,
+                _ => return Err(ActivityError::ReadFailed),
+            };
+            Ok(Some(ReadingEvidenceAvailability::Complete(Box::new(
+                ReadingEvidenceRecord {
+                    run_id: row.run_id,
+                    method,
+                    adapter_id: ADAPTER,
+                    adapter_revision: evidence.revision,
+                    source_level: "official",
+                    reading_status: "official",
+                    source_kind,
+                    provider_version: row.provider_version,
+                    observed_at_utc: row.observed_at,
+                    projection_version: evidence.projection,
+                    redacted_response_hash: evidence.response_hash,
+                    format_fingerprint: evidence.fingerprint,
+                    check_results: ["rpc_envelope", "request_id", "response_fields"]
+                        .into_iter()
+                        .map(|id| ReadingEvidenceCheck {
+                            id,
+                            result: "passed",
+                        })
+                        .collect(),
+                    comparison_result: "not_performed",
+                    unused_fields: unused,
+                },
+            ))))
         }
     }
 }

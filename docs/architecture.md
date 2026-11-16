@@ -37,6 +37,9 @@ Backup validation and trusted copies preserve both tables.
 The read-only command loads one record through a typed profile, method, and run target.
 The existing Overview detail panel requests evidence only after Show. No provider process runs for this read.
 The [evidence access contract](data-contracts.md#evidence-access) owns request, response, cache, and absence rules.
+All three selected export routes use the same typed evidence reader inside their deferred snapshot.
+The [selected audit contract](data-contracts.md#selected-reading-audit-fields) owns the scalar fields and schema version.
+The renderer receives only the existing file receipt.
 The [data contract](data-contracts.md#reading-evidence) owns field meanings and version rules.
 The [open historical conflict](srs-clarifications.md#sc-031-evidence-for-historical-readings) approves no SRS exception.
 

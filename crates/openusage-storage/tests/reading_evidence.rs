@@ -18,6 +18,164 @@ const HOME: &str = "44444444-4444-4444-8444-444444444444";
 const EMAIL: &str = "synthetic-private-email@example.invalid";
 
 #[test]
+fn selected_exports_keep_saved_audit_fields_and_metric_availability_separate() {
+    let directory = private_directory();
+    let mut storage = Storage::create(&directory.path().join("audit-export.db"), &KEY).unwrap();
+    storage.create_profile(PROFILE, "Synthetic", HOME).unwrap();
+    let mut reading = activity();
+    reading.evidence = Some(evidence(&reading));
+    reading.evidence.as_mut().unwrap().response.unused_fields = vec![EvidenceUnusedField {
+        location: EvidenceLocation::ActivitySummary,
+        field_count: 2,
+    }];
+    let mut quota = quota();
+    quota
+        .evidence
+        .as_mut()
+        .unwrap()
+        .response
+        .redacted_response_hash = "c".repeat(64);
+    quota.evidence.as_mut().unwrap().response.unused_fields = vec![EvidenceUnusedField {
+        location: EvidenceLocation::QuotaResult,
+        field_count: 3,
+    }];
+    storage
+        .accept_collection(
+            Some(quota),
+            Some(reading.clone()),
+            Some(association(&reading)),
+        )
+        .unwrap();
+    let before = application_export(&mut storage);
+    let exports = [
+        storage.readings_export(&[PROFILE.into()], false).unwrap(),
+        storage.quota_history_export(PROFILE, false).unwrap(),
+        storage.activity_history_export(PROFILE, false).unwrap(),
+    ];
+    for export in exports {
+        let field = |row: &Vec<Option<String>>, name: &str| {
+            row[export
+                .columns
+                .iter()
+                .position(|column| *column == name)
+                .expect("Required audit column")]
+            .clone()
+        };
+        for row in export.rows.iter() {
+            assert_eq!(
+                field(row, "evidence_availability").as_deref(),
+                Some("complete")
+            );
+            assert_eq!(field(row, "reading_status").as_deref(), Some("official"));
+            assert_eq!(field(row, "source_level").as_deref(), Some("official"));
+            assert_eq!(
+                field(row, "adapter_id").as_deref(),
+                Some("codex_app_server")
+            );
+            assert_eq!(field(row, "adapter_revision").as_deref(), Some("1"));
+            assert_eq!(field(row, "projection_version").as_deref(), Some("1"));
+            let activity = row[10].as_deref() == Some("account/usage/read");
+            assert_eq!(
+                field(row, "redacted_response_hash").as_deref(),
+                Some(if activity { "a" } else { "c" }.repeat(64).as_str())
+            );
+            assert_eq!(
+                field(row, "format_fingerprint").as_deref(),
+                Some("b".repeat(64).as_str())
+            );
+            assert_eq!(
+                field(row, "check_results").as_deref(),
+                Some(
+                    r#"[{"id":"rpc_envelope","result":"passed"},{"id":"request_id","result":"passed"},{"id":"response_fields","result":"passed"}]"#
+                )
+            );
+            assert_eq!(
+                field(row, "comparison_result").as_deref(),
+                Some("not_performed")
+            );
+            assert_eq!(
+                field(row, "unused_fields").as_deref(),
+                Some(if activity {
+                    r#"[{"location":"activity_summary","fieldCount":2}]"#
+                } else {
+                    r#"[{"location":"quota_result","fieldCount":3}]"#
+                })
+            );
+        }
+        assert!(
+            export
+                .rows
+                .iter()
+                .any(|row| field(row, "status").as_deref() == Some("unavailable"))
+        );
+        let flattened = export
+            .rows
+            .iter()
+            .flatten()
+            .flatten()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("|");
+        for private in [PROFILE, HOME, BINDING, RUN, EMAIL, "synthetic-private-plan"] {
+            assert!(!flattened.contains(private));
+        }
+    }
+    assert_eq!(application_export(&mut storage), before);
+}
+
+#[test]
+fn latest_daily_exports_keep_the_evidence_of_each_retained_observation() {
+    let directory = private_directory();
+    let mut storage =
+        Storage::create(&directory.path().join("retained-evidence.db"), &KEY).unwrap();
+    storage.create_profile(PROFILE, "Synthetic", HOME).unwrap();
+    let mut old = activity();
+    old.daily_usage = Some(vec![openusage_storage::ActivityDayValue {
+        provider_date: "2026-11-15".into(),
+        tokens: "10".into(),
+    }]);
+    old.evidence = Some(evidence(&old));
+    storage
+        .accept_activity_with_binding(old.clone(), Some(association(&old)))
+        .unwrap();
+    let mut next = activity();
+    next.run_id = "77777777-7777-4777-8777-777777777777".into();
+    next.observed_at_utc = "2026-11-16T00:00:01.000Z".into();
+    next.completed_at_utc = next.observed_at_utc.clone();
+    next.daily_usage = Some(vec![openusage_storage::ActivityDayValue {
+        provider_date: "2026-11-16".into(),
+        tokens: "20".into(),
+    }]);
+    next.evidence = Some(evidence(&next));
+    next.evidence
+        .as_mut()
+        .unwrap()
+        .response
+        .redacted_response_hash = "c".repeat(64);
+    storage.accept_activity(next).unwrap();
+    let before = application_export(&mut storage);
+    let export = storage.readings_export(&[PROFILE.into()], false).unwrap();
+    let hash = export
+        .columns
+        .iter()
+        .position(|column| *column == "redacted_response_hash")
+        .unwrap();
+    let daily = export
+        .rows
+        .iter()
+        .filter(|row| row[4].as_deref() == Some("activity_daily"))
+        .collect::<Vec<_>>();
+    assert_eq!(daily.len(), 2);
+    assert_eq!(daily[0][8].as_deref(), Some("2026-11-15"));
+    assert_eq!(daily[0][6].as_deref(), Some("10"));
+    assert_eq!(daily[0][hash].as_deref(), Some("a".repeat(64).as_str()));
+    assert_eq!(daily[1][8].as_deref(), Some("2026-11-16"));
+    assert_eq!(daily[1][6].as_deref(), Some("20"));
+    assert_eq!(daily[1][hash].as_deref(), Some("c".repeat(64).as_str()));
+    assert_eq!(application_export(&mut storage), before);
+}
+
+#[test]
 fn evidence_lookup_is_bound_to_the_exact_profile_method_and_run() {
     let directory = private_directory();
     let mut storage = Storage::create(&directory.path().join("scoped-evidence.db"), &KEY).unwrap();
@@ -607,6 +765,27 @@ fn schema_thirteen_history_migrates_without_fabricating_response_evidence() {
             .unwrap(),
         Some(ReadingEvidenceAvailability::LegacyGap)
     ));
+    for export in [
+        migrated.readings_export(&[PROFILE.into()], false).unwrap(),
+        migrated.activity_history_export(PROFILE, false).unwrap(),
+    ] {
+        let offset = export
+            .columns
+            .iter()
+            .position(|column| *column == "evidence_availability")
+            .unwrap();
+        for row in export.rows.iter() {
+            assert_eq!(
+                row[offset].as_deref(),
+                Some(if row[10].is_some() {
+                    "legacy_gap"
+                } else {
+                    "not_available"
+                })
+            );
+            assert!(row[offset + 1..].iter().all(Option::is_none));
+        }
+    }
     assert!(
         migrated
             .reading_evidence(target(RUN, EvidenceMethod::Quota))
@@ -806,6 +985,16 @@ fn committed_evidence_is_immutable_and_unexplained_absence_is_not_legacy() {
         storage.reading_evidence(target(RUN, EvidenceMethod::Activity)),
         Err(ActivityError::ReadFailed)
     ));
+    let before = storage.backup_snapshot().unwrap().bytes;
+    assert_eq!(
+        storage.readings_export(&[PROFILE.into()], false).err(),
+        Some(openusage_storage::ExportError::ReadFailed)
+    );
+    assert_eq!(
+        storage.activity_history_export(PROFILE, false).err(),
+        Some(openusage_storage::ExportError::ReadFailed)
+    );
+    assert_eq!(storage.backup_snapshot().unwrap().bytes, before);
     let snapshot = storage.backup_snapshot().unwrap();
     assert_eq!(
         validate_backup_snapshot(&snapshot.bytes, 14),

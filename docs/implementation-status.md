@@ -34,9 +34,9 @@ Linux input. Ordinary count defects, strict compatibility limits, legacy
 producer qualification, and saved-session migration remain open. Production pins
 and enabled tools stay unchanged.
 
-Hosted CI for activity-provenance commit `6b8edad` passes both jobs in
-[run 43793461147](https://github.com/Debrato2005/OpenUsage/actions/runs/43793461147).
-The evidence-details change needs its own hosted result.
+Hosted CI for evidence-details commit `fcf5120` passes both jobs in
+[run 43805348080](https://github.com/Debrato2005/OpenUsage/actions/runs/43805348080).
+The selected-export change needs its own hosted result.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -68,11 +68,13 @@ Kept from baseline 2.0:
 
 ## Partial
 
+- Selected reading evidence exports (S-04d), November 16, 2026: latest readings, quota history, and activity history carry saved audit metadata in CSV and schema-2 JSON. Complete, historical-gap, and absent-reading states stay distinct. The [record](reviews/2026-11-16-reading-evidence-exports.md) owns source review, exact values, privacy, checks, and native scope.
+
 - Reading evidence details (S-04c1), November 16, 2026: existing Overview activity and quota panels read evidence only on demand. One profile, method, and run target controls access. Complete records, historical gaps, unavailable records, and read errors preserve saved values. The [record](reviews/2026-11-16-reading-evidence-details.md) owns checks, permission correction, privacy, and native scope.
 
 - Activity provenance (S-04c0), November 16, 2026: Lifetime, Peak day, Streak, and Longest task details use the saved activity observation. Missing activity never borrows quota metadata. Quota details retain their own provenance. The [record](reviews/2026-11-16-activity-provenance.md) owns regressions, layout checks, and native scope.
 
-- Durable reading evidence (S-04b), November 16, 2026: every new Codex method acceptance requires evidence in the existing transaction. Schema 14 preserves historical values with explicit evidence-gap markers. The [record](reviews/2026-11-16-durable-reading-evidence.md) owns corrections, checks, and native scope. Historical compliance under SC-031, display status, selected exports, and all-status alerts remain open.
+- Durable reading evidence (S-04b), November 16, 2026: every new Codex method acceptance requires evidence in the existing transaction. Schema 14 preserves historical values with explicit evidence-gap markers. The [record](reviews/2026-11-16-durable-reading-evidence.md) owns corrections, checks, and native scope. Historical compliance under SC-031, uniform status, and all-status alerts remain open.
 
 - Connection suggestions (S-23c), November 16, 2026: detected, consented Codex offers the existing OpenAI flow through one Overview control. The [record](reviews/2026-11-16-connection-suggestions.md) owns consent, withdrawal, unsupported quota, unchanged profiles, the corrected stale-response race, and scoped checks.
 
@@ -207,10 +209,11 @@ separate from document completion. The [performance report](performance-report.m
 
 The owner resumed autonomous implementation on November 15, 2026. Work continues through verified local commits and periodic pushes. Each push checks the GitHub login and includes only the reviewed branch. No release, deployment, or pull request is authorized. The latest instruction replaces the November 13 stop condition. Baseline 3.1 product scope stays unchanged.
 
-The current pass accepts S-04c1, evidence access in existing Overview activity and quota details.
-The [record](reviews/2026-11-16-reading-evidence-details.md) owns acceptance and limits.
-The next bounded slice carries evidence and reading status through selected reading exports.
-S-04 remains open. Identity proof and new adapters keep their separate gates.
+The current pass accepts S-04d, saved evidence in selected provider-reading exports.
+The [record](reviews/2026-11-16-reading-evidence-exports.md) owns acceptance and limits.
+The next bounded slice addresses the uniform reading-status contract.
+S-04 remains open. SC-031 and other evidence clients retain their separate gates.
+Identity proof and new adapters keep their separate gates.
 Scanner activation and private website sync keep their separate gates.
 Live service configuration, deployment, and release remain under owner control.
 

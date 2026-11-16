@@ -69,17 +69,18 @@ async function readExport(fileName, format) {
   let records;
   if (format === 'json') {
     const value = JSON.parse(await readFile(path, 'utf8'));
-    assert.equal(value.schemaVersion, 1); assert.equal(value.selection.profileCount, 1);
+    assert.equal(value.schemaVersion, 2); assert.equal(value.selection.profileCount, 1);
     records = value.records;
   } else {
     records = JSON.parse(execFileSync('/usr/bin/python3', ['-c', 'import csv,json,sys; f=open(sys.argv[1],newline="",encoding="utf-8"); print(json.dumps(list(csv.DictReader(f))))', path], { encoding: 'utf8', timeout: 10000, env: { PATH: '/usr/bin:/bin' } }));
   }
   assert.ok(records.length > 0 && records.length <= 50000);
-  assert.equal(Object.keys(records[0]).length, 23);
+  assert.equal(Object.keys(records[0]).length, 34);
   for (const record of records) {
     assert.equal(record.email || null, null);
     assert.equal(record.source_method, 'account/rateLimits/read');
     assert.equal(record.source_kind, 'test_fixture');
+    assert.equal(record.evidence_availability, 'complete'); assert.equal(record.reading_status, 'official'); assert.equal(record.source_level, 'official');
     assert.equal(record.identity_confidence, 'provisional');
     assert.equal(record.inclusion_rule, 'separate_profile_no_aggregation');
   }

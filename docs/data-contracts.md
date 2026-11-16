@@ -18,7 +18,7 @@ migration, adapter support, or acceptance result.
 | Fresh departure and local forgetting | [Recovery contract](../crates/openusage-cli/README.md#departure-recovery-and-local-forgetting) and [service API](../services/leaderboard/README.md#api) | Fresh departure requires an explicit nullable token witness. CLI schema 2 reports confirmed remote state separately from local credential state. Login and device ID are not ownership proof |
 | Complete local enrollment erasure | [Vault erasure contract](../crates/openusage-keys/README.md#complete-local-credential-erasure) | The existing local-deletion intent stays version 1. It contains no leaderboard token or payload. A failed erasure retains the intent for explicit resume |
 | Complete application export | [Writer](../crates/openusage-storage/src/application_export.rs) | `format: openusage.application-records`, `formatVersion: 1`, `schemaVersion: 14` |
-| Selected reading exports | [Record columns](../crates/openusage-storage/src/readings_export.rs) and [file writer](../apps/desktop/src-tauri/src/readings_export.rs) | JSON uses `schemaVersion: 1`. Latest, quota-history, and activity-history selections stay distinct |
+| Selected reading exports | [Record columns](../crates/openusage-storage/src/readings_export.rs) and [file writer](../apps/desktop/src-tauri/src/readings_export.rs) | JSON uses `schemaVersion: 2`. Latest, quota-history, and activity-history selections stay distinct |
 | Encrypted backup | [Archive codec](../crates/openusage-import/src/lib.rs) and [backup validation](../crates/openusage-storage/src/backup_validation.rs) | Archive format 1, with a separate database schema version |
 
 A database schema number does not version CLI JSON or an export format.
@@ -129,7 +129,7 @@ The [SC-031 conflict](srs-clarifications.md#sc-031-evidence-for-historical-readi
 Encrypted backup validation supports schemas 1 through 14.
 Trusted normalization preserves old values and adds only the migration markers.
 Restore, checkpoints, and complete application export preserve the two evidence tables.
-Selected reading exports and provider display DTOs still lack the full SRS status and evidence contract.
+Selected reading exports carry saved audit metadata. Provider display DTOs still lack the uniform SRS reading-status contract.
 
 ## Evidence access
 
@@ -155,7 +155,7 @@ A late or mismatched response cannot replace another selection. Evidence failure
 Normal cards remain unchanged. The existing panel shows status, source level, adapter revision, projection version, hashes, checks, comparison, and unused-field counts.
 A historical gap shows no invented status or hashes.
 Current metric DTOs remain unchanged. This separate evidence view covers only the existing Codex interface.
-Uniform status DTOs, other detail routes, CLI evidence access, selected exports, and all-status alerts remain open.
+Uniform status DTOs, other detail routes, CLI evidence access, and all-status alerts remain open.
 
 ## Exact values, missing values, and units
 
@@ -276,8 +276,40 @@ readings and history routes are distinct. History has binding and run ID columns
 Identifier consent controls their values.
 The source column lists own exact field order. Exact values remain strings.
 JSON uses `null` and CSV uses an empty cell for a missing value. The selected provider export uses `status: available`
-or `status: unavailable` for a metric value. These are not the planned SRS
-reading statuses. Unsafe formula-like CSV text is refused.
+or `status: unavailable` for a metric value. The separate `reading_status` field carries the saved SRS reading status when evidence is complete. Unsafe formula-like CSV text is refused.
+
+## Selected reading audit fields
+
+Selected reading JSON uses schema version 2.
+Latest readings, quota history, and activity history keep their existing scope and identifier consent.
+CSV appends the same eleven columns after each route's original columns.
+Metric `status` remains `available` or `unavailable`.
+It describes the metric value, not the reading status.
+
+| Field | Meaning |
+|---|---|
+| `evidence_availability` | `complete`, trusted `legacy_gap`, or `not_available` for an absent reading |
+| `reading_status`, `source_level` | Saved status and adapter source level when complete |
+| `adapter_id`, `adapter_revision`, `projection_version` | Saved adapter and projection metadata |
+| `redacted_response_hash`, `format_fingerprint` | Saved lowercase SHA-256 digests |
+| `check_results`, `unused_fields` | Canonical JSON text within a scalar cell |
+| `comparison_result` | Saved comparison result |
+
+All scalar values remain strings. JSON uses null for an absent field, and CSV uses an empty cell.
+Complete evidence can accompany an unavailable metric.
+Historical gaps supply no invented status, source level, adapter, hash, checks, or comparison.
+Absent readings supply no audit values beyond their availability.
+An unexplained gap, wrong target, or corrupt evidence refuses the complete export.
+The existing strict evidence reader runs inside the export's deferred transaction.
+Profile metadata, values, and evidence share one WAL snapshot.
+Retained daily values keep their own observation's evidence.
+
+The audit cells add no raw response, private field name, credential, email, code, prompt, or path.
+Existing source-kind fields keep synthetic fixture provenance explicit.
+Run and binding references retain the route's existing alias and identifier-consent rules.
+No new identifier field accompanies audit metadata.
+SC-031 remains open. These fields do not establish historical compliance or real-provider qualification.
+
 
 The complete application export streams one validated database snapshot. Every
 SQLite integer, including a flag or scale, becomes a decimal string. TEXT remains
