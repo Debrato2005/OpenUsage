@@ -25,7 +25,7 @@ type Pending = { profileId: string; kind: string; resolve: (value: unknown) => v
 type Fixture = { calls: string[]; deferFirst: boolean; mismatchFirst: boolean; pending: Pending[]; profiles: ProfileRecord[]; quotas: Record<string, SavedProfileQuota | null>; rejectQuota: string[]; mismatchQuota: string[]; deferQuota: string[]; removalPreview: ProfileRemovalPreview | null; removalCalls: { command: string; args: Record<string, unknown> }[]; rejectRemoval: boolean; deferRemoval: boolean };
 type FixtureWindow = Window & { overviewFixture: Fixture };
 
-async function open(page: Page, options: { empty?: boolean; deferFirst?: boolean; chart?: boolean; count?: number; freshQuotas?: boolean; deferSecond?: boolean; year?: boolean; aggregation?: boolean } = {}) {
+async function open(page: Page, options: { empty?: boolean; deferFirst?: boolean; chart?: boolean; count?: number; freshQuotas?: boolean; deferSecond?: boolean; year?: boolean; aggregation?: boolean; activities?: Record<string, SavedProfileActivity | null>; quotas?: Record<string, SavedProfileQuota | null> } = {}) {
   const chartActivity = activity(first, '0');
   if (options.chart) {
     chartActivity.dailyState = 'returned';
@@ -36,12 +36,12 @@ async function open(page: Page, options: { empty?: boolean; deferFirst?: boolean
     chartActivity.dailyChart = { maxTokens: '9007199254740993', bars: [{ date: '2026-10-01', heightBasisPoints: 0 }, { date: '2026-10-03', heightBasisPoints: 10000 }] };
   }
   const ids = [first, second, ...Array.from({ length: Math.max(0, (options.count ?? 2) - 2) }, (_, index) => `${String(index + 3).padStart(8, '0')}-6666-4666-8666-666666666666`)];
-  const readings = Object.fromEntries(ids.map(id => [id, id === first ? chartActivity : activity(id, '9223372036854775807')]));
-  const quotas = Object.fromEntries(ids.map((id, index) => {
+  const readings = { ...Object.fromEntries(ids.map(id => [id, id === first ? chartActivity : activity(id, '9223372036854775807')])), ...options.activities };
+  const quotas = { ...Object.fromEntries(ids.map((id, index) => {
     const value = quota(id, index === 0 ? 0 : index === 1 ? 75 : index * 10);
     if (options.freshQuotas) value.freshness = 'fresh';
     return [id, value];
-  }));
+  })), ...options.quotas };
   const heatmap: SavedProfileHeatmap = { profileId: first, bindingId: chartActivity.bindingId, collectionRunId: chartActivity.collectionRunId, sourceKind: 'test_fixture', scope: chartActivity.scope, coverage: 'unknown', observedAtUtc, mode: 'daily', periodStart: '2026-10-01', periodEnd: '2026-10-03', scaleMaximum: '9007199254740993', cells: [
     { startDate: '2026-10-01', endDate: '2026-10-01', tokens: '0', level: 0, knownDays: 1, expectedDays: 1, observedAtUtc, freshness: 'stale' },
     { startDate: '2026-10-02', endDate: '2026-10-02', tokens: null, level: 0, knownDays: 0, expectedDays: 1, observedAtUtc: null, freshness: 'unknown' },
@@ -151,6 +151,73 @@ async function choose(page: Page, label: string) {
   await expect(selectedCard(page)).toContainText(label);
 }
 const exactLarge = '9,223,372,036,854,775,807';
+
+test('account activity summary details use their own saved source and observation', async ({ page }) => {
+  const savedActivity: SavedProfileActivity = {
+    ...activity(first, '9223372036854775807'), sourceKind: 'official_artifact', providerVersion: '0.190.0',
+    observedAtUtc: '2026-10-19T12:30:00.000Z', freshness: 'stale',
+  };
+  const savedQuota: SavedProfileQuota = { ...quota(first), freshness: 'fresh' };
+  await open(page, { activities: { [first]: savedActivity }, quotas: { [first]: savedQuota } });
+  await choose(page, 'Zero fixture');
+  for (const [id, name] of [['lifetime', 'Lifetime'], ['peak', 'Peak day'], ['streak', 'Streak'], ['task', 'Longest task']]) {
+    await test.step(name!, async () => {
+      await selectedCard(page).locator(`[data-overview-stat="${id}"]`).click();
+      const detail = page.getByRole('dialog', { name: `${name} details`, exact: true });
+      const row = (label: string) => detail.locator('dt').filter({ hasText: new RegExp(`^${label}$`) }).locator('+ dd');
+      await expect(row('Source')).toHaveText('Codex app-server · 0.190.0');
+      await expect(row('Observed').locator('time')).toHaveAttribute('datetime', '2026-10-19T12:30:00.000Z');
+      await expect(row('Freshness')).toHaveText('Stale');
+      await expect(row('Scope')).toHaveText('Account activity; application scope unknown');
+      await expect(row('Coverage')).toHaveText('Unknown');
+      await expect(row('Identity')).toHaveText('Provisional');
+      if (id === 'lifetime' || id === 'peak') await expect(row('Exact value')).toHaveText(exactLarge);
+      if (id === 'streak') {
+        await expect(row('Current streak')).toHaveText('0 days');
+        await expect(row('Longest streak')).toHaveText('Not available');
+      }
+      if (id === 'task') await expect(row('Longest task')).toHaveText('Not available');
+      await closeDetail(page);
+    });
+  }
+});
+
+test('missing account activity stays unavailable while quota details retain quota provenance', async ({ page }) => {
+  const savedQuota: SavedProfileQuota = { ...quota(first), freshness: 'fresh', availableResetCredits: '3' };
+  await open(page, { activities: { [first]: null }, quotas: { [first]: savedQuota } });
+  await choose(page, 'Zero fixture');
+  for (const [id, name] of [['lifetime', 'Lifetime'], ['peak', 'Peak day'], ['streak', 'Streak'], ['task', 'Longest task']]) {
+    await selectedCard(page).locator(`[data-overview-stat="${id}"]`).click();
+    const detail = page.getByRole('dialog', { name: `${name} details`, exact: true });
+    const row = (label: string) => detail.locator('dt').filter({ hasText: new RegExp(`^${label}$`) }).locator('+ dd');
+    await expect(row('Source')).toHaveText('Not available');
+    await expect(row('Observed')).toHaveText('Not available');
+    await expect(row('Freshness')).toHaveText('Freshness unknown');
+    await expect(row('Scope')).toHaveText('Account activity; application scope unknown');
+    await expect(row('Coverage')).toHaveText('Unknown');
+    await expect(row('Identity')).toHaveText('Not available');
+    await expect(detail.locator('time')).toHaveCount(0);
+    await expect(detail).not.toContainText('0.163.0');
+    await expect(detail).not.toContainText('Provisional');
+    for (const label of id === 'streak' ? ['Current streak', 'Longest streak'] : [id === 'task' ? 'Longest task' : 'Exact value']) {
+      await expect(row(label)).toHaveText('Not available');
+    }
+    await closeDetail(page);
+  }
+  for (const resetCredits of [false, true]) {
+    if (resetCredits) await selectedCard(page).getByRole('button', { name: '3 reset credits', exact: true }).click();
+    else await openReadingDetails(page);
+    const detail = page.getByRole('dialog', { name: resetCredits ? 'Reset credits details' : 'Reading details', exact: true });
+    const row = (label: string) => detail.locator('dt').filter({ hasText: new RegExp(`^${label}$`) }).locator('+ dd');
+    await expect(row('Source')).toHaveText('Synthetic test data · 0.163.0');
+    await expect(row('Observed').locator('time')).toHaveAttribute('datetime', '2026-10-20T00:00:00.000Z');
+    await expect(row('Freshness')).toHaveText('Current');
+    await expect(row('Scope')).toHaveText('Account quota; application scope unknown');
+    await expect(row('Identity')).toHaveText('Provisional');
+    await expect(row('Reset credits')).toHaveText('3');
+    await closeDetail(page);
+  }
+});
 
 test('reset countdowns update locally and never treat elapsed time as a quota reset', async ({ page }) => {
   await page.clock.install({ time: new Date(observedAtUtc) });
@@ -301,7 +368,7 @@ for (const scale of [1, 2]) test(`Overview account detail shows exact values by 
   await page.keyboard.press('Enter');
   const detail = page.locator('[data-detail-panel][open]');
   await expect(detail).toContainText(`Exact value${exactLarge}`);
-  await expect(detail).toContainText('Activity coverageUnknown');
+  await expect(detail.locator('dt').filter({ hasText: /^Coverage$/ }).locator('+ dd')).toHaveText('Unknown');
   expect(await detail.evaluate(node => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
   await page.keyboard.press('Escape');
   await expect(detail).toHaveCount(0);

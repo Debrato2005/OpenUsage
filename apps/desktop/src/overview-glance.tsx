@@ -33,6 +33,18 @@ export function ReadingDetails({ quota }: { quota: SavedProfileQuota }) {
   </>;
 }
 
+export function ActivityDetails({ activity }: { activity: SavedProfileActivity | null }) {
+  const dates = useDateFormat();
+  return <>
+    <dt>Source</dt><dd>{activity ? <>{activity.sourceKind === 'test_fixture' ? 'Synthetic test data' : 'Codex app-server'} · {activity.providerVersion}</> : 'Not available'}</dd>
+    <dt>Observed</dt><dd>{activity ? <time dateTime={activity.observedAtUtc}>{dates.format(new Date(activity.observedAtUtc))}</time> : 'Not available'}</dd>
+    <dt>Freshness</dt><dd>{freshness[activity?.freshness ?? 'unknown']}</dd>
+    <dt>Scope</dt><dd>Account activity; application scope unknown</dd>
+    <dt>Coverage</dt><dd>Unknown</dd>
+    <dt>Identity</dt><dd>{activity ? 'Provisional' : 'Not available'}</dd>
+  </>;
+}
+
 function WindowDetails({ entry }: { entry: Entry }) {
   return <>
     <dt>Account</dt><dd><bdi>{entry.profile.label}</bdi></dd>

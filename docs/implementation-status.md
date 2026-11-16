@@ -34,9 +34,9 @@ Linux input. Ordinary count defects, strict compatibility limits, legacy
 producer qualification, and saved-session migration remain open. Production pins
 and enabled tools stay unchanged.
 
-Hosted CI for the prior response-producer commit `af19f5e` passes both jobs in
-[run 43770126946](https://github.com/Debrato2005/OpenUsage/actions/runs/43770126946).
-The durable-evidence commit needs its own hosted result.
+Hosted CI for durable-evidence commit `17250a8` passes both jobs in
+[run 43789660162](https://github.com/Debrato2005/OpenUsage/actions/runs/43789660162).
+The activity-provenance correction needs its own hosted result.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -67,6 +67,8 @@ Kept from baseline 2.0:
 - Wake handling: OU-PROC-013, OU-MON-013.
 
 ## Partial
+
+- Activity provenance (S-04c0), November 16, 2026: Lifetime, Peak day, Streak, and Longest task details use the saved activity observation. Missing activity never borrows quota metadata. Quota details retain their own provenance. The [record](reviews/2026-11-16-activity-provenance.md) owns regressions, layout checks, and native scope.
 
 - Durable reading evidence (S-04b), November 16, 2026: every new Codex method acceptance requires evidence in the existing transaction. Schema 14 preserves historical values with explicit evidence-gap markers. The [record](reviews/2026-11-16-durable-reading-evidence.md) owns corrections, checks, and native scope. Historical compliance under SC-031, display status, selected exports, and all-status alerts remain open.
 
@@ -203,9 +205,9 @@ separate from document completion. The [performance report](performance-report.m
 
 The owner resumed autonomous implementation on November 15, 2026. Work continues through verified local commits and periodic pushes. Each push checks the GitHub login and includes only the reviewed branch. No release, deployment, or pull request is authorized. The latest instruction replaces the November 13 stop condition. Baseline 3.1 product scope stays unchanged.
 
-The current pass accepts S-04b within its new-reading storage scope.
-The [record](reviews/2026-11-16-durable-reading-evidence.md) owns acceptance and limits.
-The next bounded slice adds evidence and status to the existing detail views and selected reading exports.
+The current pass accepts S-04c0, the correction to per-metric activity provenance.
+The [record](reviews/2026-11-16-activity-provenance.md) owns acceptance and limits.
+The next bounded slice exposes stored evidence through the existing detail panel and selected reading exports.
 S-04 remains open. Identity proof and new adapters keep their separate gates.
 Scanner activation and private website sync keep their separate gates.
 Live service configuration, deployment, and release remain under owner control.

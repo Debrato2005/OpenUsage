@@ -179,6 +179,9 @@ clock freshness describe different facts. A current-looking number does not
 prove the account remains connected. The [CLI contract](../crates/openusage-cli/README.md)
 owns its distinct `current`, `stale`, and `unknown` clock rules.
 
+Overview activity summaries use their saved activity source, version, observation, and freshness.
+Quota and reset-credit details use saved quota metadata. Missing activity never borrows quota provenance.
+
 Individual activity and the explicitly Unverified profile sum stay separate.
 Verified combined totals remain unavailable without approved identity and scope.
 [SC-010](srs-clarifications.md#sc-010-approved-unverified-selected-profile-activity)

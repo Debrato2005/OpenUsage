@@ -904,6 +904,9 @@ The owner asked to replace the app password with OAuth. OAuth cannot protect the
 S-04a prepares response metadata in the existing Codex parsers.
 S-04b binds and stores metadata for every new method acceptance at schema 14.
 The [durable record](reviews/2026-11-16-durable-reading-evidence.md) owns its checks and compatibility scope.
+S-04c0 corrects activity source, time, and scope in the existing account summary panels.
+It adds no evidence endpoint or reading-status contract.
+The [provenance record](reviews/2026-11-16-activity-provenance.md) owns its separate checks.
 Historical compliance remains open under [SC-031](srs-clarifications.md#sc-031-evidence-for-historical-readings).
 Display status, selected exports, all-status alerts, and reset rules remain open.
 

@@ -34,6 +34,11 @@ async function closed(id) {
   assert.equal(await driver.execute('return document.activeElement===document.querySelector(arguments[0]);', [trigger(id)]), true, 'Focus returns to the summary.');
 }
 async function openQuota() { await driver.click(trigger('quota')); await opened('Runs out first'); }
+async function detailLayout() {
+  return driver.execute(`const dialog=document.querySelector(arguments[0]),heading=dialog.querySelector('h2'),header=heading.parentElement,close=dialog.querySelector('[data-detail-panel-close]'),rows=dialog.querySelector('.detail-rows');
+    const box=node=>{const r=node.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width,height:r.height};};
+    return {title:heading.textContent,dialog:box(dialog),fonts:{heading:parseFloat(getComputedStyle(heading).fontSize),rows:parseFloat(getComputedStyle(rows).fontSize)},heading:box(heading),header:box(header),close:box(close),rows:box(rows),lineHeight:parseFloat(getComputedStyle(heading).lineHeight)};`, [panel]);
+}
 async function capture(name, width, scale = 1) {
   for (let adjustment = 0; adjustment < 3; adjustment++) {
     const view = await driver.execute('return {width:innerWidth,height:innerHeight};');
@@ -41,7 +46,15 @@ async function capture(name, width, scale = 1) {
     const rect = await driver.request('GET', `/session/${driver.session}/window/rect`);
     await driver.request('POST', `/session/${driver.session}/window/rect`, { width: rect.width + width - view.width, height: rect.height + 850 - view.height });
   }
-  await driver.execute('window.__summaryFonts=[...document.querySelectorAll("body *")].map(node=>({node,style:node.getAttribute("style"),size:getComputedStyle(node).fontSize}));for(const item of window.__summaryFonts)item.node.style.fontSize=`${parseFloat(item.size)*arguments[0]}px`;scrollTo(0,0);return true;', [scale]);
+  assert.equal((await settleViewport(driver, width, 850)).ok, true, 'Normal layout must settle before font measurement.');
+  const before = await detailLayout();
+  if (scale !== 1) assert.ok(before.dialog.left === 0 && before.dialog.top === 0 && before.dialog.right === width && before.dialog.bottom === 850, 'Scaled captures must contain only the full-viewport detail panel.');
+  evidence.normalDetailFonts ??= before.fonts;
+  assert.deepEqual(before.fonts, evidence.normalDetailFonts, 'Theme changes and earlier captures must preserve normal detail fonts.');
+  const fontCheck = { name, scale, before };
+  (evidence.fontChecks ??= []).push(fontCheck);
+  // Hidden descendants can return stale computed fonts in WebKitGTK. Scale the captured dialog after layout settles.
+  await driver.execute('const dialog=document.querySelector(arguments[1]);window.__summaryFonts=[dialog,...dialog.querySelectorAll("*")].filter(node=>node.getClientRects().length).map(node=>({node,style:node.getAttribute("style"),size:parseFloat(getComputedStyle(node).fontSize)}));for(const item of window.__summaryFonts)item.node.style.fontSize=`${item.size*arguments[0]}px`;scrollTo(0,0);return true;', [scale, panel]);
   try {
     const viewport = await settleViewport(driver, width, 850);
     if (!viewport.ok) {
@@ -52,11 +65,25 @@ async function capture(name, width, scale = 1) {
     const panels = await driver.execute('return [...document.querySelectorAll(arguments[0])].filter(node=>node.getClientRects().length).map(node=>({left:node.getBoundingClientRect().left,right:node.getBoundingClientRect().right}));', [panel]);
     assert.equal(panels.length, 1);
     assert.ok(panels[0].left >= 0 && panels[0].right <= width + 1);
-    if (width < 620) await driver.execute('document.querySelector(arguments[0]).scrollIntoView({block:"start",behavior:"instant"});return true;', [trigger('quota')]);
+    fontCheck.scaled = await detailLayout();
+    assert.deepEqual(fontCheck.scaled.fonts, Object.fromEntries(Object.entries(before.fonts).map(([key, size]) => [key, size * scale])), 'Capture fonts must equal the requested text scale.');
+    fontCheck.scaling = await driver.execute('const nodes=window.__summaryFonts.filter(item=>item.node.isConnected&&item.node.getClientRects().length);return {count:nodes.length,mismatches:nodes.filter(item=>Math.abs(parseFloat(getComputedStyle(item.node).fontSize)-item.size*arguments[0])>0.01).map(item=>({tag:item.node.tagName,expected:item.size*arguments[0],actual:getComputedStyle(item.node).fontSize}))};', [scale]);
+    assert.ok(fontCheck.scaling.count > 0);
+    assert.deepEqual(fontCheck.scaling.mismatches, [], 'Every rendered font must receive the requested scale.');
+    const layout = fontCheck.scaled;
+    assert.ok(layout.heading.height <= layout.lineHeight * 2 + 1, 'The detail title must fit within two lines.');
+    assert.ok(layout.header.height <= 850 / 4 && layout.rows.top < 850 / 2, 'The heading must leave the initial detail rows visible.');
+    assert.ok(layout.heading.right <= layout.close.left && layout.close.right <= width && layout.close.top >= 0 && layout.close.bottom <= 850, 'The title and Close control must stay visible without overlap.');
     await driver.screenshot(join(output, name));
     evidence.screenshots.push({ name, width, textScale: scale });
   } finally {
-    await driver.execute('for(const item of window.__summaryFonts){if(item.style===null)item.node.removeAttribute("style");else item.node.setAttribute("style",item.style);}delete window.__summaryFonts;return true;');
+    fontCheck.restoration = await driver.execute('for(const item of window.__summaryFonts){if(item.style===null)item.node.removeAttribute("style");else item.node.setAttribute("style",item.style);}return {count:window.__summaryFonts.length,inlineMismatches:window.__summaryFonts.filter(item=>item.node.getAttribute("style")!==item.style).length};');
+    assert.equal(fontCheck.restoration.inlineMismatches, 0, 'Capture must restore every original inline style.');
+    assert.equal((await settleViewport(driver, width, 850)).ok, true, 'Restored layout must settle before the next interaction.');
+    fontCheck.restored = await detailLayout();
+    assert.deepEqual(fontCheck.restored.fonts, before.fonts, 'Capture must restore the measured normal fonts.');
+    fontCheck.restoration.fontMismatches = await driver.execute('const mismatches=window.__summaryFonts.filter(item=>item.node.isConnected&&item.node.getClientRects().length&&Math.abs(parseFloat(getComputedStyle(item.node).fontSize)-item.size)>0.01).map(item=>({tag:item.node.tagName,expected:item.size,actual:getComputedStyle(item.node).fontSize}));delete window.__summaryFonts;return mismatches;');
+    assert.deepEqual(fontCheck.restoration.fontMismatches, [], 'Every surviving rendered font must return to its baseline.');
   }
 }
 await mkdir(output, { recursive: true, mode: 0o700 });
@@ -106,6 +133,8 @@ try {
   await waitFor(() => driver.execute('return document.querySelector(arguments[0])?.textContent.startsWith("Runs out first60%");', [trigger('quota')]), 'single saved window summary');
   assert.ok((await driver.execute('return document.querySelector(arguments[0]).textContent;', [trigger('accounts')])).startsWith('Connected accounts1 / 3'));
   const before = await call('load_profile_quota', { profileId: profiles[0].id });
+  const activityBefore = await call('load_profile_activity', { profileId: profiles[0].id });
+  assert.ok(activityBefore, 'The synthetic collection must save activity before disclosure checks.');
   const providerLog = join(home, 'synthetic-collection-observations.jsonl');
   const providerBefore = await hash(providerLog);
   const keyBefore = await hash(join(dirname(fixture.database), 'database-key.v1'));
@@ -120,6 +149,7 @@ try {
   await key(' '); await opened('Runs out first');
   const details = await driver.execute('return document.querySelector(arguments[0]).textContent;', [`${panel} .detail-rows`]);
   assert.ok(details.includes(profiles[0].label) && details.includes('Seven-day') && details.includes('Synthetic test data') && details.includes('Calculation100% − 40% used'));
+  assert.ok(details.includes('ScopeAccount quota; application scope unknown'));
   await capture('summary-light-desktop.png', 1280);
   await capture('summary-light-narrow.png', 360);
   await driver.setAppearance('dark'); await openQuota();
@@ -131,13 +161,36 @@ try {
   await driver.execute('document.querySelector(arguments[0]).focus();return true;', [trigger('quota')]);
   await key('\uE007'); await opened('Runs out first');
   await key('\uE00C'); await closed('quota');
+  evidence.activityDetails = [];
+  for (const [id, name] of [['lifetime', 'Lifetime'], ['peak', 'Peak day'], ['streak', 'Streak'], ['task', 'Longest task']]) {
+    const button = `[data-overview-account="${profiles[0].id}"] [data-overview-stat="${id}"]`;
+    await driver.click(button); await opened(name);
+    const rows = await driver.execute('return [...document.querySelectorAll(arguments[0]+" dt")].map(node=>({label:node.textContent,value:node.nextElementSibling.textContent,datetime:node.nextElementSibling.querySelector("time")?.getAttribute("datetime")??null}));', [`${panel} .detail-rows`]);
+    const row = label => { const matches = rows.filter(item => item.label === label); assert.equal(matches.length, 1, `One ${label} row for ${name}.`); return matches[0]; };
+    assert.equal(row('Source').value, `Synthetic test data · ${activityBefore.providerVersion}`);
+    assert.equal(row('Observed').datetime, activityBefore.observedAtUtc);
+    assert.equal(row('Freshness').value, { fresh: 'Current', stale: 'Stale', unknown: 'Freshness unknown' }[activityBefore.freshness]);
+    assert.equal(row('Scope').value, 'Account activity; application scope unknown');
+    assert.equal(row('Coverage').value, 'Unknown'); assert.equal(row('Identity').value, 'Provisional');
+    evidence.activityDetails.push({ metric: id, actualSavedActivityMetadataMatched: true });
+    if (id === 'lifetime') {
+      await capture('activity-provenance-light-narrow-text.png', 360, 2);
+      await driver.setAppearance('dark'); await driver.click(button); await opened(name);
+      await capture('activity-provenance-dark-narrow-text.png', 360, 2);
+      await driver.setAppearance('light'); await driver.click(button); await opened(name);
+    }
+    await key('\uE00C');
+    await waitFor(() => driver.execute('return !document.querySelector(arguments[0]);', [panel]), `${name} details closed`);
+    assert.equal(await driver.execute('return document.activeElement===document.querySelector(arguments[0]);', [button]), true);
+  }
   const after = await call('load_profile_quota', { profileId: profiles[0].id });
   assert.deepEqual(after, before);
+  assert.deepEqual(await call('load_profile_activity', { profileId: profiles[0].id }), activityBefore);
   assert.equal(await hash(providerLog), providerBefore);
   assert.equal(await hash(join(dirname(fixture.database), 'database-key.v1')), keyBefore);
   assert.equal(await hash(application), evidence.applicationSha256);
   for (const [path, digest] of Object.entries(evidence.sourceHashes)) assert.equal(await hash(join(repository, path)), digest, `Source drift: ${path}`);
-  evidence.checks = { missingUnavailable: true, connectedProfilesOnly: true, keyboardDisclosure: true, singleOpenPanel: true, provenance: true, focusPreserved: true, noProviderRequests: true, savedQuotaUnchanged: true, protectedKeyUnchanged: true };
+  evidence.checks = { missingUnavailable: true, connectedProfilesOnly: true, keyboardDisclosure: true, singleOpenPanel: true, provenance: true, focusPreserved: true, noProviderRequests: true, savedQuotaUnchanged: true, savedActivityUnchanged: true, protectedKeyUnchanged: true, textScaleRestored: true, headingGeometry: true };
   evidence.result = 'passed';
 } catch (error) {
   evidence.error = error.stack ?? String(error); process.exitCode = 1;

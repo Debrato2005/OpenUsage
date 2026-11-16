@@ -6,6 +6,13 @@ This is a dated record of work through November 2, 2026, written against SRS 2.0
 
 
 
+## Durable evidence before the activity correction, November 16, 2026
+
+S-04b accepted complete evidence for new method observations at schema 14.
+The [record](reviews/2026-11-16-durable-reading-evidence.md) owns storage, compatibility, and ten synthetic Linux native journeys.
+Historical compliance and the full evidence interface remained open.
+Hosted CI for `17250a8` passed both jobs in run 43789660162.
+
 ## Response evidence producer before durable storage, November 16, 2026
 
 S-04a prepared immutable metadata in the existing Codex parsers.

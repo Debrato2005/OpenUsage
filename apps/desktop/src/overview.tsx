@@ -11,7 +11,7 @@ import './activity.css';
 import './overview.css';
 import { Mark, useOpenDetail } from './detail-panel';
 import { BigNumber, PeriodCompare, ShareDonut, TokensPerDay, WeekRhythm, compactCount } from './overview-charts';
-import { OverviewGlance, ReadingDetails, age } from './overview-glance';
+import { ActivityDetails, OverviewGlance, ReadingDetails, age } from './overview-glance';
 import { ResetCountdown } from './reset-countdown';
 import { useDateFormat } from './time-display';
 import { ArrowIcon, ClockIcon, GaugeIcon, MoreIcon, PlusIcon, RefreshIcon, SearchIcon } from './icons';
@@ -153,7 +153,6 @@ type CardProps = { profile: ProfileRecord; slot: number; reading: Reading | unde
 // One pastel card per account: its windows first, then what it has done.
 function AccountCard({ profile, slot, reading, plan, busy, active, refreshing, wait, selected, act }: CardProps) {
   const openDetail = useOpenDetail();
-  const dates = useDateFormat({ year: undefined, timeZoneName: undefined });
   const headingId = useId();
   const [limitId, setLimitId] = useState<string | null>(null);
   const quota = reading?.quota ?? null, activity = reading?.activity ?? null;
@@ -164,8 +163,8 @@ function AccountCard({ profile, slot, reading, plan, busy, active, refreshing, w
   const observed = quota?.observedAtUtc ?? activity?.observedAtUtc ?? null;
   const freshnessMark = quota && quota.freshness !== 'fresh' ? freshness[quota.freshness] : null;
   const summary = activity?.summary;
-  const provenance = quota ? <ReadingDetails quota={quota} /> : activity ? <><dt>Observed</dt><dd><time dateTime={activity.observedAtUtc}>{dates.format(new Date(activity.observedAtUtc))}</time></dd></> : null;
-  const countDetails = (value: string | null | undefined) => <><dt>Exact value</dt><dd><ExactCount value={value ?? null} /></dd>{provenance}<dt>Activity coverage</dt><dd>Unknown</dd></>;
+  const provenance = <ActivityDetails activity={activity} />;
+  const countDetails = (value: string | null | undefined) => <><dt>Exact value</dt><dd><ExactCount value={value ?? null} /></dd>{provenance}</>;
   const stat = (id: string, name: string, value: ReactNode, details: ReactNode, attributes: Record<string, string | undefined> = {}) => <button key={id} type="button" className="overview-stat" aria-haspopup="dialog" data-overview-stat={id} onClick={() => openDetail({ label: `${name} details`, title: name, content: <dl className="detail-rows">{details}</dl> })}>
     <span className="overview-stat-name">{name}</span><span className="overview-stat-value" {...attributes}>{value}</span>
   </button>;
@@ -208,8 +207,8 @@ function AccountCard({ profile, slot, reading, plan, busy, active, refreshing, w
     <div className="overview-stats" role="group" aria-label={`${profile.label} activity summary`}>
       {stat('lifetime', 'Lifetime', pending && !activity ? 'Loading…' : <CompactCount value={summary?.lifetimeTokens ?? null} />, countDetails(summary?.lifetimeTokens), { 'data-overview-lifetime': '', 'data-exact-value': summary?.lifetimeTokens ?? undefined })}
       {stat('peak', 'Peak day', <CompactCount value={summary?.peakDailyTokens ?? null} />, countDetails(summary?.peakDailyTokens), { 'data-exact-value': summary?.peakDailyTokens ?? undefined })}
-      {stat('streak', 'Streak', streak(summary?.currentStreakDays), <><dt>Current streak</dt><dd>{streak(summary?.currentStreakDays)}</dd><dt>Longest streak</dt><dd>{streak(summary?.longestStreakDays)}</dd><dt>Activity coverage</dt><dd>Unknown</dd></>)}
-      {stat('task', 'Longest task', taskDuration(summary?.longestRunningTurnSec), <><dt>Longest task</dt><dd>{taskDuration(summary?.longestRunningTurnSec)}</dd></>)}
+      {stat('streak', 'Streak', streak(summary?.currentStreakDays), <><dt>Current streak</dt><dd>{streak(summary?.currentStreakDays)}</dd><dt>Longest streak</dt><dd>{streak(summary?.longestStreakDays)}</dd>{provenance}</>)}
+      {stat('task', 'Longest task', taskDuration(summary?.longestRunningTurnSec), <><dt>Longest task</dt><dd>{taskDuration(summary?.longestRunningTurnSec)}</dd>{provenance}</>)}
     </div>
     {reading?.activityFailed && <p className="overview-error" role="alert">Saved activity could not be loaded. Try Refresh.</p>}
     <footer className="overview-card-foot">

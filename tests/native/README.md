@@ -150,6 +150,12 @@ After the renderer build, build the desktop with `--features native-test` in the
 
 `NATIVE-SUMMARY-DETAILS-001` creates a private home, D-Bus session and SQLCipher workspace. An approved synthetic provider supplies one account's saved readings. The journey checks summary disclosure with real keyboard input, focus, source details, missing-value behavior, both themes and narrow text layout. It verifies unchanged saved quota, protected key and synthetic provider-request evidence. It saves screenshots and source hashes, then removes its private fixture. It does not qualify real accounts, OS text scaling, screen readers, other platforms or the complete AT-85 review.
 
+The summary journey also opens the four account activity panels and checks their actual saved metadata.
+It checks preserved activity and quota, and captures activity details in both themes at 360 pixels and 200% text.
+The enlarged capture proves that the dialog fills the viewport, then scales and restores every rendered dialog font.
+It checks baseline, enlarged, and restored sizes, plus title and Close geometry.
+This is text layout, not operating-system scaling.
+
 ## Native persistence
 
 Build the application with the `native-test` Cargo feature before `node tests/native/persistence.mjs`.
