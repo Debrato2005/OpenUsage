@@ -40,6 +40,9 @@ The [evidence access contract](data-contracts.md#evidence-access) owns request, 
 All three selected export routes use the same typed evidence reader inside their deferred snapshot.
 The [selected audit contract](data-contracts.md#selected-reading-audit-fields) owns the scalar fields and schema version.
 The renderer receives only the existing file receipt.
+The current desktop quota and activity commands read saved values and audit metadata in one deferred storage transaction.
+Activity reuses the evidence lookup once per distinct run in its bounded daily page.
+Chart and heatmap calculations use dates and exact counts without creating reading evidence for their derived values.
 The [data contract](data-contracts.md#reading-evidence) owns field meanings and version rules.
 The [open historical conflict](srs-clarifications.md#sc-031-evidence-for-historical-readings) approves no SRS exception.
 

@@ -69,6 +69,22 @@ pub(super) struct CachedAssociationReview {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct SavedProfileActivity {
+    #[serde(flatten)]
+    source: ProfileActivitySource,
+    monitoring: &'static str,
+    accepted: bool,
+    coverage: &'static str,
+    audit: openusage_storage::ReadingAudit,
+    freshness: ActivityFreshness,
+    summary: SavedActivitySummary,
+    daily_state: &'static str,
+    daily_usage_buckets: Vec<SavedActivityDay>,
+    daily_chart: SavedActivityChart,
+    daily_truncated: bool,
+}
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProfileActivitySource {
     profile_id: String,
     binding_id: String,
     collection_run_id: String,
@@ -77,16 +93,7 @@ pub(crate) struct SavedProfileActivity {
     observed_at_utc: String,
     identity_confidence: &'static str,
     verified_identity_key: Option<String>,
-    monitoring: &'static str,
-    accepted: bool,
-    coverage: &'static str,
     scope: &'static str,
-    freshness: ActivityFreshness,
-    summary: SavedActivitySummary,
-    daily_state: &'static str,
-    daily_usage_buckets: Vec<SavedActivityDay>,
-    daily_chart: SavedActivityChart,
-    daily_truncated: bool,
 }
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -111,6 +118,17 @@ impl From<ActivitySummaryValues> for SavedActivitySummary {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct SavedActivityDay {
+    #[serde(flatten)]
+    values: ChartDay,
+    binding_id: String,
+    collection_run_id: String,
+    provider_version: String,
+    source_kind: &'static str,
+    audit: openusage_storage::ReadingAudit,
+}
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ChartDay {
     date: String,
     tokens: String,
     observed_at_utc: String,
@@ -129,26 +147,27 @@ struct SavedActivityBar {
     height_basis_points: u16,
 }
 
-fn daily_chart(days: &[SavedActivityDay]) -> Result<SavedActivityChart, CommandError> {
+fn daily_chart<'a>(
+    days: impl IntoIterator<Item = &'a ChartDay>,
+) -> Result<SavedActivityChart, CommandError> {
     let counts = days
-        .iter()
+        .into_iter()
         .map(|day| {
             day.tokens
                 .parse::<i64>()
                 .ok()
                 .filter(|value| *value >= 0 && value.to_string() == day.tokens)
-                .map(|value| value as u128)
+                .map(|value| (&day.date, value as u128))
                 .ok_or(CommandError::ProviderActivityLoadFailed)
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let maximum = counts.iter().copied().max();
+    let maximum = counts.iter().map(|(_, value)| *value).max();
     Ok(SavedActivityChart {
         max_tokens: maximum.map(|value| value.to_string()),
-        bars: days
-            .iter()
-            .zip(counts)
-            .map(|(day, value)| SavedActivityBar {
-                date: day.date.clone(),
+        bars: counts
+            .into_iter()
+            .map(|(date, value)| SavedActivityBar {
+                date: date.clone(),
                 height_basis_points: match maximum {
                     Some(maximum) if maximum > 0 => (value * 10_000 / maximum) as u16,
                     _ => 0,
@@ -259,17 +278,10 @@ impl Workspace {
         {
             return Err(CommandError::ProfileNotFound);
         }
-        let Some(current) = storage.current_activity(id).map_err(load_error)? else {
+        let Some(view) = storage.current_activity_view(id).map_err(load_error)? else {
             return Ok(None);
         };
-        let days = storage
-            .activity_days(
-                id,
-                "0001-01-01",
-                "9999-12-31",
-                openusage_storage::MAX_ACTIVITY_ROWS_PER_READ,
-            )
-            .map_err(load_error)?;
+        let current = view.reading;
         let session = self
             .activity_sessions
             .get(id)
@@ -277,30 +289,40 @@ impl Workspace {
         let now = SystemTime::now();
         let observed_at_utc = current.commit.observed_at_utc;
         let summary_freshness = freshness(session, &observed_at_utc, now);
-        let daily_usage_buckets: Vec<_> = days
-            .rows
+        let daily_usage_buckets: Vec<_> = view
+            .days
             .into_iter()
             .map(|day| SavedActivityDay {
-                date: day.value.provider_date,
-                tokens: day.value.tokens,
-                freshness: freshness(session, &day.observed_at_utc, now),
-                observed_at_utc: day.observed_at_utc,
+                values: ChartDay {
+                    date: day.day.provider_date,
+                    tokens: day.day.tokens,
+                    freshness: freshness(session, &day.context.observed_at_utc, now),
+                    observed_at_utc: day.context.observed_at_utc,
+                },
+                binding_id: day.context.binding_id,
+                collection_run_id: day.context.run_id,
+                provider_version: day.context.provider_version,
+                source_kind: day.context.source_kind.as_str(),
+                audit: day.audit,
             })
             .collect();
-        let daily_chart = daily_chart(&daily_usage_buckets)?;
+        let daily_chart = daily_chart(daily_usage_buckets.iter().map(|day| &day.values))?;
         Ok(Some(SavedProfileActivity {
-            profile_id: id.into(),
-            binding_id: current.binding.binding_id,
-            collection_run_id: current.commit.collection_run_id,
-            provider_version: current.provider_version,
-            source_kind: current.source_kind.as_str(),
-            observed_at_utc,
-            identity_confidence: "provisional",
-            verified_identity_key: None,
+            source: ProfileActivitySource {
+                profile_id: id.into(),
+                binding_id: current.binding.binding_id,
+                collection_run_id: current.commit.collection_run_id,
+                provider_version: current.provider_version,
+                source_kind: current.source_kind.as_str(),
+                observed_at_utc,
+                identity_confidence: "provisional",
+                verified_identity_key: None,
+                scope: openusage_storage::ACTIVITY_SOURCE_SCOPE,
+            },
             monitoring: self.monitoring_state().as_str(),
             accepted: true,
             coverage: "unknown",
-            scope: openusage_storage::ACTIVITY_SOURCE_SCOPE,
+            audit: view.audit,
             freshness: summary_freshness,
             summary: current.summary.into(),
             daily_state: match current.daily_state {
@@ -310,7 +332,7 @@ impl Workspace {
             },
             daily_usage_buckets,
             daily_chart,
-            daily_truncated: days.truncated,
+            daily_truncated: view.truncated,
         }))
     }
 
@@ -617,8 +639,8 @@ mod tests {
         }
     }
 
-    fn saved_day(date: &str, tokens: &str) -> SavedActivityDay {
-        SavedActivityDay {
+    fn saved_day(date: &str, tokens: &str) -> ChartDay {
+        ChartDay {
             date: date.into(),
             tokens: tokens.into(),
             observed_at_utc: "2026-10-21T00:00:00Z".into(),

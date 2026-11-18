@@ -364,6 +364,7 @@ pub(crate) fn fixture_quota(mut reading: crate::QuotaReading) -> crate::QuotaRea
 
 struct EvidenceRow {
     run_id: String,
+    binding_id: String,
     provider_version: String,
     source_kind: String,
     observed_at: String,
@@ -386,57 +387,106 @@ pub(crate) fn read(
     connection: &Connection,
     target: ReadingEvidenceTarget<'_>,
 ) -> Result<Option<ReadingEvidenceAvailability>> {
+    Ok(read_observation(connection, target)?.map(|value| value.availability))
+}
+
+pub(crate) struct EvidenceObservation {
+    pub context: ReadingEvidenceContext,
+    pub availability: ReadingEvidenceAvailability,
+}
+
+pub(crate) fn read_observation(
+    connection: &Connection,
+    target: ReadingEvidenceTarget<'_>,
+) -> Result<Option<EvidenceObservation>> {
     require_uuid(target.profile_id)?;
     require_uuid(target.run_id)?;
-    let row = connection.query_row(
-            "SELECT r.id,r.provider_version,r.source_kind,r.observed_at_utc,r.source_method,e.collection_run_id,e.adapter_id,e.adapter_revision,e.projection_version,e.source_level,e.reading_status,e.check_results,e.comparison_result,e.redacted_response_hash,e.format_fingerprint,e.unused_fields,l.collection_run_id FROM collection_runs r LEFT JOIN reading_evidence e ON e.collection_run_id=r.id LEFT JOIN reading_evidence_legacy l ON l.collection_run_id=r.id WHERE r.id=?1 AND r.profile_id=?2 AND r.source_method=?3",
+    let mut statement = connection.prepare_cached(
+            "SELECT r.id,r.provider_version,r.source_kind,r.observed_at_utc,r.source_method,e.collection_run_id,e.adapter_id,e.adapter_revision,e.projection_version,e.source_level,e.reading_status,e.check_results,e.comparison_result,e.redacted_response_hash,e.format_fingerprint,e.unused_fields,l.collection_run_id,r.binding_id FROM collection_runs r LEFT JOIN reading_evidence e ON e.collection_run_id=r.id LEFT JOIN reading_evidence_legacy l ON l.collection_run_id=r.id WHERE r.id=?1 AND r.profile_id=?2 AND r.source_method=?3",
+        ).map_err(read_error)?;
+    let row = statement
+        .query_row(
             params![target.run_id, target.profile_id, target.method.as_str()],
-            |row| Ok(EvidenceRow {
-                run_id: row.get(0)?, provider_version: row.get(1)?, source_kind: row.get(2)?, observed_at: row.get(3)?, method: row.get(4)?,
-                complete: if row.get::<_, Option<String>>(5)?.is_some() { Some(StoredEvidence {
-                    adapter: row.get(6)?, revision: row.get(7)?, projection: row.get(8)?, level: row.get(9)?, status: row.get(10)?, checks: row.get(11)?, comparison: row.get(12)?, response_hash: row.get(13)?, fingerprint: row.get(14)?, unused: row.get(15)?,
-                }) } else { None },
-                legacy: row.get::<_, Option<String>>(16)?.is_some(),
-            }),
-        ).optional().map_err(read_error)?;
+            |row| {
+                Ok(EvidenceRow {
+                    run_id: row.get(0)?,
+                    binding_id: row.get(17)?,
+                    provider_version: row.get(1)?,
+                    source_kind: row.get(2)?,
+                    observed_at: row.get(3)?,
+                    method: row.get(4)?,
+                    complete: if row.get::<_, Option<String>>(5)?.is_some() {
+                        Some(StoredEvidence {
+                            adapter: row.get(6)?,
+                            revision: row.get(7)?,
+                            projection: row.get(8)?,
+                            level: row.get(9)?,
+                            status: row.get(10)?,
+                            checks: row.get(11)?,
+                            comparison: row.get(12)?,
+                            response_hash: row.get(13)?,
+                            fingerprint: row.get(14)?,
+                            unused: row.get(15)?,
+                        })
+                    } else {
+                        None
+                    },
+                    legacy: row.get::<_, Option<String>>(16)?.is_some(),
+                })
+            },
+        )
+        .optional()
+        .map_err(read_error)?;
     let Some(row) = row else { return Ok(None) };
-    match (row.complete, row.legacy) {
-        (None, true) => Ok(Some(ReadingEvidenceAvailability::LegacyGap)),
-        (Some(_), true) | (None, false) => Err(ActivityError::ReadFailed),
+    require_uuid(&row.binding_id).map_err(|_| ActivityError::ReadFailed)?;
+    let method = EvidenceMethod::parse(&row.method)?;
+    let source_kind = match row.source_kind.as_str() {
+        "official_artifact" => ActivitySourceKind::OfficialArtifact,
+        "test_fixture" => ActivitySourceKind::TestFixture,
+        _ => return Err(ActivityError::ReadFailed),
+    };
+    let context = ReadingEvidenceContext {
+        method,
+        run_id: row.run_id.clone(),
+        profile_id: target.profile_id.into(),
+        binding_id: row.binding_id,
+        provider_version: row.provider_version.clone(),
+        source_kind,
+        observed_at_utc: row.observed_at.clone(),
+    };
+    let availability = match (row.complete, row.legacy) {
+        (None, true) => ReadingEvidenceAvailability::LegacyGap,
+        (Some(_), true) | (None, false) => return Err(ActivityError::ReadFailed),
         (Some(evidence), false) => {
-            let method = EvidenceMethod::parse(&row.method)?;
             let unused =
                 validate_stored(&evidence, &row.provider_version, &row.observed_at, method)?;
-            let source_kind = match row.source_kind.as_str() {
-                "official_artifact" => ActivitySourceKind::OfficialArtifact,
-                "test_fixture" => ActivitySourceKind::TestFixture,
-                _ => return Err(ActivityError::ReadFailed),
-            };
-            Ok(Some(ReadingEvidenceAvailability::Complete(Box::new(
-                ReadingEvidenceRecord {
-                    run_id: row.run_id,
-                    method,
-                    adapter_id: ADAPTER,
-                    adapter_revision: evidence.revision,
-                    source_level: "official",
-                    reading_status: "official",
-                    source_kind,
-                    provider_version: row.provider_version,
-                    observed_at_utc: row.observed_at,
-                    projection_version: evidence.projection,
-                    redacted_response_hash: evidence.response_hash,
-                    format_fingerprint: evidence.fingerprint,
-                    check_results: ["rpc_envelope", "request_id", "response_fields"]
-                        .into_iter()
-                        .map(|id| ReadingEvidenceCheck {
-                            id,
-                            result: "passed",
-                        })
-                        .collect(),
-                    comparison_result: "not_performed",
-                    unused_fields: unused,
-                },
-            ))))
+            ReadingEvidenceAvailability::Complete(Box::new(ReadingEvidenceRecord {
+                run_id: row.run_id,
+                method,
+                adapter_id: ADAPTER,
+                adapter_revision: evidence.revision,
+                source_level: "official",
+                reading_status: "official",
+                source_kind,
+                provider_version: row.provider_version,
+                observed_at_utc: row.observed_at,
+                projection_version: evidence.projection,
+                redacted_response_hash: evidence.response_hash,
+                format_fingerprint: evidence.fingerprint,
+                check_results: ["rpc_envelope", "request_id", "response_fields"]
+                    .into_iter()
+                    .map(|id| ReadingEvidenceCheck {
+                        id,
+                        result: "passed",
+                    })
+                    .collect(),
+                comparison_result: "not_performed",
+                unused_fields: unused,
+            }))
         }
-    }
+    };
+    Ok(Some(EvidenceObservation {
+        context,
+        availability,
+    }))
 }

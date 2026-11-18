@@ -164,6 +164,19 @@ try {
     assert.equal(record.runId, target.runId); assert.equal(record.method, method);
     assert.equal(record.providerVersion, reading.providerVersion); assert.equal(record.observedAtUtc, reading.observedAtUtc);
     assert.equal(record.sourceKind, 'test_fixture'); assert.equal(record.readingStatus, 'official'); assert.equal(record.sourceLevel, 'official');
+    const audit = { availability: reply.availability, readingStatus: record.readingStatus, sourceLevel: record.sourceLevel };
+    assert.deepEqual(reading.audit, audit);
+    if (method === 'activity') {
+      assert.ok(reading.dailyUsageBuckets.length > 0);
+      for (const day of reading.dailyUsageBuckets) {
+        assert.equal(day.collectionRunId, target.runId);
+        assert.equal(day.bindingId, reading.bindingId);
+        assert.equal(day.providerVersion, record.providerVersion);
+        assert.equal(day.sourceKind, record.sourceKind);
+        assert.equal(day.observedAtUtc, record.observedAtUtc);
+        assert.deepEqual(day.audit, audit);
+      }
+    }
     assert.equal(record.adapterId, 'codex_app_server'); assert.equal(record.adapterRevision, 1); assert.equal(record.projectionVersion, 1);
     assert.equal(record.comparisonResult, 'not_performed');
     assert.match(record.redactedResponseHash, /^[0-9a-f]{64}$/); assert.match(record.formatFingerprint, /^[0-9a-f]{64}$/);

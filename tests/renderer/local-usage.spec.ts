@@ -25,7 +25,7 @@ async function open(page: Page, usage: Usage | Record<string, unknown>, scopes: 
       if (command === 'load_profile_quota' && options.providerAvailable) return {
         profileId: id, bindingId: '33333333-3333-4333-8333-333333333333', collectionRunId: '44444444-4444-4444-8444-444444444444',
         providerVersion: '0.163.0', sourceKind: 'test_fixture', observedAtUtc: '2026-11-08T08:00:00.000Z', identityConfidence: 'provisional', verifiedIdentityKey: null,
-        monitoring: 'stopped', accepted: true, coverage: 'unknown', scope: 'account_quota_with_unknown_application_scope', freshness: 'fresh', availableResetCredits: null, resetCreditDetails: null,
+        monitoring: 'stopped', accepted: true, coverage: 'unknown', scope: 'account_quota_with_unknown_application_scope', audit: { availability: 'complete', readingStatus: 'official', sourceLevel: 'official' }, freshness: 'fresh', availableResetCredits: null, resetCreditDetails: null,
         limits: [{ limitId: 'codex', limitName: 'Codex', reachedType: null, monthlyCreditLimit: null, spendControlReached: null,
           primary: { usedPercent: 25, derivedRemainingPercent: 75, windowDurationMins: 300, resetsAtUnix: null, label: 'Five-hour', resetState: 'expected' }, secondary: null }],
       } as T;

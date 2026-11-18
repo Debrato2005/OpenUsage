@@ -261,7 +261,10 @@ mod tests {
                         lifetime_tokens: Some("9007199254740993".into()),
                         ..Default::default()
                     },
-                    daily_usage: None,
+                    daily_usage: Some(vec![openusage_storage::ActivityDayValue {
+                        provider_date: "2026-11-15".into(),
+                        tokens: "9007199254740993".into(),
+                    }]),
                     evidence: None,
                 }),
                 Some(ProfileBindingInput {
@@ -276,6 +279,17 @@ mod tests {
             .unwrap();
         let before =
             serde_json::to_value(workspace.load_profile_activity(&profile).unwrap()).unwrap();
+        assert_eq!(
+            before["audit"],
+            serde_json::json!({
+                "availability": "complete", "readingStatus": "official", "sourceLevel": "official"
+            })
+        );
+        assert_eq!(before["dailyUsageBuckets"][0]["collectionRunId"], run);
+        assert_eq!(before["dailyUsageBuckets"][0]["bindingId"], binding);
+        assert_eq!(before["dailyUsageBuckets"][0]["providerVersion"], "0.163.0");
+        assert_eq!(before["dailyUsageBuckets"][0]["sourceKind"], "test_fixture");
+        assert_eq!(before["dailyUsageBuckets"][0]["audit"], before["audit"]);
         let view = workspace
             .load_profile_reading_evidence(&profile, EvidenceMethod::Activity, run)
             .unwrap()

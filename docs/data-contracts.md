@@ -1,6 +1,6 @@
 # Data contracts
 
-Updated: November 16, 2026. The [evidence record](reviews/2026-11-16-durable-reading-evidence.md) covers the schema-14 change. This document describes
+Updated: November 19, 2026. The [evidence record](reviews/2026-11-16-durable-reading-evidence.md) covers the schema-14 change. This document describes
 implemented records and interfaces. [SRS Sections 12 and 17](SRS.md#17-data-contracts-and-numeric-rules)
 remain normative. Planned fields stay explicit below. This document adds no API,
 migration, adapter support, or acceptance result.
@@ -129,7 +129,7 @@ The [SC-031 conflict](srs-clarifications.md#sc-031-evidence-for-historical-readi
 Encrypted backup validation supports schemas 1 through 14.
 Trusted normalization preserves old values and adds only the migration markers.
 Restore, checkpoints, and complete application export preserve the two evidence tables.
-Selected reading exports carry saved audit metadata. Provider display DTOs still lack the uniform SRS reading-status contract.
+Selected reading exports and current desktop quota and activity reads carry saved audit metadata.
 
 ## Evidence access
 
@@ -154,8 +154,8 @@ A late or mismatched response cannot replace another selection. Evidence failure
 
 Normal cards remain unchanged. The existing panel shows status, source level, adapter revision, projection version, hashes, checks, comparison, and unused-field counts.
 A historical gap shows no invented status or hashes.
-Current metric DTOs remain unchanged. This separate evidence view covers only the existing Codex interface.
-Uniform status DTOs, other detail routes, CLI evidence access, and all-status alerts remain open.
+The current-reading contract below covers saved quota and activity.
+Other evidence clients and all-status alerts remain open.
 
 ## Exact values, missing values, and units
 
@@ -207,6 +207,16 @@ owns its distinct `current`, `stale`, and `unknown` clock rules.
 
 Overview activity summaries use their saved activity source, version, observation, and freshness.
 Quota and reset-credit details use saved quota metadata. Missing activity never borrows quota provenance.
+
+`load_profile_quota` and `load_profile_activity` return null when the profile has no saved reading.
+A saved reading includes an `audit` object. Complete evidence supplies
+`availability: "complete"`, `readingStatus: "official"`, and `sourceLevel: "official"`.
+A trusted historical marker supplies only `availability: "legacy_gap"`.
+Corrupt evidence fails the read. The compact object carries no response hashes or check details.
+
+Each saved activity day includes its own binding ID, collection run ID, provider version,
+executable origin, observation time, and audit object. The current summary and daily rows
+use one storage snapshot. The renderer checks that rows from the same run agree on their context.
 
 Individual activity and the explicitly Unverified profile sum stay separate.
 Verified combined totals remain unavailable without approved identity and scope.
@@ -350,13 +360,12 @@ and revision order. It must not reuse the public leaderboard schema for
 provider readings or copy the local database to a cloud service.
 
 The [response evidence producer](../crates/openusage-codex/README.md#response-evidence-producer) supplies metadata to Rust callers.
-The desktop and storage now retain that metadata under the contract above. Current metric DTOs remain unchanged. The separate [evidence access contract](#evidence-access) now supplies Overview detail disclosure.
+The desktop and storage retain that metadata under the contract above.
+The [evidence access contract](#evidence-access) supplies Overview detail disclosure.
 
 SRS Section 17 defines `MetricState`, `SourceLevel`, `ReadingStatus`, and
-`evidenceId`. Current provider DTOs instead expose their explicit freshness,
-source-kind, identity, scope, and coverage fields. They do not yet expose the
-complete uniform evidence/status contract. `official_artifact` is not a substitute
-for every `ReadingStatus` or identity condition. S-04 and S-05 remain open.
+`evidenceId`. Current desktop quota and activity expose the compact audit fields above.
+Other provider views still need the complete evidence and status contract. S-04 and S-05 remain open.
 Summary durations and streak counts currently use strings, unlike the SRS numeric
 examples. [SC-027](srs-clarifications.md#sc-027-section-17-and-current-dtos) records this
 open representation gap. The [current status](implementation-status.md) owns other product gaps.

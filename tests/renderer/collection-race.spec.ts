@@ -24,11 +24,11 @@ type Fixture = {
 };
 type FixtureWindow = Window & { collectionFixture: Fixture };
 function cachedQuota(): SavedProfileQuota {
-  return { profileId, bindingId, collectionRunId: quotaRun, providerVersion: '0.163.0', sourceKind: 'test_fixture', observedAtUtc, identityConfidence: 'provisional', verifiedIdentityKey: null, monitoring: 'stopped', accepted: true, coverage: 'unknown', scope: 'account_quota_with_unknown_application_scope', freshness: 'fresh', availableResetCredits: null, resetCreditDetails: null,
+  return { profileId, bindingId, collectionRunId: quotaRun, providerVersion: '0.163.0', sourceKind: 'test_fixture', observedAtUtc, identityConfidence: 'provisional', verifiedIdentityKey: null, monitoring: 'stopped', accepted: true, coverage: 'unknown', scope: 'account_quota_with_unknown_application_scope', audit: { availability: 'complete', readingStatus: 'official', sourceLevel: 'official' }, freshness: 'fresh', availableResetCredits: null, resetCreditDetails: null,
     limits: [{ limitId: 'codex', limitName: 'Synthetic quota', primary: { usedPercent: 25, derivedRemainingPercent: 75, windowDurationMins: 300, resetsAtUnix: null, label: 'Five-hour', resetState: 'unconfirmed' }, secondary: null, reachedType: null, monthlyCreditLimit: null, spendControlReached: null }] };
 }
 function cachedActivity(): SavedProfileActivity {
-  return { profileId, bindingId, collectionRunId: activityRun, providerVersion: '0.163.0', sourceKind: 'test_fixture', observedAtUtc, identityConfidence: 'provisional', verifiedIdentityKey: null, monitoring: 'stopped', accepted: true, coverage: 'unknown', scope: 'account_activity_with_unknown_application_scope', freshness: 'fresh', summary: { lifetimeTokens: '9007199254740993', peakDailyTokens: null, currentStreakDays: '0', longestStreakDays: null, longestRunningTurnSec: null }, dailyState: 'empty', dailyUsageBuckets: [], dailyTruncated: false, dailyChart: { maxTokens: null, bars: [] } };
+  return { profileId, bindingId, collectionRunId: activityRun, providerVersion: '0.163.0', sourceKind: 'test_fixture', observedAtUtc, identityConfidence: 'provisional', verifiedIdentityKey: null, monitoring: 'stopped', accepted: true, coverage: 'unknown', scope: 'account_activity_with_unknown_application_scope', audit: { availability: 'complete', readingStatus: 'official', sourceLevel: 'official' }, freshness: 'fresh', summary: { lifetimeTokens: '9007199254740993', peakDailyTokens: null, currentStreakDays: '0', longestStreakDays: null, longestRunningTurnSec: null }, dailyState: 'empty', dailyUsageBuckets: [], dailyTruncated: false, dailyChart: { maxTokens: null, bars: [] } };
 }
 function committed(index = 0): ProfileCollectionOutcome {
   return { profileId, approvalId, requestId: requests[index]!, providerVersion: '0.163.0', sourceKind: 'test_fixture', identityConfidence: 'provisional', verifiedIdentityKey: null, monitoring: 'stopped', accepted: true,
@@ -250,11 +250,11 @@ for (const kind of ['quota', 'activity'] as const) test(`individual ${kind} refr
   await page.getByRole('button', { name: kind === 'quota' ? 'Read quotas' : 'Read activity', exact: true }).click();
   await expect.poll(() => page.evaluate(id => Boolean((window as unknown as FixtureWindow).collectionFixture.completions[id]), requests[0]!)).toBe(true);
   if (kind === 'quota') {
-    const { freshness: _freshness, coverage: _coverage, scope: _scope, ...value } = cachedQuota();
+    const { freshness: _freshness, coverage: _coverage, scope: _scope, audit: _audit, ...value } = cachedQuota();
     const receipt = { ...value, requestId: requests[0]!, approvalId, collectionRunId: nextQuotaRun, limits: value.limits.map(limit => ({ ...limit, primary: limit.primary && { usedPercent: 50, derivedRemainingPercent: 50, windowDurationMins: 300, resetsAtUnix: null, label: 'Five-hour' } })) };
     await page.evaluate(({ receipt, run }) => { const f = (window as unknown as FixtureWindow).collectionFixture; f.quota.collectionRunId = run; f.quota.limits[0]!.primary!.usedPercent = 50; f.quota.limits[0]!.primary!.derivedRemainingPercent = 50; f.completions[receipt.requestId]!.resolve(receipt); }, { receipt, run: nextQuotaRun });
   } else {
-    const { freshness: _freshness, dailyState: _dailyState, dailyTruncated: _dailyTruncated, dailyChart: _dailyChart, ...value } = cachedActivity();
+    const { freshness: _freshness, dailyState: _dailyState, dailyTruncated: _dailyTruncated, dailyChart: _dailyChart, audit: _audit, ...value } = cachedActivity();
     const receipt = { ...value, requestId: requests[0]!, approvalId, collectionRunId: nextActivityRun, dailyUsageBuckets: [] };
     await page.evaluate(({ receipt, run }) => { const f = (window as unknown as FixtureWindow).collectionFixture; f.activity.collectionRunId = run; f.completions[receipt.requestId]!.resolve(receipt); }, { receipt, run: nextActivityRun });
   }

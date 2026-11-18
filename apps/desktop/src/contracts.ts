@@ -285,6 +285,7 @@ export interface ProfileQuotaSavedRead extends Omit<ProfileQuotaRequest, 'accept
 }
 export interface SavedProfileQuota extends Omit<ProfileQuotaSavedRead, 'requestId' | 'approvalId' | 'limits'> {
   coverage: 'unknown'; scope: 'account_quota_with_unknown_application_scope'; freshness: ActivityFreshness;
+  audit: ReadingAudit;
   limits: (Omit<ProfileQuotaSavedRead['limits'][number], 'primary' | 'secondary'> & { primary: SavedQuotaWindow | null; secondary: SavedQuotaWindow | null })[];
 }
 
@@ -337,12 +338,17 @@ export interface SavedProfileActivity {
   profileId: string; bindingId: string; collectionRunId: string;
   providerVersion: string; sourceKind: ProviderConnectionDiagnostic['sourceKind']; observedAtUtc: string;
   identityConfidence: 'provisional'; verifiedIdentityKey: null; monitoring: MonitoringState; accepted: true;
-  coverage: 'unknown'; scope: 'account_activity_with_unknown_application_scope'; freshness: ActivityFreshness;
+  coverage: 'unknown'; scope: 'account_activity_with_unknown_application_scope'; freshness: ActivityFreshness; audit: ReadingAudit;
   summary: ProfileActivitySavedRead['summary']; dailyState: 'unavailable' | 'empty' | 'returned';
-  dailyUsageBuckets: { date: string; tokens: string; observedAtUtc: string; freshness: ActivityFreshness }[];
+  dailyUsageBuckets: { date: string; tokens: string; observedAtUtc: string; freshness: ActivityFreshness;
+    bindingId: string; collectionRunId: string; providerVersion: string; sourceKind: SavedProfileActivity['sourceKind']; audit: ReadingAudit }[];
   dailyTruncated: boolean;
   dailyChart: { maxTokens: string | null; bars: { date: string; heightBasisPoints: number }[] };
 }
+
+export type ReadingAudit =
+  | { availability: 'complete'; readingStatus: 'official'; sourceLevel: 'official' }
+  | { availability: 'legacy_gap' };
 
 export type EvidenceMethod = 'activity' | 'quota';
 export type ReadingEvidenceTarget = { profileId: string; runId: string; method: EvidenceMethod };
@@ -1026,21 +1032,25 @@ function isUtcTimestamp(value: unknown): value is string {
     && Number.isFinite(Date.parse(value)) && new Date(value).toISOString() === value;
 }
 
+function isEvidenceObservation(version: unknown, observedAt: unknown): boolean {
+  if (typeof version !== 'string' || version.length > 32
+    || !isUtcTimestamp(observedAt) || observedAt.startsWith('0000-')) return false;
+  const parts = version.split('.');
+  return parts.length === 3 && parts.every(part => /^[0-9]+$/.test(part) && Number(part) <= 4294967295);
+}
+
 function isReadingEvidenceRecord(value: unknown): value is ReadingEvidenceRecord {
   const v = value as ReadingEvidenceRecord;
   if (!exactKeys(value, ['runId', 'method', 'adapterId', 'adapterRevision', 'sourceLevel', 'readingStatus', 'sourceKind', 'providerVersion', 'observedAtUtc', 'projectionVersion', 'redactedResponseHash', 'formatFingerprint', 'checkResults', 'comparisonResult', 'unusedFields'])) return false;
   if (!isUuid(v.runId) || !['activity', 'quota'].includes(v.method) || v.adapterId !== 'codex_app_server'
     || !Number.isInteger(v.adapterRevision) || v.adapterRevision < 1 || v.adapterRevision > 65535
     || v.sourceLevel !== 'official' || v.readingStatus !== 'official' || !['official_artifact', 'test_fixture'].includes(v.sourceKind)
-    || typeof v.providerVersion !== 'string' || v.providerVersion.length > 32
-    || !isUtcTimestamp(v.observedAtUtc) || v.observedAtUtc.startsWith('0000-') || v.projectionVersion !== 1 || v.comparisonResult !== 'not_performed'
+    || !isEvidenceObservation(v.providerVersion, v.observedAtUtc) || v.projectionVersion !== 1 || v.comparisonResult !== 'not_performed'
     || typeof v.redactedResponseHash !== 'string' || !/^[0-9a-f]{64}$/.test(v.redactedResponseHash)
     || typeof v.formatFingerprint !== 'string' || !/^[0-9a-f]{64}$/.test(v.formatFingerprint)
     || !Array.isArray(v.checkResults) || v.checkResults.length !== evidenceChecks.length
     || !v.checkResults.every((check, index) => exactKeys(check, ['id', 'result']) && check.id === evidenceChecks[index] && check.result === 'passed')
     || !Array.isArray(v.unusedFields) || v.unusedFields.length > evidenceLocations.length) return false;
-  const parts = v.providerVersion.split('.');
-  if (parts.length !== 3 || !parts.every(part => /^[0-9]+$/.test(part) && Number(part) <= 4294967295)) return false;
   const allowed = v.method === 'activity' ? evidenceLocations.slice(0, 3) : evidenceLocations.slice(3);
   let previous = -1, count = 0;
   for (const field of v.unusedFields) {
@@ -1147,7 +1157,8 @@ function isSavedProfileQuota(value: unknown): value is SavedProfileQuota | null 
   if (value === null) return true;
   if (typeof value !== 'object' || Array.isArray(value)) return false;
   const v = value as Record<string, unknown>;
-  return Object.keys(v).length === 16 && isUuid(v.profileId) && isUuid(v.bindingId) && isUuid(v.collectionRunId)
+  return Object.keys(v).length === 17 && isUuid(v.profileId) && isUuid(v.bindingId) && isUuid(v.collectionRunId)
+    && isReadingAudit(v.audit, v.providerVersion, v.observedAtUtc)
     && (v.sourceKind === 'official_artifact' || v.sourceKind === 'test_fixture') && v.accepted === true && isMonitoringState(v.monitoring)
     && v.coverage === 'unknown' && v.scope === 'account_quota_with_unknown_application_scope' && isActivityFreshness(v.freshness) && isQuotaValues(v, true);
 }
@@ -1299,20 +1310,41 @@ function isSavedProfileHeatmap(value: unknown): value is SavedProfileHeatmap | n
   });
 }
 
+function isReadingAudit(value: unknown, version: unknown, observedAt: unknown): value is ReadingAudit {
+  if (exactKeys(value, ['availability'])) return value.availability === 'legacy_gap';
+  return exactKeys(value, ['availability', 'readingStatus', 'sourceLevel'])
+    && value.availability === 'complete' && value.readingStatus === 'official' && value.sourceLevel === 'official'
+    && isEvidenceObservation(version, observedAt);
+}
+
 function isSavedProfileActivity(value: unknown): value is SavedProfileActivity | null {
   if (value === null) return true;
   if (typeof value !== 'object' || Array.isArray(value)) return false;
   const v = value as Record<string, unknown>;
-  if (Object.keys(v).length !== 18 || !isUuid(v.profileId) || !isUuid(v.bindingId) || !isUuid(v.collectionRunId)
+  if (Object.keys(v).length !== 19 || !isUuid(v.profileId) || !isUuid(v.bindingId) || !isUuid(v.collectionRunId)
+    || !isReadingAudit(v.audit, v.providerVersion, v.observedAtUtc)
     || !(v.sourceKind === 'official_artifact' || v.sourceKind === 'test_fixture') || !isMonitoringState(v.monitoring) || v.accepted !== true
     || !isActivitySource(v) || !isActivityFreshness(v.freshness) || !(v.dailyState === 'unavailable' || v.dailyState === 'empty' || v.dailyState === 'returned')
     || typeof v.dailyTruncated !== 'boolean' || !Array.isArray(v.dailyUsageBuckets) || v.dailyUsageBuckets.length > 4096) return false;
   const dates = new Set<string>();
+  type Observation = Pick<SavedProfileActivity, 'bindingId' | 'providerVersion' | 'sourceKind' | 'observedAtUtc' | 'audit'>;
+  const observations = new Map<string, Observation>([[v.collectionRunId, value as SavedProfileActivity]]);
   if (!v.dailyUsageBuckets.every(row => {
     if (typeof row !== 'object' || row === null || Array.isArray(row)) return false;
     const bucket = row as Record<string, unknown>;
-    if (Object.keys(bucket).length !== 4 || !isProviderDate(bucket.date) || dates.has(bucket.date) || !isResetCreditCount(bucket.tokens)
-      || bucket.tokens === null || !isUtcTimestamp(bucket.observedAtUtc) || !isActivityFreshness(bucket.freshness)) return false;
+    if (Object.keys(bucket).length !== 9 || !isProviderDate(bucket.date) || dates.has(bucket.date) || !isResetCreditCount(bucket.tokens)
+      || bucket.tokens === null || !isUtcTimestamp(bucket.observedAtUtc) || !isActivityFreshness(bucket.freshness)
+      || !isUuid(bucket.bindingId) || !isUuid(bucket.collectionRunId) || !quotaText(bucket.providerVersion, 80)
+      || (bucket.sourceKind !== 'official_artifact' && bucket.sourceKind !== 'test_fixture')
+      || !isReadingAudit(bucket.audit, bucket.providerVersion, bucket.observedAtUtc)) return false;
+    const observation = observations.get(bucket.collectionRunId);
+    if (observation && (observation.bindingId !== bucket.bindingId || observation.providerVersion !== bucket.providerVersion
+      || observation.sourceKind !== bucket.sourceKind || observation.observedAtUtc !== bucket.observedAtUtc
+      || observation.audit.availability !== bucket.audit.availability)) return false;
+    if (!observation) observations.set(bucket.collectionRunId, {
+      bindingId: bucket.bindingId, providerVersion: bucket.providerVersion,
+      sourceKind: bucket.sourceKind, observedAtUtc: bucket.observedAtUtc, audit: bucket.audit,
+    });
     dates.add(bucket.date); return true;
   })) return false;
   if (typeof v.dailyChart !== 'object' || v.dailyChart === null || Array.isArray(v.dailyChart)) return false;

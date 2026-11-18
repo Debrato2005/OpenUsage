@@ -51,6 +51,25 @@ struct HeatmapCell {
     freshness: ActivityFreshness,
 }
 
+#[cfg_attr(test, derive(Serialize))]
+struct HeatmapInput {
+    source: ProfileActivitySource,
+    days: Vec<ChartDay>,
+}
+
+impl From<SavedProfileActivity> for HeatmapInput {
+    fn from(saved: SavedProfileActivity) -> Self {
+        Self {
+            source: saved.source,
+            days: saved
+                .daily_usage_buckets
+                .into_iter()
+                .map(|day| day.values)
+                .collect(),
+        }
+    }
+}
+
 impl Workspace {
     /// The current official collector supplies provisional identity and unknown scope only.
     /// Expose exclusions instead of treating descriptive emails as distinct verified identities.
@@ -113,7 +132,7 @@ impl Workspace {
         };
         let today = restore::timestamp(SystemTime::now())
             .ok_or(CommandError::ProviderActivityLoadFailed)?;
-        build(&saved, mode, period_days, &today[..10]).map(Some)
+        build(&saved.into(), mode, period_days, &today[..10]).map(Some)
     }
 }
 
@@ -127,7 +146,7 @@ fn validate_selection(mode: &str, period_days: u16) -> Result<(), CommandError> 
 }
 
 fn build(
-    saved: &SavedProfileActivity,
+    input: &HeatmapInput,
     mode: &str,
     period_days: u16,
     today: &str,
@@ -138,15 +157,16 @@ fn build(
         .checked_sub(u32::from(period_days) - 1)
         .filter(|start| *start > 0)
         .ok_or(CommandError::ProviderActivityLoadFailed)?;
-    let (cells, maximum) = project(&saved.daily_usage_buckets, mode, start, end)?;
+    let (cells, maximum) = project(&input.days, mode, start, end)?;
+    let source = &input.source;
     Ok(ProfileHeatmap {
-        profile_id: saved.profile_id.clone(),
-        binding_id: saved.binding_id.clone(),
-        collection_run_id: saved.collection_run_id.clone(),
-        source_kind: saved.source_kind,
-        scope: saved.scope,
+        profile_id: source.profile_id.clone(),
+        binding_id: source.binding_id.clone(),
+        collection_run_id: source.collection_run_id.clone(),
+        source_kind: source.source_kind,
+        scope: source.scope,
         coverage: "unknown",
-        observed_at_utc: saved.observed_at_utc.clone(),
+        observed_at_utc: source.observed_at_utc.clone(),
         mode: mode.into(),
         period_start: date_string(start),
         period_end: date_string(end),
@@ -156,7 +176,7 @@ fn build(
 }
 
 fn project(
-    rows: &[SavedActivityDay],
+    rows: &[ChartDay],
     mode: &str,
     start: u32,
     end: u32,
@@ -223,7 +243,7 @@ fn project(
 }
 
 fn cell(
-    days: &BTreeMap<u32, (u128, &SavedActivityDay)>,
+    days: &BTreeMap<u32, (u128, &ChartDay)>,
     first: u32,
     last: u32,
     label_start: u32,
@@ -346,44 +366,29 @@ fn date_string(ordinal: u32) -> String {
 mod tests {
     use super::*;
 
-    pub(super) fn saved(rows: &[(&str, &str)]) -> SavedProfileActivity {
-        let daily_usage_buckets = rows
+    pub(super) fn saved(rows: &[(&str, &str)]) -> HeatmapInput {
+        let days = rows
             .iter()
-            .map(|(date, tokens)| SavedActivityDay {
+            .map(|(date, tokens)| ChartDay {
                 date: (*date).into(),
                 tokens: (*tokens).into(),
                 observed_at_utc: "2026-10-21T00:00:00.000Z".into(),
                 freshness: ActivityFreshness::Unknown,
             })
             .collect();
-        SavedProfileActivity {
-            profile_id: "profile".into(),
-            binding_id: "binding".into(),
-            collection_run_id: "run".into(),
-            provider_version: "test".into(),
-            source_kind: "test_fixture",
-            observed_at_utc: "2026-10-21T00:00:00.000Z".into(),
-            identity_confidence: "provisional",
-            verified_identity_key: None,
-            monitoring: "stopped",
-            accepted: true,
-            coverage: "unknown",
-            scope: "test-scope",
-            freshness: ActivityFreshness::Unknown,
-            summary: SavedActivitySummary {
-                lifetime_tokens: Some("99999999".into()),
-                peak_daily_tokens: None,
-                longest_running_turn_sec: None,
-                current_streak_days: None,
-                longest_streak_days: None,
+        HeatmapInput {
+            source: ProfileActivitySource {
+                profile_id: "profile".into(),
+                binding_id: "binding".into(),
+                collection_run_id: "run".into(),
+                provider_version: "test".into(),
+                source_kind: "test_fixture",
+                observed_at_utc: "2026-10-21T00:00:00.000Z".into(),
+                identity_confidence: "provisional",
+                verified_identity_key: None,
+                scope: "test-scope",
             },
-            daily_state: "returned",
-            daily_usage_buckets,
-            daily_chart: SavedActivityChart {
-                max_tokens: None,
-                bars: vec![],
-            },
-            daily_truncated: false,
+            days,
         }
     }
 

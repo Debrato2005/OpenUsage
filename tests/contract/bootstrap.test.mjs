@@ -815,9 +815,15 @@ test('rejects oversized activity previews and invalid Gregorian days without tru
   }
 });
 
+const officialAudit = { availability: 'complete', readingStatus: 'official', sourceLevel: 'official' };
+const legacyAudit = { availability: 'legacy_gap' };
 const savedActivity = (() => {
   const { requestId, approvalId, dailyUsageBuckets, ...value } = activityPreview;
-  return { ...value, freshness: 'unknown', dailyState: 'returned', dailyTruncated: false, dailyChart: { maxTokens: '9223372036854775807', bars: [{ date: '2024-02-29', heightBasisPoints: 10000 }, { date: '0001-01-01', heightBasisPoints: 0 }] }, dailyUsageBuckets: dailyUsageBuckets.map(row => ({ date: row.startDate, tokens: row.tokens, observedAtUtc: value.observedAtUtc, freshness: 'stale' })) };
+  const { bindingId, collectionRunId, providerVersion, sourceKind, observedAtUtc } = value;
+  return { ...value, audit: officialAudit, freshness: 'unknown', dailyState: 'returned', dailyTruncated: false, dailyChart: { maxTokens: '9223372036854775807', bars: [{ date: '2024-02-29', heightBasisPoints: 10000 }, { date: '0001-01-01', heightBasisPoints: 0 }] }, dailyUsageBuckets: dailyUsageBuckets.map(row => ({
+    date: row.startDate, tokens: row.tokens, bindingId, collectionRunId, providerVersion, sourceKind,
+    observedAtUtc, audit: officialAudit, freshness: 'stale',
+  })) };
 })();
 
 test('accepts committed cached activity without approval fields and preserves daily cache independent of latest array state', async () => {
@@ -876,6 +882,36 @@ test('refuses malformed cached provenance, uncommitted results, guessed freshnes
   }
 });
 
+test('current reading audit preserves a historical day beside a complete current observation', async () => {
+  const args = { profileId: savedActivity.profileId };
+  const oldDay = { ...savedActivity.dailyUsageBuckets[1], audit: legacyAudit, providerVersion: '0.162.0',
+    collectionRunId: '66666666-6666-4666-8666-666666666666', observedAtUtc: '2026-10-16T00:00:00.000Z' };
+  const value = { ...savedActivity, dailyUsageBuckets: [savedActivity.dailyUsageBuckets[0], oldDay] };
+  desktopResponse(value);
+  assert.deepEqual(await invoke('load_profile_activity', args), value);
+  for (const change of [{ providerVersion: 'private@example.invalid' }, { providerVersion: '0.4294967296.0' },
+    { observedAtUtc: '0000-01-01T00:00:00.000Z' }]) {
+    const day = { ...savedActivity.dailyUsageBuckets[0], ...change };
+    desktopResponse({ ...value, ...change, dailyUsageBuckets: [day, oldDay] });
+    await assert.rejects(invoke('load_profile_activity', args), /desktop response is incompatible/);
+    desktopResponse({ ...value, dailyUsageBuckets: [savedActivity.dailyUsageBuckets[0], { ...oldDay, audit: officialAudit, ...change }] });
+    await assert.rejects(invoke('load_profile_activity', args), /desktop response is incompatible/);
+  }
+  for (const audit of [undefined, null, {}, { ...legacyAudit, readingStatus: 'official' },
+    { ...officialAudit, readingStatus: 'matched' }, { ...officialAudit, sourceLevel: 'unofficial' },
+    { ...officialAudit, redactedResponseHash: 'a'.repeat(64) }]) {
+    desktopResponse({ ...value, audit });
+    await assert.rejects(invoke('load_profile_activity', args), /desktop response is incompatible/);
+    desktopResponse({ ...value, dailyUsageBuckets: [savedActivity.dailyUsageBuckets[0], { ...oldDay, audit }] });
+    await assert.rejects(invoke('load_profile_activity', args), /desktop response is incompatible/);
+  }
+  for (const change of [{ bindingId: null }, { collectionRunId: null }, { providerVersion: '' }, { sourceKind: 'unverified' },
+    { collectionRunId: value.collectionRunId }]) {
+    desktopResponse({ ...value, dailyUsageBuckets: [savedActivity.dailyUsageBuckets[0], { ...oldDay, ...change }] });
+    await assert.rejects(invoke('load_profile_activity', args), /desktop response is incompatible/);
+  }
+});
+
 
 for (const command of ['begin_profile_activity_reassociation', 'begin_profile_quota_reassociation']) test(`${command} begins with an unaccepted owned request and rejects committed or extra-field replies`, async () => {
   const args = { profileId: activityRequest.profileId, approvalId: activityRequest.approvalId, reviewId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', confirmed: true };
@@ -913,8 +949,16 @@ test('saved quota loads accept only exact bounded provisional cache values', asy
   const args = { profileId: '11111111-1111-4111-8111-111111111111' };
   const value = { ...args, bindingId: '44444444-4444-4444-8444-444444444444', collectionRunId: '55555555-5555-4555-8555-555555555555',
     providerVersion: '0.163.0', sourceKind: 'test_fixture', observedAtUtc: '2026-10-18T00:00:00.000Z', identityConfidence: 'provisional', verifiedIdentityKey: null,
-    monitoring: 'stopped', accepted: true, coverage: 'unknown', scope: 'account_quota_with_unknown_application_scope', freshness: 'unknown', limits: [], availableResetCredits: null, resetCreditDetails: null };
+    monitoring: 'stopped', accepted: true, coverage: 'unknown', scope: 'account_quota_with_unknown_application_scope', audit: officialAudit, freshness: 'unknown', limits: [], availableResetCredits: null, resetCreditDetails: null };
   desktopResponse(null); assert.equal(await invoke('load_profile_quota', args), null);
+  desktopResponse({ ...value, audit: legacyAudit });
+  assert.deepEqual(await invoke('load_profile_quota', args), { ...value, audit: legacyAudit });
+  desktopResponse({ ...value, audit: { ...officialAudit, readingStatus: 'disputed' } });
+  await assert.rejects(invoke('load_profile_quota', args), /desktop response is incompatible/);
+  for (const change of [{ providerVersion: 'private@example.invalid' }, { observedAtUtc: '0000-01-01T00:00:00.000Z' }]) {
+    desktopResponse({ ...value, ...change });
+    await assert.rejects(invoke('load_profile_quota', args), /desktop response is incompatible/);
+  }
   for (const freshness of ['unknown', 'fresh', 'stale']) { desktopResponse({ ...value, freshness }); assert.deepEqual(await invoke('load_profile_quota', args), { ...value, freshness }); }
   const window = { usedPercent: 100, derivedRemainingPercent: 0, windowDurationMins: 300, resetsAtUnix: 0, label: 'Five-hour', resetState: 'due' };
   const withWindow = primary => ({ ...value, limits: [{ limitId: 'codex', limitName: null, primary, secondary: null, reachedType: null, monthlyCreditLimit: null, spendControlReached: null }] });
@@ -985,7 +1029,7 @@ test('legacy provider and cache responses accept actual monitoring modes while r
     desktopResponse({ ...activityRequest, monitoring }); assert.equal((await invoke('begin_profile_collection_read', { profileId: activityRequest.profileId, approvalId: activityRequest.approvalId })).monitoring, monitoring);
     desktopResponse({ ...activityPreview, monitoring }); assert.equal((await invoke('complete_profile_activity_read', activityArgs)).monitoring, monitoring);
     const { requestId: _request, approvalId: _approval, ...cached } = activityPreview;
-    desktopResponse({ ...cached, monitoring, freshness: 'fresh', dailyState: 'empty', dailyUsageBuckets: [], dailyTruncated: false, dailyChart: { maxTokens: null, bars: [] } });
+    desktopResponse({ ...cached, monitoring, audit: officialAudit, freshness: 'fresh', dailyState: 'empty', dailyUsageBuckets: [], dailyTruncated: false, dailyChart: { maxTokens: null, bars: [] } });
     assert.equal((await invoke('load_profile_activity', { profileId: activityRequest.profileId })).monitoring, monitoring);
   }
 });

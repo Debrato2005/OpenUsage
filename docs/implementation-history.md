@@ -6,6 +6,13 @@ This is a dated record of work through November 2, 2026, written against SRS 2.0
 
 
 
+## Selected exports before current reading audit, November 16, 2026
+
+S-04d carried saved evidence into the latest-reading and both history exports.
+The [record](reviews/2026-11-16-reading-evidence-exports.md) owns acceptance and limits.
+Hosted CI for `597d2b4` passed both jobs in run 43809644782.
+Current desktop reading status remained open at that checkpoint.
+
 ## Evidence details before selected exports, November 16, 2026
 
 S-04c1 exposed complete evidence and historical gaps through the existing Overview panels.

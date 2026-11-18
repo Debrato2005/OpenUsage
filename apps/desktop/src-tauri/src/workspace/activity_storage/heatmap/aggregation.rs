@@ -55,7 +55,7 @@ struct DashboardCell {
 
 struct Input {
     label: String,
-    saved: SavedProfileActivity,
+    activity: HeatmapInput,
     // Only an approved provider adapter can establish these semantics. The current
     // managed adapter supplies None; an email or a matching wire shape is not proof.
     verified_semantics: Option<(String, String)>,
@@ -99,7 +99,7 @@ impl Workspace {
             match self.load_profile_activity(id)? {
                 Some(saved) if !saved.daily_truncated => inputs.push(Input {
                     label: profile.label.clone(),
-                    saved,
+                    activity: saved.into(),
                     verified_semantics: None,
                 }),
                 saved => exclusions.push(Exclusion {
@@ -162,17 +162,23 @@ fn aggregate(
 ) -> Result<ActivityDashboard, CommandError> {
     // Newest accepted source wins for a known duplicate. UUID resolves equal timestamps.
     inputs.sort_by(|a, b| {
-        b.saved
+        b.activity
+            .source
             .observed_at_utc
-            .cmp(&a.saved.observed_at_utc)
-            .then(a.saved.profile_id.cmp(&b.saved.profile_id))
+            .cmp(&a.activity.source.observed_at_utc)
+            .then(
+                a.activity
+                    .source
+                    .profile_id
+                    .cmp(&b.activity.source.profile_id),
+            )
     });
     let mut identities = BTreeSet::new();
     let mut semantics = None;
     let mut wire_contract = None;
     let mut included = Vec::new();
     for input in inputs {
-        let saved = &input.saved;
+        let saved = &input.activity.source;
         let reason = if view == "verified"
             && (saved.identity_confidence != "verified" || saved.verified_identity_key.is_none())
         {
@@ -217,26 +223,31 @@ fn aggregate(
         semantics = Some(input.verified_semantics.clone());
         included.push(input);
     }
-    included.sort_by(|a, b| a.saved.profile_id.cmp(&b.saved.profile_id));
+    included.sort_by(|a, b| {
+        a.activity
+            .source
+            .profile_id
+            .cmp(&b.activity.source.profile_id)
+    });
     let scope_verified =
         !included.is_empty() && included.iter().all(|i| i.verified_semantics.is_some());
     let count = included.len() as u16;
     let expected_contributions = (end - start + 1) as u16 * count;
     let observed_at_utc = included
         .iter()
-        .map(|i| i.saved.observed_at_utc.clone())
+        .map(|i| i.activity.source.observed_at_utc.clone())
         .min();
     let source_kind = included
         .first()
-        .map_or("unverified", |i| i.saved.source_kind);
+        .map_or("unverified", |i| i.activity.source.source_kind);
     let mut days: BTreeMap<u32, (u128, u16, String, ActivityFreshness)> = BTreeMap::new();
     let mut total = None;
     let mut members = Vec::new();
     for input in included {
-        let saved = input.saved;
+        let saved = input.activity.source;
         let mut tokens = None;
         let mut dates = BTreeSet::new();
-        for day in saved.daily_usage_buckets {
+        for day in input.activity.days {
             let date = ordinal(&day.date).ok_or(CommandError::ProviderActivityLoadFailed)?;
             if !dates.insert(date) {
                 return Err(CommandError::ProviderActivityLoadFailed);
@@ -289,14 +300,12 @@ fn aggregate(
     shares(&mut members, total)?;
     let rows: Vec<_> = days
         .iter()
-        .map(
-            |(date, (tokens, _, observed, freshness))| SavedActivityDay {
-                date: date_string(*date),
-                tokens: tokens.to_string(),
-                observed_at_utc: observed.clone(),
-                freshness: *freshness,
-            },
-        )
+        .map(|(date, (tokens, _, observed, freshness))| ChartDay {
+            date: date_string(*date),
+            tokens: tokens.to_string(),
+            observed_at_utc: observed.clone(),
+            freshness: *freshness,
+        })
         .collect();
     let known_contributions = days.values().map(|d| d.1).sum();
     let (cells, maximum) = if count == 0 {
@@ -384,7 +393,8 @@ fn shares(members: &mut [Member], total: Option<u128>) -> Result<(), CommandErro
 mod tests {
     use super::*;
     fn input(id: u8, rows: &[(&str, &str)], identity: Option<&str>, proof: bool) -> Input {
-        let mut saved = super::super::tests::saved(rows);
+        let mut activity = super::super::tests::saved(rows);
+        let saved = &mut activity.source;
         saved.profile_id = format!("00000000-0000-4000-8000-{id:012}");
         saved.verified_identity_key = identity.map(String::from);
         if identity.is_some() {
@@ -392,7 +402,7 @@ mod tests {
         }
         Input {
             label: format!("Fixture {id}"),
-            saved,
+            activity,
             verified_semantics: proof
                 .then(|| ("synthetic tokens".into(), "synthetic UTC dates".into())),
         }
@@ -461,7 +471,7 @@ mod tests {
     #[test]
     fn known_duplicates_use_newest_compatible_source_and_verified_requires_both_proofs() {
         let mut newest = input(2, &[("2026-10-19", "7")], Some("synthetic-stable-id"), true);
-        newest.saved.observed_at_utc = "2026-10-22T00:00:00.000Z".into();
+        newest.activity.source.observed_at_utc = "2026-10-22T00:00:00.000Z".into();
         let result = run(
             vec![
                 input(
@@ -495,7 +505,7 @@ mod tests {
     #[test]
     fn incompatible_contracts_zero_denominators_and_invalid_selections_fail_safely() {
         let mut other = input(2, &[("2026-10-19", "100")], None, false);
-        other.saved.provider_version = "incompatible-version".into();
+        other.activity.source.provider_version = "incompatible-version".into();
         let result = run(
             vec![input(1, &[("2026-10-19", "0")], None, false), other],
             "profile_sum",

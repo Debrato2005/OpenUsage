@@ -2,7 +2,7 @@
 
 # Implementation status
 
-Updated: November 16, 2026. This page holds the current state only. [History](implementation-history.md) holds past work, and [traceability](acceptance-traceability.md) holds exact evidence.
+Updated: November 19, 2026. This page holds the current state only. [History](implementation-history.md) holds past work, and [traceability](acceptance-traceability.md) holds exact evidence.
 
 OpenUsage is in development against [SRS baseline 3.1](SRS.md), authorized on November 13, 2026. There is no release. [Not built](#not-built) lists what is missing, and [Current assignment](#current-assignment) gives the launch state. The new website and private-sync requirements do not establish implemented support.
 
@@ -34,9 +34,9 @@ Linux input. Ordinary count defects, strict compatibility limits, legacy
 producer qualification, and saved-session migration remain open. Production pins
 and enabled tools stay unchanged.
 
-Hosted CI for evidence-details commit `fcf5120` passes both jobs in
-[run 43805348080](https://github.com/Debrato2005/OpenUsage/actions/runs/43805348080).
-The selected-export change needs its own hosted result.
+Hosted CI for selected-export commit `597d2b4` passed both jobs in
+[run 43809644782](https://github.com/Debrato2005/OpenUsage/actions/runs/43809644782).
+The current-reading change needs its own hosted result.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -67,6 +67,8 @@ Kept from baseline 2.0:
 - Wake handling: OU-PROC-013, OU-MON-013.
 
 ## Partial
+
+- Current reading audit (S-04e0) on November 19, 2026. Saved desktop quota and activity carry status and source level from stored evidence. Each retained activity day keeps its own provenance. The [record](reviews/2026-11-19-current-reading-audit.md) owns checks and limits.
 
 - Selected reading evidence exports (S-04d), November 16, 2026: latest readings, quota history, and activity history carry saved audit metadata in CSV and schema-2 JSON. Complete, historical-gap, and absent-reading states stay distinct. The [record](reviews/2026-11-16-reading-evidence-exports.md) owns source review, exact values, privacy, checks, and native scope.
 
@@ -209,15 +211,15 @@ separate from document completion. The [performance report](performance-report.m
 
 The owner resumed autonomous implementation on November 15, 2026. Work continues through verified local commits and periodic pushes. Each push checks the GitHub login and includes only the reviewed branch. No release, deployment, or pull request is authorized. The latest instruction replaces the November 13 stop condition. Baseline 3.1 product scope stays unchanged.
 
-The current pass accepts S-04d, saved evidence in selected provider-reading exports.
-The [record](reviews/2026-11-16-reading-evidence-exports.md) owns acceptance and limits.
-The next bounded slice addresses the uniform reading-status contract.
+The current pass covers S-04e0, compact audit status on saved desktop quota and activity.
+The [record](reviews/2026-11-19-current-reading-audit.md) owns acceptance and limits.
+The next bounded slice carries the audit contract into saved quota and activity history views.
 S-04 remains open. SC-031 and other evidence clients retain their separate gates.
 Identity proof and new adapters keep their separate gates.
 Scanner activation and private website sync keep their separate gates.
 Live service configuration, deployment, and release remain under owner control.
 
-The repository inventory covers 941 tracked files. Graphify and source review cover the major application, storage, provider, CLI, service, and test boundaries. This is an inventory and scoped review. It does not establish a complete semantic audit. Real-provider, real-machine, and production scanner gates remain open.
+The repository inventory covers 978 tracked files at base `597d2b4`. Graphify maps the application, storage, provider, CLI, service, and test boundaries. The source review follows the current assignment. Real-provider, real-machine, and production scanner gates remain open.
 
 L-1f11as is complete within its separate legacy capture candidate scope.
 The [candidate record](reviews/2026-11-13-legacy-capture-candidate.md) lists executed

@@ -109,7 +109,7 @@ async function openSyntheticProfile(page: Page, newAccount = false) {
           value = await deferred(fixture.completions, `quota:${String(args.requestId)}`);
           if (typeof value === 'object' && value !== null && 'bindingId' in value) {
             const { requestId: _requestId, approvalId: _approvalId, ...saved } = value as ProfileQuotaSavedRead;
-            fixture.savedQuota = { ...saved, limits: saved.limits.map(limit => ({ ...limit, primary: limit.primary && { ...limit.primary, resetState: 'expected' }, secondary: limit.secondary && { ...limit.secondary, resetState: 'expected' } })), freshness: 'unknown', coverage: 'unknown', scope: 'account_quota_with_unknown_application_scope' };
+            fixture.savedQuota = { ...saved, limits: saved.limits.map(limit => ({ ...limit, primary: limit.primary && { ...limit.primary, resetState: 'expected' }, secondary: limit.secondary && { ...limit.secondary, resetState: 'expected' } })), freshness: 'unknown', coverage: 'unknown', scope: 'account_quota_with_unknown_application_scope', audit: { availability: 'complete', readingStatus: 'official', sourceLevel: 'official' } };
           }
           break;
         default: throw new Error(`Unexpected renderer fixture command: ${command}`);
@@ -393,7 +393,7 @@ test('new account reads once after matched login and status reload, then uses th
     const bindingId = '66666666-6666-4666-8666-666666666666';
     const collectionRunId = '77777777-7777-4777-8777-777777777777';
     const observedAtUtc = '2026-10-18T00:00:00.000Z';
-    f.savedQuota = { profileId, bindingId, collectionRunId, providerVersion: '0.163.0', sourceKind: 'test_fixture', observedAtUtc, identityConfidence: 'provisional', verifiedIdentityKey: null, availableResetCredits: null, resetCreditDetails: null, monitoring: 'stopped', accepted: true, freshness: 'fresh', coverage: 'unknown', scope: 'account_quota_with_unknown_application_scope', limits: [{ limitId: 'codex', limitName: null, reachedType: null, monthlyCreditLimit: null, spendControlReached: null, secondary: null, primary: { usedPercent: 25, derivedRemainingPercent: 75, windowDurationMins: 300, resetsAtUnix: null, label: 'Five-hour', resetState: 'unconfirmed' } }] };
+    f.savedQuota = { profileId, bindingId, collectionRunId, providerVersion: '0.163.0', sourceKind: 'test_fixture', observedAtUtc, identityConfidence: 'provisional', verifiedIdentityKey: null, availableResetCredits: null, resetCreditDetails: null, monitoring: 'stopped', accepted: true, freshness: 'fresh', coverage: 'unknown', scope: 'account_quota_with_unknown_application_scope', audit: { availability: 'complete', readingStatus: 'official', sourceLevel: 'official' }, limits: [{ limitId: 'codex', limitName: null, reachedType: null, monthlyCreditLimit: null, spendControlReached: null, secondary: null, primary: { usedPercent: 25, derivedRemainingPercent: 75, windowDurationMins: 300, resetsAtUnix: null, label: 'Five-hour', resetState: 'unconfirmed' } }] };
     f.completions[`collection:${requestId}`]!.resolve({ profileId, approvalId, requestId, providerVersion: '0.163.0', sourceKind: 'test_fixture', identityConfidence: 'provisional', verifiedIdentityKey: null, monitoring: 'stopped', accepted: true, quota: { bindingId, collectionRunId, observedAtUtc }, activity: null });
   }, { profileId, approvalId, requestId: attempts[0]! });
   await expect(page.locator(`[data-account-quota="${profileId}"] [role=meter]`)).toHaveAttribute('aria-valuenow', '75');

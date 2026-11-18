@@ -22,8 +22,10 @@ function saved(index = 0, rows: { startDate: string; tokens: string }[] | null =
   const { requestId: _requestId, approvalId: _approvalId, dailyUsageBuckets, ...value } = committed(index, rows);
   // These synthetic buckets contain zero or one shared nonzero token count.
   const maximum = (dailyUsageBuckets ?? []).find(row => row.tokens !== '0')?.tokens ?? dailyUsageBuckets?.[0]?.tokens ?? null;
-  return { ...value, dailyChart: { maxTokens: maximum, bars: (dailyUsageBuckets ?? []).map(row => ({ date: row.startDate, heightBasisPoints: row.tokens === '0' ? 0 : 10000 })) }, freshness: 'unknown', dailyState: rows === null ? 'unavailable' : rows.length === 0 ? 'empty' : 'returned', dailyTruncated: false,
-    dailyUsageBuckets: (dailyUsageBuckets ?? []).map(row => ({ date: row.startDate, tokens: row.tokens, observedAtUtc, freshness: 'unknown' })) };
+  const audit = { availability: 'complete', readingStatus: 'official', sourceLevel: 'official' } as const;
+  const { bindingId, collectionRunId, providerVersion, sourceKind } = value;
+  return { ...value, audit, dailyChart: { maxTokens: maximum, bars: (dailyUsageBuckets ?? []).map(row => ({ date: row.startDate, heightBasisPoints: row.tokens === '0' ? 0 : 10000 })) }, freshness: 'unknown', dailyState: rows === null ? 'unavailable' : rows.length === 0 ? 'empty' : 'returned', dailyTruncated: false,
+    dailyUsageBuckets: (dailyUsageBuckets ?? []).map(row => ({ date: row.startDate, tokens: row.tokens, observedAtUtc, freshness: 'unknown', bindingId, collectionRunId, providerVersion, sourceKind, audit })) };
 }
 async function openProfile(page: Page, options: { approve?: boolean; cached?: SavedProfileActivity | null; archived?: boolean } = {}) {
   await page.addInitScript(({ profileId, approvalId, requestIds, reviewId, observedAtUtc, options }) => {
@@ -53,7 +55,7 @@ async function openProfile(page: Page, options: { approve?: boolean; cached?: Sa
         case 'cancel_profile_activity_read': value = await new Promise((resolve, reject) => { fixture.cancellations[String(args.requestId)] = { resolve, reject }; }); break;
         case 'begin_profile_quota_read': value = { profileId, approvalId, requestId: requestIds[1], sourceKind: 'test_fixture', monitoring: 'stopped', accepted: false }; break;
         case 'complete_profile_quota_read': value = await new Promise((resolve, reject) => { fixture.completions[`quota:${String(args.requestId)}`] = { resolve, reject }; });
-          if (typeof value === 'object' && value !== null && 'bindingId' in value) { const { requestId: _requestId, approvalId: _approvalId, ...saved } = value as ProfileQuotaSavedRead; fixture.savedQuota = { ...saved, freshness: 'unknown', coverage: 'unknown', scope: 'account_quota_with_unknown_application_scope', limits: saved.limits.map(limit => ({ ...limit, primary: limit.primary && { ...limit.primary, resetState: 'expected' }, secondary: limit.secondary && { ...limit.secondary, resetState: 'expected' } })) }; } break;
+          if (typeof value === 'object' && value !== null && 'bindingId' in value) { const { requestId: _requestId, approvalId: _approvalId, ...saved } = value as ProfileQuotaSavedRead; fixture.savedQuota = { ...saved, freshness: 'unknown', coverage: 'unknown', scope: 'account_quota_with_unknown_application_scope', audit: { availability: 'complete', readingStatus: 'official', sourceLevel: 'official' }, limits: saved.limits.map(limit => ({ ...limit, primary: limit.primary && { ...limit.primary, resetState: 'expected' }, secondary: limit.secondary && { ...limit.secondary, resetState: 'expected' } })) }; } break;
         default: throw new Error(`Unexpected renderer fixture command: ${command}`);
       }
       return value as T;

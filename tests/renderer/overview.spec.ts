@@ -10,14 +10,14 @@ const observedAtUtc = '2026-10-20T00:00:00.000Z';
 function activity(profileId: string, lifetimeTokens: string): SavedProfileActivity {
   return { profileId, bindingId: '33333333-3333-4333-8333-333333333333', collectionRunId: '44444444-4444-4444-8444-444444444444',
     providerVersion: '0.163.0', sourceKind: 'test_fixture', observedAtUtc, identityConfidence: 'provisional', verifiedIdentityKey: null,
-    monitoring: 'stopped', accepted: true, coverage: 'unknown', scope: 'account_activity_with_unknown_application_scope', freshness: 'unknown',
+    monitoring: 'stopped', accepted: true, coverage: 'unknown', scope: 'account_activity_with_unknown_application_scope', audit: { availability: 'complete', readingStatus: 'official', sourceLevel: 'official' }, freshness: 'unknown',
     summary: { lifetimeTokens, peakDailyTokens: '9223372036854775807', currentStreakDays: '0', longestStreakDays: null, longestRunningTurnSec: null },
     dailyState: 'unavailable', dailyUsageBuckets: [], dailyTruncated: false, dailyChart: { maxTokens: null, bars: [] } };
 }
 function quota(profileId: string, remaining = 0): SavedProfileQuota {
   return { profileId, bindingId: '33333333-3333-4333-8333-333333333333', collectionRunId: '55555555-5555-4555-8555-555555555555',
     providerVersion: '0.163.0', sourceKind: 'test_fixture', observedAtUtc, identityConfidence: 'provisional', verifiedIdentityKey: null,
-    monitoring: 'stopped', accepted: true, coverage: 'unknown', scope: 'account_quota_with_unknown_application_scope', freshness: 'unknown',
+    monitoring: 'stopped', accepted: true, coverage: 'unknown', scope: 'account_quota_with_unknown_application_scope', audit: { availability: 'complete', readingStatus: 'official', sourceLevel: 'official' }, freshness: 'unknown',
     availableResetCredits: '0', resetCreditDetails: null, limits: [{ limitId: 'codex', limitName: 'Synthetic account limit', reachedType: null, monthlyCreditLimit: null, spendControlReached: null,
       primary: { usedPercent: 100 - remaining, derivedRemainingPercent: remaining, windowDurationMins: 300, resetsAtUnix: null, label: 'Five-hour', resetState: 'expected' }, secondary: null }] };
 }
@@ -40,9 +40,11 @@ async function open(page: Page, options: { empty?: boolean; deferFirst?: boolean
   const chartActivity = activity(first, '0');
   if (options.chart) {
     chartActivity.dailyState = 'returned';
+    const { bindingId, collectionRunId, providerVersion, sourceKind, audit } = chartActivity;
+    const observation = { bindingId, collectionRunId, providerVersion, sourceKind, audit };
     chartActivity.dailyUsageBuckets = [
-      { date: '2026-10-01', tokens: '0', observedAtUtc, freshness: 'stale' },
-      { date: '2026-10-03', tokens: '9007199254740993', observedAtUtc, freshness: 'fresh' },
+      { ...observation, date: '2026-10-01', tokens: '0', observedAtUtc, freshness: 'stale' },
+      { ...observation, date: '2026-10-03', tokens: '9007199254740993', observedAtUtc, freshness: 'fresh' },
     ];
     chartActivity.dailyChart = { maxTokens: '9007199254740993', bars: [{ date: '2026-10-01', heightBasisPoints: 0 }, { date: '2026-10-03', heightBasisPoints: 10000 }] };
   }

@@ -18,6 +18,122 @@ const HOME: &str = "44444444-4444-4444-8444-444444444444";
 const EMAIL: &str = "synthetic-private-email@example.invalid";
 
 #[test]
+fn current_quota_view_keeps_recorded_audit_with_exact_values_after_archive() {
+    let directory = private_directory();
+    let mut storage = Storage::create(&directory.path().join("quota-audit-view.db"), &KEY).unwrap();
+    storage.create_profile(PROFILE, "Synthetic", HOME).unwrap();
+    assert!(storage.current_quota_view(PROFILE).unwrap().is_none());
+    let reading = quota();
+    storage
+        .accept_quota(reading.clone(), Some(association(&activity())))
+        .unwrap();
+    let before = application_export(&mut storage);
+    let view = storage.current_quota_view(PROFILE).unwrap().unwrap();
+    assert_eq!(view.reading.commit.collection_run_id, reading.run_id);
+    assert_eq!(
+        view.reading.limits[0]
+            .primary
+            .as_ref()
+            .unwrap()
+            .used_percent,
+        95
+    );
+    assert_eq!(view.reading.available_reset_credits, None);
+    assert_eq!(view.reading.source_kind, ActivitySourceKind::TestFixture);
+    assert_eq!(
+        serde_json::to_value(view.audit).unwrap(),
+        serde_json::json!({
+            "availability": "complete", "readingStatus": "official", "sourceLevel": "official"
+        })
+    );
+    assert_eq!(application_export(&mut storage), before);
+    storage.set_profile_archived(PROFILE, true).unwrap();
+    let archived = storage.current_quota_view(PROFILE).unwrap().unwrap();
+    assert_eq!(archived.reading, view.reading);
+    assert_eq!(archived.audit, view.audit);
+    let control = controlled_connection(&directory.path().join("quota-audit-view.db"));
+    control
+        .execute(
+            "DELETE FROM reading_evidence WHERE collection_run_id=?1",
+            [&reading.run_id],
+        )
+        .unwrap();
+    let before = storage.backup_snapshot().unwrap().bytes;
+    assert_eq!(
+        storage.current_quota_view(PROFILE).err(),
+        Some(ActivityError::ReadFailed)
+    );
+    assert_eq!(storage.backup_snapshot().unwrap().bytes, before);
+}
+
+#[test]
+fn current_activity_view_keeps_each_daily_observation_and_audit_in_one_snapshot() {
+    let directory = private_directory();
+    let mut storage = Storage::create(&directory.path().join("current-audit.db"), &KEY).unwrap();
+    storage.create_profile(PROFILE, "Synthetic", HOME).unwrap();
+    assert!(storage.current_activity_view(PROFILE).unwrap().is_none());
+    let mut first = activity();
+    first.daily_usage = Some(vec![openusage_storage::ActivityDayValue {
+        provider_date: "2026-11-15".into(),
+        tokens: "10".into(),
+    }]);
+    first.evidence = Some(evidence(&first));
+    storage
+        .accept_activity_with_binding(first.clone(), Some(association(&first)))
+        .unwrap();
+    let mut next = activity();
+    next.run_id = "77777777-7777-4777-8777-777777777777".into();
+    next.provider_version = "0.164.0".into();
+    next.observed_at_utc = "2026-11-16T00:00:01.000Z".into();
+    next.completed_at_utc = next.observed_at_utc.clone();
+    next.summary.lifetime_tokens = Some("99".into());
+    next.daily_usage = Some(vec![openusage_storage::ActivityDayValue {
+        provider_date: "2026-11-16".into(),
+        tokens: "20".into(),
+    }]);
+    next.evidence = Some(evidence(&next));
+    storage.accept_activity(next.clone()).unwrap();
+    let before = application_export(&mut storage);
+    let view = storage.current_activity_view(PROFILE).unwrap().unwrap();
+    assert_eq!(view.reading.commit.collection_run_id, next.run_id);
+    assert_eq!(view.reading.summary.lifetime_tokens.as_deref(), Some("99"));
+    assert_eq!(
+        serde_json::to_value(view.audit).unwrap(),
+        serde_json::json!({
+            "availability": "complete", "readingStatus": "official", "sourceLevel": "official"
+        })
+    );
+    assert!(!view.truncated);
+    assert_eq!(view.days.len(), 2);
+    for (day, run, version, observed, count) in [
+        (&view.days[0], RUN, "0.163.0", TIME, "10"),
+        (
+            &view.days[1],
+            next.run_id.as_str(),
+            "0.164.0",
+            next.observed_at_utc.as_str(),
+            "20",
+        ),
+    ] {
+        assert_eq!(day.day.tokens, count);
+        assert_eq!(day.context.profile_id, PROFILE);
+        assert_eq!(day.context.binding_id, BINDING);
+        assert_eq!(day.context.run_id, run);
+        assert_eq!(day.context.method, EvidenceMethod::Activity);
+        assert_eq!(day.context.provider_version, version);
+        assert_eq!(day.context.source_kind, ActivitySourceKind::TestFixture);
+        assert_eq!(day.context.observed_at_utc, observed);
+        assert_eq!(
+            serde_json::to_value(day.audit).unwrap(),
+            serde_json::json!({
+                "availability": "complete", "readingStatus": "official", "sourceLevel": "official"
+            })
+        );
+    }
+    assert_eq!(application_export(&mut storage), before);
+}
+
+#[test]
 fn selected_exports_keep_saved_audit_fields_and_metric_availability_separate() {
     let directory = private_directory();
     let mut storage = Storage::create(&directory.path().join("audit-export.db"), &KEY).unwrap();
@@ -741,6 +857,10 @@ fn schema_thirteen_history_migrates_without_fabricating_response_evidence() {
     let mut storage = Storage::create(&path, &KEY).unwrap();
     storage.create_profile(PROFILE, "Synthetic", HOME).unwrap();
     let mut reading = activity();
+    reading.daily_usage = Some(vec![openusage_storage::ActivityDayValue {
+        provider_date: "2026-11-15".into(),
+        tokens: "9007199254740993".into(),
+    }]);
     reading.evidence = Some(evidence(&reading));
     storage
         .accept_activity_with_binding(reading.clone(), Some(association(&reading)))
@@ -759,6 +879,20 @@ fn schema_thirteen_history_migrates_without_fabricating_response_evidence() {
     let mut migrated = Storage::open(&path, &KEY).unwrap();
     assert_eq!(migrated.metadata().unwrap().schema_version, 14);
     assert_eq!(migrated.current_activity(PROFILE).unwrap().unwrap(), saved);
+    let view = migrated.current_activity_view(PROFILE).unwrap().unwrap();
+    assert_eq!(view.reading, saved);
+    assert_eq!(
+        serde_json::to_value(view.audit).unwrap(),
+        serde_json::json!({ "availability": "legacy_gap" })
+    );
+    assert_eq!(view.days.len(), 1);
+    assert_eq!(view.days[0].day.tokens, "9007199254740993");
+    assert_eq!(view.days[0].context.run_id, RUN);
+    assert_eq!(view.days[0].context.provider_version, "0.163.0");
+    assert_eq!(
+        serde_json::to_value(view.days[0].audit).unwrap(),
+        serde_json::json!({ "availability": "legacy_gap" })
+    );
     assert!(matches!(
         migrated
             .reading_evidence(target(RUN, EvidenceMethod::Activity))
@@ -986,6 +1120,10 @@ fn committed_evidence_is_immutable_and_unexplained_absence_is_not_legacy() {
         Err(ActivityError::ReadFailed)
     ));
     let before = storage.backup_snapshot().unwrap().bytes;
+    assert_eq!(
+        storage.current_activity_view(PROFILE).err(),
+        Some(ActivityError::ReadFailed)
+    );
     assert_eq!(
         storage.readings_export(&[PROFILE.into()], false).err(),
         Some(openusage_storage::ExportError::ReadFailed)

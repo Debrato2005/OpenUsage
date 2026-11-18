@@ -6,7 +6,7 @@ use super::*;
 use openusage_codex::session::QuotaProbe;
 use openusage_storage::{
     ActivityError, ActivitySourceKind, ProfileBindingInput, ProfileIdentityEvidence,
-    QuotaResetAssessment, QuotaResetState, QuotaWindowRole,
+    QuotaResetAssessment, QuotaResetState, QuotaWindowRole, ReadingAudit,
 };
 use std::time::{Duration, Instant, SystemTime};
 
@@ -25,6 +25,7 @@ pub(crate) struct SavedProfileQuota {
     accepted: bool,
     coverage: &'static str,
     scope: &'static str,
+    audit: ReadingAudit,
     freshness: ActivityFreshness,
     limits: Vec<provider::QuotaLimitView>,
     available_reset_credits: Option<String>,
@@ -52,12 +53,13 @@ impl Workspace {
         {
             return Err(CommandError::ProfileNotFound);
         }
-        let Some(saved) = storage
-            .current_quota(id)
+        let Some(view) = storage
+            .current_quota_view(id)
             .map_err(|_| CommandError::ProviderQuotaLoadFailed)?
         else {
             return Ok(None);
         };
+        let saved = view.reading;
         let session = self
             .quota_sessions
             .get(id)
@@ -113,6 +115,7 @@ impl Workspace {
             accepted: true,
             coverage: "unknown",
             scope: openusage_storage::QUOTA_SOURCE_SCOPE,
+            audit: view.audit,
             freshness,
             limits,
             available_reset_credits: saved.available_reset_credits,

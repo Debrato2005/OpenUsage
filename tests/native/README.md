@@ -177,6 +177,7 @@ This is text layout, not operating-system scaling.
 
 The summary journey also opens complete saved evidence for all four activity panels and quota.
 It checks exact profile, method, run, observation context, hashes and checks through the real command.
+It compares the compact audit metadata on saved quota, activity, and daily rows with the complete records.
 Locked, malformed, and wrong-target requests must retain their expected errors or unavailable result.
 Evidence reads must preserve saved activity, quota, the protected key, and provider requests.
 Expanded hash captures check both themes at 360 pixels and 200% text with the same dialog-only scaling and restoration assertions.

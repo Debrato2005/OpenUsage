@@ -44,11 +44,13 @@ pub use subscriptions::{
 };
 mod quota;
 mod reading_evidence;
+mod reading_views;
 pub use reading_evidence::{
     EvidenceLocation, EvidenceMethod, EvidenceUnusedField, ReadingEvidenceAvailability,
     ReadingEvidenceCheck, ReadingEvidenceContext, ReadingEvidenceInput, ReadingEvidenceRecord,
     ReadingEvidenceTarget, ResponseEvidenceInput,
 };
+pub use reading_views::{AuditedActivityDay, CurrentActivityView, CurrentQuotaView, ReadingAudit};
 mod quota_history;
 pub use quota_history::QuotaHistoryPage;
 mod alerts;

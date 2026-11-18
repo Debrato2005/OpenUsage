@@ -21,7 +21,7 @@ function committed(index = 0): ProfileQuotaSavedRead {
 }
 function saved(index = 0): SavedProfileQuota {
   const { requestId: _requestId, approvalId: _approvalId, ...value } = committed(index);
-  return { ...value, freshness: 'unknown', coverage: 'unknown', scope: 'account_quota_with_unknown_application_scope', limits: value.limits.map(limit => ({ ...limit, primary: limit.primary && { ...limit.primary, resetState: 'expected' }, secondary: limit.secondary && { ...limit.secondary, resetState: 'expected' } })) };
+  return { ...value, freshness: 'unknown', coverage: 'unknown', scope: 'account_quota_with_unknown_application_scope', audit: { availability: 'complete', readingStatus: 'official', sourceLevel: 'official' }, limits: value.limits.map(limit => ({ ...limit, primary: limit.primary && { ...limit.primary, resetState: 'expected' }, secondary: limit.secondary && { ...limit.secondary, resetState: 'expected' } })) };
 }
 async function openProfile(page: Page, options: { approve?: boolean; cached?: SavedProfileQuota | null; archived?: boolean; refreshSeconds?: number; deferRefresh?: boolean } = {}) {
   await page.addInitScript(({ profileId, approvalId, requestIds, reviewId, observedAtUtc, options }) => {
