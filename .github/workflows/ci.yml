@@ -1,7 +1,7 @@
 name: CI
 
 # The same commands as scripts/engineering.py, run in full on Linux (OU-ENG-002 to OU-ENG-004).
-# Windows and macOS run the preview CLI contract. Native GUI journeys stay a local gate.
+# Windows and macOS check preview sidecars, the CLI, and the desktop Rust crate.
 on:
   pull_request:
   push:
@@ -201,6 +201,13 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6; official ref verified
         with:
           persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6; official ref verified
+        with:
+          python-version: '3.12'
+      - name: Stage reviewed preview sidecars
+        shell: bash
+        run: python scripts/provision-preview-sidecars.py --target "$RUST_TARGET" --out "$RUNNER_TEMP/openusage-preview-sidecars"
       - name: Install pinned Rust and match the runner architecture
         shell: bash
         run: |

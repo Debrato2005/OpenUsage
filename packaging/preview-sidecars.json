@@ -1,0 +1,56 @@
+{
+  "aarch64-apple-darwin": {
+    "codex": {
+      "sourceUrl": "https://github.com/openai/codex/releases/download/rust-v0.163.0/codex-aarch64-apple-darwin.tar.gz",
+      "archiveBytes": 99551880,
+      "archiveDigest": "sha256-61c4d9a92521bdb42b0c1d9f87c673f6da628a06de5945cbdd9a0010632f6d10",
+      "executableMember": "codex-aarch64-apple-darwin",
+      "executableBytes": 249952688,
+      "executableSha256": "8813367285524ac798dd96d1b071aea30d58708c7226fd236cd275cf1cfdee31"
+    },
+    "ccusage": {
+      "sourceUrl": "https://registry.npmjs.org/@ccusage/ccusage-darwin-arm64/-/ccusage-darwin-arm64-20.0.48.tgz",
+      "archiveBytes": 2235327,
+      "archiveDigest": "sha512-e67177c0814ee887c9b1523799cd3ff2266d71f37c4c43780f0d49ca14e83d05412d5a1ac5b9c1a4d475e9158b42f4b5c8d7155507e37820db9661defd6b7afc",
+      "executableMember": "package/bin/ccusage",
+      "executableBytes": 3695344,
+      "executableSha256": "e14a8136ff2433770c35c1ac4d5848db79280cdd489861b4a91569449b18cea8"
+    }
+  },
+  "x86_64-apple-darwin": {
+    "codex": {
+      "sourceUrl": "https://github.com/openai/codex/releases/download/rust-v0.163.0/codex-x86_64-apple-darwin.tar.gz",
+      "archiveBytes": 108640069,
+      "archiveDigest": "sha256-562a1aea0e5686283a467687d268ae33705f02fd4d40f1bc4110a415c5c1c7b1",
+      "executableMember": "codex-x86_64-apple-darwin",
+      "executableBytes": 269718432,
+      "executableSha256": "73697f229103f463acaafd8659976caaa4892ec11e2c246c7fa97f93d523f90e"
+    },
+    "ccusage": {
+      "sourceUrl": "https://registry.npmjs.org/@ccusage/ccusage-darwin-x64/-/ccusage-darwin-x64-20.0.48.tgz",
+      "archiveBytes": 2464604,
+      "archiveDigest": "sha512-ecfe1d5768cf6f78f2cdf467703c80c849e2c79d2dae65d80671f1ce13736a8ebd470e0c10f1b0954e66923c185f7fe44c0090e4c0e8a26c4784543d63cf80be",
+      "executableMember": "package/bin/ccusage",
+      "executableBytes": 4464640,
+      "executableSha256": "0e5f25da8a4cfa31a5aced8c457f99124e2e806491c32ca086519598a969f265"
+    }
+  },
+  "x86_64-pc-windows-msvc": {
+    "codex": {
+      "sourceUrl": "https://github.com/openai/codex/releases/download/rust-v0.163.0/codex-x86_64-pc-windows-msvc.exe.tar.gz",
+      "archiveBytes": 113807177,
+      "archiveDigest": "sha256-dbdd5ab5ecce1358e69fac8db1cb3538659c48e99498f3d2ea0e3e7ae878ef8c",
+      "executableMember": "codex-x86_64-pc-windows-msvc.exe",
+      "executableBytes": 341270320,
+      "executableSha256": "2692c8c7bb2cf8b0aefe638741fc90236f4b824c59578ce84994f9de58200993"
+    },
+    "ccusage": {
+      "sourceUrl": "https://registry.npmjs.org/@ccusage/ccusage-win32-x64/-/ccusage-win32-x64-20.0.48.tgz",
+      "archiveBytes": 2379395,
+      "archiveDigest": "sha512-e0f088b340569b2dcc8fc27ddebd295fa5d5019a5740e60ee05c6d817ac99c1d0d249da380696c284cf060fc5911ceb642af992b2c8607a73fe909c6c37d0b8d",
+      "executableMember": "package/bin/ccusage.exe",
+      "executableBytes": 4549632,
+      "executableSha256": "91e9fd1a3751ee11edbbca9777df6245f3871d3e8688127c0bf9242d689771f1"
+    }
+  }
+}

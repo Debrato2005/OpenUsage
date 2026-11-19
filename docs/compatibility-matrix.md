@@ -32,6 +32,7 @@ OU-DIST-007 requires a real Mac test and an ad-hoc-signed app bundle if a plain 
 | Scanner candidates | [Qualification checklist](implementation-slices.md#build-checklist) | Isolated experiments and qualification features. Production pins remain unchanged |
 
 The [preview archive check](reviews/2026-11-19-preview-archive-check.md) records matching upstream digests and executable headers for Windows x64 and both Mac architectures. These companions and scanners still need source and runtime qualification.
+The [build workflow](engineering-workflow.md) stages the exact candidate files for those targets.
 
 The [Codex contract](../crates/openusage-codex/README.md) and [scanner contract](../crates/openusage-locallogs/README.md) define version and format boundaries.
 A passing fixture proves its declared shape. It does not prove a current live account returns that shape.
