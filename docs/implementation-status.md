@@ -36,7 +36,8 @@ and enabled tools stay unchanged.
 
 Hosted CI for current-reading commit `34b69f0` passed both jobs in
 [run 44419323987](https://github.com/Debrato2005/OpenUsage/actions/runs/44419323987).
-The history-audit change needs its own hosted result.
+Hosted CI for history-audit commit `1e3e98f` passed both jobs in
+[run 44428416637](https://github.com/Debrato2005/OpenUsage/actions/runs/44428416637).
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -67,6 +68,8 @@ Kept from baseline 2.0:
 - Wake handling: OU-PROC-013, OU-MON-013.
 
 ## Partial
+
+- Saved CLI quota audit (S-04e2) on November 19, 2026. `status --json` uses the saved audit record and keeps schema version 2. The [record](reviews/2026-11-19-cli-quota-audit.md) owns the contract, checks, and native scope.
 
 - Saved history audit (S-04e1) on November 19, 2026. Quota and activity snapshots show the saved reading status and source level in their details. The [record](reviews/2026-11-19-history-audit.md) owns checks and limits.
 
@@ -213,9 +216,9 @@ separate from document completion. The [performance report](performance-report.m
 
 The owner resumed autonomous implementation on November 15, 2026. Work continues through verified local commits and periodic pushes. Each push checks the GitHub login and includes only the reviewed branch. No release, deployment, or pull request is authorized. The latest instruction replaces the November 13 stop condition. Baseline 3.1 product scope stays unchanged.
 
-The current pass covers S-04e1, compact audit status on saved quota and activity history.
-The [record](reviews/2026-11-19-history-audit.md) owns acceptance and limits.
-The next bounded slice reviews audit metadata for saved CLI quota status.
+S-04e2 covers saved audit metadata in CLI quota status.
+The [record](reviews/2026-11-19-cli-quota-audit.md) owns acceptance and limits.
+The next bounded slice completes the pending release reference drafts under L-7e.
 S-04 remains open. SC-031 and other evidence clients retain their separate gates.
 Identity proof and new adapters keep their separate gates.
 Scanner activation and private website sync keep their separate gates.

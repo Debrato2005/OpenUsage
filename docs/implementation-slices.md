@@ -916,6 +916,8 @@ S-04e0 carries compact audit status through current desktop quota and activity r
 The [current-reading record](reviews/2026-11-19-current-reading-audit.md) owns the check scope.
 S-04e1 carries the same audit status through saved quota and activity history pages.
 The [history record](reviews/2026-11-19-history-audit.md) owns the check scope.
+S-04e2 carries saved quota audit metadata through schema-2 CLI JSON.
+The [CLI record](reviews/2026-11-19-cli-quota-audit.md) owns the checks and limits.
 Other evidence clients, all-status alerts, and reset rules remain open.
 
 Every number can say where it came from.

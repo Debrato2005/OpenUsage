@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFile, execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import { cp, mkdir, readFile, readdir, readlink, rm, writeFile } from 'node:fs/promises';
+import { chmod, copyFile, cp, mkdir, readFile, readdir, readlink, rm, writeFile } from 'node:fs/promises';
 import { readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
@@ -21,7 +21,7 @@ const hash = async path => createHash('sha256').update(await readFile(path)).dig
 const evidence = {
   requirement: 'NATIVE-CLI-STATUS-001', result: 'failed', startedAt: new Date().toISOString(),
   scope: 'Actual Linux Tauri native-test build and native-test openusage CLI, a private GNOME Secret Service, a private SQLCipher 4 key-store workspace, synthetic Claude Code logs and the real pinned ccusage 20.0.48. No real logs, accounts or credential stores.',
-  expectedResult: ['status --json and statusline give the exact saved total for today while the app runs and after it closes.', 'The CLI leaves the database, its WAL and the file set unchanged when the app is closed.', 'With the key store gone, statusline prints OpenUsage locked with exit code 7 and no prompt.'],
+  expectedResult: ['status --json and statusline give the exact saved total for today while the app runs and after it closes.', 'The CLI quota and audit match the saved desktop reading.', 'The CLI leaves the database, its WAL and the file set unchanged when the app is closed.', 'With the key store gone, statusline prints OpenUsage locked with exit code 7 and no prompt.'],
   steps: [],
 };
 let fixture, driver, sequence = 0;
@@ -173,6 +173,61 @@ try {
   assert.deepEqual(await sourceHashes(), shiftedBefore);
   evidence.steps.push('A native profile without a sign-in shows Authentication required and unavailable quota. CLI reads preserve saved files and source hashes.');
 
+  driver = new NativeDriver(application, fixture.environment, join(output, `driver-${++sequence}.log`));
+  await driver.start();
+  await waitFor(async () => (await call('bootstrap')).storage === 'ready', 'reopened workspace for saved quota');
+  const executable = join(fixture.root, 'synthetic-collection-provider.py');
+  await copyFile(join(repository, 'crates/openusage-codex/tests/fixtures/synthetic-collection-provider.py'), executable);
+  await chmod(executable, 0o700);
+  assert.equal(await hash(executable), '53a853b737ceca311649e9f1d9ebd1341154a5f782efd8e915f7f834c819a6dc');
+  await driver.navigate('settings');
+  await driver.click('[data-provider-settings]');
+  await driver.click('[data-provider-manual]');
+  await driver.type('#provider-executable', executable);
+  await driver.click('.provider-inspection-form button[type=submit]');
+  await waitFor(() => driver.execute('return Boolean(document.querySelector("#provider-executable-approved")&&!document.querySelector("#provider-executable-approved").disabled);'), 'synthetic source review');
+  await driver.click('#provider-executable-approved');
+  await driver.click('.provider-approval-form button[type=submit]');
+  await waitFor(() => driver.execute('return Boolean(document.querySelector(".provider-approval-result"));'), 'synthetic source approval');
+  const providerHome = join(dirname(fixture.database), 'profiles', profile.id);
+  await writeFile(join(providerHome, 'synthetic-collection-config.json'), JSON.stringify({ mode: 'dashboard_success', requireLogin: true }), { mode: 0o600 });
+  await driver.navigate('overview');
+  await driver.click(`[data-overview-account="${profile.id}"] .overview-card-foot button:first-child`);
+  await waitFor(async () => Boolean(await call('load_profile_quota', { profileId: profile.id })), 'synthetic quota acceptance', 45000);
+  const saved = await call('load_profile_quota', { profileId: profile.id });
+  assert.equal(saved.sourceKind, 'test_fixture');
+  const providerLog = join(providerHome, 'synthetic-collection-observations.jsonl');
+  await close();
+  const quotaBefore = await workspaceFiles();
+  const providerBefore = await hash(providerLog);
+  const auditedResult = await openusage(['status', '--json']);
+  assert.equal(auditedResult.code, 0);
+  const auditedStatus = JSON.parse(auditedResult.stdout);
+  assert.equal(auditedStatus.schemaVersion, 2);
+  const auditedProfile = auditedStatus.profiles.find(entry => entry.id === profile.id);
+  assert.equal(auditedProfile.connectionState, 'connected');
+  const { quota } = auditedProfile;
+  assert.deepEqual(quota.audit, saved.audit);
+  assert.equal(quota.status, saved.audit.readingStatus);
+  assert.equal(quota.observedAtUtc, saved.observedAtUtc);
+  assert.equal(quota.source, `codex app-server ${saved.providerVersion}`);
+  assert.equal(saved.limits.length, 1);
+  const { primary, secondary } = saved.limits[0];
+  const windows = quota.windows.map(row => [row.durationMins, row.usedPercent, row.remainingPercent]);
+  assert.deepEqual(windows, [primary, secondary].map(row => [row.windowDurationMins, row.usedPercent, row.derivedRemainingPercent]));
+  assert.deepEqual(quota.windows.map(row => [row.role, row.durationMins, row.usedPercent, row.remainingPercent]), [
+    ['primary', 300, 25, 75], ['secondary', 10080, 40, 60],
+  ]);
+  assert.equal(auditedResult.stdout.includes(fixture.root), false);
+  assert.equal(auditedResult.stdout.includes('@'), false);
+  const auditedLine = await openusage(['statusline']);
+  assert.equal(auditedLine.code, 0);
+  assert.match(auditedLine.stdout, /^CLI connection control 5h 75% 7d 60% \| /);
+  assert.equal(await hash(providerLog), providerBefore);
+  assert.deepEqual(stable(await workspaceFiles()), stable(quotaBefore));
+  assert.deepEqual(await sourceHashes(), shiftedBefore);
+  evidence.steps.push('The CLI matches the native saved quota audit and both windows after the app closes. Its reads preserve the workspace and provider evidence.');
+
   await stopSecretService(fixture);
   const locked = await openusage(['statusline']);
   assert.deepEqual([locked.code, locked.stdout, locked.stderr], [7, 'OpenUsage locked\n', '']);
@@ -180,8 +235,9 @@ try {
   assert.equal(json.code, 7);
   assert.equal(JSON.parse(json.stdout).error.code, 'locked');
   evidence.steps.push('With the Secret Service gone, statusline and status --json gave locked with exit code 7 and no prompt.');
-  assert.deepEqual(stable(await workspaceFiles()), stable(connectionBefore));
+  assert.deepEqual(stable(await workspaceFiles()), stable(quotaBefore));
   assert.equal(await hash(application), evidence.applicationSha256);
+  assert.equal(await hash(cli), evidence.cliSha256);
   evidence.result = 'passed';
 } catch (error) { evidence.error = error.stack ?? String(error); process.exitCode = 1; }
 finally {

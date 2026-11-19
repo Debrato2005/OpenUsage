@@ -539,6 +539,10 @@ windows. Status and statusline must show the connection state. Reads must
 preserve the saved workspace and source hashes. Saved-quota Offline and other
 connection states use the public-command SQLCipher tests.
 
+The same journey signs in with the approved synthetic provider after the
+unavailable-quota check. It compares the native saved audit and both quota
+windows with the CLI output after the app closes.
+
 ## Native share images
 
 Run `node tests/native/share-images.mjs` with the private display and drivers above.

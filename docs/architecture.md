@@ -42,6 +42,7 @@ The [selected audit contract](data-contracts.md#selected-reading-audit-fields) o
 The renderer receives only the existing file receipt.
 The desktop reads saved quota and activity with audit metadata in one deferred storage transaction.
 Each history command reads only its bounded page and resolves audit records for the returned runs.
+The CLI quota projection uses the same current-reading storage view through its query-only connection.
 Activity reuses the evidence lookup once per distinct run in its bounded daily page.
 Chart and heatmap calculations use dates and exact counts without creating reading evidence for their derived values.
 The [data contract](data-contracts.md#reading-evidence) owns field meanings and version rules.

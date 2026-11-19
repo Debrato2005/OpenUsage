@@ -4,7 +4,12 @@
 
 This is a dated record of work through November 2, 2026, written against SRS 2.0. It is not the current state, and its lists of unfinished work are out of date. See [implementation status](implementation-status.md).
 
+## Saved history audit before CLI quota audit, November 19, 2026
 
+S-04e1 carried compact audit status through saved desktop quota and activity history.
+The [record](reviews/2026-11-19-history-audit.md) owns scope and checks.
+Hosted CI for `1e3e98f` passed both jobs in run 44428416637.
+CLI quota audit remained open at that checkpoint.
 
 ## Current reading audit before history audit, November 19, 2026
 

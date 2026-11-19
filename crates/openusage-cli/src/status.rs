@@ -4,7 +4,7 @@
 use crate::local_status;
 use crate::{CliError, Env, SCHEMA_VERSION, grouped, known_options};
 use openusage_keys::VaultError;
-use openusage_storage::{ProfileConnectionState, QuotaWindow, Storage, StorageError};
+use openusage_storage::{ProfileConnectionState, QuotaWindow, ReadingAudit, Storage, StorageError};
 use serde::Serialize;
 
 pub const STATUS_HELP: &str = "Usage: openusage status [--json]
@@ -52,6 +52,8 @@ struct Quota {
     status: Option<&'static str>,
     source: Option<String>,
     observed_at_utc: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    audit: Option<ReadingAudit>,
     windows: Vec<Window>,
 }
 
@@ -157,7 +159,7 @@ fn snapshot(storage: &Storage, now: jiff::Timestamp) -> Result<Status, CliError>
         .filter(|p| !p.archived)
     {
         let saved = storage
-            .current_quota(&profile.id)
+            .current_quota_view(&profile.id)
             .map_err(|_| unreadable(()))?;
         let quota = match saved {
             None => Quota {
@@ -165,9 +167,11 @@ fn snapshot(storage: &Storage, now: jiff::Timestamp) -> Result<Status, CliError>
                 status: None,
                 source: None,
                 observed_at_utc: None,
+                audit: None,
                 windows: Vec::new(),
             },
-            Some(saved) => {
+            Some(view) => {
+                let saved = view.reading;
                 let state = match saved.commit.observed_at_utc.parse::<jiff::Timestamp>() {
                     Ok(observed) if observed > now => "unknown",
                     Ok(observed)
@@ -205,9 +209,10 @@ fn snapshot(storage: &Storage, now: jiff::Timestamp) -> Result<Status, CliError>
                 }
                 Quota {
                     state,
-                    status: Some("official"),
+                    status: view.audit.reading_status(),
                     source: Some(format!("codex app-server {}", saved.provider_version)),
                     observed_at_utc: Some(saved.commit.observed_at_utc.clone()),
+                    audit: Some(view.audit),
                     windows,
                 }
             }
@@ -600,6 +605,7 @@ mod tests {
                 "status": "official",
                 "source": "codex app-server 0.163.0",
                 "observedAtUtc": "2026-11-08T10:00:00.500Z",
+                "audit": {"availability": "complete", "readingStatus": "official", "sourceLevel": "official"},
                 "windows": [
                     {
                         "limitId": "codex", "limitName": "Synthetic limit", "role": "primary",

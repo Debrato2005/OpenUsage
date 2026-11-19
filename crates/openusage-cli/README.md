@@ -43,6 +43,12 @@ case creates a zero measurement.
 
 Text goes to standard output. JSON uses `schemaVersion` 2. This replaces the version 1 local totals layout. Doctor and error envelopes use the same version.
 
+In `status --json`, a saved `profiles[].quota` has an additive `audit` object.
+For complete evidence, `quota.status` comes from the saved audit status.
+A historical gap has `status: null` and `audit: {"availability":"legacy_gap"}`.
+A profile without saved quota keeps its unavailable state and has no `audit` key.
+The [saved-reading contract](../../docs/data-contracts.md#provider-quota-and-activity) owns the audit fields.
+
 `status.local.scopes` holds separate `grouped`, `legacy`, and `unplaced` records. Each record names the tool, scope ID, date, saved time zone, and latest scan time. Each dated scope uses today in its own zone. An unplaced record has no date or zone. The CLI never adds these records together. Text and statusline label each legacy folder separately. No account identity comes from local records.
 
 Each scope and each `report.tools` entry has a `metrics` object. It holds total, input, output, cache-write, cache-read, reasoning, and estimated value. Each measurement has `value`, `state`, `status`, `source`, and `observedAtUtc`. Values use exact decimal strings. Estimated value uses millionths of a US dollar. A known zero is `"0"` with state `current`. An absent measurement is `null` with state `not_available`. A total estimate is unavailable if any included model lacks a price.

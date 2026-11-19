@@ -40,6 +40,7 @@ fn current_quota_view_keeps_recorded_audit_with_exact_values_after_archive() {
     );
     assert_eq!(view.reading.available_reset_credits, None);
     assert_eq!(view.reading.source_kind, ActivitySourceKind::TestFixture);
+    assert_eq!(view.audit.reading_status(), Some("official"));
     assert_eq!(
         serde_json::to_value(view.audit).unwrap(),
         serde_json::json!({
@@ -916,6 +917,9 @@ fn schema_thirteen_history_migrates_without_fabricating_response_evidence() {
     let history = migrated.quota_history(PROFILE, None).unwrap();
     assert_eq!(history.entries[0].reading, saved_quota);
     assert_eq!(history.entries[0].audit, view.audit);
+    let quota = migrated.current_quota_view(PROFILE).unwrap().unwrap();
+    assert_eq!(quota.audit, view.audit);
+    assert_eq!(quota.audit.reading_status(), None);
     assert!(matches!(
         migrated
             .reading_evidence(target(RUN, EvidenceMethod::Activity))

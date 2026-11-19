@@ -17,6 +17,15 @@ pub struct ReadingAudit {
     state: AuditState,
 }
 
+impl ReadingAudit {
+    pub fn reading_status(self) -> Option<&'static str> {
+        match self.state {
+            AuditState::Complete { reading_status, .. } => Some(reading_status),
+            AuditState::LegacyGap => None,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(tag = "availability", rename_all = "snake_case")]
 enum AuditState {

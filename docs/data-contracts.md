@@ -222,6 +222,8 @@ The quota and activity history commands return the same compact `audit` object o
 entry. Every page keeps the selected profile, original binding, and existing cursor order.
 An unexplained evidence gap fails the page. History shows the audit fields in snapshot details.
 
+The [CLI output contract](../crates/openusage-cli/README.md#output) uses the same audit object for saved quota.
+
 Individual activity and the explicitly Unverified profile sum stay separate.
 Verified combined totals remain unavailable without approved identity and scope.
 [SC-010](srs-clarifications.md#sc-010-approved-unverified-selected-profile-activity)
