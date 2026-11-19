@@ -200,13 +200,15 @@ As of November 3, 2026, on Linux. 43 journeys ran on the native-test build and 4
 - `companion-onboarding` did not run. It requests a real OpenAI device code, so it waits for owner approval.
 - `activity-read` was removed. It checked unsaved previews, and every completed read has been saved since October 18. `activity-persistence` and `collection` cover saved reads.
 
-## Missing release documents
+## Release documents and evidence
 
-SRS Section 20 still needs provider capabilities, security and privacy,
-compatibility, and provider evidence. [Data contracts](data-contracts.md)
-describes implemented records. The [identity contract](identity-contract.md)
-exists as a draft and awaits owner approval. Runtime qualification remains
-separate from document completion. The [performance report](performance-report.md) starts with the Pi candidate on synthetic Linux. Full release measurements remain open. The [threat model](threat-model.md) exists since L-7b, and `scripts/sbom.py` writes the SBOM since L-7c.
+The [documentation map](README.md) links all Section 20 references. The
+[identity contract](identity-contract.md) is a draft and awaits owner approval.
+[Provider evidence](provider-evidence.md) has the redacted summary format and
+lists the pending AT-60 comparisons. The [performance report](performance-report.md)
+has scoped Linux measurements. The release reference measurements remain open.
+`scripts/sbom.py` writes the SBOM. The draft [release notes](release-notes/0.1.0.md)
+track packages and tested versions.
 
 ## Open items
 
@@ -218,7 +220,8 @@ The owner resumed autonomous implementation on November 15, 2026. Work continues
 
 S-04e2 covers saved audit metadata in CLI quota status.
 The [record](reviews/2026-11-19-cli-quota-audit.md) owns acceptance and limits.
-The next bounded slice completes the pending release reference drafts under L-7e.
+L-7e3 adds the release references. The [preview archive check](reviews/2026-11-19-preview-archive-check.md) records verified source archives for L-6c.
+Preview builds, companion qualification, release measurements, real-account comparisons, and publication remain open.
 S-04 remains open. SC-031 and other evidence clients retain their separate gates.
 Identity proof and new adapters keep their separate gates.
 Scanner activation and private website sync keep their separate gates.

@@ -11,6 +11,8 @@ One fact has one home. Change it there, and link to it from anywhere else.
 | How is it built? | [Architecture](architecture.md) |
 | What do stored and exported values mean? | [Data contracts](data-contracts.md) |
 | How are identity, local bindings, and duplicate limits handled? | [Draft identity contract](identity-contract.md) |
+| What can each usage source measure? | [Provider capabilities](provider-capabilities.md) |
+| What proves a source matches the live provider? | [Provider evidence](provider-evidence.md) |
 | What works today? | [Implementation status](implementation-status.md) |
 | What is next? | [Implementation slices](implementation-slices.md) |
 | Where do I resume? | [Current assignment](implementation-status.md#current-assignment), with the local checkpoint below |
@@ -32,6 +34,8 @@ One fact has one home. Change it there, and link to it from anywhere else.
 | What may I keep or delete? | [Artifact retention](artifact-retention.md) |
 | How do I install, upgrade or remove it? | [Install](install.md) |
 | What does the release protect against? | [Threat model](threat-model.md) |
+| What does the app keep, send, and delete? | [Security and privacy](security-and-privacy.md) |
+| Which platforms and tools have test evidence? | [Compatibility matrix](compatibility-matrix.md) |
 | What is in a release, and what was it tested on? | [Release notes](release-notes/0.1.0.md) |
 | How do I report a vulnerability? | [Security](../SECURITY.md) |
 | What are the rules for agents? | [AGENTS.md](../AGENTS.md) |
@@ -57,10 +61,14 @@ Update docs in the same change as the work.
 | A reading of a requirement | [SRS clarifications](srs-clarifications.md) |
 | Code layout or a boundary | [Architecture](architecture.md) |
 | Stored values, missing metrics, or exchange formats | [Data contracts](data-contracts.md) |
+| What a usage source reports and what it supports | [Provider capabilities](provider-capabilities.md) |
+| A redacted live-provider comparison | [Provider evidence](provider-evidence.md) |
 | A visual rule | [Design foundations](design/desktop-foundations.md) |
 | A build or test command | [Contributing](../CONTRIBUTING.md) or [workflow](engineering-workflow.md) |
 | Where the app keeps data, or how a user installs or removes it | [Install](install.md) |
 | A threat, a control or a trust boundary | [Threat model](threat-model.md) |
+| User-facing data, sharing or deletion boundaries | [Security and privacy](security-and-privacy.md) |
+| Platform and executable qualification | [Compatibility matrix](compatibility-matrix.md) |
 | What a release holds, its tested versions or its signing | The release notes in [release-notes](release-notes/0.1.0.md) |
 
 When [status](implementation-status.md) replaces a finished topic, add the old text to [history](implementation-history.md).

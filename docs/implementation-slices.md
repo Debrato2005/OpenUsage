@@ -77,7 +77,7 @@ Adopted November 7, 2026 (SRS Section 0.6, SC-016). The owner wants a working pr
 | L-4 | Leaderboard service on Cloudflare Workers and D1, per the [decision](decisions/2026-11-07-leaderboard-service.md) | S-21 | Done locally. Deployment waits for the owner |
 | L-5 | Leaderboard client: join with GitHub, dry run, sync, leave | S-22 | CLI and Settings complete within synthetic Linux scope. Hosted setup remains |
 | L-6 | Packaging: Linux packages, Windows and macOS preview builds in CI, the npm package | S-18, part of S-15 | L-6a and L-6b built. Preview builds and platform pins remain open under L-6c |
-| L-7 | Release documents and the launch checklist | S-20 | L-7a through L-7d built. Remaining documents and evidence are open under L-7e |
+| L-7 | Release documents and the launch checklist | S-20 | References exist. Identity approval, live evidence, and release measurements remain open under L-7e |
 | G-L | Owner: claim the npm name (OQ-2), create the Cloudflare account and GitHub OAuth App, run the real-account tests, publish | G-1, G-2, G-3 | Not started |
 
 The other slices below follow the launch, unless a launch slice needs part of one.
@@ -221,7 +221,7 @@ Updated November 15, 2026. Each completed item has one local commit and scoped e
 
 - [x] L-6a: Linux packages with the bundled `ccusage` and Codex companion, and the WebKitGTK dependencies listed (OU-PLAT-002, OU-PLAT-005).
 - [x] L-6b: the npm package, with per-platform packages and no install scripts (OU-DIST-001 to OU-DIST-005, OU-DIST-009; AT-81).
-- [ ] L-6c: Windows and macOS preview builds in CI (part of OU-NFR-012). The owner approved required build downloads on November 8. Obtain each official toolchain archive. Check its digest. Each platform also needs qualified companion pins. This host has only the Linux Rust standard library. Hosted builds and real-machine tests remain open.
+- [ ] L-6c: Windows and macOS preview builds in CI (part of OU-NFR-012). The owner approved required build downloads on November 8. The [archive check](reviews/2026-11-19-preview-archive-check.md) owns input integrity evidence. Companion qualification, hosted builds, and real-machine tests remain open.
 
 **L-7 Release documents**
 
@@ -233,6 +233,7 @@ Updated November 15, 2026. Each completed item has one local commit and scoped e
 
 - [x] L-7e1: document current data contracts, exact values, missing metrics, source ownership, all 42 tables, and format versions. Link planned SRS gaps without claiming implementation. [Data contracts](data-contracts.md) owns the result.
 - [x] L-7e2: draft the identity contract from current source. Document provisional attribution, association review, immutable history, duplicate limits, and verified-aggregation gates. [Identity contract](identity-contract.md) remains a draft until owner approval. No identity source or verified total is enabled.
+- [x] L-7e3: write the [provider capabilities](provider-capabilities.md), [security and privacy](security-and-privacy.md), [compatibility matrix](compatibility-matrix.md), and [provider evidence format](provider-evidence.md) as first-release references. AT-60 comparisons and final release measurements remain under L-7e.
 
 **Owner (G-L)**
 
