@@ -129,7 +129,7 @@ The [SC-031 conflict](srs-clarifications.md#sc-031-evidence-for-historical-readi
 Encrypted backup validation supports schemas 1 through 14.
 Trusted normalization preserves old values and adds only the migration markers.
 Restore, checkpoints, and complete application export preserve the two evidence tables.
-Selected reading exports and current desktop quota and activity reads carry saved audit metadata.
+Selected reading exports and desktop quota and activity reads carry saved audit metadata.
 
 ## Evidence access
 
@@ -154,7 +154,7 @@ A late or mismatched response cannot replace another selection. Evidence failure
 
 Normal cards remain unchanged. The existing panel shows status, source level, adapter revision, projection version, hashes, checks, comparison, and unused-field counts.
 A historical gap shows no invented status or hashes.
-The current-reading contract below covers saved quota and activity.
+The saved-reading contract below covers current values and history.
 Other evidence clients and all-status alerts remain open.
 
 ## Exact values, missing values, and units
@@ -217,6 +217,10 @@ Corrupt evidence fails the read. The compact object carries no response hashes o
 Each saved activity day includes its own binding ID, collection run ID, provider version,
 executable origin, observation time, and audit object. The current summary and daily rows
 use one storage snapshot. The renderer checks that rows from the same run agree on their context.
+
+The quota and activity history commands return the same compact `audit` object on each
+entry. Every page keeps the selected profile, original binding, and existing cursor order.
+An unexplained evidence gap fails the page. History shows the audit fields in snapshot details.
 
 Individual activity and the explicitly Unverified profile sum stay separate.
 Verified combined totals remain unavailable without approved identity and scope.
@@ -364,7 +368,7 @@ The desktop and storage retain that metadata under the contract above.
 The [evidence access contract](#evidence-access) supplies Overview detail disclosure.
 
 SRS Section 17 defines `MetricState`, `SourceLevel`, `ReadingStatus`, and
-`evidenceId`. Current desktop quota and activity expose the compact audit fields above.
+`evidenceId`. Desktop quota and activity expose the compact audit fields in current and history views.
 Other provider views still need the complete evidence and status contract. S-04 and S-05 remain open.
 Summary durations and streak counts currently use strings, unlike the SRS numeric
 examples. [SC-027](srs-clarifications.md#sc-027-section-17-and-current-dtos) records this

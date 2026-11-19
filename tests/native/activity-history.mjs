@@ -1,4 +1,5 @@
 import { EXPECTED_SCHEMA_VERSION, EXPECTED_TABLE_COUNT } from './schema.mjs';
+import { captureHistoryThemes } from './viewport.mjs';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
@@ -16,7 +17,7 @@ const password = 'OpenUsage synthetic activity history workspace 2026';
 const providerDigest = '53a853b737ceca311649e9f1d9ebd1341154a5f782efd8e915f7f834c819a6dc';
 const verifierDigest = loginVerifierDigest();
 const hash = async path => createHash('sha256').update(await readFile(path)).digest('hex');
-const evidence = { requirement: 'NATIVE-ACTIVITY-SUMMARY-HISTORY-001', result: 'failed', scope: 'Actual Linux Tauri/WebKitGTK browsing in a private SQLCipher4/WAL schema13 workspace. Two explicit synthetic sign-ins automatically save activity. A strictly marked closed-app Rust helper adds21summary observations through production storage APIs, preserving synthetic provenance, null/zero/exact counts, tied timestamps and a separate prior association. The native journey checks20/2paging, source details, wrong cursors, profile isolation, archived restart and independent read-only checks of all42tables. No live-provider, history export, verified identity, combined total or other-platform acceptance.', screenshots: [], closes: [], oracles: [] };
+const evidence = { requirement: 'NATIVE-ACTIVITY-SUMMARY-HISTORY-001', result: 'failed', scope: `Linux Tauri/WebKitGTK with a private SQLCipher 4 workspace at schema ${EXPECTED_SCHEMA_VERSION}. Two synthetic sign-ins and 21 seeded snapshots test exact values, audit metadata, pagination, profile isolation, and archived restart. The independent read-only oracle checks all ${EXPECTED_TABLE_COUNT} tables.`, screenshots: [], closes: [], oracles: [] };
 let fixture, driver, sequence = 0;
 const profiles = [];
 const call = async (command, args) => { const response = await driver.invoke(command, args); assert.equal(response.ok, true, `${command}: ${JSON.stringify(response)}`); return response.value; };
@@ -58,7 +59,7 @@ async function oracle(label) {
     for (const field of ['verified', 'readOnly', 'inputUnchanged', 'keyEnvelopeUnchanged', 'walRecordsUnchanged']) assert.equal(report[field], true, field);
     assert.equal(report.schemaVersion, EXPECTED_SCHEMA_VERSION); assert.equal(report.plaintextDiskStaging, false); assert.equal(Object.keys(report.state.tables).length, EXPECTED_TABLE_COUNT);
     assert.deepEqual(await liveHashes(), before);
-    evidence.oracles.push({ label, allNamedTables: 42, databaseWalKeyUnchanged: true, tables: Object.fromEntries(Object.entries(report.state.tables).map(([name, records]) => [name, { rows: records.length, sha256: createHash('sha256').update(JSON.stringify(records)).digest('hex') }])) });
+    evidence.oracles.push({ label, allNamedTables: EXPECTED_TABLE_COUNT, databaseWalKeyUnchanged: true, tables: Object.fromEntries(Object.entries(report.state.tables).map(([name, records]) => [name, { rows: records.length, sha256: createHash('sha256').update(JSON.stringify(records)).digest('hex') }])) });
     return report.state.tables;
   } finally { await rm(temporary, { recursive: true, force: true }); }
 }
@@ -76,7 +77,7 @@ async function clickButton(text, scope = '[data-activity-history]') {
   await driver.request('POST', `/session/${driver.session}/element/${element['element-6066-11e4-a52e-4f735466cecf']}/click`, {});
 }
 function validateEntry(entry, profile) {
-  assert.deepEqual(Object.keys(entry).sort(), ['profileId', 'bindingId', 'collectionRunId', 'observedAtUtc', 'sourceKind', 'providerVersion', 'sourceScope', 'coverage', 'summary', 'dailyBucketsState'].sort());
+  assert.deepEqual(Object.keys(entry).sort(), ['profileId', 'bindingId', 'collectionRunId', 'observedAtUtc', 'sourceKind', 'providerVersion', 'sourceScope', 'coverage', 'summary', 'dailyBucketsState', 'audit'].sort());
   assert.equal(entry.profileId, profile.id); assert.equal(entry.sourceKind, 'test_fixture'); assert.equal(entry.providerVersion, '0.163.0');
   assert.equal(entry.sourceScope, 'account_activity_with_unknown_application_scope'); assert.equal(entry.coverage, 'unknown');
   assert.deepEqual(Object.keys(entry.summary).sort(), ['lifetimeTokens', 'peakDailyTokens', 'longestRunningTurnSec', 'currentStreakDays', 'longestStreakDays'].sort());
@@ -120,12 +121,16 @@ try {
   const all = [...firstPage.entries, ...secondPage.entries]; all.forEach(entry => validateEntry(entry, profiles[0]));
   assert.equal(new Set(all.map(entry => entry.collectionRunId)).size, 22); assert.equal(new Set(all.map(entry => entry.observedAtUtc)).size, 1);
   const summaryRows = new Map(beforeTables.activity_summaries.filter(row => row.profile_id === profiles[0].id).map(row => [row.id, row]));
+  const auditRows = new Map(beforeTables.reading_evidence.map(row => [row.collection_run_id, row]));
   const orderedRuns = beforeTables.collection_runs.filter(row => row.profile_id === profiles[0].id && row.source_method === 'account/usage/read' && summaryRows.has(row.id)).sort((a, b) => a.observed_at_utc === b.observed_at_utc ? a.id < b.id ? 1 : a.id > b.id ? -1 : 0 : a.observed_at_utc < b.observed_at_utc ? 1 : -1);
   assert.deepEqual(all.map(row => row.collectionRunId), orderedRuns.map(row => row.id), 'Independent encrypted-copy records establish the tie-break order.');
   const names = { lifetimeTokens: 'lifetime_tokens', peakDailyTokens: 'peak_daily_tokens', longestRunningTurnSec: 'longest_running_turn_sec', currentStreakDays: 'current_streak_days', longestStreakDays: 'longest_streak_days' };
   for (const entry of all) {
     const raw = summaryRows.get(entry.collectionRunId); assert.equal(raw.binding_id, entry.bindingId);
     for (const [name, column] of Object.entries(names)) assert.equal(entry.summary[name], raw[column]);
+    const audit = auditRows.get(entry.collectionRunId);
+    assert.ok(audit);
+    assert.deepEqual(entry.audit, { availability: 'complete', readingStatus: audit.reading_status, sourceLevel: audit.source_level });
   }
   assert.deepEqual(new Set(all.map(entry => entry.bindingId)), new Set([evidence.seed.originalBindingId, evidence.seed.currentBindingId]));
   assert.deepEqual(new Set(all.map(entry => entry.dailyBucketsState)), new Set(['unavailable', 'empty', 'returned']));
@@ -147,8 +152,10 @@ try {
   assert.equal(await driver.execute('return document.querySelector(arguments[0]).getAttribute("data-activity-history-daily-state");', [`${panel} [data-activity-history-daily-state]`]), detailed.dailyBucketsState);
   const details = await driver.execute('return document.querySelector(arguments[0]).textContent;', [panel]);
   for (const text of [detailed.collectionRunId, detailed.bindingId, detailed.observedAtUtc, '0.163.0', 'Synthetic provider', 'Unknown']) assert.equal(details.includes(text), true);
+  assert.deepEqual(await driver.execute('return [...document.querySelectorAll(arguments[0]+" dt")].filter(node=>["Reading status","Source level"].includes(node.textContent)).map(node=>node.nextElementSibling.textContent);', [panel]), ['Official', 'Official']);
   assert.equal(await driver.execute('return document.querySelector(arguments[0]).textContent.includes("Fresh");', [`[data-activity-history="${profiles[0].id}"]`]), false);
   await driver.screenshot(join(output, 'activity-summary-history.png')); evidence.screenshots.push('activity-summary-history.png');
+  evidence.screenshots.push(...await captureHistoryThemes(driver, output, 'activity-history-audit'));
   await driver.closeDetail();
   const previous = firstPage.entries.find(entry => entry.bindingId === evidence.seed.originalBindingId && entry.summary.lifetimeTokens === '0'); assert.ok(previous);
   const previousScope = `[data-activity-history-run="${previous.collectionRunId}"]`;

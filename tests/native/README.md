@@ -156,6 +156,10 @@ Run `node tests/native/quota-history.mjs` in a new evidence directory.
 For latest-reading export, set `OPENUSAGE_NATIVE_READINGS_EXPORT=1` and run `node tests/native/monitoring.mjs`.
 This mode checks saved-reading export. It does not run the scheduled-monitoring interval.
 
+The same fixture and verifier settings support `node tests/native/activity-history.mjs`.
+The activity and quota history journeys check compact audit fields on saved pages and in snapshot details.
+Activity compares each returned run with the independent encrypted-copy oracle.
+
 The activity-history export journey also compares all eleven audit fields with the independent encrypted-copy oracle.
 All three selected export routes use CSV and schema-2 JSON.
 Activity history compares every metric and audit field across all retained observations.

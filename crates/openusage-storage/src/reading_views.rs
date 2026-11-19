@@ -1,4 +1,4 @@
-//! Current values and audit context from one bounded read snapshot.
+//! Saved values and audit context from one bounded read snapshot.
 
 use crate::{
     ActivityDayValue, ActivityError, ActivitySourceKind, EvidenceMethod,
@@ -50,6 +50,12 @@ pub struct CurrentQuotaView {
     pub audit: ReadingAudit,
 }
 
+#[derive(Debug)]
+pub struct AuditedHistoryEntry<T> {
+    pub reading: T,
+    pub audit: ReadingAudit,
+}
+
 fn observation(
     connection: &Connection,
     target: ReadingEvidenceTarget<'_>,
@@ -82,6 +88,19 @@ fn matches_context(
     Ok(())
 }
 
+pub(crate) fn audit_for_reading(
+    connection: &Connection,
+    target: ReadingEvidenceTarget<'_>,
+    binding_id: &str,
+    version: &str,
+    source: ActivitySourceKind,
+    observed: &str,
+) -> Result<ReadingAudit, ActivityError> {
+    let (context, audit) = observation(connection, target)?;
+    matches_context(&context, binding_id, version, source, observed)?;
+    Ok(audit)
+}
+
 impl Storage {
     pub fn current_quota_view(
         &self,
@@ -94,16 +113,13 @@ impl Storage {
             tx.commit().map_err(read_error)?;
             return Ok(None);
         };
-        let (context, audit) = observation(
+        let audit = audit_for_reading(
             &tx,
             ReadingEvidenceTarget {
                 profile_id,
                 method: EvidenceMethod::Quota,
                 run_id: &reading.commit.collection_run_id,
             },
-        )?;
-        matches_context(
-            &context,
             &reading.binding.binding_id,
             &reading.provider_version,
             reading.source_kind,

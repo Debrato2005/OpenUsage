@@ -10,7 +10,7 @@ OU-DES, OU-LOG, OU-SHARE, OU-CLI and OU-DIST have evidence. OU-DATA-027 has stor
 |---|---|---|
 | OU-DES | AT-85 | Passed on the renderer and in native Linux journeys, with one exception |
 | OU-SRC, OU-ACCT-020 | AT-61, AT-62, AT-84 | Not started |
-| OU-AUD, OU-ALERT-019, OU-STATE-010, OU-STATE-011, OU-RESET-005, OU-RESET-006 | AT-56 to AT-61 | S-04a through S-04e0 cover producer and storage evidence, Overview details, selected exports, and current desktop reads. Historical compliance, other status clients, alerts, and reset rules remain open |
+| OU-AUD, OU-ALERT-019, OU-STATE-010, OU-STATE-011, OU-RESET-005, OU-RESET-006 | AT-56 to AT-61 | S-04a through S-04e1 cover producer and storage evidence, Overview details, selected exports, and current and history desktop reads. Historical compliance, other status clients, alerts, and reset rules remain open |
 | OU-LOG, OU-SEC-021, OU-HEAT-026, OU-HEAT-027 | AT-65 to AT-74, AT-93 | Storage part of AT-66 to AT-69, AT-73 and AT-94 passed. In the app, part of AT-70, AT-72 and AT-93 passed. AT-65 waits for L-1f. The rest not started |
 | OU-DUP, OU-ID-013 | AT-63, AT-64, AT-75, AT-76 | Not started |
 | OU-SHARE | AT-82 | Passed on Linux with synthetic data, without a network trace |
@@ -35,6 +35,7 @@ Newest first. Rows keep the requirement text of their date. [SRS Section 22.1](S
 
 | Requirement or check | Implementation and executed evidence | Status |
 |---|---|---|
+| Saved history audit (S-04e1), part of OU-AUD-001/002 and OU-STATE-010/011 | The [record](reviews/2026-11-19-history-audit.md) covers both saved history commands, migration and restore, profile scope, compact audit fields, and native snapshot details. | Synthetic Linux scope. Other evidence clients and SC-031 remain open. |
 | Current reading audit (S-04e0), part of OU-AUD-001/002, OU-STATE-007/010/011, and OU-DATA-018/027 | The [record](reviews/2026-11-19-current-reading-audit.md) covers transaction coherence, exact values, historical gaps, strict IPC, and native evidence. | Synthetic Linux scope. Other evidence clients and SC-031 remain open. |
 | Selected reading evidence exports (S-04d), part of OU-AUD-001/002/010 and OU-DATA-022/027 | The [record](reviews/2026-11-16-reading-evidence-exports.md) owns scalar audit fields, schema 2, historical gaps, snapshots, privacy, and corrected native expectations. All 617 workspace tests pass with two ignores. Both Clippy modes, 76 IPC checks, and 46 affected renderer cases pass. Three native export journeys and the ordinary source gate pass. | Private synthetic Linux scope. SC-031, uniform status, other evidence clients, all-status alerts, reset rules, and real-provider qualification remain open. |
 | Reading evidence details (S-04c1), part of OU-AUD-001/002/003, OU-STATE-010, and OU-DES-007/009/010/012 | The [record](reviews/2026-11-16-reading-evidence-details.md) owns scoped reads, historical gaps, privacy, selection races, and unchanged values. It records the permission correction and native acceptance. Separate checks pass: 615 workspace tests with two ignores, 548 renderer cases, and 76 IPC cases. Both Clippy modes and native oracle integration pass. | Private synthetic Linux scope. SC-031, uniform status, selected exports, all-status alerts, and CLI evidence remain open. Real providers and other platforms remain unqualified. |

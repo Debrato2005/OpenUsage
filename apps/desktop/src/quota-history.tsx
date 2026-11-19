@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { DataExport } from './data-export';
 import { Button } from './components/ui/button';
 import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from './components/ui/collapsible';
+import { ReadingAuditRows } from './reading-evidence';
 import { invoke, type QuotaHistoryEntry, type QuotaHistoryPage, type QuotaWindow, type ProfileRecord } from './contracts';
 import './quota-history.css';
 
@@ -32,7 +33,12 @@ function SnapshotDetails({ value }: { value: QuotaHistoryEntry }) {
       </div>
       {!window && <p className="quota-history-meta">This accepted reading supplied no quota windows.</p>}
       <p className="quota-history-meta">Saved from {value.sourceKind === 'test_fixture' ? 'a synthetic provider' : 'the official OpenAI companion'} · Version {value.providerVersion}. Expected resets are recorded values, not reset confirmations.</p>
-      <div className="quota-history-source"><dl><dt>Local connection reference</dt><dd><bdi>{value.bindingId}</bdi></dd><dt>Reading reference</dt><dd><bdi>{value.collectionRunId}</bdi></dd><dt>Provider operation</dt><dd>account/rateLimits/read</dd></dl><p className="quota-history-meta">Identity is unverified. Historical snapshots are separate observations, not a record of every request.</p></div>
+      <div className="quota-history-source"><dl>
+        <ReadingAuditRows audit={value.audit} />
+        <dt>Local connection reference</dt><dd><bdi>{value.bindingId}</bdi></dd>
+        <dt>Reading reference</dt><dd><bdi>{value.collectionRunId}</bdi></dd>
+        <dt>Provider operation</dt><dd>account/rateLimits/read</dd>
+      </dl><p className="quota-history-meta">Identity is unverified. Historical snapshots are separate observations, not a record of every request.</p></div>
     <p>Remaining quota is derived from provider-reported usage. Windows match only when limit, role and duration match.</p>
   </>;
 }

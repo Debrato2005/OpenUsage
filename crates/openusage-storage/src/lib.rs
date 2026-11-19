@@ -50,7 +50,9 @@ pub use reading_evidence::{
     ReadingEvidenceCheck, ReadingEvidenceContext, ReadingEvidenceInput, ReadingEvidenceRecord,
     ReadingEvidenceTarget, ResponseEvidenceInput,
 };
-pub use reading_views::{AuditedActivityDay, CurrentActivityView, CurrentQuotaView, ReadingAudit};
+pub use reading_views::{
+    AuditedActivityDay, AuditedHistoryEntry, CurrentActivityView, CurrentQuotaView, ReadingAudit,
+};
 mod quota_history;
 pub use quota_history::QuotaHistoryPage;
 mod alerts;

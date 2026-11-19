@@ -818,7 +818,7 @@ L-7e stays open for its other documents and acceptance evidence.
 | S-03b | Rich dashboard | S-03 | Done |
 | S-03d | Modern Overview | S-03b | Done, with two recorded reasons in [status](implementation-status.md#failing-or-stale-tests) |
 | S-03c | Keychain by default | S-03b | New workspaces use the key store (L-0). The move of a password workspace follows the launch |
-| S-04 | Reading status and evidence | S-03b | S-04a through S-04e0 cover new-reading evidence, Overview access, selected exports, and current desktop reads. The remaining status clients and historical compliance stay open |
+| S-04 | Reading status and evidence | S-03b | S-04a through S-04e1 cover new-reading evidence, Overview access, selected exports, and current and history desktop reads. The remaining status clients and historical compliance stay open |
 | S-05 | Adapter layer | S-04 | Not started |
 | G-1 | Owner: real-account test on Codex | S-05 | Not started |
 | S-06 | Tray and background | S-05 | Owned scanner shutdown complete within Linux scope. Tray, autostart, and wake handling remain |
@@ -914,6 +914,8 @@ S-04d carries saved audit metadata through all three selected provider-reading e
 The [export record](reviews/2026-11-16-reading-evidence-exports.md) owns exact fields, historical gaps, privacy, snapshots, and native acceptance.
 S-04e0 carries compact audit status through current desktop quota and activity reads.
 The [current-reading record](reviews/2026-11-19-current-reading-audit.md) owns the check scope.
+S-04e1 carries the same audit status through saved quota and activity history pages.
+The [history record](reviews/2026-11-19-history-audit.md) owns the check scope.
 Other evidence clients, all-status alerts, and reset rules remain open.
 
 Every number can say where it came from.

@@ -267,6 +267,7 @@ export interface QuotaWindow {
 export interface QuotaHistoryEntry {
   profileId: string; bindingId: string; collectionRunId: string; observedAtUtc: string;
   sourceKind: 'official_artifact' | 'test_fixture'; providerVersion: string;
+  audit: ReadingAudit;
   limits: { limitId: string; limitName: string | null; primary: QuotaWindow | null; secondary: QuotaWindow | null }[];
 }
 export interface QuotaHistoryPage { profileId: string; entries: QuotaHistoryEntry[]; nextBeforeRunId: string | null }
@@ -370,6 +371,7 @@ export type ProfileReadingEvidence =
 export interface ActivityHistoryEntry {
   profileId: string; bindingId: string; collectionRunId: string; observedAtUtc: string;
   sourceKind: 'official_artifact' | 'test_fixture'; providerVersion: string;
+  audit: ReadingAudit;
   sourceScope: 'account_activity_with_unknown_application_scope'; coverage: 'unknown';
   summary: ProfileActivitySavedRead['summary']; dailyBucketsState: 'unavailable' | 'empty' | 'returned';
 }
@@ -746,8 +748,8 @@ export async function invoke<K extends keyof Commands>(
     : command === 'load_notification_preferences' || command === 'save_notification_preferences' ? isNotificationPreferences(response)
     : command === 'load_reset_notification_preferences' || command === 'save_reset_notification_preferences' ? isResetNotificationPreferences(response)
     : command === 'load_alert_history' ? isSavedAlertHistory(response)
-    : command === 'load_profile_activity_history' ? isActivityHistoryPage(response)
-    : command === 'load_profile_quota_history' ? isQuotaHistoryPage(response)
+    : command === 'load_profile_activity_history' ? isActivityHistoryPage(response) && response.profileId === selected?.profileId
+    : command === 'load_profile_quota_history' ? isQuotaHistoryPage(response) && response.profileId === selected?.profileId
     : (command === 'get_display_scale' || command === 'set_display_scale') ? isDisplayScale(response)
     : command === 'load_profile_plan' ? isProfilePlan(response)
     : ['load_monitoring', 'start_profile_monitoring', 'pause_profile_monitoring'].includes(command) ? isMonitoringStatus(response)
@@ -947,8 +949,9 @@ function isActivityHistoryPage(value: unknown): value is ActivityHistoryPage {
   for (const value of page.entries) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
     const row = value as Record<string, unknown>;
-    if (Object.keys(row).length !== 10 || row.profileId !== page.profileId || !isUuid(row.bindingId) || !isUuid(row.collectionRunId)
+    if (Object.keys(row).length !== 11 || row.profileId !== page.profileId || !isUuid(row.bindingId) || !isUuid(row.collectionRunId)
       || ids.has(row.collectionRunId) || !isUtcTimestamp(row.observedAtUtc) || !quotaText(row.providerVersion, 80)
+      || !isReadingAudit(row.audit, row.providerVersion, row.observedAtUtc)
       || (row.sourceKind !== 'official_artifact' && row.sourceKind !== 'test_fixture')
       || row.sourceScope !== 'account_activity_with_unknown_application_scope' || row.coverage !== 'unknown'
       || !isActivitySummary(row.summary) || !['unavailable', 'empty', 'returned'].includes(row.dailyBucketsState as string)) return false;
@@ -970,8 +973,9 @@ function isQuotaHistoryPage(value: unknown): value is QuotaHistoryPage {
   for (const entry of page.entries) {
     if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return false;
     const row = entry as Record<string, unknown>;
-    if (Object.keys(row).length !== 7 || row.profileId !== page.profileId || !isUuid(row.bindingId) || !isUuid(row.collectionRunId)
+    if (Object.keys(row).length !== 8 || row.profileId !== page.profileId || !isUuid(row.bindingId) || !isUuid(row.collectionRunId)
       || ids.has(row.collectionRunId) || !isUtcTimestamp(row.observedAtUtc) || !quotaText(row.providerVersion, 80)
+      || !isReadingAudit(row.audit, row.providerVersion, row.observedAtUtc)
       || (row.sourceKind !== 'official_artifact' && row.sourceKind !== 'test_fixture') || !Array.isArray(row.limits) || row.limits.length > 64) return false;
     if (previous && (row.observedAtUtc > previous.observedAtUtc || (row.observedAtUtc === previous.observedAtUtc && row.collectionRunId >= previous.collectionRunId))) return false;
     previous = { observedAtUtc: row.observedAtUtc, collectionRunId: row.collectionRunId };

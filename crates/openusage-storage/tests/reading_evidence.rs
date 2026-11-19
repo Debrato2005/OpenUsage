@@ -51,6 +51,10 @@ fn current_quota_view_keeps_recorded_audit_with_exact_values_after_archive() {
     let archived = storage.current_quota_view(PROFILE).unwrap().unwrap();
     assert_eq!(archived.reading, view.reading);
     assert_eq!(archived.audit, view.audit);
+    let history = storage.quota_history(PROFILE, None).unwrap();
+    assert_eq!(history.entries[0].reading.commit, view.reading.commit);
+    assert_eq!(history.entries[0].reading.limits, view.reading.limits);
+    assert_eq!(history.entries[0].audit, view.audit);
     let control = controlled_connection(&directory.path().join("quota-audit-view.db"));
     control
         .execute(
@@ -62,6 +66,10 @@ fn current_quota_view_keeps_recorded_audit_with_exact_values_after_archive() {
     assert_eq!(
         storage.current_quota_view(PROFILE).err(),
         Some(ActivityError::ReadFailed)
+    );
+    assert_eq!(
+        storage.quota_history(PROFILE, None).unwrap_err(),
+        ActivityError::ReadFailed
     );
     assert_eq!(storage.backup_snapshot().unwrap().bytes, before);
 }
@@ -866,6 +874,15 @@ fn schema_thirteen_history_migrates_without_fabricating_response_evidence() {
         .accept_activity_with_binding(reading.clone(), Some(association(&reading)))
         .unwrap();
     let saved = storage.current_activity(PROFILE).unwrap().unwrap();
+    let quota = quota();
+    let quota_run = quota.run_id.clone();
+    storage.accept_quota(quota, None).unwrap();
+    let saved_quota = storage
+        .quota_history(PROFILE, None)
+        .unwrap()
+        .entries
+        .remove(0)
+        .reading;
     drop(storage);
 
     // Version 14 only adds these two tables and their triggers. The remaining catalog is version 13.
@@ -893,6 +910,12 @@ fn schema_thirteen_history_migrates_without_fabricating_response_evidence() {
         serde_json::to_value(view.days[0].audit).unwrap(),
         serde_json::json!({ "availability": "legacy_gap" })
     );
+    let history = migrated.activity_history(PROFILE, None).unwrap();
+    assert_eq!(history.entries[0].reading, saved);
+    assert_eq!(history.entries[0].audit, view.audit);
+    let history = migrated.quota_history(PROFILE, None).unwrap();
+    assert_eq!(history.entries[0].reading, saved_quota);
+    assert_eq!(history.entries[0].audit, view.audit);
     assert!(matches!(
         migrated
             .reading_evidence(target(RUN, EvidenceMethod::Activity))
@@ -968,7 +991,7 @@ fn schema_thirteen_history_migrates_without_fabricating_response_evidence() {
         .iter()
         .find(|table| table["name"] == "reading_evidence_legacy")
         .unwrap();
-    assert_eq!(gaps["rows"], serde_json::json!([[RUN]]));
+    assert_eq!(gaps["rows"], serde_json::json!([[RUN], [quota_run]]));
     let snapshot = migrated.backup_snapshot().unwrap();
     validate_backup_snapshot(&snapshot.bytes, 14).unwrap();
 
@@ -991,6 +1014,9 @@ fn schema_thirteen_history_migrates_without_fabricating_response_evidence() {
         .unwrap();
     assert_eq!(restored.metadata().unwrap().schema_version, 14);
     assert_eq!(restored.current_activity(PROFILE).unwrap().unwrap(), saved);
+    let history = restored.quota_history(PROFILE, None).unwrap();
+    assert_eq!(history.entries[0].reading, saved_quota);
+    assert_eq!(history.entries[0].audit, view.audit);
     assert!(matches!(
         restored
             .reading_evidence(target(RUN, EvidenceMethod::Activity))
@@ -1002,7 +1028,10 @@ fn schema_thirteen_history_migrates_without_fabricating_response_evidence() {
     let tables = document["tables"].as_array().unwrap();
     for (name, rows) in [
         ("reading_evidence", serde_json::json!([])),
-        ("reading_evidence_legacy", serde_json::json!([[RUN]])),
+        (
+            "reading_evidence_legacy",
+            serde_json::json!([[RUN], [quota_run]]),
+        ),
     ] {
         assert_eq!(
             tables.iter().find(|table| table["name"] == name).unwrap()["rows"],
@@ -1123,6 +1152,10 @@ fn committed_evidence_is_immutable_and_unexplained_absence_is_not_legacy() {
     assert_eq!(
         storage.current_activity_view(PROFILE).err(),
         Some(ActivityError::ReadFailed)
+    );
+    assert_eq!(
+        storage.activity_history(PROFILE, None).unwrap_err(),
+        ActivityError::ReadFailed
     );
     assert_eq!(
         storage.readings_export(&[PROFILE.into()], false).err(),

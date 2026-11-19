@@ -6,6 +6,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createFixture, stopGroup } from './private-fixture.mjs';
 import { NativeDriver, waitFor } from './webdriver.mjs';
+import { captureHistoryThemes } from './viewport.mjs';
 
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const application = resolve(process.env.OPENUSAGE_NATIVE_BINARY);
@@ -151,6 +152,10 @@ try {
   const nextPage = await call('load_profile_quota_history', { profileId: profiles[0].id, beforeRunId: firstPage.nextBeforeRunId });
   assert.equal(nextPage.entries.length, 2); assert.equal(nextPage.nextBeforeRunId, null);
   assert.equal(new Set([...firstPage.entries, ...nextPage.entries].map(row => row.collectionRunId)).size, 22);
+  for (const entry of [...firstPage.entries, ...nextPage.entries]) {
+    assert.deepEqual(entry.audit, { availability: 'complete', readingStatus: 'official', sourceLevel: 'official' });
+    assert.equal(entry.sourceKind, 'test_fixture');
+  }
   assert.equal((await driver.invoke('load_profile_quota_history', { profileId: profiles[1].id, beforeRunId: firstPage.nextBeforeRunId })).ok, false);
   await showHistory(profiles[0]); assert.deepEqual(await rows(), firstPage.entries.map(row => row.collectionRunId));
   await clickButton('Older readings'); await waitFor(async () => (await rows()).length === 2, 'native older-page rendering'); assert.deepEqual(await rows(), nextPage.entries.map(row => row.collectionRunId));
@@ -159,8 +164,13 @@ try {
   // The snapshot opens in the detail panel.
   await waitFor(() => driver.execute('return Boolean(document.querySelector(arguments[0]));', [`[data-detail-panel][open] [aria-label="Quota snapshot ${zero.observedAtUtc}"]`]), 'snapshot details open');
   assert.match(await driver.execute('return document.querySelector(arguments[0]).textContent;', [`[data-detail-panel][open] [aria-label="Quota snapshot ${zero.observedAtUtc}"]`]), /0%.*100%/s);
+  const audit = await call('load_profile_reading_evidence', { profileId: profiles[0].id, runId: zero.collectionRunId, method: 'quota' });
+  assert.equal(audit.availability, 'complete');
+  assert.deepEqual(zero.audit, { availability: audit.availability, readingStatus: audit.record.readingStatus, sourceLevel: audit.record.sourceLevel });
+  assert.deepEqual(await driver.execute('return [...document.querySelectorAll("[data-detail-panel][open] dt")].filter(node=>["Reading status","Source level"].includes(node.textContent)).map(node=>node.nextElementSibling.textContent);'), ['Official', 'Official']);
   assert.equal(await driver.execute('return document.querySelector(arguments[0]).textContent.includes("Fresh");', [`[data-quota-history="${profiles[0].id}"]`]), false);
   await driver.screenshot(join(output, 'quota-history-native.png')); evidence.screenshots.push('quota-history-native.png');
+  evidence.screenshots.push(...await captureHistoryThemes(driver, output, 'quota-history-audit'));
   await driver.closeDetail();
   await clickButton('Newer readings'); await waitFor(async () => (await rows()).length === 20, 'native newer-page rendering');
   const selection = { profileId: profiles[0].id, format: 'csv', includeIdentifiers: false, confirmed: true };

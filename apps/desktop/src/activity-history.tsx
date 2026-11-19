@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { DataExport } from './data-export';
 import { Button } from './components/ui/button';
 import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from './components/ui/collapsible';
+import { ReadingAuditRows } from './reading-evidence';
 import { invoke, type ActivityHistoryEntry, type ActivityHistoryPage, type ProfileRecord } from './contracts';
 import './activity-history.css';
 
@@ -24,6 +25,7 @@ function SnapshotDetails({ value }: { value: ActivityHistoryEntry }) {
       <p className="activity-history-meta" data-activity-history-daily-state={value.dailyBucketsState}>{dailyLabels[value.dailyBucketsState]}</p>
       <div className="activity-history-source"><dl>
         <dt>Source</dt><dd>{value.sourceKind === 'test_fixture' ? 'Synthetic provider' : 'Official OpenAI companion'}</dd>
+        <ReadingAuditRows audit={value.audit} />
         <dt>Provider version</dt><dd><bdi>{value.providerVersion}</bdi></dd>
         <dt>Observed (UTC)</dt><dd><time dateTime={value.observedAtUtc}>{value.observedAtUtc}</time></dd>
         <dt>Application scope</dt><dd>Unknown</dd><dt>Coverage</dt><dd>Unknown</dd>

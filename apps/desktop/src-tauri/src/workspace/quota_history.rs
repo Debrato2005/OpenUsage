@@ -1,5 +1,6 @@
 //! Historical observations carry their original local association, never live freshness.
 use super::*;
+use openusage_storage::{AuditedHistoryEntry, ReadingAudit};
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -18,6 +19,7 @@ struct QuotaHistoryEntry {
     observed_at_utc: String,
     source_kind: &'static str,
     provider_version: String,
+    audit: ReadingAudit,
     limits: Vec<QuotaHistoryLimit>,
 }
 
@@ -85,28 +87,34 @@ impl Workspace {
             entries: page
                 .entries
                 .into_iter()
-                .map(|entry| QuotaHistoryEntry {
-                    profile_id: entry.commit.profile_id,
-                    binding_id: entry.commit.binding_id,
-                    collection_run_id: entry.commit.collection_run_id,
-                    observed_at_utc: entry.commit.observed_at_utc,
-                    source_kind: entry.source_kind.as_str(),
-                    provider_version: entry.provider_version,
-                    limits: entry
-                        .limits
-                        .into_iter()
-                        .map(|limit| QuotaHistoryLimit {
-                            limit_id: limit.limit_id,
-                            limit_name: limit.limit_name,
-                            primary: limit
-                                .primary
-                                .map(|window| historical_window(window, "Primary window")),
-                            secondary: limit
-                                .secondary
-                                .map(|window| historical_window(window, "Secondary window")),
-                        })
-                        .collect(),
-                })
+                .map(
+                    |AuditedHistoryEntry {
+                         reading: entry,
+                         audit,
+                     }| QuotaHistoryEntry {
+                        profile_id: entry.commit.profile_id,
+                        binding_id: entry.commit.binding_id,
+                        collection_run_id: entry.commit.collection_run_id,
+                        observed_at_utc: entry.commit.observed_at_utc,
+                        source_kind: entry.source_kind.as_str(),
+                        provider_version: entry.provider_version,
+                        audit,
+                        limits: entry
+                            .limits
+                            .into_iter()
+                            .map(|limit| QuotaHistoryLimit {
+                                limit_id: limit.limit_id,
+                                limit_name: limit.limit_name,
+                                primary: limit
+                                    .primary
+                                    .map(|window| historical_window(window, "Primary window")),
+                                secondary: limit
+                                    .secondary
+                                    .map(|window| historical_window(window, "Secondary window")),
+                            })
+                            .collect(),
+                    },
+                )
                 .collect(),
             next_before_run_id: page.next_before_run_id,
         })
@@ -232,6 +240,7 @@ mod tests {
                 "profileId": first, "nextBeforeRunId": null,
                 "entries": [{"profileId": first, "bindingId": binding, "collectionRunId": run,
                     "observedAtUtc": time, "sourceKind": "test_fixture", "providerVersion": "0.163.0",
+                    "audit": {"availability": "complete", "readingStatus": "official", "sourceLevel": "official"},
                     "limits": [{"limitId": "synthetic", "limitName": null,
                         "primary": {"usedPercent": 0, "derivedRemainingPercent": 100, "windowDurationMins": 300, "resetsAtUnix": 253_402_300_799i64, "label": "Five-hour"},
                         "secondary": {"usedPercent": 100, "derivedRemainingPercent": 0, "windowDurationMins": null, "resetsAtUnix": null, "label": "Secondary window"}}]}]

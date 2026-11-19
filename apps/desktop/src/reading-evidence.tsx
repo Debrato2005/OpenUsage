@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button } from './components/ui/button';
-import { invoke, type EvidenceLocation, type EvidenceMethod, type ProfileReadingEvidence, type SavedProfileActivity } from './contracts';
+import { invoke, type EvidenceLocation, type EvidenceMethod, type ProfileReadingEvidence, type ReadingAudit, type SavedProfileActivity } from './contracts';
 
 type Reading = Pick<SavedProfileActivity, 'profileId' | 'collectionRunId' | 'providerVersion' | 'sourceKind' | 'observedAtUtc'>;
 type Loaded = { key: string; kind: 'loaded'; value: ProfileReadingEvidence | null };
@@ -11,6 +11,16 @@ const locations: Record<EvidenceLocation, string> = {
   quota_individual_limit: 'Individual limit', quota_reset_credits: 'Reset credits', quota_credit_detail: 'Credit detail',
 };
 const checks = { rpc_envelope: 'Envelope', request_id: 'Request', response_fields: 'Fields' };
+
+export function ReadingAuditRows({ audit }: { audit: ReadingAudit }) {
+  return audit.availability === 'complete' ? <>
+    <dt>Reading status</dt><dd>Official</dd>
+    <dt>Source level</dt><dd>Official</dd>
+  </> : <>
+    <dt>Evidence status</dt><dd>Not available</dd>
+    <dt>Reason</dt><dd>Historical reading</dd>
+  </>;
+}
 
 export function ReadingEvidenceDetails({ reading, method }: { reading: Reading; method: EvidenceMethod }) {
   const [open, setOpen] = useState(false);
@@ -44,13 +54,11 @@ export function ReadingEvidenceDetails({ reading, method }: { reading: Reading; 
       <dt>Evidence status</dt><dd><span role="alert">Not available</span>{' '}<Button variant="ghost" aria-label="Retry evidence" onClick={() => setAttempt(value => value + 1)}>Retry</Button></dd>
       <dt>Reason</dt><dd>{active.reason === 'changed' ? 'Reading changed' : 'Read failed'}</dd>
     </>}
-    {open && active?.kind === 'loaded' && !record && <>
-      <dt>Evidence status</dt><dd>Not available</dd>
-      {view?.availability === 'legacy_gap' && <><dt>Reason</dt><dd>Historical reading</dd></>}
-    </>}
+    {open && active?.kind === 'loaded' && !record && (view?.availability === 'legacy_gap'
+      ? <ReadingAuditRows audit={view} />
+      : <><dt>Evidence status</dt><dd>Not available</dd></>)}
     {open && record && <>
-      <dt>Reading status</dt><dd>Official</dd>
-      <dt>Source level</dt><dd>Official</dd>
+      <ReadingAuditRows audit={{ availability: 'complete', readingStatus: record.readingStatus, sourceLevel: record.sourceLevel }} />
       <dt>Evidence ID</dt><dd><code>{record.runId}</code></dd>
       <dt>Adapter</dt><dd><code>{record.adapterId}</code></dd>
       <dt>Adapter revision</dt><dd>{record.adapterRevision}</dd>

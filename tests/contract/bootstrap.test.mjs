@@ -11,6 +11,9 @@ const ready = {
   keyProtection: 'os_store', storageIssue: null,
 };
 
+const officialAudit = { availability: 'complete', readingStatus: 'official', sourceLevel: 'official' };
+const legacyAudit = { availability: 'legacy_gap' };
+
 function desktopResponse(value) {
   globalThis.window = { __TAURI__: { core: { invoke: async () => value } } };
 }
@@ -272,9 +275,23 @@ test('operational alerts expose only the selected account and safe evidence', as
 
 test('activity history keeps nullable exact summaries, cursor scope and observation ordering', async () => {
   const profileId = '11111111-1111-4111-8111-111111111111';
-  const entry = { profileId, bindingId: '22222222-2222-4222-8222-222222222222', collectionRunId: '33333333-3333-4333-8333-333333333333', observedAtUtc: '2026-10-22T08:00:00.000Z', sourceKind: 'official_artifact', providerVersion: '0.163.0', sourceScope: 'account_activity_with_unknown_application_scope', coverage: 'unknown', summary: { lifetimeTokens: '9223372036854775807', peakDailyTokens: '0', longestRunningTurnSec: null, currentStreakDays: null, longestStreakDays: '9007199254740993' }, dailyBucketsState: 'unavailable' };
-  const args = { profileId, beforeRunId: null };
+  const entry = { profileId, bindingId: '22222222-2222-4222-8222-222222222222', collectionRunId: '33333333-3333-4333-8333-333333333333', observedAtUtc: '2026-10-22T08:00:00.000Z', sourceKind: 'official_artifact', providerVersion: '0.163.0', audit: officialAudit, sourceScope: 'account_activity_with_unknown_application_scope', coverage: 'unknown', summary: { lifetimeTokens: '9223372036854775807', peakDailyTokens: '0', longestRunningTurnSec: null, currentStreakDays: null, longestStreakDays: '9007199254740993' }, dailyBucketsState: 'unavailable' };
   const page = { profileId, entries: [entry], nextBeforeRunId: null };
+  const args = { profileId, beforeRunId: null };
+  const historical = { ...page, entries: [{ ...entry, audit: legacyAudit }] };
+  desktopResponse(historical);
+  assert.deepEqual(await invoke('load_profile_activity_history', args), historical);
+  for (const fields of [
+    { audit: undefined }, { audit: null }, { audit: { ...legacyAudit, sourceLevel: 'official' } },
+    { audit: { ...officialAudit, readingStatus: 'matched' } },
+    { audit: { ...officialAudit, redactedResponseHash: 'a'.repeat(64) } },
+    { providerVersion: 'private@example.invalid' }, { observedAtUtc: '0000-01-01T00:00:00.000Z' },
+  ]) {
+    desktopResponse({ ...page, entries: [{ ...entry, ...fields }] });
+    await assert.rejects(invoke('load_profile_activity_history', args), /desktop response is incompatible/);
+  }
+  desktopResponse({ ...page, profileId: entry.bindingId, entries: [{ ...entry, profileId: entry.bindingId }] });
+  await assert.rejects(invoke('load_profile_activity_history', args), /desktop response is incompatible/);
   desktopResponse(page); assert.deepEqual(await invoke('load_profile_activity_history', args), page);
   for (const fields of [{ profileId: '44444444-4444-4444-8444-444444444444' }, { bindingId: 'bad' }, { collectionRunId: 'bad' }, { observedAtUtc: '2026-02-30T08:00:00.000Z' }, { sourceKind: 'unknown' }, { sourceScope: 'inference_requests' }, { coverage: 'complete' }, { email: 'private@example.test' }, { dailyBucketsState: 'missing' }, { dailyUsageBuckets: [] }, { summary: { ...entry.summary, lifetimeTokens: 9007199254740993 } }, { summary: { ...entry.summary, lifetimeTokens: '9223372036854775808' } }, { summary: { ...entry.summary, lifetimeTokens: '01' } }]) {
     desktopResponse({ ...page, entries: [{ ...entry, ...fields }] });
@@ -815,8 +832,6 @@ test('rejects oversized activity previews and invalid Gregorian days without tru
   }
 });
 
-const officialAudit = { availability: 'complete', readingStatus: 'official', sourceLevel: 'official' };
-const legacyAudit = { availability: 'legacy_gap' };
 const savedActivity = (() => {
   const { requestId, approvalId, dailyUsageBuckets, ...value } = activityPreview;
   const { bindingId, collectionRunId, providerVersion, sourceKind, observedAtUtc } = value;
@@ -1052,9 +1067,23 @@ test('device scale and saved plan IPC refuse extra fields, invalid scales, and i
 
 test('history IPC keeps profiles, ordering, cursor bounds and missing windows exact', async () => {
   const profileId = '11111111-1111-4111-8111-111111111111';
-  const entry = { profileId, bindingId: '22222222-2222-4222-8222-222222222222', collectionRunId: '33333333-3333-4333-8333-333333333333', observedAtUtc: '2026-10-21T00:00:00.000Z', sourceKind: 'test_fixture', providerVersion: '0.163.0', limits: [{ limitId: 'codex', limitName: null, primary: { usedPercent: 0, derivedRemainingPercent: 100, windowDurationMins: 300, resetsAtUnix: null, label: 'Five-hour' }, secondary: null }] };
+  const entry = { profileId, bindingId: '22222222-2222-4222-8222-222222222222', collectionRunId: '33333333-3333-4333-8333-333333333333', observedAtUtc: '2026-10-21T00:00:00.000Z', sourceKind: 'test_fixture', providerVersion: '0.163.0', audit: officialAudit, limits: [{ limitId: 'codex', limitName: null, primary: { usedPercent: 0, derivedRemainingPercent: 100, windowDurationMins: 300, resetsAtUnix: null, label: 'Five-hour' }, secondary: null }] };
   const page = { profileId, entries: [entry], nextBeforeRunId: null };
   const args = { profileId, beforeRunId: null };
+  const historical = { ...page, entries: [{ ...entry, audit: legacyAudit }] };
+  desktopResponse(historical);
+  assert.deepEqual(await invoke('load_profile_quota_history', args), historical);
+  for (const fields of [
+    { audit: undefined }, { audit: null }, { audit: { ...legacyAudit, sourceLevel: 'official' } },
+    { audit: { ...officialAudit, readingStatus: 'matched' } },
+    { audit: { ...officialAudit, redactedResponseHash: 'a'.repeat(64) } },
+    { providerVersion: 'private@example.invalid' }, { observedAtUtc: '0000-01-01T00:00:00.000Z' },
+  ]) {
+    desktopResponse({ ...page, entries: [{ ...entry, ...fields }] });
+    await assert.rejects(invoke('load_profile_quota_history', args), /desktop response is incompatible/);
+  }
+  desktopResponse({ ...page, profileId: entry.bindingId, entries: [{ ...entry, profileId: entry.bindingId }] });
+  await assert.rejects(invoke('load_profile_quota_history', args), /desktop response is incompatible/);
   for (const value of [page, { ...page, entries: [] }, { ...page, entries: [{ ...entry, limits: [] }] }, { ...page, entries: [{ ...entry, limits: [{ ...entry.limits[0], primary: null }] }] }]) {
     desktopResponse(value); assert.deepEqual(await invoke('load_profile_quota_history', args), value);
   }

@@ -8,7 +8,7 @@ const first = '11111111-1111-4111-8111-111111111111';
 const second = '22222222-2222-4222-8222-222222222222';
 const uuid = (value: number) => `${value.toString(16).padStart(8, '0')}-aaaa-4aaa-8aaa-aaaaaaaaaaaa`;
 function entry(profileId: string, ordinal: number): QuotaHistoryEntry {
-  return { profileId, bindingId: uuid(profileId === first ? 1 : 2), collectionRunId: uuid(ordinal), observedAtUtc: '2026-10-21T00:00:00.000Z', sourceKind: 'test_fixture', providerVersion: '0.163.0', limits: [{ limitId: 'codex', limitName: null, primary: { usedPercent: ordinal === 100 ? 0 : 100, derivedRemainingPercent: ordinal === 100 ? 100 : 0, windowDurationMins: 300, resetsAtUnix: null, label: 'Five-hour' }, secondary: null }] };
+  return { profileId, bindingId: uuid(profileId === first ? 1 : 2), collectionRunId: uuid(ordinal), observedAtUtc: '2026-10-21T00:00:00.000Z', sourceKind: 'test_fixture', providerVersion: '0.163.0', audit: ordinal === 99 ? { availability: 'legacy_gap' } : { availability: 'complete', readingStatus: 'official', sourceLevel: 'official' }, limits: [{ limitId: 'codex', limitName: null, primary: { usedPercent: ordinal === 100 ? 0 : 100, derivedRemainingPercent: ordinal === 100 ? 100 : 0, windowDurationMins: 300, resetsAtUnix: null, label: 'Five-hour' }, secondary: null }] };
 }
 type HistoryFixture = { calls: { command: string; args: Record<string, unknown> }[]; deferFirst: boolean; pending: ((value: unknown) => void)[]; failSecond: boolean; wrongSecond: boolean; exportResolve?: (value: unknown) => void; exportReject?: (value: unknown) => void };
 async function open(page: Page, options: { deferFirst?: boolean; failSecond?: boolean } = {}) {
@@ -61,6 +61,8 @@ test('history loads only on request, pages saved snapshots, and preserves zero, 
   await firstRow.getByRole('button').click();
   await expect(detail(page)).toHaveAttribute('aria-label', 'Quota snapshot');
   const snapshot = detail(page);
+  await expect(snapshot.getByText('Reading status', { exact: true }).locator('+ dd')).toHaveText('Official');
+  await expect(snapshot.getByText('Source level', { exact: true }).locator('+ dd')).toHaveText('Official');
   const table = snapshot.getByRole('table');
   await expect(table.getByRole('columnheader', { name: 'Remaining', exact: true })).toBeVisible();
   await expect(table.getByRole('cell', { name: '0%', exact: true })).toBeVisible();
@@ -77,6 +79,9 @@ test('history loads only on request, pages saved snapshots, and preserves zero, 
   await missing.getByRole('button').first().click();
   await expect(detail(page)).toHaveAttribute('aria-label', 'Quota snapshot');
   await expect(detail(page)).toContainText('This accepted reading supplied no quota windows.');
+  await expect(detail(page).getByText('Evidence status', { exact: true }).locator('+ dd')).toHaveText('Not available');
+  await expect(detail(page).getByText('Reason', { exact: true }).locator('+ dd')).toHaveText('Historical reading');
+  await expect(detail(page).getByText('Reading status', { exact: true })).toHaveCount(0);
   await closeDetail(page);
   await history(page).getByRole('button', { name: 'Older readings' }).click();
   await expect(history(page).locator('[data-quota-history-run]')).toHaveCount(2);

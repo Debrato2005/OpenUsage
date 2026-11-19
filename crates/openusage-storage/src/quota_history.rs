@@ -1,6 +1,9 @@
 //! Bounded local quota snapshots, without combining provisional associations.
 use crate::activity::{read_error, require_uuid};
-use crate::{ActivityError, QUOTA_SOURCE_METHOD, Storage, StoredQuota};
+use crate::{
+    ActivityError, AuditedHistoryEntry, EvidenceMethod, QUOTA_SOURCE_METHOD, ReadingEvidenceTarget,
+    Storage, StoredQuota, reading_views::audit_for_reading,
+};
 use rusqlite::{OptionalExtension, TransactionBehavior, params};
 
 const PAGE_SIZE: usize = 20;
@@ -8,7 +11,7 @@ const PAGE_SIZE: usize = 20;
 #[derive(Debug)]
 pub struct QuotaHistoryPage {
     pub profile_id: String,
-    pub entries: Vec<StoredQuota>,
+    pub entries: Vec<AuditedHistoryEntry<StoredQuota>>,
     pub next_before_run_id: Option<String>,
 }
 
@@ -83,8 +86,23 @@ impl Storage {
         let entries = runs
             .iter()
             .take(PAGE_SIZE)
-            .map(|run| crate::quota::load_snapshot_packet(&tx, "main", run))
-            .collect::<Result<Vec<_>, _>>()?;
+            .map(|run| {
+                let reading = crate::quota::load_snapshot_packet(&tx, "main", run)?;
+                let audit = audit_for_reading(
+                    &tx,
+                    ReadingEvidenceTarget {
+                        profile_id,
+                        method: EvidenceMethod::Quota,
+                        run_id: run,
+                    },
+                    &reading.binding.binding_id,
+                    &reading.provider_version,
+                    reading.source_kind,
+                    &reading.commit.observed_at_utc,
+                )?;
+                Ok(AuditedHistoryEntry { reading, audit })
+            })
+            .collect::<Result<Vec<_>, ActivityError>>()?;
         tx.commit().map_err(read_error)?;
         Ok(QuotaHistoryPage {
             profile_id: profile_id.into(),
@@ -182,7 +200,7 @@ mod tests {
             first
                 .entries
                 .iter()
-                .map(|entry| entry.commit.collection_run_id.clone())
+                .map(|entry| entry.reading.commit.collection_run_id.clone())
                 .collect::<Vec<_>>(),
             (105..125).rev().map(id).collect::<Vec<_>>()
         );
@@ -200,14 +218,20 @@ mod tests {
             second
                 .entries
                 .iter()
-                .map(|entry| entry.commit.collection_run_id.clone())
+                .map(|entry| entry.reading.commit.collection_run_id.clone())
                 .collect::<Vec<_>>(),
             (100..105).rev().map(id).collect::<Vec<_>>()
         );
         assert_eq!(second.next_before_run_id, None);
         let refreshed = storage.quota_history(&id(1), None).unwrap();
-        assert_eq!(refreshed.entries[0].commit.collection_run_id, id(201));
-        assert_eq!(refreshed.entries[1].commit.collection_run_id, id(200));
+        assert_eq!(
+            refreshed.entries[0].reading.commit.collection_run_id,
+            id(201)
+        );
+        assert_eq!(
+            refreshed.entries[1].reading.commit.collection_run_id,
+            id(200)
+        );
         assert_eq!(
             storage
                 .quota_history(&id(1), Some(&id(100)))
@@ -263,7 +287,7 @@ mod tests {
         }
         let page = storage.quota_history(&id(1), None).unwrap();
         assert_eq!(page.entries.len(), 1);
-        assert_eq!(page.entries[0].commit.collection_run_id, id(100));
+        assert_eq!(page.entries[0].reading.commit.collection_run_id, id(100));
         assert_eq!(
             crate::backup_validation::activity_records(&storage.connection),
             before
@@ -292,9 +316,9 @@ mod tests {
         let before = crate::backup_validation::activity_records(&reopened.connection);
         let page = reopened.quota_history(&id(1), None).unwrap();
         assert_eq!(page.entries.len(), 2);
-        assert_eq!(page.entries[0].commit.binding_id, id(4));
-        assert_eq!(page.entries[1].commit.binding_id, id(3));
-        let limits = &page.entries[0].limits;
+        assert_eq!(page.entries[0].reading.commit.binding_id, id(4));
+        assert_eq!(page.entries[1].reading.commit.binding_id, id(3));
+        let limits = &page.entries[0].reading.limits;
         assert!(limits.iter().any(|limit| limit.limit_id == "no-windows"
             && limit.primary.is_none()
             && limit.secondary.is_none()));
@@ -308,7 +332,7 @@ mod tests {
         assert_eq!(secondary.used_percent, 100);
         assert_eq!(secondary.window_duration_mins, Some(9_007_199_254_740_991));
         assert_eq!(secondary.resets_at_unix, Some(-62_135_596_800));
-        let prior = page.entries[1].limits[0].primary.as_ref().unwrap();
+        let prior = page.entries[1].reading.limits[0].primary.as_ref().unwrap();
         assert_eq!(prior.used_percent, 0);
         assert_eq!(prior.window_duration_mins, None);
         assert_eq!(prior.resets_at_unix, None);

@@ -34,9 +34,9 @@ Linux input. Ordinary count defects, strict compatibility limits, legacy
 producer qualification, and saved-session migration remain open. Production pins
 and enabled tools stay unchanged.
 
-Hosted CI for selected-export commit `597d2b4` passed both jobs in
-[run 43809644782](https://github.com/Debrato2005/OpenUsage/actions/runs/43809644782).
-The current-reading change needs its own hosted result.
+Hosted CI for current-reading commit `34b69f0` passed both jobs in
+[run 44419323987](https://github.com/Debrato2005/OpenUsage/actions/runs/44419323987).
+The history-audit change needs its own hosted result.
 
 The wider native results below are from L-1g2 and earlier. They do not certify the current build. These ran on Linux with synthetic data and the real pinned `ccusage` 20.0.48:
 
@@ -67,6 +67,8 @@ Kept from baseline 2.0:
 - Wake handling: OU-PROC-013, OU-MON-013.
 
 ## Partial
+
+- Saved history audit (S-04e1) on November 19, 2026. Quota and activity snapshots show the saved reading status and source level in their details. The [record](reviews/2026-11-19-history-audit.md) owns checks and limits.
 
 - Current reading audit (S-04e0) on November 19, 2026. Saved desktop quota and activity carry status and source level from stored evidence. Each retained activity day keeps its own provenance. The [record](reviews/2026-11-19-current-reading-audit.md) owns checks and limits.
 
@@ -211,15 +213,15 @@ separate from document completion. The [performance report](performance-report.m
 
 The owner resumed autonomous implementation on November 15, 2026. Work continues through verified local commits and periodic pushes. Each push checks the GitHub login and includes only the reviewed branch. No release, deployment, or pull request is authorized. The latest instruction replaces the November 13 stop condition. Baseline 3.1 product scope stays unchanged.
 
-The current pass covers S-04e0, compact audit status on saved desktop quota and activity.
-The [record](reviews/2026-11-19-current-reading-audit.md) owns acceptance and limits.
-The next bounded slice carries the audit contract into saved quota and activity history views.
+The current pass covers S-04e1, compact audit status on saved quota and activity history.
+The [record](reviews/2026-11-19-history-audit.md) owns acceptance and limits.
+The next bounded slice reviews audit metadata for saved CLI quota status.
 S-04 remains open. SC-031 and other evidence clients retain their separate gates.
 Identity proof and new adapters keep their separate gates.
 Scanner activation and private website sync keep their separate gates.
 Live service configuration, deployment, and release remain under owner control.
 
-The repository inventory covers 978 tracked files at base `597d2b4`. Graphify maps the application, storage, provider, CLI, service, and test boundaries. The source review follows the current assignment. Real-provider, real-machine, and production scanner gates remain open.
+The repository inventory covers 980 tracked files at base `34b69f0`. Graphify maps the application, storage, provider, CLI, service, and test boundaries. The source review follows the current assignment. Real-provider, real-machine, and production scanner gates remain open.
 
 L-1f11as is complete within its separate legacy capture candidate scope.
 The [candidate record](reviews/2026-11-13-legacy-capture-candidate.md) lists executed

@@ -4,15 +4,16 @@ use crate::activity::{
 };
 use crate::{
     ACTIVITY_SOURCE_METHOD, ACTIVITY_SOURCE_SCOPE, ActivityCommit, ActivityDailyState,
-    ActivityError, ActivitySourceKind, ActivitySummaryValues, ProfileBinding, Storage,
-    StoredActivity,
+    ActivityError, ActivitySourceKind, ActivitySummaryValues, AuditedHistoryEntry, EvidenceMethod,
+    ProfileBinding, ReadingEvidenceTarget, Storage, StoredActivity,
+    reading_views::audit_for_reading,
 };
 use rusqlite::{OptionalExtension, TransactionBehavior, params};
 const PAGE_SIZE: usize = 20;
 #[derive(Debug)]
 pub struct ActivityHistoryPage {
     pub profile_id: String,
-    pub entries: Vec<StoredActivity>,
+    pub entries: Vec<AuditedHistoryEntry<StoredActivity>>,
     pub next_before_run_id: Option<String>,
 }
 impl Storage {
@@ -72,15 +73,33 @@ impl Storage {
             query.query(params![profile_id, ACTIVITY_SOURCE_METHOD])
         }
         .map_err(read_error)?;
-        let mut entries = Vec::with_capacity(PAGE_SIZE + 1);
+        let mut readings = Vec::with_capacity(PAGE_SIZE + 1);
         while let Some(row) = rows.next().map_err(read_error)? {
-            entries.push(read_snapshot(row)?);
+            readings.push(read_snapshot(row)?);
         }
         drop(rows);
         drop(query);
-        let next_before_run_id = (entries.len() > PAGE_SIZE)
-            .then(|| entries[PAGE_SIZE - 1].commit.collection_run_id.clone());
-        entries.truncate(PAGE_SIZE);
+        let next_before_run_id = (readings.len() > PAGE_SIZE)
+            .then(|| readings[PAGE_SIZE - 1].commit.collection_run_id.clone());
+        let entries = readings
+            .into_iter()
+            .take(PAGE_SIZE)
+            .map(|reading| {
+                let audit = audit_for_reading(
+                    &tx,
+                    ReadingEvidenceTarget {
+                        profile_id,
+                        method: EvidenceMethod::Activity,
+                        run_id: &reading.commit.collection_run_id,
+                    },
+                    &reading.binding.binding_id,
+                    &reading.provider_version,
+                    reading.source_kind,
+                    &reading.commit.observed_at_utc,
+                )?;
+                Ok(AuditedHistoryEntry { reading, audit })
+            })
+            .collect::<Result<Vec<_>, ActivityError>>()?;
         tx.commit().map_err(read_error)?;
         Ok(ActivityHistoryPage {
             profile_id: profile_id.into(),
@@ -237,7 +256,7 @@ mod tests {
     fn runs(page: &ActivityHistoryPage) -> Vec<String> {
         page.entries
             .iter()
-            .map(|entry| entry.commit.collection_run_id.clone())
+            .map(|entry| entry.reading.commit.collection_run_id.clone())
             .collect()
     }
     #[test]
@@ -374,7 +393,7 @@ mod tests {
         let before = crate::backup_validation::activity_records(&storage.connection);
         let page = storage.activity_history(&id(1), None).unwrap();
         assert_eq!(runs(&page), vec![id(102), id(101), id(100)]);
-        let latest = &page.entries[0];
+        let latest = &page.entries[0].reading;
         assert_eq!(latest.binding.binding_id, id(4));
         assert_eq!(latest.binding.home_reference, id(2));
         assert_eq!(latest.commit.snapshot_id, id(102));
@@ -391,13 +410,19 @@ mod tests {
         );
         assert_eq!(latest.summary.current_streak_days, None);
         assert_eq!(latest.daily_state, ActivityDailyState::Returned);
-        let zero = &page.entries[1];
+        let zero = &page.entries[1].reading;
         assert_eq!(zero.binding.binding_id, id(3));
         assert_eq!(zero.summary.lifetime_tokens.as_deref(), Some("0"));
         assert_eq!(zero.summary.current_streak_days.as_deref(), Some("0"));
         assert_eq!(zero.daily_state, ActivityDailyState::Empty);
-        assert_eq!(page.entries[2].summary, ActivitySummaryValues::default());
-        assert_eq!(page.entries[2].daily_state, ActivityDailyState::Unavailable);
+        assert_eq!(
+            page.entries[2].reading.summary,
+            ActivitySummaryValues::default()
+        );
+        assert_eq!(
+            page.entries[2].reading.daily_state,
+            ActivityDailyState::Unavailable
+        );
         assert!(!format!("{page:?}").contains("history-private@example.invalid"));
         assert_eq!(
             crate::backup_validation::activity_records(&storage.connection),
@@ -452,7 +477,10 @@ mod tests {
         assert_eq!(runs(&page), (100..120).rev().map(id).collect::<Vec<_>>());
         assert_eq!(page.next_before_run_id, None);
         let refreshed = storage.activity_history(&id(1), None).unwrap();
-        assert_eq!(refreshed.entries[0].commit.collection_run_id, id(200));
+        assert_eq!(
+            refreshed.entries[0].reading.commit.collection_run_id,
+            id(200)
+        );
         assert!(refreshed.next_before_run_id.is_some());
     }
     #[test]

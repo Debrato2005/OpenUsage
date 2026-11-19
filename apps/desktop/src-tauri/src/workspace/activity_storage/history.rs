@@ -1,5 +1,6 @@
 //! Saved summary observations retain source metadata without live freshness or invented events.
 use super::*;
+use openusage_storage::{AuditedHistoryEntry, ReadingAudit};
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -17,6 +18,7 @@ struct ActivityHistoryEntry {
     observed_at_utc: String,
     source_kind: &'static str,
     provider_version: String,
+    audit: ReadingAudit,
     source_scope: &'static str,
     coverage: &'static str,
     summary: SavedActivitySummary,
@@ -61,22 +63,28 @@ impl Workspace {
             entries: page
                 .entries
                 .into_iter()
-                .map(|entry| ActivityHistoryEntry {
-                    profile_id: entry.commit.profile_id,
-                    binding_id: entry.commit.binding_id,
-                    collection_run_id: entry.commit.collection_run_id,
-                    observed_at_utc: entry.commit.observed_at_utc,
-                    source_kind: entry.source_kind.as_str(),
-                    provider_version: entry.provider_version,
-                    source_scope: "account_activity_with_unknown_application_scope",
-                    coverage: "unknown",
-                    summary: entry.summary.into(),
-                    daily_buckets_state: match entry.daily_state {
-                        ActivityDailyState::Unavailable => "unavailable",
-                        ActivityDailyState::Empty => "empty",
-                        ActivityDailyState::Returned => "returned",
+                .map(
+                    |AuditedHistoryEntry {
+                         reading: entry,
+                         audit,
+                     }| ActivityHistoryEntry {
+                        profile_id: entry.commit.profile_id,
+                        binding_id: entry.commit.binding_id,
+                        collection_run_id: entry.commit.collection_run_id,
+                        observed_at_utc: entry.commit.observed_at_utc,
+                        source_kind: entry.source_kind.as_str(),
+                        provider_version: entry.provider_version,
+                        audit,
+                        source_scope: "account_activity_with_unknown_application_scope",
+                        coverage: "unknown",
+                        summary: entry.summary.into(),
+                        daily_buckets_state: match entry.daily_state {
+                            ActivityDailyState::Unavailable => "unavailable",
+                            ActivityDailyState::Empty => "empty",
+                            ActivityDailyState::Returned => "returned",
+                        },
                     },
-                })
+                )
                 .collect(),
         })
     }
@@ -109,7 +117,13 @@ mod tests {
         assert_eq!(value["profileId"], id);
         assert_eq!(value["entries"].as_array().unwrap().len(), 1);
         let entry = &value["entries"][0];
-        assert_eq!(entry.as_object().unwrap().len(), 10);
+        assert_eq!(entry.as_object().unwrap().len(), 11);
+        assert_eq!(
+            entry["audit"],
+            serde_json::json!({
+                "availability": "complete", "readingStatus": "official", "sourceLevel": "official"
+            })
+        );
         assert_eq!(entry["summary"]["lifetimeTokens"], "9007199254740993");
         assert_eq!(entry["coverage"], "unknown");
         assert_eq!(

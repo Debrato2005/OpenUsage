@@ -8,7 +8,7 @@ const first = '11111111-1111-4111-8111-111111111111';
 const second = '22222222-2222-4222-8222-222222222222';
 const uuid = (value: number) => `${value.toString(16).padStart(8, '0')}-aaaa-4aaa-8aaa-aaaaaaaaaaaa`;
 function entry(profileId: string, ordinal: number): ActivityHistoryEntry {
-  return { profileId, bindingId: uuid(profileId === first ? ordinal === 99 ? 9 : 1 : 2), collectionRunId: uuid(ordinal), observedAtUtc: new Date(Date.UTC(2026, 9, 22, 0, 0, ordinal)).toISOString(), sourceKind: ordinal === 99 ? 'official_artifact' : 'test_fixture', providerVersion: '0.163.0', sourceScope: 'account_activity_with_unknown_application_scope', coverage: 'unknown', summary: ordinal === 98 ? { lifetimeTokens: '0', peakDailyTokens: '0', longestRunningTurnSec: '0', currentStreakDays: '0', longestStreakDays: '0' } : { lifetimeTokens: '9007199254740993', peakDailyTokens: '9223372036854775807', longestRunningTurnSec: null, currentStreakDays: '0', longestStreakDays: null }, dailyBucketsState: ordinal === 99 ? 'unavailable' : ordinal === 98 ? 'empty' : 'returned' };
+  return { profileId, bindingId: uuid(profileId === first ? ordinal === 99 ? 9 : 1 : 2), collectionRunId: uuid(ordinal), observedAtUtc: new Date(Date.UTC(2026, 9, 22, 0, 0, ordinal)).toISOString(), sourceKind: ordinal === 99 ? 'official_artifact' : 'test_fixture', providerVersion: '0.163.0', audit: ordinal === 99 ? { availability: 'legacy_gap' } : { availability: 'complete', readingStatus: 'official', sourceLevel: 'official' }, sourceScope: 'account_activity_with_unknown_application_scope', coverage: 'unknown', summary: ordinal === 98 ? { lifetimeTokens: '0', peakDailyTokens: '0', longestRunningTurnSec: '0', currentStreakDays: '0', longestStreakDays: '0' } : { lifetimeTokens: '9007199254740993', peakDailyTokens: '9223372036854775807', longestRunningTurnSec: null, currentStreakDays: '0', longestStreakDays: null }, dailyBucketsState: ordinal === 99 ? 'unavailable' : ordinal === 98 ? 'empty' : 'returned' };
 }
 type Pending = { profileId: string; beforeRunId: string | null; resolve: (value: unknown) => void };
 type ExportPending = { resolve: (value: unknown) => void; reject: (error: unknown) => void };
@@ -60,6 +60,8 @@ test('saved summary history loads on request, preserves exact values and pages w
   const latest = rows(page).first(); await latest.getByRole('button').first().click();
   const detail = page.locator('[data-detail-panel][open]');
   await expect(detail).toHaveAttribute('aria-label', 'Activity snapshot');
+  await expect(detail.getByText('Reading status', { exact: true }).locator('+ dd')).toHaveText('Official');
+  await expect(detail.getByText('Source level', { exact: true }).locator('+ dd')).toHaveText('Official');
   for (const [name, value] of Object.entries({ lifetimeTokens: '9007199254740993', peakDailyTokens: '9223372036854775807', longestRunningTurnSec: 'Not available', currentStreakDays: '0', longestStreakDays: 'Not available' })) await expect(detail.locator(`[data-activity-history-metric="${name}"]`)).toHaveText(value);
   await expect(detail.locator('[data-activity-history-daily-state]')).toHaveAttribute('data-activity-history-daily-state', 'returned');
   await expect(detail).toContainText('Synthetic provider'); await expect(detail).toContainText('0.163.0'); await expect(detail).toContainText('Application scope'); await expect(detail).toContainText('Coverage');
@@ -72,6 +74,9 @@ test('saved summary history loads on request, preserves exact values and pages w
   await expect(detail).toHaveAttribute('aria-label', 'Activity snapshot');
   await expect(detail.locator('[data-activity-history-daily-state]')).toHaveAttribute('data-activity-history-daily-state', 'unavailable');
   await expect(detail).toContainText('Official OpenAI companion'); await expect(detail).toContainText(uuid(9));
+  await expect(detail.getByText('Evidence status', { exact: true }).locator('+ dd')).toHaveText('Not available');
+  await expect(detail.getByText('Reason', { exact: true }).locator('+ dd')).toHaveText('Historical reading');
+  await expect(detail.getByText('Reading status', { exact: true })).toHaveCount(0);
   await closeDetail(page);
   await rows(page).nth(2).getByRole('button').first().click();
   await expect(detail.locator('[data-activity-history-metric]')).toHaveText(['0', '0', '0', '0', '0']);
