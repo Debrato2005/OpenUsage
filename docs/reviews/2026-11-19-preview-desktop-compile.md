@@ -14,6 +14,18 @@ features disabled and an explicit path to absent frontend assets.
 
 ## Scope
 
-Hosted Windows and macOS results remain pending. The compile check does not
-launch the desktop or build a package. The [compatibility matrix](../compatibility-matrix.md)
-owns companion qualification, packaging, and real-machine acceptance.
+Both Mac jobs found a restore compile error. Darwin reports
+available inodes as `u32`, and the restore request uses `u64`. The correction
+compares both values losslessly in `u128`.
+
+The Windows job found the fixed-drive constant in the wrong module. The
+guard now imports `DRIVE_FIXED` from `WindowsProgramming` and keeps the
+existing `GetDriveTypeW` check. [First hosted run](https://github.com/Debrato2005/OpenUsage/actions/runs/44539690073)
+
+All 620 workspace tests and Clippy passed on Linux after the fixes. The
+compiled desktop passed the private native restore-apply journey with the
+checkpoint, live-database, and backup-fixture verifiers. Dependency policy
+passed with the existing lockfiles.
+
+The corrected hosted result remains pending. The compile check leaves desktop
+launch and package acceptance to the [compatibility matrix](../compatibility-matrix.md).

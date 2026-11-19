@@ -1529,7 +1529,8 @@ pub(crate) fn require_local_filesystem(path: &Path) -> Result<(), CommandError> 
 #[cfg(target_os = "windows")]
 pub(crate) fn require_local_filesystem(path: &Path) -> Result<(), CommandError> {
     use std::path::{Component, Prefix};
-    use windows_sys::Win32::Storage::FileSystem::{DRIVE_FIXED, GetDriveTypeW};
+    use windows_sys::Win32::Storage::FileSystem::GetDriveTypeW;
+    use windows_sys::Win32::System::WindowsProgramming::DRIVE_FIXED;
     let drive = match path.components().next() {
         Some(Component::Prefix(prefix)) => match prefix.kind() {
             Prefix::Disk(drive) | Prefix::VerbatimDisk(drive) => drive,

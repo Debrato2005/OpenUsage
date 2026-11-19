@@ -40,7 +40,7 @@ notify-rust = "=4.18.0"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 notify-rust = "=4.18.0"
-windows-sys = { version = "=0.61.2", features = ["Win32_Storage_FileSystem"] }
+windows-sys = { version = "=0.61.2", features = ["Win32_Storage_FileSystem", "Win32_System_WindowsProgramming"] }
 
 [dev-dependencies]
 rusqlite = { version = "=0.40.1", features = ["bundled-sqlcipher-vendored-openssl"] }

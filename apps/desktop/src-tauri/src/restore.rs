@@ -849,7 +849,7 @@ fn require_inodes(path: &Path, needed: u64) -> Result<(), CommandError> {
             return Err(CommandError::InsufficientSpace);
         }
         let stats = unsafe { stats.assume_init() };
-        if stats.f_files != 0 && stats.f_favail < needed {
+        if stats.f_files != 0 && u128::from(stats.f_favail) < u128::from(needed) {
             return Err(CommandError::InsufficientSpace);
         }
         Ok(())
