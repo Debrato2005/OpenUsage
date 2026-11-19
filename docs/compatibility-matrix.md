@@ -14,7 +14,7 @@ This matrix separates executed platform evidence from required support.
 | Ubuntu 24.04 LTS x64 desktop | Required Stage 1 target. Linux dependencies and package assembly exist | Real-machine AT-38 and npm installation AT-80 remain open |
 | Windows 11 x64 | Required labelled preview for Stage 1. No Windows execution result | Qualified companion/scanner pins, CI builds, WebView2 recovery, packaging, and real-machine acceptance remain open |
 | Windows 10 22H2 x64 | Required baseline only with applicable OS security updates | Same unexecuted Windows gates |
-| macOS 14+ on Apple Silicon and Intel | Required labelled previews for Stage 1. No macOS execution result | Qualified companion/scanner pins, CI builds, packaging, and real-machine acceptance remain open |
+| macOS 14+ on Apple Silicon and Intel | Required labelled previews for Stage 1. The hosted Apple Silicon CLI check passed | Intel CLI verification, qualified companion/scanner pins, desktop builds, packaging, and real-machine acceptance remain open |
 | WSL profiles on Windows 11 | Planned with an explicitly configured supported distribution | Profile isolation, approved paths, and AT-39/AT-55 remain open |
 | Other distributions or architectures | No published release qualification | Separate build, dependency, native, installation, and performance evidence required |
 
@@ -39,7 +39,7 @@ A changed parser needs renewed field acceptance under OU-AUD-008.
 
 ## Build and distribution scope
 
-The [CI workflow](../.github/workflows/ci.yml) defines Linux checks, Chromium/WebKit renderer checks, and preview CLI process checks for Windows and macOS. Hosted preview results remain pending.
+The [CI workflow](../.github/workflows/ci.yml) defines Linux checks, Chromium/WebKit renderer checks, and preview CLI process checks for Windows and macOS. The [CLI record](reviews/2026-11-19-preview-cli-process.md) owns the executed preview results.
 [Engineering workflow](engineering-workflow.md) owns build tools and commands.
 Renderer fixtures use synthetic IPC. Their browser engines do not qualify Windows WebView2 or macOS WKWebView.
 Native Linux journeys use the actual application with private synthetic sources.

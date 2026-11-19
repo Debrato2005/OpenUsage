@@ -26,7 +26,13 @@ The Linux native CLI journey passed against the rebuilt desktop and CLI.
 It checked consent, the pinned scanner, no-usage output, exact saved quota,
 read-only workspace files, and exit code 7 after key-store shutdown.
 
-## Preview scope
+## Hosted preview checks
 
-Hosted Windows and macOS results remain pending. The
-[compatibility matrix](../compatibility-matrix.md) owns preview qualification.
+Both public CLI tests passed on Apple Silicon in the [first hosted run](https://github.com/Debrato2005/OpenUsage/actions/runs/44493637393).
+On Windows the build stopped before the tests. Git Bash's Perl lacked
+`Locale::Maketext::Simple`, which vendored OpenSSL requires. The Windows job
+now checks native Perl and the required modules before passing its path to
+OpenSSL. The locked CLI command stays the same.
+
+Intel Mac and the corrected Windows run need their own results. The
+[compatibility matrix](../compatibility-matrix.md) owns platform qualification.

@@ -206,6 +206,14 @@ jobs:
         run: |
           rustup toolchain install "$RUST_VERSION" --profile minimal --no-self-update
           test "$(rustup run "$RUST_VERSION" rustc --print host-tuple)" = "$RUST_TARGET"
+      - name: Select native Windows Perl for vendored OpenSSL
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $perl = (Get-Command perl.exe -CommandType Application).Source
+          & $perl -MLocale::Maketext::Simple -MIPC::Cmd -e 'die qq(Expected native Windows Perl\n) unless $^O eq q(MSWin32)'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "OPENSSL_SRC_PERL=$perl" >> $env:GITHUB_ENV
       - name: Build and test the CLI process
         shell: bash
         run: rustup run "$RUST_VERSION" cargo test --locked --target "$RUST_TARGET" -p openusage-cli --test cli
