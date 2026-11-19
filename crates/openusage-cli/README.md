@@ -36,7 +36,8 @@ marks remain separate. A missing quota has no invented values or observation tim
 
 When detected sources have no usage in the selected dates, text says
 No local usage in this date range. With no detected source folder, the existing
-no-logs message remains. Both cases keep an empty JSON `tools` array. Neither
+no-logs message remains, even when the platform has no scanner pin. A scan
+still requires a pin. Both cases keep an empty JSON `tools` array. Neither
 case creates a zero measurement.
 
 ## Output

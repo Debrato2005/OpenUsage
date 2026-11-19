@@ -1,7 +1,7 @@
 name: CI
 
 # The same commands as scripts/engineering.py, run in full on Linux (OU-ENG-002 to OU-ENG-004).
-# Windows and macOS join in S-15. Native GUI journeys stay a local gate.
+# Windows and macOS run the preview CLI contract. Native GUI journeys stay a local gate.
 on:
   pull_request:
   push:
@@ -15,7 +15,6 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
-# Two jobs run in parallel, so one slow package mirror cannot push both past their limits.
 jobs:
   linux:
     name: Linux checks
@@ -177,3 +176,36 @@ jobs:
       # Both engines, with axe accessibility checks in light and dark themes.
       - name: Test renderer
         run: bun run test:renderer
+
+  cli-preview:
+    name: CLI preview (${{ matrix.target }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            target: aarch64-apple-darwin
+          - runner: macos-15-intel
+            target: x86_64-apple-darwin
+          - runner: windows-2025
+            target: x86_64-pc-windows-msvc
+    env:
+      RUST_VERSION: 1.99.1
+      RUST_TARGET: ${{ matrix.target }}
+      CARGO_INCREMENTAL: 0
+      CARGO_TERM_COLOR: never
+    steps:
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6; official ref verified
+        with:
+          persist-credentials: false
+      - name: Install pinned Rust and match the runner architecture
+        shell: bash
+        run: |
+          rustup toolchain install "$RUST_VERSION" --profile minimal --no-self-update
+          test "$(rustup run "$RUST_VERSION" rustc --print host-tuple)" = "$RUST_TARGET"
+      - name: Build and test the CLI process
+        shell: bash
+        run: rustup run "$RUST_VERSION" cargo test --locked --target "$RUST_TARGET" -p openusage-cli --test cli

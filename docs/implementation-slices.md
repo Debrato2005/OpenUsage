@@ -222,6 +222,7 @@ Updated November 15, 2026. Each completed item has one local commit and scoped e
 - [x] L-6a: Linux packages with the bundled `ccusage` and Codex companion, and the WebKitGTK dependencies listed (OU-PLAT-002, OU-PLAT-005).
 - [x] L-6b: the npm package, with per-platform packages and no install scripts (OU-DIST-001 to OU-DIST-005, OU-DIST-009; AT-81).
 - [ ] L-6c: Windows and macOS preview builds in CI (part of OU-NFR-012). The owner approved required build downloads on November 8. The [archive check](reviews/2026-11-19-preview-archive-check.md) owns input integrity evidence. Companion qualification, hosted builds, and real-machine tests remain open.
+- [ ] L-6c1: verify the public CLI process tests in hosted CI on Windows x64 and both Mac architectures. The [workflow](engineering-workflow.md#commands) owns the runner scope. Desktop packaging, companion qualification, and real-machine acceptance remain under L-6c.
 
 **L-7 Release documents**
 

@@ -212,7 +212,7 @@ track packages and tested versions.
 
 ## Open items
 
-[SRS Section 0.7](SRS.md) lists four: how to split logs by account, the npm name, the provider and terms review, and the first `ccusage` run.
+[SRS Section 0.7](SRS.md#07-open-items) tracks log assignment by account, the npm name and scope, provider interfaces and terms, and qualification of scanner changes and the remaining tools.
 
 ## Current assignment
 
@@ -221,6 +221,7 @@ The owner resumed autonomous implementation on November 15, 2026. Work continues
 S-04e2 covers saved audit metadata in CLI quota status.
 The [record](reviews/2026-11-19-cli-quota-audit.md) owns acceptance and limits.
 L-7e3 adds the release references. The [preview archive check](reviews/2026-11-19-preview-archive-check.md) records verified source archives for L-6c.
+L-6c1 adds the hosted [preview CLI process checks](reviews/2026-11-19-preview-cli-process.md) for Windows and macOS. Hosted acceptance remains pending.
 Preview builds, companion qualification, release measurements, real-account comparisons, and publication remain open.
 S-04 remains open. SC-031 and other evidence clients retain their separate gates.
 Identity proof and new adapters keep their separate gates.

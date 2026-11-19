@@ -39,7 +39,7 @@ A changed parser needs renewed field acceptance under OU-AUD-008.
 
 ## Build and distribution scope
 
-The [CI workflow](../.github/workflows/ci.yml) runs Linux checks and Chromium/WebKit renderer checks.
+The [CI workflow](../.github/workflows/ci.yml) defines Linux checks, Chromium/WebKit renderer checks, and preview CLI process checks for Windows and macOS. Hosted preview results remain pending.
 [Engineering workflow](engineering-workflow.md) owns build tools and commands.
 Renderer fixtures use synthetic IPC. Their browser engines do not qualify Windows WebView2 or macOS WKWebView.
 Native Linux journeys use the actual application with private synthetic sources.

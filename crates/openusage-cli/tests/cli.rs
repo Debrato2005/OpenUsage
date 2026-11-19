@@ -3,15 +3,16 @@
 use std::process::{Command, Stdio};
 
 fn openusage(home: &std::path::Path, args: &[&str]) -> (i32, String, String) {
-    let output = Command::new(env!("CARGO_BIN_EXE_openusage"))
-        .args(args)
-        .env_clear()
-        .env("HOME", home)
-        .env("PATH", "/usr/bin:/bin")
-        .env("TZ", "UTC")
-        .stdin(Stdio::null())
-        .output()
-        .unwrap();
+    let home = home.canonicalize().unwrap();
+    let mut command = Command::new(env!("CARGO_BIN_EXE_openusage"));
+    command.env_clear().env("TZ", "UTC");
+    #[cfg(unix)]
+    command.env("HOME", &home).env("PATH", "/usr/bin:/bin");
+    #[cfg(windows)]
+    command
+        .env("USERPROFILE", &home)
+        .env("LOCALAPPDATA", home.join("AppData").join("Local"));
+    let output = command.args(args).stdin(Stdio::null()).output().unwrap();
     (
         output.status.code().unwrap(),
         String::from_utf8(output.stdout).unwrap(),

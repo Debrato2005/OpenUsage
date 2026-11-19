@@ -198,10 +198,6 @@ pub fn command(
     if !detected.is_empty() && !options.yes {
         ask(&detected, env, input, prompt)?;
     }
-    let digest = env
-        .ccusage_digest
-        .as_deref()
-        .ok_or_else(|| CliError::ccusage("No pinned ccusage exists for this platform yet."))?;
     let mut sums: BTreeMap<&'static str, Sum> = BTreeMap::new();
     let mut roots: BTreeMap<&str, Vec<&std::path::Path>> = BTreeMap::new();
     for source in &detected {
@@ -211,6 +207,10 @@ pub fn command(
             .push(std::path::Path::new(&source.folder));
     }
     for (tool, folders) in roots {
+        let digest = env
+            .ccusage_digest
+            .as_deref()
+            .ok_or_else(|| CliError::ccusage("No pinned ccusage exists for this platform yet."))?;
         let mut builder = tempfile::Builder::new();
         #[cfg(unix)]
         {
@@ -459,9 +459,10 @@ mod tests {
             empty_range,
             "Local logs from 2026-11-06 to 2026-11-08, days in UTC\nNo local usage in this date range\n"
         );
-        // Nothing to read needs no consent.
+        // Nothing to read needs no consent or platform scanner pin.
         let empty = Env {
             home: Some(dir.path().join("nobody")),
+            ccusage_digest: None,
             ..make_env(dir.path(), "exit 9")
         };
         assert!(
@@ -469,20 +470,19 @@ mod tests {
                 .unwrap()
                 .ends_with("No Claude Code or Codex logs on this device\n")
         );
-        // A changed binary never runs, and a failed run reports one line.
+        // A missing or mismatched pin prevents execution even with consent.
         let mut changed = make_env(dir.path(), &format!("touch {}/ran", dir.path().display()));
-        changed.ccusage_digest = Some("0".repeat(64));
-        assert_eq!(
-            command(
+        for digest in [None, Some("0".repeat(64))] {
+            changed.ccusage_digest = digest;
+            let error = command(
                 &args(&["--yes"]),
                 &changed,
                 &mut std::io::empty(),
-                &mut std::io::sink()
+                &mut std::io::sink(),
             )
-            .unwrap_err()
-            .code,
-            "ccusage_unavailable"
-        );
+            .unwrap_err();
+            assert_eq!((error.code, error.exit), ("ccusage_unavailable", 4));
+        }
         assert!(!dir.path().join("ran").exists());
         assert_eq!(
             command(
