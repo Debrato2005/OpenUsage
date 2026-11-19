@@ -28,11 +28,12 @@ read-only workspace files, and exit code 7 after key-store shutdown.
 
 ## Hosted preview checks
 
-Both public CLI tests passed on Apple Silicon in the [first hosted run](https://github.com/Debrato2005/OpenUsage/actions/runs/44493637393).
+Both public CLI tests passed on Apple Silicon and Intel Mac in the [first hosted run](https://github.com/Debrato2005/OpenUsage/actions/runs/44493637393).
 On Windows the build stopped before the tests. Git Bash's Perl lacked
-`Locale::Maketext::Simple`, which vendored OpenSSL requires. The Windows job
-now checks native Perl and the required modules before passing its path to
-OpenSSL. The locked CLI command stays the same.
+`Locale::Maketext::Simple`, which vendored OpenSSL requires. The first fix
+returned both Perl paths on the Windows runner. The job now selects the
+runner's Strawberry Perl executable and checks the required modules.
+The locked CLI command stays the same. [First preflight run](https://github.com/Debrato2005/OpenUsage/actions/runs/44494524360)
 
-Intel Mac and the corrected Windows run need their own results. The
+The corrected Windows run needs its own result. The
 [compatibility matrix](../compatibility-matrix.md) owns platform qualification.

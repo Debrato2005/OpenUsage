@@ -210,7 +210,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $perl = (Get-Command perl.exe -CommandType Application).Source
+          $perl = 'C:\Strawberry\perl\bin\perl.exe'
           & $perl -MLocale::Maketext::Simple -MIPC::Cmd -e 'die qq(Expected native Windows Perl\n) unless $^O eq q(MSWin32)'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           "OPENSSL_SRC_PERL=$perl" >> $env:GITHUB_ENV
