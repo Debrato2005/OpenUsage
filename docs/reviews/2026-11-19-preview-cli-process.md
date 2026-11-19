@@ -35,5 +35,7 @@ returned both Perl paths on the Windows runner. The job now selects the
 runner's Strawberry Perl executable and checks the required modules.
 The locked CLI command stays the same. [First preflight run](https://github.com/Debrato2005/OpenUsage/actions/runs/44494524360)
 
-The corrected Windows run needs its own result. The
-[compatibility matrix](../compatibility-matrix.md) owns platform qualification.
+All five jobs passed in [run 44494865965](https://github.com/Debrato2005/OpenUsage/actions/runs/44494865965)
+for `4235c26`. Windows x64 and both Mac jobs each passed the two CLI process
+tests. Linux checks and Renderer passed. The
+[compatibility matrix](../compatibility-matrix.md) owns desktop and package qualification.

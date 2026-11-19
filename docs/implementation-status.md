@@ -221,7 +221,7 @@ The owner resumed autonomous implementation on November 15, 2026. Work continues
 S-04e2 covers saved audit metadata in CLI quota status.
 The [record](reviews/2026-11-19-cli-quota-audit.md) owns acceptance and limits.
 L-7e3 adds the release references. The [preview archive check](reviews/2026-11-19-preview-archive-check.md) records verified source archives for L-6c.
-L-6c1 adds the hosted [preview CLI process checks](reviews/2026-11-19-preview-cli-process.md) for Windows and macOS. Hosted acceptance remains pending.
+L-6c1 passed the hosted [preview CLI process checks](reviews/2026-11-19-preview-cli-process.md) on Windows x64 and both Mac architectures.
 Preview builds, companion qualification, release measurements, real-account comparisons, and publication remain open.
 S-04 remains open. The owner requires complete evidence for historical readings. Recovery and release acceptance remain open. See [SC-031](srs-clarifications.md#sc-031-evidence-for-historical-readings).
 Identity proof and new adapters keep their separate gates.
