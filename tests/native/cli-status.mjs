@@ -223,6 +223,13 @@ try {
   const auditedLine = await openusage(['statusline']);
   assert.equal(auditedLine.code, 0);
   assert.match(auditedLine.stdout, /^CLI connection control 5h 75% 7d 60% \| /);
+  const auditDoctor = await openusage(['doctor', '--audit-history', '--json']);
+  assert.equal(auditDoctor.code, 0);
+  assert.deepEqual(JSON.parse(auditDoctor.stdout), {
+    schemaVersion: 2, command: 'doctor', checks: [
+      { name: 'historical evidence', ok: true, detail: '2 complete, 0 with missing historical evidence', fix: null },
+    ],
+  });
   assert.equal(await hash(providerLog), providerBefore);
   assert.deepEqual(stable(await workspaceFiles()), stable(quotaBefore));
   assert.deepEqual(await sourceHashes(), shiftedBefore);
@@ -234,6 +241,9 @@ try {
   const json = await openusage(['status', '--json']);
   assert.equal(json.code, 7);
   assert.equal(JSON.parse(json.stdout).error.code, 'locked');
+  const lockedAudit = await openusage(['doctor', '--audit-history', '--json']);
+  assert.equal(lockedAudit.code, 7);
+  assert.equal(JSON.parse(lockedAudit.stdout).error.code, 'locked');
   evidence.steps.push('With the Secret Service gone, statusline and status --json gave locked with exit code 7 and no prompt.');
   assert.deepEqual(stable(await workspaceFiles()), stable(quotaBefore));
   assert.equal(await hash(application), evidence.applicationSha256);

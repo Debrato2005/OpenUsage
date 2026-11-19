@@ -47,8 +47,8 @@ mod reading_evidence;
 mod reading_views;
 pub use reading_evidence::{
     EvidenceLocation, EvidenceMethod, EvidenceUnusedField, ReadingEvidenceAvailability,
-    ReadingEvidenceCheck, ReadingEvidenceContext, ReadingEvidenceInput, ReadingEvidenceRecord,
-    ReadingEvidenceTarget, ResponseEvidenceInput,
+    ReadingEvidenceCheck, ReadingEvidenceContext, ReadingEvidenceCoverage, ReadingEvidenceInput,
+    ReadingEvidenceRecord, ReadingEvidenceTarget, ResponseEvidenceInput,
 };
 pub use reading_views::{
     AuditedActivityDay, AuditedHistoryEntry, CurrentActivityView, CurrentQuotaView, ReadingAudit,

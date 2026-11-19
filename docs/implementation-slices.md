@@ -920,6 +920,8 @@ S-04e1 carries the same audit status through saved quota and activity history pa
 The [history record](reviews/2026-11-19-history-audit.md) owns the check scope.
 S-04e2 carries saved quota audit metadata through schema-2 CLI JSON.
 The [CLI record](reviews/2026-11-19-cli-quota-audit.md) owns the checks and limits.
+S-04f1 adds an explicit [CLI check](reviews/2026-11-19-historical-evidence-check.md) for complete evidence across saved history.
+Recovering original historical evidence remains a separate release gate.
 Other evidence clients, all-status alerts, and reset rules remain open.
 
 Every number can say where it came from.

@@ -125,6 +125,7 @@ Lookup returns `LegacyGap` for a marker, `None` for an unknown or mismatched tar
 Complete records and markers cannot coexist for one run.
 Schema-14 snapshot checks require exactly one of them for every collection run.
 The [SC-031 decision](srs-clarifications.md#sc-031-evidence-for-historical-readings) requires complete evidence for historical readings at first release. A migration marker records incomplete evidence.
+The explicit [CLI check](../crates/openusage-cli/README.md#output) validates and counts saved activity and quota evidence in one read-only snapshot. The counts include archived profiles. Invalid records return a read error.
 
 Encrypted backup validation supports schemas 1 through 14.
 Trusted normalization preserves old values and adds only the migration markers.

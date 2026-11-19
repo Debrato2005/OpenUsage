@@ -896,6 +896,10 @@ fn schema_thirteen_history_migrates_without_fabricating_response_evidence() {
 
     let mut migrated = Storage::open(&path, &KEY).unwrap();
     assert_eq!(migrated.metadata().unwrap().schema_version, 14);
+    let read_only = Storage::open_read_only(&path, &KEY).unwrap();
+    let coverage = read_only.reading_evidence_coverage().unwrap();
+    assert_eq!((coverage.complete, coverage.historical_gaps), (0, 2));
+    drop(read_only);
     assert_eq!(migrated.current_activity(PROFILE).unwrap().unwrap(), saved);
     let view = migrated.current_activity_view(PROFILE).unwrap().unwrap();
     assert_eq!(view.reading, saved);
@@ -1111,6 +1115,8 @@ fn committed_evidence_is_immutable_and_unexplained_absence_is_not_legacy() {
     let control = controlled_connection(&path);
     let baseline = application_export(&mut storage);
     let original = complete_evidence(&storage, RUN, EvidenceMethod::Activity);
+    let coverage = storage.reading_evidence_coverage().unwrap();
+    assert_eq!((coverage.complete, coverage.historical_gaps), (1, 0));
     for statement in [
         "UPDATE reading_evidence SET redacted_response_hash=printf('%064d',0) WHERE collection_run_id=?1",
         "INSERT INTO reading_evidence SELECT * FROM reading_evidence WHERE collection_run_id=?1",
@@ -1152,6 +1158,10 @@ fn committed_evidence_is_immutable_and_unexplained_absence_is_not_legacy() {
         storage.reading_evidence(target(RUN, EvidenceMethod::Activity)),
         Err(ActivityError::ReadFailed)
     ));
+    assert_eq!(
+        storage.reading_evidence_coverage(),
+        Err(ActivityError::ReadFailed)
+    );
     let before = storage.backup_snapshot().unwrap().bytes;
     assert_eq!(
         storage.current_activity_view(PROFILE).err(),

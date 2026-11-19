@@ -69,6 +69,8 @@ Kept from baseline 2.0:
 
 ## Partial
 
+- Historical evidence check (S-04f1), November 19, 2026. `openusage doctor --audit-history` validates and counts saved quota and activity evidence, including archived profiles. The [record](reviews/2026-11-19-historical-evidence-check.md) owns the checks and recovery boundary.
+
 - Saved CLI quota audit (S-04e2) on November 19, 2026. `status --json` uses the saved audit record and keeps schema version 2. The [record](reviews/2026-11-19-cli-quota-audit.md) owns the contract, checks, and native scope.
 
 - Saved history audit (S-04e1) on November 19, 2026. Quota and activity snapshots show the saved reading status and source level in their details. The [record](reviews/2026-11-19-history-audit.md) owns checks and limits.
@@ -220,6 +222,7 @@ The owner resumed autonomous implementation on November 15, 2026. Work continues
 
 S-04e2 covers saved audit metadata in CLI quota status.
 The [record](reviews/2026-11-19-cli-quota-audit.md) owns acceptance and limits.
+S-04f1 provides a read-only check for the historical evidence gate. Recovery needs evidence from the original observations.
 L-7e3 adds the release references. The [preview archive check](reviews/2026-11-19-preview-archive-check.md) records verified source archives for L-6c.
 L-6c1 passed the hosted [preview CLI process checks](reviews/2026-11-19-preview-cli-process.md) on Windows x64 and both Mac architectures.
 Preview builds, companion qualification, release measurements, real-account comparisons, and publication remain open.

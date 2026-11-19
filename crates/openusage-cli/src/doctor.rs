@@ -1,17 +1,18 @@
-//! `openusage doctor`: checks this machine and prints each fix. It reads no log and no database.
+//! `openusage doctor` checks this machine. The explicit audit check reads saved evidence only.
 
 use crate::{CliError, Env, SCHEMA_VERSION, known_options};
 use openusage_locallogs::{self as locallogs, CCUSAGE_VERSION};
 use serde::Serialize;
 
-pub const HELP: &str = "Usage: openusage doctor [--json]
+pub const HELP: &str = "Usage: openusage doctor [--audit-history] [--json]
 
-Checks this machine and prints each fix. It reads no log and no database.
+Checks this machine and prints each fix. Only --audit-history opens the workspace read-only.
 The exit code is 0 when every check passes and 1 when one needs a fix.
 
 Options:
-  --json    Print versioned JSON.
-  --help    Show this help.
+  --audit-history  Check saved provider quota and activity evidence.
+  --json           Print versioned JSON.
+  --help           Show this help.
 ";
 
 /// Library folders where a Linux package manager installs WebKitGTK.
@@ -124,12 +125,36 @@ pub fn checks(env: &Env) -> Vec<Check> {
     ]
 }
 
+fn check_history(env: &Env) -> Result<Check, CliError> {
+    let coverage = crate::status::open(env)?
+        .reading_evidence_coverage()
+        .map_err(|_| CliError {
+            code: "read_failed",
+            exit: 10,
+            message: "OpenUsage could not check the saved reading evidence.".into(),
+        })?;
+    let ok = coverage.historical_gaps == 0;
+    Ok(Check {
+        name: "historical evidence",
+        ok,
+        detail: format!(
+            "{} complete, {} with missing historical evidence",
+            coverage.complete, coverage.historical_gaps
+        ),
+        fix: (!ok).then_some("Recover evidence from the original readings."),
+    })
+}
+
 pub fn command(args: &[String], env: &Env) -> Result<String, CliError> {
     if args.iter().any(|a| a == "--help" || a == "-h") {
         return Ok(HELP.to_string());
     }
-    known_options(args, &["--json"])?;
-    let checks = checks(env);
+    known_options(args, &["--audit-history", "--json"])?;
+    let checks = if args.iter().any(|a| a == "--audit-history") {
+        vec![check_history(env)?]
+    } else {
+        checks(env)
+    };
     let output = if args.iter().any(|a| a == "--json") {
         format!(
             "{}\n",

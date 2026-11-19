@@ -15,6 +15,7 @@ The `openusage` command (SRS Section 11A). It has no webview dependency (OU-CLI-
 | `openusage board leave [--reauthorize] [--yes] [--json]` | Account-wide public departure through the saved token or fresh GitHub authorization |
 | `openusage board forget [--yes] [--json]` | Local enrollment erasure without a service request |
 | `openusage doctor [--json]` | One line for each check of this machine, with the fix for each failed check |
+| `openusage doctor --audit-history [--json]` | Check evidence across saved provider quota and activity history |
 | `openusage app` | Opens the desktop app, or prints the fix when it cannot start |
 
 `status` and `statusline` read saved data only. They open the database read-only, never prompt, never start a reading and never use the network (OU-CLI-002, OU-CLI-006). The key comes from the OS credential store through the [keys crate](../openusage-keys/README.md). A workspace with an app password is `locked`, because the CLI never asks for the password. A reset time that passed says so, and never claims a reset. With the app closed and no WAL, the read opens the file as immutable and creates no file. With a WAL, SQLite can update its shared index in `-shm`, and the database and its WAL stay unchanged ([SC-020](../../docs/srs-clarifications.md#sc-020-a-read-only-cli-and-the-wal-index)).
@@ -49,6 +50,13 @@ For complete evidence, `quota.status` comes from the saved audit status.
 A historical gap has `status: null` and `audit: {"availability":"legacy_gap"}`.
 A profile without saved quota keeps its unavailable state and has no `audit` key.
 The [saved-reading contract](../../docs/data-contracts.md#provider-quota-and-activity) owns the audit fields.
+
+`doctor --audit-history` checks one read-only storage snapshot. It reports counts
+of complete evidence and historical gaps across active and archived profiles.
+It exits with code 1 when historical gaps remain. Invalid saved evidence returns
+`read_failed`. A locked or missing workspace returns the saved-data error.
+The check uses the same read-only workspace path as `status`.
+[SC-031](../../docs/srs-clarifications.md#sc-031-evidence-for-historical-readings) owns the release rule.
 
 `status.local.scopes` holds separate `grouped`, `legacy`, and `unplaced` records. Each record names the tool, scope ID, date, saved time zone, and latest scan time. Each dated scope uses today in its own zone. An unplaced record has no date or zone. The CLI never adds these records together. Text and statusline label each legacy folder separately. No account identity comes from local records.
 

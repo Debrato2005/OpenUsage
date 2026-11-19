@@ -2,7 +2,7 @@
 
 use crate::activity::{activity_utc_timestamp, read_error, require, require_uuid, write_error};
 use crate::{ActivityError, ActivitySourceKind, ProfileBinding, Storage};
-use rusqlite::{Connection, OptionalExtension, params};
+use rusqlite::{Connection, OptionalExtension, Transaction, TransactionBehavior, params};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
@@ -32,6 +32,12 @@ pub struct ReadingEvidenceTarget<'a> {
     pub profile_id: &'a str,
     pub method: EvidenceMethod,
     pub run_id: &'a str,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ReadingEvidenceCoverage {
+    pub complete: u64,
+    pub historical_gaps: u64,
 }
 
 impl EvidenceMethod {
@@ -311,6 +317,39 @@ pub(crate) fn validate_snapshot(connection: &Connection, schema: &str) -> Result
         validate_stored(&evidence, &version, &observed, method)?;
     }
     Ok(())
+}
+
+impl Storage {
+    /// Validates and counts saved evidence across all provider readings in one read snapshot.
+    pub fn reading_evidence_coverage(&self) -> Result<ReadingEvidenceCoverage> {
+        let transaction =
+            Transaction::new_unchecked(&self.connection, TransactionBehavior::Deferred)
+                .map_err(read_error)?;
+        validate_snapshot(&transaction, "main")?;
+        let (readings, complete, historical_gaps) = transaction
+            .query_row(
+                "SELECT (SELECT count(*) FROM collection_runs),
+                        (SELECT count(*) FROM reading_evidence),
+                        (SELECT count(*) FROM reading_evidence_legacy)",
+                [],
+                |row| {
+                    let count = |column: usize| {
+                        u64::try_from(row.get::<_, i64>(column)?)
+                            .map_err(|_| rusqlite::Error::InvalidQuery)
+                    };
+                    Ok((count(0)?, count(1)?, count(2)?))
+                },
+            )
+            .map_err(read_error)?;
+        if complete.checked_add(historical_gaps) != Some(readings) {
+            return Err(ActivityError::ReadFailed);
+        }
+        transaction.commit().map_err(read_error)?;
+        Ok(ReadingEvidenceCoverage {
+            complete,
+            historical_gaps,
+        })
+    }
 }
 
 #[cfg(test)]

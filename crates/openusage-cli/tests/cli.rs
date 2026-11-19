@@ -59,6 +59,10 @@ fn help_exit_codes_and_errors_are_stable() {
         (code, out.as_str(), err.as_str()),
         (8, "OpenUsage no data\n", "")
     );
+    let (code, out, err) = openusage(home.path(), &["doctor", "--audit-history", "--json"]);
+    assert_eq!((code, err.as_str()), (8, ""));
+    let error: serde_json::Value = serde_json::from_str(&out).unwrap();
+    assert_eq!(error["error"]["code"], "no_workspace");
     let (code, _, err) = openusage(home.path(), &["nope"]);
     assert_eq!(code, 2);
     assert!(err.ends_with("(usage)\n"));

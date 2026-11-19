@@ -542,6 +542,8 @@ connection states use the public-command SQLCipher tests.
 The same journey signs in with the approved synthetic provider after the
 unavailable-quota check. It compares the native saved audit and both quota
 windows with the CLI output after the app closes.
+The explicit historical evidence check counts the complete records and refuses
+the locked workspace after private key-store shutdown.
 
 ## Native share images
 
