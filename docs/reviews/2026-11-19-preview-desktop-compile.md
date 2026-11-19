@@ -12,7 +12,7 @@ it checked the three runner targets and confirmed that the new configuration
 belongs to one step. The locked desktop compile passed on Linux with default
 features disabled and an explicit path to absent frontend assets.
 
-## Scope
+## Compile fixes
 
 Both Mac jobs found a restore compile error. Darwin reports
 available inodes as `u32`, and the restore request uses `u64`. The correction
@@ -27,5 +27,13 @@ compiled desktop passed the private native restore-apply journey with the
 checkpoint, live-database, and backup-fixture verifiers. Dependency policy
 passed with the existing lockfiles.
 
-The corrected hosted result remains pending. The compile check leaves desktop
-launch and package acceptance to the [compatibility matrix](../compatibility-matrix.md).
+## Hosted verification
+
+The corrected commit `ce809054a81cde773cce8acf08144ffbe09db765` passed the locked
+CLI process tests and the desktop Rust check on Windows x64, Apple Silicon, and
+Intel Mac. The desktop check used development mode without bundled frontend
+assets. The Linux and renderer jobs also passed, for five successful jobs.
+[Hosted run](https://github.com/Debrato2005/OpenUsage/actions/runs/44542650553)
+
+Packaged builds and native launches remain open for these targets. See the
+[compatibility matrix](../compatibility-matrix.md).

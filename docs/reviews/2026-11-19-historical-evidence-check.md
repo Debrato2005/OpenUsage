@@ -30,3 +30,13 @@ different hashes. Recovery needs evidence bound to the original run and
 observation. The [producer test](../../crates/openusage-codex/tests/response_evidence.rs)
 covers this distinction. This check reports gaps. Historical acceptance
 remains open.
+
+## Project evidence inventory
+
+The November 19 search covered the private startup receipts and the project's
+evidence and recovery archives. The receipts confirm that two authorized Codex
+profiles saved quota and activity. The restart receipt confirms that the saved
+reading digests stayed the same and that the receipt retained no raw readings.
+The search found no original evidence that can fill the historical gaps.
+The search scope excluded provider credential homes, raw provider logs, and
+user databases.

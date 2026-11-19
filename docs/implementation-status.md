@@ -225,6 +225,8 @@ The [record](reviews/2026-11-19-cli-quota-audit.md) owns acceptance and limits.
 S-04f1 provides a read-only check for the historical evidence gate. Recovery needs evidence from the original observations.
 L-7e3 adds the release references. The [preview archive check](reviews/2026-11-19-preview-archive-check.md) records verified source archives for L-6c.
 L-6c1 passed the hosted [preview CLI process checks](reviews/2026-11-19-preview-cli-process.md) on Windows x64 and both Mac architectures.
+L-6c2 passed the hosted [desktop Rust checks](reviews/2026-11-19-preview-desktop-compile.md) on the same three targets.
+The current [Linux package check](reviews/2026-11-19-linux-package-acceptance.md) passed offline npm installation, packaged app startup, and Debian archive inspection.
 Preview builds, companion qualification, release measurements, real-account comparisons, and publication remain open.
 S-04 remains open. The owner requires complete evidence for historical readings. Recovery and release acceptance remain open. See [SC-031](srs-clarifications.md#sc-031-evidence-for-historical-readings).
 Identity proof and new adapters keep their separate gates.
