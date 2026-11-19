@@ -217,3 +217,8 @@ jobs:
       - name: Build and test the CLI process
         shell: bash
         run: rustup run "$RUST_VERSION" cargo test --locked --target "$RUST_TARGET" -p openusage-cli --test cli
+      - name: Check desktop Rust for this preview target
+        shell: bash
+        env:
+          TAURI_CONFIG: '{"build":{"devUrl":"http://127.0.0.1:1420"}}'
+        run: rustup run "$RUST_VERSION" cargo check --locked --target "$RUST_TARGET" -p openusage-desktop --no-default-features

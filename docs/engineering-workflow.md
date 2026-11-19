@@ -50,8 +50,10 @@ The preview CLI job uses Rust 1.99.1 on hosted Windows x64 and on both Mac
 architectures. It checks the Rust host tuple, builds with `Cargo.lock`, and runs
 the two public CLI process tests with private temporary homes. The Windows
 job checks native Perl and the modules needed to build vendored OpenSSL.
-The job runs no desktop build, scanner, or real-account test. It produces no
-release package.
+The job then checks the desktop Rust target in Tauri development mode. That
+compile check uses a loopback development URL and needs no frontend assets.
+The workflow produces no release package. Scanner and real-account acceptance
+run separately.
 
 CI tests the combined Codex and Pi qualification features. It does not run the
 private candidate executable or native GUI journeys. The native Codex journey
