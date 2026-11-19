@@ -36,14 +36,15 @@ This is the record of how requirements were read. Entries keep their original da
 | SC-028 | Desktop and private website companion | Owner-authorized baseline 3.1; implementation open |
 | SC-029 | Local deletion and public enrollment | Implemented and accepted within synthetic Linux scope |
 | SC-030 | Explicit public departure after credential loss | Implemented within synthetic Linux scope |
-| SC-031 | Evidence for historical readings | Open conflict; SRS unchanged |
+| SC-031 | Evidence for historical readings | Owner requires complete evidence. Release acceptance remains open |
 
 ## SC-031: evidence for historical readings
 
-Recorded November 16, 2026. Open conflict. The SRS remains unchanged.
-OU-AUD-001 requires complete evidence for each accepted reading.
-Existing histories lack the captured response hashes, format fingerprints, and check records needed to meet that requirement.
-The S-04 plan proposes no evidence record for older readings. That plan cannot approve a normative exception.
+Recorded November 16, 2026. Owner decision November 19, 2026.
+The first release requires complete evidence for every historical reading.
+OU-AUD-001 remains in force. The SRS remains unchanged.
+Some existing histories lack the response hashes, format fingerprints, and
+check records needed to meet that requirement.
 
 Preserve the original values, times, bindings, provider versions, and source kinds.
 Do not invent response hashes, adapter revisions, checks, comparisons, or earlier evidence records.
@@ -55,8 +56,12 @@ Missing evidence on another run must remain invalid.
 Source level describes the adapter interface. It establishes no verified identity or real-account qualification.
 Synthetic fixtures retain their `test_fixture` provenance.
 Evidence availability stays separate from the four reading statuses.
-The owner must resolve the legacy exception before historical compliance or full S-04 completion can be claimed.
-Work on evidence for new readings can continue as partial implementation.
+Each historical reading needs evidence tied to its original observation.
+A fresh reading establishes only its own observation. A migration marker
+records a gap and fails the release requirement. Preserve the original records
+while the project determines whether their evidence can be recovered. Release
+acceptance remains open. Any decision to remove saved data needs separate
+owner authorization.
 
 ## SC-030: explicit public departure after credential loss
 

@@ -820,7 +820,7 @@ L-7e stays open for its other documents and acceptance evidence.
 | S-03b | Rich dashboard | S-03 | Done |
 | S-03d | Modern Overview | S-03b | Done, with two recorded reasons in [status](implementation-status.md#failing-or-stale-tests) |
 | S-03c | Keychain by default | S-03b | New workspaces use the key store (L-0). The move of a password workspace follows the launch |
-| S-04 | Reading status and evidence | S-03b | S-04a through S-04e1 cover new-reading evidence, Overview access, selected exports, and current and history desktop reads. The remaining status clients and historical compliance stay open |
+| S-04 | Reading status and evidence | S-03b | S-04a through S-04e2 cover new-reading evidence, Overview access, selected exports, desktop current and history reads, and CLI quota. Historical evidence recovery and other status clients remain open |
 | S-05 | Adapter layer | S-04 | Not started |
 | G-1 | Owner: real-account test on Codex | S-05 | Not started |
 | S-06 | Tray and background | S-05 | Owned scanner shutdown complete within Linux scope. Tray, autostart, and wake handling remain |
@@ -909,7 +909,7 @@ The [durable record](reviews/2026-11-16-durable-reading-evidence.md) owns its ch
 S-04c0 corrects activity source, time, and scope in the existing account summary panels.
 It adds no evidence endpoint or reading-status contract.
 The [provenance record](reviews/2026-11-16-activity-provenance.md) owns its separate checks.
-Historical compliance remains open under [SC-031](srs-clarifications.md#sc-031-evidence-for-historical-readings).
+The owner requires complete historical evidence for first release. Recovery and acceptance remain open under [SC-031](srs-clarifications.md#sc-031-evidence-for-historical-readings).
 S-04c1 adds on-demand evidence access in the existing Overview activity and quota panels.
 The [details record](reviews/2026-11-16-reading-evidence-details.md) owns target scoping, strict contracts, privacy, native permission correction, and executed checks.
 S-04d carries saved audit metadata through all three selected provider-reading export routes.
@@ -926,7 +926,7 @@ Every number can say where it came from.
 
 - **Requirements:** OU-STATE-010, OU-STATE-011, OU-AUD-001 to OU-AUD-003, OU-AUD-009, OU-AUD-010, OU-ALERT-019, OU-RESET-005, OU-RESET-006, OU-DATA-027 for evidence.
 - **Tests:** AT-56 to AT-59.
-- **Build:** Add a new schema with `reading_evidence`, and add status and source to the typed readings. Codex readings are `official`. Show status and evidence in the S-01 detail panel, and carry them through exports and backups. Preserve historical values and provenance with explicit evidence-gap markers. Do not invent earlier status or evidence records. SC-031 remains an open normative conflict.
+- **Build:** Add a new schema with `reading_evidence`, and add status and source to the typed readings. Codex readings are `official`. Show status and evidence in the S-01 detail panel, and carry them through exports and backups. Preserve historical values and provenance while checking original evidence. Gap markers fail the first-release requirement under SC-031.
 - **Subagents:** Luna writes fixtures for each status. Astra owns the migration and the evidence writer.
 - **Stop:** The tests pass, and an older database and an older backup both open with their numbers unchanged.
 

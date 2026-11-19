@@ -65,7 +65,7 @@ A used-field or parser change voids its prior field acceptance under OU-AUD-008.
 Keep the original summary as a dated record. Record the replacement test and its exact version scope.
 A hash does not authenticate a provider or prove an identity.
 [Stored reading evidence](data-contracts.md#reading-evidence) and this formal comparison record serve separate purposes.
-Historical gaps under SC-031 remain open.
+Release acceptance for historical evidence remains open under [SC-031](srs-clarifications.md#sc-031-evidence-for-historical-readings).
 
 Unofficial adapters remain unimplemented. Future Matched status also requires the independent-source, time, identity, and tolerance checks in OU-AUD-004.
 A live provider summary never qualifies another operating system, package installation, hosted leaderboard, or Stage 3 sync.

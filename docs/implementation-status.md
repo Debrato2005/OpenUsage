@@ -223,7 +223,7 @@ The [record](reviews/2026-11-19-cli-quota-audit.md) owns acceptance and limits.
 L-7e3 adds the release references. The [preview archive check](reviews/2026-11-19-preview-archive-check.md) records verified source archives for L-6c.
 L-6c1 adds the hosted [preview CLI process checks](reviews/2026-11-19-preview-cli-process.md) for Windows and macOS. Hosted acceptance remains pending.
 Preview builds, companion qualification, release measurements, real-account comparisons, and publication remain open.
-S-04 remains open. SC-031 and other evidence clients retain their separate gates.
+S-04 remains open. The owner requires complete evidence for historical readings. Recovery and release acceptance remain open. See [SC-031](srs-clarifications.md#sc-031-evidence-for-historical-readings).
 Identity proof and new adapters keep their separate gates.
 Scanner activation and private website sync keep their separate gates.
 Live service configuration, deployment, and release remain under owner control.

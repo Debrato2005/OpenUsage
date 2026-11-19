@@ -124,7 +124,7 @@ It invents no historical hashes, checks, adapter revisions, comparisons, or stat
 Lookup returns `LegacyGap` for a marker, `None` for an unknown or mismatched target, and an error for unexplained or conflicting absence.
 Complete records and markers cannot coexist for one run.
 Schema-14 snapshot checks require exactly one of them for every collection run.
-The [SC-031 conflict](srs-clarifications.md#sc-031-evidence-for-historical-readings) remains open. It approves no exception to OU-AUD-001.
+The [SC-031 decision](srs-clarifications.md#sc-031-evidence-for-historical-readings) requires complete evidence for historical readings at first release. A migration marker records incomplete evidence.
 
 Encrypted backup validation supports schemas 1 through 14.
 Trusted normalization preserves old values and adds only the migration markers.
@@ -324,7 +324,7 @@ The audit cells add no raw response, private field name, credential, email, code
 Existing source-kind fields keep synthetic fixture provenance explicit.
 Run and binding references retain the route's existing alias and identifier-consent rules.
 No new identifier field accompanies audit metadata.
-SC-031 remains open. These fields do not establish historical compliance or real-provider qualification.
+Historical acceptance under SC-031 and real-provider qualification remain open.
 
 
 The complete application export streams one validated database snapshot. Every
