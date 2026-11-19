@@ -224,7 +224,7 @@ Updated November 15, 2026. Each completed item has one local commit and scoped e
 - [ ] L-6c: Windows and macOS preview builds in CI (part of OU-NFR-012). The owner approved required build downloads on November 8. The [archive check](reviews/2026-11-19-preview-archive-check.md) owns input integrity evidence. Companion qualification, hosted builds, and real-machine tests remain open.
 - [x] L-6c1: the [public CLI process tests](reviews/2026-11-19-preview-cli-process.md) passed in hosted CI on Windows x64 and both Mac architectures. Desktop packaging, companion qualification, and real-machine acceptance remain under L-6c.
 - [x] L-6c2: the [desktop Rust check](reviews/2026-11-19-preview-desktop-compile.md) passed in development mode on hosted Windows x64 and both Mac architectures. Packaged app builds, companion qualification, and real-machine tests remain under L-6c.
-- [ ] L-6c3: stage the reviewed Codex and `ccusage` files on each preview runner. [Build workflow](engineering-workflow.md) gives the command and scope. Hosted staging results remain open.
+- [x] L-6c3: the reviewed Codex and `ccusage` files staged on all three preview runners. [Traceability](acceptance-traceability.md#evidence-log) records the results. Qualification and packaging remain under L-6c.
 
 **L-7 Release documents**
 
