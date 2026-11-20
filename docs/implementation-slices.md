@@ -225,6 +225,7 @@ Updated November 15, 2026. Each completed item has one local commit and scoped e
 - [x] L-6c1: the [public CLI process tests](reviews/2026-11-19-preview-cli-process.md) passed in hosted CI on Windows x64 and both Mac architectures. Desktop packaging, companion qualification, and real-machine acceptance remain under L-6c.
 - [x] L-6c2: the [desktop Rust check](reviews/2026-11-19-preview-desktop-compile.md) passed in development mode on hosted Windows x64 and both Mac architectures. Packaged app builds, companion qualification, and real-machine tests remain under L-6c.
 - [x] L-6c3: the reviewed Codex and `ccusage` files staged on all three preview runners. [Traceability](acceptance-traceability.md#evidence-log) records the results. Qualification and packaging remain under L-6c.
+- [ ] L-6c4: check each staged scanner with offline synthetic Claude Code and Codex logs. The [workflow](engineering-workflow.md) gives the scope. Hosted execution remains open.
 
 **L-7 Release documents**
 

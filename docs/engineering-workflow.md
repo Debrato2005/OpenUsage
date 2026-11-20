@@ -47,14 +47,15 @@ Logs retain commands, timing, exit codes and fixed diagnostic counters. They dis
 The `CI` workflow in `.github/workflows/ci.yml` runs the full set on Linux for pull requests and `main` in two parallel jobs of at most 60 minutes. Linux checks runs dependency policy, whitespace, tool tests, Git safety, renderer build and TypeScript check, IPC contracts, Rust format, Clippy and workspace tests, and native oracle tests. Renderer installs only Node, Bun and Playwright's browsers and runs the renderer suite in both engines. Apt retries stalled downloads, because the runner's package mirror alone once took 74 minutes. It installs Rust 1.99.1, Node 22.23.2, Bun 1.3.14 and Gitleaks 8.30.1 from their official archives and checks their pinned digests. The Git safety tests and hooks find Gitleaks through `GITLEAKS_BIN`. Bun installs the frozen lockfile and runs package scripts; Vite, Playwright and the contract tests still run on Node. `package.json` names `playwright-core` at the same version as `@playwright/test`, so the axe checks and the test runner share one Playwright. An empty `trustedDependencies` keeps dependency lifecycle scripts blocked, as `ignore-scripts` did under npm. Native GUI journeys stay a local gate.
 
 The preview CLI job uses Rust 1.99.1 on hosted Windows x64 and on both Mac
-architectures. It stages the preview sidecars and checks the Rust host tuple.
+architectures. It stages the preview sidecars and checks the scanner with
+synthetic logs. It also checks the Rust host tuple.
 It builds with `Cargo.lock` and runs the two public CLI process tests with
 private temporary homes. The Windows job checks native Perl and the modules
 needed to build vendored OpenSSL.
 The job then checks the desktop Rust target in Tauri development mode. That
 compile check uses a loopback development URL and needs no frontend assets.
-The workflow produces no release package. Scanner and real-account acceptance
-run separately.
+The workflow produces no release package. App scanner integration and
+real-account acceptance run separately.
 
 `python scripts/provision-preview-sidecars.py --target TARGET --out PATH`
 stages the two executables with their Tauri filenames. Use a new directory
@@ -62,6 +63,12 @@ under an existing parent. Add `--archive-dir PATH` to use local archives.
 The script checks archive and executable sizes and hashes before it exposes
 the output directory. Staging runs neither executable. The
 [preview manifest](../packaging/preview-sidecars.json) holds the build pins.
+
+The [scanner check](../tests/tools/preview_scanner.py) checks the executable
+pin again. It runs one offline daily report per tool in private homes. The
+reports must match the recorded Claude Code and Codex counts. The copied logs
+must keep their hashes. The check covers the scanner itself. App integration,
+cancellation, and the Codex account companion need separate checks.
 
 CI tests the combined Codex and Pi qualification features. It does not run the
 private candidate executable or native GUI journeys. The native Codex journey

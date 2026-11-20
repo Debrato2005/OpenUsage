@@ -208,6 +208,13 @@ jobs:
       - name: Stage reviewed preview sidecars
         shell: bash
         run: python scripts/provision-preview-sidecars.py --target "$RUST_TARGET" --out "$RUNNER_TEMP/openusage-preview-sidecars"
+      - name: Check preview scanner with synthetic logs
+        shell: bash
+        run: |
+          suffix=
+          if [[ "$RUNNER_OS" == Windows ]]; then suffix=.exe; fi
+          python tests/tools/preview_scanner.py --target "$RUST_TARGET" \
+            --binary "$RUNNER_TEMP/openusage-preview-sidecars/openusage-ccusage-$RUST_TARGET$suffix"
       - name: Install pinned Rust and match the runner architecture
         shell: bash
         run: |
